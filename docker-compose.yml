@@ -47,7 +47,8 @@ services:
       retries: 5
     restart: unless-stopped
     networks:
-      - onpre-internal-network   # Lambda からアクセス可能に
+      - onpre-external           # 外部公開用
+      - onpre-internal-network   # Lambda間通信
 
   # ============================================
   # ScyllaDB (DynamoDB Compatible DB)
@@ -68,7 +69,8 @@ services:
       start_period: 180s
     restart: unless-stopped
     networks:
-      - onpre-internal-network   # Lambda からアクセス可能に
+      - onpre-external           # 外部公開用
+      - onpre-internal-network   # Lambda間通信
 
   # ============================================
   # VictoriaLogs
@@ -89,6 +91,9 @@ services:
       timeout: 5s
       retries: 3
     restart: unless-stopped
+    networks:
+      - onpre-external           # 外部公開用
+      - onpre-internal-network   # Lambda間通信
 
   # ============================================
   # Gateway Application (FastAPI)

@@ -15,6 +15,7 @@ docker compose でGatewayコンテナ（DinD環境）を起動し、
 
 import os
 import time
+import json
 
 import pytest
 import requests
@@ -158,6 +159,98 @@ class TestE2E:
         assert "item_id" in data
         assert "retrieved_item" in data
         assert data["retrieved_item"]["id"]["S"] == data["item_id"]
+
+    def test_function_invocation_sync(self, gateway_health):
+        """E2E: 同期呼び出し検証 (invoke-test -> hello)"""
+        token = get_auth_token()
+
+        response = requests.post(
+            f"{GATEWAY_URL}/api/invoke/test",
+            json={
+                "target": "lambda-hello",
+                "type": "RequestResponse",
+            },
+            headers={"Authorization": f"Bearer {token}"},
+            verify=VERIFY_SSL,
+        )
+
+        # Check invoke-test execution
+        if response.status_code != 200:
+            print(f"Sync Invoke Failed: {response.text}")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+
+        # Check inner response (hello function)
+        inner_resp = data["response"]
+        assert inner_resp["statusCode"] == 200
+        inner_body = json.loads(inner_resp["body"])
+        assert "Hello" in inner_body["message"]
+
+    def test_function_invocation_async(self, gateway_health):
+        """E2E: 非同期呼び出し検証 (invoke-test -> s3-test)"""
+        token = get_auth_token()
+        bucket = "async-test-bucket"
+        key = f"test-{int(time.time())}.txt"
+
+        # 1. Create bucket (Sync)
+        requests.post(
+            f"{GATEWAY_URL}/api/s3/test",
+            json={"action": "create_bucket", "bucket": bucket},
+            headers={"Authorization": f"Bearer {token}"},
+            verify=VERIFY_SSL,
+        )
+
+        # 2. Invoke Async (invoke-test -> s3-test)
+        response = requests.post(
+            f"{GATEWAY_URL}/api/invoke/test",
+            json={
+                "target": "lambda-s3-test",  # Target function name as registered in Gateway or just function name?
+                # lambda_invoker uses name=function_name.
+                # functions.yml keys are `lambda-s3-test`.
+                # routing.yml mapped /api/s3/test to lambda-s3-test.
+                # So target should be `lambda-s3-test`.
+                # Wait, for sync test I used "hello". functions.yml has "lambda-hello".
+                # routing.yml maps /api/hello -> lambda-hello.
+                # invoke-test uses DIRECT API: /2015-03-31/functions/{function_name}/invocations
+                # Gateway's invoke_lambda_api uses {function_name} to look up config.
+                # So I MUST use the key from functions.yml. i.e., "lambda-hello" and "lambda-s3-test".
+                "type": "Event",
+                "payload": {
+                    "body": {"action": "put", "bucket": bucket, "key": key, "data": "Async Data"}
+                },
+            },
+            headers={"Authorization": f"Bearer {token}"},
+            verify=VERIFY_SSL,
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        # Async invocation returns 202 from Gateway to invoke-test
+        assert data["status_code"] == 202
+
+        # 3. Verify Side Effect (Poll S3)
+        print("Waiting for async execution...")
+        time.sleep(2)  # Initial wait
+
+        max_retries = 20
+        found = False
+        for i in range(max_retries):
+            check_resp = requests.post(
+                f"{GATEWAY_URL}/api/s3/test",
+                json={"action": "get", "bucket": bucket, "key": key},
+                headers={"Authorization": f"Bearer {token}"},
+                verify=VERIFY_SSL,
+            )
+            check_data = check_resp.json()
+            if check_data.get("success") is True:
+                found = True
+                assert check_data["content"] == "Async Data"
+                break
+            time.sleep(1)
+
+        assert found, "Async execution failed: File not found in S3"
 
 
 if __name__ == "__main__":

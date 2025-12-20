@@ -18,6 +18,11 @@ routes:
     method: "POST"
     function: "lambda-scylla-test"
 
+  # Invoke Verification
+  - path: "/api/invoke/test"
+    method: "POST"
+    function: "lambda-invoke-test"
+
   # パスパラメータの例
   # - path: "/api/users/{user_id}"
   #   method: "GET"

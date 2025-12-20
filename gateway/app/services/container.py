@@ -65,6 +65,43 @@ class ContainerManager:
             logger.warning(f"Failed to resolve network dynamically: {e}. Using 'bridge'.")
             return "bridge"
 
+    def resolve_gateway_internal_url(self) -> str:
+        """
+        Gateway自身の内部アクセス用URLを解決する。
+        onpre-internal-network 上での自身のアドレスを特定する。
+        解決できない場合はエラーとする（起動不可）。
+
+        Returns:
+            str: 内部用URL (例: https://onpre-gateway:443)
+        """
+        try:
+            hostname = socket.gethostname()
+            # 自分のコンテナ情報を取得
+            self_container = self.client.containers.get(hostname)
+            networks = self_container.attrs.get("NetworkSettings", {}).get("Networks", {})
+
+            # 内部ネットワーク上のIPまたはエイリアスを探す
+            for net_name, net_info in networks.items():
+                if net_name.endswith("onpre-internal-network"):
+                    # 内向きにはコンテナ名(hostname)でアクセス可能だが、
+                    # 念のためIPアドレスまたはNetworkエイリアスを使用する手もある。
+                    # ここでは最も確実なコンテナ名(hostname) + デフォルトのHTTPSポートを使用する。
+                    # エイリアスが設定されている場合もあるが、hostnameはユニーク。
+                    # ただし、self.client.containers.get(hostname).name がコンテナ名。
+                    container_name = self_container.name
+                    logger.info(f"Resolved Gateway Internal Host: {container_name} on {net_name}")
+                    return f"https://{container_name}"
+
+            # 見つからない場合
+            raise RuntimeError(
+                f"Gateway container is not attached to 'onpre-internal-network'. "
+                f"Attached networks: {list(networks.keys())}"
+            )
+
+        except Exception as e:
+            logger.critical(f"Failed to resolve Gateway Internal URL: {e}")
+            raise RuntimeError(f"Critical Error: Could not resolve Gateway Internal URL: {e}")
+
     def ensure_container_running(
         self, name: str, image: Optional[str] = None, env: Optional[Dict[str, str]] = None
     ) -> str:

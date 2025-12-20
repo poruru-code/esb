@@ -18,3 +18,5 @@ functions:
   lambda-scylla-test:
     environment:
       DYNAMODB_ENDPOINT: "http://onpre-database:8000"
+
+  lambda-invoke-test: {}

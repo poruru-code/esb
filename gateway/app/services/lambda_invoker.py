@@ -42,12 +42,19 @@ def invoke_function(function_name: str, payload: bytes, timeout: int = 300) -> r
     if func_config is None:
         raise FunctionNotFoundError(function_name)
 
+    # 環境変数を準備
+    env = func_config.get("environment", {}).copy()
+    # Gatewayの内部URLを動的に解決
+    # 解決できない場合は ContainerManager がエラーを吐くので、ここではキャッチしない（起動失敗させる）
+    gateway_internal_url = get_manager().resolve_gateway_internal_url()
+    env["GATEWAY_INTERNAL_URL"] = gateway_internal_url
+
     # コンテナを起動
     try:
         host = get_manager().ensure_container_running(
             name=function_name,
             image=func_config.get("image"),
-            env=func_config.get("environment", {}),
+            env=env,
         )
     except Exception as e:
         raise ContainerStartError(function_name, e) from e
