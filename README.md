@@ -103,10 +103,24 @@ docker logs -f onpre-app-root
 
 ## 開発ガイド
 
+### 開発環境セットアップ
+```bash
+# 1. 仮想環境作成と依存関係インストール
+cd gateway
+uv venv
+uv pip install -e ".[dev]"
+
+# 2. Git hooks (Ruff自動適用) のセットアップ
+# lefthookがインストールされていない場合:
+#   Windows: winget install evilmartians.lefthook
+#   macOS: brew install lefthook
+lefthook install
+```
+
 ### テスト実行
 E2EテストはDinD環境を起動して実行されます。
 ```bash
-./tests/run_tests.sh
+python tests/run_tests.py --build
 ```
 ※ `--build` オプションで再ビルド可能。
 
