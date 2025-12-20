@@ -91,7 +91,6 @@ docker compose down
 |--------|-----------|------|
 | `IDLE_TIMEOUT_MINUTES` | `5` | アイドル状態のLambdaコンテナを停止するまでの分数 |
 
-> **Note**: `DOCKER_NETWORK` は自動検出されるため設定不要です。
 
 ```bash
 # 例: アイドルタイムアウトを15分に設定
