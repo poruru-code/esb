@@ -50,3 +50,24 @@ def test_ensure_container_starts_new():
 
     assert actual_image == "lambda-hello:latest"
     assert kwargs.get("privileged", False) is False
+
+
+def test_ensure_container_image_not_found():
+    """Verify that 404 is returned if the image is not found."""
+    import docker.errors
+
+    mock_client = MagicMock()
+    # Mocking containers.get to raise NotFound, and run to raise ImageNotFound
+    mock_client.containers.get.side_effect = docker.errors.NotFound("Not found")
+    mock_client.containers.run.side_effect = docker.errors.ImageNotFound(
+        "No such image", response=MagicMock()
+    )
+
+    with (
+        patch.object(manager, "client", mock_client),
+        patch.object(manager, "network", "dind-network"),
+    ):
+        response = client.post("/containers/ensure", json={"function_name": "unknown-func"})
+
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()

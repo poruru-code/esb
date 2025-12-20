@@ -10,12 +10,18 @@ Usage:
 """
 
 import argparse
+import os
 import socket
 import subprocess
 import sys
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+
+# テスト用の環境変数デフォルト値設定
+os.environ.setdefault("JWT_SECRET_KEY", "dev-secret-key-change-in-production")
+os.environ.setdefault("X_API_KEY", "dev-api-key-change-in-production")
 
 
 # プロジェクトルートを取得
@@ -32,7 +38,42 @@ RETRY_INTERVAL = 3  # seconds
 def run_command(cmd: list[str], check: bool = True) -> subprocess.CompletedProcess:
     """コマンドを実行し、結果を返す"""
     print(f"  > {' '.join(cmd)}")
-    return subprocess.run(cmd, cwd=PROJECT_ROOT, check=check)
+    try:
+        return subprocess.run(cmd, cwd=PROJECT_ROOT, check=check)
+    except FileNotFoundError:
+        print(f"Error: Command not found: {cmd[0]}")
+        sys.exit(1)
+
+
+def get_compose_command() -> list[str]:
+    """使用可能な docker compose コマンドを判定"""
+    # 1. 'docker compose' を試行
+    try:
+        result = subprocess.run(
+            ["docker", "compose", "version"],
+            capture_output=True,
+            check=False,
+        )
+        if result.returncode == 0:
+            return ["docker", "compose"]
+    except FileNotFoundError:
+        pass
+
+    # 2. 'docker-compose' を試行
+    try:
+        result = subprocess.run(
+            ["docker-compose", "version"],
+            capture_output=True,
+            check=False,
+        )
+        if result.returncode == 0:
+            return ["docker-compose"]
+    except FileNotFoundError:
+        pass
+
+    print("Error: Neither 'docker compose' nor 'docker-compose' was found.")
+    print("Please install Docker Compose and try again.")
+    sys.exit(1)
 
 
 def get_local_ip() -> str:
@@ -202,7 +243,7 @@ def start_containers(build: bool = False, dind: bool = False):
     print("[2/4] Starting containers...")
 
     compose_file = "docker-compose.dind.yml" if dind else "docker-compose.yml"
-    cmd = ["docker", "compose", "-f", compose_file, "up", "-d"]
+    cmd = get_compose_command() + ["-f", compose_file, "up", "-d"]
 
     if build:
         cmd.append("--build")
@@ -243,7 +284,7 @@ def stop_containers(dind: bool = False):
     # Docker Compose で管理されているコンテナを停止
     compose_file = "docker-compose.dind.yml" if dind else "docker-compose.yml"
     run_command(
-        ["docker", "compose", "-f", compose_file, "down", "--remove-orphans", "-v"],
+        get_compose_command() + ["-f", compose_file, "down", "--remove-orphans", "-v"],
         check=False,
     )
 
@@ -294,13 +335,15 @@ def main():
         if not wait_for_scylladb():
             # ログを表示
             compose_file = "docker-compose.dind.yml" if args.dind else "docker-compose.yml"
-            run_command(["docker", "compose", "-f", compose_file, "logs", "database"], check=False)
+            run_command(
+                get_compose_command() + ["-f", compose_file, "logs", "database"], check=False
+            )
             return 1
 
         if not wait_for_gateway():
             # ログを表示
             compose_file = "docker-compose.dind.yml" if args.dind else "docker-compose.yml"
-            run_command(["docker", "compose", "-f", compose_file, "logs"], check=False)
+            run_command(get_compose_command() + ["-f", compose_file, "logs"], check=False)
             return 1
 
         # テスト実行

@@ -8,6 +8,7 @@ from typing import Optional, Dict
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from .service import ContainerManager
+import docker.errors
 
 # Check logger setup
 logging.basicConfig(level=logging.INFO)
@@ -61,6 +62,12 @@ async def ensure_container(req: EnsureRequest):
             manager.ensure_container_running, req.function_name, req.image, req.env
         )
         return {"host": host, "port": 8080}
+    except docker.errors.ImageNotFound as e:
+        logger.error(f"Image not found: {e.explanation}")
+        raise HTTPException(status_code=404, detail=f"Lambda image not found: {e.explanation}")
+    except docker.errors.APIError as e:
+        logger.error(f"Docker API error: {e.explanation}")
+        raise HTTPException(status_code=400, detail=f"Docker API error: {e.explanation}")
     except Exception as e:
         logger.error(f"Error ensuring container: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error managing containers")

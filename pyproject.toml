@@ -28,6 +28,7 @@ dependencies = [
     "pydantic>=2.5.0",
     "python-dotenv>=1.0.0",
     "requests>=2.31.0",
+    "httpx>=0.25.0",
     "pyyaml>=6.0",
 ]
 
@@ -35,9 +36,9 @@ dependencies = [
 dev = [
     "pytest>=7.4.3",
     "pytest-asyncio>=0.21.1",
+    "respx>=0.20.2",
     "black>=23.11.0",
     "ruff>=0.1.6",
-    "httpx>=0.25.0",  # FastAPI TestClient用
     "lefthook",  # Git hooks manager
     "cryptography>=41.0.0",  # SSL証明書生成用
 ]
