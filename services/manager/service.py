@@ -124,11 +124,14 @@ class ContainerManager:
                 except Exception as e:
                     logger.error(f"Unexpected error stopping {name}: {e}", exc_info=True)
 
-        for name in to_remove:
-            del self.last_accessed[name]
-            with self._locks_lock:
+        with self._locks_lock:
+            for name in to_remove:
                 if name in self.locks:
                     del self.locks[name]
+                self.last_accessed.pop(name, None)
+
+        if to_remove:
+            logger.info(f"Cleanup completed. Removed: {to_remove}")
 
     def prune_managed_containers(self):
         """

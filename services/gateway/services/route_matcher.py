@@ -13,6 +13,9 @@ from typing import Optional, Tuple, Dict, Any, List
 import yaml
 
 from ..config import config
+import logging
+
+logger = logging.getLogger(__name__)
 
 ROUTING_CONFIG_PATH = config.ROUTING_CONFIG_PATH
 
@@ -32,12 +35,12 @@ def load_routing_config() -> List[Dict[str, Any]]:
         with open(ROUTING_CONFIG_PATH, "r", encoding="utf-8") as f:
             cfg = yaml.safe_load(f)
             _routing_config = cfg.get("routes", [])
-            print(f"Loaded {len(_routing_config)} routes from {ROUTING_CONFIG_PATH}")
+            logger.info(f"Loaded {len(_routing_config)} routes from {ROUTING_CONFIG_PATH}")
     except FileNotFoundError:
-        print(f"Warning: Routing config not found at {ROUTING_CONFIG_PATH}")
+        logger.warning(f"Warning: Routing config not found at {ROUTING_CONFIG_PATH}")
         _routing_config = []
     except yaml.YAMLError as e:
-        print(f"Error parsing routing config: {e}")
+        logger.error(f"Error parsing routing config: {e}")
         _routing_config = []
 
     return _routing_config

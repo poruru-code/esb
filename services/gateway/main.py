@@ -63,6 +63,7 @@ async def authenticate_user(
 ):
     """ユーザー認証エンドポイント"""
     if not x_api_key or x_api_key != config.X_API_KEY:
+        logger.warning("Auth failed. Invalid API Key received.")
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     response.headers["PADMA_USER_AUTHORIZED"] = "true"
