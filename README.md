@@ -35,37 +35,43 @@ sequenceDiagram
 ### 構成
 ホストOS、またはDinD親コンテナ上で以下のサービス群が動作します。
 
-| サービス           | ポート | 役割                         | URL                     |
-| ------------------ | ------ | ---------------------------- | ----------------------- |
-| **Gateway API**    | `8000` | Lambda関数管理・実行         | `http://localhost:8000` |
-| **RustFS API**     | `9000` | S3互換オブジェクトストレージ | `http://localhost:9000` |
-| **RustFS Console** | `9001` | S3管理 Web UI                | `http://localhost:9001` |
-| **ScyllaDB**       | `8001` | DynamoDB互換DB (Alternator)  | `http://localhost:8001` |
-| **VictoriaLogs**   | `9428` | ログ管理 Web UI              | `http://localhost:9428` |
+| サービス           | ポート | 役割                         | URL                      |
+| ------------------ | ------ | ---------------------------- | ------------------------ |
+| **Gateway API**    | `443`  | Lambda関数管理・実行 (HTTPS) | `https://localhost:443`  |
+| **RustFS API**     | `9000` | S3互換オブジェクトストレージ | `http://localhost:9000`  |
+| **RustFS Console** | `9001` | S3管理 Web UI                | `http://localhost:9001`  |
+| **ScyllaDB**       | `8001` | DynamoDB互換DB (Alternator)  | `http://localhost:8001`  |
+| **VictoriaLogs**   | `9428` | ログ管理 Web UI              | `http://localhost:9428`  |
 
 ### ファイル構成
 ```
 .
-├── docker-compose.yml       # [開発/内部用] サービス定義 (相対パス ./data)
-├── docker-compose.dind.yml  # [本番用] DinD親コンテナ起動 (マウント調整)
+├── docker-compose.yml       # [開発/内部用] サービス定義
+├── docker-compose.dev.yml   # [開発用] override（外部アクセス許可）
+├── docker-compose.dind.yml  # [本番用] DinD親コンテナ起動
 ├── Dockerfile              # DinD親コンテナのビルド定義
 ├── entrypoint.sh           # 親コンテナ起動スクリプト
 ├── gateway/                # FastAPIアプリケーション
-│   └── app/
-│       ├── main.py         # エンドポイント定義
-│       ├── config.py       # 設定管理
-│       ├── core/           # 認証・プロキシロジック
-│       │   ├── security.py # JWT認証
-│       │   └── proxy.py    # Lambda転送
-│       ├── models/         # Pydanticスキーマ
-│       │   └── schemas.py
-│       └── services/       # ビジネスロジック
-│           ├── container.py      # コンテナ管理
-│           ├── route_matcher.py  # ルーティング
-│           └── scheduler.py      # 定期実行
-├── lambda_functions/       # ユーザー関数コード
-├── tests/                  # E2Eテスト
-└── docs/                   # 仕様書
+│   ├── app/
+│   │   ├── main.py              # エンドポイント定義
+│   │   ├── config.py            # 設定管理
+│   │   ├── core/
+│   │   │   ├── security.py      # JWT認証
+│   │   │   └── exceptions.py    # カスタム例外
+│   │   └── services/
+│   │       ├── container.py         # コンテナ管理（動的ネットワーク解決）
+│   │       ├── lambda_invoker.py    # Lambda呼び出しロジック
+│   │       ├── function_registry.py # 関数設定管理
+│   │       ├── route_matcher.py     # ルーティング
+│   │       └── scheduler.py         # 定期実行
+│   └── config/
+│       ├── functions.yml    # Lambda関数設定
+│       └── routing.yml      # ルーティング定義
+├── lambda_functions/        # Lambda関数コード
+│   └── LayerLib/            # Lambda共通ライブラリ
+│       └── lambda_util.py   # Lambda-to-Lambda呼び出しヘルパー
+├── tests/                   # E2Eテスト
+└── docs/                    # 仕様書
 ```
 
 ## クイックスタート
@@ -84,7 +90,8 @@ docker compose down
 | 変数名 | デフォルト | 説明 |
 |--------|-----------|------|
 | `IDLE_TIMEOUT_MINUTES` | `5` | アイドル状態のLambdaコンテナを停止するまでの分数 |
-| `DOCKER_NETWORK` | `sample-dind-lambda_default` | Lambdaコンテナが参加するDockerネットワーク |
+
+> **Note**: `DOCKER_NETWORK` は自動検出されるため設定不要です。
 
 ```bash
 # 例: アイドルタイムアウトを15分に設定
@@ -128,11 +135,12 @@ python tests/run_tests.py --build
 
 **認証:**
 ```bash
-curl -X POST http://localhost:8000/user/auth/ver1.0 \
+curl -k -X POST https://localhost:443/user/auth/ver1.0 \
   -H "x-api-key: dev-api-key-change-in-production" \
   -H "Content-Type: application/json" \
   -d '{"AuthParameters": {"USERNAME": "onpremise-user", "PASSWORD": "onpremise-pass"}}'
 ```
+> `-k` オプションは自己署名証明書を許可します。
 
 **S3互換アクセス:**
 AWS SDK等からは `http://localhost:9000` をエンドポイントとして指定してください。
