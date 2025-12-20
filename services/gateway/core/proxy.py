@@ -44,17 +44,34 @@ def build_event(
             is_base64 = True
 
     # クエリパラメータ
-    query_params = dict(request.query_params) if request.query_params else None
+    query_params = {}
+    multi_query_params = {}
+    if request.query_params:
+        for key in request.query_params.keys():
+            values = request.query_params.getlist(key)
+            query_params[key] = values[-1] if values else ""
+            multi_query_params[key] = values
 
     # ヘッダー
-    headers = {key: value for key, value in request.headers.items()}
+    headers = {}
+    multi_headers = {}
+    # FastAPI/Starletteのheaders.items()は正規化されており、
+    # 同一名のヘッダーは通常カンマ区切りで取得されるか、個別に取得する必要がある。
+    # ここではgetlist相当の処理を自前で行うか、標準的なitems()から構築
+    for key in request.headers.keys():
+        # Starlette Headers.getlist(key) は全ての値を取得する
+        values = request.headers.getlist(key)
+        headers[key] = values[-1] if values else ""
+        multi_headers[key] = values
 
     event = {
         "resource": route_path or str(request.url.path),
         "path": str(request.url.path),
         "httpMethod": request.method,
         "headers": headers,
-        "queryStringParameters": query_params,
+        "multiValueHeaders": multi_headers,
+        "queryStringParameters": query_params if query_params else None,
+        "multiValueQueryStringParameters": multi_query_params if multi_query_params else None,
         "pathParameters": path_params if path_params else None,
         "requestContext": {
             "identity": {"sourceIp": request.client.host if request.client else "unknown"},
@@ -72,7 +89,7 @@ def resolve_container_ip(container_name: str) -> str:
     """
     コンテナ名からIPアドレスを解決
 
-    Gatewayが内部ネットワーク(onpre-internal-network)に参加しているため、
+    Gatewayが内部ネットワーク（LAMBDA_NETWORK）に参加しているため、
     DockerのDNS機能によりコンテナ名で直接アクセス可能。
     そのため、基本的にはコンテナ名をそのまま返す。
 

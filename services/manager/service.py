@@ -83,12 +83,14 @@ class ContainerManager:
                     logger.warning(f"IP address not found for {name}. Falling back to hostname.")
                     ip = name
             except KeyError:
-                logger.warning(f"Network {self.network} not found for {name}. Falling back to host.")
+                logger.warning(
+                    f"Network {self.network} not found for {name}. Falling back to host."
+                )
                 ip = name
 
             # Use IP address for readiness check to avoid DNS lag
             self._wait_for_readiness(ip)
-            return ip
+            return name
 
     def _wait_for_readiness(self, host: str, port: int = 8080, timeout: int = 30) -> None:
         start = time.time()

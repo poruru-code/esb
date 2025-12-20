@@ -47,8 +47,8 @@ services:
       retries: 5
     restart: unless-stopped
     networks:
-      - onpre-external # 外部公開用
-      - onpre-internal-network # Lambda間通信
+      - external_network # 外部公開用
+      - internal_network # Lambda間通信
 
   # ============================================
   # ScyllaDB (DynamoDB Compatible DB)
@@ -69,8 +69,8 @@ services:
       start_period: 180s
     restart: unless-stopped
     networks:
-      - onpre-external # 外部公開用
-      - onpre-internal-network # Lambda間通信
+      - external_network # 外部公開用
+      - internal_network # Lambda間通信
 
   # ============================================
   # VictoriaLogs
@@ -92,8 +92,8 @@ services:
       retries: 3
     restart: unless-stopped
     networks:
-      - onpre-external # 外部公開用
-      - onpre-internal-network # Lambda間通信
+      - external_network # 外部公開用
+      - internal_network # Lambda間通信
 
   # ============================================
   # API Gateway (Facade)
@@ -105,8 +105,8 @@ services:
       dockerfile: services/gateway/Dockerfile
     container_name: onpre-gateway
     networks:
-      - onpre-external # Port exposure
-      - onpre-internal-network # Internal communication
+      - external_network # Port exposure
+      - internal_network # Internal communication
     ports:
       - "443:443" # HTTPS
     volumes:
@@ -141,11 +141,11 @@ services:
       dockerfile: services/manager/Dockerfile
     container_name: onpre-manager
     networks:
-      - onpre-internal-network
+      - internal_network
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock # Privileged access for Docker-in-Docker behavior
     environment:
-      - CONTAINERS_NETWORK=sample-dind-lambda_onpre-internal-network # Exact network name created by compose
+      - CONTAINERS_NETWORK=${LAMBDA_NETWORK:-onpre-internal-network} # Internal test network
       - IDLE_TIMEOUT_MINUTES=${IDLE_TIMEOUT_MINUTES:-5}
     restart: unless-stopped
 
@@ -157,9 +157,11 @@ volumes:
 
 networks:
   # 外部公開用ネットワーク（ポート公開）
-  onpre-external:
+  external_network:
+    name: ${EXTERNAL_NETWORK:-onpre-external}
     driver: bridge
   # Lambda間通信専用ネットワーク（外部アクセス遮断）
-  onpre-internal-network:
+  internal_network:
+    name: ${LAMBDA_NETWORK:-onpre-internal-network}
     driver: bridge
     internal: true

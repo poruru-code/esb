@@ -4,6 +4,7 @@ Docker in Docker (DinD) 技術を活用した、オンプレミス環境向け�
 ## 特徴
 - **Pure DinD**: 1つの親コンテナ内に Gateway, Storage, DB, Lambda 等の全サービスを集約。
 - **Serverless-like**: Lambda関数はオンデマンドで起動し、アイドル時に自動停止（デフォルト5分）。
+- **AWS API Gateway Compatibility**: `multiValueHeaders` や `multiValueQueryStringParameters` に対応した高度な互換性。
 - **Direct Access**: リバースプロキシを排し、各サービスへHTTPポートで直接アクセス可能。
 - **Hybrid Dev**: 開発用 (`docker-compose.yml`) と 本番用 (`docker-compose.dind.yml`) をシームレスに切り替え。
 
@@ -86,10 +87,11 @@ docker compose up -d
 docker compose down
 ```
 
-#### Lambda設定（環境変数）
+#### 構成・ネットワーク設定（環境変数）
 | 変数名 | デフォルト | 説明 |
 |--------|-----------|------|
 | `IDLE_TIMEOUT_MINUTES` | `5` | アイドル状態のLambdaコンテナを停止するまでの分数 |
+| `LAMBDA_NETWORK` | `onpre-internal-network` | Lambdaコンテナが参加するDockerネットワーク名 |
 
 
 ```bash

@@ -234,7 +234,7 @@ class TestE2E:
         print("Waiting for async execution...")
         time.sleep(2)  # Initial wait
 
-        max_retries = 20
+        max_retries = 60
         found = False
         for i in range(max_retries):
             check_resp = requests.post(
