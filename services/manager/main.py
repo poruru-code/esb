@@ -10,9 +10,14 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from .service import ContainerManager
 import docker.errors
 
-# Check logger setup
-logging.basicConfig(level=logging.INFO)
+# Logger setup
 logger = logging.getLogger("manager.main")
+logger.setLevel(logging.INFO)
+
+# Suppress noisy library logs
+logging.getLogger("docker").setLevel(logging.WARNING)
+logging.getLogger("apscheduler").setLevel(logging.WARNING)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 IDLE_TIMEOUT_MINUTES = int(os.environ.get("IDLE_TIMEOUT_MINUTES", 5))
 

@@ -21,8 +21,13 @@ from .client import get_lambda_host
 from .services.function_registry import load_functions_config
 
 # Logger setup
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("gateway.main")
+logger.setLevel(logging.INFO)
+
+# Suppress noisy library logs
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
 @asynccontextmanager

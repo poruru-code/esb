@@ -4,6 +4,7 @@ import time
 import logging
 import os
 import socket
+import threading
 from typing import Dict, Optional
 
 logger = logging.getLogger("manager.service")
@@ -17,6 +18,9 @@ class ContainerManager:
     def __init__(self, network: Optional[str] = None):
         self.client = docker.from_env()
         self.last_accessed: Dict[str, float] = {}
+        # Per-container lock management
+        self.locks: Dict[str, threading.Lock] = {}
+        self._locks_lock = threading.Lock()
 
         # Use env var or default to 'bridge' if not specified.
         # In this architecture, manager is in the same docker network as gateway usually.
@@ -29,58 +33,62 @@ class ContainerManager:
         self, name: str, image: Optional[str] = None, env: Optional[Dict[str, str]] = None
     ) -> str:
         """
-        Ensures the container is running. Returns the hostname (container name).
+        Ensures the container is running. Returns the hostname (container name) or IP.
         """
         self.last_accessed[name] = time.time()
 
         if image is None:
             image = f"{name}:latest"
 
-        try:
-            container = self.client.containers.get(name)
+        # Thread-safe acquisition of the per-container lock
+        with self._locks_lock:
+            if name not in self.locks:
+                self.locks[name] = threading.Lock()
+            lock = self.locks[name]
 
-            if container.status == "running":
-                pass  # Already running
+        # Use name-based lock to prevent race conditions (TOCTOU)
+        with lock:
+            try:
+                container = self.client.containers.get(name)
 
-            elif container.status == "exited":
-                logger.info(f"Warm-up: Restarting container {name}...")
-                container.start()
-                self._wait_for_readiness(name)
+                if container.status == "running":
+                    pass  # Already running
 
-            else:
-                logger.info(f"Container {name} in state {container.status}, removing...")
-                container.remove(force=True)
-                raise docker.errors.NotFound(f"Removed {name}")
+                elif container.status == "exited":
+                    logger.info(f"Warm-up: Restarting container {name}...")
+                    container.start()
+                else:
+                    logger.info(f"Container {name} in state {container.status}, removing...")
+                    container.remove(force=True)
+                    raise docker.errors.NotFound(f"Removed {name}")
 
-        except docker.errors.NotFound:
-            logger.info(f"Cold Start: Creating and starting container {name}...")
+            except docker.errors.NotFound:
+                logger.info(f"Cold Start: Creating and starting container {name}...")
+                container = self.client.containers.run(
+                    image,
+                    name=name,
+                    detach=True,
+                    environment=env or {},
+                    network=self.network,
+                    restart_policy={"Name": "no"},
+                    labels={"created_by": "sample-dind"},
+                )
 
-            # The manager needs to run sibling containers
-            # We assume the user configures CONTAINERS_NETWORK correctly (e.g., sample-dind-lambda_default)
-            container = self.client.containers.run(
-                image,
-                name=name,
-                detach=True,
-                environment=env or {},
-                network=self.network,
-                restart_policy={"Name": "no"},
-                labels={"created_by": "sample-dind"},  # Mark for cleanup
-                # Important: Lambdas should not be privileged usually, but depends on use case.
-                # The test expects privileged=False (default).
-            )
-            self._wait_for_readiness(name)
-
-        # Reload container to get latest attributes (IP)
-        try:
+            # Reload container to get latest attributes (IP) and check readiness
             container.reload()
-            ip = container.attrs["NetworkSettings"]["Networks"][self.network]["IPAddress"]
+            try:
+                ip = container.attrs["NetworkSettings"]["Networks"][self.network]["IPAddress"]
+                if not ip:
+                    # Fallback to name if IP is not yet assigned (rare in bridge network)
+                    logger.warning(f"IP address not found for {name}. Falling back to hostname.")
+                    ip = name
+            except KeyError:
+                logger.warning(f"Network {self.network} not found for {name}. Falling back to host.")
+                ip = name
+
+            # Use IP address for readiness check to avoid DNS lag
+            self._wait_for_readiness(ip)
             return ip
-        except KeyError:
-            # Fallback if specific network key is missing or IP is empty, return name (hostname)
-            logger.warning(
-                f"Could not get IP for {name} on network {self.network}. Returning hostname."
-            )
-            return name
 
     def _wait_for_readiness(self, host: str, port: int = 8080, timeout: int = 30) -> None:
         start = time.time()
