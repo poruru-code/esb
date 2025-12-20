@@ -16,7 +16,7 @@ COPY services/gateway /app/services/gateway
 # COPY puts it in /app/services/gateway. So /app is pythonpath.
 
 # Copy Config
-COPY gateway/config /app/config
+COPY config /app/config
 
 # Install dependencies
 RUN uv pip install --system --break-system-packages "fastapi" "uvicorn[standard]" "requests" "httpx" "pyjwt" "respx" "pyyaml" "pydantic" "pydantic-settings" "python-json-logger" "python-dotenv"

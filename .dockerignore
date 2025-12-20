@@ -1,0 +1,35 @@
+
+# Version Control
+.git
+.gitignore
+
+# Python / Environment
+.venv
+__pycache__
+**/__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+
+# Build Artifacts
+build/
+dist/
+*.egg-info/
+.coverage
+
+# Tests and Docs
+**/tests/
+docs/
+plans/
+*.md
+!README.md
+!walkthrough.md
+
+# Lambda Functions Code (Not needed for Gateway/Manager build)
+lambda_functions/
+
+# Local Debug Files
+*.txt
+*.log
+debug_*.py
+bench_*.py
