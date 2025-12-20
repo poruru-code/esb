@@ -1,0 +1,47 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.1, pytest-8.4.2, pluggy-1.6.0
+benchmark: 5.1.0 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+rootdir: D:\projects\sample-dind-lambda
+configfile: pyproject.toml
+plugins: anyio-4.11.0, benchmark-5.1.0, cov-7.0.0, respx-0.22.0
+collected 1 item
+
+services\gateway\tests\test_routing.py F                                 [100%]
+
+================================== FAILURES ===================================
+______________________ test_gateway_delegates_to_manager ______________________
+
+    @respx.mock
+    def test_gateway_delegates_to_manager():
+        """Gateway verifies that it hits Manager API to get Lambda host info"""
+    
+        # Inject config directly into registry
+        from services.gateway.services import function_registry
+        function_registry._function_registry["lambda-hello"] = {"image": "lambda-hello:latest", "environment": {}}
+    
+        # Manager API mock
+        manager_route = respx.post("http://manager:8081/containers/ensure").mock(
+            return_value=Response(200, json={"host": "10.0.0.5", "port": 8080})
+        )
+    
+        # Lambda RIE mock (Proxy destination)
+        # Note: URL pattern might be specific to implementation (httpx proxy)
+        # We expect Gateway to forward to http://10.0.0.5:8080/...
+        lambda_route = respx.post("http://10.0.0.5:8080/2015-03-31/functions/function/invocations").mock(
+            return_value=Response(200, json={"message": "hello from lambda"})
+        )
+    
+        # Execute Request to Gateway
+        response = client.post("/functions/lambda-hello/invocations", json={})
+    
+        # Verify
+>       assert response.status_code == 200
+E       assert 404 == 200
+E        +  where 404 = <Response [404 Not Found]>.status_code
+
+services\gateway\tests\test_routing.py:47: AssertionError
+---------------------------- Captured stdout call -----------------------------
+Warning: Routing config not found at /app/config/routing.yml
+=========================== short test summary info ===========================
+FAILED services/gateway/tests/test_routing.py::test_gateway_delegates_to_manager
+============================== 1 failed in 0.85s ==============================

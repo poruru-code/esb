@@ -9,69 +9,69 @@ Docker in Docker (DinD) 技術を活用した、オンプレミス環境向け�
 
 ## アーキテクチャ
 
-```mermaid
-sequenceDiagram
-    participant Client
-    participant Gateway
-    participant Docker
-    participant Lambda
+本システムは、セキュリティの向上とリソース管理の最適化のため、**API Gateway (Facade)** と **Container Manager (Orchestrator)** を分離したマイクロサービス構成を採用しています。
 
-    Client->>Gateway: API Request
-    Gateway->>Docker: ensure_container_running()
-    
-    alt Cold Start
-        Docker->>Lambda: 起動
-    else Warm Start
-        Docker->>Lambda: 再起動
+### 分離の意義とメリット
+1. **セキュリティ（最小権限の原則）**:
+   - `docker.sock` へのアクセス権を **Manager サービスのみ**に限定。
+   - 外部に公開される `Gateway` は Docker 操作権限を持たないため、万一 Gateway が侵害されてもホスト全体の制御を奪われるリスクを低減します。
+2. **信頼性と堅牢性**:
+   - **ゾンビコンテナ対策**: Manager が起動時に古いコンテナを一括削除し、さらにバックグラウンドでアイドル状態のコンテナを常時監視・停止します。
+   - **関心の分離**: Gateway は認証とルーティングに、Manager はライフサイクル管理に専念することで、コードの肥大化と密結合を防止しています。
+3. **パフォーマンス**:
+   - Gateway は `httpx` による完全非同期プロキシとして動作し、多数の同時リクエストを効率的に処理します。
+
+### 構成図
+
+```mermaid
+graph TD
+    Client["Client (HTTPS)"] --> Gateway["API Gateway (FastAPI)"]
+    subgraph "Privileged Layer"
+        Manager["Container Manager (CRUD API)"]
+        Docker["Docker Engine (docker.sock)"]
     end
+    Gateway -- "Invoke API (Async HTTP)" --> Manager
+    Manager -- "Manage Lifecycle" --> Docker
+    Gateway -- "Proxy Request (Async HTTP)" --> Lambda["Lambda RIE Container"]
+    Lambda -- "Data Access" --> Storage["RustFS (S3)"]
+    Lambda -- "Data Access" --> DB["ScyllaDB (DynamoDB)"]
     
-    Gateway->>Lambda: Proxy Request
-    Lambda->>Gateway: Response
-    Gateway->>Client: Response
-    
-    Note over Docker,Lambda: 5分アイドル後に自動停止
+    style Gateway fill:#f9f,stroke:#333,stroke-width:2px
+    style Manager fill:#bbf,stroke:#333,stroke-width:2px
+    style Docker fill:#dfd,stroke:#333,stroke-width:2px
 ```
 
-### 構成
+### サービス一覧
 ホストOS、またはDinD親コンテナ上で以下のサービス群が動作します。
 
 | サービス           | ポート | 役割                         | URL                      |
 | ------------------ | ------ | ---------------------------- | ------------------------ |
-| **Gateway API**    | `443`  | Lambda関数管理・実行 (HTTPS) | `https://localhost:443`  |
+| **Gateway API**    | `443`  | 認証・ルーティング・プロキシ | `https://localhost:443`  |
+| **Manager API**    | -      | コンテナの選定・起動・停止   | (内部通信のみ)           |
 | **RustFS API**     | `9000` | S3互換オブジェクトストレージ | `http://localhost:9000`  |
-| **RustFS Console** | `9001` | S3管理 Web UI                | `http://localhost:9001`  |
-| **ScyllaDB**       | `8001` | DynamoDB互換DB (Alternator)  | `http://localhost:8001`  |
+| **ScyllaDB**       | `8001` | DynamoDB互換DB               | `http://localhost:8001`  |
 | **VictoriaLogs**   | `9428` | ログ管理 Web UI              | `http://localhost:9428`  |
 
 ### ファイル構成
 ```
 .
-├── docker-compose.yml       # [開発/内部用] サービス定義
-├── docker-compose.dev.yml   # [開発用] override（外部アクセス許可）
-├── docker-compose.dind.yml  # [本番用] DinD親コンテナ起動
-├── Dockerfile              # DinD親コンテナのビルド定義
-├── entrypoint.sh           # 親コンテナ起動スクリプト
-├── gateway/                # FastAPIアプリケーション
-│   ├── app/
-│   │   ├── main.py              # エンドポイント定義
+├── docker-compose.yml       # 複合サービスの構成定義
+├── services/
+│   ├── gateway/             # ステートレスな API ゲートウェイ
+│   │   ├── main.py              # ルーティング & プロキシロジック
+│   │   ├── client.py            # Manager 呼び出しクライアント
 │   │   ├── config.py            # 設定管理
-│   │   ├── core/
-│   │   │   ├── security.py      # JWT認証
-│   │   │   └── exceptions.py    # カスタム例外
-│   │   └── services/
-│   │       ├── container.py         # コンテナ管理（動的ネットワーク解決）
-│   │       ├── lambda_invoker.py    # Lambda呼び出しロジック
-│   │       ├── function_registry.py # 関数設定管理
-│   │       ├── route_matcher.py     # ルーティング
-│   │       └── scheduler.py         # 定期実行
-│   └── config/
-│       ├── functions.yml    # Lambda関数設定
-│       └── routing.yml      # ルーティング定義
-├── lambda_functions/        # Lambda関数コード
-│   └── LayerLib/            # Lambda共通ライブラリ
-│       └── lambda_util.py   # Lambda-to-Lambda呼び出しヘルパー
-├── tests/                   # E2Eテスト
-└── docs/                    # 仕様書
+│   │   └── core/
+│   │       ├── security.py      # JWT認証
+│   │       └── proxy.py         # 非同期 httpx プロキシ実装
+│   └── manager/             # ステートフルなコンテナオーケストレーター
+│       ├── main.py              # ライフサイクル API & スケジューラー
+│       └── service.py           # Docker Python SDK を用いた操作
+├── gateway/config/          # Lambda 関数・ルート定義
+│   ├── functions.yml        # Lambda 関数リスト
+│   └── routing.yml          # パスベースのルーティング定義
+├── lambda_functions/        # Lambda 関数コード
+└── tests/                   # E2Eテスト & ユーティリティ
 ```
 
 ## クイックスタート

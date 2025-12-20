@@ -25,8 +25,8 @@ services:
       permission-helper:
         condition: service_completed_successfully
     ports:
-      - "9000:9000"    # S3 API
-      - "9001:9001"    # Console
+      - "9000:9000" # S3 API
+      - "9001:9001" # Console
     volumes:
       - rustfs_data:/data/rustfs
       - ./config/lifecycle.yml:/app/config/lifecycle.yml:ro
@@ -41,14 +41,14 @@ services:
       - RUSTFS_COMPRESSION=${RUSTFS_COMPRESSION:-auto}
       - RUSTFS_LIFECYCLE_POLICY_PATH=/app/config/lifecycle.yml
     healthcheck:
-      test: ["CMD", "sh", "-c", "curl -f http://localhost:9000/health"]
+      test: [ "CMD", "sh", "-c", "curl -f http://127.0.0.1:9000/health" ]
       interval: 10s
       timeout: 5s
       retries: 5
     restart: unless-stopped
     networks:
-      - onpre-external           # 外部公開用
-      - onpre-internal-network   # Lambda間通信
+      - onpre-external # 外部公開用
+      - onpre-internal-network # Lambda間通信
 
   # ============================================
   # ScyllaDB (DynamoDB Compatible DB)
@@ -57,20 +57,20 @@ services:
     image: scylladb/scylla:latest
     container_name: onpre-database
     ports:
-      - "8001:8000"    # Alternator API (Host 8001 -> Container 8000)
+      - "8001:8000" # Alternator API (Host 8001 -> Container 8000)
     volumes:
       - scylladb_data:/var/lib/scylla
     command: --smp 1 --memory ${SCYLLADB_MEMORY:-1}G --developer-mode 1 --alternator-port 8000 --alternator-address 0.0.0.0 --alternator-write-isolation always_use_lwt
     healthcheck:
-      test: ["CMD-SHELL", "cqlsh -e 'DESCRIBE KEYSPACES' || exit 1"]
+      test: [ "CMD-SHELL", "cqlsh -e 'DESCRIBE KEYSPACES' || exit 1" ]
       interval: 10s
       timeout: 10s
       retries: 30
       start_period: 180s
     restart: unless-stopped
     networks:
-      - onpre-external           # 外部公開用
-      - onpre-internal-network   # Lambda間通信
+      - onpre-external # 外部公開用
+      - onpre-internal-network # Lambda間通信
 
   # ============================================
   # VictoriaLogs
@@ -79,58 +79,79 @@ services:
     image: victoriametrics/victoria-logs:latest
     container_name: victorialogs
     ports:
-      - "9428:9428"    # VictoriaLogs UI/API
+      - "9428:9428" # VictoriaLogs UI/API
     volumes:
       - victorialogs_data:/victoria-logs-data
     command:
       - "-storageDataPath=/victoria-logs-data"
       - "-retentionPeriod=7d"
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9428/health"]
+      test: [ "CMD", "wget", "-q", "--spider", "http://127.0.0.1:9428/health" ]
       interval: 10s
       timeout: 5s
       retries: 3
     restart: unless-stopped
     networks:
-      - onpre-external           # 外部公開用
-      - onpre-internal-network   # Lambda間通信
+      - onpre-external # 外部公開用
+      - onpre-internal-network # Lambda間通信
 
   # ============================================
-  # Gateway Application (FastAPI)
+  # API Gateway (Facade)
   # ============================================
   gateway:
     image: gateway-api:latest
     build:
       context: .
-      dockerfile: gateway/Dockerfile.app
+      dockerfile: services/gateway/Dockerfile
     container_name: onpre-gateway
     networks:
-      - onpre-external           # 外部公開用
-      - onpre-internal-network   # Lambda間通信
+      - onpre-external # Port exposure
+      - onpre-internal-network # Internal communication
     ports:
-      - "443:443"    # Gateway API (HTTPS)
+      - "443:443" # HTTPS
     volumes:
-      - ./certs:/app/config/ssl:ro    # SSL証明書
-      - /var/run/docker.sock:/var/run/docker.sock  # Docker操作用
+      - ./certs:/app/config/ssl:ro
     environment:
       - UVICORN_BIND_ADDR=0.0.0.0:443
       - ENABLE_SSL=true
       - SSL_CERT_PATH=/app/config/ssl/server.crt
       - SSL_KEY_PATH=/app/config/ssl/server.key
-      - SCYLLADB_HOST=onpre-database
-      - SCYLLADB_PORT=8000
-      # DOCKER_NETWORK は自動検出（ContainerManager._resolve_network）
-      - IDLE_TIMEOUT_MINUTES=${IDLE_TIMEOUT_MINUTES:-5}  # アイドル停止までの分数
+      - MANAGER_URL=http://onpre-manager:8081
+      - GATEWAY_INTERNAL_URL=https://onpre-gateway
     depends_on:
-      - database
-      - s3-storage
-      - victorialogs
+      manager:
+        condition: service_started
+      database:
+        condition: service_healthy
+      s3-storage:
+        condition: service_healthy
+      victorialogs:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ============================================
+  # Container Manager (Orchestrator)
+  # ============================================
+  manager:
+    image: container-manager:latest
+    build:
+      context: .
+      dockerfile: services/manager/Dockerfile
+    container_name: onpre-manager
+    networks:
+      - onpre-internal-network
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock # Privileged access for Docker-in-Docker behavior
+    environment:
+      - CONTAINERS_NETWORK=sample-dind-lambda_onpre-internal-network # Exact network name created by compose
+      - IDLE_TIMEOUT_MINUTES=${IDLE_TIMEOUT_MINUTES:-5}
     restart: unless-stopped
 
 volumes:
   scylladb_data:
   rustfs_data:
   victorialogs_data:
+
 
 networks:
   # 外部公開用ネットワーク（ポート公開）
