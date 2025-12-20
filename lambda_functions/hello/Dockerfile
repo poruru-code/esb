@@ -1,4 +1,4 @@
-FROM public.ecr.aws/lambda/python:3.11
+FROM public.ecr.aws/lambda/python:3.12
 
 # Lambda関数のコードをコピー
 COPY lambda_functions/hello/lambda_function.py ${LAMBDA_TASK_ROOT}/
