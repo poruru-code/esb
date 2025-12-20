@@ -1,11 +1,95 @@
 """
-ContainerManager Unit Tests (TDD - Red Phase)
+ContainerManager Unit Tests
 
 Docker SDKをモック化してコンテナ管理ロジックをテスト
 """
-import pytest
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 import time
+
+
+class TestContainerManagerNetworkResolution:
+    """_resolve_network() および __init__ の動的解決ロジックのテスト"""
+
+    @patch("gateway.app.services.container.docker")
+    @patch("gateway.app.services.container.socket")
+    def test_resolve_network_success(self, mock_socket, mock_docker):
+        """Gatewayが接続しているネットワークから内部ネットワークを特定できる"""
+        from gateway.app.services.container import ContainerManager
+        
+        # Arrange
+        mock_client = MagicMock()
+        mock_docker.from_env.return_value = mock_client
+        
+        # ホスト名（コンテナID）のモック
+        mock_socket.gethostname.return_value = "gateway-container-id"
+        
+        # コンテナ取得のモック
+        mock_container = MagicMock()
+        mock_client.containers.get.return_value = mock_container
+        
+        # ネットワーク設定のモック
+        # 期待するネットワーク名を含む辞書を返す
+        mock_container.attrs = {
+            "NetworkSettings": {
+                "Networks": {
+                    "sample-project_onpre-internal-network": {},
+                    "sample-project_default": {}
+                }
+            }
+        }
+        
+        # Act - network引数なしで初期化
+        manager = ContainerManager(network=None)
+        
+        # Assert
+        assert manager.network == "sample-project_onpre-internal-network"
+        mock_client.containers.get.assert_called_with("gateway-container-id")
+
+    @patch("gateway.app.services.container.docker")
+    @patch("gateway.app.services.container.socket")
+    def test_resolve_network_fallback(self, mock_socket, mock_docker):
+        """内部ネットワークが見つからない場合は bridge にフォールバック"""
+        from gateway.app.services.container import ContainerManager
+        
+        # Arrange
+        mock_client = MagicMock()
+        mock_docker.from_env.return_value = mock_client
+        mock_socket.gethostname.return_value = "gateway-container-id"
+        
+        mock_container = MagicMock()
+        mock_client.containers.get.return_value = mock_container
+        
+        # マッチするネットワークがない
+        mock_container.attrs = {
+            "NetworkSettings": {
+                "Networks": {
+                    "other-network": {}
+                }
+            }
+        }
+        
+        # Act
+        manager = ContainerManager(network=None)
+        
+        # Assert
+        assert manager.network == "bridge"
+
+    @patch("gateway.app.services.container.docker")
+    @patch("gateway.app.services.container.socket")
+    def test_init_with_arg_skips_resolution(self, mock_socket, mock_docker):
+        """引数でネットワークを指定した場合は動的解決をスキップ"""
+        from gateway.app.services.container import ContainerManager
+        
+        mock_client = MagicMock()
+        mock_docker.from_env.return_value = mock_client
+        
+        # Act
+        manager = ContainerManager(network="explicit-network")
+        
+        # Assert
+        assert manager.network == "explicit-network"
+        mock_socket.gethostname.assert_not_called()
+        mock_client.containers.get.assert_not_called()
 
 
 class TestContainerManagerEnsureRunning:
