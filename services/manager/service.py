@@ -126,6 +126,9 @@ class ContainerManager:
 
         for name in to_remove:
             del self.last_accessed[name]
+            with self._locks_lock:
+                if name in self.locks:
+                    del self.locks[name]
 
     def prune_managed_containers(self):
         """

@@ -1,14 +1,19 @@
 """
-設定管理モジュール
+Gateway設定定義
 
-環境変数から設定値を読み込み、Pydanticモデルとして管理します。
+環境変数から設定をロードし、Pydanticモデルとして提供します。
+pydantic-settings を使用して型安全性とデフォルト値を管理します。
 """
 
-import os
-from pydantic import BaseModel, Field
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class GatewayConfig(BaseModel):
+class GatewayConfig(BaseSettings):
+    """
+    Gatewayサービスの設定管理
+    """
+
     # サーバー設定
     UVICORN_WORKERS: int = Field(default=4, description="ワーカープロセス数")
     UVICORN_BIND_ADDR: str = Field(default="0.0.0.0:8000", description="リッスンアドレス")
@@ -26,51 +31,41 @@ class GatewayConfig(BaseModel):
     LOGS_ROOT_PATH: str = Field(default="/logs", description="ログ集約先のルートパス")
 
     # 認証・セキュリティ
-    JWT_SECRET_KEY: str = Field(..., description="JWT署名用シークレット (必須)")
-    JWT_EXPIRES_DELTA: int = Field(default=3600, description="JWTトークン有効期間(秒)")
-    # App Settings
-    app_host: str = "0.0.0.0"
-    app_port: int = 8000
-    debug: bool = False
-    root_path: str = ""
-    AUTH_USER: str = Field(default="onpremise-user", description="認証対象ユーザ名")
-    AUTH_PASS: str = Field(default="onpremise-pass", description="認証対象パスワード")
-    AUTH_ENDPOINT_PATH: str = Field(
-        default="/user/auth/ver1.0", description="内部認証エンドポイントパス"
+    JWT_SECRET_KEY: str = Field(..., description="JWT署名用シークレットキー")
+    JWT_EXPIRES_DELTA: int = Field(default=3000, description="トークン有効期限(秒)")
+    # x-api-key は静的なダミー認証キー
+    X_API_KEY: str = Field(..., description="内部サービス間通信用APIキー")
+
+    # モックユーザー認証情報
+    AUTH_USER: str = Field(default="admin", description="認証ユーザー名")
+    AUTH_PASS: str = Field(default="password", description="認証パスワード")
+
+    # 認証エンドポイント
+    AUTH_ENDPOINT_PATH: str = Field(default="/user/auth/v1", description="認証エンドポイントパス")
+
+    # 外部連携
+    CONTAINERS_NETWORK: str = Field(
+        default="lambda-net", description="Lambdaコンテナの所属ネットワーク"
     )
-    X_API_KEY: str = Field(..., description="Gateway認証用APIキー (必須)")
-
-    # RustFS設定 (パススルー用ドキュメント)
-    RUSTFS_DEDUPLICATION: bool = Field(default=True, description="重複排除有効化")
-    RUSTFS_COMPRESSION: str = Field(default="auto", description="圧縮モード")
-    RUSTFS_LIFECYCLE_POLICY_PATH: str = Field(
-        default="/app/config/lifecycle.yml", description="ライフサイクルポリシーパス"
+    GATEWAY_INTERNAL_URL: str = Field(
+        default="http://gateway:8080", description="コンテナから見たGateway URL"
     )
 
-    # ScyllaDB設定 (パススルー用ドキュメント)
-    SCYLLADB_HOST: str = Field(default="onpre-database", description="ScyllaDBホスト")
-    SCYLLADB_PORT: int = Field(default=8000, description="Alternator APIポート")
-    SCYLLADB_MEMORY: int = Field(default=1, description="メモリ割当(GiB)")
+    # FastAPI設定
+    root_path: str = Field(default="", description="APIのルートパス（プロキシ用）")
+
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", case_sensitive=True, extra="ignore"
+    )
 
 
-def load_config() -> GatewayConfig:
-    """
-    環境変数から設定を読み込む
-    """
-    # 環境変数から値を取得して辞書を作成
-    # デフォルト値はPydanticモデル側で管理するため、取得できたものだけ渡す
-    env_vars = {}
-    for field_name in GatewayConfig.model_fields.keys():
-        val = os.getenv(field_name)
-        if val is not None:
-            # bool型の処理
-            if GatewayConfig.model_fields[field_name].annotation is bool:
-                env_vars[field_name] = val.lower() in ("true", "1", "yes")
-            else:
-                env_vars[field_name] = val
-
-    return GatewayConfig(**env_vars)
-
-
-# シングルトンインスタンス
-config = load_config()
+# シングルトンとして設定をロード
+# pydantic-settings はインスタンス化時に環境変数を読み込む
+try:
+    config = GatewayConfig()
+except Exception as e:
+    # 開発環境など .env がない場合や必須変数が欠けている場合のフォールバックは
+    # 必要に応じて検討するが、基本はエラーで落とす
+    print(f"Failed to load configuration: {e}")
+    # テスト実行時などのために、一部デフォルトで許容する場合のロジックを入れることも可能
+    raise

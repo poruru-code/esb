@@ -8,26 +8,30 @@ routing.ymlに基づいてリクエストをLambda RIEコンテナに転送し�
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException, Header, BackgroundTasks
 from fastapi.responses import JSONResponse, Response
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from typing import Optional
 from datetime import datetime, timezone
 import httpx
 import logging
 from .config import config
-from .core.security import create_access_token, verify_token
+from .core.security import create_access_token
 from .core.proxy import build_event, proxy_to_lambda, parse_lambda_response
 from .models.schemas import AuthRequest, AuthResponse, AuthenticationResult
-from .services.route_matcher import load_routing_config, match_route
+from .services.route_matcher import load_routing_config
 from .client import get_lambda_host
 from .services.function_registry import load_functions_config
+from .api.deps import UserIdDep, LambdaTargetDep
+from .core.logging_config import setup_logging
+from .core.exceptions import (
+    global_exception_handler,
+    http_exception_handler,
+    validation_exception_handler,
+)
 
 # Logger setup
+setup_logging()
 logger = logging.getLogger("gateway.main")
-logger.setLevel(logging.INFO)
-
-# Suppress noisy library logs
-logging.getLogger("httpx").setLevel(logging.WARNING)
-logging.getLogger("urllib3").setLevel(logging.WARNING)
-logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
 @asynccontextmanager
@@ -41,6 +45,11 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Lambda Gateway", version="2.0.0", lifespan=lifespan, root_path=config.root_path
 )
+
+# 例外ハンドラの登録
+app.add_exception_handler(Exception, global_exception_handler)
+app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
 
 
 # ===========================================
@@ -137,36 +146,26 @@ async def invoke_lambda_api(
 
 
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
-async def gateway_handler(request: Request, path: str):
-    """キャッチオールルート：routing.ymlに基づいてLambda RIEに転送"""
-    request_path = f"/{path}"
+async def gateway_handler(
+    request: Request,
+    path: str,
+    user_id: UserIdDep,
+    target: LambdaTargetDep,
+):
+    """
+    キャッチオールルート：routing.ymlに基づいてLambda RIEに転送
 
-    # ルーティングマッチング
-    target_container, path_params, route_path, function_config = match_route(
-        request_path, request.method
-    )
-
-    if not target_container:
-        return JSONResponse(status_code=404, content={"message": "Not Found"})
-
-    # 認証検証
-    authorization = request.headers.get("authorization")
-    if not authorization:
-        return JSONResponse(status_code=401, content={"message": "Unauthorized"})
-
-    user_id = verify_token(authorization, config.JWT_SECRET_KEY)
-    if not user_id:
-        return JSONResponse(status_code=401, content={"message": "Unauthorized"})
-
+    認証とルーティング解決は DI で自動的に行われる。
+    """
     # オンデマンドコンテナ起動
     try:
         container_host = await get_lambda_host(
-            function_name=target_container,
-            image=function_config.get("image"),
-            env=function_config.get("environment", {}),
+            function_name=target.container_name,
+            image=target.function_config.get("image"),
+            env=target.function_config.get("environment", {}),
         )
     except Exception as e:
-        logger.error(f"Failed to ensure container {target_container}: {e}", exc_info=True)
+        logger.error(f"Failed to ensure container {target.container_name}: {e}", exc_info=True)
         return JSONResponse(
             status_code=503,
             content={"message": "Service Unavailable", "detail": "Cold start failed"},
@@ -175,7 +174,7 @@ async def gateway_handler(request: Request, path: str):
     # Lambda RIEに転送
     try:
         body = await request.body()
-        event = build_event(request, body, user_id, path_params, route_path)
+        event = build_event(request, body, user_id, target.path_params, target.route_path)
         lambda_response = await proxy_to_lambda(container_host, event)
 
         # レスポンス変換

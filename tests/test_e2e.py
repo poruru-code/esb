@@ -81,6 +81,10 @@ class TestE2E:
         response = requests.post(
             f"{GATEWAY_URL}/api/s3/test", json={"action": "test"}, verify=VERIFY_SSL
         )
+        if response.status_code != 401:
+            with open("debug_401_error.txt", "w") as f:
+                f.write(f"Status: {response.status_code}\nBody: {response.text}")
+            print(f"Debug 401 Error: {response.status_code} - {response.text}")
         assert response.status_code == 401
 
     def test_routing_404(self, gateway_health):

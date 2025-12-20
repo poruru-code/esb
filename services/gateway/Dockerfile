@@ -19,7 +19,7 @@ COPY services/gateway /app/services/gateway
 COPY gateway/config /app/config
 
 # Install dependencies
-RUN uv pip install --system --break-system-packages "fastapi" "uvicorn[standard]" "requests" "httpx" "pyjwt" "respx" "pyyaml" "pydantic" 
+RUN uv pip install --system --break-system-packages "fastapi" "uvicorn[standard]" "requests" "httpx" "pyjwt" "respx" "pyyaml" "pydantic" "pydantic-settings" "python-json-logger" "python-dotenv"
 
 EXPOSE 443
 

@@ -1,0 +1,2 @@
+Status: 422
+Body: {"message":"Validation Error","detail":"[{'type': 'missing', 'loc': ('header', 'authorization'), 'msg': 'Field required', 'input': None}]"}
