@@ -388,7 +388,8 @@ class TestE2E:
                 elif "lambda" in c_name:
                     lambda_logs.append(log)
 
-            if gateway_logs and manager_logs and lambda_logs:
+            # Gateway と Lambda のログがあれば終了（Manager はキャッシュヒット時は存在しない）
+            if gateway_logs and lambda_logs:
                 break
 
             time.sleep(2)
