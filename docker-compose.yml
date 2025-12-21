@@ -25,16 +25,16 @@ services:
       permission-helper:
         condition: service_completed_successfully
     ports:
-      - "9000:9000" # S3 API
-      - "9001:9001" # Console
+      - "${RUSTFS_API_PORT:-9000}:9000" # S3 API
+      - "${RUSTFS_CONSOLE_PORT:-9001}:9001" # Console
     volumes:
       - rustfs_data:/data/rustfs
       - ./config/lifecycle.yml:/app/config/lifecycle.yml:ro
     environment:
       - RUSTFS_VOLUMES=/data/rustfs
       - RUSTFS_ADDRESS=0.0.0.0:9000
-      - RUSTFS_ACCESS_KEY=${RUSTFS_ACCESS_KEY:-rustfsadmin}
-      - RUSTFS_SECRET_KEY=${RUSTFS_SECRET_KEY:-rustfsadmin}
+      - RUSTFS_ACCESS_KEY=${RUSTFS_ACCESS_KEY?RUSTFS_ACCESS_KEY is required}
+      - RUSTFS_SECRET_KEY=${RUSTFS_SECRET_KEY?RUSTFS_SECRET_KEY is required}
       - RUSTFS_CONSOLE_ENABLE=true
       - RUSTFS_CONSOLE_ADDRESS=0.0.0.0:9001
       - RUSTFS_DEDUPLICATION=${RUSTFS_DEDUPLICATION:-true}
@@ -57,7 +57,7 @@ services:
     image: scylladb/scylla:latest
     container_name: onpre-database
     ports:
-      - "8001:8000" # Alternator API (Host 8001 -> Container 8000)
+      - "${SCYLLADB_PORT:-8001}:8000" # Alternator API (Host 8001 -> Container 8000)
     volumes:
       - scylladb_data:/var/lib/scylla
     command: --smp 1 --memory ${SCYLLADB_MEMORY:-1}G --developer-mode 1 --alternator-port 8000 --alternator-address 0.0.0.0 --alternator-write-isolation always_use_lwt
@@ -79,7 +79,7 @@ services:
     image: fluent/fluent-bit:latest
     container_name: fluent-bit
     ports:
-      - "24224:24224"  # Forward protocol
+      - "${FLUENT_BIT_PORT:-24224}:24224"  # Forward protocol
     volumes:
       - ./config/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
       - ./config/parsers.conf:/fluent-bit/etc/parsers.conf:ro
@@ -96,14 +96,14 @@ services:
     image: victoriametrics/victoria-logs:latest
     container_name: victorialogs
     ports:
-      - "9428:9428" # VictoriaLogs UI/API
+      - "${VICTORIALOGS_PORT:-9428}:9428" # VictoriaLogs UI/API
     volumes:
       - victorialogs_data:/victoria-logs-data
     command:
       - "-storageDataPath=/victoria-logs-data"
       - "-retentionPeriod=7d"
     healthcheck:
-      test: [ "CMD", "wget", "-q", "--spider", "http://127.0.0.1:9428/health" ]
+      test: [ "CMD", "wget", "-q", "--spider", "http://127.0.0.1:${VICTORIALOGS_PORT:-9428}/health" ]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -125,7 +125,7 @@ services:
       - external_network # Port exposure
       - internal_network # Internal communication
     ports:
-      - "443:443" # HTTPS
+      - "${GATEWAY_PORT:-443}:443" # HTTPS
     volumes:
       - ./certs:/app/config/ssl:ro
     environment:
@@ -133,10 +133,13 @@ services:
       - ENABLE_SSL=true
       - SSL_CERT_PATH=/app/config/ssl/server.crt
       - SSL_KEY_PATH=/app/config/ssl/server.key
-      - MANAGER_URL=http://onpre-manager:8081
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY?JWT_SECRET_KEY is required}
+      - X_API_KEY=${X_API_KEY?X_API_KEY is required}
+      - AUTH_USER=${AUTH_USER?AUTH_USER is required}
+      - AUTH_PASS=${AUTH_PASS?AUTH_PASS is required}
+      - CONTAINERS_NETWORK=${LAMBDA_NETWORK?LAMBDA_NETWORK is required}
       - GATEWAY_INTERNAL_URL=https://onpre-gateway
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-secret-key-change-in-production}
-      - X_API_KEY=${X_API_KEY:-dev-api-key-change-in-production}
+      - MANAGER_URL=http://onpre-manager:${MANAGER_PORT:-8081}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
     logging:
       driver: fluentd
@@ -171,7 +174,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock # Privileged access for Docker-in-Docker behavior
     environment:
-      - CONTAINERS_NETWORK=${LAMBDA_NETWORK:-onpre-internal-network} # Internal test network
+      - CONTAINERS_NETWORK=${LAMBDA_NETWORK?LAMBDA_NETWORK is required}
       - IDLE_TIMEOUT_MINUTES=${IDLE_TIMEOUT_MINUTES:-5}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
     logging:
@@ -191,10 +194,10 @@ volumes:
 networks:
   # 外部公開用ネットワーク（ポート公開）
   external_network:
-    name: ${EXTERNAL_NETWORK:-onpre-external}
+    name: ${EXTERNAL_NETWORK?EXTERNAL_NETWORK is required}
     driver: bridge
   # Lambda間通信専用ネットワーク（外部アクセス遮断）
   internal_network:
-    name: ${LAMBDA_NETWORK:-onpre-internal-network}
+    name: ${LAMBDA_NETWORK?LAMBDA_NETWORK is required}
     driver: bridge
     internal: true

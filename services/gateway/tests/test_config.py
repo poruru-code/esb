@@ -17,5 +17,5 @@ def test_gateway_config_fields():
     assert hasattr(config, "MANAGER_URL")
     assert hasattr(config, "MANAGER_TIMEOUT")
     # Verify default values (optional, but good for regression)
-    assert config.MANAGER_URL == "http://manager:8081"
+    assert config.MANAGER_URL == "http://test-manager:8081"
     assert config.MANAGER_TIMEOUT == 30.0

@@ -12,7 +12,7 @@ class ManagerConfig(BaseAppConfig):
     """
 
     IDLE_TIMEOUT_MINUTES: int = Field(default=5, description="アイドルコンテナのタイムアウト(分)")
-    CONTAINERS_NETWORK: str = Field(default="lambda-net", description="コンテナネットワーク名")
+    CONTAINERS_NETWORK: str = Field(..., description="コンテナネットワーク名")
 
 
 # シングルトンとして設定をロード

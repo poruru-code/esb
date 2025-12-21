@@ -27,9 +27,18 @@ from services.gateway.config import config
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # テスト用設定
-GATEWAY_URL = os.getenv("GATEWAY_URL", "https://localhost:443")
-VICTORIALOGS_URL = os.getenv("VICTORIALOGS_URL", "http://localhost:9428")
+GATEWAY_PORT = os.getenv("GATEWAY_PORT", "443")
+GATEWAY_URL = os.getenv("GATEWAY_URL", f"https://localhost:{GATEWAY_PORT}")
+
+VICTORIALOGS_PORT = os.getenv("VICTORIALOGS_PORT", "9428")
+VICTORIALOGS_URL = os.getenv("VICTORIALOGS_URL", f"http://localhost:{VICTORIALOGS_PORT}")
 API_KEY = config.X_API_KEY
+
+# 認証情報は環境変数から直接取得 (config経由ではなく、テスト実行環境に依存させる)
+# run_tests.py または .env.test で設定されている前提
+AUTH_USER = os.environ["AUTH_USER"]
+AUTH_PASS = os.environ["AUTH_PASS"]
+
 VERIFY_SSL = False
 
 
@@ -54,7 +63,7 @@ def get_auth_token() -> str:
     """認証してトークンを取得"""
     response = requests.post(
         f"{GATEWAY_URL}{config.AUTH_ENDPOINT_PATH}",
-        json={"AuthParameters": {"USERNAME": config.AUTH_USER, "PASSWORD": config.AUTH_PASS}},
+        json={"AuthParameters": {"USERNAME": AUTH_USER, "PASSWORD": AUTH_PASS}},
         headers={"x-api-key": API_KEY},
         verify=VERIFY_SSL,
     )
@@ -172,7 +181,7 @@ class TestE2E:
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
-        assert data["user"] == config.AUTH_USER
+        assert data["user"] == AUTH_USER
 
     def test_scylla_integration(self, gateway_health):
         """E2E: ScyllaDB連携テスト"""

@@ -19,19 +19,44 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 
-# テスト用の環境変数デフォルト値設定
-os.environ.setdefault("JWT_SECRET_KEY", "dev-secret-key-change-in-production")
-os.environ.setdefault("X_API_KEY", "dev-api-key-change-in-production")
-os.environ.setdefault("LOG_LEVEL", "DEBUG")  # E2Eテストでログレベル検証を行うため
-
-
 # プロジェクトルートを取得
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 CERTS_DIR = PROJECT_ROOT / "certs"
 
+
+# .env.test があれば読み込む（簡易ローダー）
+env_test_path = PROJECT_ROOT / ".env.test"
+if env_test_path.exists():
+    print(f"Loading environment variables from {env_test_path}")
+    with open(env_test_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" in line:
+                key, value = line.split("=", 1)
+                os.environ.setdefault(key.strip(), value.strip())
+
+# フォールバック（.env.testがない場合用）
+os.environ.setdefault("JWT_SECRET_KEY", "dev-secret-key-change-in-production")
+os.environ.setdefault("X_API_KEY", "dev-api-key-change-in-production")
+os.environ.setdefault("AUTH_USER", "admin")
+os.environ.setdefault("AUTH_PASS", "password")
+os.environ.setdefault("LOG_LEVEL", "DEBUG")
+os.environ.setdefault("CONTAINERS_NETWORK", "test-network")
+os.environ.setdefault("LAMBDA_NETWORK", "test-internal-network")
+os.environ.setdefault("EXTERNAL_NETWORK", "test-external")
+os.environ.setdefault("MANAGER_URL", "http://localhost:8081")  # テストからはlocalhostでアクセス
+os.environ.setdefault("GATEWAY_INTERNAL_URL", "https://localhost:443")
+
 # 設定
-GATEWAY_URL = "https://localhost:443"
-SCYLLADB_API_URL = "http://localhost:8001"
+GATEWAY_PORT = os.environ.get("GATEWAY_PORT", "443")
+GATEWAY_URL = f"https://localhost:{GATEWAY_PORT}"
+
+SCYLLADB_PORT = os.environ.get("SCYLLADB_PORT", "8001")
+SCYLLADB_API_URL = f"http://localhost:{SCYLLADB_PORT}"
+
+VICTORIALOGS_PORT = os.environ.get("VICTORIALOGS_PORT", "9428")
 MAX_RETRIES = 60
 RETRY_INTERVAL = 3  # seconds
 
@@ -294,8 +319,18 @@ def run_tests() -> int:
     """pytestでE2Eテストを実行"""
     print("[4/4] Running E2E tests...")
 
+    # test_e2e.py に現在の環境変数を渡す
+    env = os.environ.copy()
+    env["GATEWAY_PORT"] = str(GATEWAY_PORT)
+    env["VICTORIALOGS_PORT"] = str(VICTORIALOGS_PORT)
+    # GATEWAY_URLなどはtest_e2e.py内で再構築されるが、URL自体を渡しても良い。
+    # ここではポートを渡すことで整合性を取る。
+
     result = subprocess.run(
-        [sys.executable, "-m", "pytest", "tests/test_e2e.py", "-v"], cwd=PROJECT_ROOT, check=False
+        [sys.executable, "-m", "pytest", "tests/test_e2e.py", "-v"],
+        cwd=PROJECT_ROOT,
+        check=False,
+        env=env,
     )
     return result.returncode
 

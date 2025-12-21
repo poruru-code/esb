@@ -30,31 +30,23 @@ class GatewayConfig(BaseAppConfig):
     DATA_ROOT_PATH: str = Field(default="/data", description="子コンテナデータのルートパス")
     LOGS_ROOT_PATH: str = Field(default="/logs", description="ログ集約先のルートパス")
 
-    # 認証・セキュリティ
-    JWT_SECRET_KEY: str = Field(
-        default="dummy-secret-key-for-local-dev", description="JWT署名用シークレットキー"
-    )
+    # 認証・セキュリティ (必須 - 環境変数から設定)
+    JWT_SECRET_KEY: str = Field(..., min_length=32, description="JWT署名用シークレットキー")
     JWT_EXPIRES_DELTA: int = Field(default=3000, description="トークン有効期限(秒)")
     # x-api-key は静的なダミー認証キー
-    X_API_KEY: str = Field(
-        default="dummy-api-key-for-local-dev", description="内部サービス間通信用APIキー"
-    )
+    X_API_KEY: str = Field(..., description="内部サービス間通信用APIキー")
 
-    # モックユーザー認証情報
-    AUTH_USER: str = Field(default="admin", description="認証ユーザー名")
-    AUTH_PASS: str = Field(default="password", description="認証パスワード")
+    # モックユーザー認証情報 (必須 - 環境変数から設定)
+    AUTH_USER: str = Field(..., description="認証ユーザー名")
+    AUTH_PASS: str = Field(..., description="認証パスワード")
 
     # 認証エンドポイント
     AUTH_ENDPOINT_PATH: str = Field(default="/user/auth/v1", description="認証エンドポイントパス")
 
-    # 外部連携
-    CONTAINERS_NETWORK: str = Field(
-        default="lambda-net", description="Lambdaコンテナの所属ネットワーク"
-    )
-    GATEWAY_INTERNAL_URL: str = Field(
-        default="http://gateway:8080", description="コンテナから見たGateway URL"
-    )
-    MANAGER_URL: str = Field(default="http://manager:8081", description="ManagerサービスURL")
+    # 外部連携 (接続先ホスト名は必須 - 環境変数から設定)
+    CONTAINERS_NETWORK: str = Field(..., description="Lambdaコンテナの所属ネットワーク")
+    GATEWAY_INTERNAL_URL: str = Field(..., description="コンテナから見たGateway URL")
+    MANAGER_URL: str = Field(..., description="ManagerサービスURL")
     MANAGER_TIMEOUT: float = Field(default=30.0, description="Manager通信タイムアウト(秒)")
 
     # FastAPI設定

@@ -46,6 +46,24 @@ async def test_lambda_connection_error_logged_at_error_level(caplog):
     # Mock manager client to return a container host
     app.state.manager_client.ensure_container = AsyncMock(return_value="test-container")
 
+    # Mock dependency injection for resolve_lambda_target and verify_authorization
+    from services.gateway.api.deps import resolve_lambda_target, verify_authorization
+    from services.gateway.models.schemas import TargetFunction
+
+    async def mock_resolve_lambda_target():
+        return TargetFunction(
+            container_name="test-container",
+            path_params={},
+            route_path="/test-path",
+            function_config={"image": "test-image"},
+        )
+
+    async def mock_verify_authorization():
+        return "test-user"
+
+    app.dependency_overrides[resolve_lambda_target] = mock_resolve_lambda_target
+    app.dependency_overrides[verify_authorization] = mock_verify_authorization
+
     from fastapi.testclient import TestClient
 
     client = TestClient(app)
@@ -57,6 +75,9 @@ async def test_lambda_connection_error_logged_at_error_level(caplog):
             mock_proxy.side_effect = httpx.ConnectError("Connection refused")
 
             client.get("/test-path", headers={"Authorization": "Bearer valid-token"})
+
+    # Clean up overrides
+    app.dependency_overrides = {}
 
     # Assert: Error level log should exist
     assert any(
@@ -98,6 +119,24 @@ async def test_lambda_connection_error_includes_detailed_info(caplog):
     # Mock manager to return specific host
     app.state.manager_client.ensure_container = AsyncMock(return_value="192.168.1.100")
 
+    # Mock dependency injection for resolve_lambda_target and verify_authorization
+    from services.gateway.api.deps import resolve_lambda_target, verify_authorization
+    from services.gateway.models.schemas import TargetFunction
+
+    async def mock_resolve_lambda_target():
+        return TargetFunction(
+            container_name="test-container",
+            path_params={},
+            route_path="/test-path",
+            function_config={"image": "test-image"},
+        )
+
+    async def mock_verify_authorization():
+        return "test-user"
+
+    app.dependency_overrides[resolve_lambda_target] = mock_resolve_lambda_target
+    app.dependency_overrides[verify_authorization] = mock_verify_authorization
+
     from fastapi.testclient import TestClient
 
     client = TestClient(app)
@@ -109,8 +148,15 @@ async def test_lambda_connection_error_includes_detailed_info(caplog):
 
             client.get("/test-path", headers={"Authorization": "Bearer valid-token"})
 
+    # Clean up overrides
+    app.dependency_overrides = {}
+
     # Assert: Log record should contain detailed info in extra fields
     error_records = [r for r in caplog.records if r.levelname == "ERROR"]
+    if not error_records:
+        print("\nCaptured Log Records:")
+        for r in caplog.records:
+            print(f"  Level: {r.levelname}, Message: {r.message}")
     assert len(error_records) > 0, "Should have at least one ERROR log"
 
     # Check for detailed fields in log record
@@ -122,7 +168,9 @@ async def test_lambda_connection_error_includes_detailed_info(caplog):
     assert hasattr(error_record, "error_type"), "Log should include error_type"
 
     # Verify values
+    from services.gateway.config import config
+
     assert error_record.container_host == "192.168.1.100"
-    assert error_record.port == 8080  # This will change to config.LAMBDA_PORT later
+    assert error_record.port == config.LAMBDA_PORT
     assert error_record.timeout == 30.0
     assert "Timeout" in error_record.error_detail
