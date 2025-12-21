@@ -119,8 +119,15 @@ class ContainerManager:
             await self._wait_for_readiness(ip)
             return name
 
-    async def _wait_for_readiness(self, host: str, port: int = 8080, timeout: int = 30) -> None:
+    async def _wait_for_readiness(
+        self,
+        host: str,
+        port: int | None = None,
+        timeout: int | None = None,
+    ) -> None:
         """POST /invocations でRIEの起動を確認（AWS RIE標準方式）"""
+        port = port or config.LAMBDA_PORT
+        timeout = timeout or config.READINESS_TIMEOUT
         url = f"http://{host}:{port}/2015-03-31/functions/function/invocations"
         start = time.time()
 

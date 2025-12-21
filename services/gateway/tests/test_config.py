@@ -1,12 +1,13 @@
-
 from services.gateway.config import GatewayConfig
 from services.common.core.config import BaseAppConfig
+
 
 def test_gateway_config_inheritance():
     """
     TDD: GatewayConfig should inherit from BaseAppConfig.
     """
     assert issubclass(GatewayConfig, BaseAppConfig)
+
 
 def test_gateway_config_fields():
     """

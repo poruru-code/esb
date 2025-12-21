@@ -7,7 +7,7 @@ echo "Starting Docker daemon..."
 dockerd-entrypoint.sh &
 
 # Docker daemonの起動を待機
-timeout=30
+timeout=${DOCKER_DAEMON_TIMEOUT:-30}
 while ! docker info > /dev/null 2>&1; do
     if [ $timeout -le 0 ]; then
         echo "ERROR: Docker daemon failed to start"

@@ -90,7 +90,7 @@ async def ensure_container(req: EnsureRequest, request: Request):
 
     try:
         host = await manager.ensure_container_running(req.function_name, req.image, req.env)
-        return {"host": host, "port": 8080}
+        return {"host": host, "port": config.LAMBDA_PORT}
     except docker.errors.ImageNotFound as e:
         logger.error(f"Image not found: {e.explanation}")
         raise HTTPException(status_code=404, detail=f"Lambda image not found: {e.explanation}")

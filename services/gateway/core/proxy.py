@@ -2,7 +2,7 @@
 プロキシロジックモジュール
 
 API Gateway Lambda Proxy Integration互換のイベント構築と
-Lambda RIEへのリクエスト転送を行います。
+プロキシ機能: Lambda RIEへのリクエスト転送とレスポンス変換
 """
 
 import base64
@@ -14,6 +14,7 @@ from fastapi import Request
 import httpx
 
 from services.common.core.request_context import get_request_id
+from ..config import config
 
 
 def build_event(
@@ -109,7 +110,7 @@ async def proxy_to_lambda(
     # コンテナ名からIPを解決
     host = resolve_container_ip(target_container)
 
-    rie_url = f"http://{host}:8080/2015-03-31/functions/function/invocations"
+    rie_url = f"http://{host}:{config.LAMBDA_PORT}/2015-03-31/functions/function/invocations"
 
     headers = {"Content-Type": "application/json"}
 

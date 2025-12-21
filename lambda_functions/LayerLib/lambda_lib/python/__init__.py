@@ -5,8 +5,16 @@ Usage:
     from s3_util import init_storage, get_object, put_object
     from dynamodb_util import init_database, get_item, put_item
 """
+
 from .s3_util import init_storage, get_object, put_object, list_objects, create_bucket
-from .dynamodb_util import init_database, init_database_resource, get_item, put_item, query, create_table
+from .dynamodb_util import (
+    init_database,
+    init_database_resource,
+    get_item,
+    put_item,
+    query,
+    create_table,
+)
 
 __all__ = [
     # S3互換
