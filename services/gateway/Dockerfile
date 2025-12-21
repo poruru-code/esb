@@ -16,6 +16,7 @@ RUN uv pip compile pyproject.toml -o requirements.txt && \
     uv pip install --system --break-system-packages -r requirements.txt
 
 # Copy services code
+COPY services/common /app/services/common
 COPY services/gateway /app/services/gateway
 # Copy Config
 COPY config /app/config

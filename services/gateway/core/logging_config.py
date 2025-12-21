@@ -1,92 +1,16 @@
-"""
-Logging Configuration
-Custom JSON Logger implementation optimized for VictoriaLogs.
-"""
+import logging.config
+import yaml
+import os
 
-import logging
-import json
-from datetime import datetime, timezone
-
-
-class CustomJsonFormatter(logging.Formatter):
+def setup_logging():
     """
-    VictoriaLogs optimized JSON Formatter.
-
-    Fields:
-      - _time: ISO8601 timestamp (millisecond precision)
-      - level: Log level
-      - logger: Logger name (e.g. uvicorn.access, gateway.main)
-      - message: Log message
-      - request_id: Request ID (if available in record or via ContextVar)
+    YAML設定ファイルを読み込み、ロギングを初期化します。
     """
-
-    def format(self, record: logging.LogRecord) -> str:
-        # RequestID resolution
-        request_id = getattr(record, "request_id", None)
-        if not request_id:
-            try:
-                from .request_context import get_request_id
-
-                request_id = get_request_id()
-            except ImportError:
-                pass
-
-        log_data = {
-            "_time": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(
-                timespec="milliseconds"
-            ),
-            "level": record.levelname,
-            "logger": record.name,
-            "message": record.getMessage(),
-        }
-
-        if request_id:
-            log_data["request_id"] = request_id
-
-        # Include extra fields
-        # Exclude standard LogRecord attributes to avoid clutter
-        standard_attrs = {
-            "args",
-            "asctime",
-            "created",
-            "exc_info",
-            "exc_text",
-            "filename",
-            "funcName",
-            "levelname",
-            "levelno",
-            "lineno",
-            "module",
-            "msecs",
-            "message",
-            "msg",
-            "name",
-            "pathname",
-            "process",
-            "processName",
-            "relativeCreated",
-            "stack_info",
-            "thread",
-            "threadName",
-        }
-
-        for key, value in record.__dict__.items():
-            if key not in standard_attrs and not key.startswith("_"):
-                log_data[key] = value
-
-        # Handle exception info if present
-        if record.exc_info:
-            log_data["exception"] = self.formatException(record.exc_info)
-
-        return json.dumps(log_data, ensure_ascii=False)
-
-
-def setup_logging(level=logging.INFO):
-    """
-    Basic logging setup.
-    Note: Main configuration should be handled via gateway_log.yaml and Uvicorn.
-    This function primarily ensures library log levels are sane if not configured elsewhere.
-    """
-    # Set levels for noisy libraries
-    logging.getLogger("httpx").setLevel(logging.WARNING)
-    logging.getLogger("urllib3").setLevel(logging.WARNING)
+    config_path = os.getenv("LOG_CONFIG_PATH", "/app/config/gateway_log.yaml")
+    if os.path.exists(config_path):
+        with open(config_path, "r") as f:
+            config = yaml.safe_load(f)
+            logging.config.dictConfig(config)
+    else:
+        # フォールバック
+        logging.basicConfig(level=logging.INFO)

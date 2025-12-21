@@ -13,7 +13,7 @@ from typing import Dict, Any
 from fastapi import Request
 import httpx
 
-from .request_context import get_request_id
+from services.common.core.request_context import get_request_id
 
 
 def build_event(

@@ -27,7 +27,7 @@ from .services.lambda_invoker import LambdaInvoker
 
 from .api.deps import UserIdDep, LambdaTargetDep
 from .core.logging_config import setup_logging
-from .core.request_context import set_request_id, clear_request_id
+from services.common.core.request_context import set_request_id, clear_request_id
 from .core.exceptions import (
     global_exception_handler,
     http_exception_handler,

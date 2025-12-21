@@ -8,7 +8,7 @@ from .core.exceptions import (
     ManagerTimeoutError,
     ManagerUnreachableError,
 )
-from .core.request_context import get_request_id
+from services.common.core.request_context import get_request_id
 
 logger = logging.getLogger("gateway.client")
 

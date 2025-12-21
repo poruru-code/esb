@@ -60,7 +60,7 @@ line-length = 100
 target-version = "py311"
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "services/gateway/tests", "services/manager/tests"]
+testpaths = ["tests", "services/common/tests", "services/gateway/tests", "services/manager/tests"]
 filterwarnings = [
     "ignore::urllib3.exceptions.InsecureRequestWarning",
 ]

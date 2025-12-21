@@ -31,10 +31,14 @@ class GatewayConfig(BaseSettings):
     LOGS_ROOT_PATH: str = Field(default="/logs", description="ログ集約先のルートパス")
 
     # 認証・セキュリティ
-    JWT_SECRET_KEY: str = Field(..., description="JWT署名用シークレットキー")
+    JWT_SECRET_KEY: str = Field(
+        default="dummy-secret-key-for-local-dev", description="JWT署名用シークレットキー"
+    )
     JWT_EXPIRES_DELTA: int = Field(default=3000, description="トークン有効期限(秒)")
     # x-api-key は静的なダミー認証キー
-    X_API_KEY: str = Field(..., description="内部サービス間通信用APIキー")
+    X_API_KEY: str = Field(
+        default="dummy-api-key-for-local-dev", description="内部サービス間通信用APIキー"
+    )
 
     # モックユーザー認証情報
     AUTH_USER: str = Field(default="admin", description="認証ユーザー名")

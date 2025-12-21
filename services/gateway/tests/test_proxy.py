@@ -31,7 +31,7 @@ async def test_proxy_to_lambda_uses_shared_client():
 
 def test_build_event_propagates_request_id_from_context():
     from services.gateway.core.proxy import build_event
-    from services.gateway.core.request_context import set_request_id, clear_request_id
+    from services.common.core.request_context import set_request_id, clear_request_id
     from fastapi import Request
     from unittest.mock import Mock
 

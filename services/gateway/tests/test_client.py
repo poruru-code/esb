@@ -105,7 +105,7 @@ async def test_ensure_container_400_docker_error(mock_client):
 @pytest.mark.asyncio
 async def test_request_id_propagation(mock_client):
     """RequestId が X-Request-Id ヘッダーで伝播される"""
-    from services.gateway.core.request_context import set_request_id, clear_request_id
+    from services.common.core.request_context import set_request_id, clear_request_id
 
     # RequestId を設定
     test_request_id = "test-request-123"

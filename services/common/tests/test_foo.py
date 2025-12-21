@@ -1,0 +1,1 @@
+print("GLOBAL_PARSE_OK")

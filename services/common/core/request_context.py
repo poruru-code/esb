@@ -1,5 +1,5 @@
 """
-RequestId コンテキスト管理
+RequestContext コンテキスト管理
 ContextVar を使用して、非同期処理間で RequestId を共有します。
 """
 

@@ -9,17 +9,13 @@ import asyncio
 
 from .service import ContainerManager
 import docker.errors
-from .core.request_context import set_request_id, clear_request_id, get_request_id
+from services.common.core.request_context import set_request_id, clear_request_id, get_request_id
 
 # Logger setup
 # YAML設定で定義されるため、ここではロガーを取得するだけ
 logger = logging.getLogger("manager.main")
 # レベル設定などはYAML側で行う
 
-# Suppress noisy library logs (Backup if YAML not loaded)
-logging.getLogger("docker").setLevel(logging.WARNING)
-logging.getLogger("apscheduler").setLevel(logging.WARNING)
-logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 IDLE_TIMEOUT_MINUTES = int(os.environ.get("IDLE_TIMEOUT_MINUTES", 5))
 

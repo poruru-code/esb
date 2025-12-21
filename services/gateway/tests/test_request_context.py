@@ -9,7 +9,7 @@ import pytest
 
 def test_get_request_id_default_is_none():
     """初期状態では RequestId は None"""
-    from services.gateway.core.request_context import get_request_id, clear_request_id
+    from services.common.core.request_context import get_request_id, clear_request_id
 
     clear_request_id()
     assert get_request_id() is None
@@ -17,7 +17,7 @@ def test_get_request_id_default_is_none():
 
 def test_set_request_id_with_value():
     """RequestId を明示的に設定できる"""
-    from services.gateway.core.request_context import (
+    from services.common.core.request_context import (
         set_request_id,
         get_request_id,
         clear_request_id,
@@ -32,7 +32,7 @@ def test_set_request_id_with_value():
 
 def test_set_request_id_generates_uuid():
     """RequestId を None で設定すると UUID が生成される"""
-    from services.gateway.core.request_context import (
+    from services.common.core.request_context import (
         set_request_id,
         get_request_id,
         clear_request_id,
@@ -47,7 +47,7 @@ def test_set_request_id_generates_uuid():
 
 def test_clear_request_id():
     """RequestId をクリアできる"""
-    from services.gateway.core.request_context import (
+    from services.common.core.request_context import (
         set_request_id,
         get_request_id,
         clear_request_id,
@@ -63,7 +63,7 @@ def test_clear_request_id():
 async def test_request_id_isolation_in_async_context():
     """非同期タスク間で RequestId が分離される (ContextVar の動作確認)"""
     import asyncio
-    from services.gateway.core.request_context import (
+    from services.common.core.request_context import (
         set_request_id,
         get_request_id,
         clear_request_id,

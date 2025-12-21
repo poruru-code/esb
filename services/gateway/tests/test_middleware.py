@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import Mock
 from fastapi import Request, Response
 from services.gateway.main import request_id_middleware
-from services.gateway.core.request_context import get_request_id, clear_request_id
+from services.common.core.request_context import get_request_id, clear_request_id
 
 
 @pytest.mark.asyncio
