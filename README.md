@@ -146,16 +146,46 @@ python tests/run_tests.py --build
 
 ### SAM Template Generator
 SAMテンプレートからDockerfileと構成ファイルを自動生成するツールです。
+本プロジェクトでは、Lambda関数の構成管理を `template.yaml` に一本化しています。
 
+#### 基本的な使い方
 ```bash
-# E2Eテスト用の生成実行
 python -m tools.generator.main --config tests/e2e/generator.yml
 ```
 
-設定ファイル (`generator.yml`) で入力テンプレート (`template.yaml`) と出力先を指定します。
-生成されるもの:
-- 各Lambda関数の `Dockerfile`
-- `functions.yml` (Gateway設定用)
+#### Lambda関数の追加手順
+1. **`tests/e2e/template.yaml` を編集**:
+   新しい `AWS::Serverless::Function` リソースを追加します。
+   ```yaml
+   MyFunction:
+     Type: AWS::Serverless::Function
+     Properties:
+       FunctionName: lambda-my-func
+       CodeUri: functions/my-func/
+       Handler: lambda_function.lambda_handler
+       Runtime: python3.12
+   ```
+
+2. **コードの配置**:
+   `tests/e2e/functions/my-func/lambda_function.py` を作成します。
+   ```python
+   def lambda_handler(event, context):
+       return {"statusCode": 200, "body": "Hello"}
+   ```
+
+3. **生成実行**:
+   ```bash
+   python -m tools.generator.main --config tests/e2e/generator.yml
+   ```
+   これり、以下が自動生成されます:
+   - `tests/e2e/functions/my-func/Dockerfile`
+   - `tests/e2e/config/functions.yml` (Gateway設定)
+
+4. **テスト実行**:
+   ```bash
+   python tests/run_tests.py --build
+   ```
+
 
 ### API利用例 (Gateway)
 

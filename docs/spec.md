@@ -39,7 +39,7 @@ graph TD
 ### 2.1 Gateway API (FastAPI)
 - **役割**: クライアントからのリクエスト受付、認証、およびLambda関数のルーティングと実行管理。
 - **通信**: クライアントとはHTTPで通信。内部でDocker APIを使用してLambdaコンテナを制御。
-- **ポート**: `8000`
+- **ポート**: `443`
 
 #### ディレクトリ構成
 ```
@@ -58,12 +58,12 @@ gateway/app/
 ```
 
 #### 主要コンポーネント
-| モジュール | 責務 |
-|-----------|------|
-| `core/security.py` | JWTトークン生成・検証（FastAPI非依存で単体テスト可能） |
-| `core/proxy.py` | API Gateway Lambda Proxy Integration互換イベント構築、Lambda RIE転送 |
-| `services/container.py` | Docker SDKを使用したコンテナライフサイクル管理 |
-| `services/route_matcher.py` | `routing.yml` のパースとリクエストマッチング |
+| モジュール                  | 責務                                                                 |
+| --------------------------- | -------------------------------------------------------------------- |
+| `core/security.py`          | JWTトークン生成・検証（FastAPI非依存で単体テスト可能）               |
+| `core/proxy.py`             | API Gateway Lambda Proxy Integration互換イベント構築、Lambda RIE転送 |
+| `services/container.py`     | Docker SDKを使用したコンテナライフサイクル管理                       |
+| `services/route_matcher.py` | `routing.yml` のパースとリクエストマッチング                         |
 
 ### 2.2 RustFS (Storage)
 - **役割**: AWS S3互換のオブジェクトストレージ。Lambdaコードやデータの保存に使用。
@@ -86,7 +86,7 @@ Traefik等のリバースプロキシを使用せず、各コンテナのポー�
 
 | サービス名     | コンテナ内ポート | ホスト公開ポート | URL                     | プロトコル          |
 | -------------- | ---------------- | ---------------- | ----------------------- | ------------------- |
-| Gateway API    | 8000             | 8000             | `http://localhost:8000` | HTTP                |
+| Gateway API    | 443              | 443              | `https://localhost:443` | HTTPS               |
 | RustFS API     | 9000             | 9000             | `http://localhost:9000` | HTTP                |
 | RustFS Console | 9001             | 9001             | `http://localhost:9001` | HTTP                |
 | ScyllaDB       | 8000             | 8001             | `http://localhost:8001` | HTTP (DynamoDB API) |
