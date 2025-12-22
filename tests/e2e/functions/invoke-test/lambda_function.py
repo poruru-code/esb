@@ -1,23 +1,15 @@
 import json
-import os
-import requests
-import urllib3
-
-# Suppress insecure request warnings for self-signed certs
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
+import boto3
+# requests, urllib3 のインポートは不要になります
 
 def lambda_handler(event, context):
-    # RIEハートビートチェック対応
+    # RIEハートビートチェック対応 (変更なし)
     if isinstance(event, dict) and event.get("ping"):
         return {"statusCode": 200, "body": "pong"}
 
     print(f"Received event: {json.dumps(event)}")
 
-    # Environment variables
-    gateway_url = os.environ.get("GATEWAY_INTERNAL_URL", "https://onpre-gateway")
-
-    # Parse body
+    # ボディのパース (変更なし)
     body = event.get("body", {})
     if isinstance(body, str):
         try:
@@ -27,75 +19,71 @@ def lambda_handler(event, context):
 
     target_func = body.get("target")
     payload = body.get("payload", {})
-    invoke_type = body.get("type", "RequestResponse")  # RequestResponse or Event
+    invoke_type = body.get("type", "RequestResponse")
 
     if not target_func:
         return {"statusCode": 400, "body": json.dumps({"error": "Target function name required"})}
 
-    # Use AWS Lambda Invocation API compatible endpoint
-    # POST /2015-03-31/functions/{appName}/invocations
-    invoke_url = f"{gateway_url}/2015-03-31/functions/{target_func}/invocations"
+    # ==================================================================
+    # 変更点: requests.post ではなく boto3 を使用する
+    # ==================================================================
+    # sitecustomize.py により、自動的に endpoint_url が内部Gatewayに向けられます
+    client = boto3.client("lambda")
 
-    headers = {"Content-Type": "application/json", "X-Amz-Invocation-Type": invoke_type}
-
-    print(f"Invoking {target_func} at {invoke_url} with type {invoke_type}")
+    print(f"Invoking {target_func} with type {invoke_type} via boto3")
 
     try:
-        response = requests.post(
-            invoke_url,
-            json=payload,
-            headers=headers,
-            verify=False,  # Internal calls might use self-signed certs
-            timeout=30,  # 30s timeout
+        # invokeメソッドの呼び出し
+        response = client.invoke(
+            FunctionName=target_func,
+            InvocationType=invoke_type,
+            Payload=json.dumps(payload)
         )
 
-        # Determine success
-        status_code = response.status_code
+        # ステータスコードの取得 (HTTPステータスではなくLambda APIのレスポンスコード)
+        status_code = response['StatusCode']
         print(f"Response Status: {status_code}")
 
-        # For Event (Async), we expect 202
+        # Event (非同期) の場合
         if invoke_type == "Event":
+            # 202 Accepted が返ることを期待
             success = status_code == 202
             return {
                 "statusCode": 200,
-                "body": json.dumps(
-                    {
-                        "success": success,
-                        "target": target_func,
-                        "type": invoke_type,
-                        "status_code": status_code,
-                        "message": "Async invocation started",
-                    }
-                ),
-            }
-
-        # For RequestResponse (Sync), we expect 200 and the actual response body
-        # The Gateway returns the function response directly or wrapped?
-        # main.py: returns Response(content=resp.content, status_code=resp.status_code...)
-        # So we get the raw response from the target lambda.
-
-        response_data = {}
-        try:
-            response_data = response.json()
-        except Exception:
-            response_data = {"raw": response.text}
-
-        return {
-            "statusCode": 200,
-            "body": json.dumps(
-                {
-                    "success": status_code == 200,
+                "body": json.dumps({
+                    "success": success,
                     "target": target_func,
                     "type": invoke_type,
                     "status_code": status_code,
-                    "response": response_data,
-                }
-            ),
+                    "message": "Async invocation started"
+                })
+            }
+
+        # RequestResponse (同期) の場合
+        # Payloadは StreamingBody なので read() する必要があります
+        response_payload = response['Payload'].read()
+        
+        # レスポンスのデコード
+        try:
+            response_data = json.loads(response_payload)
+        except Exception:
+            # 文字列等の場合
+            response_data = response_payload.decode('utf-8')
+
+        return {
+            "statusCode": 200,
+            "body": json.dumps({
+                "success": status_code == 200,
+                "target": target_func,
+                "type": invoke_type,
+                "status_code": status_code,
+                "response": response_data
+            })
         }
 
     except Exception as e:
         print(f"Invocation failed: {e}")
         return {
             "statusCode": 500,
-            "body": json.dumps({"success": False, "error": str(e), "target": target_func}),
+            "body": json.dumps({"success": False, "error": str(e), "target": target_func})
         }

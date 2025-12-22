@@ -21,7 +21,15 @@ SERVICE_CONFIG = {
             retries={"max_attempts": 10, "mode": "standard"}, connect_timeout=5, read_timeout=5
         ),
     },
+    "lambda": {
+        "env_var": "GATEWAY_INTERNAL_URL",
+        "config": Config(
+            retries={"max_attempts": 10, "mode": "standard"}, connect_timeout=5, read_timeout=5
+        ),
+    },
 }
+
+print(f"[sitecustomize] Loaded. boto3 ID: {id(boto3)}")
 
 
 def _get_iso8601_ms(ts_ms):
@@ -158,3 +166,4 @@ def _patched_boto3_client(service_name, *args, **kwargs):
 
 # Monkey Patch
 boto3.client = _patched_boto3_client
+print(f"[sitecustomize] boto3.client patched. New client: {_patched_boto3_client}")

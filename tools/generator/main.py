@@ -55,7 +55,7 @@ def generate_files(
     docker_config = config.get('docker', {})
     # Set default sitecustomize_source if not configured
     if 'sitecustomize_source' not in docker_config:
-        docker_config['sitecustomize_source'] = 'tools/generator/lib/sitecustomize.py'
+        docker_config['sitecustomize_source'] = 'tools/generator/runtime/sitecustomize.py'
     
     # SAMテンプレートを読み込み
     sam_template_path = project_root / paths.get('sam_template', 'template.yaml')

@@ -40,7 +40,7 @@ def render_dockerfile(
     
     context = {
         'python_version': python_version,
-        'sitecustomize_source': docker_config.get('sitecustomize_source', 'lib/sitecustomize.py'),
+        'sitecustomize_source': docker_config.get('sitecustomize_source', 'runtime/sitecustomize.py'),
         'code_uri': func_config.get('code_uri', './'),
         'handler': func_config.get('handler', 'lambda_function.lambda_handler'),
         'has_requirements': func_config.get('has_requirements', False),

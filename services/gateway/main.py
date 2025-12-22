@@ -218,9 +218,11 @@ async def invoke_lambda_api(
         else:
             # 同期呼び出し：結果を待って返す
             resp = await invoker.invoke_function(function_name, body)
+            # RIEのレスポンスをそのままクライアント(boto3)へ中継
             return Response(
                 content=resp.content,
                 status_code=resp.status_code,
+                headers=dict(resp.headers),
                 media_type="application/json",
             )
     except ContainerStartError as e:

@@ -16,7 +16,7 @@ class TestDockerfileRenderer:
         }
         
         docker_config = {
-            'sitecustomize_source': 'tools/generator/lib/sitecustomize.py',
+            'sitecustomize_source': 'tools/generator/runtime/sitecustomize.py',
         }
 
         result = render_dockerfile(func_config, docker_config)
@@ -38,7 +38,7 @@ class TestDockerfileRenderer:
         }
         
         docker_config = {
-            'sitecustomize_source': 'tools/generator/lib/sitecustomize.py',
+            'sitecustomize_source': 'tools/generator/runtime/sitecustomize.py',
         }
 
         result = render_dockerfile(func_config, docker_config)

@@ -75,7 +75,12 @@ graph TD
 ├── tools/generator/         # SAM Template Generator
 │   ├── parser.py            # SAMテンプレートパーサー
 │   ├── renderer.py          # Dockerfile/functions.yml生成
-│   └── main.py              # CLIエントリーポイント
+│   ├── main.py              # CLIエントリーポイント
+│   ├── runtime/             # Lambda ランタイムパッチ
+│   │   └── sitecustomize.py     # boto3モンキーパッチ (S3/DynamoDB/Lambda/Logs)
+│   └── tests/               # 単体テスト
+│       └── runtime/
+│           └── test_sitecustomize.py
 ├── tests/
 │   ├── e2e/                 # E2Eテスト用Lambda関数
 │   │   ├── template.yaml    # SAM Source of Truth
@@ -83,8 +88,6 @@ graph TD
 │   │   └── config/          # 生成された設定ファイル
 │   ├── test_e2e.py          # E2Eテストスイート
 │   └── run_tests.py         # テストランナー
-└── lib/                     # 共有ライブラリ
-    └── sitecustomize.py     # CloudWatch Logs パッチ
 ```
 
 ## クイックスタート
