@@ -130,7 +130,7 @@ async def test_lambda_connection_error_includes_detailed_info(caplog):
 
     mock_manager = AsyncMock()
     mock_manager.ensure_container.return_value = "192.168.1.100"
-    mock_manager.invalidate_cache = MagicMock()  # 呼ばれるはず
+    mock_manager.invalidate_cache = MagicMock()  # 同期メソッドなので MagicMock
 
     app.dependency_overrides[get_http_client] = lambda: mock_client
     app.dependency_overrides[get_manager_client] = lambda: mock_manager

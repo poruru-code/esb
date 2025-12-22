@@ -139,9 +139,13 @@ def provision_s3(buckets):
             print(f"❌ Failed to create bucket {name}: {e}")
 
 
-def main():
+def main(template_path=None):
     # テンプレート読み込み
-    template_path = project_root / "tests/e2e/template.yaml"
+    if template_path is None:
+        template_path = project_root / "tests/e2e/template.yaml"
+    else:
+        template_path = Path(template_path)
+
     if not template_path.exists():
         print(f"Template not found: {template_path}")
         sys.exit(1)

@@ -85,7 +85,11 @@ def test_gateway_handler_returns_404_when_function_not_found(mock_proxy, mock_en
     FunctionNotFoundError が発生した場合に 404 を返すことを検証
     """
     # Override dependencies
-    from services.gateway.api.deps import verify_authorization, resolve_lambda_target, get_manager_client
+    from services.gateway.api.deps import (
+        verify_authorization,
+        resolve_lambda_target,
+        get_manager_client,
+    )
     from services.gateway.models import TargetFunction
 
     app.dependency_overrides[verify_authorization] = lambda: "test-user"
@@ -103,6 +107,7 @@ def test_gateway_handler_returns_404_when_function_not_found(mock_proxy, mock_en
 
     # Execute
     from fastapi.testclient import TestClient
+
     client = TestClient(app)
     response = client.get("/api/missing", headers={"Authorization": "Bearer token"})
 
