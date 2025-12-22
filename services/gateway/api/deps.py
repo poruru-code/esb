@@ -11,6 +11,7 @@ from httpx import AsyncClient
 from ..config import config
 from ..core.security import verify_token
 from ..models import TargetFunction
+from ..core.event_builder import EventBuilder
 
 
 from ..services.function_registry import FunctionRegistry
@@ -44,12 +45,17 @@ def get_lambda_invoker(request: Request) -> LambdaInvoker:
     return request.app.state.lambda_invoker
 
 
+def get_event_builder(request: Request) -> EventBuilder:
+    return request.app.state.event_builder
+
+
 # Service Dependency Type Aliases
 FunctionRegistryDep = Annotated[FunctionRegistry, Depends(get_function_registry)]
 RouteMatcherDep = Annotated[RouteMatcher, Depends(get_route_matcher)]
 ManagerClientDep = Annotated[ManagerClient, Depends(get_manager_client)]
 LambdaInvokerDep = Annotated[LambdaInvoker, Depends(get_lambda_invoker)]
 HttpClientDep = Annotated[AsyncClient, Depends(get_http_client)]
+EventBuilderDep = Annotated[EventBuilder, Depends(get_event_builder)]
 
 
 # ==========================================

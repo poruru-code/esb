@@ -16,9 +16,11 @@ import httpx
 import logging
 from .config import config
 from .core.security import create_access_token
-from .core.proxy import build_event, proxy_to_lambda, parse_lambda_response
+from .core.proxy import proxy_to_lambda, parse_lambda_response
 from .models import AuthRequest, AuthResponse, AuthenticationResult
 from .client import ManagerClient
+from .services.container_manager import HttpContainerManager
+from .core.event_builder import V1ProxyEventBuilder
 
 # Services Imports
 from .services.function_registry import FunctionRegistry
@@ -32,6 +34,7 @@ from .api.deps import (
     FunctionRegistryDep,
     ManagerClientDep,
     HttpClientDep,
+    EventBuilderDep,
 )
 from .core.logging_config import setup_logging
 from services.common.core.request_context import set_request_id, clear_request_id
@@ -72,7 +75,14 @@ async def lifespan(app: FastAPI):
     function_registry.load_functions_config()
     route_matcher.load_routing_config()
 
-    lambda_invoker = LambdaInvoker(client, function_registry)
+    container_manager = HttpContainerManager(config, client)
+
+    lambda_invoker = LambdaInvoker(
+        client=client,
+        registry=function_registry,
+        container_manager=container_manager,
+        config=config,
+    )
     manager_client = ManagerClient(client)
 
     # Store in app.state for DI
@@ -81,6 +91,8 @@ async def lifespan(app: FastAPI):
     app.state.route_matcher = route_matcher
     app.state.lambda_invoker = lambda_invoker
     app.state.manager_client = manager_client
+    app.state.container_manager = container_manager
+    app.state.event_builder = V1ProxyEventBuilder()
 
     logger.info("Gateway initialized with shared resources.")
 
@@ -247,6 +259,7 @@ async def gateway_handler(
     target: LambdaTargetDep,
     manager_client: ManagerClientDep,
     http_client: HttpClientDep,
+    event_builder: EventBuilderDep,
 ):
     """
     キャッチオールルート：routing.ymlに基づいてLambda RIEに転送
@@ -276,7 +289,13 @@ async def gateway_handler(
     # Lambda RIEに転送
     try:
         body = await request.body()
-        event = build_event(request, body, user_id, target.path_params, target.route_path)
+        event = await event_builder.build(
+            request=request,
+            body=body,
+            user_id=user_id,
+            path_params=target.path_params,
+            route_path=target.route_path,
+        )
 
         # Inject shared client
         lambda_response = await proxy_to_lambda(container_host, event, client=http_client)

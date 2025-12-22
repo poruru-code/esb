@@ -5,103 +5,15 @@ API Gateway Lambda Proxy Integration互換のイベント構築と
 プロキシ機能: Lambda RIEへのリクエスト転送とレスポンス変換
 """
 
-import base64
 import json
 import logging
-import time
 from typing import Dict, Any
 
-from fastapi import Request
 import httpx
 
-from services.common.core.request_context import get_request_id
 from ..config import config
-from ..models.aws_v1 import (
-    APIGatewayProxyEvent,
-    ApiGatewayRequestContext,
-    ApiGatewayIdentity,
-    ApiGatewayAuthorizer,
-)
 
 logger = logging.getLogger("gateway.proxy")
-
-
-def build_event(
-    request: Request, body: bytes, user_id: str, path_params: Dict[str, str], route_path: str
-) -> Dict[str, Any]:
-    """
-    API Gateway Lambda Proxy Integration互換のeventオブジェクトを構築
-
-    Pydantic モデルを使用して型安全にイベントを構築し、
-    AWS API Gateway v1 形式に準拠した辞書を返す。
-    """
-    # gzip圧縮されているか確認
-    is_base64 = "gzip" in request.headers.get("content-encoding", "").lower()
-
-    # ボディの処理
-    if is_base64:
-        body_content = base64.b64encode(body).decode("utf-8")
-    else:
-        try:
-            body_content = body.decode("utf-8")
-        except UnicodeDecodeError:
-            body_content = base64.b64encode(body).decode("utf-8")
-            is_base64 = True
-
-    # クエリパラメータ
-    query_params: Dict[str, str] = {}
-    multi_query_params: Dict[str, list] = {}
-    if request.query_params:
-        for key in request.query_params.keys():
-            values = request.query_params.getlist(key)
-            query_params[key] = values[-1] if values else ""
-            multi_query_params[key] = values
-
-    # ヘッダー
-    headers: Dict[str, str] = {}
-    multi_headers: Dict[str, list] = {}
-    for key in request.headers.keys():
-        values = request.headers.getlist(key)
-        headers[key] = values[-1] if values else ""
-        multi_headers[key] = values
-
-    # RequestID取得 (Contextから優先的に取得)
-    request_id = get_request_id()
-    if not request_id:
-        request_id = f"req-{int(time.time() * 1000)}"
-
-    # HTTP バージョン取得
-    http_version = request.scope.get("http_version", "1.1") if hasattr(request, "scope") else "1.1"
-
-    # Pydantic モデルを使用してイベントを構築
-    event_model = APIGatewayProxyEvent(
-        resource=route_path or str(request.url.path),
-        path=str(request.url.path),
-        httpMethod=request.method,
-        headers=headers,
-        multiValueHeaders=multi_headers,
-        queryStringParameters=query_params if query_params else None,
-        multiValueQueryStringParameters=multi_query_params if multi_query_params else None,
-        pathParameters=path_params if path_params else None,
-        requestContext=ApiGatewayRequestContext(
-            identity=ApiGatewayIdentity(
-                sourceIp=request.client.host if request.client else "unknown",
-                userAgent=request.headers.get("user-agent"),
-            ),
-            authorizer=ApiGatewayAuthorizer(
-                claims={"cognito:username": user_id, "username": user_id},
-                cognito_username=user_id,
-            ),
-            requestId=request_id,
-            path=str(request.url.path),
-            stage="prod",
-            protocol=f"HTTP/{http_version}",
-        ),
-        body=body_content if body_content else None,
-        isBase64Encoded=is_base64,
-    )
-
-    return event_model.model_dump(exclude_none=True, by_alias=True)
 
 
 def resolve_container_ip(container_name: str) -> str:

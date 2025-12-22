@@ -8,26 +8,36 @@ boto3.client('lambda').invoke() 互換のエンドポイント用のビジネス
 import logging
 import httpx
 from services.gateway.services.function_registry import FunctionRegistry
+from services.gateway.services.container_manager import ContainerManagerProtocol
+from services.gateway.config import GatewayConfig
 from services.gateway.core.exceptions import (
     FunctionNotFoundError,
     ContainerStartError,
     LambdaExecutionError,
 )
-from ..client import get_lambda_host
-from ..config import config
 
 logger = logging.getLogger("gateway.lambda_invoker")
 
 
 class LambdaInvoker:
-    def __init__(self, client: httpx.AsyncClient, registry: FunctionRegistry):
+    def __init__(
+        self,
+        client: httpx.AsyncClient,
+        registry: FunctionRegistry,
+        container_manager: ContainerManagerProtocol,
+        config: GatewayConfig,
+    ):
         """
         Args:
             client: Shared httpx.AsyncClient
             registry: FunctionRegistry instance
+            container_manager: ContainerManagerProtocol instance
+            config: GatewayConfig instance
         """
         self.client = client
         self.registry = registry
+        self.container_manager = container_manager
+        self.config = config
 
     async def invoke_function(
         self, function_name: str, payload: bytes, timeout: int = 300
@@ -55,13 +65,13 @@ class LambdaInvoker:
         # Prepare env
         env = func_config.get("environment", {}).copy()
 
-        # Resolve Gateway URL (Simple approach for now)
-        gateway_internal_url = config.GATEWAY_INTERNAL_URL
+        # Resolve Gateway URL using injected config
+        gateway_internal_url = self.config.GATEWAY_INTERNAL_URL
         env["GATEWAY_INTERNAL_URL"] = gateway_internal_url
 
         # Ensure container (via Manager)
         try:
-            host = await get_lambda_host(
+            host = await self.container_manager.get_lambda_host(
                 function_name=function_name,
                 image=func_config.get("image"),
                 env=env,
@@ -70,7 +80,9 @@ class LambdaInvoker:
             raise ContainerStartError(function_name, e) from e
 
         # POST to Lambda RIE
-        rie_url = f"http://{host}:{config.LAMBDA_PORT}/2015-03-31/functions/function/invocations"
+        rie_url = (
+            f"http://{host}:{self.config.LAMBDA_PORT}/2015-03-31/functions/function/invocations"
+        )
         logger.info(f"Invoking {function_name} at {rie_url}")
 
         try:
