@@ -1,4 +1,4 @@
-AWSTemplateFormatVersion: '2010-09-09'
+AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: E2E Test Lambda Functions
 
@@ -65,3 +65,21 @@ Resources:
           Properties:
             Path: /api/invoke/test
             Method: post
+
+  # --- Phase 2: Storage & Database リソース定義 ---
+  E2ETable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: e2e-test-table
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+  E2EBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: e2e-test-bucket

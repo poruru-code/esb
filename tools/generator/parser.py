@@ -126,7 +126,40 @@ def parse_sam_template(content: str, parameters: dict | None = None) -> dict:
             }
         )
 
-    return {"functions": functions}
+    # --- Phase 2: Resources 解析 ---
+    dynamodb_tables = []
+    s3_buckets = []
+
+    for logical_id, resource in resources.items():
+        resource_type = resource.get("Type", "")
+        props = resource.get("Properties", {})
+
+        # DynamoDB
+        if resource_type == "AWS::DynamoDB::Table":
+            table_name = props.get("TableName", logical_id)
+            table_name = _resolve_intrinsic(table_name, parameters)
+
+            dynamodb_tables.append(
+                {
+                    "TableName": table_name,
+                    "KeySchema": props.get("KeySchema"),
+                    "AttributeDefinitions": props.get("AttributeDefinitions"),
+                    "GlobalSecondaryIndexes": props.get("GlobalSecondaryIndexes"),
+                    "BillingMode": props.get("BillingMode", "PROVISIONED"),
+                    "ProvisionedThroughput": props.get("ProvisionedThroughput"),
+                }
+            )
+
+        # S3 Bucket
+        elif resource_type == "AWS::S3::Bucket":
+            bucket_name = props.get("BucketName", logical_id.lower())
+            bucket_name = _resolve_intrinsic(bucket_name, parameters)
+            s3_buckets.append({"BucketName": bucket_name})
+
+    return {
+        "functions": functions,
+        "resources": {"dynamodb": dynamodb_tables, "s3": s3_buckets},
+    }
 
 
 def _resolve_intrinsic(value: Any, parameters: dict) -> str:

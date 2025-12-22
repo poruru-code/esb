@@ -135,3 +135,50 @@ Resources:
         assert len(func["events"]) == 1
         assert func["events"][0]["path"] == "/api/hello"
         assert func["events"][0]["method"] == "post"
+
+    def test_parse_resources(self):
+        """DynamoDBとS3リソースをパースできる"""
+        sam_content = """
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Resources:
+  MyTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: my-test-table
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+  MyBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: my-test-bucket
+
+  LogicalBucket:
+    Type: AWS::S3::Bucket
+"""
+        result = parse_sam_template(sam_content)
+
+        assert "resources" in result
+        resources = result["resources"]
+
+        # DynamoDB 検証
+        assert len(resources["dynamodb"]) == 1
+        table = resources["dynamodb"][0]
+        assert table["TableName"] == "my-test-table"
+        assert table["BillingMode"] == "PAY_PER_REQUEST"
+
+        # S3 検証
+        assert len(resources["s3"]) == 2
+        bucket1 = next(b for b in resources["s3"] if b["BucketName"] == "my-test-bucket")
+        assert bucket1 is not None
+
+        # Logical ID がバケット名になるケースの検証
+        bucket2 = next(b for b in resources["s3"] if b["BucketName"] == "logicalbucket")
+        assert bucket2 is not None

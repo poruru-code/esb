@@ -7,7 +7,7 @@ import boto3
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-TABLE_NAME = "test_table"
+TABLE_NAME = "e2e-test-table"
 
 
 def lambda_handler(event, context):
@@ -21,17 +21,7 @@ def lambda_handler(event, context):
         # 透過的パッチに依存してクライアントを作成
         dynamodb = boto3.client("dynamodb")
 
-        # Create table if not exists
-        try:
-            dynamodb.create_table(
-                TableName=TABLE_NAME,
-                KeySchema=[{"AttributeName": "id", "KeyType": "HASH"}],
-                AttributeDefinitions=[{"AttributeName": "id", "AttributeType": "S"}],
-                BillingMode="PAY_PER_REQUEST",
-            )
-        except dynamodb.exceptions.ResourceInUseException:
-            # Table already exists
-            pass
+        # Table is now created by Provisioner during startup (Phase 2)
 
         # Give it a moment if it was just created (though Alternator is usually instant)
 

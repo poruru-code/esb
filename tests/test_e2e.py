@@ -163,7 +163,9 @@ class TestE2E:
     def test_routing_401(self, gateway_health):
         """E2E: 認証なし → 401"""
         response = requests.post(
-            f"{GATEWAY_URL}/api/s3/test", json={"action": "test"}, verify=VERIFY_SSL
+            f"{GATEWAY_URL}/api/s3/test",
+            json={"action": "test", "bucket": "e2e-test-bucket"},
+            verify=VERIFY_SSL,
         )
         if response.status_code != 401:
             with open("debug_401_error.txt", "w") as f:
@@ -188,7 +190,7 @@ class TestE2E:
 
         response = requests.post(
             f"{GATEWAY_URL}/api/s3/test",
-            json={"action": "test"},
+            json={"action": "test", "bucket": "e2e-test-bucket"},
             headers={"Authorization": f"Bearer {token}"},
             verify=VERIFY_SSL,
         )
@@ -213,7 +215,7 @@ class TestE2E:
             try:
                 response = requests.post(
                     f"{GATEWAY_URL}/api/scylla/test",
-                    json={"action": "test"},
+                    json={"action": "test", "bucket": "e2e-test-bucket"},
                     headers={"Authorization": f"Bearer {token}"},
                     verify=VERIFY_SSL,
                 )
@@ -358,7 +360,7 @@ class TestE2E:
         # カスタム RequestID を指定してリクエスト
         response = requests.post(
             f"{GATEWAY_URL}/api/s3/test",
-            json={"action": "test"},
+            json={"action": "test", "bucket": "e2e-test-bucket"},
             headers={
                 "Authorization": f"Bearer {token}",
                 "X-Request-Id": custom_request_id,
@@ -453,7 +455,7 @@ class TestE2E:
         # 今回は Lambda 呼び出しを行い、Lambda 側でデバッグメッセージを出力させる
         response = requests.post(
             f"{GATEWAY_URL}/api/s3/test",
-            json={"action": "test", "debug_message": debug_msg},
+            json={"action": "test", "debug_message": debug_msg, "bucket": "e2e-test-bucket"},
             headers={
                 "Authorization": f"Bearer {token}",
                 "X-Request-Id": validation_id,
@@ -525,7 +527,7 @@ class TestE2E:
         print("Step 1: Initial Lambda invocation (cold start)...")
         response1 = requests.post(
             f"{GATEWAY_URL}/api/s3/test",
-            json={"action": "test"},
+            json={"action": "test", "bucket": "e2e-test-bucket"},
             headers={"Authorization": f"Bearer {token}"},
             verify=VERIFY_SSL,
         )
@@ -573,7 +575,7 @@ class TestE2E:
         for i in range(max_retries):
             response2 = requests.post(
                 f"{GATEWAY_URL}/api/s3/test",
-                json={"action": "test"},
+                json={"action": "test", "bucket": "e2e-test-bucket"},
                 headers={"Authorization": f"Bearer {token}"},
                 verify=VERIFY_SSL,
             )
