@@ -2,6 +2,7 @@ import subprocess
 import sys
 from tools.cli.config import PROJECT_ROOT
 from dotenv import load_dotenv
+from tools.cli.core import logging
 
 
 def run(args):
@@ -10,12 +11,12 @@ def run(args):
     if env_file.exists():
         load_dotenv(env_file, override=False)
 
-    print("🛑 Stopping services...")
+    logging.step("Stopping services...")
     cmd = ["docker", "compose", "down", "--remove-orphans"]
 
     try:
         subprocess.check_call(cmd)
-        print("✅ Services stopped.")
+        logging.success("Services stopped.")
     except subprocess.CalledProcessError as e:
-        print(f"❌ Failed to stop services: {e}")
+        logging.error(f"Failed to stop services: {e}")
         sys.exit(1)

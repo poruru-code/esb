@@ -6,11 +6,14 @@ from dotenv import load_dotenv
 import subprocess
 
 
+from tools.cli.core import logging
+
+
 def run(args):
     # .env.test の読み込み (run_tests.py と同様)
     env_file = PROJECT_ROOT / "tests" / ".env.test"
     if env_file.exists():
-        print(f"Loading environment variables from {env_file}")
+        logging.info(f"Loading environment variables from {logging.highlight(env_file)}")
         load_dotenv(env_file, override=False)
 
     # 1. ビルド要求があれば実行
@@ -18,7 +21,7 @@ def run(args):
         build.run(args)
 
     # 2. サービス起動
-    print("🚀 Starting services...")
+    logging.step("Starting services...")
     cmd = ["docker", "compose", "up"]
     if getattr(args, "detach", True):
         cmd.append("-d")
@@ -26,13 +29,13 @@ def run(args):
     try:
         subprocess.check_call(cmd)
     except subprocess.CalledProcessError as e:
-        print(f"❌ Failed to start services: {e}")
+        logging.error(f"Failed to start services: {e}")
         sys.exit(1)
 
     # 3. インフラプロビジョニング
-    print("🛠️ Preparing infrastructure...")
+    logging.step("Preparing infrastructure...")
     from tools.cli.config import TEMPLATE_YAML
 
     provisioner.main(template_path=TEMPLATE_YAML)
 
-    print("\n✅ Environment is ready! (https://localhost:443)")
+    logging.success("Environment is ready! (https://localhost:443)")

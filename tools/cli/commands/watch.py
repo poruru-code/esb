@@ -10,6 +10,9 @@ from tools.cli.config import PROJECT_ROOT
 from dotenv import load_dotenv
 
 
+from tools.cli.core import logging
+
+
 class SmartReloader(FileSystemEventHandler):
     def __init__(self):
         self.docker_client = docker.from_env()
@@ -39,58 +42,68 @@ class SmartReloader(FileSystemEventHandler):
                 self.last_trigger = time.time()
 
         except Exception as e:
-            print(f"⚠️ Error during reload: {e}")
+            logging.warning(f"Error during reload: {e}")
 
     def handle_template_change(self):
-        print("\n🔄 Template change detected.")
+        logging.step("Template change detected.")
 
         # 1. Config再生成
-        print("  • Regenerating configs...")
+        logging.info("Regenerating configs...")
         from tools.cli.commands.build import generator
-        from tools.cli.config import PROJECT_ROOT
+        from tools.cli.config import PROJECT_ROOT, E2E_DIR, TEMPLATE_YAML
 
-        config_path = PROJECT_ROOT / "tests/e2e/generator.yml"
+        config_path = E2E_DIR / "generator.yml"
+        if not config_path.exists():
+            config_path = PROJECT_ROOT / "tests/e2e/generator.yml"
+
         config = generator.load_config(config_path)
+        # テンプレートパスを解決
+        if "paths" not in config:
+            config["paths"] = {}
+        config["paths"]["sam_template"] = str(TEMPLATE_YAML)
+
         generator.generate_files(config=config, project_root=PROJECT_ROOT)
 
         # 2. Gateway再起動 (ルーティング反映のため)
-        print("  • Restarting Gateway...")
+        logging.info("Restarting Gateway...")
         try:
-            subprocess.run(["docker", "compose", "restart", "gateway"], check=True)
+            subprocess.run(
+                ["docker", "compose", "restart", "gateway"], check=True, capture_output=True
+            )
         except subprocess.CalledProcessError as e:
-            print(f"  ❌ Failed to restart gateway: {e}")
+            logging.error(f"Failed to restart gateway: {e}")
 
         # 3. リソース再プロビジョニング (DBテーブル追加など)
-        print("  • Provisioning resources...")
-        from tools.cli.config import TEMPLATE_YAML
-
+        logging.info("Provisioning resources...")
         provisioner.main(template_path=TEMPLATE_YAML)
-        print("✅ System updated.")
+        logging.success("System updated.")
 
     def handle_function_change(self, path: Path):
-        # パスから関数名を特定 (例: .../functions/hello/lambda_function.py -> hello)
-        # ディレクトリ構造: tests/e2e/functions/{name}/...
         try:
-            # "functions" の直後のディレクトリ名を取得
             parts = path.parts
             if "functions" in parts:
                 idx = parts.index("functions")
                 if len(parts) > idx + 1:
                     func_dir_name = parts[idx + 1]
                     image_tag = f"lambda-{func_dir_name}:latest"
-                    # Dockerfile を探す
-                    func_dir = PROJECT_ROOT / "tests" / "e2e" / "functions" / func_dir_name
+
+                    from tools.cli.config import E2E_DIR
+
+                    func_dir = E2E_DIR / "functions" / func_dir_name
                     dockerfile_path = func_dir / "Dockerfile"
 
                     if not dockerfile_path.exists():
-                        print(f"  ⚠️ Dockerfile not found at {dockerfile_path}")
+                        logging.warning(f"Dockerfile not found at {dockerfile_path}")
                         return
 
-                    print(f"\n🔄 Code change detected: {func_dir_name}")
+                    logging.step(f"Code change detected: {logging.highlight(func_dir_name)}")
 
                     # 1. イメージのリビルド
-                    print(f"  • Rebuilding image: {image_tag}...", end="", flush=True)
-                    # build.py と同様に PROJECT_ROOT をコンテキストにする
+                    print(
+                        f"  • Rebuilding image: {logging.highlight(image_tag)} ...",
+                        end="",
+                        flush=True,
+                    )
                     relative_dockerfile = dockerfile_path.relative_to(PROJECT_ROOT).as_posix()
                     self.docker_client.images.build(
                         path=str(PROJECT_ROOT),
@@ -98,44 +111,42 @@ class SmartReloader(FileSystemEventHandler):
                         tag=image_tag,
                         rm=True,
                     )
-                    print(" ✅")
+                    print(f" {logging.Color.GREEN}✅{logging.Color.END}")
 
-                    # 2. 実行中の古いコンテナを停止 (Freshな起動を促す)
+                    # 2. 実行中の古いコンテナを停止
                     containers = self.docker_client.containers.list(
                         filters={"ancestor": f"{image_tag}"}
                     )
                     if containers:
                         for c in containers:
-                            print(f"  • Killing running container: {c.name}")
+                            logging.info(f"Killing running container: {logging.highlight(c.name)}")
                             c.kill()
 
-                    print("✅ Function updated.")
+                    logging.success("Function updated.")
         except Exception as e:
-            print(f"  ❌ Failed to update function: {e}")
+            logging.error(f"Failed to update function: {e}")
 
 
 def run(args):
     # .env.test の読み込み
     env_file = PROJECT_ROOT / "tests" / ".env.test"
     if env_file.exists():
-        print(f"Loading environment variables from {env_file}")
-        load_dotenv(env_file, verbose=True, override=False)
+        logging.info(f"Loading environment variables from {logging.highlight(env_file)}")
+        load_dotenv(env_file, verbose=False, override=False)
 
-    print("👀 Watching for changes in project root...")
-    print("   - template.yaml: Reconfigures Gateway & Resources")
-    print("   - functions/**/*.py: Rebuilds Lambda Images")
+    logging.step("Watching for changes...")
+    print(f"   • {logging.highlight('template.yaml')}: Reconfigures Gateway & Resources")
+    print(f"   • {logging.highlight('functions/**/*.py')}: Rebuilds Lambda Images")
 
     event_handler = SmartReloader()
     observer = Observer()
 
-    # 監視対象ディレクトリの設定 (プロジェクトルート)
     observer.schedule(event_handler, str(PROJECT_ROOT), recursive=True)
-
     observer.start()
     try:
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        print("\nStopping watcher...")
+        logging.info("Stopping watcher...")
         observer.stop()
     observer.join()
