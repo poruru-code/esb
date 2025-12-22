@@ -99,6 +99,19 @@ def parse_sam_template(content: str, parameters: dict | None = None) -> dict:
         for key, value in env_vars.items():
             resolved_env[key] = _resolve_intrinsic(value, parameters)
 
+        # --- Phase 1: Events (API Gateway) 解析 ---
+        events = props.get("Events", {})
+        api_routes = []
+        for event_name, event_props in events.items():
+            # Type: Api (API Gateway) のみを対象にする
+            if event_props.get("Type") == "Api":
+                evt_properties = event_props.get("Properties", {})
+                path = evt_properties.get("Path")
+                method = evt_properties.get("Method")
+
+                if path and method:
+                    api_routes.append({"path": path, "method": method})
+
         functions.append(
             {
                 "logical_id": logical_id,
@@ -109,6 +122,7 @@ def parse_sam_template(content: str, parameters: dict | None = None) -> dict:
                 "timeout": props.get("Timeout", default_timeout),
                 "memory_size": props.get("MemorySize", default_memory),
                 "environment": resolved_env,
+                "events": api_routes,
             }
         )
 

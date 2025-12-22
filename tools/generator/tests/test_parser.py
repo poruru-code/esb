@@ -105,3 +105,33 @@ Resources:
         # Function のみ抽出
         assert len(result["functions"]) == 1
         assert result["functions"][0]["name"] == "lambda-hello"
+
+    def test_parse_function_with_events(self):
+        """Events (API Gateway) を含む関数をパースできる"""
+        sam_content = """
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Resources:
+  HelloFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lambda-hello
+      CodeUri: functions/hello/
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.12
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /api/hello
+            Method: post
+"""
+        result = parse_sam_template(sam_content)
+
+        assert len(result["functions"]) == 1
+        func = result["functions"][0]
+        assert "events" in func
+        assert len(func["events"]) == 1
+        assert func["events"][0]["path"] == "/api/hello"
+        assert func["events"][0]["method"] == "post"

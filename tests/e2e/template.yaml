@@ -15,12 +15,24 @@ Resources:
     Properties:
       FunctionName: lambda-hello
       CodeUri: tests/e2e/functions/hello/
+      Events:
+        HelloApi:
+          Type: Api
+          Properties:
+            Path: /api/hello
+            Method: post
 
   S3TestFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: lambda-s3-test
       CodeUri: tests/e2e/functions/s3-test/
+      Events:
+        S3TestApi:
+          Type: Api
+          Properties:
+            Path: /api/s3/test
+            Method: post
       Environment:
         Variables:
           S3_ENDPOINT: "http://onpre-storage:9000"
@@ -32,6 +44,12 @@ Resources:
     Properties:
       FunctionName: lambda-scylla-test
       CodeUri: tests/e2e/functions/scylla-test/
+      Events:
+        ScyllaTestApi:
+          Type: Api
+          Properties:
+            Path: /api/scylla/test
+            Method: post
       Environment:
         Variables:
           DYNAMODB_ENDPOINT: "http://onpre-database:8000"
@@ -41,3 +59,9 @@ Resources:
     Properties:
       FunctionName: lambda-invoke-test
       CodeUri: tests/e2e/functions/invoke-test/
+      Events:
+        InvokeTestApi:
+          Type: Api
+          Properties:
+            Path: /api/invoke/test
+            Method: post

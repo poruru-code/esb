@@ -21,7 +21,7 @@ from pathlib import Path
 import yaml
 
 from .parser import parse_sam_template
-from .renderer import render_dockerfile, render_functions_yml
+from .renderer import render_dockerfile, render_functions_yml, render_routing_yml
 
 
 def load_config(config_path: Path) -> dict:
@@ -122,8 +122,22 @@ def generate_files(
         with open(functions_yml_path, "w", encoding="utf-8") as f:
             f.write(functions_yml_content)
 
+    # routing.yml を生成
+    routing_yml_path = project_root / paths.get("routing_yml", "config/routing.yml")
+    routing_yml_content = render_routing_yml(functions)
+
+    if dry_run:
+        print(f"\n=== {routing_yml_path} ===")
+        print(routing_yml_content)
+    else:
+        if verbose:
+            print(f"Generating: {routing_yml_path}")
+        routing_yml_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(routing_yml_path, "w", encoding="utf-8") as f:
+            f.write(routing_yml_content)
+
     if not dry_run:
-        print(f"Generated {len(functions)} Dockerfile(s) and functions.yml")
+        print(f"Generated {len(functions)} Dockerfile(s), functions.yml, and routing.yml")
 
 
 def main():

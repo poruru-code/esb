@@ -72,3 +72,30 @@ class TestFunctionsYmlRenderer:
         assert "lambda-hello" in result
         assert "lambda-s3-test" in result
         assert "S3_ENDPOINT" in result
+
+    def test_render_routing_yml(self):
+        """routing.yml を生成できる"""
+        from tools.generator.renderer import render_routing_yml
+
+        functions = [
+            {
+                "name": "lambda-hello",
+                "events": [{"path": "/api/hello", "method": "post"}],
+            },
+            {
+                "name": "lambda-s3-test",
+                "events": [
+                    {"path": "/api/s3/test", "method": "post"},
+                    {"path": "/api/s3/check", "method": "get"},
+                ],
+            },
+        ]
+
+        result = render_routing_yml(functions)
+
+        assert "/api/hello" in result
+        assert "POST" in result
+        assert "lambda-hello" in result
+        assert "/api/s3/test" in result
+        assert "/api/s3/check" in result
+        assert "GET" in result

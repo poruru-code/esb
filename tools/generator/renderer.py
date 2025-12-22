@@ -69,3 +69,23 @@ def render_functions_yml(
     template = env.get_template("functions.yml.j2")
 
     return template.render(functions=functions)
+
+
+def render_routing_yml(
+    functions: list[dict],
+) -> str:
+    """
+    routing.yml をレンダリングする (Phase 1 拡張)
+
+    Args:
+        functions: 関数リスト
+            - name: 関数名
+            - events: イベントリスト (path, method を含む)
+
+    Returns:
+        routing.yml文字列
+    """
+    env = Environment(loader=FileSystemLoader(TEMPLATE_DIR))
+    template = env.get_template("routing.yml.j2")
+
+    return template.render(functions=functions)

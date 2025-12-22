@@ -23,6 +23,12 @@ Resources:
     Properties:
       FunctionName: lambda-hello
       CodeUri: functions/hello/
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /api/hello
+            Method: post
 """
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -52,6 +58,7 @@ Resources:
                     "sam_template": str(sam_path),
                     "output_dir": str(tmpdir / "functions"),
                     "functions_yml": str(tmpdir / "functions.yml"),
+                    "routing_yml": str(tmpdir / "routing.yml"),
                 },
                 # docker config omitted to test default behavior
             }
@@ -70,3 +77,11 @@ Resources:
 
             functions_yml = tmpdir / "functions.yml"
             assert functions_yml.exists(), "functions.yml should be generated"
+
+            routing_yml = tmpdir / "routing.yml"
+            assert routing_yml.exists(), "routing.yml should be generated"
+
+            routing_content = routing_yml.read_text(encoding="utf-8")
+            assert "/api/hello" in routing_content
+            assert "POST" in routing_content
+            assert "lambda-hello" in routing_content
