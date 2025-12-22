@@ -9,7 +9,7 @@ from fastapi import Depends, Header, HTTPException, Request
 from ..config import config
 from ..core.security import verify_token
 
-from ..models.schemas import TargetFunction
+from ..models import TargetFunction
 
 
 async def verify_authorization(authorization: Optional[str] = Header(None)) -> str:

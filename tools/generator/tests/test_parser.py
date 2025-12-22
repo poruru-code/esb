@@ -1,6 +1,5 @@
-
-import pytest
 from tools.generator.parser import parse_sam_template
+
 
 class TestSamParser:
     """SAMテンプレートパーサーのテスト"""
@@ -21,13 +20,13 @@ Resources:
       Runtime: python3.12
 """
         result = parse_sam_template(sam_content)
-        
-        assert len(result['functions']) == 1
-        func = result['functions'][0]
-        assert func['name'] == 'lambda-hello'
-        assert func['code_uri'] == 'functions/hello/'
-        assert func['handler'] == 'lambda_function.lambda_handler'
-        assert func['runtime'] == 'python3.12'
+
+        assert len(result["functions"]) == 1
+        func = result["functions"][0]
+        assert func["name"] == "lambda-hello"
+        assert func["code_uri"] == "functions/hello/"
+        assert func["handler"] == "lambda_function.lambda_handler"
+        assert func["runtime"] == "python3.12"
 
     def test_parse_function_with_environment(self):
         """環境変数を含む関数をパースできる"""
@@ -49,11 +48,11 @@ Resources:
           BUCKET_NAME: "test-bucket"
 """
         result = parse_sam_template(sam_content)
-        
-        assert len(result['functions']) == 1
-        func = result['functions'][0]
-        assert func['environment']['S3_ENDPOINT'] == 'http://onpre-storage:9000'
-        assert func['environment']['BUCKET_NAME'] == 'test-bucket'
+
+        assert len(result["functions"]) == 1
+        func = result["functions"][0]
+        assert func["environment"]["S3_ENDPOINT"] == "http://onpre-storage:9000"
+        assert func["environment"]["BUCKET_NAME"] == "test-bucket"
 
     def test_parse_globals(self):
         """Globalsセクションからデフォルト値を取得できる"""
@@ -75,11 +74,11 @@ Resources:
       CodeUri: functions/hello/
 """
         result = parse_sam_template(sam_content)
-        
-        func = result['functions'][0]
+
+        func = result["functions"][0]
         # Globals から継承
-        assert func['runtime'] == 'python3.12'
-        assert func['handler'] == 'lambda_function.lambda_handler'
+        assert func["runtime"] == "python3.12"
+        assert func["handler"] == "lambda_function.lambda_handler"
 
     def test_skip_non_function_resources(self):
         """Function以外のリソースはスキップする"""
@@ -102,7 +101,7 @@ Resources:
       ContentUri: layers/my-layer/
 """
         result = parse_sam_template(sam_content)
-        
+
         # Function のみ抽出
-        assert len(result['functions']) == 1
-        assert result['functions'][0]['name'] == 'lambda-hello'
+        assert len(result["functions"]) == 1
+        assert result["functions"][0]["name"] == "lambda-hello"

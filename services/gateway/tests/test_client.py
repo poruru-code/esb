@@ -22,7 +22,7 @@ async def test_ensure_container_success(mock_client):
     """正常系: コンテナ起動成功"""
     mock_response = MagicMock(spec=httpx.Response)
     mock_response.status_code = 200
-    mock_response.json.return_value = {"host": "10.0.0.1"}
+    mock_response.json.return_value = {"host": "10.0.0.1", "port": 8080}
     mock_response.raise_for_status = MagicMock()
 
     mock_client.post.return_value = mock_response
@@ -113,7 +113,7 @@ async def test_request_id_propagation(mock_client):
 
     mock_response = MagicMock(spec=httpx.Response)
     mock_response.status_code = 200
-    mock_response.json.return_value = {"host": "10.0.0.1"}
+    mock_response.json.return_value = {"host": "10.0.0.1", "port": 8080}
     mock_response.raise_for_status = MagicMock()
     mock_client.post.return_value = mock_response
 
@@ -157,7 +157,7 @@ async def test_ensure_container_cache_miss_then_cache(mock_client):
 
     mock_response = MagicMock(spec=httpx.Response)
     mock_response.status_code = 200
-    mock_response.json.return_value = {"host": "new-host"}
+    mock_response.json.return_value = {"host": "new-host", "port": 8080}
     mock_response.raise_for_status = MagicMock()
     mock_client.post.return_value = mock_response
 
@@ -201,7 +201,7 @@ async def test_cache_miss_retry_after_invalidation(mock_client):
 
     mock_response = MagicMock(spec=httpx.Response)
     mock_response.status_code = 200
-    mock_response.json.return_value = {"host": "new-host"}
+    mock_response.json.return_value = {"host": "new-host", "port": 8080}
     mock_response.raise_for_status = MagicMock()
     mock_client.post.return_value = mock_response
 
@@ -241,7 +241,7 @@ async def test_singleflight_coalesces_concurrent_requests(mock_client):
         await asyncio.sleep(0.1)  # Manager 処理をシミュレート
         mock_response = MagicMock(spec=httpx.Response)
         mock_response.status_code = 200
-        mock_response.json.return_value = {"host": "coalesced-host"}
+        mock_response.json.return_value = {"host": "coalesced-host", "port": 8080}
         mock_response.raise_for_status = MagicMock()
         return mock_response
 

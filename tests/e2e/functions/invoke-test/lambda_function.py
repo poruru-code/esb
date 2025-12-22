@@ -2,6 +2,7 @@ import json
 import boto3
 # requests, urllib3 のインポートは不要になります
 
+
 def lambda_handler(event, context):
     # RIEハートビートチェック対応 (変更なし)
     if isinstance(event, dict) and event.get("ping"):
@@ -35,13 +36,11 @@ def lambda_handler(event, context):
     try:
         # invokeメソッドの呼び出し
         response = client.invoke(
-            FunctionName=target_func,
-            InvocationType=invoke_type,
-            Payload=json.dumps(payload)
+            FunctionName=target_func, InvocationType=invoke_type, Payload=json.dumps(payload)
         )
 
         # ステータスコードの取得 (HTTPステータスではなくLambda APIのレスポンスコード)
-        status_code = response['StatusCode']
+        status_code = response["StatusCode"]
         print(f"Response Status: {status_code}")
 
         # Event (非同期) の場合
@@ -50,40 +49,44 @@ def lambda_handler(event, context):
             success = status_code == 202
             return {
                 "statusCode": 200,
-                "body": json.dumps({
-                    "success": success,
-                    "target": target_func,
-                    "type": invoke_type,
-                    "status_code": status_code,
-                    "message": "Async invocation started"
-                })
+                "body": json.dumps(
+                    {
+                        "success": success,
+                        "target": target_func,
+                        "type": invoke_type,
+                        "status_code": status_code,
+                        "message": "Async invocation started",
+                    }
+                ),
             }
 
         # RequestResponse (同期) の場合
         # Payloadは StreamingBody なので read() する必要があります
-        response_payload = response['Payload'].read()
-        
+        response_payload = response["Payload"].read()
+
         # レスポンスのデコード
         try:
             response_data = json.loads(response_payload)
         except Exception:
             # 文字列等の場合
-            response_data = response_payload.decode('utf-8')
+            response_data = response_payload.decode("utf-8")
 
         return {
             "statusCode": 200,
-            "body": json.dumps({
-                "success": status_code == 200,
-                "target": target_func,
-                "type": invoke_type,
-                "status_code": status_code,
-                "response": response_data
-            })
+            "body": json.dumps(
+                {
+                    "success": status_code == 200,
+                    "target": target_func,
+                    "type": invoke_type,
+                    "status_code": status_code,
+                    "response": response_data,
+                }
+            ),
         }
 
     except Exception as e:
         print(f"Invocation failed: {e}")
         return {
             "statusCode": 500,
-            "body": json.dumps({"success": False, "error": str(e), "target": target_func})
+            "body": json.dumps({"success": False, "error": str(e), "target": target_func}),
         }

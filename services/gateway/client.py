@@ -10,6 +10,7 @@ from .core.exceptions import (
 )
 from .services.container_cache import ContainerHostCache
 from services.common.core.request_context import get_request_id
+from services.common.models.internal import ContainerEnsureRequest, ContainerInfoResponse
 from .config import config
 
 logger = logging.getLogger("gateway.client")
@@ -87,7 +88,11 @@ class ManagerClient:
     ) -> str:
         """Manager に問い合わせてホストを取得"""
         url = f"{config.MANAGER_URL}/containers/ensure"
-        payload = {"function_name": function_name, "image": image, "env": env or {}}
+
+        # モデルを作成
+        request_model = ContainerEnsureRequest(
+            function_name=function_name, image=image, env=env or {}
+        )
 
         # X-Request-Id ヘッダーを伝播
         headers = {}
@@ -98,15 +103,17 @@ class ManagerClient:
         try:
             resp = await self.client.post(
                 url,
-                json=payload,
+                json=request_model.model_dump(),
                 headers=headers,
                 timeout=config.MANAGER_TIMEOUT,
             )
             resp.raise_for_status()
-            data = resp.json()
-            host = data["host"]
-            logger.debug(f"Fetched from Manager: {function_name} -> {host}")
-            return host
+
+            # レスポンスをモデルでバリデーション
+            response_model = ContainerInfoResponse.model_validate(resp.json())
+
+            logger.debug(f"Fetched from Manager: {function_name} -> {response_model.host}")
+            return response_model.host
 
         except httpx.TimeoutException as e:
             logger.error(f"Manager request timed out: {e}")

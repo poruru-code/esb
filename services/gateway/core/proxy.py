@@ -22,7 +22,17 @@ def build_event(
 ) -> Dict[str, Any]:
     """
     API Gateway Lambda Proxy Integration互換のeventオブジェクトを構築
+
+    Pydantic モデルを使用して型安全にイベントを構築し、
+    AWS API Gateway v1 形式に準拠した辞書を返す。
     """
+    from ..models.aws_v1 import (
+        APIGatewayProxyEvent,
+        ApiGatewayRequestContext,
+        ApiGatewayIdentity,
+        ApiGatewayAuthorizer,
+    )
+
     # gzip圧縮されているか確認
     is_base64 = "gzip" in request.headers.get("content-encoding", "").lower()
 
@@ -37,8 +47,8 @@ def build_event(
             is_base64 = True
 
     # クエリパラメータ
-    query_params = {}
-    multi_query_params = {}
+    query_params: Dict[str, str] = {}
+    multi_query_params: Dict[str, list] = {}
     if request.query_params:
         for key in request.query_params.keys():
             values = request.query_params.getlist(key)
@@ -46,8 +56,8 @@ def build_event(
             multi_query_params[key] = values
 
     # ヘッダー
-    headers = {}
-    multi_headers = {}
+    headers: Dict[str, str] = {}
+    multi_headers: Dict[str, list] = {}
     for key in request.headers.keys():
         values = request.headers.getlist(key)
         headers[key] = values[-1] if values else ""
@@ -58,25 +68,38 @@ def build_event(
     if not request_id:
         request_id = f"req-{int(time.time() * 1000)}"
 
-    event = {
-        "resource": route_path or str(request.url.path),
-        "path": str(request.url.path),
-        "httpMethod": request.method,
-        "headers": headers,
-        "multiValueHeaders": multi_headers,
-        "queryStringParameters": query_params if query_params else None,
-        "multiValueQueryStringParameters": multi_query_params if multi_query_params else None,
-        "pathParameters": path_params if path_params else None,
-        "requestContext": {
-            "identity": {"sourceIp": request.client.host if request.client else "unknown"},
-            "authorizer": {"claims": {"cognito:username": user_id}, "cognito:username": user_id},
-            "requestId": request_id,
-        },
-        "body": body_content,
-        "isBase64Encoded": is_base64,
-    }
+    # HTTP バージョン取得
+    http_version = request.scope.get("http_version", "1.1") if hasattr(request, "scope") else "1.1"
 
-    return event
+    # Pydantic モデルを使用してイベントを構築
+    event_model = APIGatewayProxyEvent(
+        resource=route_path or str(request.url.path),
+        path=str(request.url.path),
+        httpMethod=request.method,
+        headers=headers,
+        multiValueHeaders=multi_headers,
+        queryStringParameters=query_params if query_params else None,
+        multiValueQueryStringParameters=multi_query_params if multi_query_params else None,
+        pathParameters=path_params if path_params else None,
+        requestContext=ApiGatewayRequestContext(
+            identity=ApiGatewayIdentity(
+                sourceIp=request.client.host if request.client else "unknown",
+                userAgent=request.headers.get("user-agent"),
+            ),
+            authorizer=ApiGatewayAuthorizer(
+                claims={"cognito:username": user_id, "username": user_id},
+                **{"cognito:username": user_id},  # エイリアスを使用して設定
+            ),
+            requestId=request_id,
+            path=str(request.url.path),
+            stage="prod",
+            protocol=f"HTTP/{http_version}",
+        ),
+        body=body_content if body_content else None,
+        isBase64Encoded=is_base64,
+    )
+
+    return event_model.model_dump(exclude_none=True, by_alias=True)
 
 
 def resolve_container_ip(container_name: str) -> str:

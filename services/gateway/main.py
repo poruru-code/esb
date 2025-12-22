@@ -17,7 +17,7 @@ import logging
 from .config import config
 from .core.security import create_access_token
 from .core.proxy import build_event, proxy_to_lambda, parse_lambda_response
-from .models.schemas import AuthRequest, AuthResponse, AuthenticationResult
+from .models import AuthRequest, AuthResponse, AuthenticationResult
 from .client import ManagerClient
 
 # Services Imports

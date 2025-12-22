@@ -259,38 +259,30 @@ def wait_for_scylladb() -> bool:
 def generate_lambda_files():
     """SAMテンプレートからDockerfile/configを生成"""
     print("[1.3/4] Generating Lambda files from SAM template...")
-    
-    cmd = [
-        sys.executable, "-m", "tools.generator.main",
-        "--config", "tests/e2e/generator.yml"
-    ]
-    
+
+    cmd = [sys.executable, "-m", "tools.generator.main", "--config", "tests/e2e/generator.yml"]
+
     try:
-        subprocess.run(
-            cmd,
-            cwd=PROJECT_ROOT,
-            check=True
-        )
+        subprocess.run(cmd, cwd=PROJECT_ROOT, check=True)
     except subprocess.CalledProcessError as e:
         print(f"Error generating Lambda files: {e}")
         sys.exit(1)
 
 
-
 def build_lambda_images():
     """すべてのLambda関数イメージをビルド
-    
+
     tests/e2e/functions/ ディレクトリをスキャンし、
     Dockerfile が存在するサブディレクトリをビルド対象とする。
     イメージ名は 'lambda-{ディレクトリ名}' とする。
     """
     print("[1.5/4] Building Lambda function images...")
-    
+
     functions_dir = PROJECT_ROOT / "tests" / "e2e" / "functions"
     if not functions_dir.exists():
         print("  Warning: tests/e2e/functions/ not found, skipping Lambda build")
         return
-    
+
     lambda_functions = []
     for subdir in sorted(functions_dir.iterdir()):
         if subdir.is_dir():
@@ -298,11 +290,11 @@ def build_lambda_images():
             if dockerfile.exists():
                 name = f"lambda-{subdir.name}"
                 lambda_functions.append((name, str(dockerfile.relative_to(PROJECT_ROOT))))
-    
+
     if not lambda_functions:
         print("  Warning: No Dockerfiles found in tests/e2e/functions/")
         return
-    
+
     for name, dockerfile in lambda_functions:
         print(f"  Building {name}...")
         print(f"  > docker build -t {name}:latest -f {dockerfile} .")
@@ -324,7 +316,7 @@ def start_containers(build: bool = False, dind: bool = False):
     else:
         # 非DinDモード: docker-compose.test.yml で tests/e2e/config をマウント
         compose_files = ["docker-compose.yml", "tests/docker-compose.test.yml"]
-    
+
     cmd = get_compose_command()
     for f in compose_files:
         cmd.extend(["-f", f])
@@ -371,7 +363,7 @@ def stop_containers(dind: bool = False):
         compose_files = ["docker-compose.dind.yml"]
     else:
         compose_files = ["docker-compose.yml", "tests/docker-compose.test.yml"]
-    
+
     cmd = get_compose_command()
     for f in compose_files:
         cmd.extend(["-f", f])
@@ -395,7 +387,7 @@ def reset_containers(dind: bool = False):
         compose_files = ["docker-compose.dind.yml"]
     else:
         compose_files = ["docker-compose.yml", "tests/docker-compose.test.yml"]
-    
+
     cmd = get_compose_command()
     for f in compose_files:
         cmd.extend(["-f", f])
@@ -475,14 +467,14 @@ def main():
             reset_containers(dind=args.dind)
             # イメージを削除したため、再ビルドを強制
             args.build = True
-        
+
         # --reset 時、または生成ファイルが不足している場合は再生成
         functions_dir = PROJECT_ROOT / "tests/e2e/functions"
         generated_files_exist = any(functions_dir.glob("*/Dockerfile"))
-        
+
         if args.reset or not generated_files_exist:
             if not generated_files_exist and not args.reset:
-                 print("[!] Generated files missing, entering auto-generation mode...")
+                print("[!] Generated files missing, entering auto-generation mode...")
             generate_lambda_files()
 
         # SSL証明書生成

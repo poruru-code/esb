@@ -1,8 +1,7 @@
-
-import pytest
 import tempfile
 from pathlib import Path
 from tools.generator.main import generate_files
+
 
 class TestGeneratorIntegration:
     """ジェネレータ統合テスト"""
@@ -25,47 +24,49 @@ Resources:
       FunctionName: lambda-hello
       CodeUri: functions/hello/
 """
-        
+
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir = Path(tmpdir)
-            
+
             # SAMテンプレートを作成
-            sam_path = tmpdir / 'template.yaml'
-            sam_path.write_text(sam_content)
-            
+            sam_path = tmpdir / "template.yaml"
+            sam_path.write_text(sam_content, encoding="utf-8")
+
             # 関数ディレクトリを作成
-            func_dir = tmpdir / 'functions' / 'hello'
+            func_dir = tmpdir / "functions" / "hello"
             func_dir.mkdir(parents=True)
-            (func_dir / 'lambda_function.py').write_text('def lambda_handler(event, context): pass')
-            
+            (func_dir / "lambda_function.py").write_text(
+                "def lambda_handler(event, context): pass", encoding="utf-8"
+            )
+
             # sitecustomize.py (ツールリソース) を作成 (main.pyが探すパス)
             # Default is: tools/generator/lib/sitecustomize.py
             # But the generator is running from tmpdir? No, main.py adds default string.
             # But renderer context uses that string in COPY.
             # Dockerfile generation does NOT check file existence on host.
             # So we don't strictly need to create it for GENERATION test.
-            
+
             # 簡易設定
             config = {
-                'paths': {
-                    'sam_template': str(sam_path),
-                    'output_dir': str(tmpdir / 'functions'),
-                    'functions_yml': str(tmpdir / 'functions.yml'),
+                "paths": {
+                    "sam_template": str(sam_path),
+                    "output_dir": str(tmpdir / "functions"),
+                    "functions_yml": str(tmpdir / "functions.yml"),
                 },
                 # docker config omitted to test default behavior
             }
-            
+
             # 生成実行
             # NOTE: renderer.py loads templates from file relative to renderer.py location.
             # This works even if processing in tmpdir as long as installed package is utilized.
             generate_files(config, project_root=tmpdir)
-            
+
             # 検証
-            dockerfile = func_dir / 'Dockerfile'
+            dockerfile = func_dir / "Dockerfile"
             assert dockerfile.exists(), "Dockerfile should be generated"
-            
-            content = dockerfile.read_text()
-            assert 'COPY tools/generator/runtime/sitecustomize.py' in content
-            
-            functions_yml = tmpdir / 'functions.yml'
+
+            content = dockerfile.read_text(encoding="utf-8")
+            assert "COPY tools/generator/runtime/sitecustomize.py" in content
+
+            functions_yml = tmpdir / "functions.yml"
             assert functions_yml.exists(), "functions.yml should be generated"

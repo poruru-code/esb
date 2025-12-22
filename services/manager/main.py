@@ -1,8 +1,6 @@
 from fastapi import FastAPI, HTTPException, Request
-from pydantic import BaseModel
 import logging
 from contextlib import asynccontextmanager
-from typing import Optional, Dict
 import asyncio
 
 from .service import ContainerManager
@@ -11,10 +9,13 @@ from services.common.core.request_context import set_request_id, clear_request_i
 from .config import config
 
 from .core.logging_config import setup_logging
+from services.common.models.internal import ContainerEnsureRequest, ContainerInfoResponse
 
 # Logger setup
 setup_logging()
 logger = logging.getLogger("manager.main")
+
+manager = ContainerManager()
 # レベル設定などはYAML側で行う
 
 
@@ -70,27 +71,16 @@ async def request_id_middleware(request: Request, call_next):
         clear_request_id()
 
 
-manager = ContainerManager()
-
-
-class EnsureRequest(BaseModel):
-    function_name: str
-    image: Optional[str] = None
-    env: Optional[Dict[str, str]] = {}
-
-
-@app.post("/containers/ensure")
-async def ensure_container(req: EnsureRequest, request: Request):
+@app.post("/containers/ensure", response_model=ContainerInfoResponse)
+async def ensure_container(req: ContainerEnsureRequest, request: Request):
     """
     Ensures a container with the given function name is running.
     """
-    # request_id は ContextVar から取得されるため、明示的に渡す必要はないが念のため
-    # request_id は ContextVar から取得されるため、明示的に渡す必要はないが念のため
     get_request_id()
 
     try:
         host = await manager.ensure_container_running(req.function_name, req.image, req.env)
-        return {"host": host, "port": config.LAMBDA_PORT}
+        return ContainerInfoResponse(host=host, port=config.LAMBDA_PORT)
     except docker.errors.ImageNotFound as e:
         logger.error(f"Image not found: {e.explanation}")
         raise HTTPException(status_code=404, detail=f"Lambda image not found: {e.explanation}")

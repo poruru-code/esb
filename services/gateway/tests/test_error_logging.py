@@ -48,7 +48,7 @@ async def test_lambda_connection_error_logged_at_error_level(caplog):
 
     # Mock dependency injection for resolve_lambda_target and verify_authorization
     from services.gateway.api.deps import resolve_lambda_target, verify_authorization
-    from services.gateway.models.schemas import TargetFunction
+    from services.gateway.models import TargetFunction
 
     async def mock_resolve_lambda_target():
         return TargetFunction(
@@ -121,7 +121,7 @@ async def test_lambda_connection_error_includes_detailed_info(caplog):
 
     # Mock dependency injection for resolve_lambda_target and verify_authorization
     from services.gateway.api.deps import resolve_lambda_target, verify_authorization
-    from services.gateway.models.schemas import TargetFunction
+    from services.gateway.models import TargetFunction
 
     async def mock_resolve_lambda_target():
         return TargetFunction(
