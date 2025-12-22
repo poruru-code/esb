@@ -12,11 +12,6 @@ from ..config import config
 from ..core.security import verify_token
 from ..models import TargetFunction
 
-# サービスの型定義を import (TYPE_CHECKING ブロックは本来望ましいが、Dependsでインスタンスを返すため実行時も必要)
-# ただし循環参照回避のため、必要に応じて調整。今回は main.py で app.state にセットされるため、
-# ここでの import は型ヒント用としても機能するが、クラス定義が必要。
-# 実際には services/gateway/services や client から import しても、deps.py は main.py から呼ばれる側なので
-# main.py -> deps.py -> services... という方向なら問題ないはず。
 
 from ..services.function_registry import FunctionRegistry
 from ..services.route_matcher import RouteMatcher
@@ -25,26 +20,31 @@ from ..client import ManagerClient
 
 
 # ==========================================
-# 1. サービス取得用プロバイダ (Accessors)
+# 1. Service Accessors
 # ==========================================
+
 
 def get_http_client(request: Request) -> AsyncClient:
     return request.app.state.http_client
 
+
 def get_function_registry(request: Request) -> FunctionRegistry:
     return request.app.state.function_registry
+
 
 def get_route_matcher(request: Request) -> RouteMatcher:
     return request.app.state.route_matcher
 
+
 def get_manager_client(request: Request) -> ManagerClient:
     return request.app.state.manager_client
+
 
 def get_lambda_invoker(request: Request) -> LambdaInvoker:
     return request.app.state.lambda_invoker
 
 
-# 型エイリアス (Annotated) の定義
+# Service Dependency Type Aliases
 FunctionRegistryDep = Annotated[FunctionRegistry, Depends(get_function_registry)]
 RouteMatcherDep = Annotated[RouteMatcher, Depends(get_route_matcher)]
 ManagerClientDep = Annotated[ManagerClient, Depends(get_manager_client)]
@@ -53,8 +53,9 @@ HttpClientDep = Annotated[AsyncClient, Depends(get_http_client)]
 
 
 # ==========================================
-# 2. ロジック系依存関係
+# 2. Logic Dependencies (Verification & Resolution)
 # ==========================================
+
 
 async def verify_authorization(authorization: Optional[str] = Header(None)) -> str:
     """
@@ -79,10 +80,7 @@ async def verify_authorization(authorization: Optional[str] = Header(None)) -> s
     return user_id
 
 
-async def resolve_lambda_target(
-    request: Request,
-    route_matcher: RouteMatcherDep
-) -> TargetFunction:
+async def resolve_lambda_target(request: Request, route_matcher: RouteMatcherDep) -> TargetFunction:
     """
     リクエストパスから Lambda 関数ターゲット情報を解決する。
 
@@ -99,8 +97,8 @@ async def resolve_lambda_target(
     path = request.url.path
     method = request.method
 
-    target_container, path_params, route_path, function_config = (
-        route_matcher.match_route(path, method)
+    target_container, path_params, route_path, function_config = route_matcher.match_route(
+        path, method
     )
 
     if not target_container:
@@ -114,6 +112,6 @@ async def resolve_lambda_target(
     )
 
 
-# 型エイリアス定義（Annotated を使用した DI）
+# Logic Dependency Type Aliases
 UserIdDep = Annotated[str, Depends(verify_authorization)]
 LambdaTargetDep = Annotated[TargetFunction, Depends(resolve_lambda_target)]

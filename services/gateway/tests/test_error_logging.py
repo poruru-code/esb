@@ -5,7 +5,7 @@ Lambda接続失敗時に適切なログレベル（error）で詳細情報が記
 """
 
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, patch, MagicMock
 import httpx
 import logging
 from services.gateway.api.deps import (
@@ -27,7 +27,7 @@ def mock_dependencies(main_app):
 
     mock_manager = AsyncMock()
     mock_manager.ensure_container.return_value = "test-container-host"
-    mock_manager.invalidate_cache = AsyncMock()
+    mock_manager.invalidate_cache = MagicMock()
 
     # LambdaInvoker のモック (内部で client を使うため)
     # ここでは Invoker 自体は本物使い、Client をモックするか、Invoker もモックするか。
@@ -130,7 +130,7 @@ async def test_lambda_connection_error_includes_detailed_info(caplog):
 
     mock_manager = AsyncMock()
     mock_manager.ensure_container.return_value = "192.168.1.100"
-    mock_manager.invalidate_cache = AsyncMock()  # 呼ばれるはず
+    mock_manager.invalidate_cache = MagicMock()  # 呼ばれるはず
 
     app.dependency_overrides[get_http_client] = lambda: mock_client
     app.dependency_overrides[get_manager_client] = lambda: mock_manager
