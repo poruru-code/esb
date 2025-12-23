@@ -106,7 +106,7 @@ def main():
         # 環境変数を再取得（load_dotenv後）
         pytest_env = os.environ.copy()
 
-        pytest_cmd = [sys.executable, "-m", "pytest", "tests/test_e2e.py", "-v"]
+        pytest_cmd = [sys.executable, "-m", "pytest", "tests/", "-v"]
         result = subprocess.run(pytest_cmd, cwd=PROJECT_ROOT, check=False, env=pytest_env)
 
         if result.returncode != 0:
