@@ -142,7 +142,7 @@ def provision_s3(buckets):
 def main(template_path=None):
     # テンプレート読み込み
     if template_path is None:
-        template_path = project_root / "tests/e2e/template.yaml"
+        template_path = project_root / "tests/fixtures/template.yaml"
     else:
         template_path = Path(template_path)
 

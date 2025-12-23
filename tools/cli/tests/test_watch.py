@@ -31,7 +31,7 @@ def test_handle_function_change(mock_docker_env, reloader):
     mock_client = MagicMock()
     reloader.docker_client = mock_client
 
-    test_path = Path("tests/e2e/functions/hello/lambda_function.py")
+    test_path = Path("tests/fixtures/functions/hello/lambda_function.py")
     reloader.handle_function_change(test_path)
 
     # 1. イメージビルドが呼ばれたか

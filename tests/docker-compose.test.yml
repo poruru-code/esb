@@ -7,5 +7,5 @@ services:
   gateway:
     volumes:
       # E2Eテスト用の設定ファイルのみ上書き
-      - ./tests/e2e/config/functions.yml:/app/config/functions.yml:ro
-      - ./tests/e2e/config/routing.yml:/app/config/routing.yml:ro
+      - ./tests/fixtures/config/functions.yml:/app/config/functions.yml:ro
+      - ./tests/fixtures/config/routing.yml:/app/config/routing.yml:ro

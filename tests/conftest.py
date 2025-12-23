@@ -4,8 +4,8 @@ E2E テスト共通 Fixture
 tests/ ディレクトリのルートに配置し、全テストで利用可能にする。
 """
 
-# tests/e2e/conftest.py から fixture と定数を再エクスポート
-from tests.e2e.conftest import (
+# tests/fixtures/conftest.py から fixture と定数を再エクスポート
+from tests.fixtures.conftest import (
     gateway_health,  # noqa: F401
     get_auth_token,  # noqa: F401
     query_victorialogs,  # noqa: F401

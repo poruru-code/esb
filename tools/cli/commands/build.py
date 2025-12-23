@@ -59,7 +59,7 @@ def run(args):
     # Generator の設定をロード
     config_path = E2E_DIR / "generator.yml"
     if not config_path.exists():
-        config_path = PROJECT_ROOT / "tests/e2e/generator.yml"
+        config_path = PROJECT_ROOT / "tests/fixtures/generator.yml"
 
     config = generator.load_config(config_path)
 

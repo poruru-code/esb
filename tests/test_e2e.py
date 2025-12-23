@@ -23,7 +23,7 @@ import pytest
 import requests
 
 # conftest.py から共通設定とヘルパーをインポート
-from tests.e2e.conftest import (
+from tests.fixtures.conftest import (
     GATEWAY_URL,
     VICTORIALOGS_PORT,
     VERIFY_SSL,

@@ -61,7 +61,7 @@ def main():
     env = os.environ.copy()
 
     # ESB_TEMPLATE: .env.test から読み込んだ相対パスを絶対パスに変換
-    esb_template = os.getenv("ESB_TEMPLATE", "tests/e2e/template.yaml")
+    esb_template = os.getenv("ESB_TEMPLATE", "tests/fixtures/template.yaml")
     env["ESB_TEMPLATE"] = str(PROJECT_ROOT / esb_template)
 
     # COMPOSE_FILE: テスト用定義をマージする

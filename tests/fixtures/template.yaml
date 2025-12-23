@@ -14,7 +14,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: lambda-hello
-      CodeUri: tests/e2e/functions/hello/
+      CodeUri: tests/fixtures/functions/hello/
       Events:
         HelloApi:
           Type: Api
@@ -26,7 +26,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: lambda-s3-test
-      CodeUri: tests/e2e/functions/s3-test/
+      CodeUri: tests/fixtures/functions/s3-test/
       Events:
         S3TestApi:
           Type: Api
@@ -43,7 +43,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: lambda-scylla-test
-      CodeUri: tests/e2e/functions/scylla-test/
+      CodeUri: tests/fixtures/functions/scylla-test/
       Events:
         ScyllaTestApi:
           Type: Api
@@ -58,7 +58,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: lambda-invoke-test
-      CodeUri: tests/e2e/functions/invoke-test/
+      CodeUri: tests/fixtures/functions/invoke-test/
       Events:
         InvokeTestApi:
           Type: Api
@@ -88,7 +88,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: lambda-faulty
-      CodeUri: tests/e2e/functions/faulty/
+      CodeUri: tests/fixtures/functions/faulty/
       Events:
         FaultyApi:
           Type: Api

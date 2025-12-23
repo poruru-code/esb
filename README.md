@@ -116,7 +116,7 @@ lefthook install
 1. 環境変数 `ESB_TEMPLATE` で指定されたパス
 2. カレントディレクトリ直下の `template.yaml`
 3. プロジェクトルート直下の `template.yaml`
-4. `tests/e2e/template.yaml` (デフォルトのサンプル)
+4. `tests/fixtures/template.yaml` (デフォルトのサンプル)
 
 ### サービスの起動 (`esb up`)
 
@@ -192,7 +192,7 @@ esb reset
 
 #### 新しいLambda関数の追加手順
 
-1. **`tests/e2e/template.yaml` を編集**:
+1. **`tests/fixtures/template.yaml` を編集**:
 新しい `AWS::Serverless::Function` リソースを追加します。`Events` プロパティで API パスを定義してください。
 ```yaml
 MyFunction:
@@ -213,7 +213,7 @@ MyFunction:
 
 
 2. **コードの配置**:
-`tests/e2e/functions/my-func/lambda_function.py` を作成します。
+`tests/fixtures/functions/my-func/lambda_function.py` を作成します。
 3. **反映**:
 `esb watch` が起動していれば、保存した瞬間に自動的に環境に反映されます。
 手動で反映する場合は `esb build && esb up` を実行してください。

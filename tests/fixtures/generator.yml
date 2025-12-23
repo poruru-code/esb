@@ -6,7 +6,7 @@ app:
   tag: latest
 
 paths:
-  sam_template: tests/e2e/template.yaml
-  output_dir: tests/e2e/functions/
-  functions_yml: tests/e2e/config/functions.yml
-  routing_yml: tests/e2e/config/routing.yml
+  sam_template: tests/fixtures/template.yaml
+  output_dir: tests/fixtures/functions/
+  functions_yml: tests/fixtures/config/functions.yml
+  routing_yml: tests/fixtures/config/routing.yml

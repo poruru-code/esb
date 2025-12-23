@@ -25,7 +25,7 @@ PROVISIONER_DIR = TOOLS_DIR / "provisioner"
 # 1. 環境変数 ESB_TEMPLATE
 # 2. カレントディレクトリの template.yaml
 # 3. プロジェクトルート直下の template.yaml
-# 4. tests/e2e/template.yaml (デフォルト)
+# 4. tests/fixtures/template.yaml (デフォルト)
 
 env_template = os.environ.get("ESB_TEMPLATE")
 if env_template:
