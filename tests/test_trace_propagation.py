@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from tests.fixtures.conftest import GATEWAY_URL, VERIFY_SSL, query_victorialogs
 
 
-class TestTracePropagation:
+class TestTrace:
     def test_chained_trace_consistency(self, auth_token):
         """
         E2E: Client -> Gateway -> Lambda A -> Lambda B で Trace ID が維持されるか

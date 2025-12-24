@@ -13,7 +13,7 @@ from tests.fixtures.conftest import call_api
 class TestS3:
     """S3 互換性の検証"""
 
-    def test_s3_put_get(self, auth_token):
+    def test_put_get(self, auth_token):
         """E2E: S3 PutObject/GetObject 互換テスト"""
         test_key = f"test-object-{uuid.uuid4().hex[:8]}.txt"
         test_content = "Hello from E2E test!"
@@ -38,7 +38,7 @@ class TestS3:
         assert get_data["success"] is True
         assert get_data["content"] == test_content
 
-    def test_s3_list_objects(self, auth_token):
+    def test_list_objects(self, auth_token):
         """E2E: S3 ListObjects 互換テスト"""
         response = call_api(
             "/api/s3",
@@ -50,7 +50,7 @@ class TestS3:
         assert data["success"] is True
         assert "objects" in data
 
-    def test_s3_delete_object(self, auth_token):
+    def test_delete_object(self, auth_token):
         """E2E: S3 DeleteObject 互換テスト"""
         test_key = f"test-delete-{uuid.uuid4().hex[:8]}.txt"
 
@@ -83,7 +83,7 @@ class TestS3:
         )
         assert get_response.status_code == 500  # NoSuchKey → 500 error
 
-    def test_s3_overwrite(self, auth_token):
+    def test_overwrite(self, auth_token):
         """E2E: S3 同一キー上書きテスト"""
         test_key = f"test-overwrite-{uuid.uuid4().hex[:8]}.txt"
 
@@ -110,7 +110,7 @@ class TestS3:
         assert get_response.status_code == 200
         assert get_response.json()["content"] == "overwritten"
 
-    def test_s3_list_with_prefix(self, auth_token):
+    def test_list_with_prefix(self, auth_token):
         """E2E: S3 Prefix 付き ListObjects テスト"""
         prefix = f"prefix-test-{uuid.uuid4().hex[:8]}/"
 

@@ -20,7 +20,7 @@ from tests.fixtures.conftest import (
 class TestDynamo:
     """DynamoDB 互換性の検証"""
 
-    def test_dynamo_put_get(self, auth_token):
+    def test_put_get(self, auth_token):
         """E2E: DynamoDB PutItem/GetItem 互換テスト (ScyllaDB)"""
         max_retries = SCYLLA_WAIT_RETRIES
         response = None
@@ -52,7 +52,7 @@ class TestDynamo:
         assert "retrieved_item" in data
         assert data["retrieved_item"]["id"]["S"] == data["item_id"]
 
-    def test_dynamo_update_item(self, auth_token):
+    def test_update_item(self, auth_token):
         """E2E: DynamoDB UpdateItem 互換テスト"""
         # 1. PutItem
         put_response = call_api(
@@ -83,7 +83,7 @@ class TestDynamo:
         assert data["found"] is True
         assert data["item"]["message"]["S"] == "Updated message"
 
-    def test_dynamo_delete_item(self, auth_token):
+    def test_delete_item(self, auth_token):
         """E2E: DynamoDB DeleteItem 互換テスト"""
         # 1. PutItem
         put_response = call_api(
@@ -113,7 +113,7 @@ class TestDynamo:
         data = get_response.json()
         assert data["found"] is False
 
-    def test_dynamo_get_nonexistent(self, auth_token):
+    def test_get_nonexistent(self, auth_token):
         """E2E: DynamoDB 存在しないアイテム取得テスト"""
         fake_id = str(uuid.uuid4())
 
