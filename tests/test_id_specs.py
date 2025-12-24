@@ -18,9 +18,10 @@ from tests.fixtures.conftest import (
 class TestIDSpecs:
     """ID Specification Verification"""
 
-    def test_id_propagation_and_format(self, auth_token):
+    def test_id_propagation_with_chain(self, auth_token):
         """
-        Verify Trace ID propagation and Request ID format.
+        Verify Trace ID propagation and Request ID independence across a call chain.
+        Chain: Client -> Gateway -> Lambda(integration) -> Gateway -> Lambda(echo)
         """
         # 1. Prepare unique IDs
         unique_marker = uuid.uuid4().hex[:12]
@@ -29,92 +30,93 @@ class TestIDSpecs:
         trace_id_value = f"1-{epoch_hex}-{uuid.uuid4().hex[:24]}"
         trace_id_header = f"Root={trace_id_value};Sampled=1"
 
-        print(f"Starting ID spec test with Trace ID: {trace_id_value}")
-        print(f"Unique Marker: {unique_marker}")
+        print(f"Starting Chain ID spec test with Trace ID: {trace_id_value}")
 
-        # 2. Invoke Lambda via Gateway
-        # Using /api/echo (lambda-connectivity) as it's simple
+        # 2. Invoke Lambda Chain
+        # Calls /api/lambda (lambda-integration), which calls lambda-echo
         response = call_api(
-            "/api/echo",
+            "/api/lambda",
             auth_token,
-            {"message": f"ID Verification {unique_marker}"},
+            {"next_target": "lambda-echo", "message": f"Chain Verification {unique_marker}"},
             headers={"X-Amzn-Trace-Id": trace_id_header},
         )
         assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
 
         # 3. Wait for logs in VictoriaLogs
-        print(f"Waiting for logs with trace_id: {trace_id_value} ...")
+        print(f"Waiting for chain logs with trace_id: {trace_id_value} ...")
 
-        # We need logs from both 'gateway' and 'lambda' jobs/containers
-        # Filter by trace_id matches
-        found_gateway_log = False
-        found_lambda_log = False
-        gateway_request_id = None
-        lambda_request_id = None
+        logs_found = {"gateway": [], "lambda-integration": [], "lambda-echo": []}
 
         start_time = time.time()
         while time.time() - start_time < LOG_WAIT_TIMEOUT:
             # Query by trace_id matches
             result = query_victorialogs_by_filter(
-                raw_query=f'trace_id:"{trace_id_value}"', timeout=2, limit=50
+                raw_query=f'trace_id:"{trace_id_value}"', timeout=2, limit=100
             )
             hits = result.get("hits", [])
 
             if hits:
                 for log in hits:
-                    job = log.get("job", "")
                     container = log.get("container_name", "")
+                    job = log.get("job", "")
 
-                    # Identify Gateway logs
                     if "gateway" in container or job == "gateway":
-                        found_gateway_log = True
-                        if "aws_request_id" in log:
-                            gateway_request_id = log["aws_request_id"]
+                        logs_found["gateway"].append(log)
+                    elif "lambda-integration" in container:
+                        logs_found["lambda-integration"].append(log)
+                    elif "lambda-echo" in container:
+                        logs_found["lambda-echo"].append(log)
 
-                    # Identify Lambda logs
-                    if "lambda" in container or job == "lambda":
-                        found_lambda_log = True
-                        if "aws_request_id" in log:
-                            lambda_request_id = log["aws_request_id"]
-
-            if found_gateway_log and found_lambda_log and gateway_request_id and lambda_request_id:
+            # Check if we have at least one log from each component
+            if (
+                len(logs_found["gateway"]) > 0
+                and len(logs_found["lambda-integration"]) > 0
+                and len(logs_found["lambda-echo"]) > 0
+            ):
                 break
 
             time.sleep(2)
 
         # 4. Verifications
 
-        # 4.1 Trace ID Propagation
-        assert found_gateway_log, "Gateway logs not found for the Trace ID"
-        assert found_lambda_log, "Lambda logs not found for the Trace ID"
-
-        # 4.2 Request ID Presence & Format (Gateway)
-        print(f"Gateway Request ID: {gateway_request_id}")
-        assert gateway_request_id, "Gateway log missing aws_request_id"
-        assert self._is_valid_uuid(gateway_request_id), (
-            f"Gateway Request ID is not a valid UUID: {gateway_request_id}"
+        # 4.1 Trace ID Propagation (Global)
+        assert len(logs_found["gateway"]) > 0, "Gateway logs missing for Chain Trace ID"
+        assert len(logs_found["lambda-integration"]) > 0, (
+            "Lambda-integration logs missing for Chain Trace ID"
         )
+        assert len(logs_found["lambda-echo"]) > 0, "Lambda-echo logs missing for Chain Trace ID"
 
-        # 4.3 Request ID Presence & Format (Lambda)
-        print(f"Lambda Request ID: {lambda_request_id}")
-        assert lambda_request_id, "Lambda log missing aws_request_id"
-        assert self._is_valid_uuid(lambda_request_id), (
-            f"Lambda Request ID is not a valid UUID: {lambda_request_id}"
+        # 4.2 Request ID Scope (Local)
+        # Extract Request IDs
+        integration_req_ids = {
+            log.get("aws_request_id")
+            for log in logs_found["lambda-integration"]
+            if log.get("aws_request_id")
+        }
+        echo_req_ids = {
+            log.get("aws_request_id")
+            for log in logs_found["lambda-echo"]
+            if log.get("aws_request_id")
+        }
+
+        print(f"Integration Request IDs: {integration_req_ids}")
+        print(f"Echo Request IDs: {echo_req_ids}")
+
+        assert integration_req_ids, "Lambda-integration missing aws_request_id"
+        assert echo_req_ids, "Lambda-echo missing aws_request_id"
+
+        # Validation: Valid UUIDs
+        for rid in integration_req_ids | echo_req_ids:
+            assert self._is_valid_uuid(rid), f"Invalid UUID format: {rid}"
+
+        # Validation: Independence
+        # The Request ID for integration should be different from echo
+        # (Since they are separate invocations)
+        assert integration_req_ids.isdisjoint(echo_req_ids), (
+            f"Request ID collision detected between hops! Integration: {integration_req_ids}, Echo: {echo_req_ids}"
         )
-
-        # 4.4 Scope verification
-        # Currently, Gateway generates a Request ID and Lambda Runtime generates/receives one.
-        # Strict AWS behavior: They are different (Api Gateway Request ID vs Lambda Request ID).
-        # Our implementation:
-        # Gateway generates ID -> sends in context.
-        # Lambda Runtime (sitecustomize) captures 'invoke_id'.
-        # If sitecustomize captures the one passed from Gateway (via headers -> environment? or just invoke response headers?), they might align.
-        # But commonly Lambda Runtime gets 'InvokeID' from the RIE/Slice API.
-
-        if gateway_request_id == lambda_request_id:
-            print("[INFO] Gateway and Lambda Request IDs are IDENTICAL.")
-        else:
-            print("[INFO] Gateway and Lambda Request IDs are DISTINCT (Independent scopes).")
 
     def _is_valid_uuid(self, val):
         try:
