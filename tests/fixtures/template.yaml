@@ -78,6 +78,18 @@ Resources:
     Properties:
       BucketName: e2e-test-bucket
 
+  EchoFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lambda-echo
+      CodeUri: tests/fixtures/functions/echo/
+      Events:
+        EchoApi:
+          Type: Api
+          Properties:
+            Path: /api/echo
+            Method: post
+
   ChaosFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -95,3 +107,9 @@ Resources:
     Properties:
       FunctionName: lambda-trace-chain
       CodeUri: tests/fixtures/functions/trace-chain/
+      Events:
+        ChainApi:
+          Type: Api
+          Properties:
+            Path: /api/call
+            Method: post

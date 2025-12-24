@@ -242,3 +242,45 @@ def request_with_retry(
     if response is None:
         raise requests.exceptions.ConnectionError(f"Failed to connect after {max_retries} retries")
     return response
+
+
+def call_api(
+    path: str,
+    auth_token: str,
+    payload: dict | None = None,
+    method: str = "post",
+    timeout: int = DEFAULT_REQUEST_TIMEOUT,
+    **kwargs,
+) -> requests.Response:
+    """
+    Gateway 経由で API を呼び出す共通ヘルパー
+
+    Args:
+        path: API パス (例: "/api/echo", "/api/chain")
+        auth_token: 認証トークン
+        payload: リクエストボディ (JSON)
+        method: HTTP メソッド (デフォルト: post)
+        timeout: リクエストタイムアウト
+        **kwargs: requests に渡す追加パラメータ
+
+    Returns:
+        requests.Response オブジェクト
+
+    Example:
+        response = call_api("/api/echo", auth_token, {"message": "hello"})
+        data = response.json()
+    """
+    url = f"{GATEWAY_URL}{path}"
+    headers = {"Authorization": f"Bearer {auth_token}"}
+
+    if "headers" in kwargs:
+        headers.update(kwargs.pop("headers"))
+
+    return getattr(requests, method.lower())(
+        url,
+        json=payload,
+        headers=headers,
+        verify=VERIFY_SSL,
+        timeout=timeout,
+        **kwargs,
+    )

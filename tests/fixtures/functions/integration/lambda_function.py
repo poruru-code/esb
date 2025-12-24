@@ -27,7 +27,11 @@ def lambda_handler(event, context):
     ):  # Heuristic for dynamo
         return dynamo.handle(event, context)
 
-    if path == "/api/invoke" or action == "invoke" or "target" in body:
+    if (
+        path == "/api/invoke"
+        or action == "invoke"
+        or "target" in body  # Direct payload for invoker
+    ):
         return invoker.handle(event, context)
 
     # Default / Fallback

@@ -3,15 +3,24 @@ import json
 
 def parse_event_body(event):
     """
-    API Gatewayイベントのbodyをパースして辞書を返す
+    API Gatewayイベントのbodyをパースして辞書を返す。
+    Proxy Eventの場合は 'body' キーから、そうでない場合は event 自体をパースする。
     """
-    body = event.get("body", {})
-    if isinstance(body, str):
-        try:
-            return json.loads(body)
-        except (ValueError, json.JSONDecodeError):
-            return {}
-    return body
+    if not isinstance(event, dict):
+        return {}
+
+    # Proxy Event の場合
+    if "body" in event:
+        body = event["body"]
+        if isinstance(body, str):
+            try:
+                return json.loads(body)
+            except (ValueError, json.JSONDecodeError):
+                return {}
+        return body
+
+    # 非 Proxy Event (Direct Payload) の場合
+    return event
 
 
 def handle_ping(event):

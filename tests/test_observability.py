@@ -1,7 +1,6 @@
 """
 オブザーバビリティ機能テスト
 
-- RequestID トレーシング
 - ログ品質とレベル制御
 - CloudWatch Logs 透過的リダイレクト
 """
@@ -24,9 +23,11 @@ from tests.fixtures.conftest import (
 class TestObservability:
     """ロギング・オブザーバビリティ機能の検証"""
 
-    def test_log_quality_and_level_control(self, auth_token):
+    def test_structured_log_format(self, auth_token):
         """
         E2E: ロギングの品質と環境変数によるレベル制御の検証
+
+        Echo Lambda を使用してシンプルにログ品質を確認。
         """
 
         # 検証用のユニークな Trace ID とメッセージ
@@ -35,17 +36,10 @@ class TestObservability:
         trace_id = f"Root=1-{epoch_hex}-{unique_id};Sampled=1"
         root_id = f"1-{epoch_hex}-{unique_id}"
 
-        debug_msg = f"DEBUG_LOG_VALIDATION_{uuid.uuid4()}"
-
-        # ヘッダーに検証用IDをセットしてリクエスト（Gatewayでログ出力されることを期待）
-        # 同時に、ボディにデバッグメッセージを含めて、Lambda側でも（あれば）出力させる
+        # Echo Lambda を呼び出し (S3 依存なし)
         response = requests.post(
-            f"{GATEWAY_URL}/api/s3",
-            json={
-                "action": "test",
-                "bucket": "e2e-test-bucket",
-                "debug_msg": debug_msg,
-            },
+            f"{GATEWAY_URL}/api/echo",
+            json={"message": "Log quality test"},
             headers={
                 "Authorization": f"Bearer {auth_token}",
                 "X-Amzn-Trace-Id": trace_id,
@@ -54,7 +48,7 @@ class TestObservability:
         )
         assert response.status_code == 200
 
-        # Gatewayコンテナのログを検索
+        # Gateway コンテナのログを検索
         print(f"Waiting for logs with Root ID: {root_id} ...")
 
         start_time = time.time()
@@ -68,21 +62,18 @@ class TestObservability:
             hits = logs.get("hits", [])
             if hits:
                 for log in hits:
-                    # 1. 構造化ログ（JSON）であることの確認（hitsに入っている時点でJSONパース済み）
-                    # 必須フィールドの確認
+                    # 1. 構造化ログ（JSON）であることの確認
                     if "level" in log and ("message" in log or "_msg" in log):
                         found_structured_log = True
 
                     # 2. _time フィールドの確認
                     if "_time" in log:
-                        # 形式確認（数値または文字列のタイムスタンプ）
                         ts = log["_time"]
                         if isinstance(ts, (int, float)) or (
                             isinstance(ts, str) and ts.replace(".", "").isdigit()
                         ):
                             found_time_field = True
                         elif isinstance(ts, str):
-                            # ISO format check could be here
                             found_time_field = True
 
                     # 3. DEBUG レベルのログ確認
@@ -98,7 +89,7 @@ class TestObservability:
         assert found_time_field, "_time field not found or invalid"
         assert found_debug_log, "DEBUG level log not found. Check LOG_LEVEL env var."
 
-    def test_cloudwatch_logs_via_boto3(self, gateway_health):
+    def test_cloudwatch_logs_passthrough(self, gateway_health):
         """
         E2E: CloudWatch Logs API 透過的リダイレクト検証
         """

@@ -27,22 +27,18 @@ from tests.fixtures.conftest import (
 class TestResilience:
     """耐障害性・パフォーマンス機能の検証"""
 
-    def test_manager_restart_container_adoption(self, auth_token):
+    def test_manager_restart_recovery(self, auth_token):
         """
         E2E: Manager再起動時のコンテナ復元検証 (Adopt & Sync)
 
-        シナリオ:
-        1. Lambda関数を呼び出してコンテナを起動（ウォームアップ）
-        2. Managerコンテナを再起動
-        3. 同じLambda関数を呼び出し
-        4. コールドスタートではなくウォームスタートで起動することを確認（コンテナが復元されている）
+        Echo Lambda を使用 (S3 依存なし)
         """
 
         # 1. 最初の呼び出し（コンテナ起動）
         print("Step 1: Initial Lambda invocation (cold start)...")
         response1 = requests.post(
-            f"{GATEWAY_URL}/api/s3",
-            json={"action": "test", "bucket": "e2e-test-bucket"},
+            f"{GATEWAY_URL}/api/echo",
+            json={"message": "warmup"},
             headers={"Authorization": f"Bearer {auth_token}"},
             verify=VERIFY_SSL,
         )
@@ -50,7 +46,6 @@ class TestResilience:
         data1 = response1.json()
         assert data1["success"] is True
 
-        # コンテナが確実に起動するまで少し待つ
         time.sleep(3)
 
         # 2. Managerコンテナを再起動
@@ -63,7 +58,6 @@ class TestResilience:
         )
         assert restart_result.returncode == 0, f"Failed to restart Manager: {restart_result.stderr}"
 
-        # Manager起動待ち（より長めに待つ）
         time.sleep(MANAGER_RESTART_WAIT)
 
         # Managerのヘルスチェック（間接的）
@@ -78,19 +72,17 @@ class TestResilience:
                 print(f"Waiting for system to stabilize... ({i + 1}/15)")
             time.sleep(2)
 
-        # 追加の安定化待ち（Gatewayは起動していてもManagerとの接続が安定していない可能性）
         time.sleep(STABILIZATION_WAIT)
 
         # 3. 再起動後の呼び出し（コンテナ復元確認）
         print("Step 3: Post-restart invocation (should be warm start)...")
 
-        # Manager再起動直後は502が返る可能性があるのでリトライ
         response2 = request_with_retry(
             "post",
-            f"{GATEWAY_URL}/api/s3",
+            f"{GATEWAY_URL}/api/echo",
             max_retries=5,
             retry_interval=2.0,
-            json={"action": "test", "bucket": "e2e-test-bucket"},
+            json={"message": "after restart"},
             headers={"Authorization": f"Bearer {auth_token}"},
             verify=VERIFY_SSL,
         )
@@ -101,22 +93,13 @@ class TestResilience:
         data2 = response2.json()
         assert data2["success"] is True
 
-        # 4. レスポンスタイムで検証（ウォームスタートの方が速い）
         print(f"Post-restart invocation successful: {data2}")
-
-        # 追加検証: VictoriaLogsでManager再起動時の"Adopted running container"ログを確認
-        time.sleep(3)  # ログが届くまで待つ
+        time.sleep(3)
         print("Test passed: Container was successfully adopted after Manager restart")
 
-    def test_container_host_caching_e2e(self, auth_token):
+    def test_gateway_cache_hit(self, auth_token):
         """
         E2E: Gateway のコンテナホストキャッシュが機能していることを検証
-
-        シナリオ:
-        1. 1回目のリクエスト: キャッシュなし → Manager に問い合わせ
-        2. 2回目のリクエスト: キャッシュヒット → Manager への問い合わせなし
-        3. VictoriaLogs で Manager のログを確認し、2回目のリクエストでは
-           Manager が呼ばれていないことを検証
         """
 
         # 1. 1回目リクエスト (キャッシュなし -> Manager 問い合わせ発生)
@@ -147,8 +130,8 @@ class TestResilience:
         )
         assert resp2.status_code == 200, f"Second request failed: {resp2.text}"
 
-        # 3. ログを確認 (Manager のログ出力を確認)
-        time.sleep(5)  # ログ到達待ち
+        # 3. ログを確認
+        time.sleep(5)
 
         result_1 = query_victorialogs(root_id_1)
         logs_1 = result_1.get("hits", [])
@@ -168,18 +151,12 @@ class TestResilience:
         assert len(manager_req_1) > 0, "Initial request must involve Manager"
         assert len(manager_req_2) == 0, "Second request should use Gateway cache and SKIP Manager"
 
-    def test_circuit_breaker_open_e2e(self, auth_token):
+    def test_circuit_breaker(self, auth_token):
         """
         E2E: Lambda のクラッシュ時に Circuit Breaker が作動することを検証
-
-        シナリオ:
-        1. ウォームアップ (コンテナ起動 & キャッシュ充填)
-        2. 失敗を繰り返す (action='crash' により 502 が返る)
-        3. 4回目のリクエストで Circuit Breaker が OPEN し、即座に 502 が返る
-        4. 復旧待ち後、正常リクエストが通ることを確認
         """
 
-        # 1. ウォームアップ (コンテナ起動 & キャッシュ充填)
+        # 1. ウォームアップ
         print("Warming up lambda-faulty...")
         requests.post(
             f"{GATEWAY_URL}/api/faulty",
@@ -189,7 +166,7 @@ class TestResilience:
         )
 
         try:
-            # 2. 失敗を繰り返す (設定値 CIRCUIT_BREAKER_THRESHOLD=3)
+            # 2. 失敗を繰り返す
             for i in range(3):
                 print(f"Attempt {i + 1} (crashing lambda)...")
                 start = time.time()
@@ -204,7 +181,7 @@ class TestResilience:
                 print(f"Status: {resp.status_code}, Body: {resp.text}, Latency: {duration:.2f}s")
                 assert resp.status_code == 502, f"Expected 502, got {resp.status_code}"
 
-            # 3. 4回目リクエスト (Circuit Breaker が OPEN なので即座に 502 が返るはず)
+            # 3. 4回目リクエスト (Circuit Breaker OPEN)
             print("Request 4 (expecting Circuit Breaker Open)...")
             start = time.time()
             resp = requests.post(
@@ -218,12 +195,9 @@ class TestResilience:
             print(f"Status: {resp.status_code}, Body: {resp.text}, Latency: {duration:.2f}s")
 
             assert resp.status_code == 502
-            # 論理的エラー(502)と区別するため、レイテンシが短いことを確認
-            # Gatewayが即座にエラーを返すため、通常は 50ms 以下
-            # 環境によっては多少遅れる可能性もあるが、少なくとも Lambda タイムアウト(3s)よりは圧倒的に早い
             assert duration < 1.0, "Circuit Breaker should fail fast (< 1.0s)"
 
-            # 4. 復旧待ち (設定値 RECOVERY_TIMEOUT=10s)
+            # 4. 復旧待ち
             print("Waiting for Circuit Breaker recovery (11s)...")
             time.sleep(11)
 
