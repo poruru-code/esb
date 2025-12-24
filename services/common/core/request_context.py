@@ -10,11 +10,29 @@ from .trace import TraceId
 
 # Trace ID (フルヘッダー形式) を格納するコンテキスト変数
 _trace_id_var: ContextVar[Optional[str]] = ContextVar("trace_id", default=None)
+# Request ID (UUID) を格納するコンテキスト変数
+_request_id_var: ContextVar[Optional[str]] = ContextVar("request_id", default=None)
 
 
 def get_trace_id() -> Optional[str]:
     """現在の Trace ID を取得"""
     return _trace_id_var.get()
+
+
+def get_request_id() -> Optional[str]:
+    """現在の Request ID を取得"""
+    return _request_id_var.get()
+
+
+def generate_request_id() -> str:
+    """
+    現在のコンテキスト用に新しいRequest ID (UUID) を生成してセットする。
+    """
+    import uuid
+
+    new_id = str(uuid.uuid4())
+    _request_id_var.set(new_id)
+    return new_id
 
 
 def set_trace_id(trace_id_str: str) -> str:
@@ -38,3 +56,4 @@ def set_trace_id(trace_id_str: str) -> str:
 def clear_trace_id() -> None:
     """Trace ID コンテキストをクリア"""
     _trace_id_var.set(None)
+    _request_id_var.set(None)

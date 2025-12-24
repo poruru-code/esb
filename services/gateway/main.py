@@ -115,7 +115,11 @@ async def trace_propagation_middleware(request: Request, call_next):
     """
     import time
     from services.common.core.trace import TraceId
-    from services.common.core.request_context import set_trace_id, clear_trace_id
+    from services.common.core.request_context import (
+        set_trace_id,
+        clear_trace_id,
+        generate_request_id,
+    )
 
     start_time = time.perf_counter()
 
@@ -139,12 +143,16 @@ async def trace_propagation_middleware(request: Request, call_next):
         trace_id_str = str(trace)
         set_trace_id(trace_id_str)
 
+    # Request ID の生成 (Trace IDとは独立)
+    req_id = generate_request_id()
+
     # レスポンス待機
     try:
         response = await call_next(request)
 
         # レスポンスヘッダーへの付与
         response.headers["X-Amzn-Trace-Id"] = trace_id_str
+        response.headers["x-amzn-RequestId"] = req_id
 
         # Calculate process time
         process_time = time.perf_counter() - start_time
@@ -155,6 +163,7 @@ async def trace_propagation_middleware(request: Request, call_next):
             f"{request.method} {request.url.path} {response.status_code}",
             extra={
                 "trace_id": trace_id_str,
+                "aws_request_id": req_id,
                 "method": request.method,
                 "path": request.url.path,
                 "status": response.status_code,

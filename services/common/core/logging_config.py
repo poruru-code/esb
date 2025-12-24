@@ -48,6 +48,16 @@ class CustomJsonFormatter(logging.Formatter):
             except ImportError:
                 pass
 
+        # Request ID resolution
+        request_id = getattr(record, "aws_request_id", None)
+        if not request_id:
+            try:
+                from .request_context import get_request_id
+
+                request_id = get_request_id()
+            except ImportError:
+                pass
+
         log_data = {
             "_time": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(
                 timespec="milliseconds"
@@ -59,6 +69,8 @@ class CustomJsonFormatter(logging.Formatter):
 
         if trace_id:
             log_data["trace_id"] = trace_id
+        if request_id:
+            log_data["aws_request_id"] = request_id
 
         # Include extra fields
         standard_attrs = {
