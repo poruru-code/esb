@@ -33,8 +33,13 @@ def run(args):
             for k, v in kwargs.items():
                 setattr(self, k, v)
 
-    logging.info("Deleting all containers and volumes...")
-    down_args = ResetArgs(volumes=True)
+    rmi = getattr(args, "rmi", False)
+    if rmi:
+        logging.info("Deleting all containers, volumes, and images...")
+    else:
+        logging.info("Deleting all containers and volumes...")
+    
+    down_args = ResetArgs(volumes=True, rmi=rmi)
     down.run(down_args)
 
     # 2. 再起動 (強制ビルド)

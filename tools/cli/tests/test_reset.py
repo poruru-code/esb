@@ -26,6 +26,7 @@ def test_reset_command_proceed(mock_up, mock_down, mock_input):
     mock_input.return_value = "y"
     args = MagicMock()
     args.yes = False
+    args.rmi = False
 
     run_reset(args)
 
@@ -33,8 +34,28 @@ def test_reset_command_proceed(mock_up, mock_down, mock_input):
     mock_down.assert_called_once()
     called_down_args = mock_down.call_args[0][0]
     assert called_down_args.volumes is True
+    assert called_down_args.rmi is False
 
     # 2. up.run(build=True, detach=True) が呼ばれたか
     mock_up.assert_called_once()
     called_up_args = mock_up.call_args[0][0]
     assert called_up_args.build is True
+
+
+@patch("builtins.input")
+@patch("tools.cli.commands.reset.down.run")
+@patch("tools.cli.commands.reset.up.run")
+def test_reset_command_with_rmi(mock_up, mock_down, mock_input):
+    """reset --rmi で down に rmi=True が渡されるか確認"""
+    mock_input.return_value = "y"
+    args = MagicMock()
+    args.yes = False
+    args.rmi = True
+
+    run_reset(args)
+
+    # down.run(volumes=True, rmi=True) が呼ばれたか
+    mock_down.assert_called_once()
+    called_down_args = mock_down.call_args[0][0]
+    assert called_down_args.volumes is True
+    assert called_down_args.rmi is True

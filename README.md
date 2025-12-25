@@ -12,13 +12,14 @@
 
 ### CLI コマンド一覧
 
-| コマンド | 説明 | 主なオプション |
-| --- | --- | --- |
-| `esb build` | `template.yaml` から設定を生成し、Docker イメージをビルドします。 | `--no-cache` |
-| `esb up` | サービスの起動とインフラのプロビジョニングを一括で行います。 | `--build`, `--detach (-d)` |
-| `esb watch` | ファイル変更を監視し、自動的にリロード・リビルドを実行します。 | - |
-| `esb down` | サービスを停止し、コンテナを削除します。 | `--volumes (-v)` |
-| `esb reset` | 環境を完全に初期化し、DB等のデータも全て削除して再構築します。 | - |
+| コマンド    | 説明                                                                       | 主なオプション             |
+| ----------- | -------------------------------------------------------------------------- | -------------------------- |
+| `esb init`  | `generator.yml` を対話的に生成します。新規プロジェクト開始時に実行します。 | `--template (-t)`          |
+| `esb build` | `template.yaml` から設定を生成し、Docker イメージをビルドします。          | `--no-cache`, `--dry-run`  |
+| `esb up`    | サービスの起動とインフラのプロビジョニングを一括で行います。               | `--build`, `--detach (-d)` |
+| `esb watch` | ファイル変更を監視し、自動的にリロード・リビルドを実行します。             | -                          |
+| `esb down`  | サービスを停止し、コンテナを削除します。                                   | `--volumes (-v)`           |
+| `esb reset` | 環境を完全に初期化し、DB等のデータも全て削除して再構築します。             | `--yes (-y)`               |
 
 ## アーキテクチャ
 
@@ -91,9 +92,27 @@ uv venv
 uv pip install -e ".[dev]"
 
 # 2. Git hooks のセットアップ
-cd ..
 lefthook install
 ```
+
+### プロジェクトの初期化 (`esb init`)
+
+新しいプロジェクトで ESB を使い始める場合、まず `esb init` を実行して設定ファイルを生成します。
+
+```bash
+# template.yaml が存在するディレクトリで実行
+esb init
+
+# または、テンプレートパスを明示的に指定
+esb --template /path/to/template.yaml init
+```
+
+対話的なウィザードが起動し、以下を設定できます:
+- **パラメータ**: SAM テンプレートの `Parameters` セクションに定義された値
+- **Docker Image Tag**: ビルドするイメージのタグ（デフォルト: `latest`）
+- **Output Directory**: 生成物の出力先（デフォルト: `.esb/`）
+
+設定は `generator.yml` として保存され、以降の `esb build` で使用されます。
 
 ### `esb` コマンドの利用方法
 
@@ -187,17 +206,51 @@ esb reset
 
 詳細な技術ドキュメントは `docs/` ディレクトリにあります。
 
-| ドキュメント | 説明 |
-|------------|------|
-| [trace-propagation.md](docs/trace-propagation.md) | X-Amzn-Trace-Id トレーシング |
-| [container-management.md](docs/container-management.md) | コンテナ管理とイメージ運用 |
-| [container-cache.md](docs/container-cache.md) | コンテナホストキャッシュ |
-| [manager-restart-resilience.md](docs/manager-restart-resilience.md) | Manager再起動時の耐障害性 |
-| [network-optimization.md](docs/network-optimization.md) | ネットワーク最適化 |
-| [client-auth-spec.md](docs/client-auth-spec.md) | クライアント認証仕様 |
-| [spec.md](docs/spec.md) | システム仕様 |
+| ドキュメント                                                        | 説明                         |
+| ------------------------------------------------------------------- | ---------------------------- |
+| [trace-propagation.md](docs/trace-propagation.md)                   | X-Amzn-Trace-Id トレーシング |
+| [container-management.md](docs/container-management.md)             | コンテナ管理とイメージ運用   |
+| [container-cache.md](docs/container-cache.md)                       | コンテナホストキャッシュ     |
+| [manager-restart-resilience.md](docs/manager-restart-resilience.md) | Manager再起動時の耐障害性    |
+| [network-optimization.md](docs/network-optimization.md)             | ネットワーク最適化           |
+| [client-auth-spec.md](docs/client-auth-spec.md)                     | クライアント認証仕様         |
+| [spec.md](docs/spec.md)                                             | システム仕様                 |
 
 ## 開発ガイド
+
+### プロジェクト構成
+
+#### generator.yml
+ESB の設定ファイルで、`esb init` で自動生成されます。テンプレートと同じディレクトリに配置します。
+
+```yaml
+app:
+  tag: latest              # Docker イメージタグ
+paths:
+  sam_template: template.yaml  # SAM テンプレートへの相対パス
+  output_dir: .esb/            # 生成物の出力先
+parameters:                    # テンプレートパラメータ（オプション）
+  Prefix: dev
+```
+
+> **Note**: `functions_yml` と `routing_yml` は省略可能です。省略した場合、`output_dir/config/` に自動生成されます。
+
+#### ディレクトリ構造（推奨）
+```
+your-project/
+├── template.yaml      # SAM テンプレート（Single Source of Truth）
+├── generator.yml      # ESB 設定（esb init で生成）
+├── functions/         # Lambda 関数コード
+│   └── my-func/
+│       └── lambda_function.py
+└── .esb/              # 生成物（.gitignore に追加）
+    ├── config/
+    │   ├── functions.yml
+    │   └── routing.yml
+    └── functions/
+        └── my-func/
+            └── Dockerfile
+```
 
 ### SAM Template Generator
 
@@ -206,7 +259,7 @@ esb reset
 
 #### 新しいLambda関数の追加手順
 
-1. **`tests/fixtures/template.yaml` を編集**:
+1. **`template.yaml` を編集**:
 新しい `AWS::Serverless::Function` リソースを追加します。`Events` プロパティで API パスを定義してください。
 ```yaml
 MyFunction:
@@ -222,12 +275,10 @@ MyFunction:
         Properties:
           Path: /api/my-func
           Method: get
-
 ```
 
-
 2. **コードの配置**:
-`tests/fixtures/functions/my-func/lambda_function.py` を作成します。
+`functions/my-func/lambda_function.py` を作成します。
 3. **反映**:
 `esb watch` が起動していれば、保存した瞬間に自動的に環境に反映されます。
 手動で反映する場合は `esb build && esb up` を実行してください。

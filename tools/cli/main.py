@@ -8,7 +8,7 @@ project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.append(str(project_root))
 
-from tools.cli.commands import build, up, watch, down, reset, init  # noqa: E402
+from tools.cli.commands import build, up, watch, down, reset, init, logs  # noqa: E402
 
 
 def main():
@@ -61,6 +61,14 @@ def main():
         "reset", help="Completely reset the environment (deletes data!)"
     )
     reset_parser.add_argument("--yes", "-y", action="store_true", help="Skip confirmation prompt")
+    reset_parser.add_argument("--rmi", action="store_true", help="Remove images as well")
+
+    # --- logs command ---
+    logs_parser = subparsers.add_parser("logs", help="View service logs")
+    logs_parser.add_argument("service", nargs="?", help="Service name (default: all services)")
+    logs_parser.add_argument("--follow", "-f", action="store_true", help="Follow log output")
+    logs_parser.add_argument("--tail", type=int, default=None, help="Number of lines to show")
+    logs_parser.add_argument("--timestamps", "-t", action="store_true", help="Show timestamps")
 
     args = parser.parse_args()
 
@@ -83,6 +91,8 @@ def main():
             down.run(args)
         elif args.command == "reset":
             reset.run(args)
+        elif args.command == "logs":
+            logs.run(args)
     except KeyboardInterrupt:
         print("\nAborted.")
         sys.exit(0)

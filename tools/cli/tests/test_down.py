@@ -83,8 +83,25 @@ def test_down_continues_on_container_error(mock_subprocess, mock_docker):
     mock_client.containers.list.return_value = [mock_container]
     mock_docker.return_value = mock_client
     
-    args = Namespace(volumes=False)
+    args = Namespace(volumes=False, rmi=False)
     # 例外が発生しないこと (ワーニングのみ)
     down.run(args)
     
     mock_subprocess.assert_called_once()
+
+
+@patch("docker.from_env")
+@patch("subprocess.check_call")
+def test_down_with_rmi(mock_subprocess, mock_docker):
+    """down --rmi で --rmi all オプションが渡されること"""
+    mock_client = MagicMock()
+    mock_client.containers.list.return_value = []
+    mock_docker.return_value = mock_client
+    
+    args = Namespace(volumes=False, rmi=True)
+    down.run(args)
+    
+    mock_subprocess.assert_called_once()
+    cmd = mock_subprocess.call_args[0][0]
+    assert "--rmi" in cmd
+    assert "all" in cmd

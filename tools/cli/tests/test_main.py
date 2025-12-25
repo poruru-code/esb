@@ -73,3 +73,23 @@ def test_cli_down_volumes_flag(mock_down_run):
     mock_down_run.assert_called_once()
     args = mock_down_run.call_args[0][0]
     assert args.volumes is True
+
+
+@patch("tools.cli.commands.logs.run")
+def test_cli_logs_dispatch(mock_logs_run):
+    """logs サブコマンドが正しくディスパッチされるか確認"""
+    with patch.object(sys, "argv", ["esb", "logs"]):
+        main()
+    mock_logs_run.assert_called_once()
+
+
+@patch("tools.cli.commands.logs.run")
+def test_cli_logs_with_options(mock_logs_run):
+    """logs のオプションが正しく渡されるか確認"""
+    with patch.object(sys, "argv", ["esb", "logs", "gateway", "-f", "--tail", "100"]):
+        main()
+    mock_logs_run.assert_called_once()
+    args = mock_logs_run.call_args[0][0]
+    assert args.service == "gateway"
+    assert args.follow is True
+    assert args.tail == 100

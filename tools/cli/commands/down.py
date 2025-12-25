@@ -14,6 +14,8 @@ def run(args):
     cmd = ["docker", "compose", "down", "--remove-orphans"]
     if getattr(args, "volumes", False):
         cmd.append("--volumes")
+    if getattr(args, "rmi", False):
+        cmd.extend(["--rmi", "all"])
 
     try:
         subprocess.check_call(cmd)
