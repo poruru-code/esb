@@ -63,7 +63,6 @@ def parse_sam_template(content: str, parameters: dict | None = None) -> dict:
     default_runtime = globals_config.get("Runtime", "python3.12")
     default_handler = globals_config.get("Handler", "lambda_function.lambda_handler")
     default_timeout = globals_config.get("Timeout", 30)
-    default_timeout = globals_config.get("Timeout", 30)
     default_memory = globals_config.get("MemorySize", 128)
     default_layers = globals_config.get("Layers", [])
 
