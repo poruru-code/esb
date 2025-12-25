@@ -23,7 +23,8 @@ manager = ContainerManager()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup Logic: Sync with Docker instead of killing all containers
+    # Startup Logic: Initialize HTTP client and Sync with Docker
+    await manager.startup()
     try:
         await manager.sync_with_docker()
     except Exception as e:
@@ -45,7 +46,7 @@ async def lifespan(app: FastAPI):
 
     yield
     # Shutdown logic
-    manager.shutdown()
+    await manager.shutdown()
     scheduler.shutdown()
 
 

@@ -33,7 +33,7 @@ async def test_v1_event_builder_build():
 
     # Act
     with patch(
-        "services.common.core.request_context.get_request_id",
+        "services.gateway.core.event_builder.get_request_id",
         return_value="req-uuid-1234",
     ):
         event = await builder.build(

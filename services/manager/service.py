@@ -3,6 +3,7 @@ import time
 import logging
 import asyncio
 from typing import Dict, Optional
+from importlib.metadata import metadata
 
 import httpx
 from .docker_adaptor import DockerAdaptor
@@ -10,6 +11,9 @@ from .config import config
 from services.common.core.http_client import HttpClientFactory
 
 logger = logging.getLogger("manager.service")
+
+# プロジェクト名を動的に取得
+PROJECT_NAME = metadata("edge-serverless-box")["Name"]
 
 
 class ContainerManager:
@@ -24,9 +28,18 @@ class ContainerManager:
         self.locks: Dict[str, asyncio.Lock] = {}
         self._locks_lock = asyncio.Lock()
 
+        # 共有 HTTP Client（startup() で初期化）
+        self._http_factory = HttpClientFactory(config)
+        self._http_client: Optional[httpx.AsyncClient] = None
+
         # Use config or default to 'bridge' if not specified.
         self.network = network or config.CONTAINERS_NETWORK or "bridge"
         logger.info(f"ContainerManager initialized with network: {self.network}")
+
+    async def startup(self):
+        """ライフサイクル開始時に呼び出し、共有 HTTP Client を初期化"""
+        self._http_client = self._http_factory.create_async_client()
+        logger.info("ContainerManager HTTP client initialized")
 
     async def ensure_container_running(
         self, name: str, image: Optional[str] = None, env: Optional[Dict[str, str]] = None
@@ -93,7 +106,7 @@ class ContainerManager:
                         environment=env or {},
                         network=self.network,
                         restart_policy={"Name": "no"},
-                        labels={"created_by": "sample-dind"},
+                        labels={"created_by": PROJECT_NAME},
                     )
                 except docker.errors.APIError as e:
                     # 409 Conflict: コンテナが既に存在する（競合による作成）
@@ -136,17 +149,30 @@ class ContainerManager:
         url = f"http://{host}:{port}/2015-03-31/functions/function/invocations"
         start = time.time()
 
-        factory = HttpClientFactory(config)
-        async with factory.create_async_client() as client:
-            while time.time() - start < timeout:
-                try:
-                    response = await client.post(
-                        url, json={"ping": True}, timeout=config.PING_TIMEOUT
-                    )
-                    if response.status_code == 200:
-                        return
-                except (httpx.RequestError, httpx.TimeoutException):
-                    await asyncio.sleep(0.5)
+        # 共有クライアントがなければフォールバック
+        if self._http_client is None:
+            factory = HttpClientFactory(config)
+            async with factory.create_async_client() as client:
+                await self._poll_readiness(client, url, start, timeout, host)
+        else:
+            await self._poll_readiness(self._http_client, url, start, timeout, host)
+
+    async def _poll_readiness(
+        self,
+        client: httpx.AsyncClient,
+        url: str,
+        start: float,
+        timeout: int,
+        host: str,
+    ) -> None:
+        """Readiness ポーリングの内部実装"""
+        while time.time() - start < timeout:
+            try:
+                response = await client.post(url, json={"ping": True}, timeout=config.PING_TIMEOUT)
+                if response.status_code == 200:
+                    return
+            except (httpx.RequestError, httpx.TimeoutException):
+                await asyncio.sleep(config.READINESS_POLL_INTERVAL)
 
         logger.warning(f"Container {host} did not become ready in {timeout}s")
 
@@ -197,7 +223,7 @@ class ContainerManager:
         logger.info("Syncing managed containers with Docker...")
         try:
             containers = await self.docker.list_containers(
-                all=True, filters={"label": "created_by=sample-dind"}
+                all=True, filters={"label": f"created_by={PROJECT_NAME}"}
             )
 
             now = time.time()
@@ -226,7 +252,10 @@ class ContainerManager:
         except Exception as e:
             logger.error(f"Failed to sync with Docker: {e}", exc_info=True)
 
-    def shutdown(self):
-        """Clean up resources (thread pools, etc.)"""
+    async def shutdown(self):
+        """Clean up resources (HTTP client, thread pools, etc.)"""
         logger.info("Shutting down ContainerManager...")
+        if self._http_client:
+            await self._http_client.aclose()
+            self._http_client = None
         self.docker.shutdown()

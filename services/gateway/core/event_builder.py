@@ -3,12 +3,15 @@ from typing import Dict, Any
 from fastapi import Request
 import base64
 import logging
+import uuid
 from ..models.aws_v1 import (
     APIGatewayProxyEvent,
     ApiGatewayRequestContext,
     ApiGatewayIdentity,
     ApiGatewayAuthorizer,
 )
+
+from services.common.core.request_context import get_request_id
 
 logger = logging.getLogger("gateway.event_builder")
 
@@ -64,14 +67,11 @@ class V1ProxyEventBuilder(EventBuilder):
             headers[key] = values[-1] if values else ""
             multi_headers[key] = values
 
-        from services.common.core.request_context import get_request_id
-
         # RequestID取得 (Contextから取得)
         aws_request_id = get_request_id()
-        
+
         # フォールバック (基本的にはMiddlewareで生成されているはず)
         if not aws_request_id:
-            import uuid
             aws_request_id = str(uuid.uuid4())
 
         # HTTP バージョン取得

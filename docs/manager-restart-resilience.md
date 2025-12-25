@@ -15,7 +15,7 @@
 Manager起動時（`main.py`の`lifespan`イベント）に実行されます。
 
 **処理フロー:**
-1. Dockerデーモンからラベル `created_by=sample-dind` を持つ全コンテナを取得
+1. Dockerデーモンからラベル `created_by=edge-serverless-box` を持つ全コンテナを取得
 2. コンテナの状態を確認:
    - **実行中（running）**: `last_accessed` に現在時刻を登録して管理下に復帰
    - **停止中（exited/paused等）**: `force=True` で削除

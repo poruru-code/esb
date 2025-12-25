@@ -9,10 +9,14 @@ import docker
 import logging
 from typing import Any, List
 from concurrent.futures import ThreadPoolExecutor
+from importlib.metadata import metadata
 
 from .config import config
 
 logger = logging.getLogger("manager.docker_adaptor")
+
+# プロジェクト名を動的に取得
+PROJECT_NAME = metadata("edge-serverless-box")["Name"]
 
 
 class DockerAdaptor:
@@ -65,7 +69,7 @@ class DockerAdaptor:
 
     async def prune_containers(self) -> None:
         """
-        ゾンビコンテナ（label=created_by=sample-dind）を削除します。
+        ゾンビコンテナ（label=created_by={PROJECT_NAME}）を削除します。
 
         非同期処理のため、run_in_executorを使用してブロッキングを回避します。
         """
@@ -75,7 +79,7 @@ class DockerAdaptor:
             try:
                 containers = self._client.containers.list(
                     all=True,  # Include stopped ones
-                    filters={"label": "created_by=sample-dind"},
+                    filters={"label": f"created_by={PROJECT_NAME}"},
                 )
                 for container in containers:
                     logger.info(f"Removing zombie container: {container.name}")

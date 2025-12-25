@@ -18,6 +18,9 @@ class ManagerConfig(BaseAppConfig):
         default=30.0, description="コンテナ起動待機タイムアウト(秒)"
     )
     PING_TIMEOUT: float = Field(default=1.0, description="コンテナPing確認タイムアウト(秒)")
+    READINESS_POLL_INTERVAL: float = Field(
+        default=0.5, description="コンテナReady確認のポーリング間隔(秒)"
+    )
 
     # Docker操作の安全性確保用設定
     DOCKER_MAX_WORKERS: int = Field(
