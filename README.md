@@ -213,6 +213,8 @@ esb reset
 | [container-cache.md](docs/container-cache.md)                       | コンテナホストキャッシュ     |
 | [manager-restart-resilience.md](docs/manager-restart-resilience.md) | Manager再起動時の耐障害性    |
 | [network-optimization.md](docs/network-optimization.md)             | ネットワーク最適化           |
+| [resilience.md](docs/resilience.md)                                 | システム回復性とサーキットブレーカー |
+| [generator-architecture.md](docs/generator-architecture.md)         | Generator内部アーキテクチャ  |
 | [client-auth-spec.md](docs/client-auth-spec.md)                     | クライアント認証仕様         |
 | [spec.md](docs/spec.md)                                             | システム仕様                 |
 

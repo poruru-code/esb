@@ -49,14 +49,12 @@ flowchart LR
 ```
 tools/generator/runtime/
 ├── Dockerfile.base
-├── site-packages/
-│   └── sitecustomize.py    # AWS SDK パッチ
-└── python/
-    └── trace_bridge.py     # Trace ID ブリッジ（参照用）
+└── site-packages/
+    └── sitecustomize.py    # AWS SDK パッチ & Direct Logging
 ```
 
 ベースイメージには以下が含まれます:
-- **sitecustomize.py**: Python 起動時に自動ロードされ、AWS SDK のエンドポイントをローカルサービスにリダイレクト
+- **sitecustomize.py**: Python 起動時に自動ロードされ、AWS SDK の挙動修正とログの送信を行います。
 
 ### Lambda関数イメージ
 
@@ -77,7 +75,7 @@ CMD [ "lambda_function.lambda_handler" ]
 
 ## コンテナライフサイクル
 
-Lambda RIE コンテナは Manager により動的に管理されます。
+Lambda RIE コンテナは Manager により動的に管理されます。Manager は再起動時にも実行中のコンテナを認識し、管理下に復帰させる **Adopt & Sync** 機能を備えています（詳細は [manager-restart-resilience.md](./manager-restart-resilience.md) を参照）。
 
 ```mermaid
 sequenceDiagram

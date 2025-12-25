@@ -24,6 +24,16 @@ Root=1-{timestamp:08x}-{unique_id:24hex};Sampled=1
 
 **実装**: `services/common/core/trace.py`
 
+## Request ID について
+
+Gateway はリクエストごとにユニークな `Request ID` (UUID) を生成します。Trace ID とは別の識別子です。
+
+- **クライアントへの返却**: レスポンスヘッダ `X-Request-Id` に含まれます。
+- **ログ**: Gateway の構造化ログには `request_id` フィールドとして記録されます。
+- **Lambda への伝播**:
+    - `event.requestContext.requestId`: Gateway が生成した ID が格納されます。
+    - `context.aws_request_id`: Lambda RIE が生成する実行 ID です（**Gateway の ID とは異なる場合があります**）。
+
 ## トレース伝播フロー
 
 ```mermaid
@@ -44,7 +54,7 @@ sequenceDiagram
     
     Gateway->>LambdaA: POST /invocations<br/>X-Amzn-Trace-Id: Root=1-xxx<br/>X-Amz-Client-Context: base64({custom:{trace_id:...}})
     
-    Note over LambdaA: @hydrate_trace_id が<br/>ClientContext から復元し<br/>_X_AMZN_TRACE_ID にセット
+    Note over LambdaA: sitecustomize.py が<br/>自動的に ClientContext から<br/>復元し _X_AMZN_TRACE_ID にセット
     
     LambdaA->>LambdaB: boto3.invoke()<br/>※sitecustomize.py が<br/>ClientContext に自動注入
     
@@ -143,52 +153,18 @@ async def do_post():
 
 ---
 
-### 4. trace_bridge.py (Lambda 側デコレータ)
 
-**ファイル**: `tests/fixtures/layers/common/python/trace_bridge.py`
 
-```python
-def hydrate_trace_id(handler):
-    @wraps(handler)
-    def wrapper(event, context):
-        trace_id = None
-        
-        # ClientContext.custom.trace_id から取得
-        if hasattr(context, "client_context") and context.client_context:
-            custom = getattr(context.client_context, "custom", None)
-            if custom and isinstance(custom, dict) and "trace_id" in custom:
-                trace_id = custom["trace_id"]
-        
-        # 環境変数にセット
-        if trace_id and not os.environ.get("_X_AMZN_TRACE_ID"):
-            os.environ["_X_AMZN_TRACE_ID"] = trace_id
-        
-        return handler(event, context)
-    
-    return wrapper
-```
-
-**使用例**:
-```python
-from trace_bridge import hydrate_trace_id
-
-@hydrate_trace_id
-def lambda_handler(event, context):
-    # ここで os.environ["_X_AMZN_TRACE_ID"] にアクセス可能
-    trace_id = os.environ.get("_X_AMZN_TRACE_ID")
-```
-
-**役割**:
-- RIE の `context.client_context.custom` から `trace_id` を抽出
-- `_X_AMZN_TRACE_ID` 環境変数にセット
-- AWS Lambda 本番環境と同じ方法で Trace ID にアクセス可能に
-
----
-
-### 5. sitecustomize.py (Lambda → Lambda 間の自動注入)
+### 4. sitecustomize.py (自動注入・自動復元)
 
 **ファイル**: `tools/generator/runtime/site-packages/sitecustomize.py`
 
+ESB環境では、Pythonプロセス起動時に `sitecustomize.py` が自動的にロードされ、以下のパッチを適用します。これにより**アプリケーションコードへの変更は一切不要**です。
+
+#### A. 自動復元 (Hydration)
+`awslambdaric` (Lambda Runtime Interface Client) にパッチを当て、イベント受信時に `ClientContext` から Trace ID を取り出し、`_X_AMZN_TRACE_ID` 環境変数にセットします。
+
+#### B. 自動注入 (Injection)
 ```python
 def _inject_client_context_hook(params, **kwargs):
     """
@@ -251,15 +227,10 @@ class CustomJsonFormatter(logging.Formatter):
 
 ### Trace ID が `not-found` になる
 
-**原因**: `@hydrate_trace_id` デコレータが付いていない
+**原因**: `sitecustomize.py` のパッチが適用されていない可能性があります。
 
 **解決策**:
-```python
-from trace_bridge import hydrate_trace_id
-
-@hydrate_trace_id  # 必ず付ける
-def lambda_handler(event, context):
-    ...
+Dockerfileで `sitecustomize.py` が正しくコピーされているか、また環境変数 `PYTHONPATH` が正しく設定されているか確認してください。ESB標準のベースイメージを使用していれば自動的に設定されます。
 ```
 
 ### Lambda 連鎖呼び出しで Trace ID が途切れる

@@ -12,7 +12,8 @@ graph TD
     User[Client / Developer]
     
     subgraph Host["Host OS / DinD Parent Container"]
-        Gateway["Gateway API<br>(:8000)"]
+        Gateway["Gateway API<br>(:443)"]
+        Manager["Manager API<br>(Internal)"]
         RustFS["RustFS S3<br>(:9000)"]
         Console["RustFS Console<br>(:9001)"]
         DB["ScyllaDB<br>(:8001)"]
@@ -27,9 +28,12 @@ graph TD
     User -->|Dynamo API| DB
     User -->|Web UI| Logs
     
-    Gateway -->|Docker API| Lambda
+    Gateway -->|HTTP| Manager
     Gateway -->|AWS SDK| RustFS
     Gateway -->|AWS SDK| DB
+    Gateway -->|HTTP| Lambda
+    
+    Manager -->|Docker API| Lambda
     
     Lambda -->|AWS SDK| RustFS
     Lambda -->|AWS SDK| DB
@@ -37,8 +41,8 @@ graph TD
 ```
 
 ### 2.1 Gateway API (FastAPI)
-- **役割**: クライアントからのリクエスト受付、認証、およびLambda関数のルーティングと実行管理。
-- **通信**: クライアントとはHTTPで通信。内部でDocker APIを使用してLambdaコンテナを制御。
+- **役割**: クライアントからのリクエスト受付、認証、およびLambda関数へのリクエストルーティング。
+- **通信**: クライアントとはHTTPで通信。内部でManagerサービスと連携してLambdaの起動を確認し、リクエストを転送。
 - **ポート**: `443`
 
 #### ディレクトリ構成
@@ -50,22 +54,29 @@ gateway/app/
 │   ├── security.py      # JWT生成/検証
 │   └── proxy.py         # Lambda Proxy Integration互換イベント構築・転送
 ├── models/              # データモデル
-│   └── schemas.py       # Pydanticスキーマ（AuthRequest, AuthResponse等）
+│   └── auth.py          # 認証関連スキーマ
 └── services/            # ビジネスロジック
-    ├── container.py     # ContainerManager（オンデマンド起動/アイドル停止）
-    ├── route_matcher.py # routing.ymlベースのパスマッチング
-    └── scheduler.py     # APSchedulerによる定期タスク（アイドルクリーンアップ）
+    ├── container_cache.py # コンテナホスト情報のLRUキャッシュ
+    ├── lambda_invoker.py  # Lambda(RIE)へのHTTPリクエスト送信
+    └── route_matcher.py   # routing.ymlベースのパスマッチング
 ```
 
 #### 主要コンポーネント
 | モジュール                  | 責務                                                                 |
 | --------------------------- | -------------------------------------------------------------------- |
-| `core/security.py`          | JWTトークン生成・検証（FastAPI非依存で単体テスト可能）               |
 | `core/proxy.py`             | API Gateway Lambda Proxy Integration互換イベント構築、Lambda RIE転送 |
-| `services/container.py`     | Docker SDKを使用したコンテナライフサイクル管理                       |
-| `services/route_matcher.py` | `routing.yml` のパースとリクエストマッチング                         |
+| `services/container_cache.py` | コンテナ接続先情報のキャッシュ管理 |
+| `services/lambda_invoker.py` | `httpx` を使用した Lambda RIE へのリクエスト送信 |
 
-### 2.2 RustFS (Storage)
+### 2.2 Manager Service (Internal)
+- **役割**: Lambdaコンテナのライフサイクル管理（オンデマンド起動、アイドル停止、再起動時の復元）。
+- **通信**: GatewayからのHTTPリクエストによりDocker APIを操作。
+- **機能**:
+    - `POST /containers/ensure`: コンテナ起動・Ready確認
+    - `Adopt & Sync`: サービス起動時の既存コンテナ復元
+    - 定期的なアイドルコンテナの停止
+
+### 2.3 RustFS (Storage)
 - **役割**: AWS S3互換のオブジェクトストレージ。Lambdaコードやデータの保存に使用。
 - **構成**:
     - **API**: ポート `9000` (S3互換)

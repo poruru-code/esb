@@ -21,7 +21,7 @@ Manager起動時（`main.py`の`lifespan`イベント）に実行されます。
    - **停止中（exited/paused等）**: `force=True` で削除
 3. 同期結果をログ出力
 
-**コード:** [`services/manager/service.py:165-202`](file:///d:/projects/sample-dind-lambda/services/manager/service.py#L165-L202)
+**コード:** [`services/manager/service.py`](../services/manager/service.py)
 
 ---
 
@@ -36,7 +36,7 @@ Manager起動時（`main.py`の`lifespan`イベント）に実行されます。
    - 処理を続行（エラーにしない）
 3. その他のエラーは再throwして上位でハンドリング
 
-**コード:** [`services/manager/service.py:82-101`](file:///d:/projects/sample-dind-lambda/services/manager/service.py#L82-L101)
+**コード:** [`services/manager/service.py`](../services/manager/service.py)
 
 ---
 
@@ -58,7 +58,7 @@ pytest services/manager/tests/test_service.py -v -k "sync_with_docker or conflic
 
 実際のManager再起動シナリオをテスト:
 
-**テストシナリオ:** [`tests/test_e2e.py::TestE2E::test_manager_restart_container_adoption`](file:///d:/projects/sample-dind-lambda/tests/test_e2e.py#L482-L567)
+**テストシナリオ:** [`tests/test_e2e.py::TestE2E::test_manager_restart_container_adoption`](../tests/test_e2e.py)
 
 1. Lambda関数を呼び出してコンテナを起動（ウォームアップ）
 2. `docker compose restart manager` でManagerを再起動
