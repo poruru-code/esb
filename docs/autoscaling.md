@@ -12,19 +12,19 @@ Edge Serverless Box (ESB) は、Lambda 関数の同時実行リクエストを�
 
 ```mermaid
 flowchart TD
-    subgraph Gateway ["Gateway"]
-        Invoker["Lambda Invoker"] --> PM["PoolManager"]
-        PM --> CP["ContainerPool"]
-        PM --> Janitor["HeartbeatJanitor"]
+    subgraph Gateway Gateway
+        InvokerLambda Invoker --> PMPoolManager
+        PM --> CPContainerPool
+        PM --> JanitorHeartbeatJanitor
     end
 
-    subgraph Orchestrator ["Orchestrator"]
-        Service["Orchestrator Service"]
+    subgraph Orchestrator Orchestrator
+        ServiceOrchestrator Service
     end
 
-    subgraph Workers ["Workers"]
-        C1["Lambda Container 1"]
-        C2["Lambda Container 2"]
+    subgraph Workers Workers
+        C1Lambda Container 1
+        C2Lambda Container 2
     end
 
     CP -->|acquire/release| PM

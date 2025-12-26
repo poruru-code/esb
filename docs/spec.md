@@ -9,21 +9,21 @@
 
 ```mermaid
 flowchart TD
-    User["Client / Developer"]
+    UserClient / Developer
     
-    subgraph Host ["Host OS / DinD Parent Container"]
-        Gateway["Gateway API<br>(:443)"]
-        Orchestrator["Orchestrator API<br>(Internal)"]
-        RustFS["RustFS S3<br>(:9000)"]
-        Console["RustFS Console<br>(:9001)"]
-        DB["ScyllaDB<br>(:8001)"]
-        Logs["VictoriaLogs<br>(:9428)"]
+    subgraph Host Host OS / DinD Parent Container
+        GatewayGateway API<br>(:443)
+        OrchestratorOrchestrator API<br>(Internal)
+        RustFSRustFS S3<br>(:9000)
+        ConsoleRustFS Console<br>(:9001)
+        DBScyllaDB<br>(:8001)
+        LogsVictoriaLogs<br>(:9428)
         
         Gateway -->|Pool Management| PoolOrchestrator[PoolOrchestrator]
         PoolOrchestrator -->|Capacity Control| ContainerPool[ContainerPool]
         PoolOrchestrator -->|Status Sync| HeartbeatJanitor[HeartbeatJanitor]
         
-        Lambda["Lambda Function<br>(Ephemeral Containers)"]
+        LambdaLambda Function<br>(Ephemeral Containers)
     end
 
     User -->|HTTP| Gateway
