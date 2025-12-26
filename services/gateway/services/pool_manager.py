@@ -67,15 +67,15 @@ class PoolManager:
         pool = await self.get_pool(function_name)
         return await pool.acquire(self._provision_wrapper)
 
-    def release_worker(self, function_name: str, worker: WorkerInfo) -> None:
+    async def release_worker(self, function_name: str, worker: WorkerInfo) -> None:
         """ワーカーを返却"""
         if function_name in self._pools:
-            self._pools[function_name].release(worker)
+            await self._pools[function_name].release(worker)
 
-    def evict_worker(self, function_name: str, worker: WorkerInfo) -> None:
-        """死んだワーカーを除外 (sync - Semaphore.release は sync)"""
+    async def evict_worker(self, function_name: str, worker: WorkerInfo) -> None:
+        """死んだワーカーを除外"""
         if function_name in self._pools:
-            self._pools[function_name].evict(worker)
+            await self._pools[function_name].evict(worker)
 
     def get_all_worker_names(self) -> Dict[str, List[str]]:
         """Heartbeat用: 全プールの全Worker Nameを収集 (Busy + Idle)"""
@@ -110,7 +110,7 @@ class PoolManager:
                 function_name = self._extract_function_name(worker.name)
                 if function_name:
                     pool = await self.get_pool(function_name)
-                    pool.adopt(worker)
+                    await pool.adopt(worker)
                     adopted_count += 1
             if adopted_count > 0:
                 logger.info(f"Adopted {adopted_count} containers from Orchestrator")
@@ -121,7 +121,7 @@ class PoolManager:
         """全プールをドレインし、コンテナを削除"""
         logger.info("Shutting down all pools...")
         for fname, pool in self._pools.items():
-            workers = pool.drain()
+            workers = await pool.drain()
             for w in workers:
                 try:
                     await self.provision_client.delete_container(w.id)
@@ -132,7 +132,7 @@ class PoolManager:
         """全プールで Pruning を実行し、Orchestrator から削除"""
         result = {}
         for fname, pool in self._pools.items():
-            pruned = pool.prune_idle_workers(idle_timeout)
+            pruned = await pool.prune_idle_workers(idle_timeout)
             if pruned:
                 result[fname] = pruned
                 # Delete from orchestrator

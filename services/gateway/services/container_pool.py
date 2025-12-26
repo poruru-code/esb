@@ -1,14 +1,15 @@
 """
 ContainerPool - Worker Pool Management for Auto-Scaling
 
-Manages a pool of Lambda containers for a single function using Semaphore-based
-capacity control. Supports concurrent acquire/release with proper cleanup on eviction.
+Manages a pool of Lambda containers for a single function using Condition-based
+capacity control. Supports concurrent acquire/release with proper notification of waiters.
 """
 
 import asyncio
 import logging
 import time
-from typing import Callable, Awaitable, List, Set
+from collections import deque
+from typing import Callable, Awaitable, List, Set, Deque
 
 from services.common.models.internal import WorkerInfo
 
@@ -17,13 +18,11 @@ logger = logging.getLogger("gateway.container_pool")
 
 class ContainerPool:
     """
-    関数ごとのコンテナプール管理 (Semaphore方式)
+    関数ごとのコンテナプール管理 (Condition方式)
 
-    - acquire(): セマフォ取得 → アイドルチェック → なければ作成
-    - release(): アイドルに戻す + セマフォ解放
-    - evict(): ワーカー破棄 + セマフォ解放 (待機者が即起動)
-
-    重要: _all_workers で Busy/Idle 両方を追跡し、Heartbeat 漏れを防止
+    外部レビューで指摘されたセマフォの挙動不整合と、
+    E2Eで発生したデッドロック（release時に待機者が起きない問題）を解消するため、
+    asyncio.Condition を用いた明示的な通知モデルを採用。
     """
 
     def __init__(
@@ -31,81 +30,95 @@ class ContainerPool:
         function_name: str,
         max_capacity: int = 1,
         min_capacity: int = 0,
-        acquire_timeout: float = 5.0,
+        acquire_timeout: float = 30.0,
     ):
         self.function_name = function_name
         self.max_capacity = max_capacity
         self.min_capacity = min_capacity
         self.acquire_timeout = acquire_timeout
 
-        # セマフォで容量管理 (max_capacity が初期値)
-        self._sem = asyncio.Semaphore(max_capacity)
-        self._idle_workers: asyncio.Queue[WorkerInfo] = asyncio.Queue()
+        # 全状態変更を保護し、通知を行うための Condition
+        self._cv = asyncio.Condition()
 
-        # 全ワーカーの台帳 (Busy + Idle)
-        # Heartbeat でこのセットから ID を収集
+        # アイドルワーカー（deque で効率的に管理）
+        self._idle_workers: Deque[WorkerInfo] = deque()
+
+        # 台帳: 存在する全コンテナ (Busy + Idle)
         self._all_workers: Set[WorkerInfo] = set()
+
+        # プロビジョニング中の件数 (容量制限チェック用)
+        self._provisioning_count = 0
 
     async def acquire(
         self, provision_callback: Callable[[str], Awaitable[List[WorkerInfo]]]
     ) -> WorkerInfo:
         """
         利用可能なワーカーを取得。なければプロビジョニング。
-
-        Args:
-            provision_callback: async def (function_name) -> List[WorkerInfo]
-
-        Returns:
-            WorkerInfo
-
-        Raises:
-            asyncio.TimeoutError: 取得タイムアウト
         """
-        # 1. セマフォ取得 (容量が空くまで待つ)
-        try:
-            await asyncio.wait_for(self._sem.acquire(), timeout=self.acquire_timeout)
-        except asyncio.TimeoutError:
-            raise asyncio.TimeoutError(f"Pool acquire timeout for {self.function_name}")
+        async with self._cv:
+            start_time = time.time()
 
-        try:
-            # 2. アイドルプールにあれば使う
-            try:
-                worker = self._idle_workers.get_nowait()
-                return worker
-            except asyncio.QueueEmpty:
-                pass
+            while True:
+                # 1. アイドルがあれば優先的に使う
+                if self._idle_workers:
+                    worker = self._idle_workers.popleft()
+                    return worker
 
-            # 3. なければ作る (容量は確保済み)
-            try:
-                workers: List[WorkerInfo] = await provision_callback(self.function_name)
-                worker = workers[0]
-                # 台帳に登録 (Heartbeat で追跡対象になる)
+                # 2. 空き枠があればプロビジョニングへ進む
+                if len(self._all_workers) + self._provisioning_count < self.max_capacity:
+                    # プロビジョニング枠を予約
+                    self._provisioning_count += 1
+                    break
+
+                # 3. 満杯なら待機
+                elapsed = time.time() - start_time
+                remaining = self.acquire_timeout - elapsed
+                if remaining <= 0:
+                    raise asyncio.TimeoutError(f"Pool acquire timeout for {self.function_name}")
+
+                try:
+                    # wait() は一時的にロックを解除し、notify で起こされたら再度ロックを取得する
+                    await asyncio.wait_for(self._cv.wait(), timeout=remaining)
+                except asyncio.TimeoutError:
+                    raise asyncio.TimeoutError(f"Pool acquire timeout for {self.function_name}")
+
+        # --- プロビジョニング実行 (I/Oを伴うため CV ロックの外で行う) ---
+        try:
+            workers: List[WorkerInfo] = await provision_callback(self.function_name)
+            worker = workers[0]
+            async with self._cv:
+                # すでに別のワーカーが滑り込み等で max_capacity を超えた場合でも、
+                # provision_count を下げて登録する。
+                # (基本的には break 后の atomic 操作で防いでいるが安全性のため)
                 self._all_workers.add(worker)
+                self._provisioning_count -= 1
                 return worker
-            except Exception:
-                # 作成失敗したら枠を返す
-                self._sem.release()
-                raise
-
         except Exception:
-            # 想定外エラーでも枠を解放
-            self._sem.release()
+            # 失敗した場合は予約した枠を戻し、待機者を起こす
+            async with self._cv:
+                self._provisioning_count -= 1
+                self._cv.notify_all()
             raise
 
-    def release(self, worker: WorkerInfo) -> None:
-        """ワーカーをプールに返却"""
-        worker.last_used_at = time.time()  # Mark as idle from now
-        self._idle_workers.put_nowait(worker)
-        self._sem.release()  # 枠解放 → 待機者が起きる
+    async def release(self, worker: WorkerInfo) -> None:
+        """
+        ワーカーをプールに返却
+        """
+        async with self._cv:
+            worker.last_used_at = time.time()
+            self._idle_workers.append(worker)
+            # 重要: 待機者にリソースが利用可能になったことを通知
+            self._cv.notify_all()
 
-    def evict(self, worker: WorkerInfo) -> None:
+    async def evict(self, worker: WorkerInfo) -> None:
         """
         死んだワーカーをプールから除外 (Self-Healing)
-        ワーカーは捨てるが、枠は解放 → 待機者が起きて新規作成へ
         """
-        # 台帳から削除 (Heartbeat から外れる)
-        self._all_workers.discard(worker)
-        self._sem.release()  # 枠解放 → Queue空なので新規作成へ
+        async with self._cv:
+            if worker in self._all_workers:
+                self._all_workers.discard(worker)
+                # 枠が空いたので通知
+                self._cv.notify_all()
 
     def get_all_names(self) -> List[str]:
         """Heartbeat用: Busy も Idle もすべて含む Name リスト"""
@@ -117,90 +130,66 @@ class ContainerPool:
 
     @property
     def size(self) -> int:
-        """現在の総ワーカー数"""
+        """現在の総ワーカー数 (Busy + Idle)"""
         return len(self._all_workers)
 
-    def prune_idle_workers(self, idle_timeout: float) -> List[WorkerInfo]:
+    async def prune_idle_workers(self, idle_timeout: float) -> List[WorkerInfo]:
         """
         IDLE_TIMEOUT を超えたワーカーをプールから除外
-
-        Note:
-             This is a SYNC method because it manages internal state directly.
-             It forcibly removes items from _idle_workersQueue.
-             Since asyncio.Queue doesn't support random access removal,
-             we drain it and refill surviving items.
         """
-        now = time.time()
-        pruned = []
-        surviving = []
+        async with self._cv:
+            now = time.time()
+            pruned = []
+            surviving = deque()
 
-        # 1. Drain the queue completely
-        while not self._idle_workers.empty():
-            try:
-                worker = self._idle_workers.get_nowait()
+            while self._idle_workers:
+                worker = self._idle_workers.popleft()
                 if now - worker.last_used_at > idle_timeout:
-                    # Prune target
                     self._all_workers.discard(worker)
                     pruned.append(worker)
                 else:
                     surviving.append(worker)
-            except asyncio.QueueEmpty:
-                break
 
-        # 2. Refill surviving workers
-        for w in surviving:
-            self._idle_workers.put_nowait(w)
+            self._idle_workers = surviving
 
-        # 3. Adjust Semaphore for pruned workers
-        # Since we removed from idle queue (where it was available for acquire),
-        # but acquire logic consumes from queue OR creates new if queue empty.
-        # Removing from queue effectively "consumes" the resource without returning it.
-        # But wait. Pruning REDUCES capacity usage?
-        # NO. We just removed an idle worker.
-        # The semaphore tracks "Available Capacity".
-        # If we have 1 idle worker, acquire() takes it (Sem down).
-        # If we remove it, acquire() creates new (Sem down).
-        # The semaphore state doesn't track "How many idle workers".
-        # It tracks "How many executions allowed".
-        # So we don't touch semaphore.
-        pass
+            if pruned:
+                # 枠が空いたので通知
+                self._cv.notify_all()
 
-        return pruned
+            return pruned
 
-    def adopt(self, worker: WorkerInfo) -> None:
+    async def adopt(self, worker: WorkerInfo) -> None:
         """起動時にコンテナをプールに取り込み"""
-        worker.last_used_at = time.time()  # Mark as idle from adopt time
-        self._all_workers.add(worker)
-        self._idle_workers.put_nowait(worker)
-        # Release semaphore to reflect available resource
-        # See notes in prune_idle_workers regarding semaphore logic.
-        # Adopt implies we found an EXISTING resource that can be used.
-        # Queueing it makes it available to acquire().
-        pass
+        async with self._cv:
+            if len(self._all_workers) + self._provisioning_count < self.max_capacity:
+                # 未設定の場合のみタイムアウト起点を現在にする
+                if worker.last_used_at == 0:
+                    worker.last_used_at = time.time()
+                self._all_workers.add(worker)
+                self._idle_workers.append(worker)
+                self._cv.notify_all()
+            else:
+                logger.warning(
+                    f"Adopt: Capacity limit reached for {self.function_name} while adopting {worker.name}."
+                )
 
-    def drain(self) -> List[WorkerInfo]:
+    async def drain(self) -> List[WorkerInfo]:
         """終了時に全ワーカーを排出"""
-        workers = list(self._all_workers)
-        self._all_workers.clear()
-
-        # Drain idle queue
-        while not self._idle_workers.empty():
-            try:
-                self._idle_workers.get_nowait()
-            except asyncio.QueueEmpty:
-                break
-
-        # Recreating semaphore? No need as we are draining instance.
-        return workers
+        async with self._cv:
+            workers = list(self._all_workers)
+            self._all_workers.clear()
+            self._idle_workers.clear()
+            self._provisioning_count = 0
+            self._cv.notify_all()
+            return workers
 
     @property
     def stats(self) -> dict:
         """プール統計情報"""
-        available = getattr(self._sem, "_value", "N/A")
         return {
             "function_name": self.function_name,
-            "available_slots": available,
             "total_workers": len(self._all_workers),
-            "idle": self._idle_workers.qsize(),
+            "idle": len(self._idle_workers),
+            "provisioning": self._provisioning_count,
             "max_capacity": self.max_capacity,
         }

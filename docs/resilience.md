@@ -44,9 +44,9 @@ stateDiagram-v2
 
 ---
 
-## 2. Container Lifecycle Management (Manager)
+## 2. Container Lifecycle Management (Orchestrator)
 
-Lambda RIE コンテナは **Manager Service** によって動的に管理されます。
+Lambda RIE コンテナは **Orchestrator Service** によって動的に管理されます。
 リソース効率と応答速度のバランスを取るため、以下の戦略を採用しています。
 
 - **オンデマンド起動**: リクエストが来た時点でコンテナを起動します（Cold Start）。コンテナキャッシュにより2回目以降は高速に応答します（Warm Start）。
@@ -75,6 +75,6 @@ Orchestrator サービス自体が再起動した場合でも、実行中の Lam
 | ------------------------- | -------------------------------------------------------------------- |
 | `404 Not Found`           | 指定されたパスに対応する Lambda 関数が定義されていない (Routing)     |
 | `502 Bad Gateway`         | コンテナ起動失敗、または Lambda 関数内で未処理の例外が発生           |
-| `503 Service Unavailable` | サーキットブレーカー作動中、または Manager サービスダウン            |
+| `503 Service Unavailable` | サーキットブレーカー作動中、または Orchestrator サービスダウン            |
 | `504 Gateway Timeout`     | Lambda 関数の実行がタイムアウト設定 (`LAMBDA_INVOKE_TIMEOUT`) を超過 |
 

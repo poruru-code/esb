@@ -183,20 +183,8 @@ async def delete_container(container_id: str):
 async def list_containers():
     """全コンテナ一覧を取得 (Adoption用)"""
     try:
-        containers = await orchestrator.list_managed_containers()
-        return {
-            "containers": [
-                {
-                    "id": c.id,
-                    "name": c.name,
-                    "ip_address": c.ip_address,
-                    "port": c.port,
-                    "created_at": c.created_at,
-                    "last_used_at": c.last_used_at,
-                }
-                for c in containers
-            ]
-        }
+        workers = await orchestrator.list_managed_containers()
+        return {"containers": [w.__dict__ for w in workers]}
     except Exception as e:
         logger.error(f"Error listing containers: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

@@ -231,7 +231,44 @@ class ContainerOrchestrator:
 
         Gateway起動時のSync(Adoption)に使用
         """
-        return await self.docker.list_containers()
+        containers = await self.docker.list_containers(
+            all=True, filters={"label": f"created_by={PROJECT_LABEL}"}
+        )
+        workers = []
+        for c in containers:
+            try:
+                # ネットワーク情報の取得
+                ip = (
+                    c.attrs.get("NetworkSettings", {})
+                    .get("Networks", {})
+                    .get(self.network, {})
+                    .get("IPAddress", c.name)
+                )
+
+                # 作成時間のパース (RFC3339)
+                created_str = c.attrs.get("Created", "")
+                created_at = 0.0
+                if created_str:
+                    try:
+                        import iso8601
+
+                        created_at = iso8601.parse_date(created_str).timestamp()
+                    except ImportError:
+                        pass  # iso8601 がない場合は 0.0 のまま
+
+                workers.append(
+                    WorkerInfo(
+                        id=c.id,
+                        name=c.name,
+                        ip_address=ip,
+                        port=config.LAMBDA_PORT,
+                        created_at=created_at,
+                        last_used_at=self.last_accessed.get(c.name, 0.0),
+                    )
+                )
+            except Exception as e:
+                logger.error(f"Failed to map container {c.name} to WorkerInfo: {e}")
+        return workers
 
     async def prune_managed_containers(self):
         """

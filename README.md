@@ -25,11 +25,11 @@
 
 ```mermaid
 flowchart TD
-    User([Developer / Client]) -->|HTTPS| Gateway[API Gateway - FastAPI]
+    User([Developer / Client]) -->|HTTPS| Gateway["API Gateway - FastAPI"]
     
-    subgraph Core [Core Services]
-        Gateway -->|Invoke API| Orchestrator[Container Orchestrator]
-        Gateway -->|Proxy Request| LambdaRIE[Lambda RIE Container]
+    subgraph Core ["Core Services"]
+        Gateway -->|Invoke API| Orchestrator["Container Orchestrator"]
+        Gateway -->|Proxy Request| LambdaRIE["Lambda RIE Container"]
         
         Orchestrator -->|Docker API| LambdaRIE
         Orchestrator -->|Provision| ScyllaDB[(ScyllaDB)]
@@ -37,10 +37,10 @@ flowchart TD
         
         LambdaRIE -->|AWS SDK| ScyllaDB
         LambdaRIE -->|AWS SDK| RustFS
-        LambdaRIE -->|HTTP/JSON Logs| VictoriaLogs[(VictoriaLogs)]
+        LambdaRIE -->|HTTP/JSON Logs| VictoriaLogs["VictoriaLogs"]
     end
     
-    subgraph Toolchain [CLI Toolchain]
+    subgraph Toolchain ["CLI Toolchain"]
         esb[esb CLI] -->|build| Generator[SAM Generator]
         esb -->|up| DockerCompose[Docker Compose]
         esb -->|up| Provisioner[Provisioner]

@@ -63,7 +63,7 @@ class GatewayConfig(BaseAppConfig):
     ENABLE_CONTAINER_POOLING: bool = Field(default=False, description="コンテナプーリングを有効化")
     DEFAULT_MAX_CAPACITY: int = Field(default=1, description="デフォルト最大容量")
     DEFAULT_MIN_CAPACITY: int = Field(default=0, description="デフォルト最小容量")
-    POOL_ACQUIRE_TIMEOUT: float = Field(default=5.0, description="ワーカー取得タイムアウト")
+    POOL_ACQUIRE_TIMEOUT: float = Field(default=30.0, description="ワーカー取得タイムアウト")
     HEARTBEAT_INTERVAL: int = Field(default=30, description="Heartbeat送信間隔(秒)")
     GATEWAY_IDLE_TIMEOUT_SECONDS: int = Field(
         default=300, description="Gateway側アイドルタイムアウト(秒)"

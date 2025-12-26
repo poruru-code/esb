@@ -9,21 +9,21 @@
 
 ```mermaid
 flowchart TD
-    UserClient / Developer
+    User["Client / Developer"]
     
-    subgraph Host Host OS / DinD Parent Container
-        GatewayGateway API<br>(:443)
-        OrchestratorOrchestrator API<br>(Internal)
-        RustFSRustFS S3<br>(:9000)
-        ConsoleRustFS Console<br>(:9001)
-        DBScyllaDB<br>(:8001)
-        LogsVictoriaLogs<br>(:9428)
+    subgraph Host ["Host OS / DinD Parent Container"]
+        Gateway["Gateway API<br>(:443)"]
+        Orchestrator["Orchestrator API<br>(Internal)"]
+        RustFS["RustFS S3<br>(:9000)"]
+        Console["RustFS Console<br>(:9001)"]
+        DB["ScyllaDB<br>(:8001)"]
+        Logs["VictoriaLogs<br>(:9428)"]
         
-        Gateway -->|Pool Management| PoolOrchestrator[PoolOrchestrator]
-        PoolOrchestrator -->|Capacity Control| ContainerPool[ContainerPool]
-        PoolOrchestrator -->|Status Sync| HeartbeatJanitor[HeartbeatJanitor]
+        Gateway -->|Pool Management| PoolOrchestrator["PoolOrchestrator"]
+        PoolOrchestrator -->|Capacity Control| ContainerPool["ContainerPool"]
+        PoolOrchestrator -->|Status Sync| HeartbeatJanitor["HeartbeatJanitor"]
         
-        LambdaLambda Function<br>(Ephemeral Containers)
+        Lambda["Lambda Function<br>(Ephemeral Containers)"]
     end
 
     User -->|HTTP| Gateway
@@ -61,7 +61,7 @@ gateway/app/
 ├── models/              # データモデル
 │   └── auth.py          # 認証関連スキーマ
 └── services/            # ビジネスロジック
-    ├── container_pool.py  # セマフォベースの同時実行制御とプーリング
+    ├── container_pool.py  # Conditionベースの同時実行制御とプーリング
     ├── heartbeat.py       # Orchestratorへの稼働状態送信(Heartbeat)
     ├── lambda_invoker.py  # Lambda(RIE)へのHTTPリクエスト送信
     ├── pool_orchestrator.py    # コンテナの取得・返却・ライフサイクル管理
@@ -73,7 +73,7 @@ gateway/app/
 | ------------------------------- | -------------------------------------------------------------------- |
 | `core/proxy.py`                 | API Gateway Lambda Proxy Integration互換イベント構築、Lambda RIE転送 |
 | `services/pool_orchestrator.py` | コンテナのキャパシティ確保、プロビジョニング要求、返却管理           |
-| `services/container_pool.py`    | 関数ごとのセマフォ管理とコンテナインスタンスの保持                   |
+| `services/container_pool.py`    | 関数ごとの Condition 待ち行列管理とコンテナインスタンスの保持       |
 | `services/lambda_invoker.py`    | `httpx` を使用した Lambda RIE へのリクエスト送信                     |
 
 ### 2.2 Orchestrator Service (Internal)

@@ -12,25 +12,25 @@ Edge Serverless Box (ESB) は、Lambda関数の同時実行リクエストを効
 
 ```mermaid
 flowchart TD
-    subgraph Gateway [Gateway]
-        Invoker[Lambda Invoker] --> PM[PoolManager]
-        PM --> CP[ContainerPool]
-        PM --> Janitor[HeartbeatJanitor]
+    subgraph Gateway ["Gateway"]
+        Invoker["Lambda Invoker"] --> PM["PoolManager"]
+        PM --> CP["ContainerPool"]
+        PM --> Janitor["HeartbeatJanitor"]
         
         CP -- acquire/release --> PM
     end
 
-    subgraph Orchestrator [Orchestrator]
-        Service[Orchestrator Service]
-        Docker[Docker Adaptor]
+    subgraph Orchestrator ["Orchestrator"]
+        Service["Orchestrator Service"]
+        Docker["Docker Adaptor"]
         
         %% ここでServiceがAdaptorを呼び出す関係を明示
         Service -- Uses --> Docker
     end
 
-    subgraph Workers [Active Containers]
-        C1[Lambda Container 1]
-        C2[Lambda Container 2]
+    subgraph Workers ["Active Containers"]
+        C1["Lambda Container 1"]
+        C2["Lambda Container 2"]
     end
 
     PM -- Provision/Delete --> Service
@@ -44,7 +44,7 @@ flowchart TD
 ### 主要コンポーネント
 
 1.  **`PoolManager`**: Gateway のエントリポイント。全関数のプールを統括し、Gateway 起動時の状態同期 (Sync) や終了時の全削除 (Shutdown) を指示します。
-2.  **`ContainerPool`**: 関数ごとのコンテナプール。`asyncio.Semaphore` による同時実行数 (`ResrvedConcurrentExecutions`) 制御と、アイドルコンテナの追跡を行います。
+2.  **`ContainerPool`**: 関数ごとのコンテナプール。`asyncio.Condition` による同時実行数制御と、アイドルコンテナの追跡、および待機待ちリクエストの正確な通知を行います。
 3.  **`HeartbeatJanitor`**: 定期的にプールを巡回し、以下の責務を担います。
     *   **Active Pruning**: アイドルタイムアウトを超過したコンテナを検出し、削除リストを作成。
     *   **Heartbeat**: 稼働中のコンテナ名リストを Orchestrator に送信し、Orchestrator 側のウォッチドッグタイマーをリセット。
@@ -105,10 +105,11 @@ MyFunction:
 
 ### リクエスト処理フロー
 1.  **Request**: Gateway がリクエスト受信
-2.  **Acquire**: `ContainerPool` からセマフォ取得
-    *   *Idleあり*: 取得して `last_used_at` 更新
-    *   *Idleなし*: `Managed Provisioning` 実行 → 新規コンテナ起動
+2.  **Acquire**: `ContainerPool` からワーカー取得
+    *   *Idleあり*: 即座に取得して `last_used_at` 更新
+    *   *Idleなし*: キャパシティに空きがあれば `Provisioning` 実行。満杯であれば `Condition.wait()` により空きが出るまで待機。
 3.  **Invoke**: コンテナに対して Lambda 実行
+    *   **Reliability**: `try...finally` ブロックにより、タイムアウトや例外発生時でも確実にワーカーがプールに返却または除外（Evict）されます。
 4.  **Release**: コンテナをプールに返却 (`last_used_at` 更新)
 
 ### Janitor フロー (周期実行)

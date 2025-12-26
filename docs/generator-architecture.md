@@ -10,25 +10,24 @@
 
 ```mermaid
 flowchart TD
-    UserDeveloper -->|"esb init"| CLICLI Wrapper
-    User -->|"esb build"| CLI
+    User["Developer"] -->|"esb init / build"| CLI["CLI Wrapper"]
     
-    CLI --> GeneratorGenerator Core
+    CLI --> Parser["Parser (Phase 1)"]
     
-    subgraph GeneratorCore Generator Core
-        ParserParser (Phase 1)
-        RendererRenderer (Phase 2)
+    subgraph GeneratorCore ["Generator Core"]
+        Parser
+        Renderer["Renderer (Phase 2)"]
     end
     
-    SAMtemplate.yaml --> Parser
+    SAM["template.yaml"] -.->|Read| Parser
     
-    Parser --> Routingrouting.yml
-    Parser --> Functionsfunctions.yml
+    Parser --> Routing["routing.yml"]
+    Parser --> Functions["functions.yml"]
     
     Functions --> Renderer
     
-    Renderer --> DockerfilesDockerfiles
-    Renderer --> RuntimeHooksRuntime Hooks<br>(sitecustomize.py)
+    Renderer --> Dockerfiles["Dockerfiles"]
+    Renderer --> RuntimeHooks["Runtime Hooks<br>(sitecustomize.py)"]
 ```
 
 ### コンポーネント

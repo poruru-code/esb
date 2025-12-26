@@ -143,8 +143,6 @@ class LambdaInvoker:
                     headers["X-Amzn-Trace-Id"] = trace_id
 
                     # RIE 対策: ClientContext に Trace ID を埋め込む
-                    # RIE は X-Amzn-Trace-Id ヘッダーを _X_AMZN_TRACE_ID 環境変数に変換しないため、
-                    # ClientContext 経由で渡し、Lambda 側の hydrate_trace_id デコレータで復元する
                     client_context = {"custom": {"trace_id": trace_id}}
                     json_ctx = json.dumps(client_context)
                     b64_ctx = base64.b64encode(json_ctx.encode("utf-8")).decode("utf-8")
@@ -161,18 +159,12 @@ class LambdaInvoker:
 
                 # 判定: 回路を遮断すべき「失敗」かどうか
                 is_failure = False
-
-                # 1. HTTP 5xx エラー
                 if response.status_code >= 500:
                     is_failure = True
-                # 2. AWS Lambda 実行エラーヘッダー (X-Amz-Function-Error: Unhandled 等)
                 elif response.headers.get("X-Amz-Function-Error"):
                     is_failure = True
-                # 3. HTTP 200 だが、ボディーにエラー情報が含まれる場合 (RIE の挙動)
                 elif response.status_code == 200:
                     try:
-                        # ボディーが短い場合にのみ JSON パースを試みる (パフォーマンス考慮)
-                        # RIE のエラー応答は通常数 KB 以下
                         if len(response.content) < 1024 * 10:
                             data = response.json()
                             if isinstance(data, dict) and (
@@ -183,14 +175,11 @@ class LambdaInvoker:
                         pass
 
                 if is_failure:
-                    # 5xx または論理エラーの場合、CircuitBreakerが「失敗」と認識できるよう例外を投げる
                     if response.status_code >= 400:
                         response.raise_for_status()
                     else:
-                        # 200だが内容がエラーの場合、カスタム例外を投げる
-                        # httpx.HTTPStatusErrorを模倣してCircuitBreakerに渡す
                         raise httpx.HTTPStatusError(
-                            f"Lambda Logical Error detected in 200 response: {response.text[:100]}",
+                            f"Lambda Logical Error: {response.text[:100]}",
                             request=response.request,
                             response=response,
                         )
@@ -198,39 +187,31 @@ class LambdaInvoker:
                 return response
 
             result = await breaker.call(do_post)
-
-            # Pool Mode: release worker back to pool on success
-            if worker is not None and self.pool_manager is not None:
-                self.pool_manager.release_worker(function_name, worker)
-
             return result
 
         except CircuitBreakerOpenError as e:
             logger.error(f"Circuit breaker open for {function_name}: {e}")
-            # Pool Mode: release worker on circuit breaker open (not the worker's fault)
-            if worker is not None and self.pool_manager is not None:
-                self.pool_manager.release_worker(function_name, worker)
             raise LambdaExecutionError(function_name, "Circuit Breaker Open") from e
         except httpx.ConnectError as e:
             # Self-Healing: Evict dead worker on connection error
             logger.warning(f"Connection error to worker, evicting: {e}")
             if worker is not None and self.pool_manager is not None:
-                self.pool_manager.evict_worker(function_name, worker)
+                await self.pool_manager.evict_worker(function_name, worker)
+                worker = None  # prevent release in finally
             raise LambdaExecutionError(function_name, e) from e
         except (httpx.RequestError, httpx.HTTPStatusError) as e:
-            logger.error(
-                f"Lambda invocation failed for function '{function_name}'",
-                extra={
-                    "function_name": function_name,
-                    "target_url": rie_url,
-                    "error_type": type(e).__name__,
-                    "error_detail": str(e),
-                },
-            )
-            # Pool Mode: release worker on non-connection errors (app-level errors)
-            if worker is not None and self.pool_manager is not None:
-                self.pool_manager.release_worker(function_name, worker)
+            logger.error(f"Lambda invocation failed for function '{function_name}': {e}")
             raise LambdaExecutionError(function_name, e) from e
+        except Exception as e:
+            logger.exception(f"Unexpected error during invocation of {function_name}: {e}")
+            raise LambdaExecutionError(function_name, e) from e
+        finally:
+            # 常にプールへ返却 (evict済みの場合は worker=None)
+            if worker is not None and self.pool_manager is not None:
+                try:
+                    await self.pool_manager.release_worker(function_name, worker)
+                except Exception as e:
+                    logger.error(f"Failed to release worker for {function_name}: {e}")
 
 
 # Backward compatibility or helper if needed? No, we are fully refactoring to DI.

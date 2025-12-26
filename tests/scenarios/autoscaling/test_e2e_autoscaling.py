@@ -90,13 +90,12 @@ class TestAutoScaling:
         Concurrent requests should be handled successfully.
         (With MAX_CAPACITY=1, they will be serialized by the semaphore).
         """
+
         def invoke(msg):
-            return call_api("/api/echo", auth_token, {"message": msg}, timeout=30)
+            return call_api("/api/echo", auth_token, {"message": msg}, timeout=60)
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-            futures = [
-                executor.submit(invoke, f"concurrent-{i}") for i in range(3)
-            ]
+            futures = [executor.submit(invoke, f"concurrent-{i}") for i in range(3)]
             results = [f.result() for f in futures]
 
         # All requests should succeed
@@ -124,7 +123,7 @@ class TestConcurrentStress:
                 "/api/echo",
                 auth_token,
                 {"message": f"stress-{req_id}"},
-                timeout=30,  # Longer timeout for queued requests
+                timeout=60,  # Longer timeout for queued requests
             )
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=num_requests) as executor:
@@ -151,11 +150,12 @@ class TestConcurrentStress:
         Send concurrent requests to different functions.
         Verifies both functions respond successfully.
         """
+
         def invoke_echo(msg):
-            return call_api("/api/echo", auth_token, {"message": msg}, timeout=30)
+            return call_api("/api/echo", auth_token, {"message": msg}, timeout=60)
 
         def invoke_faulty_hello():
-            return call_api("/api/faulty", auth_token, {"action": "hello"}, timeout=30)
+            return call_api("/api/faulty", auth_token, {"action": "hello"}, timeout=60)
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
             futures = [
@@ -177,5 +177,3 @@ class TestConcurrentStress:
 
         assert echo_count >= 1, "Echo container should be running"
         assert chaos_count >= 1, "Chaos container should be running (serves /api/faulty)"
-
-

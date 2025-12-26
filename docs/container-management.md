@@ -75,14 +75,14 @@ CMD [ "lambda_function.lambda_handler" ]
 
 ## コンテナライフサイクル
 
-Lambda RIE コンテナは Manager により動的に管理されます。Manager は再起動時にも実行中のコンテナを認識し、管理下に復帰させる **Adopt & Sync** 機能を備えています（詳細は [manager-restart-resilience.md](./manager-restart-resilience.md) を参照）。
+Lambda RIE コンテナは Orchestrator により動的に管理されます。Orchestrator は再起動時にも実行中のコンテナを認識し、管理下に復帰させる **Adopt & Sync** 機能を備えています（詳細は [orchestrator-restart-resilience.md](./orchestrator-restart-resilience.md) を参照）。
 
 ```mermaid
 sequenceDiagram
     participant Client
     participant Gateway
     participant PoolManager
-    participant Manager
+    participant Orchestrator
     participant Lambda
 
     Client->>Gateway: リクエスト
@@ -91,10 +91,10 @@ sequenceDiagram
     alt アイドルコンテナあり
         PoolManager-->>Gateway: コンテナ情報 (Reuse)
     else キャパ余裕あり
-        PoolManager->>Manager: provision_containers
-        Manager->>Lambda: docker run
-        Lambda-->>Manager: 起動完了
-        Manager-->>PoolManager: コンテナ情報
+        PoolManager->>Orchestrator: provision_containers
+        Orchestrator->>Lambda: docker run
+        Lambda-->>Orchestrator: 起動完了
+        Orchestrator-->>PoolManager: コンテナ情報
         PoolManager-->>Gateway: コンテナ情報 (New)
     else フル稼働
         PoolManager->>PoolManager: キューで待機
@@ -106,7 +106,7 @@ sequenceDiagram
     Gateway->>PoolManager: release_worker
     Gateway-->>Client: レスポンス
     
-    Note over Manager,Lambda: 一定時間のリクエスト不在(ハートビート途絶)で自動停止
+    Note over Orchestrator,Lambda: 一定時間のリクエスト不在(ハートビート途絶)で自動停止
 ```
 
 ### コンテナ状態遷移
@@ -176,7 +176,7 @@ docker image prune -f
 
 **確認手順**:
 ```bash
-# Manager ログの確認
+# Orchestrator ログの確認
 docker logs esb-orchestrator
 
 # コンテナ状態の確認

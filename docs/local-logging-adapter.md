@@ -12,12 +12,12 @@ ESBでは、Lambda関数からの標準出力（stdout/stderr）およびログ�
 
 ```mermaid
 flowchart TD
-    subgraph "Lambda Process"
+    subgraph Process ["Lambda Process"]
         UserCode[Lambda Function]
-        Print[print() / sys.stdout]
-        Logging[logging.getLogger()]
+        Print["print() / sys.stdout"]
+        Logging["logging.getLogger()"]
         
-        subgraph "sitecustomize.py"
+        subgraph Sitecustomize ["sitecustomize.py"]
             Hook[VictoriaLogsStdoutHook]
             Handler[VictoriaLogsHandler]
         end
