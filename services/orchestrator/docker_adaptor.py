@@ -15,8 +15,8 @@ from .config import config
 
 logger = logging.getLogger("manager.docker_adaptor")
 
-# プロジェクト名を動的に取得
-PROJECT_NAME = metadata("edge-serverless-box")["Name"]
+# ラベル用の短縮名（ブランド統一）
+PROJECT_LABEL = "esb"
 
 
 class DockerAdaptor:
@@ -69,7 +69,7 @@ class DockerAdaptor:
 
     async def prune_containers(self) -> None:
         """
-        ゾンビコンテナ（label=created_by={PROJECT_NAME}）を削除します。
+        ゾンビコンテナ（label=created_by={PROJECT_LABEL}）を削除します。
 
         非同期処理のため、run_in_executorを使用してブロッキングを回避します。
         """
@@ -79,7 +79,7 @@ class DockerAdaptor:
             try:
                 containers = self._client.containers.list(
                     all=True,  # Include stopped ones
-                    filters={"label": f"created_by={PROJECT_NAME}"},
+                    filters={"label": f"created_by={PROJECT_LABEL}"},
                 )
                 for container in containers:
                     logger.info(f"Removing zombie container: {container.name}")

@@ -14,8 +14,8 @@ from services.common.models.internal import WorkerInfo
 
 logger = logging.getLogger("orchestrator.service")
 
-# プロジェクト名を動的に取得
-PROJECT_NAME = metadata("edge-serverless-box")["Name"]
+# ラベル用の短縮名（ブランド統一）
+PROJECT_LABEL = "esb"
 
 
 class ContainerOrchestrator:
@@ -108,7 +108,7 @@ class ContainerOrchestrator:
                         environment=env or {},
                         network=self.network,
                         restart_policy={"Name": "no"},
-                        labels={"created_by": PROJECT_NAME},
+                        labels={"created_by": PROJECT_LABEL},
                     )
                 except docker.errors.APIError as e:
                     # 409 Conflict: コンテナが既に存在する（競合による作成）
@@ -225,7 +225,7 @@ class ContainerOrchestrator:
         logger.info("Syncing managed containers with Docker...")
         try:
             containers = await self.docker.list_containers(
-                all=True, filters={"label": f"created_by={PROJECT_NAME}"}
+                all=True, filters={"label": f"created_by={PROJECT_LABEL}"}
             )
 
             now = time.time()
@@ -309,7 +309,7 @@ class ContainerOrchestrator:
                     environment=container_env,
                     network=self.network,
                     restart_policy={"Name": "no"},
-                    labels={"created_by": PROJECT_NAME},
+                    labels={"created_by": PROJECT_LABEL},
                 )
 
                 # Reload container to get IP
