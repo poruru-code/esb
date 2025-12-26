@@ -6,7 +6,7 @@ services:
   # ============================================
   permission-helper:
     image: alpine
-    container_name: onpre-permission-helper
+    container_name: esb-permission-helper
     volumes:
       - rustfs_data:/data/rustfs
     command: >
@@ -20,7 +20,7 @@ services:
   # ============================================
   s3-storage:
     image: rustfs/rustfs:latest
-    container_name: onpre-storage
+    container_name: esb-storage
     depends_on:
       permission-helper:
         condition: service_completed_successfully
@@ -55,7 +55,7 @@ services:
   # ============================================
   database:
     image: scylladb/scylla:latest
-    container_name: onpre-database
+    container_name: esb-database
     ports:
       - "${SCYLLADB_PORT:-8001}:8000" # Alternator API (Host 8001 -> Container 8000)
     volumes:
@@ -106,7 +106,7 @@ services:
     build:
       context: .
       dockerfile: services/gateway/Dockerfile
-    container_name: onpre-gateway
+    container_name: esb-gateway
     networks:
       - external_network # Port exposure
       - internal_network # Internal communication
@@ -126,8 +126,8 @@ services:
       - AUTH_USER=${AUTH_USER?AUTH_USER is required}
       - AUTH_PASS=${AUTH_PASS?AUTH_PASS is required}
       - CONTAINERS_NETWORK=${LAMBDA_NETWORK?LAMBDA_NETWORK is required}
-      - GATEWAY_INTERNAL_URL=https://onpre-gateway
-      - ORCHESTRATOR_URL=http://onpre-orchestrator:8081
+      - GATEWAY_INTERNAL_URL=https://esb-gateway
+      - ORCHESTRATOR_URL=http://esb-orchestrator:8081
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - RUSTFS_ACCESS_KEY=${RUSTFS_ACCESS_KEY?RUSTFS_ACCESS_KEY is required}
       - RUSTFS_SECRET_KEY=${RUSTFS_SECRET_KEY?RUSTFS_SECRET_KEY is required}
@@ -163,7 +163,7 @@ services:
     build:
       context: .
       dockerfile: services/orchestrator/Dockerfile
-    container_name: onpre-orchestrator
+    container_name: esb-orchestrator
     networks:
       - internal_network
     volumes:

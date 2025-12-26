@@ -57,7 +57,7 @@ Resources:
             Method: post
       Environment:
         Variables:
-          S3_ENDPOINT: "http://onpre-storage:9000"
+          S3_ENDPOINT: "http://esb-storage:9000"
           RUSTFS_ROOT_USER: "rustfsadmin"
           RUSTFS_ROOT_PASSWORD: "rustfsadmin"
 
@@ -74,7 +74,7 @@ Resources:
             Method: post
       Environment:
         Variables:
-          DYNAMODB_ENDPOINT: "http://onpre-database:8000"
+          DYNAMODB_ENDPOINT: "http://esb-database:8000"
 
   E2ETable:
     Type: AWS::DynamoDB::Table

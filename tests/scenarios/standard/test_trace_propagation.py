@@ -14,7 +14,7 @@ class TestTrace:
         検証ポイント:
         1. Lambda A が返す trace_id が送信した Trace ID と一致するか
         2. テスト開始時刻以降のログで、Trace ID が全ての通過コンポーネントに出現するか
-           - onpre-gateway
+           - esb-gateway
            - lambda-integration
            - lambda-connectivity
         """
@@ -70,7 +70,7 @@ class TestTrace:
         # Note: query_victorialogs は min_hits=1 で戻るため、Gateway ログが見つかった時点で
         # Lambda ログがまだでも返ってきてしまう。そのため、ループで全コンポーネントが揃うのを待つ。
 
-        expected_components = {"onpre-gateway", "lambda-integration", "lambda-connectivity"}
+        expected_components = {"esb-gateway", "lambda-integration", "lambda-connectivity"}
         found_components = set()
 
         wait_start = time.time()

@@ -5,5 +5,5 @@
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 
 networks:
-  onpre-internal-network:
+  esb-internal-network:
     internal: false  # 開発時は外部アクセス許可

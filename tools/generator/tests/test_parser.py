@@ -44,14 +44,14 @@ Resources:
       Runtime: python3.12
       Environment:
         Variables:
-          S3_ENDPOINT: "http://onpre-storage:9000"
+          S3_ENDPOINT: "http://esb-storage:9000"
           BUCKET_NAME: "test-bucket"
 """
         result = parse_sam_template(sam_content)
 
         assert len(result["functions"]) == 1
         func = result["functions"][0]
-        assert func["environment"]["S3_ENDPOINT"] == "http://onpre-storage:9000"
+        assert func["environment"]["S3_ENDPOINT"] == "http://esb-storage:9000"
         assert func["environment"]["BUCKET_NAME"] == "test-bucket"
 
     def test_parse_globals(self):

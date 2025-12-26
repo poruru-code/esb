@@ -16,4 +16,4 @@ def setup_logging():
     vl_host = os.getenv("VICTORIALOGS_HOST", "victorialogs")
     vl_port = os.getenv("VICTORIALOGS_PORT", "9428")
     vl_url = f"http://{vl_host}:{vl_port}/insert/jsonline"
-    configure_queue_logging(service_name="onpre-orchestrator", vl_url=vl_url)
+    configure_queue_logging(service_name="esb-orchestrator", vl_url=vl_url)

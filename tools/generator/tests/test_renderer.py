@@ -58,7 +58,7 @@ class TestFunctionsYmlRenderer:
             {
                 "name": "lambda-s3-test",
                 "environment": {
-                    "S3_ENDPOINT": "http://onpre-storage:9000",
+                    "S3_ENDPOINT": "http://esb-storage:9000",
                 },
             },
         ]

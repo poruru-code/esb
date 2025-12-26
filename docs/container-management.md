@@ -177,7 +177,7 @@ docker image prune -f
 **確認手順**:
 ```bash
 # Manager ログの確認
-docker logs onpre-orchestrator
+docker logs esb-orchestrator
 
 # コンテナ状態の確認
 docker ps -a | grep lambda-

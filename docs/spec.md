@@ -129,6 +129,6 @@ Traefik等のリバースプロキシを使用せず、各コンテナのポー�
 - ボリューム: `./data` (相対パス)
 
 ### 5.2 本番/検証環境 (DinD)
-`docker-compose.dind.yml` を使用して、親コンテナ(`onpre-app-root`)を起動します。
+`docker-compose.dind.yml` を使用して、親コンテナ(`esb-root`)を起動します。
 - 親コンテナが内部でさらに `docker-compose.yml` を使用して子コンテナ群を起動します。
 - ホストの `./data` は親コンテナの `/app/data` にマウントされ、子コンテナに引き継がれます。

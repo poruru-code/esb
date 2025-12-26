@@ -5,11 +5,11 @@ services:
   # ============================================
   # Root DinD Container
   # ============================================
-  onpre-app:
+  esb-app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: onpre-app-root
+    container_name: esb-root
     privileged: true  # DinDに必須
     ports:
       - "443:443"     # Gateway API (HTTPS)
