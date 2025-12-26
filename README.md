@@ -8,7 +8,7 @@
 - **Integrated Developer Experience (CLI)**: 専用 CLI ツール `esb` を提供。環境構築からホットリロード開発まで、コマンド一つでシームレスな開発体験を提供します。
 - **Production-Ready Architecture**: 外部公開用の `Gateway` と特権を持つ `Manager` を分離したマイクロサービス構成により、セキュリティと耐障害性を実現しています。
 - **Full Stack in a Box**: S3互換ストレージ (RustFS)、DynamoDB互換DB (ScyllaDB)、ログ基盤を同梱しており、`esb up` だけで完全なクラウドネイティブ環境が手に入ります。
-- **Efficient Orchestration**: コンテナオーケストレーション技術により、Lambda関数コンテナをオンデマンドで起動し、アイドル時に自動停止することでリソースを最適化します。
+- **Efficient Orchestration**: コンテナオーケストレーション技術により、Lambda関数コンテナをオンデマンドで起動・プーリング。`ReservedConcurrentExecutions` に基づくオートスケーリングとアイドル時の自動停止によりリソースを最適化します。
 
 ### CLI コマンド一覧
 
@@ -206,17 +206,18 @@ esb reset
 
 詳細な技術ドキュメントは `docs/` ディレクトリにあります。
 
-| ドキュメント                                                        | 説明                         |
-| ------------------------------------------------------------------- | ---------------------------- |
-| [trace-propagation.md](docs/trace-propagation.md)                   | X-Amzn-Trace-Id トレーシング |
-| [container-management.md](docs/container-management.md)             | コンテナ管理とイメージ運用   |
-| [container-cache.md](docs/container-cache.md)                       | コンテナホストキャッシュ     |
-| [manager-restart-resilience.md](docs/manager-restart-resilience.md) | Manager再起動時の耐障害性    |
-| [network-optimization.md](docs/network-optimization.md)             | ネットワーク最適化           |
+| ドキュメント                                                        | 説明                                 |
+| ------------------------------------------------------------------- | ------------------------------------ |
+| [trace-propagation.md](docs/trace-propagation.md)                   | X-Amzn-Trace-Id トレーシング         |
+| [container-management.md](docs/container-management.md)             | コンテナ管理とイメージ運用           |
+| [container-cache.md](docs/container-cache.md)                       | コンテナホストキャッシュ             |
+| [manager-restart-resilience.md](docs/manager-restart-resilience.md) | Manager再起動時の耐障害性            |
+| [network-optimization.md](docs/network-optimization.md)             | ネットワーク最適化                   |
 | [resilience.md](docs/resilience.md)                                 | システム回復性とサーキットブレーカー |
-| [generator-architecture.md](docs/generator-architecture.md)         | Generator内部アーキテクチャ  |
-| [client-auth-spec.md](docs/client-auth-spec.md)                     | クライアント認証仕様         |
-| [spec.md](docs/spec.md)                                             | システム仕様                 |
+| [generator-architecture.md](docs/generator-architecture.md)         | Generator内部アーキテクチャ          |
+| [client-auth-spec.md](docs/client-auth-spec.md)                     | クライアント認証仕様                 |
+| [autoscaling.md](docs/autoscaling.md)                               | オートスケーリングとプーリング       |
+| [spec.md](docs/spec.md)                                             | システム仕様                         |
 
 ## 開発ガイド
 
@@ -277,6 +278,7 @@ MyFunction:
         Properties:
           Path: /api/my-func
           Method: get
+    ReservedConcurrentExecutions: 5 # ★ オートスケーリング設定
 ```
 
 2. **コードの配置**:
