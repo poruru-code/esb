@@ -182,3 +182,64 @@ def test_build_base_image_failure_exits(mock_load_config, mock_generate_files, m
     
     assert exc.value.code == 1
     mock_build_funcs.assert_not_called()  # 関数ビルドは呼ばれない
+# ============================================================
+# Redirection to init tests (Merged from tests/unit)
+# ============================================================
+
+def test_build_redirects_to_init_when_config_missing_and_confirmed():
+    """generator.ymlがない場合、ユーザーがYesを選択すればinitが呼ばれる"""
+    from tools.cli.commands import build, init
+    from argparse import Namespace
+
+    args = Namespace(dry_run=False, verbose=False, no_cache=False)
+    
+    with patch("tools.cli.commands.build.cli_config") as mock_cli_config:
+        # Create a mock for config_path that exists() returns False
+        mock_config_path = MagicMock()
+        mock_config_path.exists.return_value = False
+        
+        # Mock E2E_DIR so that E2E_DIR / "generator.yml" returns our mock_config_path
+        mock_cli_config.E2E_DIR = MagicMock()
+        mock_cli_config.E2E_DIR.__truediv__.return_value = mock_config_path
+        mock_cli_config.TEMPLATE_YAML = "/tmp/template.yaml"
+        
+        with patch("questionary.confirm") as mock_confirm, \
+             patch("tools.cli.commands.init.run") as mock_init_run, \
+             patch("tools.cli.commands.build.generator.load_config"), \
+             patch("tools.cli.commands.build.generator.generate_files"), \
+             patch("tools.cli.commands.build.build_base_image", return_value=True):
+
+            mock_confirm.return_value.ask.return_value = True
+            build.run(args)
+            
+            mock_init_run.assert_called_once()
+            call_args = mock_init_run.call_args[0][0]
+            assert call_args.template == "/tmp/template.yaml"
+
+
+def test_build_aborts_when_config_missing_and_cancelled():
+    """generator.ymlがない場合、ユーザーがNoを選択すれば終了する"""
+    from tools.cli.commands import build
+    from argparse import Namespace
+
+    args = Namespace(dry_run=False, verbose=False, no_cache=False)
+    
+    with patch("tools.cli.commands.build.cli_config") as mock_cli_config:
+        # Create a mock for config_path that exists() returns False
+        mock_config_path = MagicMock()
+        mock_config_path.exists.return_value = False
+        
+        # Mock E2E_DIR so that E2E_DIR / "generator.yml" returns our mock_config_path
+        mock_cli_config.E2E_DIR = MagicMock()
+        mock_cli_config.E2E_DIR.__truediv__.return_value = mock_config_path
+        
+        with patch("questionary.confirm") as mock_confirm, \
+             patch("tools.cli.commands.init.run") as mock_init_run, \
+             patch("tools.cli.commands.build.generator.load_config"), \
+             patch("tools.cli.commands.build.generator.generate_files"), \
+             patch("tools.cli.commands.build.build_base_image", return_value=True):
+            
+            mock_confirm.return_value.ask.return_value = False
+            build.run(args)
+            
+            mock_init_run.assert_not_called()

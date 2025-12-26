@@ -81,3 +81,23 @@ class TestLayerSupport(unittest.TestCase):
         self.assertIn("layers", func)
         self.assertEqual(len(func["layers"]), 1)
         self.assertEqual(func["layers"][0]["name"], "common-layer")
+    def test_render_dockerfile_with_zip_layer(self):
+        """Zip Layerが含まれる場合、Multi-stage build (unzip) が生成されること"""
+        from tools.generator import renderer
+        func = {
+            "name": "test-func",
+            "code_uri": "./app/",
+            "handler": "app.handler",
+            "runtime": "python3.12",
+            "layers": [
+                {"name": "lib-layer", "content_uri": "./layers/lib.zip"}, 
+                {"name": "common-layer", "content_uri": "./layers/common/"}
+            ]
+        }
+        docker_config = {}
+        
+        output = renderer.render_dockerfile(func, docker_config)
+        
+        # Renderer now just iterates and copies whatever URI is given
+        self.assertIn("COPY ./layers/lib.zip /opt/", output)
+        self.assertIn("COPY ./layers/common/ /opt/", output)
