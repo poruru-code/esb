@@ -41,7 +41,7 @@ services:
       - RUSTFS_COMPRESSION=${RUSTFS_COMPRESSION:-auto}
       - RUSTFS_LIFECYCLE_POLICY_PATH=/app/config/lifecycle.yml
     healthcheck:
-      test: [ "CMD", "sh", "-c", "curl -f http://127.0.0.1:9000/health" ]
+      test: [ "CMD", "sh", "-c", "curl -f --noproxy '*' http://127.0.0.1:9000/health" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -88,7 +88,7 @@ services:
       - "-storageDataPath=/victoria-logs-data"
       - "-retentionPeriod=7d"
     healthcheck:
-      test: [ "CMD", "wget", "-q", "--spider", "http://127.0.0.1:${VICTORIALOGS_PORT:-9428}/health" ]
+      test: [ "CMD", "wget", "-q", "--no-proxy", "--spider", "http://127.0.0.1:9428/health" ]
       interval: 10s
       timeout: 5s
       retries: 3
