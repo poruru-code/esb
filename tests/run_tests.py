@@ -81,13 +81,26 @@ def main():
     try:
         # --- ステップ実行 ---
 
-        # 1. Reset (任意)
+        # 1. Reset or Build
+        # NOTE: esb reset は COMPOSE_FILE を継承しないため、テスト環境では使用しない。
+        # 代わりに down → 生成物削除 → build の明示的なフローで制御する。
         if args.reset:
-            run_esb(["reset", "--yes"])
-
-        # 2. Build (任意 - reset時は強制)
-        # ESB_TEMPLATE が効いているため、自動的にテスト用Lambdaがビルドされる
-        if args.build or args.reset:
+            # 1a. コンテナとボリュームを停止・削除
+            run_esb(["down", "--volumes"])
+            
+            # 1b. 生成物ディレクトリを削除（ディレクトリ化したファイル含む）
+            # Docker が bind mount 先を自動でディレクトリ作成した場合の復旧にも対応
+            # Note: tools.cli.config.E2E_DIR はインポート時に評価されるため、
+            #       環境変数セットアップ前にインポートすると誤ったパスになる可能性がある
+            import shutil
+            esb_dir = PROJECT_ROOT / "tests" / "fixtures" / ".esb"
+            if esb_dir.exists():
+                print(f"Removing {esb_dir}...")
+                shutil.rmtree(esb_dir)
+            
+            # 1c. ビルド（Generator + Docker イメージ）
+            run_esb(["build", "--no-cache"])
+        elif args.build:
             run_esb(["build", "--no-cache"])
 
         # 3. Up
