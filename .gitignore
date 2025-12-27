@@ -69,3 +69,5 @@ build/lambda-images/*.tar
 
 # ESB artifacts
 .esb/
+# Go Agent Binary
+services/agent/agent
