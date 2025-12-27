@@ -7,6 +7,7 @@ import (
 	"github.com/containerd/containerd/cio"
 	"github.com/containerd/go-cni"
 	"github.com/stretchr/testify/mock"
+	"syscall"
 )
 
 // MockClient is a mock for ContainerdClient
@@ -159,4 +160,22 @@ type MockImage struct {
 
 func (m *MockImage) Name() string {
 	return m.Called().String(0)
+}
+
+func (m *MockContainer) Delete(ctx context.Context, opts ...containerd.DeleteOpts) error {
+	args := m.Called(ctx, opts)
+	return args.Error(0)
+}
+
+func (m *MockTask) Delete(ctx context.Context, opts ...containerd.ProcessDeleteOpts) (*containerd.ExitStatus, error) {
+	args := m.Called(ctx, opts)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*containerd.ExitStatus), args.Error(1)
+}
+
+func (m *MockTask) Kill(ctx context.Context, signal syscall.Signal, opts ...containerd.KillOpts) error {
+	args := m.Called(ctx, signal, opts)
+	return args.Error(0)
 }

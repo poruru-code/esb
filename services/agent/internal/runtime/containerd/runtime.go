@@ -3,6 +3,7 @@ package containerd
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/cio"
@@ -68,9 +69,16 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 	// 6. Setup Network
 	ip, port, err := r.setupNetwork(ctx, container, task)
 	if err != nil {
-		// Rollback task and container
-		// TODO: Implement robust rollback (kill task, delete container)
-		// For now, return error
+		// Rollback task and container with detached context
+		// Use a fresh context for cleanup to ensure it runs even if request ctx is cancelled
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		cleanupCtx = namespaces.WithNamespace(cleanupCtx, r.namespace)
+		defer cancel()
+
+		// Best effort cleanup
+		task.Delete(cleanupCtx, containerd.WithProcessKill)
+		container.Delete(cleanupCtx, containerd.WithSnapshotCleanup)
+		
 		return nil, fmt.Errorf("failed to setup network: %w", err)
 	}
 
