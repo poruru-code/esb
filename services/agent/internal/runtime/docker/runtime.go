@@ -6,9 +6,6 @@ import (
 	"io"
 	"time"
 
-	"sync"
-
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
@@ -20,11 +17,11 @@ import (
 
 // DockerClient defines the subset of Docker API used by Agent.
 type DockerClient interface {
-	ContainerList(ctx context.Context, options container.ListOptions) ([]types.Container, error)
+	ContainerList(ctx context.Context, options container.ListOptions) ([]container.Summary, error)
 	ContainerCreate(ctx context.Context, config *container.Config, hostConfig *container.HostConfig, networkingConfig *network.NetworkingConfig, platform *v1.Platform, containerName string) (container.CreateResponse, error)
 	ContainerStart(ctx context.Context, containerID string, options container.StartOptions) error
 	NetworkConnect(ctx context.Context, networkID, containerID string, config *network.EndpointSettings) error
-	ContainerInspect(ctx context.Context, containerID string) (types.ContainerJSON, error)
+	ContainerInspect(ctx context.Context, containerID string) (container.InspectResponse, error)
 	ContainerRemove(ctx context.Context, containerID string, options container.RemoveOptions) error
 	ImagePull(ctx context.Context, ref string, options image.PullOptions) (io.ReadCloser, error)
 }
@@ -32,7 +29,6 @@ type DockerClient interface {
 type Runtime struct {
 	client    DockerClient
 	networkID string
-	mu        sync.Mutex
 }
 
 func NewRuntime(client DockerClient, networkID string) *Runtime {
@@ -43,18 +39,16 @@ func NewRuntime(client DockerClient, networkID string) *Runtime {
 }
 
 func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runtime.WorkerInfo, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	// Phase 4-1: Factory behavior. Always create a new container.
 	// Pool management is handled by the Gateway.
+	// Mutex removed to allow parallel provisioning.
 
 	image := req.Image
 	if image == "" {
 		image = fmt.Sprintf("%s:latest", req.FunctionName)
 	}
 
-	containerName := fmt.Sprintf("lambda-%s-%d", req.FunctionName, time.Now().UnixNano())
+	containerName := fmt.Sprintf("%s%s-%d", runtime.ContainerNamePrefix, req.FunctionName, time.Now().UnixNano())
 
 	envList := make([]string, 0, len(req.Env))
 	for k, v := range req.Env {
@@ -65,8 +59,8 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 		Image: image,
 		Env:   envList,
 		Labels: map[string]string{
-			"esb_function": req.FunctionName,
-			"created_by":   "esb-agent",
+			runtime.LabelFunctionName: req.FunctionName,
+			runtime.LabelCreatedBy:    runtime.ValueCreatedByAgent,
 		},
 		ExposedPorts: nat.PortSet{
 			"8080/tcp": struct{}{},
@@ -150,7 +144,7 @@ func (r *Runtime) GC(ctx context.Context) error {
 // List returns the state of all managed containers.
 func (r *Runtime) List(ctx context.Context) ([]runtime.ContainerState, error) {
 	filter := filters.NewArgs()
-	filter.Add("label", "created_by=esb-agent")
+	filter.Add("label", fmt.Sprintf("%s=%s", runtime.LabelCreatedBy, runtime.ValueCreatedByAgent))
 
 	containers, err := r.client.ContainerList(ctx, container.ListOptions{
 		Filters: filter,
@@ -162,7 +156,7 @@ func (r *Runtime) List(ctx context.Context) ([]runtime.ContainerState, error) {
 
 	states := make([]runtime.ContainerState, 0, len(containers))
 	for _, c := range containers {
-		funcName := c.Labels["esb_function"]
+		funcName := c.Labels[runtime.LabelFunctionName]
 		if funcName == "" {
 			continue
 		}

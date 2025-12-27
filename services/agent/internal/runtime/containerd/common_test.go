@@ -2,12 +2,18 @@ package containerd
 
 import (
 	"context"
+	"fmt"
+
+	"syscall"
 
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/cio"
+	"github.com/containerd/containerd/content"
+	"github.com/containerd/containerd/images"
 	"github.com/containerd/go-cni"
+	"github.com/opencontainers/go-digest"
+	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/mock"
-	"syscall"
 )
 
 // MockClient is a mock for ContainerdClient
@@ -159,7 +165,80 @@ type MockImage struct {
 }
 
 func (m *MockImage) Name() string {
-	return m.Called().String(0)
+	return "mock-image"
+}
+
+func (m *MockImage) Target() v1.Descriptor {
+	return v1.Descriptor{}
+}
+
+func (m *MockImage) Labels() (map[string]string, error) {
+	return nil, nil
+}
+
+func (m *MockImage) Config(ctx context.Context) (v1.Descriptor, error) {
+	return v1.Descriptor{}, nil
+}
+
+// MockContentStore stubs content.Store
+type MockContentStore struct {
+	mock.Mock
+}
+
+func (m *MockContentStore) Info(ctx context.Context, dgst digest.Digest) (content.Info, error) {
+	return content.Info{}, nil
+}
+
+func (m *MockContentStore) Update(ctx context.Context, info content.Info, fieldpaths ...string) (content.Info, error) {
+	return content.Info{}, nil
+}
+
+func (m *MockContentStore) Walk(ctx context.Context, fn content.WalkFunc, filters ...string) error {
+	return nil
+}
+
+func (m *MockContentStore) Delete(ctx context.Context, dgst digest.Digest) error {
+	return nil
+}
+
+func (m *MockContentStore) ReaderAt(ctx context.Context, desc v1.Descriptor) (content.ReaderAt, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (m *MockContentStore) Status(ctx context.Context, ref string) (content.Status, error) {
+	return content.Status{}, nil
+}
+
+func (m *MockContentStore) ListStatuses(ctx context.Context, filters ...string) ([]content.Status, error) {
+	return nil, nil
+}
+
+func (m *MockContentStore) Abort(ctx context.Context, ref string) error {
+	return nil
+}
+
+func (m *MockContentStore) Writer(ctx context.Context, opts ...content.WriterOpt) (content.Writer, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (m *MockImage) ContentStore() content.Store {
+	return &MockContentStore{}
+}
+
+func (m *MockImage) Metadata() images.Image {
+	return images.Image{}
+}
+
+func (m *MockImage) Platform() v1.Platform {
+	return v1.Platform{}
+}
+
+func (m *MockImage) Size(ctx context.Context) (int64, error) {
+	return 0, nil
+}
+
+func (m *MockImage) Usage(ctx context.Context, usages ...containerd.UsageOpt) (int64, error) {
+	return 0, nil
 }
 
 func (m *MockContainer) Delete(ctx context.Context, opts ...containerd.DeleteOpts) error {

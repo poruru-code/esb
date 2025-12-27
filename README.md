@@ -28,10 +28,10 @@ flowchart TD
     User([Developer / Client]) -->|HTTPS| Gateway["API Gateway - FastAPI"]
     
     subgraph Core ["Core Services"]
-        Gateway -->|Invoke API| Orchestrator["Container Orchestrator"]
-        Gateway -->|Proxy Request| LambdaRIE["Lambda RIE Container"]
+        Gateway -->|Invoke API| CoreBackends["Orchestrator or Go Agent"]
+        Gateway -->|Proxy Request| LambdaRIE["Lambda RIE ContainerContainer"]
         
-        Orchestrator -->|Docker API| LambdaRIE
+        CoreBackends -->|Docker/Containerd| LambdaRIE
         Orchestrator -->|Provision| ScyllaDB[(ScyllaDB)]
         Orchestrator -->|Provision| RustFS[(RustFS)]
         
@@ -54,7 +54,9 @@ flowchart TD
 
 ### システムコンポーネント
 - **`Gateway`**: API Gateway 互換プロキシ。`routing.yml` に基づき認証・ルーティングを行い、Orchestrator を介して Lambda コンテナをオンデマンドで呼び出します。
-- **`Orchestrator`**: コンテナのライフサイクル管理を担当。Docker Socket を介して Lambda RIE コンテナを動的にオーケストレーションし、リソース（DB/S3）のプロビジョニングも実行します。
+- **`Orchestrator / Go Agent`**: コンテナのライフサイクル管理を担当。
+  - **Python Orchestrator**: Docker Socket を介して Lambda RIE コンテナを動的に管理します。
+  - **Go Agent (v2.1)**: `containerd` を直接操作する高性能エージェント。gRPC 通信により Gateway と高速かつ堅牢に連携します。
 - **`esb CLI`**: SAM テンプレート (`template.yaml`) を **Single Source of Truth** とし、開発を自動化する統合コマンドラインツールです。
 
 ### ファイル構成

@@ -12,3 +12,15 @@ pre-commit:
       glob: "*.py"
       run: ruff format {staged_files}
       stage_fixed: true
+
+    # --- Go Formatting ---
+    go-fmt:
+      root: services/agent
+      glob: "*.go"
+      run: goimports -w .
+
+    # --- Go Linting ---
+    go-lint:
+      root: services/agent
+      glob: "*.go"
+      run: golangci-lint run ./...

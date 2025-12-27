@@ -5,7 +5,6 @@ import (
 	"io"
 	"testing"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
@@ -19,9 +18,9 @@ type MockDockerClient struct {
 	mock.Mock
 }
 
-func (m *MockDockerClient) ContainerList(ctx context.Context, options container.ListOptions) ([]types.Container, error) {
+func (m *MockDockerClient) ContainerList(ctx context.Context, options container.ListOptions) ([]container.Summary, error) {
 	args := m.Called(ctx, options)
-	return args.Get(0).([]types.Container), args.Error(1)
+	return args.Get(0).([]container.Summary), args.Error(1)
 }
 
 func (m *MockDockerClient) ContainerCreate(ctx context.Context, config *container.Config, hostConfig *container.HostConfig, networkingConfig *network.NetworkingConfig, platform *v1.Platform, containerName string) (container.CreateResponse, error) {
@@ -39,9 +38,9 @@ func (m *MockDockerClient) NetworkConnect(ctx context.Context, networkID, contai
 	return args.Error(0)
 }
 
-func (m *MockDockerClient) ContainerInspect(ctx context.Context, containerID string) (types.ContainerJSON, error) {
+func (m *MockDockerClient) ContainerInspect(ctx context.Context, containerID string) (container.InspectResponse, error) {
 	args := m.Called(ctx, containerID)
-	return args.Get(0).(types.ContainerJSON), args.Error(1)
+	return args.Get(0).(container.InspectResponse), args.Error(1)
 }
 
 func (m *MockDockerClient) ContainerRemove(ctx context.Context, containerID string, options container.RemoveOptions) error {
@@ -75,8 +74,8 @@ func TestRuntime_Ensure(t *testing.T) {
 	mockClient.On("ContainerStart", ctx, "new-id", mock.Anything).Return(nil).Once()
 
 	// 3. Inspect
-	mockClient.On("ContainerInspect", ctx, "new-id").Return(types.ContainerJSON{
-		NetworkSettings: &types.NetworkSettings{
+	mockClient.On("ContainerInspect", ctx, "new-id").Return(container.InspectResponse{
+		NetworkSettings: &container.NetworkSettings{
 			Networks: map[string]*network.EndpointSettings{
 				"esb-net": {IPAddress: "10.0.0.2"},
 			},
@@ -114,8 +113,8 @@ func TestRuntime_Ensure_AlwaysCreatesNew(t *testing.T) {
 	mockClient.On("ContainerStart", ctx, "new-id-1", mock.Anything).Return(nil).Once()
 
 	// 3. Inspect
-	mockClient.On("ContainerInspect", ctx, "new-id-1").Return(types.ContainerJSON{
-		NetworkSettings: &types.NetworkSettings{
+	mockClient.On("ContainerInspect", ctx, "new-id-1").Return(container.InspectResponse{
+		NetworkSettings: &container.NetworkSettings{
 			Networks: map[string]*network.EndpointSettings{
 				"esb-net": {IPAddress: "10.0.0.10"},
 			},
@@ -131,8 +130,8 @@ func TestRuntime_Ensure_AlwaysCreatesNew(t *testing.T) {
 	mockClient.On("ContainerCreate", ctx, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return(container.CreateResponse{ID: "new-id-2"}, nil).Once()
 	mockClient.On("ContainerStart", ctx, "new-id-2", mock.Anything).Return(nil).Once()
-	mockClient.On("ContainerInspect", ctx, "new-id-2").Return(types.ContainerJSON{
-		NetworkSettings: &types.NetworkSettings{
+	mockClient.On("ContainerInspect", ctx, "new-id-2").Return(container.InspectResponse{
+		NetworkSettings: &container.NetworkSettings{
 			Networks: map[string]*network.EndpointSettings{
 				"esb-net": {IPAddress: "10.0.0.11"},
 			},
@@ -153,18 +152,18 @@ func TestRuntime_List(t *testing.T) {
 	ctx := context.Background()
 
 	// 1. Mock List response
-	mockClient.On("ContainerList", ctx, mock.Anything).Return([]types.Container{
+	mockClient.On("ContainerList", ctx, mock.Anything).Return([]container.Summary{
 		{
 			ID:      "id-1",
 			State:   "running",
 			Created: 1000000,
-			Labels:  map[string]string{"esb_function": "func-1", "created_by": "esb-agent"},
+			Labels:  map[string]string{runtime.LabelFunctionName: "func-1", runtime.LabelCreatedBy: runtime.ValueCreatedByAgent},
 		},
 		{
 			ID:      "id-2",
 			State:   "exited",
 			Created: 2000000,
-			Labels:  map[string]string{"esb_function": "func-2", "created_by": "esb-agent"},
+			Labels:  map[string]string{runtime.LabelFunctionName: "func-2", runtime.LabelCreatedBy: runtime.ValueCreatedByAgent},
 		},
 		{
 			ID:     "id-3",

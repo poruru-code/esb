@@ -56,7 +56,3 @@ func (r *Runtime) setupNetwork(ctx context.Context, container containerd.Contain
 
 	return ip, hostPort, nil
 }
-
-func (r *Runtime) teardownNetwork(ctx context.Context, container containerd.Container) error {
-	return nil
-}

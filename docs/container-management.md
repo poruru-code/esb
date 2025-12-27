@@ -75,14 +75,16 @@ CMD [ "lambda_function.lambda_handler" ]
 
 ## コンテナライフサイクル
 
-Lambda RIE コンテナは Orchestrator により動的に管理されます。Orchestrator は再起動時にも実行中のコンテナを認識し、管理下に復帰させる **Adopt & Sync** 機能を備えています（詳細は [orchestrator-restart-resilience.md](./orchestrator-restart-resilience.md) を参照）。
+## コンテナライフサイクル
+
+Lambda RIE コンテナは **Orchestrator (Python)** または **Go Agent** により動的に管理されます。これらは再起動時にも実行中のコンテナを認識し、管理下に復帰させる **Adopt & Sync** 機能を備えています（詳細は [orchestrator-restart-resilience.md](./orchestrator-restart-resilience.md) を参照）。
 
 ```mermaid
 sequenceDiagram
     participant Client
     participant Gateway
     participant PoolManager
-    participant Orchestrator
+    participant Provisioner as Provisioner (Orch/Agent)
     participant Lambda
 
     Client->>Gateway: リクエスト
@@ -91,10 +93,10 @@ sequenceDiagram
     alt アイドルコンテナあり
         PoolManager-->>Gateway: コンテナ情報 (Reuse)
     else キャパ余裕あり
-        PoolManager->>Orchestrator: provision_containers
-        Orchestrator->>Lambda: docker run
-        Lambda-->>Orchestrator: 起動完了
-        Orchestrator-->>PoolManager: コンテナ情報
+        PoolManager->>Provisioner: Provision Request (gRPC/HTTP)
+        Provisioner->>Lambda: Create Container (Containerd/Docker)
+        Lambda-->>Provisioner: 起動完了
+        Provisioner-->>PoolManager: コンテナ情報
         PoolManager-->>Gateway: コンテナ情報 (New)
     else フル稼働
         PoolManager->>PoolManager: キューで待機
@@ -106,7 +108,7 @@ sequenceDiagram
     Gateway->>PoolManager: release_worker
     Gateway-->>Client: レスポンス
     
-    Note over Orchestrator,Lambda: 一定時間のリクエスト不在(ハートビート途絶)で自動停止
+    Note over Provisioner,Lambda: 一定時間のリクエスト不在(ハートビート途絶)で自動停止
 ```
 
 ### コンテナ状態遷移

@@ -6,9 +6,13 @@
 
 **Adopt & Sync**方式では、Orchestrator起動時にDockerデーモンから既存コンテナの状態を同期し、実行中のコンテナは管理下に復帰、停止中のコンテナのみクリーンアップします。これにより、Orchestrator再起動時もサービス断を最小化できます。
 
+> [!NOTE]
+> 本ドキュメントの「実装詳細」は、**Python版 Orchestrator Service** の内部挙動を記述しています。
+> **Go Agent (v2.1)** を使用する場合、Agent自体は **Stateless (Pure Factory)** であり、Gateway の `PoolManager` が Agent の `ListContainers` API を使用して状態同期（Adopt & Sync）を行います。
+
 ---
 
-## 実装詳細
+## 実装詳細 (Python Orchestrator)
 
 ### 1. `sync_with_docker()` メソッド
 

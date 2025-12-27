@@ -84,11 +84,11 @@ func initServer(t *testing.T, mockRT *MockRuntime) *grpc.ClientConn {
 
 	go func() {
 		if err := s.Serve(lis); err != nil {
-			// Fail test if server fails
+			t.Errorf("Server exited with error: %v", err)
 		}
 	}()
 
-	conn, err := grpc.DialContext(context.Background(), "bufnet",
+	conn, err := grpc.NewClient("bufnet",
 		grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
 			return lis.Dial()
 		}),

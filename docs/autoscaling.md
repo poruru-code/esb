@@ -20,25 +20,19 @@ flowchart TD
         CP -- acquire/release --> PM
     end
 
-    subgraph Orchestrator ["Orchestrator"]
-        Service["Orchestrator Service"]
-        Docker["Docker Adaptor"]
-        
-        %% ここでServiceがAdaptorを呼び出す関係を明示
-        Service -- Uses --> Docker
+    subgraph AgentLayer ["Provisioning Layer"]
+        direction TB
+        PM -- gRPC --> Agent["Go Agent"]
+        PM -- HTTP --> PyOrch["Python Orchestrator (Legacy)"]
     end
 
-    subgraph Workers ["Active Containers"]
-        C1["Lambda Container 1"]
-        C2["Lambda Container 2"]
+    subgraph Runtime ["Container Runtime"]
+        Agent -- Containerd/Docker --> Container["Lambda Container"]
+        PyOrch -- Docker Socket --> Container
     end
 
-    PM -- Provision/Delete --> Service
-    Janitor -- Sync/Heartbeat --> Service
-    
-    %% Docker Adaptorが実際のDocker APIを実行してコンテナを操作する
-    Docker -- Docker API --> C1
-    Docker -- Docker API --> C2
+    Janitor -- Sync/Heartbeat --> Agent
+    Janitor -- Sync/Heartbeat --> PyOrch
 ```
 
 ### 主要コンポーネント
@@ -48,7 +42,9 @@ flowchart TD
 3.  **`HeartbeatJanitor`**: 定期的にプールを巡回し、以下の責務を担います。
     *   **Active Pruning**: アイドルタイムアウトを超過したコンテナを検出し、削除リストを作成。
     *   **Heartbeat**: 稼働中のコンテナ名リストを Orchestrator に送信し、Orchestrator 側のウォッチドッグタイマーをリセット。
-4.  **`Orchestrator Service`**: Gateway からの指示でコンテナを操作するほか、Gateway からのハートビートが途絶えた孤児コンテナを強制削除するセーフガード機能を持ちます。
+4.  **`Orchestrator / Go Agent`**: コンテナの作成・削除を担当する実行エンジン。
+    *   **Go Agent (New)**: gRPC ベースの高速なエージェント。`containerd` を直接操作し、**Pure Factory パターン** (状態を持たず常に新規作成) で動作します。起動時の Readiness Check (TCP接続確認) により 502 エラーを防ぎます。
+    *   **Python Orchestrator (Legacy)**: 従来の Docker Socket 経由の管理サービス。
 
 ## コンテナ・ライフサイクル
 
