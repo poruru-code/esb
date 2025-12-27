@@ -40,15 +40,15 @@ func TestRuntime_Ensure_NewContainer(t *testing.T) {
 	// 4. NewTask & Start
 	mockTask := new(MockTask)
 	mockTask.On("Pid").Return(uint32(1234))
-	
+
 	// Verify IO creator is passed (Log configuration check)
 	ioCreatorMatcher := mock.MatchedBy(func(c cio.Creator) bool {
 		return c != nil
 	})
 	mockContainer.On("NewTask", mock.Anything, ioCreatorMatcher, mock.Anything).Return(mockTask, nil)
-	
+
 	mockTask.On("Start", mock.Anything).Return(nil)
-	
+
 	// 5. CNI Setup (Expected)
 	res := &cni.Result{
 		Interfaces: map[string]*cni.Config{
@@ -71,7 +71,7 @@ func TestRuntime_Ensure_NewContainer(t *testing.T) {
 	assert.Equal(t, "lambda-test-func-1234", info.ID)
 	assert.Equal(t, "10.88.0.2", info.IPAddress)
 	assert.Equal(t, 20000, info.Port)
-	
+
 	mockCli.AssertExpectations(t)
 	mockCNI.AssertExpectations(t)
 	mockContainer.AssertExpectations(t)
@@ -224,7 +224,7 @@ func TestRuntime_Ensure_WarmStart_Paused_Red(t *testing.T) {
 	assert.Equal(t, "lambda-warm-func-1234", info.ID)
 	// IP/Port should be retained (how to get them without CNI call?)
 	// For now, we just check the container ID
-	
+
 	mockCli.AssertExpectations(t)
 	mockContainer.AssertExpectations(t)
 	mockTask.AssertExpectations(t)

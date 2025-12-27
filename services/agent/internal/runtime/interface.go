@@ -22,10 +22,11 @@ type WorkerInfo struct {
 // ContainerState represents the current state of a managed container.
 // Used by Janitor to determine which containers should be cleaned up.
 type ContainerState struct {
-	ID           string
-	FunctionName string
-	Status       string    // "RUNNING", "PAUSED", "STOPPED", "UNKNOWN"
-	LastUsedAt   time.Time // Last time this container was used
+	ID            string
+	FunctionName  string
+	Status        string    // "RUNNING", "PAUSED", "STOPPED", "UNKNOWN"
+	LastUsedAt    time.Time // Last time this container was used
+	ContainerName string    // Actual docker/containerd name
 }
 
 // ContainerRuntime defines the interface for interacting with container backends.

@@ -2,7 +2,6 @@ package docker
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"testing"
 
@@ -10,10 +9,10 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
+	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 type MockDockerClient struct {
@@ -58,7 +57,7 @@ func (m *MockDockerClient) ImagePull(ctx context.Context, ref string, options im
 	return args.Get(0).(io.ReadCloser), args.Error(1)
 }
 
-func TestRuntime_Ensure_New(t *testing.T) {
+func TestRuntime_Ensure(t *testing.T) {
 	mockClient := new(MockDockerClient)
 	rt := NewRuntime(mockClient, "esb-net")
 
@@ -68,24 +67,21 @@ func TestRuntime_Ensure_New(t *testing.T) {
 		Image:        "test-image",
 	}
 
-	// 1. List: Not found
-	mockClient.On("ContainerList", ctx, mock.Anything).Return([]types.Container{}, nil)
-
-	// 2. Create
+	// 1. Create
 	mockClient.On("ContainerCreate", ctx, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-		Return(container.CreateResponse{ID: "new-id"}, nil)
+		Return(container.CreateResponse{ID: "new-id"}, nil).Once()
 
-	// 3. Start
-	mockClient.On("ContainerStart", ctx, "new-id", mock.Anything).Return(nil)
+	// 2. Start
+	mockClient.On("ContainerStart", ctx, "new-id", mock.Anything).Return(nil).Once()
 
-	// 4. Inspect
+	// 3. Inspect
 	mockClient.On("ContainerInspect", ctx, "new-id").Return(types.ContainerJSON{
 		NetworkSettings: &types.NetworkSettings{
 			Networks: map[string]*network.EndpointSettings{
 				"esb-net": {IPAddress: "10.0.0.2"},
 			},
 		},
-	}, nil)
+	}, nil).Once()
 
 	// Execute
 	info, err := rt.Ensure(ctx, req)
@@ -97,79 +93,94 @@ func TestRuntime_Ensure_New(t *testing.T) {
 	mockClient.AssertExpectations(t)
 }
 
-func TestRuntime_Ensure_Exists(t *testing.T) {
+func TestRuntime_Ensure_AlwaysCreatesNew(t *testing.T) {
 	mockClient := new(MockDockerClient)
 	rt := NewRuntime(mockClient, "esb-net")
 
 	ctx := context.Background()
-	req := runtime.EnsureRequest{FunctionName: "existing-func"}
+	req := runtime.EnsureRequest{
+		FunctionName: "test-func",
+	}
 
-	// 1. List: Found
-	mockClient.On("ContainerList", ctx, mock.Anything).Return([]types.Container{
-		{
-			ID:     "existing-id",
-			Names:  []string{"/lambda-existing-func-123"},
-			Labels: map[string]string{"esb_function": "existing-func"},
-			State:  "running",
-		},
-	}, nil)
+	// Should NOT call ContainerList for lookups anymore (if we strictly follow the factory pattern)
+	// Or even if it does, it should create a NEW one.
+	// To be safe and clean, let's assume it doesn't lookup.
 
-	// 2. Network Connect
-	mockClient.On("NetworkConnect", ctx, "esb-net", "existing-id", mock.Anything).Return(nil)
+	// 1. Create
+	mockClient.On("ContainerCreate", ctx, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(container.CreateResponse{ID: "new-id-1"}, nil).Once()
+
+	// 2. Start
+	mockClient.On("ContainerStart", ctx, "new-id-1", mock.Anything).Return(nil).Once()
 
 	// 3. Inspect
-	mockClient.On("ContainerInspect", ctx, "existing-id").Return(types.ContainerJSON{
+	mockClient.On("ContainerInspect", ctx, "new-id-1").Return(types.ContainerJSON{
 		NetworkSettings: &types.NetworkSettings{
 			Networks: map[string]*network.EndpointSettings{
-				"esb-net": {IPAddress: "10.0.0.3"},
+				"esb-net": {IPAddress: "10.0.0.10"},
 			},
 		},
-	}, nil)
+	}, nil).Once()
 
-	// Execute
-	info, err := rt.Ensure(ctx, req)
-
+	// Execute first call
+	info1, err := rt.Ensure(ctx, req)
 	assert.NoError(t, err)
-	assert.Equal(t, "existing-id", info.ID)
-	assert.Equal(t, "10.0.0.3", info.IPAddress)
+	assert.Equal(t, "new-id-1", info1.ID)
+
+	// Execute second call - should create ANOTHER one
+	mockClient.On("ContainerCreate", ctx, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(container.CreateResponse{ID: "new-id-2"}, nil).Once()
+	mockClient.On("ContainerStart", ctx, "new-id-2", mock.Anything).Return(nil).Once()
+	mockClient.On("ContainerInspect", ctx, "new-id-2").Return(types.ContainerJSON{
+		NetworkSettings: &types.NetworkSettings{
+			Networks: map[string]*network.EndpointSettings{
+				"esb-net": {IPAddress: "10.0.0.11"},
+			},
+		},
+	}, nil).Once()
+
+	info2, err := rt.Ensure(ctx, req)
+	assert.NoError(t, err)
+	assert.Equal(t, "new-id-2", info2.ID)
+	assert.NotEqual(t, info1.ID, info2.ID)
 
 	mockClient.AssertExpectations(t)
 }
-
-func TestRuntime_Ensure_Exists_NetworkError(t *testing.T) {
+func TestRuntime_List(t *testing.T) {
 	mockClient := new(MockDockerClient)
 	rt := NewRuntime(mockClient, "esb-net")
 
 	ctx := context.Background()
-	req := runtime.EnsureRequest{FunctionName: "existing-func"}
 
-	// 1. List: Found
+	// 1. Mock List response
 	mockClient.On("ContainerList", ctx, mock.Anything).Return([]types.Container{
 		{
-			ID:     "existing-id",
-			Names:  []string{"/lambda-existing-func-123"},
-			Labels: map[string]string{"esb_function": "existing-func"},
-			State:  "running",
+			ID:      "id-1",
+			State:   "running",
+			Created: 1000000,
+			Labels:  map[string]string{"esb_function": "func-1", "created_by": "esb-agent"},
 		},
-	}, nil)
-
-	// 2. Network Connect (simulate "already connected" error which should be ignored)
-	mockClient.On("NetworkConnect", ctx, "esb-net", "existing-id", mock.Anything).Return(fmt.Errorf("already connected"))
-
-	// 3. Inspect
-	mockClient.On("ContainerInspect", ctx, "existing-id").Return(types.ContainerJSON{
-		NetworkSettings: &types.NetworkSettings{
-			Networks: map[string]*network.EndpointSettings{
-				"esb-net": {IPAddress: "10.0.0.3"},
-			},
+		{
+			ID:      "id-2",
+			State:   "exited",
+			Created: 2000000,
+			Labels:  map[string]string{"esb_function": "func-2", "created_by": "esb-agent"},
+		},
+		{
+			ID:     "id-3",
+			Labels: map[string]string{"other": "label"}, // Should be filtered out
 		},
 	}, nil)
 
 	// Execute
-	info, err := rt.Ensure(ctx, req)
+	states, err := rt.List(ctx)
 
 	assert.NoError(t, err)
-	assert.Equal(t, "existing-id", info.ID)
+	assert.Len(t, states, 2)
+	assert.Equal(t, "id-1", states[0].ID)
+	assert.Equal(t, "func-1", states[0].FunctionName)
+	assert.Equal(t, "running", states[0].Status)
+	assert.Equal(t, "id-2", states[1].ID)
 
 	mockClient.AssertExpectations(t)
 }

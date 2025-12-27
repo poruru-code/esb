@@ -27,8 +27,7 @@ from .services.function_registry import FunctionRegistry
 from .services.route_matcher import RouteMatcher
 from .services.lambda_invoker import LambdaInvoker
 from .services.pool_manager import PoolManager
-from .services.janitor import HeartbeatJanitor, ResourceJanitor
-from .services.grpc_backend import GrpcBackend
+from .services.janitor import HeartbeatJanitor
 from .clients import ProvisionClient, HeartbeatClient
 
 from .api.deps import (
@@ -48,6 +47,7 @@ from .core.exceptions import (
     ContainerStartError,
     LambdaExecutionError,
     FunctionNotFoundError,
+    ResourceExhaustedError,
 )
 
 # Logger setup
@@ -99,24 +99,38 @@ async def lifespan(app: FastAPI):
 
     if config.USE_GRPC_AGENT:
         logger.info(f"Initializing Gateway with Go Agent gRPC Backend: {config.AGENT_GRPC_ADDRESS}")
-        grpc_backend = GrpcBackend(config.AGENT_GRPC_ADDRESS, function_registry=function_registry)
-        invocation_backend = grpc_backend
-        pool_manager = None  # Phase 1: Direct GrpcBackend bypasses PoolManager
 
-        # Phase 3: ResourceJanitor for gRPC Agent
-        resource_janitor = ResourceJanitor(
-            backend=grpc_backend,
-            idle_timeout=config.GATEWAY_IDLE_TIMEOUT_SECONDS,
-            cleanup_interval=config.HEARTBEAT_INTERVAL,
+        # New ARCH: PoolManager -> GrpcProvisionClient -> Agent
+        from .services.grpc_provision import GrpcProvisionClient
+        import grpc
+        from .pb import agent_pb2_grpc
+
+        # shared channel for lifecycle and info
+        channel = grpc.aio.insecure_channel(config.AGENT_GRPC_ADDRESS)
+        agent_stub = agent_pb2_grpc.AgentServiceStub(channel)
+
+        grpc_provision_client = GrpcProvisionClient(agent_stub, function_registry)
+
+        pool_manager = PoolManager(
+            provision_client=grpc_provision_client, config_loader=config_loader
         )
 
-        # 1. Startup cleanup (remove orphan Paused containers)
-        await resource_janitor.cleanup_on_startup()
+        # Cleanup orphan containers from previous runs
+        await pool_manager.cleanup_all_containers()
 
-        # 2. Start periodic cleanup loop
-        await resource_janitor.start()
+        invocation_backend = pool_manager
 
-        janitor = None  # HeartbeatJanitor not used for gRPC mode
+        janitor = HeartbeatJanitor(
+            pool_manager,
+            manager_client=None,  # gRPC mode doesn't need manager heartbeats
+            interval=config.HEARTBEAT_INTERVAL,
+            idle_timeout=config.GATEWAY_IDLE_TIMEOUT_SECONDS,
+        )
+        await janitor.start()
+
+        # GrpcBackend is no longer needed as the primary backend
+        grpc_backend = None
+        resource_janitor = None
     else:
         provision_client = ProvisionClient(
             client,
@@ -274,6 +288,14 @@ async def function_not_found_handler(request: Request, exc: FunctionNotFoundErro
     return JSONResponse(
         status_code=404,
         content={"message": str(exc)},
+    )
+
+
+@app.exception_handler(ResourceExhaustedError)
+async def resource_exhausted_handler(request: Request, exc: ResourceExhaustedError):
+    return JSONResponse(
+        status_code=429,
+        content={"message": "Too Many Requests", "detail": str(exc)},
     )
 
 

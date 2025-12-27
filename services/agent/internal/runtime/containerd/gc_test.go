@@ -18,6 +18,6 @@ func TestRuntime_GC(t *testing.T) {
 
 	err := rt.GC(context.Background())
 	assert.NoError(t, err)
-	
+
 	mockCli.AssertExpectations(t)
 }

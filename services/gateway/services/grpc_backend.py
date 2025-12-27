@@ -11,20 +11,72 @@ from services.gateway.core.exceptions import (
 )
 from services.gateway.services.lambda_invoker import WorkerState
 from services.gateway.services.function_registry import FunctionRegistry
+from services.gateway.core.concurrency import ConcurrencyManager
 
-logger = logging.getLogger("gateway.grpc_backend")
+logger = logging.getLogger(__name__)
 
 
 class GrpcBackend:
-    def __init__(self, agent_address: str, function_registry: Optional[FunctionRegistry] = None):
+    def __init__(
+        self,
+        agent_address: str,
+        function_registry: Optional[FunctionRegistry] = None,
+        concurrency_manager: Optional[ConcurrencyManager] = None,
+    ):
         self.channel = grpc.aio.insecure_channel(agent_address)
         self.stub = agent_pb2_grpc.AgentServiceStub(self.channel)
         self.function_registry = function_registry
+        self.concurrency_manager = concurrency_manager
 
     async def acquire_worker(self, function_name: str) -> WorkerInfo:
         """
         gRPC 経由でエージェントからワーカー（コンテナ）を取得
+        (流量制御を適用)
         """
+        if self.concurrency_manager:
+            throttle = self.concurrency_manager.get_throttle(function_name)
+            await throttle.acquire()
+
+        try:
+            worker = await self._ensure_container(function_name)
+            logger.info(f"Acquired worker {worker.id} at {worker.ip_address} for {function_name}")
+            # Readiness Check: Wait for port 8080 to be available
+            await self._wait_for_readiness(function_name, worker.ip_address, 8080)
+            logger.debug(f"Readiness check passed for {worker.ip_address}:8080")
+            return worker
+        except Exception:
+            if self.concurrency_manager:
+                throttle = self.concurrency_manager.get_throttle(function_name)
+                await throttle.release()
+            raise
+
+    async def _wait_for_readiness(
+        self, function_name: str, host: str, port: int, timeout: float = 10.0
+    ):
+        """TCPコネクション確立を試行してreadinessを確認"""
+        import asyncio
+        import time
+
+        start_time = time.time()
+        last_error = None
+        while time.time() - start_time < timeout:
+            try:
+                # asyncio.open_connection でTCP疎通確認
+                _, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=1.0)
+                writer.close()
+                await writer.wait_closed()
+                return
+            except (asyncio.TimeoutError, ConnectionRefusedError, OSError) as e:
+                last_error = e
+                await asyncio.sleep(0.1)
+
+        raise ContainerStartError(
+            function_name,
+            last_error
+            or Exception(f"Port {port} on {host} did not become ready within {timeout}s"),
+        )
+
+    async def _ensure_container(self, function_name: str) -> WorkerInfo:
         # Get environment variables from FunctionRegistry
         env = {}
         image = ""
@@ -41,6 +93,7 @@ class GrpcBackend:
         )
         try:
             resp = await self.stub.EnsureContainer(req)
+            logger.debug(f"Agent EnsureContainer response: {resp.id} / {resp.ip_address}")
             return WorkerInfo(
                 id=resp.id, name=resp.name, ip_address=resp.ip_address, port=resp.port
             )
@@ -49,9 +102,11 @@ class GrpcBackend:
 
     async def release_worker(self, function_name: str, worker: WorkerInfo) -> None:
         """
-        ワーカーを返却（Agent側で管理するため、何もしない場合が多い）
+        ワーカーを返却
         """
-        pass
+        if self.concurrency_manager:
+            throttle = self.concurrency_manager.get_throttle(function_name)
+            await throttle.release()
 
     async def evict_worker(self, function_name: str, worker: WorkerInfo) -> None:
         """

@@ -75,12 +75,13 @@ class HeartbeatJanitor:
         except Exception as e:
             logger.error(f"Pruning failed: {e}")
 
-        # 2. 残っているワーカーの名前リストを送信
-        worker_names = self.pool_manager.get_all_worker_names()
-        for function_name, names in worker_names.items():
-            if names:  # Only send if there are workers
-                await self.manager_client.heartbeat(function_name, names)
-                logger.debug(f"Heartbeat sent: {function_name} ({len(names)} workers)")
+        # 2. 残っているワーカーの名前リストを送信 (Manager がいる場合のみ)
+        if self.manager_client:
+            worker_names = self.pool_manager.get_all_worker_names()
+            for function_name, names in worker_names.items():
+                if names:  # Only send if there are workers
+                    await self.manager_client.heartbeat(function_name, names)
+                    logger.debug(f"Heartbeat sent: {function_name} ({len(names)} workers)")
 
 
 class ResourceJanitor:
@@ -121,6 +122,7 @@ class ResourceJanitor:
             if w.status == "PAUSED":
                 try:
                     from services.common.models.internal import WorkerInfo
+
                     worker_info = WorkerInfo(
                         id=w.container_id,
                         name=w.function_name,
@@ -176,12 +178,14 @@ class ResourceJanitor:
         evicted_count = 0
 
         for w in workers:
-            # 条件: PAUSED かつ idle_timeout を超過
-            if w.status == "PAUSED" and w.last_used_at > 0:
+            # Condition: PAUSED or RUNNING and exceeding idle_timeout
+            # In Phase 1/Go Agent, we may not pause containers, so we check RUNNING too.
+            if (w.status == "PAUSED" or w.status == "RUNNING") and w.last_used_at > 0:
                 idle_seconds = now - w.last_used_at
                 if idle_seconds > self.idle_timeout:
                     try:
                         from services.common.models.internal import WorkerInfo
+
                         worker_info = WorkerInfo(
                             id=w.container_id,
                             name=w.function_name,
@@ -200,4 +204,3 @@ class ResourceJanitor:
 
         if evicted_count > 0:
             logger.info(f"Periodic cleanup: evicted {evicted_count} idle containers")
-

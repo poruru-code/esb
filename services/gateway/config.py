@@ -56,6 +56,10 @@ class GatewayConfig(BaseAppConfig):
     )
     LAMBDA_INVOKE_TIMEOUT: float = Field(default=30.0, description="Lambda呼び出しタイムアウト(秒)")
 
+    # 流量制御 (Phase 4-1)
+    MAX_CONCURRENT_REQUESTS: int = Field(default=10, description="関数あたりの同時実行上限")
+    QUEUE_TIMEOUT_SECONDS: int = Field(default=10, description="キュー待機タイムアウト")
+
     # サーキットブレーカー設定
     CIRCUIT_BREAKER_THRESHOLD: int = Field(default=5, description="失敗しきい値")
     CIRCUIT_BREAKER_RECOVERY_TIMEOUT: float = Field(

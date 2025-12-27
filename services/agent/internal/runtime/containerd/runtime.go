@@ -31,7 +31,6 @@ func NewRuntime(client ContainerdClient, cniBackend cni.CNI, portAllocator *Port
 	}
 }
 
-
 func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runtime.WorkerInfo, error) {
 	ctx = namespaces.WithNamespace(ctx, r.namespace)
 
@@ -118,7 +117,7 @@ coldStart:
 		// Best effort cleanup
 		task.Delete(cleanupCtx, containerd.WithProcessKill)
 		container.Delete(cleanupCtx, containerd.WithSnapshotCleanup)
-		
+
 		return nil, fmt.Errorf("failed to setup network: %w", err)
 	}
 

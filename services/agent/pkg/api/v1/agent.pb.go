@@ -508,6 +508,7 @@ type ContainerState struct {
 	FunctionName  string                 `protobuf:"bytes,2,opt,name=function_name,json=functionName,proto3" json:"function_name,omitempty"`
 	Status        string                 `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`                              // "RUNNING", "PAUSED", "STOPPED", "UNKNOWN"
 	LastUsedAt    int64                  `protobuf:"varint,4,opt,name=last_used_at,json=lastUsedAt,proto3" json:"last_used_at,omitempty"` // Unix Timestamp (秒)
+	ContainerName string                 `protobuf:"bytes,5,opt,name=container_name,json=containerName,proto3" json:"container_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -570,6 +571,13 @@ func (x *ContainerState) GetLastUsedAt() int64 {
 	return 0
 }
 
+func (x *ContainerState) GetContainerName() string {
+	if x != nil {
+		return x.ContainerName
+	}
+	return ""
+}
+
 var File_agent_proto protoreflect.FileDescriptor
 
 const file_agent_proto_rawDesc = "" +
@@ -606,13 +614,14 @@ const file_agent_proto_rawDesc = "" +
 	"\x16ListContainersResponse\x12<\n" +
 	"\n" +
 	"containers\x18\x01 \x03(\v2\x1c.esb.agent.v1.ContainerStateR\n" +
-	"containers\"\x92\x01\n" +
+	"containers\"\xb9\x01\n" +
 	"\x0eContainerState\x12!\n" +
 	"\fcontainer_id\x18\x01 \x01(\tR\vcontainerId\x12#\n" +
 	"\rfunction_name\x18\x02 \x01(\tR\ffunctionName\x12\x16\n" +
 	"\x06status\x18\x03 \x01(\tR\x06status\x12 \n" +
 	"\flast_used_at\x18\x04 \x01(\x03R\n" +
-	"lastUsedAt2\xde\x03\n" +
+	"lastUsedAt\x12%\n" +
+	"\x0econtainer_name\x18\x05 \x01(\tR\rcontainerName2\xde\x03\n" +
 	"\fAgentService\x12Q\n" +
 	"\x0fEnsureContainer\x12$.esb.agent.v1.EnsureContainerRequest\x1a\x18.esb.agent.v1.WorkerInfo\x12a\n" +
 	"\x10DestroyContainer\x12%.esb.agent.v1.DestroyContainerRequest\x1a&.esb.agent.v1.DestroyContainerResponse\x12[\n" +

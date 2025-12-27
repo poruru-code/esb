@@ -70,6 +70,13 @@ class OrchestratorUnreachableError(LambdaInvokeError):
         super().__init__(f"Orchestrator unreachable: {cause}")
 
 
+class ResourceExhaustedError(LambdaInvokeError):
+    """リソース枯渇（キュー満杯・タイムアウト）時の例外"""
+
+    def __init__(self, detail: str = "Request timed out in queue"):
+        super().__init__(detail)
+
+
 # ===========================================
 # Exception Handlers
 # ===========================================

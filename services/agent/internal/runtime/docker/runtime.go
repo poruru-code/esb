@@ -6,6 +6,8 @@ import (
 	"io"
 	"time"
 
+	"sync"
+
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
@@ -30,6 +32,7 @@ type DockerClient interface {
 type Runtime struct {
 	client    DockerClient
 	networkID string
+	mu        sync.Mutex
 }
 
 func NewRuntime(client DockerClient, networkID string) *Runtime {
@@ -40,76 +43,55 @@ func NewRuntime(client DockerClient, networkID string) *Runtime {
 }
 
 func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runtime.WorkerInfo, error) {
-	// 1. Check if container exists
-	filter := filters.NewArgs()
-	filter.Add("label", fmt.Sprintf("esb_function=%s", req.FunctionName))
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
-	containers, err := r.client.ContainerList(ctx, container.ListOptions{
-		Filters: filter,
-		All:     true,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to list containers: %w", err)
+	// Phase 4-1: Factory behavior. Always create a new container.
+	// Pool management is handled by the Gateway.
+
+	image := req.Image
+	if image == "" {
+		image = fmt.Sprintf("%s:latest", req.FunctionName)
 	}
 
-	var containerID string
-	// var containerName string // info.Name will be used from inspect
+	containerName := fmt.Sprintf("lambda-%s-%d", req.FunctionName, time.Now().UnixNano())
 
-	if len(containers) > 0 {
-		c := containers[0]
-		containerID = c.ID
+	envList := make([]string, 0, len(req.Env))
+	for k, v := range req.Env {
+		envList = append(envList, fmt.Sprintf("%s=%s", k, v))
+	}
 
-		if c.State != "running" {
-			if err := r.client.ContainerStart(ctx, containerID, container.StartOptions{}); err != nil {
-				return nil, fmt.Errorf("failed to start existing container: %w", err)
-			}
-		}
+	config := &container.Config{
+		Image: image,
+		Env:   envList,
+		Labels: map[string]string{
+			"esb_function": req.FunctionName,
+			"created_by":   "esb-agent",
+		},
+		ExposedPorts: nat.PortSet{
+			"8080/tcp": struct{}{},
+		},
+	}
 
-		_ = r.client.NetworkConnect(ctx, r.networkID, containerID, &network.EndpointSettings{})
-	} else {
-		image := req.Image
-		if image == "" {
-			image = fmt.Sprintf("%s:latest", req.FunctionName)
-		}
+	hostConfig := &container.HostConfig{
+		RestartPolicy: container.RestartPolicy{Name: "no"},
+	}
 
-		containerName := fmt.Sprintf("lambda-%s-%d", req.FunctionName, time.Now().UnixNano())
+	networkingConfig := &network.NetworkingConfig{
+		EndpointsConfig: map[string]*network.EndpointSettings{
+			r.networkID: {},
+		},
+	}
 
-		envList := make([]string, 0, len(req.Env))
-		for k, v := range req.Env {
-			envList = append(envList, fmt.Sprintf("%s=%s", k, v))
-		}
+	fmt.Printf("[Agent] Creating new container %s for %s\n", containerName, req.FunctionName)
+	resp, err := r.client.ContainerCreate(ctx, config, hostConfig, networkingConfig, nil, containerName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create container: %w", err)
+	}
+	containerID := resp.ID
 
-		config := &container.Config{
-			Image: image,
-			Env:   envList,
-			Labels: map[string]string{
-				"esb_function": req.FunctionName,
-				"created_by":   "esb-agent",
-			},
-			ExposedPorts: nat.PortSet{
-				"8080/tcp": struct{}{},
-			},
-		}
-
-		hostConfig := &container.HostConfig{
-			RestartPolicy: container.RestartPolicy{Name: "no"},
-		}
-
-		networkingConfig := &network.NetworkingConfig{
-			EndpointsConfig: map[string]*network.EndpointSettings{
-				r.networkID: {},
-			},
-		}
-
-		resp, err := r.client.ContainerCreate(ctx, config, hostConfig, networkingConfig, nil, containerName)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create container: %w", err)
-		}
-		containerID = resp.ID
-
-		if err := r.client.ContainerStart(ctx, containerID, container.StartOptions{}); err != nil {
-			return nil, fmt.Errorf("failed to start container: %w", err)
-		}
+	if err := r.client.ContainerStart(ctx, containerID, container.StartOptions{}); err != nil {
+		return nil, fmt.Errorf("failed to start container: %w", err)
 	}
 
 	info, err := r.client.ContainerInspect(ctx, containerID)
@@ -166,8 +148,45 @@ func (r *Runtime) GC(ctx context.Context) error {
 }
 
 // List returns the state of all managed containers.
-// Phase 3: Docker runtime returns empty list as per plan (containerd only for now).
 func (r *Runtime) List(ctx context.Context) ([]runtime.ContainerState, error) {
-	// Stub: Docker runtime doesn't implement List for Phase 3
-	return []runtime.ContainerState{}, nil
+	filter := filters.NewArgs()
+	filter.Add("label", "created_by=esb-agent")
+
+	containers, err := r.client.ContainerList(ctx, container.ListOptions{
+		Filters: filter,
+		All:     true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list containers: %w", err)
+	}
+
+	states := make([]runtime.ContainerState, 0, len(containers))
+	for _, c := range containers {
+		funcName := c.Labels["esb_function"]
+		if funcName == "" {
+			continue
+		}
+
+		// Docker API doesn't provide precise last_used_at.
+		// For Phase 1/3, we use Created time as a base.
+		createdTime := time.Unix(c.Created, 0)
+
+		// Docker names start with /
+		name := ""
+		if len(c.Names) > 0 {
+			name = c.Names[0]
+			if name[0] == '/' {
+				name = name[1:]
+			}
+		}
+
+		states = append(states, runtime.ContainerState{
+			ID:            c.ID,
+			FunctionName:  funcName,
+			Status:        c.State, // "running", "exited", etc.
+			LastUsedAt:    createdTime,
+			ContainerName: name,
+		})
+	}
+	return states, nil
 }

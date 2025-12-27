@@ -13,13 +13,9 @@ import subprocess
 import pytest
 from tests.conftest import call_api
 
-# Skip entire module when using Go Agent (no PoolManager/scaling support)
+# Note: Auto-Scaling tests were previously skipped for Go Agent mode.
+# With Phase 4-1, Concurrency Control is implemented in Gateway, so we can run these.
 USE_GRPC_AGENT = os.environ.get("USE_GRPC_AGENT", "false").lower() == "true"
-pytestmark = pytest.mark.skipif(
-    USE_GRPC_AGENT,
-    reason="Auto-Scaling tests require PoolManager mode (USE_GRPC_AGENT=False). "
-    "Go Agent does not support multi-container scaling.",
-)
 
 
 def get_container_ids(function_name: str) -> list[str]:

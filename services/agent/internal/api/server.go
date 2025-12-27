@@ -92,10 +92,11 @@ func (s *AgentServer) ListContainers(ctx context.Context, req *pb.ListContainers
 	var containers []*pb.ContainerState
 	for _, s := range states {
 		containers = append(containers, &pb.ContainerState{
-			ContainerId:  s.ID,
-			FunctionName: s.FunctionName,
-			Status:       s.Status,
-			LastUsedAt:   s.LastUsedAt.Unix(),
+			ContainerId:   s.ID,
+			FunctionName:  s.FunctionName,
+			Status:        s.Status,
+			LastUsedAt:    s.LastUsedAt.Unix(),
+			ContainerName: s.ContainerName,
 		})
 	}
 

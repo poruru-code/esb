@@ -101,8 +101,26 @@ class PoolManager:
         # function_name is in between
         return "-".join(parts[1:-1])
 
+    async def cleanup_all_containers(self) -> int:
+        """Agent から全コンテナを取得し、すべて削除する（起動時のクリーンアップ用）"""
+        try:
+            containers = await self.provision_client.list_containers()
+            count = 0
+            for worker in containers:
+                try:
+                    await self.provision_client.delete_container(worker.id)
+                    count += 1
+                except Exception as e:
+                    logger.error(f"Failed to delete orphan container {worker.id}: {e}")
+            if count > 0:
+                logger.info(f"Cleanup: Removed {count} orphan containers on startup")
+            return count
+        except Exception as e:
+            logger.error(f"Failed to cleanup all containers: {e}")
+            return 0
+
     async def sync_with_manager(self) -> None:
-        """Orchestrator から既存コンテナを取得しプールに取り込み"""
+        """Orchestrator から既存コンテナを取得しプールに取り込み (Phase 1 互換)"""
         try:
             containers = await self.provision_client.list_containers()
             adopted_count = 0

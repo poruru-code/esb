@@ -93,10 +93,11 @@ class ContainerPool:
                 self._all_workers.add(worker)
                 self._provisioning_count -= 1
                 return worker
-        except Exception:
-            # 失敗した場合は予約した枠を戻し、待機者を起こす
+        except BaseException:
+            # 失敗（またはキャンセル）した場合は予約した枠を戻し、待機者を起こす
             async with self._cv:
-                self._provisioning_count -= 1
+                if self._provisioning_count > 0:
+                    self._provisioning_count -= 1
                 self._cv.notify_all()
             raise
 

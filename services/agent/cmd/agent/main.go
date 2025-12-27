@@ -76,12 +76,12 @@ func main() {
 		signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 		<-sigCh
 		log.Println("Received shutdown signal, cleaning up...")
-		
+
 		// Perform GC before shutdown
 		if err := rt.GC(context.Background()); err != nil {
 			log.Printf("Warning: GC during shutdown failed: %v", err)
 		}
-		
+
 		log.Println("Shutting down gRPC server...")
 		grpcServer.GracefulStop()
 	}()

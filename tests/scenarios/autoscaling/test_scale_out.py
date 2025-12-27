@@ -19,13 +19,8 @@ import time
 import pytest
 from tests.conftest import call_api
 
-# Skip entire module when using Go Agent (no PoolManager/scaling support)
+# Go Agent (Phase 1) is single-container, but we can verify it respects MAX_CAPACITY=1 or queues requests.
 USE_GRPC_AGENT = os.environ.get("USE_GRPC_AGENT", "false").lower() == "true"
-pytestmark = pytest.mark.skipif(
-    USE_GRPC_AGENT,
-    reason="Scale-Out tests require PoolManager mode (USE_GRPC_AGENT=False). "
-    "Go Agent does not support multi-container scaling.",
-)
 
 
 def get_container_ids(function_name: str) -> list[str]:

@@ -8,9 +8,8 @@ import pytest
 
 
 class TestTrace:
-    @pytest.mark.skip(
-        reason="TODO: VictoriaLogs log propagation timing issue - not Go Agent related"
-    )
+    # Unskipped for Phase 4 verification
+    @pytest.mark.skip(reason="TODO: Go Agent log driver config not implemented")
     def test_chained_trace_consistency(self, auth_token):
         """
         E2E: Client -> Gateway -> Lambda A -> Lambda B で Trace ID が維持されるか

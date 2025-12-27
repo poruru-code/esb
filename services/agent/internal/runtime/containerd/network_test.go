@@ -14,7 +14,7 @@ import (
 func TestRuntime_SetupNetwork(t *testing.T) {
 	mockCNI := new(MockCNI)
 	mockPA := NewPortAllocator(20000, 20000)
-	
+
 	// Create Runtime with mocks
 	rt := NewRuntime(nil, mockCNI, mockPA, "esb")
 
@@ -46,14 +46,14 @@ func TestRuntime_SetupNetwork(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "10.88.0.2", ip)
 	assert.Equal(t, 20000, port)
-	
+
 	mockCNI.AssertExpectations(t)
 }
 
 func TestRuntime_SetupNetwork_RetryRollback(t *testing.T) {
 	mockCNI := new(MockCNI)
 	mockPA := NewPortAllocator(20000, 20000)
-	
+
 	rt := NewRuntime(nil, mockCNI, mockPA, "esb")
 
 	mockC := new(MockContainer)
@@ -69,7 +69,7 @@ func TestRuntime_SetupNetwork_RetryRollback(t *testing.T) {
 	// Test Setup failure
 	_, _, err := rt.setupNetwork(ctx, mockC, mockT)
 	assert.Error(t, err)
-	
+
 	// Verify port was released (can allocate again)
 	port2, err := mockPA.Allocate()
 	assert.NoError(t, err)

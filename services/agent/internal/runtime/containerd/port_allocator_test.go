@@ -1,8 +1,8 @@
 package containerd
 
 import (
-	"testing"
 	"github.com/stretchr/testify/assert"
+	"testing"
 )
 
 func TestPortAllocator_Allocate(t *testing.T) {
@@ -26,7 +26,7 @@ func TestPortAllocator_Allocate(t *testing.T) {
 
 func TestPortAllocator_Release(t *testing.T) {
 	pa := NewPortAllocator(20000, 20000)
-	
+
 	port, err := pa.Allocate()
 	assert.NoError(t, err)
 	assert.Equal(t, 20000, port)
