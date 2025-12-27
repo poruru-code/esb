@@ -1,0 +1,15 @@
+FROM golang:1.24
+
+WORKDIR /app
+
+# Install Air for hot reload
+RUN go install github.com/air-verse/air@latest
+
+# Copy module files for caching
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Note: We don't COPY . . here because we use volume mounts in docker-compose.dev.yml
+# but for initial setup or if volumes are not used, it doesn't hurt.
+
+CMD ["air", "-c", ".air.toml"]

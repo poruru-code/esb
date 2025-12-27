@@ -28,6 +28,7 @@ from .services.route_matcher import RouteMatcher
 from .services.lambda_invoker import LambdaInvoker
 from .services.pool_manager import PoolManager
 from .services.janitor import HeartbeatJanitor
+from .services.grpc_backend import GrpcBackend
 from .clients import ProvisionClient, HeartbeatClient
 
 from .api.deps import (
@@ -94,43 +95,49 @@ async def lifespan(app: FastAPI):
             }
         }
 
-    provision_client = ProvisionClient(
-        client,
-        config.ORCHESTRATOR_URL,
-        config.LAMBDA_PORT,
-        config.ORCHESTRATOR_TIMEOUT,
-        function_registry,
-    )
-    pool_manager = PoolManager(
-        provision_client=provision_client,
-        config_loader=config_loader,
-    )
+    orchestrator_client = OrchestratorClient(client)
 
-    heartbeat_client = HeartbeatClient(client, config.ORCHESTRATOR_URL)
-    janitor = HeartbeatJanitor(
-        pool_manager=pool_manager,
-        manager_client=heartbeat_client,
-        interval=config.HEARTBEAT_INTERVAL,
-        idle_timeout=config.GATEWAY_IDLE_TIMEOUT_SECONDS,
-    )
+    if config.USE_GRPC_AGENT:
+        logger.info(f"Initializing Gateway with Go Agent gRPC Backend: {config.AGENT_GRPC_ADDRESS}")
+        grpc_backend = GrpcBackend(config.AGENT_GRPC_ADDRESS)
+        invocation_backend = grpc_backend
+        janitor = None
+        pool_manager = None  # Phase 1: Direct GrpcBackend bypasses PoolManager
+    else:
+        provision_client = ProvisionClient(
+            client,
+            config.ORCHESTRATOR_URL,
+            config.LAMBDA_PORT,
+            config.ORCHESTRATOR_TIMEOUT,
+            function_registry,
+        )
+        pool_manager = PoolManager(
+            provision_client=provision_client,
+            config_loader=config_loader,
+        )
 
-    # 1. Sync active containers (Adoption)
-    await pool_manager.sync_with_manager()
+        heartbeat_client = HeartbeatClient(client, config.ORCHESTRATOR_URL)
+        janitor = HeartbeatJanitor(
+            pool_manager=pool_manager,
+            manager_client=heartbeat_client,
+            interval=config.HEARTBEAT_INTERVAL,
+            idle_timeout=config.GATEWAY_IDLE_TIMEOUT_SECONDS,
+        )
 
-    # 2. Start Janitor (Heartbeat + Pruning)
-    await janitor.start()
-    logger.info(
-        f"Gateway initialized with PoolManager + HeartbeatJanitor (interval: {config.HEARTBEAT_INTERVAL}s, idle: {config.GATEWAY_IDLE_TIMEOUT_SECONDS}s)"
-    )
+        # 1. Sync active containers (Adoption)
+        await pool_manager.sync_with_manager()
 
-    # Create LambdaInvoker with PoolManager as backend
+        # 2. Start Janitor (Heartbeat + Pruning)
+        await janitor.start()
+        invocation_backend = pool_manager
+
+    # Create LambdaInvoker with chosen backend
     lambda_invoker = LambdaInvoker(
         client=client,
         registry=function_registry,
         config=config,
-        backend=pool_manager,
+        backend=invocation_backend,
     )
-    orchestrator_client = OrchestratorClient(client)
 
     # Store in app.state for DI
     app.state.http_client = client
@@ -140,6 +147,8 @@ async def lifespan(app: FastAPI):
     app.state.orchestrator_client = orchestrator_client
     app.state.event_builder = V1ProxyEventBuilder()
     app.state.pool_manager = pool_manager
+    if config.USE_GRPC_AGENT:
+        app.state.grpc_backend = grpc_backend
 
     logger.info("Gateway initialized with shared resources.")
 
@@ -151,6 +160,9 @@ async def lifespan(app: FastAPI):
 
     if pool_manager:
         await pool_manager.shutdown_all()
+
+    if config.USE_GRPC_AGENT and hasattr(app.state, "grpc_backend"):
+        await app.state.grpc_backend.close()
 
     logger.info("Gateway shutting down, closing http client.")
     await client.aclose()

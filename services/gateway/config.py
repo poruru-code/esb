@@ -68,6 +68,10 @@ class GatewayConfig(BaseAppConfig):
         default=300, description="Gateway側アイドルタイムアウト(秒)"
     )
 
+    # Phase 1: Go Agent Settings
+    AGENT_GRPC_ADDRESS: str = Field(default="esb-agent:50051", description="Go Agent gRPC address")
+    USE_GRPC_AGENT: bool = Field(default=False, description="Whether to use Go Agent via gRPC")
+
     # FastAPI設定
     root_path: str = Field(default="", description="APIのルートパス（プロキシ用）")
 

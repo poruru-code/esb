@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package esb.agent.v1;
+option go_package = "github.com/poruru/edge-serverless-box/services/agent/pkg/api/v1";
+
+service AgentService {
+  // コンテナを確保し、接続情報を返す (なければ起動、あれば再利用)
+  rpc EnsureContainer (EnsureContainerRequest) returns (WorkerInfo);
+  
+  // 明示的にコンテナを停止・削除する
+  rpc DestroyContainer (DestroyContainerRequest) returns (DestroyContainerResponse);
+}
+
+message EnsureContainerRequest {
+  string function_name = 1;
+  string image = 2;
+  map<string, string> env = 3;
+}
+
+message DestroyContainerRequest {
+  string function_name = 1;
+  string container_id = 2;
+}
+
+message DestroyContainerResponse {
+  bool success = 1;
+}
+
+message WorkerInfo {
+  string id = 1;
+  string name = 2;
+  string ip_address = 3;
+  int32 port = 4;
+}

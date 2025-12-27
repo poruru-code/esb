@@ -127,7 +127,8 @@ services:
       - AUTH_PASS=${AUTH_PASS?AUTH_PASS is required}
       - CONTAINERS_NETWORK=${LAMBDA_NETWORK?LAMBDA_NETWORK is required}
       - GATEWAY_INTERNAL_URL=https://esb-gateway
-      - ORCHESTRATOR_URL=http://esb-orchestrator:8081
+      - USE_GRPC_AGENT=true
+      - AGENT_GRPC_ADDRESS=esb-agent:50051
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - RUSTFS_ACCESS_KEY=${RUSTFS_ACCESS_KEY?RUSTFS_ACCESS_KEY is required}
       - RUSTFS_SECRET_KEY=${RUSTFS_SECRET_KEY?RUSTFS_SECRET_KEY is required}
@@ -145,7 +146,7 @@ services:
       - HEARTBEAT_INTERVAL=${HEARTBEAT_INTERVAL:-30}
       - GATEWAY_IDLE_TIMEOUT_SECONDS=${GATEWAY_IDLE_TIMEOUT_SECONDS:-300}
     depends_on:
-      orchestrator:
+      agent:
         condition: service_started
       database:
         condition: service_healthy
@@ -156,26 +157,22 @@ services:
     restart: unless-stopped
 
   # ============================================
-  # Container Orchestrator
+  # Go Agent (Replacement for Orchestrator)
   # ============================================
-  orchestrator:
-    image: container-orchestrator:latest
+  agent:
+    image: esb-agent:latest
     build:
       context: .
-      dockerfile: services/orchestrator/Dockerfile
-    container_name: esb-orchestrator
+      dockerfile: services/agent/Dockerfile
+    container_name: esb-agent
     networks:
       - internal_network
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock # Privileged access for Docker-in-Docker behavior
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - CONTAINERS_NETWORK=${LAMBDA_NETWORK?LAMBDA_NETWORK is required}
-      - IDLE_TIMEOUT_MINUTES=${IDLE_TIMEOUT_MINUTES:-5}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - PYTHONUNBUFFERED=1
-      # VictoriaLogs 直接送信設定
-      - VICTORIALOGS_HOST=victorialogs
-      - VICTORIALOGS_PORT=9428
+      - PORT=50051
     restart: unless-stopped
 
 volumes:

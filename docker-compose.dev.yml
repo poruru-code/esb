@@ -7,3 +7,21 @@
 networks:
   esb-internal-network:
     internal: false  # 開発時は外部アクセス許可
+
+services:
+  agent:
+    build:
+      context: .
+      dockerfile: services/agent/Dockerfile.dev
+    container_name: esb-agent
+    volumes:
+      - ./services/agent:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - PORT=50051
+      - CONTAINERS_NETWORK=${LAMBDA_NETWORK:-esb-internal-network}
+      - LOG_LEVEL=DEBUG
+    networks:
+      - internal_network
+      - external_network
+    restart: unless-stopped
