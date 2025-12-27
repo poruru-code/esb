@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/cio"
 	"github.com/containerd/go-cni"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
 	"github.com/stretchr/testify/assert"
@@ -39,7 +40,13 @@ func TestRuntime_Ensure_NewContainer(t *testing.T) {
 	// 4. NewTask & Start
 	mockTask := new(MockTask)
 	mockTask.On("Pid").Return(uint32(1234))
-	mockContainer.On("NewTask", mock.Anything, mock.Anything, mock.Anything).Return(mockTask, nil)
+	
+	// Verify IO creator is passed (Log configuration check)
+	ioCreatorMatcher := mock.MatchedBy(func(c cio.Creator) bool {
+		return c != nil
+	})
+	mockContainer.On("NewTask", mock.Anything, ioCreatorMatcher, mock.Anything).Return(mockTask, nil)
+	
 	mockTask.On("Start", mock.Anything).Return(nil)
 	
 	// 5. CNI Setup (Expected)
@@ -105,10 +112,17 @@ func TestRuntime_Ensure_NetworkFailure_Rollback(t *testing.T) {
 	mockCNI.On("Setup", mock.Anything, "lambda-rollback-func-1234", "/proc/5678/ns/net", mock.Anything).Return(nil, fmt.Errorf("cni error"))
 
 	// 6. Rollback Expectations (Context separated cleanup)
-	// Expect Delete on Task (ProcessKill)
-	mockTask.On("Delete", mock.Anything, mock.Anything).Return(nil, nil)
-	// Expect Delete on Container (SnapshotCleanup)
-	mockContainer.On("Delete", mock.Anything, mock.Anything).Return(nil)
+	// Verify that the context passed to cleanup has a deadline (Timeout context)
+	// identifying it as the detached context, not the original background context.
+	ctxWithDeadlineMatcher := mock.MatchedBy(func(c context.Context) bool {
+		_, ok := c.Deadline()
+		return ok
+	})
+
+	// Expect Delete on Task (ProcessKill) with detached context
+	mockTask.On("Delete", ctxWithDeadlineMatcher, mock.Anything).Return(nil, nil)
+	// Expect Delete on Container (SnapshotCleanup) with detached context
+	mockContainer.On("Delete", ctxWithDeadlineMatcher, mock.Anything).Return(nil)
 
 	// Execute
 	info, err := rt.Ensure(ctx, req)
