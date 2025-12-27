@@ -131,7 +131,9 @@ async def test_lambda_connection_error_logged_at_error_level(caplog):
 
     # Assert: Error level log should exist
     assert any(
-        record.levelname == "ERROR" and "Lambda invocation failed" in record.message
+        record.levelname == "ERROR"
+        and record.name == "gateway.lambda_invoker"
+        and "Lambda invocation failed" in record.message
         for record in caplog.records
     ), "Lambda connection error should be logged at ERROR level"
 
@@ -188,7 +190,9 @@ async def test_lambda_connection_error_includes_detailed_info(caplog):
     app.dependency_overrides = {}
 
     # Assert: Log record should contain detailed info in extra fields
-    error_records = [r for r in caplog.records if r.levelname == "ERROR"]
+    error_records = [
+        r for r in caplog.records if r.levelname == "ERROR" and r.name == "gateway.lambda_invoker"
+    ]
     if not error_records:
         print("\nCaptured Log Records:")
         for r in caplog.records:

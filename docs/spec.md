@@ -19,9 +19,9 @@ flowchart TD
         DB["ScyllaDB<br>(:8001)"]
         Logs["VictoriaLogs<br>(:9428)"]
         
-        Gateway -->|Pool Management| PoolOrchestrator["PoolOrchestrator"]
-        PoolOrchestrator -->|Capacity Control| ContainerPool["ContainerPool"]
-        PoolOrchestrator -->|Status Sync| HeartbeatJanitor["HeartbeatJanitor"]
+        Gateway -->|Pool Management| PoolManager["PoolManager"]
+        PoolManager -->|Capacity Control| ContainerPool["ContainerPool"]
+        PoolManager -->|Status Sync| HeartbeatJanitor["HeartbeatJanitor"]
         
         Lambda["Lambda Function<br>(Ephemeral Containers)"]
     end
@@ -72,7 +72,7 @@ gateway/app/
 | モジュール                      | 責務                                                                 |
 | ------------------------------- | -------------------------------------------------------------------- |
 | `core/proxy.py`                 | API Gateway Lambda Proxy Integration互換イベント構築、Lambda RIE転送 |
-| `services/pool_orchestrator.py` | コンテナのキャパシティ確保、プロビジョニング要求、返却管理           |
+| `services/pool_manager.py` | コンテナのキャパシティ確保、プロビジョニング要求、返却管理           |
 | `services/container_pool.py`    | 関数ごとの Condition 待ち行列管理とコンテナインスタンスの保持       |
 | `services/lambda_invoker.py`    | `httpx` を使用した Lambda RIE へのリクエスト送信                     |
 

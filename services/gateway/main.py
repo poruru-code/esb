@@ -20,14 +20,15 @@ from .core.security import create_access_token
 from .core.utils import parse_lambda_response
 from .models import AuthRequest, AuthResponse, AuthenticationResult
 from .client import OrchestratorClient
-from .services.container_manager import HttpContainerManager
 from .core.event_builder import V1ProxyEventBuilder
 
 # Services Imports
 from .services.function_registry import FunctionRegistry
 from .services.route_matcher import RouteMatcher
 from .services.lambda_invoker import LambdaInvoker
-from .services.legacy_adapter import LegacyBackendAdapter
+from .services.pool_manager import PoolManager
+from .services.janitor import HeartbeatJanitor
+from .clients import ProvisionClient, HeartbeatClient
 
 from .api.deps import (
     UserIdDep,
@@ -75,150 +76,59 @@ async def lifespan(app: FastAPI):
     function_registry.load_functions_config()
     route_matcher.load_routing_config()
 
-    container_manager = HttpContainerManager(config, client)
-
-    # === Auto-Scaling: Pool Mode Initialization ===
-    pool_manager = None
-    janitor = None
-
-    if config.ENABLE_CONTAINER_POOLING:
-        from .services.pool_manager import PoolManager
-        from .services.janitor import HeartbeatJanitor
-
-        # Create a provision client wrapper for PoolManager
-        class ProvisionClient:
-            """Wrapper for Manager provision API"""
-
-            def __init__(self, http_client: httpx.AsyncClient, manager_url: str):
-                self.client = http_client
-                self.manager_url = manager_url
-
-            async def provision(self, function_name: str):
-                """Provision a container and return WorkerInfo list"""
-                from services.common.models.internal import WorkerInfo
-
-                func_config = function_registry.get_function_config(function_name)
-                image = func_config.get("image") if func_config else None
-                env = func_config.get("environment", {}) if func_config else {}
-
-                response = await self.client.post(
-                    f"{self.manager_url}/containers/provision",
-                    json={
-                        "function_name": function_name,
-                        "count": 1,
-                        "image": image,
-                        "env": env,
-                    },
-                    timeout=config.ORCHESTRATOR_TIMEOUT,
-                )
-                response.raise_for_status()
-                data = response.json()
-                return [
-                    WorkerInfo(
-                        id=w["id"],
-                        name=w["name"],
-                        ip_address=w["ip_address"],
-                        port=w.get("port", config.LAMBDA_PORT),
-                        created_at=w.get("created_at", 0.0),
-                        last_used_at=w.get("last_used_at", 0.0),
-                    )
-                    for w in data["workers"]
-                ]
-
-            async def delete_container(self, container_id: str):
-                """Delete a container"""
-                url = f"{self.manager_url}/containers/{container_id}"
-                response = await self.client.delete(url, timeout=config.ORCHESTRATOR_TIMEOUT)
-                response.raise_for_status()
-
-            async def list_containers(self):
-                """List all managed containers"""
-                from services.common.models.internal import WorkerInfo
-
-                url = f"{self.manager_url}/containers/sync"
-                response = await self.client.get(url, timeout=config.ORCHESTRATOR_TIMEOUT)
-                response.raise_for_status()
-                data = response.json()
-                return [
-                    WorkerInfo(
-                        id=w["id"],
-                        name=w["name"],
-                        ip_address=w["ip_address"],
-                        port=w.get("port", config.LAMBDA_PORT),
-                        created_at=w.get("created_at", 0.0),
-                        last_used_at=w.get("last_used_at", 0.0),
-                    )
-                    for w in data["containers"]
-                ]
-
-        def config_loader(function_name: str):
-            """Load scaling config for a function"""
-            func_config = function_registry.get_function_config(function_name) or {}
-            return {
-                "scaling": {
-                    "max_capacity": func_config.get("scaling", {}).get(
-                        "max_capacity", config.DEFAULT_MAX_CAPACITY
-                    ),
-                    "min_capacity": func_config.get("scaling", {}).get(
-                        "min_capacity", config.DEFAULT_MIN_CAPACITY
-                    ),
-                    "acquire_timeout": func_config.get("scaling", {}).get(
-                        "acquire_timeout", config.POOL_ACQUIRE_TIMEOUT
-                    ),
-                }
+    # === Auto-Scaling: Pool Initialization ===
+    def config_loader(function_name: str):
+        """Load scaling config for a function"""
+        func_config = function_registry.get_function_config(function_name) or {}
+        return {
+            "scaling": {
+                "max_capacity": func_config.get("scaling", {}).get(
+                    "max_capacity", config.DEFAULT_MAX_CAPACITY
+                ),
+                "min_capacity": func_config.get("scaling", {}).get(
+                    "min_capacity", config.DEFAULT_MIN_CAPACITY
+                ),
+                "acquire_timeout": func_config.get("scaling", {}).get(
+                    "acquire_timeout", config.POOL_ACQUIRE_TIMEOUT
+                ),
             }
+        }
 
-        provision_client = ProvisionClient(client, config.ORCHESTRATOR_URL)
-        pool_manager = PoolManager(
-            provision_client=provision_client,
-            config_loader=config_loader,
-        )
+    provision_client = ProvisionClient(
+        client,
+        config.ORCHESTRATOR_URL,
+        config.LAMBDA_PORT,
+        config.ORCHESTRATOR_TIMEOUT,
+        function_registry,
+    )
+    pool_manager = PoolManager(
+        provision_client=provision_client,
+        config_loader=config_loader,
+    )
 
-        # Create Manager client wrapper for heartbeat
-        class HeartbeatClient:
-            """Wrapper for Manager heartbeat API"""
+    heartbeat_client = HeartbeatClient(client, config.ORCHESTRATOR_URL)
+    janitor = HeartbeatJanitor(
+        pool_manager=pool_manager,
+        manager_client=heartbeat_client,
+        interval=config.HEARTBEAT_INTERVAL,
+        idle_timeout=config.GATEWAY_IDLE_TIMEOUT_SECONDS,
+    )
 
-            def __init__(self, http_client: httpx.AsyncClient, manager_url: str):
-                self.client = http_client
-                self.manager_url = manager_url
+    # 1. Sync active containers (Adoption)
+    await pool_manager.sync_with_manager()
 
-            async def heartbeat(self, function_name: str, container_names: list):
-                await self.client.post(
-                    f"{self.manager_url}/containers/heartbeat",
-                    json={"function_name": function_name, "container_names": container_names},
-                    timeout=10.0,
-                )
+    # 2. Start Janitor (Heartbeat + Pruning)
+    await janitor.start()
+    logger.info(
+        f"Gateway initialized with PoolManager + HeartbeatJanitor (interval: {config.HEARTBEAT_INTERVAL}s, idle: {config.GATEWAY_IDLE_TIMEOUT_SECONDS}s)"
+    )
 
-        heartbeat_client = HeartbeatClient(client, config.ORCHESTRATOR_URL)
-        janitor = HeartbeatJanitor(
-            pool_manager=pool_manager,
-            manager_client=heartbeat_client,
-            interval=config.HEARTBEAT_INTERVAL,
-            idle_timeout=config.GATEWAY_IDLE_TIMEOUT_SECONDS,
-        )
-
-        # 1. Sync active containers (Adoption)
-        await pool_manager.sync_with_manager()
-
-        # 2. Start Janitor (Heartbeat + Pruning)
-        await janitor.start()
-        logger.info(
-            f"Auto-Scaling enabled: PoolManager + HeartbeatJanitor (interval: {config.HEARTBEAT_INTERVAL}s, idle: {config.GATEWAY_IDLE_TIMEOUT_SECONDS}s)"
-        )
-
-    # Strategy Pattern: Select backend
-    if pool_manager:
-        backend = pool_manager
-    else:
-        # Fallback to Legacy Mode via adapter
-        backend = LegacyBackendAdapter(container_manager, config, function_registry)
-
-    # Create LambdaInvoker with strategy backend
+    # Create LambdaInvoker with PoolManager as backend
     lambda_invoker = LambdaInvoker(
         client=client,
         registry=function_registry,
         config=config,
-        backend=backend,
+        backend=pool_manager,
     )
     orchestrator_client = OrchestratorClient(client)
 
@@ -228,9 +138,8 @@ async def lifespan(app: FastAPI):
     app.state.route_matcher = route_matcher
     app.state.lambda_invoker = lambda_invoker
     app.state.orchestrator_client = orchestrator_client
-    app.state.container_manager = container_manager
     app.state.event_builder = V1ProxyEventBuilder()
-    app.state.pool_manager = pool_manager  # May be None
+    app.state.pool_manager = pool_manager
 
     logger.info("Gateway initialized with shared resources.")
 

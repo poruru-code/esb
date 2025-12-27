@@ -60,19 +60,11 @@ class TestLambdaInvokerPoolMode:
         client.post = AsyncMock(return_value=response)
         return client
 
-    @pytest.fixture
-    def mock_container_manager(self):
-        """Mock ContainerManagerProtocol (legacy mode)"""
-        cm = MagicMock()
-        cm.get_lambda_host = AsyncMock(return_value="legacy-host")
-        return cm
-
     @pytest.mark.asyncio
     async def test_invoke_with_pool_acquires_worker(
         self,
         mock_http_client,
         mock_registry,
-        mock_container_manager,
         mock_config,
         mock_pool_manager,
     ):
@@ -88,16 +80,14 @@ class TestLambdaInvokerPoolMode:
 
         await invoker.invoke_function("hello-world", b'{"test": 1}')
 
-        # Pool manager should be used instead of container_manager
+        # Pool manager should be used
         mock_pool_manager.acquire_worker.assert_called_once_with("hello-world")
-        mock_container_manager.get_lambda_host.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_invoke_with_pool_releases_on_success(
         self,
         mock_http_client,
         mock_registry,
-        mock_container_manager,
         mock_config,
         mock_pool_manager,
     ):
@@ -115,7 +105,7 @@ class TestLambdaInvokerPoolMode:
             backend=mock_pool_manager,
         )
 
-        await invoker.invoke_function("hello-world", b'{}')
+        await invoker.invoke_function("hello-world", b"{}")
 
         mock_pool_manager.release_worker.assert_called_once_with("hello-world", worker)
 
@@ -124,7 +114,6 @@ class TestLambdaInvokerPoolMode:
         self,
         mock_http_client,
         mock_registry,
-        mock_container_manager,
         mock_config,
         mock_pool_manager,
     ):
@@ -144,33 +133,8 @@ class TestLambdaInvokerPoolMode:
         )
 
         with pytest.raises(Exception):  # LambdaExecutionError or ConnectError
-            await invoker.invoke_function("hello-world", b'{}')
+            await invoker.invoke_function("hello-world", b"{}")
 
         # Worker should be evicted, not released
         mock_pool_manager.evict_worker.assert_called_once_with("hello-world", worker)
         mock_pool_manager.release_worker.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_invoke_legacy_mode_when_pooling_disabled(
-        self,
-        mock_http_client,
-        mock_registry,
-        mock_container_manager,
-        mock_config,
-    ):
-        """When pool_manager is None, use legacy container_manager"""
-        from services.gateway.services.lambda_invoker import LambdaInvoker
-        from services.gateway.services.legacy_adapter import LegacyBackendAdapter
-
-        backend = LegacyBackendAdapter(mock_container_manager, mock_config, mock_registry)
-
-        invoker = LambdaInvoker(
-            client=mock_http_client,
-            registry=mock_registry,
-            config=mock_config,
-            backend=backend,  # Legacy mode via adapter
-        )
-
-        await invoker.invoke_function("hello-world", b'{}')
-
-        mock_container_manager.get_lambda_host.assert_called_once()

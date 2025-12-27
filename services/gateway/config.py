@@ -59,8 +59,7 @@ class GatewayConfig(BaseAppConfig):
         default=30.0, description="復旧試行までの待機時間(秒)"
     )
 
-    # Auto-Scaling (Feature Flag)
-    ENABLE_CONTAINER_POOLING: bool = Field(default=False, description="コンテナプーリングを有効化")
+    # Auto-Scaling
     DEFAULT_MAX_CAPACITY: int = Field(default=1, description="デフォルト最大容量")
     DEFAULT_MIN_CAPACITY: int = Field(default=0, description="デフォルト最小容量")
     POOL_ACQUIRE_TIMEOUT: float = Field(default=30.0, description="ワーカー取得タイムアウト")

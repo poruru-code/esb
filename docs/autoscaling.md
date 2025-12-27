@@ -93,10 +93,10 @@ MyFunction:
 
 | 変数名 | 設定箇所 | 説明 | デフォルト値 |
 | :--- | :--- | :--- | :--- |
-| `ENABLE_CONTAINER_POOLING` | Gateway | プーリング機能の有効化 | `true` |
 | `GATEWAY_IDLE_TIMEOUT_SECONDS` | Gateway | **Active Pruning 用**。この時間を超えたアイドルコンテナは Gateway が能動的に削除します。 | `300` (5分) |
 | `CONTAINER_IDLE_TIMEOUT` | Orchestrator | **セーフガード用**。Gateway からのハートビートがこの時間を超えて途絶えると、Orchestrator が強制削除します。 | `90` |
 | `HEARTBEAT_INTERVAL` | Gateway | Orchestrator へのハートビート送信間隔（秒）。 | `30` |
+
 
 > [!NOTE]
 > `GATEWAY_IDLE_TIMEOUT_SECONDS` は、ユーザー体験（コールドスタート回避）とリソース節約のバランスを決める主要なパラメータです。

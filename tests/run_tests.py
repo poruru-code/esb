@@ -40,7 +40,10 @@ def main():
         "--test-target", type=str, help="Specific pytest target (e.g. tests/test_trace.py)"
     )
     parser.add_argument(
-        "--env-file", type=str, default="tests/environments/.env.standard", help="Path to env file (default: tests/environments/.env.standard)"
+        "--env-file",
+        type=str,
+        default="tests/environments/.env.standard",
+        help="Path to env file (default: tests/environments/.env.standard)",
     )
 
     args = parser.parse_args()
@@ -51,35 +54,24 @@ def main():
         cmd = [sys.executable, "-m", "pytest", "services/gateway/tests", "tools/cli/tests", "-v"]
         res = subprocess.run(cmd, cwd=PROJECT_ROOT, check=False)
         if res.returncode != 0:
-            print("\n❌ Unit Tests failed.")
+            print("\n[FAILED] Unit Tests failed.")
             sys.exit(res.returncode)
-        print("\n🎉 Unit Tests passed!")
+        print("\n[PASSED] Unit Tests passed!")
 
         if args.unit_only:
             sys.exit(0)
 
     # --- Scenarios Definition ---
-    # シナリオ定義: 名前, 環境変数ファイル, テスト対象 (ファイル or ディレクトリ)
+    # シナリオ定義: Legacy Mode 廃止に伴い、Auto-Scaling (PoolManager) に一本化
     SCENARIOS = [
-        {
-            "name": "Standard",
-            "env_file": "tests/environments/.env.standard",
-            "targets": [
-                "tests/scenarios/standard/",
-            ],
-            "exclude": []
-        },
         {
             "name": "Auto-Scaling",
             "env_file": "tests/environments/.env.autoscaling",
             "targets": [
                 "tests/scenarios/autoscaling/",
-                "tests/scenarios/standard/",  # Standard テストも実行
+                "tests/scenarios/standard/",
             ],
-            # Pool環境で動作が異なるテストを除外
-            "exclude": [
-                "tests/scenarios/standard/test_resilience.py",
-            ]
+            "exclude": [],
         }
     ]
 
@@ -89,40 +81,42 @@ def main():
         # env_file defaults need update if user doesn't specify
         # Should we look in environments/? Default to .env.standard in environments/
         default_env = "tests/environments/.env.standard"
-        
+
         user_scenario = {
             "name": "User-Specified",
-            "env_file": args.env_file if args.env_file != "tests/environments/.env.standard" else default_env, 
+            "env_file": args.env_file
+            if args.env_file != "tests/environments/.env.standard"
+            else default_env,
             # Note: parser default is "tests/.env.test", we should update parser default too or handle here.
             "targets": [args.test_target],
-            "exclude": []
+            "exclude": [],
         }
         run_scenario(args, user_scenario)
         sys.exit(0)
 
     # 全シナリオ実行モード
-    print("\n🚀 Starting Full E2E Test Suite (Scenario-Based)\n")
+    print("\nStarting Full E2E Test Suite (Scenario-Based)\n")
     failed_scenarios = []
 
     for scenario in SCENARIOS:
-        print(f"\n▶ Running Scenario: {scenario['name']}")
+        print(f"\n[Scenario] Running: {scenario['name']}")
         try:
             run_scenario(args, scenario)
         except SystemExit as e:
             if e.code != 0:
-                print(f"\n❌ Scenario '{scenario['name']}' FAILED.")
-                failed_scenarios.append(scenario['name'])
+                print(f"\n[FAILED] Scenario '{scenario['name']}' FAILED.")
+                failed_scenarios.append(scenario["name"])
             else:
-                 print(f"\n✅ Scenario '{scenario['name']}' PASSED.")
+                print(f"\n[PASSED] Scenario '{scenario['name']}' PASSED.")
         except Exception as e:
-            print(f"\n❌ Scenario '{scenario['name']}' FAILED with exception: {e}")
-            failed_scenarios.append(scenario['name'])
+            print(f"\n[FAILED] Scenario '{scenario['name']}' FAILED with exception: {e}")
+            failed_scenarios.append(scenario["name"])
 
     if failed_scenarios:
-        print(f"\n💥 The following scenarios failed: {', '.join(failed_scenarios)}")
+        print(f"\n[FAILED] The following scenarios failed: {', '.join(failed_scenarios)}")
         sys.exit(1)
-    
-    print("\n🎉 ALL SCENARIOS PASSED!")
+
+    print("\n[PASSED] ALL SCENARIOS PASSED!")
     sys.exit(0)
 
 
@@ -132,11 +126,11 @@ def run_scenario(args, scenario):
     # args.env_file は無視して scenario['env_file'] を使用
     env_path = PROJECT_ROOT / scenario["env_file"]
     if env_path.exists():
-        load_dotenv(env_path, override=True) # Override previous scenario vars
+        load_dotenv(env_path, override=True)  # Override previous scenario vars
         print(f"Loaded environment from: {env_path}")
     else:
         print(f"Warning: Environment file not found: {env_path}")
-    
+
     # Reload env vars into dict to pass to subprocess
     # NOTE: os.environ is updated by load_dotenv, but we explicitly fetch fresh copy
     env = os.environ.copy()
@@ -144,7 +138,7 @@ def run_scenario(args, scenario):
     # ESB_TEMPLATE etc setup (Shared logic)
     esb_template = os.getenv("ESB_TEMPLATE", "tests/fixtures/template.yaml")
     env["ESB_TEMPLATE"] = str(PROJECT_ROOT / esb_template)
-    
+
     separator = ";" if os.name == "nt" else ":"
     base_compose = "docker-compose.dind.yml" if args.dind else "docker-compose.yml"
     compose_files = [base_compose, "tests/docker-compose.test.yml"]
@@ -157,22 +151,23 @@ def run_scenario(args, scenario):
         # 2. Reset / Build
         # Reset is recommended between scenarios to force env var refresh in containers
         # But we can skip full artifact delete to save time, mostly just down/up needed
-        
+
         # Always DOWN first to stop containers from previous scenario
         run_esb(["down"], check=False)
-        
+
         if args.reset:
-             # Full reset requested (artifacts etc)
-             # ... (Same reset logic as before) ...
+            # Full reset requested (artifacts etc)
+            # ... (Same reset logic as before) ...
             import shutil
+
             esb_dir = PROJECT_ROOT / "tests" / "fixtures" / ".esb"
             if esb_dir.exists():
                 shutil.rmtree(esb_dir)
             run_esb(["build", "--no-cache"])
         elif args.build:
             run_esb(["build", "--no-cache"])
-        
-        # Ensure 'build' happens at least once if artifacts missing? 
+
+        # Ensure 'build' happens at least once if artifacts missing?
         # For now assume user runs with --build or --reset initially or artifacts exist.
 
         # 3. UP
@@ -180,33 +175,34 @@ def run_scenario(args, scenario):
         # Only rebuild if explicitly asked, otherwise reuse images
         if args.build or args.reset:
             up_args.append("--build")
-        
+
         run_esb(up_args)
 
         # 4. Run Tests
         print(f"\n=== Running Tests for {scenario['name']} ===\n")
-        
+
         pytest_cmd = [sys.executable, "-m", "pytest"] + scenario["targets"] + ["-v"]
-        
+
         # Excludes
         for excl in scenario["exclude"]:
             pytest_cmd.extend(["--ignore", excl])
 
         result = subprocess.run(pytest_cmd, cwd=PROJECT_ROOT, check=False, env=env)
-        
+
         if result.returncode != 0:
             sys.exit(result.returncode)
 
     except subprocess.CalledProcessError as e:
         print(f"Error executing command: {e}")
         sys.exit(1)
-    
+
     finally:
         # 5. Cleanup (Conditional)
         if args.cleanup:
             run_esb(["down"])
         # If not cleanup, we leave containers running for debugging last scenario
         # But next scenario execution will force down anyway.
+
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "run_scenario":
