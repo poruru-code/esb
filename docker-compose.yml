@@ -81,17 +81,17 @@ services:
     image: registry:2
     container_name: esb-registry
     ports:
-      - "${REGISTRY_PORT:-5000}:5000" # Registry API (ホストからのPush用)
+      - "${REGISTRY_PORT:-5010}:5010" # Registry API (ホストからのPush用)
     volumes:
       - registry_data:/var/lib/registry
       - ${ESB_CERT_DIR:-~/.esb/certs}/server.crt:/certs/server.crt:ro
       - ${ESB_CERT_DIR:-~/.esb/certs}/server.key:/certs/server.key:ro
     environment:
-      REGISTRY_HTTP_ADDR: 0.0.0.0:5000
+      REGISTRY_HTTP_ADDR: 0.0.0.0:5010
       REGISTRY_HTTP_TLS_CERTIFICATE: /certs/server.crt
       REGISTRY_HTTP_TLS_KEY: /certs/server.key
     healthcheck:
-      test: ["CMD", "wget", "-q", "-Y", "off", "--spider", "--no-check-certificate", "https://127.0.0.1:5000/v2/"]
+      test: ["CMD", "wget", "-q", "-Y", "off", "--spider", "--no-check-certificate", "https://127.0.0.1:5010/v2/"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -205,10 +205,10 @@ services:
       - CONTAINERS_NETWORK=${LAMBDA_NETWORK?LAMBDA_NETWORK is required}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - PORT=50051
-      # ⚠️ IMPORTANT: Step 1 (containerd移行) では 'esb-registry:5000' に変更必須
-      # Docker Runtime (Host共有): localhost:5000
-      # Containerd Runtime (Container間通信): esb-registry:5000
-      - CONTAINER_REGISTRY=localhost:5000
+      # ⚠️ IMPORTANT: Step 1 (containerd移行) では 'esb-registry:5010' に変更必須
+      # Docker Runtime (Host共有): localhost:5010
+      # Containerd Runtime (Container間通信): esb-registry:5010
+      - CONTAINER_REGISTRY=localhost:5010
     depends_on:
       registry:
         condition: service_healthy

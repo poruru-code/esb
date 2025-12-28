@@ -70,7 +70,7 @@ def build_base_image(no_cache=False):
         return False
 
     # レジストリプレフィックスを環境変数から取得（デフォルトはlocalhost:5000）
-    registry = os.getenv("CONTAINER_REGISTRY", "localhost:5000")
+    registry = os.getenv("CONTAINER_REGISTRY", "localhost:5010")
     image_tag = f"{registry}/{BASE_IMAGE_TAG}"
 
     logging.step("Building base image...")
@@ -130,7 +130,7 @@ def build_function_images(functions, template_path, no_cache=False, verbose=Fals
     client = docker.from_env()
 
     # レジストリプレフィックスを環境変数から取得（デフォルトはlocalhost:5000）
-    registry = os.getenv("CONTAINER_REGISTRY", "localhost:5000")
+    registry = os.getenv("CONTAINER_REGISTRY", "localhost:5010")
 
     logging.step("Building function images...")
 
