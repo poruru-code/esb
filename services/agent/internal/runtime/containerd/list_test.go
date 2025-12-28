@@ -14,8 +14,7 @@ import (
 func TestRuntime_List_Empty(t *testing.T) {
 	mockCli := new(MockClient)
 	mockCNI := new(MockCNI)
-	mockPA := NewPortAllocator(20000, 20100)
-	rt := NewRuntime(mockCli, mockCNI, mockPA, "esb")
+	rt := NewRuntime(mockCli, mockCNI, "esb")
 	ctx := context.Background()
 
 	// Mock: No containers exist
@@ -33,8 +32,7 @@ func TestRuntime_List_Empty(t *testing.T) {
 func TestRuntime_List_ReturnsContainerStates(t *testing.T) {
 	mockCli := new(MockClient)
 	mockCNI := new(MockCNI)
-	mockPA := NewPortAllocator(20000, 20100)
-	rt := NewRuntime(mockCli, mockCNI, mockPA, "esb")
+	rt := NewRuntime(mockCli, mockCNI, "esb")
 	ctx := context.Background()
 
 	// Pre-populate accessTracker to simulate a container that was used
@@ -76,8 +74,7 @@ func TestRuntime_List_ReturnsContainerStates(t *testing.T) {
 func TestRuntime_AccessTracker_RecordsOnResume(t *testing.T) {
 	mockCli := new(MockClient)
 	mockCNI := new(MockCNI)
-	mockPA := NewPortAllocator(20000, 20100)
-	rt := NewRuntime(mockCli, mockCNI, mockPA, "esb")
+	rt := NewRuntime(mockCli, mockCNI, "esb")
 	ctx := context.Background()
 	containerID := "lambda-resume-test-1234"
 

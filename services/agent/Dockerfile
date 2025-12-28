@@ -29,6 +29,8 @@ RUN CNI_PLUGINS_VERSION="v1.3.0" && \
     tar -C /opt/cni/bin -xzf cni-plugins.tgz && \
     rm cni-plugins.tgz
 
+COPY config/cni/ /etc/cni/net.d/
+
 COPY --from=builder /app/agent /app/agent
 
 ENV PORT=50051

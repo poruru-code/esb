@@ -45,6 +45,7 @@ async def test_lambda_invoker_invoke_flow():
     # Mock Backend
     mock_worker = MagicMock()
     mock_worker.ip_address = "10.0.0.5"
+    mock_worker.port = 9000
     backend.acquire_worker.return_value = mock_worker
 
     # Mock HTTP Client - return valid JSON response (not an error)
@@ -67,7 +68,7 @@ async def test_lambda_invoker_invoke_flow():
     backend.release_worker.assert_called_once_with(function_name, mock_worker)
 
     # 3. HTTP Client called
-    expected_url = f"http://10.0.0.5:{config.LAMBDA_PORT}/2015-03-31/functions/function/invocations"
+    expected_url = "http://10.0.0.5:9000/2015-03-31/functions/function/invocations"
     client.post.assert_called_once()
     assert client.post.call_args[0][0] == expected_url
 
@@ -89,6 +90,7 @@ async def test_lambda_invoker_logging_on_error():
     registry.get_function_config.return_value = {"image": "img", "environment": {}}
     mock_worker = MagicMock()
     mock_worker.ip_address = "host"
+    mock_worker.port = 8080
     backend.acquire_worker.return_value = mock_worker
     client.post.side_effect = httpx.RequestError("Connection failed")
 

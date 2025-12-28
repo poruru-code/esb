@@ -3,6 +3,7 @@ package containerd
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 	"sync"
@@ -19,22 +20,25 @@ import (
 type Runtime struct {
 	client        ContainerdClient
 	cni           cni.CNI
-	portAllocator *PortAllocator
+	cniMu         sync.Mutex // serialize CNI operations to avoid bridge races
 	namespace     string
 	accessTracker sync.Map // map[containerID]time.Time - tracks last access time
 }
 
-func NewRuntime(client ContainerdClient, cniBackend cni.CNI, portAllocator *PortAllocator, namespace string) *Runtime {
+// NewRuntime creates a new containerd runtime with CNI networking.
+func NewRuntime(client ContainerdClient, cniPlugin cni.CNI, namespace string) *Runtime {
 	return &Runtime{
-		client:        client,
-		cni:           cniBackend,
-		portAllocator: portAllocator,
-		namespace:     namespace,
+		client:    client,
+		cni:       cniPlugin,
+		namespace: namespace,
 	}
 }
 
 func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runtime.WorkerInfo, error) {
 	ctx = namespaces.WithNamespace(ctx, r.namespace)
+	if r.cni == nil {
+		return nil, fmt.Errorf("cni is not configured")
+	}
 
 	// Phase 4-1: Factory behavior. Always create a new container.
 	image := req.Image
@@ -63,10 +67,14 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 		envList = append(envList, fmt.Sprintf("%s=%s", k, v))
 	}
 
-	// 2. Create Container
+	// 2. Create Container with CNI networking
 	container, err := r.client.NewContainer(ctx, containerID,
-		containerd.WithNewSpec(oci.WithEnv(envList)),
+		containerd.WithSnapshotter("overlayfs"),
 		containerd.WithNewSnapshot(containerID, imgObj),
+		containerd.WithNewSpec(
+			oci.WithImageConfig(imgObj), // Apply image config (ENTRYPOINT, CMD, ENV, WORKDIR)
+			oci.WithEnv(envList),        // Override with custom env
+		),
 		containerd.WithContainerLabels(map[string]string{
 			runtime.LabelFunctionName: req.FunctionName,
 			runtime.LabelCreatedBy:    runtime.ValueCreatedByAgent,
@@ -76,39 +84,96 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 		return nil, fmt.Errorf("failed to create container: %w", err)
 	}
 
+	// DEBUG: Dump spec to verify configuration
+	spec, err := container.Spec(ctx)
+	if err != nil {
+		log.Printf("WARNING: failed to get spec: %v", err)
+	} else {
+		if spec.Root != nil {
+			log.Printf("DEBUG: Spec.Root.Path = %s", spec.Root.Path)
+		}
+		if spec.Process != nil {
+			log.Printf("DEBUG: Spec.Process.Args = %v", spec.Process.Args)
+		}
+	}
+
 	// 3. Create and Start Task
 	task, err := container.NewTask(ctx, cio.NewCreator(cio.WithStdio))
 	if err != nil {
+		container.Delete(ctx, containerd.WithSnapshotCleanup)
 		return nil, fmt.Errorf("failed to create task: %w", err)
 	}
 
 	if err := task.Start(ctx); err != nil {
+		task.Delete(ctx, containerd.WithProcessKill)
+		container.Delete(ctx, containerd.WithSnapshotCleanup)
 		return nil, fmt.Errorf("failed to start task: %w", err)
 	}
 
-	// 4. Setup Network
-	ip, port, err := r.setupNetwork(ctx, container, task)
+	netnsPath := fmt.Sprintf("/proc/%d/ns/net", task.Pid())
+	result, err := r.setupCNI(ctx, containerID, netnsPath)
 	if err != nil {
-		// Rollback task and container with detached context
-		cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		cleanupCtx = namespaces.WithNamespace(cleanupCtx, r.namespace)
-		defer cancel()
+		_ = r.removeCNI(ctx, containerID, netnsPath)
+		task.Delete(ctx, containerd.WithProcessKill)
+		container.Delete(ctx, containerd.WithSnapshotCleanup)
+		return nil, fmt.Errorf("failed to setup CNI network: %w", err)
+	}
 
-		// Best effort cleanup
-		_, _ = task.Delete(cleanupCtx, containerd.WithProcessKill)
-		_ = container.Delete(cleanupCtx, containerd.WithSnapshotCleanup)
-
-		return nil, fmt.Errorf("failed to setup network: %w", err)
+	ipAddress, err := extractIPv4(result)
+	if err != nil {
+		_ = r.removeCNI(ctx, containerID, netnsPath)
+		task.Delete(ctx, containerd.WithProcessKill)
+		container.Delete(ctx, containerd.WithSnapshotCleanup)
+		return nil, fmt.Errorf("failed to detect container IP: %w", err)
 	}
 
 	// Record access time for Janitor
 	r.accessTracker.Store(containerID, time.Now())
 
+	// CNI Mode: Lambda is accessible at container IP:8080
 	return &runtime.WorkerInfo{
 		ID:        containerID,
-		IPAddress: ip,
-		Port:      port,
+		IPAddress: ipAddress,
+		Port:      8080,
 	}, nil
+}
+
+func extractIPv4(result *cni.Result) (string, error) {
+	if result == nil {
+		return "", fmt.Errorf("CNI result is nil")
+	}
+	for _, cfg := range result.Interfaces {
+		for _, ipCfg := range cfg.IPConfigs {
+			if ip := ipCfg.IP.To4(); ip != nil {
+				return ip.String(), nil
+			}
+		}
+	}
+	return "", fmt.Errorf("no IPv4 address in CNI result")
+}
+
+func (r *Runtime) setupCNI(ctx context.Context, id, netnsPath string) (*cni.Result, error) {
+	var lastErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		r.cniMu.Lock()
+		result, err := r.cni.Setup(ctx, id, netnsPath)
+		r.cniMu.Unlock()
+		if err == nil {
+			return result, nil
+		}
+		lastErr = err
+		if !strings.Contains(err.Error(), "Link not found") {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return nil, lastErr
+}
+
+func (r *Runtime) removeCNI(ctx context.Context, id, netnsPath string) error {
+	r.cniMu.Lock()
+	defer r.cniMu.Unlock()
+	return r.cni.Remove(ctx, id, netnsPath)
 }
 
 func (r *Runtime) Destroy(ctx context.Context, id string) error {
@@ -122,6 +187,12 @@ func (r *Runtime) Destroy(ctx context.Context, id string) error {
 	// Delete task if exists
 	task, err := container.Task(ctx, nil)
 	if err == nil {
+		if r.cni != nil {
+			netnsPath := fmt.Sprintf("/proc/%d/ns/net", task.Pid())
+			if err := r.removeCNI(ctx, id, netnsPath); err != nil {
+				log.Printf("WARNING: failed to remove CNI network for %s: %v", id, err)
+			}
+		}
 		_, _ = task.Delete(ctx, containerd.WithProcessKill)
 	}
 
@@ -206,11 +277,21 @@ func (r *Runtime) List(ctx context.Context) ([]runtime.ContainerState, error) {
 			continue
 		}
 
-		// Get function name from labels
-		labels, err := c.Labels(ctx)
+		// Get container info for timestamps and labels.
+		info, infoErr := c.Info(ctx)
+		createdAt := time.Time{}
 		functionName := ""
-		if err == nil {
-			functionName = labels[runtime.LabelFunctionName]
+		if infoErr == nil {
+			createdAt = info.CreatedAt
+			functionName = info.Labels[runtime.LabelFunctionName]
+		} else {
+			labels, err := c.Labels(ctx)
+			if err == nil {
+				functionName = labels[runtime.LabelFunctionName]
+			}
+		}
+		if createdAt.IsZero() {
+			createdAt = time.Now()
 		}
 
 		// Get task status
@@ -235,7 +316,7 @@ func (r *Runtime) List(ctx context.Context) ([]runtime.ContainerState, error) {
 		}
 
 		// Get last access time from tracker
-		lastUsedAt := time.Time{}
+		lastUsedAt := createdAt
 		if val, ok := r.accessTracker.Load(containerID); ok {
 			lastUsedAt = val.(time.Time)
 		}
@@ -245,6 +326,8 @@ func (r *Runtime) List(ctx context.Context) ([]runtime.ContainerState, error) {
 			FunctionName: functionName,
 			Status:       status,
 			LastUsedAt:   lastUsedAt,
+			ContainerName: containerID,
+			CreatedAt:     createdAt,
 		})
 	}
 

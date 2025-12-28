@@ -11,7 +11,7 @@ import (
 
 func TestRuntime_GC(t *testing.T) {
 	mockCli := new(MockClient)
-	rt := NewRuntime(mockCli, nil, nil, "esb")
+	rt := NewRuntime(mockCli, nil, "esb")
 
 	// We expect GC will call Containers()
 	mockCli.On("Containers", mock.Anything, mock.Anything).Return([]containerd.Container{}, nil)

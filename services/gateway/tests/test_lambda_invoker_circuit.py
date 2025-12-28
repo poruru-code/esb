@@ -23,10 +23,10 @@ def mock_backend():
     # function_name に応じて異なるホストを返すように設定
     async def side_effect(function_name, **kwargs):
         if function_name == "func-1":
-            return WorkerInfo(id="c1", name="w1", ip_address="10.0.0.1")
+            return WorkerInfo(id="c1", name="w1", ip_address="10.0.0.1", port=9001)
         if function_name == "func-2":
-            return WorkerInfo(id="c2", name="w2", ip_address="10.0.0.2")
-        return WorkerInfo(id="c1", name="w1", ip_address="10.0.0.1")
+            return WorkerInfo(id="c2", name="w2", ip_address="10.0.0.2", port=9002)
+        return WorkerInfo(id="c1", name="w1", ip_address="10.0.0.1", port=9001)
 
     backend.acquire_worker.side_effect = side_effect
     backend.release_worker = AsyncMock()
@@ -52,7 +52,7 @@ async def test_invoker_circuit_breaker_opens(mock_registry, mock_backend, gatewa
         )
 
         function_name = "test-function"
-        rie_url = "http://10.0.0.1:8080/2015-03-31/functions/function/invocations"
+        rie_url = "http://10.0.0.1:9001/2015-03-31/functions/function/invocations"
 
         # 常に失敗(500)を返す
         respx.post(rie_url).mock(return_value=httpx.Response(500))
@@ -86,8 +86,8 @@ async def test_invoker_per_function_breaker(mock_registry, mock_backend, gateway
         f2 = "func-2"
 
         # ホストが分かれているのでURLで識別可能
-        url1 = "http://10.0.0.1:8080/2015-03-31/functions/function/invocations"
-        url2 = "http://10.0.0.2:8080/2015-03-31/functions/function/invocations"
+        url1 = "http://10.0.0.1:9001/2015-03-31/functions/function/invocations"
+        url2 = "http://10.0.0.2:9002/2015-03-31/functions/function/invocations"
 
         respx.post(url1).mock(return_value=httpx.Response(500))
         respx.post(url2).mock(return_value=httpx.Response(200, content=b"ok"))

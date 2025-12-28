@@ -11,7 +11,7 @@ import (
 
 func TestRuntime_EnsureImage(t *testing.T) {
 	mockCli := new(MockClient)
-	rt := NewRuntime(mockCli, nil, nil, "esb")
+	rt := NewRuntime(mockCli, nil, "esb")
 	ctx := context.Background()
 	imageName := "alpine:latest"
 

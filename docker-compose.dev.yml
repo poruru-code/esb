@@ -15,6 +15,7 @@ services:
       dockerfile: services/agent/Dockerfile.dev
     container_name: esb-agent
     privileged: true
+    pid: host
     volumes:
       - ./services/agent:/app
       - /var/run/docker.sock:/var/run/docker.sock

@@ -17,8 +17,7 @@ func TestRuntime_Ensure_NewContainer(t *testing.T) {
 	t.Skip("Skipping due to complex mocking of WithNewSnapshot creating a panic in unit tests. Validated by E2E.")
 	mockCli := new(MockClient)
 	mockCNI := new(MockCNI)
-	mockPA := NewPortAllocator(20000, 20000)
-	rt := NewRuntime(mockCli, mockCNI, mockPA, "esb")
+	rt := NewRuntime(mockCli, mockCNI, "esb")
 	ctx := context.Background()
 	req := runtime.EnsureRequest{
 		FunctionName: "test-func",
@@ -81,8 +80,7 @@ func TestRuntime_Ensure_NetworkFailure_Rollback(t *testing.T) {
 	t.Skip("Skipping due to mocked panic issues. Validated by E2E.")
 	mockCli := new(MockClient)
 	mockCNI := new(MockCNI)
-	mockPA := NewPortAllocator(20000, 20000)
-	rt := NewRuntime(mockCli, mockCNI, mockPA, "esb")
+	rt := NewRuntime(mockCli, mockCNI, "esb")
 	ctx := context.Background()
 	req := runtime.EnsureRequest{
 		FunctionName: "rollback-func",
@@ -138,8 +136,7 @@ func TestRuntime_Ensure_NetworkFailure_Rollback(t *testing.T) {
 func TestRuntime_Pause_Red(t *testing.T) {
 	mockCli := new(MockClient)
 	mockCNI := new(MockCNI)
-	mockPA := NewPortAllocator(20000, 20100)
-	rt := NewRuntime(mockCli, mockCNI, mockPA, "esb")
+	rt := NewRuntime(mockCli, mockCNI, "esb")
 	ctx := context.Background()
 	containerID := "lambda-test-func-1234"
 
@@ -165,8 +162,7 @@ func TestRuntime_Pause_Red(t *testing.T) {
 func TestRuntime_Resume_Red(t *testing.T) {
 	mockCli := new(MockClient)
 	mockCNI := new(MockCNI)
-	mockPA := NewPortAllocator(20000, 20100)
-	rt := NewRuntime(mockCli, mockCNI, mockPA, "esb")
+	rt := NewRuntime(mockCli, mockCNI, "esb")
 	ctx := context.Background()
 	containerID := "lambda-test-func-1234"
 

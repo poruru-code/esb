@@ -100,13 +100,12 @@ class LambdaInvoker:
             try:
                 worker = await self.backend.acquire_worker(function_name)
                 host = worker.ip_address
+                port = worker.port or self.config.LAMBDA_PORT
             except Exception as e:
                 raise ContainerStartError(function_name, e) from e
 
             # 2. POST to Lambda RIE
-            rie_url = (
-                f"http://{host}:{self.config.LAMBDA_PORT}/2015-03-31/functions/function/invocations"
-            )
+            rie_url = f"http://{host}:{port}/2015-03-31/functions/function/invocations"
             logger.info(f"Invoking {function_name} at {rie_url} (trace_id: {trace_id})")
 
             # 3. ブレーカー経由でリクエスト実行

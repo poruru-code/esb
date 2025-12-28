@@ -86,12 +86,11 @@ flowchart TD
 
 ```bash
 # 1. 仮想環境作成と依存関係インストール
-uv venv
+uv sync --all-extras
+
+# 仮想環境の有効化
 .venv\Scripts\activate  # Windows
 # source .venv/bin/activate  # macOS/Linux
-
-# 依存パッケージ（CLI含む）のインストール
-uv pip install -e ".[dev]"
 
 # 2. Git hooks のセットアップ
 lefthook install

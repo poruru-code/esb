@@ -41,8 +41,9 @@ class GrpcBackend:
             worker = await self._ensure_container(function_name)
             logger.info(f"Acquired worker {worker.id} at {worker.ip_address} for {function_name}")
             # Readiness Check: Wait for port 8080 to be available
-            await self._wait_for_readiness(function_name, worker.ip_address, 8080)
-            logger.debug(f"Readiness check passed for {worker.ip_address}:8080")
+            port = worker.port or 8080
+            await self._wait_for_readiness(function_name, worker.ip_address, port)
+            logger.debug(f"Readiness check passed for {worker.ip_address}:{port}")
             return worker
         except Exception:
             if self.concurrency_manager:

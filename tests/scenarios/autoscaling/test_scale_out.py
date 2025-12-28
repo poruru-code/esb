@@ -18,13 +18,36 @@ import time
 
 import pytest
 from tests.conftest import call_api
+import grpc
+from services.gateway.pb import agent_pb2, agent_pb2_grpc
 
 # Go Agent (Phase 1) is single-container, but we can verify it respects MAX_CAPACITY=1 or queues requests.
 USE_GRPC_AGENT = os.environ.get("USE_GRPC_AGENT", "false").lower() == "true"
 
 
+def _normalize_function_name(function_name: str) -> str:
+    if function_name.startswith("lambda-"):
+        return function_name
+    return f"lambda-{function_name}"
+
+
+def _grpc_list_containers():
+    address = os.environ.get("AGENT_GRPC_ADDRESS", "localhost:50051")
+    with grpc.insecure_channel(address) as channel:
+        stub = agent_pb2_grpc.AgentServiceStub(channel)
+        resp = stub.ListContainers(agent_pb2.ListContainersRequest())
+        return resp.containers
+
+
 def get_container_ids(function_name: str) -> list[str]:
     """Get container IDs for a function name pattern"""
+    if USE_GRPC_AGENT:
+        target = _normalize_function_name(function_name)
+        return [
+            c.container_id
+            for c in _grpc_list_containers()
+            if c.function_name == target
+        ]
     cmd = ["docker", "ps", "-q", "-f", f"name=lambda-{function_name}"]
     result = subprocess.run(cmd, capture_output=True, text=True, check=True)
     return result.stdout.strip().splitlines()

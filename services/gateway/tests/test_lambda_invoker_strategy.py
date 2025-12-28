@@ -36,6 +36,7 @@ async def test_lambda_invoker_calls_backend_acquire():
 
     mock_worker = MagicMock()
     mock_worker.ip_address = "1.2.3.4"
+    mock_worker.port = 8080
     backend.acquire_worker.return_value = mock_worker
 
     invoker = LambdaInvoker(client, registry, config, backend)

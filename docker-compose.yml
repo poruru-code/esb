@@ -134,11 +134,8 @@ services:
       context: .
       dockerfile: services/gateway/Dockerfile
     container_name: esb-gateway
-    networks:
-      - external_network # Port exposure
-      - internal_network # Internal communication
-    ports:
-      - "${GATEWAY_PORT:-443}:443" # HTTPS
+    # Host Network: Gateway listens on localhost:443
+    network_mode: host
     volumes:
       - ${ESB_CERT_DIR:-~/.esb/certs}/server.crt:/app/config/ssl/server.crt:ro
       - ${ESB_CERT_DIR:-~/.esb/certs}/server.key:/app/config/ssl/server.key:ro
@@ -154,9 +151,9 @@ services:
       - AUTH_USER=${AUTH_USER?AUTH_USER is required}
       - AUTH_PASS=${AUTH_PASS?AUTH_PASS is required}
       - CONTAINERS_NETWORK=${LAMBDA_NETWORK?LAMBDA_NETWORK is required}
-      - GATEWAY_INTERNAL_URL=https://esb-gateway
+      - GATEWAY_INTERNAL_URL=https://10.88.0.1:443  # Lambda containers -> Host Network Gateway (CNI bridge)
       - USE_GRPC_AGENT=true
-      - AGENT_GRPC_ADDRESS=esb-agent:50051
+      - AGENT_GRPC_ADDRESS=localhost:50051  # Host Network
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - RUSTFS_ACCESS_KEY=${RUSTFS_ACCESS_KEY?RUSTFS_ACCESS_KEY is required}
       - RUSTFS_SECRET_KEY=${RUSTFS_SECRET_KEY?RUSTFS_SECRET_KEY is required}
@@ -165,7 +162,7 @@ services:
       - CIRCUIT_BREAKER_RECOVERY_TIMEOUT=${CIRCUIT_BREAKER_RECOVERY_TIMEOUT:-30.0}
       - PYTHONUNBUFFERED=1
       # VictoriaLogs 直接送信設定 (Lambda via grpc_provision.py)
-      - VICTORIALOGS_URL=http://victorialogs:9428
+      - VICTORIALOGS_URL=http://10.88.0.1:9428  # Host Network (CNI bridge)
       # Auto-Scaling Configuration
       - DEFAULT_MAX_CAPACITY=${DEFAULT_MAX_CAPACITY:-1}
       - DEFAULT_MIN_CAPACITY=${DEFAULT_MIN_CAPACITY:-0}
@@ -193,22 +190,20 @@ services:
       dockerfile: Dockerfile
     container_name: esb-agent
     privileged: true
-    networks:
-      - internal_network
+    pid: host
+    # Host Network: Agent listens on localhost:50051
+    network_mode: host
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - /run/containerd/containerd.sock:/run/containerd/containerd.sock
-      - ./services/agent/config/cni:/etc/cni/net.d
+      - /run/containerd:/run/containerd  # Required for socket, fifo, and shim access
+      - /var/lib/containerd:/var/lib/containerd  # Required for snapshot access
+      - ./services/agent/config/cni:/etc/cni/net.d:ro
       - esb_cni_data:/var/lib/cni
       - ${ESB_CERT_DIR:-~/.esb/certs}/rootCA.crt:/usr/local/share/ca-certificates/esb-rootCA.crt:ro
     environment:
-      - CONTAINERS_NETWORK=${LAMBDA_NETWORK?LAMBDA_NETWORK is required}
+      - AGENT_RUNTIME=containerd  # Use containerd with host network strategy
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - PORT=50051
-      # ⚠️ IMPORTANT: Step 1 (containerd移行) では 'esb-registry:5010' に変更必須
-      # Docker Runtime (Host共有): localhost:5010
-      # Containerd Runtime (Container間通信): esb-registry:5010
-      - CONTAINER_REGISTRY=localhost:5010
+      - CONTAINER_REGISTRY=localhost:5010  # Host Network access
     depends_on:
       registry:
         condition: service_healthy
@@ -220,8 +215,8 @@ volumes:
   scylladb_data:
   rustfs_data:
   victorialogs_data:
-  esb_cni_data:
   registry_data:
+  esb_cni_data:
 
 
 networks:

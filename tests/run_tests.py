@@ -123,6 +123,13 @@ def main():
 def run_scenario(args, scenario):
     """単一シナリオの実行"""
     # 1. Environment Setup
+    base_env_path = PROJECT_ROOT / "tests" / ".env.test"
+    if base_env_path.exists():
+        load_dotenv(base_env_path, override=False)
+        print(f"Loaded base environment from: {base_env_path}")
+    else:
+        print(f"Warning: Base environment file not found: {base_env_path}")
+
     # args.env_file は無視して scenario['env_file'] を使用
     env_path = PROJECT_ROOT / scenario["env_file"]
     if env_path.exists():

@@ -57,25 +57,38 @@ func main() {
 
 		wrappedClient := &agentContainerd.ClientWrapper{Client: c}
 
-		// 2. Initialize CNI
-		// Plugins are installed in /opt/cni/bin (see Dockerfile)
-		// Configs are in /etc/cni/net.d
-		cniOpts := []cni.Opt{
-			cni.WithPluginDir([]string{"/opt/cni/bin"}),
-			cni.WithPluginConfDir("/etc/cni/net.d"),
+		cniConfDir := os.Getenv("CNI_CONF_DIR")
+		if cniConfDir == "" {
+			cniConfDir = "/etc/cni/net.d"
 		}
-		cniNetwork, err := cni.New(cniOpts...)
+
+		cniConfFile := os.Getenv("CNI_CONF_FILE")
+		if cniConfFile == "" {
+			cniConfFile = fmt.Sprintf("%s/10-esb.conflist", cniConfDir)
+		}
+
+		cniBinDir := os.Getenv("CNI_BIN_DIR")
+		if cniBinDir == "" {
+			cniBinDir = "/opt/cni/bin"
+		}
+
+		cniPlugin, err := cni.New(
+			cni.WithPluginConfDir(cniConfDir),
+			cni.WithPluginDir([]string{cniBinDir}),
+			cni.WithInterfacePrefix("eth"),
+			cni.WithMinNetworkCount(1),
+		)
 		if err != nil {
 			log.Fatalf("Failed to initialize CNI: %v", err)
 		}
 
-		// 3. Initialize Port Allocator
-		// Range 10000-20000
-		portAllocator := agentContainerd.NewPortAllocator(10000, 20000)
+		if err := cniPlugin.Load(cni.WithConfListFile(cniConfFile)); err != nil {
+			log.Fatalf("Failed to load CNI config %s: %v", cniConfFile, err)
+		}
 
-		// 4. Create Runtime
-		rt = agentContainerd.NewRuntime(wrappedClient, cniNetwork, portAllocator, "esb-runtime")
-		log.Println("Runtime: containerd (initialized)")
+		// 2. Create Runtime with CNI networking
+		rt = agentContainerd.NewRuntime(wrappedClient, cniPlugin, "esb-runtime")
+		log.Println("Runtime: containerd (initialized with CNI)")
 
 	} else {
 		log.Println("Initializing Docker Runtime...")
