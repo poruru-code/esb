@@ -8,7 +8,7 @@ capacity management.
 
 import asyncio
 import logging
-from typing import Callable, Dict, List, Any, Optional
+from typing import Callable, Dict, List, Any, Optional, Set
 
 from .container_pool import ContainerPool
 from services.common.models.internal import WorkerInfo
@@ -28,6 +28,8 @@ class PoolManager:
         self,
         provision_client: Any,
         config_loader: Callable[[str], Dict[str, Any]],
+        pause_enabled: bool = False,
+        pause_idle_seconds: float = 0.0,
     ):
         """
         Args:
@@ -38,6 +40,19 @@ class PoolManager:
         self._lock = asyncio.Lock()
         self.provision_client = provision_client
         self.config_loader = config_loader
+        self.pause_enabled = pause_enabled and pause_idle_seconds > 0
+        self.pause_idle_seconds = pause_idle_seconds
+        self._pause_tasks: Dict[str, asyncio.Task] = {}
+        self._paused_ids: Set[str] = set()
+
+        if self.pause_enabled and (
+            not hasattr(provision_client, "pause_container")
+            or not hasattr(provision_client, "resume_container")
+        ):
+            logger.warning(
+                "Pause enabled but provision client lacks pause/resume; disabling pause."
+            )
+            self.pause_enabled = False
 
     async def get_pool(self, function_name: str) -> ContainerPool:
         """Get a pool by function name (create if missing)."""
@@ -58,6 +73,48 @@ class PoolManager:
                     )
         return self._pools[function_name]
 
+    async def _cancel_pause_task(self, worker_id: str) -> None:
+        task = self._pause_tasks.pop(worker_id, None)
+        if task:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+    async def _schedule_pause(
+        self, function_name: str, pool: ContainerPool, worker: WorkerInfo
+    ) -> None:
+        if not self.pause_enabled:
+            return
+
+        await self._cancel_pause_task(worker.id)
+
+        async def _pause_after_delay() -> None:
+            task_ref = asyncio.current_task()
+            try:
+                await asyncio.sleep(self.pause_idle_seconds)
+                if not self.pause_enabled:
+                    return
+                if worker.id in self._paused_ids:
+                    return
+                if not await pool.is_idle(worker.id):
+                    return
+                await self.provision_client.pause_container(function_name, worker)
+                self._paused_ids.add(worker.id)
+            except asyncio.CancelledError:
+                return
+            except Exception as e:
+                logger.error(
+                    f"Failed to pause container {worker.id} for {function_name}: {e}"
+                )
+            finally:
+                if task_ref and self._pause_tasks.get(worker.id) is task_ref:
+                    self._pause_tasks.pop(worker.id, None)
+
+        task = asyncio.create_task(_pause_after_delay())
+        self._pause_tasks[worker.id] = task
+
     async def _provision_wrapper(self, function_name: str) -> List[WorkerInfo]:
         """Provision API wrapper (returns List[WorkerInfo])."""
         return await self.provision_client.provision(function_name)
@@ -65,16 +122,37 @@ class PoolManager:
     async def acquire_worker(self, function_name: str) -> WorkerInfo:
         """Acquire a worker."""
         pool = await self.get_pool(function_name)
-        return await pool.acquire(self._provision_wrapper)
+        while True:
+            worker = await pool.acquire(self._provision_wrapper)
+            if self.pause_enabled:
+                await self._cancel_pause_task(worker.id)
+                if worker.id in self._paused_ids:
+                    try:
+                        await self.provision_client.resume_container(function_name, worker)
+                        self._paused_ids.discard(worker.id)
+                        return worker
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to resume container {worker.id} for {function_name}: {e}"
+                        )
+                        self._paused_ids.discard(worker.id)
+                        await pool.evict(worker)
+                        continue
+            return worker
 
     async def release_worker(self, function_name: str, worker: WorkerInfo) -> None:
         """Release a worker."""
         if function_name in self._pools:
-            await self._pools[function_name].release(worker)
+            pool = self._pools[function_name]
+            await pool.release(worker)
+            if self.pause_enabled:
+                await self._schedule_pause(function_name, pool, worker)
 
     async def evict_worker(self, function_name: str, worker: WorkerInfo) -> None:
         """Evict a dead worker."""
         if function_name in self._pools:
+            await self._cancel_pause_task(worker.id)
+            self._paused_ids.discard(worker.id)
             await self._pools[function_name].evict(worker)
 
     def get_all_worker_names(self) -> Dict[str, List[str]]:
@@ -138,6 +216,8 @@ class PoolManager:
     async def shutdown_all(self) -> None:
         """Drain all pools and delete containers."""
         logger.info("Shutting down all pools...")
+        await self._cancel_all_pause_tasks()
+        self._paused_ids.clear()
         for fname, pool in self._pools.items():
             workers = await pool.drain()
             for w in workers:
@@ -152,6 +232,9 @@ class PoolManager:
         for fname, pool in self._pools.items():
             pruned = await pool.prune_idle_workers(idle_timeout)
             if pruned:
+                for w in pruned:
+                    await self._cancel_pause_task(w.id)
+                    self._paused_ids.discard(w.id)
                 result[fname] = pruned
                 # Delete from orchestrator
                 for w in pruned:
@@ -221,3 +304,14 @@ class PoolManager:
         except Exception as e:
             logger.error(f"Reconciliation failed: {e}")
             return 0
+
+    async def _cancel_all_pause_tasks(self) -> None:
+        tasks = list(self._pause_tasks.values())
+        self._pause_tasks.clear()
+        for task in tasks:
+            task.cancel()
+        for task in tasks:
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass

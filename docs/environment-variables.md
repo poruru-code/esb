@@ -109,6 +109,8 @@ cp .env.example .env
 | `POOL_ACQUIRE_TIMEOUT` | `30.0` | ワーカー取得タイムアウト（秒）。`docker-compose.yml` では `5.0` をデフォルト指定 |
 | `HEARTBEAT_INTERVAL` | `30` | Janitor の巡回間隔（秒） |
 | `GATEWAY_IDLE_TIMEOUT_SECONDS` | `300` | Gateway 側アイドルタイムアウト（秒） |
+| `ENABLE_CONTAINER_PAUSE` | `false` | アイドル後にコンテナを一時停止するか（containerdのみ） |
+| `PAUSE_IDLE_SECONDS` | `30` | Pause までのアイドル時間（秒） |
 | `ORPHAN_GRACE_PERIOD_SECONDS` | `60` | 孤児コンテナ削除の猶予時間（秒） |
 
 ### Go Agent 設定

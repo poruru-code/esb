@@ -68,6 +68,10 @@ class GatewayConfig(BaseAppConfig):
     GATEWAY_IDLE_TIMEOUT_SECONDS: int = Field(
         default=300, description="Gateway idle timeout (seconds)"
     )
+    ENABLE_CONTAINER_PAUSE: bool = Field(
+        default=False, description="アイドル後にコンテナを一時停止するか"
+    )
+    PAUSE_IDLE_SECONDS: int = Field(default=30, description="Pauseまでのアイドル秒数")
     ORPHAN_GRACE_PERIOD_SECONDS: int = Field(
         default=60, description="Grace period before removing orphan containers (seconds)"
     )

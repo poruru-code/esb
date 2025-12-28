@@ -116,8 +116,12 @@ class ContainerPool:
         async with self._cv:
             if worker in self._all_workers:
                 self._all_workers.discard(worker)
-                # Notify because capacity is freed.
-                self._cv.notify_all()
+            if self._idle_workers:
+                self._idle_workers = deque(
+                    w for w in self._idle_workers if w.id != worker.id
+                )
+            # Notify because capacity is freed.
+            self._cv.notify_all()
 
     def get_all_names(self) -> List[str]:
         """For heartbeat: list of all names (busy + idle)."""
@@ -126,6 +130,13 @@ class ContainerPool:
     def get_all_workers(self) -> List[WorkerInfo]:
         """Get all currently managed workers."""
         return list(self._all_workers)
+
+    async def is_idle(self, worker_id: str) -> bool:
+        """指定ワーカーがアイドルキューに存在するか確認"""
+        async with self._cv:
+            if not any(w.id == worker_id for w in self._idle_workers):
+                return False
+            return any(w.id == worker_id for w in self._all_workers)
 
     @property
     def size(self) -> int:

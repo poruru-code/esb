@@ -120,6 +120,27 @@ class GrpcProvisionClient:
             logger.error(f"Failed to delete container {container_id} via Agent: {e}")
             raise
 
+    async def pause_container(self, function_name: str, worker: WorkerInfo) -> None:
+        """Pause a container via gRPC Agent"""
+        req = agent_pb2.PauseContainerRequest(container_id=worker.id)
+        try:
+            await self.stub.PauseContainer(req)
+            logger.info(f"Paused container {worker.id} for {function_name}")
+        except Exception as e:
+            logger.error(f"Failed to pause container {worker.id} via Agent: {e}")
+            raise
+
+    async def resume_container(self, function_name: str, worker: WorkerInfo) -> None:
+        """Resume a paused container via gRPC Agent"""
+        req = agent_pb2.ResumeContainerRequest(container_id=worker.id)
+        try:
+            await self.stub.ResumeContainer(req)
+            await self._wait_for_readiness(function_name, worker.ip_address, worker.port or 8080)
+            logger.info(f"Resumed container {worker.id} for {function_name}")
+        except Exception as e:
+            logger.error(f"Failed to resume container {worker.id} via Agent: {e}")
+            raise
+
     async def list_containers(self) -> List[WorkerInfo]:
         """List all containers via gRPC Agent"""
         req = agent_pb2.ListContainersRequest()
