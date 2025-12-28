@@ -6,16 +6,16 @@ logger = logging.getLogger("gateway.circuit_breaker")
 
 
 class CircuitBreakerOpenError(Exception):
-    """回路が遮断されている（OPEN）場合に投げられる例外"""
+    """Raised when the circuit is open (OPEN)."""
 
     pass
 
 
 class CircuitBreaker:
     """
-    サーキットブレーカーのコアロジック。
-    特定の外部サービス（コンテナ）へのリクエスト失敗を監視し、
-    しきい値を超えた場合に一時的にリクエストを遮断する。
+    Core circuit breaker logic.
+    Monitors failures for specific external services (containers) and
+    temporarily blocks requests when a threshold is exceeded.
     """
 
     def __init__(self, failure_threshold: int = 5, recovery_timeout: int = 30):
@@ -27,10 +27,10 @@ class CircuitBreaker:
 
     async def call(self, func: Callable, *args, **kwargs) -> Any:
         """
-        想定される関数を実行し、必要に応じて遮断・復帰を行う。
+        Execute the target function and open/close the circuit as needed.
         """
         if self.state == "OPEN":
-            # タイムアウト経過を確認
+            # Check if timeout has elapsed.
             if time.time() - self.last_failure_time > self.recovery_timeout:
                 self.state = "HALF_OPEN"
                 logger.info("Circuit Breaker transitions to HALF_OPEN")
@@ -39,7 +39,7 @@ class CircuitBreaker:
 
         try:
             result = await func(*args, **kwargs)
-            # 成功した場合
+            # On success.
             if self.state == "HALF_OPEN":
                 self.reset()
                 logger.info("Circuit Breaker recovered (back to CLOSED)")
@@ -48,7 +48,7 @@ class CircuitBreaker:
             self.failures += 1
             self.last_failure_time = time.time()
 
-            # HALF_OPEN での失敗は即座に OPEN に戻る
+            # Failure in HALF_OPEN immediately returns to OPEN.
             if self.failures >= self.failure_threshold or self.state == "HALF_OPEN":
                 self.state = "OPEN"
                 logger.warning(f"Circuit Breaker opened due to error: {e}")
@@ -56,7 +56,7 @@ class CircuitBreaker:
             raise e
 
     def reset(self):
-        """状態を初期化（CLOSED）に戻す"""
+        """Reset state to CLOSED."""
         self.failures = 0
         self.state = "CLOSED"
         self.last_failure_time = 0

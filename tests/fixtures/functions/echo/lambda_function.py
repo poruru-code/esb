@@ -1,7 +1,7 @@
 """
-Echo Lambda: シンプルな応答のみを行う軽量 Lambda
+Echo Lambda: lightweight Lambda that only returns a simple response.
 
-S3/DynamoDB など外部依存なしで Lambda 呼び出しをテスト可能。
+Allows testing Lambda invocations without external dependencies like S3/DynamoDB.
 """
 
 import json
@@ -23,9 +23,9 @@ def lambda_handler(event, context):
 
     message = f"Echo: {body.get('message', 'Hello')}"
 
-    # 構造化ログを出力 (VictoriaLogs 検索用)
-    # sitecustomize のフックにより trace_id, container_name, job が自動付与されるが、
-    # 明示的にも出力して一貫性を検証する
+    # Emit structured logs (for VictoriaLogs search).
+    # sitecustomize auto-attaches trace_id, container_name, and job,
+    # but output explicitly to validate consistency.
     log_entry = {
         "_time": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
         "level": "INFO",
@@ -35,7 +35,7 @@ def lambda_handler(event, context):
     }
     print(json.dumps(log_entry))
 
-    # DEBUG ログ (テスト要件)
+    # DEBUG log (test requirement).
     print(json.dumps({**log_entry, "level": "DEBUG", "message": "Debug log for quality test"}))
 
     return create_response(

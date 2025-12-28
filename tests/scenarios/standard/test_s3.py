@@ -1,8 +1,8 @@
 """
-S3 互換テスト (RustFS/MinIO)
+S3 compatibility tests (RustFS/MinIO).
 
-- S3 API の互換性検証
-- RustFS バックエンドでの動作確認
+- Verify S3 API compatibility
+- Validate behavior with RustFS backend
 """
 
 import uuid
@@ -11,10 +11,10 @@ from tests.conftest import call_api
 
 
 class TestS3:
-    """S3 互換性の検証"""
+    """Verify S3 compatibility."""
 
     def test_put_get(self, auth_token):
-        """E2E: S3 PutObject/GetObject 互換テスト"""
+        """E2E: S3 PutObject/GetObject compatibility."""
         test_key = f"test-object-{uuid.uuid4().hex[:8]}.txt"
         test_content = "Hello from E2E test!"
 
@@ -39,7 +39,7 @@ class TestS3:
         assert get_data["content"] == test_content
 
     def test_list_objects(self, auth_token):
-        """E2E: S3 ListObjects 互換テスト"""
+        """E2E: S3 ListObjects compatibility."""
         response = call_api(
             "/api/s3",
             auth_token,
@@ -51,7 +51,7 @@ class TestS3:
         assert "objects" in data
 
     def test_delete_object(self, auth_token):
-        """E2E: S3 DeleteObject 互換テスト"""
+        """E2E: S3 DeleteObject compatibility."""
         test_key = f"test-delete-{uuid.uuid4().hex[:8]}.txt"
 
         # 1. PutObject
@@ -75,7 +75,7 @@ class TestS3:
         assert delete_response.status_code == 200, f"DeleteObject failed: {delete_response.text}"
         assert delete_response.json()["success"] is True
 
-        # 3. GetObject → エラー (NoSuchKey)
+        # 3. GetObject -> error (NoSuchKey)
         get_response = call_api(
             "/api/s3",
             auth_token,
@@ -84,24 +84,24 @@ class TestS3:
         assert get_response.status_code == 500  # NoSuchKey → 500 error
 
     def test_overwrite(self, auth_token):
-        """E2E: S3 同一キー上書きテスト"""
+        """E2E: S3 overwrite same key."""
         test_key = f"test-overwrite-{uuid.uuid4().hex[:8]}.txt"
 
-        # 1. 初回 PutObject
+        # 1. First PutObject
         call_api(
             "/api/s3",
             auth_token,
             {"action": "put", "bucket": "e2e-test-bucket", "key": test_key, "body": "original"},
         )
 
-        # 2. 上書き PutObject
+        # 2. Overwrite PutObject
         call_api(
             "/api/s3",
             auth_token,
             {"action": "put", "bucket": "e2e-test-bucket", "key": test_key, "body": "overwritten"},
         )
 
-        # 3. GetObject → 上書き内容を確認
+        # 3. GetObject -> verify overwritten content
         get_response = call_api(
             "/api/s3",
             auth_token,
@@ -111,10 +111,10 @@ class TestS3:
         assert get_response.json()["content"] == "overwritten"
 
     def test_list_with_prefix(self, auth_token):
-        """E2E: S3 Prefix 付き ListObjects テスト"""
+        """E2E: S3 ListObjects with prefix."""
         prefix = f"prefix-test-{uuid.uuid4().hex[:8]}/"
 
-        # テスト用オブジェクト作成
+        # Create test objects.
         for i in range(3):
             call_api(
                 "/api/s3",
@@ -127,7 +127,7 @@ class TestS3:
                 },
             )
 
-        # Prefix 付き ListObjects
+        # ListObjects with prefix
         response = call_api(
             "/api/s3",
             auth_token,

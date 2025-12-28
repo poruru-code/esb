@@ -9,15 +9,15 @@ from services.gateway.models.aws_v1 import (
 
 
 class TestAPIGatewayProxyEventModel:
-    """APIGatewayProxyEvent Pydantic モデルの型検証テスト"""
+    """Type validation tests for APIGatewayProxyEvent Pydantic model."""
 
     def test_model_required_fields_raises_validation_error(self):
-        """必須フィールドが欠落している場合 ValidationError が発生"""
-        # 必須フィールドなしでインスタンス化を試みる
+        """Raise ValidationError when required fields are missing."""
+        # Attempt instantiation without required fields.
         with pytest.raises(ValidationError) as exc_info:
             APIGatewayProxyEvent()
 
-        # resource, path, httpMethod, headers, multiValueHeaders, requestContext は必須
+        # resource, path, httpMethod, headers, multiValueHeaders, requestContext are required.
         errors = exc_info.value.errors()
         missing_fields = {e["loc"][0] for e in errors if e["type"] == "missing"}
         assert "resource" in missing_fields
@@ -25,14 +25,14 @@ class TestAPIGatewayProxyEventModel:
         assert "httpMethod" in missing_fields
 
     def test_model_type_validation_raises_error_for_invalid_types(self):
-        """不正な型が渡された場合 ValidationError が発生"""
-        # headers に int を渡す（str を期待）
+        """Raise ValidationError when invalid types are provided."""
+        # Pass int to headers (expects str).
         with pytest.raises(ValidationError):
             APIGatewayProxyEvent(
                 resource="/test",
                 path="/test",
                 httpMethod="GET",
-                headers={"Content-Type": 123},  # 不正: int
+                headers={"Content-Type": 123},  # Invalid: int
                 multiValueHeaders={},
                 requestContext=ApiGatewayRequestContext(
                     identity=ApiGatewayIdentity(sourceIp="127.0.0.1"),
@@ -41,7 +41,7 @@ class TestAPIGatewayProxyEventModel:
             )
 
     def test_model_valid_construction(self):
-        """正しい型で構築した場合、モデルが正常にインスタンス化される"""
+        """Model instantiates correctly with valid types."""
         event = APIGatewayProxyEvent(
             resource="/users/{id}",
             path="/users/123",
@@ -67,14 +67,14 @@ class TestAPIGatewayProxyEventModel:
         assert event.requestContext.stage == "prod"
 
     def test_model_dump_excludes_none(self):
-        """model_dump(exclude_none=True) で None フィールドが除外される"""
+        """model_dump(exclude_none=True) excludes None fields."""
         event = APIGatewayProxyEvent(
             resource="/test",
             path="/test",
             httpMethod="GET",
             headers={},
             multiValueHeaders={},
-            queryStringParameters=None,  # 明示的に None
+            queryStringParameters=None,  # Explicitly None
             requestContext=ApiGatewayRequestContext(
                 identity=ApiGatewayIdentity(sourceIp="127.0.0.1"),
                 requestId="req-123",
@@ -83,4 +83,4 @@ class TestAPIGatewayProxyEventModel:
 
         dumped = event.model_dump(exclude_none=True)
         assert "queryStringParameters" not in dumped
-        assert "body" not in dumped  # デフォルト None
+        assert "body" not in dumped  # Default None

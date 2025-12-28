@@ -1,8 +1,8 @@
 """
-オブザーバビリティ機能テスト
+Observability tests.
 
-- ログ品質とレベル制御
-- CloudWatch Logs 透過的リダイレクト
+- Log quality and level control
+- CloudWatch Logs transparent redirect
 """
 
 import json
@@ -22,25 +22,25 @@ from tests.conftest import (
 
 
 class TestObservability:
-    """ロギング・オブザーバビリティ機能の検証"""
+    """Verify logging and observability features."""
 
     # Unskipped for Phase 4 verification
     # Unskipped for Phase 4 verification
     # @pytest.mark.skip(reason="TODO: Go Agent log driver config not implemented")
     def test_structured_log_format(self, auth_token):
         """
-        E2E: ロギングの品質と環境変数によるレベル制御の検証
+        E2E: verify log quality and level control via environment variables.
 
-        Echo Lambda を使用してシンプルにログ品質を確認。
+        Use Echo Lambda to check log quality simply.
         """
 
-        # 検証用のユニークな Trace ID とメッセージ
+        # Unique Trace ID and message for validation.
         epoch_hex = hex(int(time.time()))[2:]
         unique_id = uuid.uuid4().hex[:24]
         trace_id = f"Root=1-{epoch_hex}-{unique_id};Sampled=1"
         root_id = f"1-{epoch_hex}-{unique_id}"
 
-        # Echo Lambda を呼び出し (S3 依存なし)
+        # Invoke Echo Lambda (no S3 dependency).
         response = call_api(
             "/api/echo",
             auth_token,
@@ -49,7 +49,7 @@ class TestObservability:
         )
         assert response.status_code == 200
 
-        # Gateway コンテナのログを検索
+        # Search Gateway container logs.
         print(f"Waiting for logs with Root ID: {root_id} ...")
 
         start_time = time.time()
@@ -63,11 +63,11 @@ class TestObservability:
             hits = logs.get("hits", [])
             if hits:
                 for log in hits:
-                    # 1. 構造化ログ（JSON）であることの確認
+                    # 1. Verify structured logs (JSON).
                     if "level" in log and ("message" in log or "_msg" in log):
                         found_structured_log = True
 
-                    # 2. _time フィールドの確認
+                    # 2. Verify _time field.
                     if "_time" in log:
                         ts = log["_time"]
                         if isinstance(ts, (int, float)) or (
@@ -77,7 +77,7 @@ class TestObservability:
                         elif isinstance(ts, str):
                             found_time_field = True
 
-                    # 3. DEBUG レベルのログ確認
+                    # 3. Verify DEBUG level logs.
                     if log.get("level") == "DEBUG" or log.get("level") == "debug":
                         found_debug_log = True
 
@@ -90,7 +90,7 @@ class TestObservability:
         assert found_time_field, "_time field not found or invalid"
         assert found_debug_log, "DEBUG level log not found. Check LOG_LEVEL env var."
 
-        # UNKNOWN コンテナ名がないことを確認（Lambda 環境変数が正しく設定されていることの検証）
+        # Ensure no UNKNOWN container names (Lambda env vars are set correctly).
         unknown_logs = [log for log in hits if log.get("container_name") == "UNKNOWN"]
         assert len(unknown_logs) == 0, (
             f"Found {len(unknown_logs)} logs with container_name='UNKNOWN'. "
@@ -102,9 +102,9 @@ class TestObservability:
     # @pytest.mark.skip(reason="TODO: Go Agent log driver config not implemented")
     def test_cloudwatch_logs_passthrough(self, gateway_health):
         """
-        E2E: CloudWatch Logs API 透過的リダイレクト検証
+        E2E: verify transparent redirect for CloudWatch Logs API.
         """
-        # 1. Lambda 呼び出し (action=test_cloudwatch)
+        # 1. Invoke Lambda (action=test_cloudwatch).
         invoke_url = f"{GATEWAY_URL}/2015-03-31/functions/lambda-connectivity/invocations"
         payload = {"body": '{"action": "test_cloudwatch"}'}
 
@@ -119,10 +119,10 @@ class TestObservability:
         log_stream = resp_body.get("log_stream")
         print(f"CloudWatch test: log_group={log_group}, log_stream={log_stream}")
 
-        # 2. ログが VictoriaLogs に伝搬するまで待機
+        # 2. Wait for logs to propagate to VictoriaLogs.
         time.sleep(5)
 
-        # 3. VictoriaLogs でログを検索 (共通ヘルパーを使用)
+        # 3. Search logs in VictoriaLogs (using shared helper).
         result = query_victorialogs_by_filter(
             raw_query=f'logger:boto3.mock AND log_group:"{log_group}" AND log_stream:"{log_stream}"',
             timeout=30,
@@ -148,7 +148,7 @@ class TestObservability:
                 "CloudWatch Logs should be attributed to Lambda container, not Gateway."
             )
 
-        # 5. ログレベルが正しく設定されていることを検証
+        # 5. Verify log levels are set correctly.
         levels = [entry.get("level", "") for entry in log_entries]
         print(f"Detected levels in VictoriaLogs: {levels}")
 
@@ -156,7 +156,7 @@ class TestObservability:
         assert "ERROR" in levels, "ERROR level log not found in VictoriaLogs"
         assert "INFO" in levels, "INFO level log not found in VictoriaLogs"
 
-        # 6. メッセージの内容が Lambda から送信されたものか検証
+        # 6. Verify message content came from Lambda.
         messages = [entry.get("_msg", "") for entry in log_entries]
         expected_message = "CloudWatch Logs E2E verification successful!"
         found_expected_message = any(expected_message in msg for msg in messages)

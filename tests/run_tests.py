@@ -6,20 +6,20 @@ import subprocess
 from pathlib import Path
 from dotenv import load_dotenv
 
-# プロジェクトルート
+# Project root
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 
 
 def run_esb(args: list[str], check: bool = True):
-    """esb CLIを実行するヘルパー"""
-    # インストール済みコマンドではなく、現在のソースコードを使用
+    """Helper to run the esb CLI."""
+    # Use current source code instead of installed command.
     cmd = [sys.executable, "-m", "tools.cli.main"] + args
     print(f"Running: {' '.join(cmd)}")
     subprocess.run(cmd, cwd=PROJECT_ROOT, check=check)
 
 
 def main():
-    # 警告を抑制
+    # Suppress warnings.
     import warnings
     import urllib3
 
@@ -30,7 +30,7 @@ def main():
     parser.add_argument("--build", action="store_true", help="Rebuild images before running")
     parser.add_argument("--cleanup", action="store_true", help="Stop containers after tests")
     parser.add_argument("--reset", action="store_true", help="Full reset before running")
-    # --dind は config.py/CLI側で検知するか、COMPOSE_FILE で指定する
+    # --dind is detected by config.py/CLI or via COMPOSE_FILE.
     parser.add_argument(
         "--dind", action="store_true", help="Use DinD mode (docker-compose.dind.yml)"
     )
@@ -62,7 +62,7 @@ def main():
             sys.exit(0)
 
     # --- Scenarios Definition ---
-    # シナリオ定義: Legacy Mode 廃止に伴い、Auto-Scaling (PoolManager) に一本化
+    # Scenario definition: consolidate on Auto-Scaling (PoolManager) after removing Legacy Mode.
     SCENARIOS = [
         {
             "name": "Auto-Scaling",
@@ -75,7 +75,7 @@ def main():
         }
     ]
 
-    # CLI引数でターゲット指定があった場合は単発実行モード (Legacy compatible)
+    # If target specified via CLI, run a single target (legacy compatible).
     if args.test_target:
         # User specified target, simple run
         # env_file defaults need update if user doesn't specify
@@ -94,7 +94,7 @@ def main():
         run_scenario(args, user_scenario)
         sys.exit(0)
 
-    # 全シナリオ実行モード
+    # Run all scenarios.
     print("\nStarting Full E2E Test Suite (Scenario-Based)\n")
     failed_scenarios = []
 
@@ -121,7 +121,7 @@ def main():
 
 
 def run_scenario(args, scenario):
-    """単一シナリオの実行"""
+    """Run a single scenario."""
     # 1. Environment Setup
     base_env_path = PROJECT_ROOT / "tests" / ".env.test"
     if base_env_path.exists():
@@ -130,7 +130,7 @@ def run_scenario(args, scenario):
     else:
         print(f"Warning: Base environment file not found: {base_env_path}")
 
-    # args.env_file は無視して scenario['env_file'] を使用
+    # Ignore args.env_file and use scenario['env_file'].
     env_path = PROJECT_ROOT / scenario["env_file"]
     if env_path.exists():
         load_dotenv(env_path, override=True)  # Override previous scenario vars
@@ -163,11 +163,11 @@ def run_scenario(args, scenario):
         # Reset is recommended between scenarios to force env var refresh in containers
         # But we can skip full artifact delete to save time, mostly just down/up needed
 
-        # Always DOWN first to stop containers from previous scenario
+        # Always DOWN first to stop containers from previous scenario.
         run_esb(["down"], check=False)
 
         if args.reset:
-            # Full reset requested (artifacts etc)
+            # Full reset requested (artifacts, etc).
             # ... (Same reset logic as before) ...
             import shutil
 
@@ -183,7 +183,7 @@ def run_scenario(args, scenario):
 
         # 3. UP
         up_args = ["up", "--detach", "--wait"]
-        # Only rebuild if explicitly asked, otherwise reuse images
+        # Only rebuild if explicitly asked, otherwise reuse images.
         if args.build or args.reset:
             up_args.append("--build")
 

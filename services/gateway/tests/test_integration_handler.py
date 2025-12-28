@@ -93,7 +93,7 @@ def test_gateway_handler_propagates_trace_id(mock_invoker):
 
 def test_gateway_handler_returns_404_when_function_not_found():
     """
-    FunctionNotFoundError が発生した場合に 503/404?
+    Should FunctionNotFoundError result in 503/404?
     In main.py, FunctionNotFoundError is caught?
     main.py catches FunctionNotFoundError (added in import list).
     But where is it raised?

@@ -1,7 +1,7 @@
 """
-コアロジックパッケージ
+Core logic package.
 
-認証やプロキシなどの共通ロジックを提供します。
+Provides shared logic such as authentication and proxying.
 """
 
 from .security import create_access_token, verify_token

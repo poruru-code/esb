@@ -1,8 +1,8 @@
 """
-サンプルLambda関数: Hello World
+Sample Lambda function: Hello World.
 
-requestContextからユーザー名を取得して応答します。
-CloudWatch Logs テスト機能も含みます。
+Responds with the username from requestContext.
+Includes CloudWatch Logs test functionality.
 """
 
 import time
@@ -15,19 +15,19 @@ logger.setLevel(logging.INFO)
 
 
 def lambda_handler(event, context):
-    # RIEハートビートチェック対応
+    # Handle RIE heartbeat checks.
     if ping_response := handle_ping(event):
         return ping_response
 
     """
-    Lambda関数のエントリーポイント
+    Lambda function entry point.
     
     Args:
-        event: API Gatewayからのイベント
-        context: Lambda実行コンテキスト
+        event: event from API Gateway
+        context: Lambda execution context
     
     Returns:
-        API Gateway互換のレスポンス
+        API Gateway-compatible response
     """
     username = (
         event.get("requestContext", {}).get("authorizer", {}).get("cognito:username", "anonymous")
@@ -38,14 +38,14 @@ def lambda_handler(event, context):
     body = parse_event_body(event)
     action = body.get("action", "hello")
 
-    # CloudWatch Logs テスト
+    # CloudWatch Logs test.
     if action == "test_cloudwatch":
         try:
             logs_client = boto3.client("logs")
             log_group = "/lambda/hello-test"
             log_stream = f"test-stream-{int(time.time())}"
 
-            # CreateLogGroup (既存でもOK)
+            # CreateLogGroup (ok if it already exists).
             try:
                 logs_client.create_log_group(logGroupName=log_group)
             except Exception:
@@ -59,7 +59,7 @@ def lambda_handler(event, context):
 
             # PutLogEvents
             timestamp_ms = int(time.time() * 1000)
-            # PutLogEvents (sitecustomize.py により透過的に stdout へ出力される)
+            # PutLogEvents (sitecustomize.py transparently outputs to stdout).
             logs_client.put_log_events(
                 logGroupName=log_group,
                 logStreamName=log_stream,
@@ -91,7 +91,7 @@ def lambda_handler(event, context):
                 body={"success": False, "error": str(e), "action": "test_cloudwatch"},
             )
 
-    # デフォルト: Hello レスポンス
+    # Default: Hello response.
     response_body = {
         "message": f"Hello, {username}!",
         "event": event,

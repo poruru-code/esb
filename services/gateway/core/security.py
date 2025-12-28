@@ -1,28 +1,28 @@
 """
-認証・セキュリティモジュール
+Authentication and security module.
 
-JWT トークンの生成と検証を行います。
+Generates and verifies JWT tokens.
 """
 
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 import jwt
 
-# JWT アルゴリズム
+# JWT algorithm.
 ALGORITHM = "HS256"
 
 
 def create_access_token(username: str, secret_key: str, expires_delta: int = 3600) -> str:
     """
-    JWTトークンを生成
+    Generate a JWT token.
 
     Args:
-        username: ユーザー名（トークンのsubjectに設定）
-        secret_key: JWT署名用シークレットキー
-        expires_delta: トークン有効期間（秒）
+        username: user name (set as token subject)
+        secret_key: JWT signing secret key
+        expires_delta: token validity in seconds
 
     Returns:
-        エンコードされたJWTトークン
+        Encoded JWT token
     """
     expire = datetime.now(timezone.utc) + timedelta(seconds=expires_delta)
     to_encode = {"sub": username, "exp": expire, "iat": datetime.now(timezone.utc)}
@@ -32,21 +32,21 @@ def create_access_token(username: str, secret_key: str, expires_delta: int = 360
 
 def verify_token(token: str, secret_key: str) -> Optional[str]:
     """
-    JWTトークンを検証してユーザー名を返す
+    Verify a JWT token and return the username.
 
     Args:
-        token: Bearer トークン（スキーム付きまたはトークンのみ）
-        secret_key: JWT署名用シークレットキー
+        token: Bearer token (with scheme or token only)
+        secret_key: JWT signing secret key
 
     Returns:
-        ユーザー名（検証失敗時はNone）
+        Username (None on verification failure)
 
     Note:
-        この関数は純粋な検証ロジックのみを提供します。
-        FastAPIのDependsやHTTPExceptionは呼び出し側で処理してください。
+        This function provides pure verification logic only.
+        Handle FastAPI Depends or HTTPException in the caller.
     """
     try:
-        # "Bearer token" 形式の場合はトークン部分を抽出
+        # Extract the token part for "Bearer token" format.
         if " " in token:
             scheme, token = token.split(None, 1)
             if scheme.lower() != "bearer":

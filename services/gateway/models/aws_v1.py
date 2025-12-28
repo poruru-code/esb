@@ -1,12 +1,12 @@
 # services/gateway/models/aws_v1.py
 
 """
-AWS API Gateway v1 (REST API) イベント構造の Pydantic モデル定義
+Pydantic models for AWS API Gateway v1 (REST API) event structure.
 
-参照: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html#api-gateway-simple-proxy-for-lambda-input-format
+Reference: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html#api-gateway-simple-proxy-for-lambda-input-format
 
-このモジュールは、API Gateway Lambda Proxy Integration のイベント構造を
-型安全に構築するための Pydantic モデルを提供します。
+This module provides Pydantic models to build API Gateway Lambda Proxy Integration
+event structures in a type-safe manner.
 """
 
 from typing import Dict, Any, Optional, List
@@ -14,24 +14,24 @@ from pydantic import BaseModel, Field, ConfigDict
 
 
 class ApiGatewayIdentity(BaseModel):
-    """API Gateway Identity オブジェクト"""
+    """API Gateway Identity object."""
 
     sourceIp: str
     userAgent: Optional[str] = None
 
 
 class ApiGatewayAuthorizer(BaseModel):
-    """API Gateway Authorizer オブジェクト"""
+    """API Gateway Authorizer object."""
 
     claims: Dict[str, Any] = Field(default_factory=dict)
-    # 互換性のためにトップレベルにも配置することがある
+    # Sometimes placed at top level for compatibility.
     cognito_username: Optional[str] = Field(None, alias="cognito:username")
 
     model_config = ConfigDict(populate_by_name=True)
 
 
 class ApiGatewayRequestContext(BaseModel):
-    """API Gateway Request Context オブジェクト"""
+    """API Gateway Request Context object."""
 
     identity: ApiGatewayIdentity
     authorizer: Optional[ApiGatewayAuthorizer] = None
@@ -45,8 +45,8 @@ class APIGatewayProxyEvent(BaseModel):
     """
     AWS API Gateway Proxy Integration (v1) Event Structure
 
-    Lambda 関数が受け取るイベントオブジェクトの構造を定義。
-    model_dump(exclude_none=True) で辞書に変換して使用する。
+    Defines the structure of the event object received by Lambda functions.
+    Use model_dump(exclude_none=True) to convert to a dict.
     """
 
     resource: str

@@ -1,8 +1,8 @@
 """
-Lambda関数レジストリ
+Lambda function registry.
 
-functions.yml を読み込み、関数名→設定のマッピングを提供します。
-デフォルト環境変数を関数固有の設定にマージします。
+Loads functions.yml and provides name-to-config mapping.
+Merges default environment variables into function-specific settings.
 """
 
 from typing import Dict, Any, Optional
@@ -24,17 +24,17 @@ class FunctionRegistry:
 
     def load_functions_config(self) -> Dict[str, Dict[str, Any]]:
         """
-        functions.yml を読み込んでキャッシュ
+        Load and cache functions.yml.
 
         Returns:
-            関数名→設定の辞書
+            Dict of function name -> config
         """
         try:
             with open(self.config_path, "r", encoding="utf-8") as f:
-                # string.Templateを使用して環境変数を置換
+                # Substitute environment variables using string.Template.
                 template = string.Template(f.read())
 
-                # デフォルト値のマッピング作成
+                # Build default mapping.
                 mapping = os.environ.copy()
                 if "LOG_LEVEL" not in mapping:
                     mapping["LOG_LEVEL"] = "INFO"
@@ -61,31 +61,31 @@ class FunctionRegistry:
 
     def get_function_config(self, function_name: str) -> Optional[Dict[str, Any]]:
         """
-        関数名から設定を取得
+        Get configuration by function name.
 
-        デフォルト環境変数を関数固有の設定にマージして返します。
+        Merge default environment variables into function-specific settings.
 
         Args:
-            function_name: 関数名（コンテナ名）
+            function_name: function name (container name)
 
         Returns:
-            関数設定（デフォルトマージ済み）。存在しない場合は None
+            Function config (with defaults merged), or None if missing
         """
         if function_name not in self._registry:
             return None
 
         func_config = self._registry[function_name] or {}
 
-        # デフォルト環境変数と関数固有の環境変数をマージ
+        # Merge default and function-specific environment variables.
         merged_env = {}
         default_env = self._defaults.get("environment", {})
         func_env = func_config.get("environment", {})
 
-        # デフォルト → 関数固有の順でマージ（関数固有が優先）
+        # Merge defaults first, then function-specific (function wins).
         merged_env.update(default_env)
         merged_env.update(func_env)
 
-        # 結果を構築
+        # Build result.
         result = dict(func_config)
         result["environment"] = merged_env
 

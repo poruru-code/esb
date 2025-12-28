@@ -1,14 +1,14 @@
 """
-esb logs - サービスログの表示
+esb logs - Display service logs.
 
 Usage:
     esb logs [service] [options]
 
 Examples:
-    esb logs                  # 全サービスのログを表示
-    esb logs gateway          # Gateway のみ
-    esb logs -f               # ログをフォロー（tail -f のように）
-    esb logs gateway -f --tail 50  # Gateway の最新50行をフォロー
+    esb logs                  # Show logs for all services
+    esb logs gateway          # Gateway only
+    esb logs -f               # Follow logs (like tail -f)
+    esb logs gateway -f --tail 50  # Follow the latest 50 lines for Gateway
 """
 import subprocess
 import sys
@@ -19,36 +19,36 @@ from tools.cli.core import logging
 
 def run(args):
     """
-    Docker Compose のログを表示する
+    Display Docker Compose logs.
     """
-    # .env.test の読み込み
+    # Load .env.test.
     env_file = PROJECT_ROOT / "tests" / ".env.test"
     if env_file.exists():
         load_dotenv(env_file, override=False)
 
     cmd = ["docker", "compose", "logs"]
 
-    # --follow オプション（リアルタイムでログを追跡）
+    # --follow option (follow logs in real time).
     if getattr(args, "follow", False):
         cmd.append("--follow")
 
-    # --tail オプション（最新N行のみ表示）
+    # --tail option (show only the latest N lines).
     tail = getattr(args, "tail", None)
     if tail:
         cmd.extend(["--tail", str(tail)])
 
-    # --timestamps オプション
+    # --timestamps option.
     if getattr(args, "timestamps", False):
         cmd.append("--timestamps")
 
-    # サービス名（指定がない場合は全サービス）
+    # Service name (all services when unspecified).
     service = getattr(args, "service", None)
     if service:
         cmd.append(service)
 
     try:
-        # Ctrl+C で中断可能にするため、直接実行
+        # Run directly to allow interruption with Ctrl+C.
         subprocess.run(cmd, check=False)
     except KeyboardInterrupt:
-        print()  # 改行
+        print()  # Newline.
         sys.exit(0)

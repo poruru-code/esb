@@ -4,7 +4,7 @@ from tools.cli.core import logging
 
 def run(args):
     """
-    環境を完全に初期化する: docker compose down -v -> esb up --build
+    Fully reset the environment: docker compose down -v -> esb up --build
     """
     logging.warning("This command will PERMANENTLY DELETE all database tables and S3 buckets.")
 
@@ -17,7 +17,7 @@ def run(args):
                 f"{logging.Color.YELLOW}Are you sure you want to proceed? [y/N]: {logging.Color.END}"
             )
         except (EOFError, KeyboardInterrupt):
-            print()  # 改行
+            print()  # Newline.
             logging.info("Reset cancelled.")
             return
 
@@ -27,7 +27,7 @@ def run(args):
 
     logging.step("Resetting environment...")
 
-    # Argument pass-through 用の簡易クラス
+    # Simple class for argument pass-through.
     class ResetArgs:
         def __init__(self, **kwargs):
             for k, v in kwargs.items():
@@ -42,7 +42,7 @@ def run(args):
     down_args = ResetArgs(volumes=True, rmi=rmi)
     down.run(down_args)
 
-    # 2. 再起動 (強制ビルド)
+    # 2. Restart (forced build).
     logging.info("Rebuilding and starting services...")
     up_args = ResetArgs(build=True, detach=True)
     up.run(up_args)

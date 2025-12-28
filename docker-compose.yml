@@ -1,8 +1,8 @@
-# Lambda関数は動的起動（オンデマンド起動・アイドル停止）
+# Lambda functions start dynamically (on-demand start, idle stop).
 
 services:
   # ============================================
-  # Permission Helper (RustFS用)
+  # Permission Helper (for RustFS)
   # ============================================
   permission-helper:
     image: alpine
@@ -47,8 +47,8 @@ services:
       retries: 5
     restart: unless-stopped
     networks:
-      - external_network # 外部公開用
-      - internal_network # Lambda間通信
+      - external_network # Public exposure
+      - internal_network # Lambda-to-Lambda communication
 
   # ============================================
   # ScyllaDB (DynamoDB Compatible DB)
@@ -69,10 +69,10 @@ services:
       start_period: 180s
     restart: unless-stopped
     networks:
-      - external_network # 外部公開用
-      - internal_network # Lambda間通信
+      - external_network # Public exposure
+      - internal_network # Lambda-to-Lambda communication
 
-  # Fluent Bit は廃止されました。ログは各サービスから VictoriaLogs へ直接送信されます。
+  # Fluent Bit is deprecated. Logs are sent directly from each service to VictoriaLogs.
 
   # ============================================
   # Container Registry (Local)
@@ -81,7 +81,7 @@ services:
     image: registry:2
     container_name: esb-registry
     ports:
-      - "${REGISTRY_PORT:-5010}:5010" # Registry API (ホストからのPush用)
+      - "${REGISTRY_PORT:-5010}:5010" # Registry API (pushes from host)
     volumes:
       - registry_data:/var/lib/registry
       - ${ESB_CERT_DIR:-~/.esb/certs}/server.crt:/certs/server.crt:ro
@@ -98,8 +98,8 @@ services:
       start_period: 5s
     restart: unless-stopped
     networks:
-      - external_network # ホストからのアクセス用
-      - internal_network # Agent用 (Step 1 containerd移行時に使用)
+      - external_network # Host access
+      - internal_network # For agent (used during Step 1 containerd migration)
 
   # ============================================
   # VictoriaLogs
@@ -122,8 +122,8 @@ services:
       start_period: 10s
     restart: unless-stopped
     networks:
-      - external_network # 外部公開用
-      - internal_network # Lambda間通信
+      - external_network # Public exposure
+      - internal_network # Lambda-to-Lambda communication
 
   # ============================================
   # API Gateway (Facade)
@@ -161,7 +161,7 @@ services:
       - CIRCUIT_BREAKER_THRESHOLD=${CIRCUIT_BREAKER_THRESHOLD:-5}
       - CIRCUIT_BREAKER_RECOVERY_TIMEOUT=${CIRCUIT_BREAKER_RECOVERY_TIMEOUT:-30.0}
       - PYTHONUNBUFFERED=1
-      # VictoriaLogs 直接送信設定 (Lambda via grpc_provision.py)
+      # VictoriaLogs direct-send configuration (Lambda via grpc_provision.py)
       - VICTORIALOGS_URL=http://10.88.0.1:9428  # Host Network (CNI bridge)
       # Auto-Scaling Configuration
       - DEFAULT_MAX_CAPACITY=${DEFAULT_MAX_CAPACITY:-1}
@@ -220,11 +220,11 @@ volumes:
 
 
 networks:
-  # 外部公開用ネットワーク（ポート公開）
+  # Public network (exposed ports).
   external_network:
     name: ${EXTERNAL_NETWORK?EXTERNAL_NETWORK is required}
     driver: bridge
-  # Lambda間通信専用ネットワーク（外部アクセス遮断）
+  # Lambda-to-Lambda network only (no external access).
   internal_network:
     name: ${LAMBDA_NETWORK?LAMBDA_NETWORK is required}
     driver: bridge

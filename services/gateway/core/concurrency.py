@@ -9,8 +9,8 @@ if TYPE_CHECKING:
 
 class FunctionThrottle:
     """
-    関数単位の流量制御クラス。
-    asyncio.Condition と deque を使用して FIFO を保証する。
+    Per-function rate control class.
+    Uses asyncio.Condition and deque to guarantee FIFO.
     """
 
     def __init__(self, limit: int, default_timeout: float = 10.0):

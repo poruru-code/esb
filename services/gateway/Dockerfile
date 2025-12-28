@@ -16,8 +16,8 @@ COPY pyproject.toml README.md /app/
 COPY tools /app/tools
 
 # Install dependencies (Cache layer)
-# pyproject.toml から requirements.txt を生成してインストールすることで、
-# 依存関係の変更漏れを防ぎつつ、キャッシュを有効活用する
+# Generate requirements.txt from pyproject.toml before installing.
+# This prevents missed dependency changes while maximizing cache use.
 RUN uv pip compile pyproject.toml -o requirements.txt && \
     uv pip install -r requirements.txt
 

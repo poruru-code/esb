@@ -1,7 +1,7 @@
 """
-DynamoDB 互換 Lambda (ScyllaDB)
+DynamoDB-compatible Lambda (ScyllaDB).
 
-DynamoDB API 操作を提供するシンプルな Lambda 関数。
+A simple Lambda function providing DynamoDB API operations.
 """
 
 import json
@@ -31,7 +31,7 @@ def lambda_handler(event, context):
         dynamodb = boto3.client("dynamodb")
 
         if action == "put_get":
-            # 既存の動作: PutItem → GetItem
+            # Existing behavior: PutItem -> GetItem
             item_id = str(uuid.uuid4())
             timestamp = int(time.time())
             item = {
@@ -52,7 +52,7 @@ def lambda_handler(event, context):
             )
 
         elif action == "get":
-            # GetItem のみ
+            # GetItem only
             item_id = body.get("id")
             if not item_id:
                 return create_response(
@@ -63,7 +63,7 @@ def lambda_handler(event, context):
             return create_response(body={"success": True, "item": item, "found": item is not None})
 
         elif action == "put":
-            # PutItem のみ
+            # PutItem only
             item_id = body.get("id", str(uuid.uuid4()))
             timestamp = int(time.time())
             item = {

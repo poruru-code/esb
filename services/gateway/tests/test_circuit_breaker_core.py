@@ -6,7 +6,7 @@ from services.gateway.core.circuit_breaker import CircuitBreaker, CircuitBreaker
 class TestCircuitBreaker:
     @pytest.mark.asyncio
     async def test_closed_state_success(self):
-        """通常状態(CLOSED)で成功する場合、正常に結果が返ること"""
+        """Return success in normal (CLOSED) state."""
         breaker = CircuitBreaker(failure_threshold=2)
 
         async def mock_func():
@@ -19,31 +19,31 @@ class TestCircuitBreaker:
 
     @pytest.mark.asyncio
     async def test_to_open_state_on_failures(self):
-        """失敗がしきい値を超えると OPEN 状態になること"""
+        """Transition to OPEN when failures exceed threshold."""
         breaker = CircuitBreaker(failure_threshold=2, recovery_timeout=0.1)
 
         async def failing_func():
             raise ValueError("boom")
 
-        # 1回目失敗
+        # First failure.
         with pytest.raises(ValueError):
             await breaker.call(failing_func)
         assert breaker.state == "CLOSED"
         assert breaker.failures == 1
 
-        # 2回目失敗 -> OPEN へ
+        # Second failure -> OPEN.
         with pytest.raises(ValueError):
             await breaker.call(failing_func)
         assert breaker.state == "OPEN"
         assert breaker.failures == 2
 
-        # OPEN 状態では関数は呼ばれず、即座に CircuitBreakerOpenError が投じられること
+        # In OPEN, function is not called and CircuitBreakerOpenError is raised immediately.
         with pytest.raises(CircuitBreakerOpenError):
             await breaker.call(failing_func)
 
     @pytest.mark.asyncio
     async def test_recovery_to_half_open_and_closed(self):
-        """リカバリタイムアウト後に成功すると CLOSED に戻ること"""
+        """Return to CLOSED after recovery timeout and success."""
         breaker = CircuitBreaker(failure_threshold=1, recovery_timeout=0.1)
 
         async def failing_func():
@@ -52,15 +52,15 @@ class TestCircuitBreaker:
         async def success_func():
             return "ok"
 
-        # OPEN にする
+        # Open the circuit.
         with pytest.raises(ValueError):
             await breaker.call(failing_func)
         assert breaker.state == "OPEN"
 
-        # タイムアウトを待つ
+        # Wait for timeout.
         await asyncio.sleep(0.15)
 
-        # 次の呼び出しで HALF_OPEN になり、成功すれば CLOSED に戻る
+        # Next call transitions to HALF_OPEN and success returns to CLOSED.
         result = await breaker.call(success_func)
         assert result == "ok"
         assert breaker.state == "CLOSED"
@@ -68,23 +68,23 @@ class TestCircuitBreaker:
 
     @pytest.mark.asyncio
     async def test_half_open_to_open_on_failure(self):
-        """HALF_OPEN 状態で失敗すると再び OPEN に戻ること"""
+        """Return to OPEN when failing in HALF_OPEN."""
         breaker = CircuitBreaker(failure_threshold=1, recovery_timeout=0.1)
 
         async def failing_func():
             raise ValueError("boom")
 
-        # OPEN にする
+        # Open the circuit.
         with pytest.raises(ValueError):
             await breaker.call(failing_func)
         assert breaker.state == "OPEN"
 
-        # タイムアウトを待つ
+        # Wait for timeout.
         await asyncio.sleep(0.15)
 
-        # HALF_OPEN での再試行が失敗
+        # Retry in HALF_OPEN fails.
         with pytest.raises(ValueError):
             await breaker.call(failing_func)
 
         assert breaker.state == "OPEN"
-        # HALF_OPEN で失敗した場合は即座に OPEN に戻るべき
+        # Failure in HALF_OPEN should return to OPEN immediately.

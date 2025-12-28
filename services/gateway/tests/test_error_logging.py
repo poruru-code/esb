@@ -1,7 +1,7 @@
 """
-Gateway エラーハンドリングのログ詳細化テスト
+Gateway error handling log detail tests.
 
-Lambda接続失敗時に適切なログレベル（error）で詳細情報が記録されることを検証
+Verify detailed info is logged at error level on Lambda connection failures.
 """
 
 import pytest
@@ -24,7 +24,7 @@ from services.gateway.config import GatewayConfig
 @pytest.fixture
 def mock_dependencies(main_app):
     """
-    共通のモック依存関係をセットアップするフィクスチャ
+    Fixture to set up shared mocked dependencies.
     """
     mock_client = AsyncMock(spec=httpx.AsyncClient)
     mock_client.timeout.read = 30.0
@@ -33,13 +33,11 @@ def mock_dependencies(main_app):
     mock_manager.ensure_container.return_value = "test-container-host"
     mock_manager.invalidate_cache = MagicMock()
 
-    # LambdaInvoker のモック (内部で client を使うため)
-    # ここでは Invoker 自体は本物使い、Client をモックするか、Invoker もモックするか。
-    # テスト対象が main.py のエラーハンドリングなので、Invoker が例外を吐けばよい。
-    # しかし main.py は proxy_to_lambda を呼んでいる箇所でエラーをキャッチしている（キャッチオールルートの場合）。
-    # invoke_lambda_api の場合は invoker.invoke_function を呼ぶ。
-    # このテストは `client.get("/test-path")` なので、`gateway_handler` -> `proxy_to_lambda` ルート。
-    # proxy_to_lambda は http_client を使う。
+    # LambdaInvoker mock notes:
+    # We can use the real invoker and mock the client, or mock the invoker itself.
+    # Since we test main.py error handling, invoker raising exceptions is enough.
+    # main.py catches errors in gateway_handler (catch-all route) or invoke_lambda_api.
+    # This test hits `client.get("/test-path")`, so it uses gateway_handler.
 
     main_app.dependency_overrides[get_http_client] = lambda: mock_client
     main_app.dependency_overrides[get_orchestrator_client] = lambda: mock_manager
@@ -50,10 +48,10 @@ def mock_dependencies(main_app):
 
     async def mock_resolve(
         request,
-    ):  # request引数を受け取るように修正（deps実装に合わせる） or単に値を返す
-        # deps.py の resolve_lambda_target は request と route_matcher を取るが、
-        # dependency_overrides で上書きする場合、シグネチャは自由（FastAPIが解決）。
-        # しかし main.py で `target: LambdaTargetDep` なので、戻り値が TargetFunction であればよい。
+    ):  # Accept request arg to match deps signature (or just return a value)
+        # deps.py resolve_lambda_target takes request and route_matcher, but
+        # dependency_overrides can use any signature (FastAPI resolves it).
+        # main.py expects TargetFunction, so return that.
         return TargetFunction(
             container_name="test-container",
             path_params={},
@@ -72,7 +70,7 @@ def mock_dependencies(main_app):
 @pytest.mark.asyncio
 async def test_lambda_connection_error_logged_at_error_level(caplog):
     """
-    Lambda接続失敗時にerrorレベルでログされることを検証
+    Verify Lambda connection failures are logged at error level.
     """
     from services.gateway.main import app
 
@@ -141,7 +139,7 @@ async def test_lambda_connection_error_logged_at_error_level(caplog):
 @pytest.mark.asyncio
 async def test_lambda_connection_error_includes_detailed_info(caplog):
     """
-    Lambda接続失敗時のログに詳細情報（host, port, timeout, error_detail）が含まれることを検証
+    Verify logs include detailed info (host, port, timeout, error_detail) on connection failure.
     """
     from services.gateway.main import app
     from services.gateway.config import config

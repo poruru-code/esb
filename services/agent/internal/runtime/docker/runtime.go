@@ -140,8 +140,8 @@ func (r *Runtime) Destroy(ctx context.Context, id string) error {
 }
 
 func (r *Runtime) Pause(ctx context.Context, id string) error {
-	// Docker 自身の Pause 機能を呼ぶことも可能だが、Phase 2 の主目的は containerd。
-	// Docker 版では簡略化するか、未実装でも良いが、インターフェース互換のために空実装またはエラーを返す。
+	// We could call Docker's Pause, but Phase 2's main focus is containerd.
+	// For Docker, keep it simplified or unimplemented, but return a stub or error for compatibility.
 	return fmt.Errorf("pause not implemented for docker runtime")
 }
 

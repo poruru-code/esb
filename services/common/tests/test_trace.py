@@ -3,7 +3,7 @@ from services.common.core.trace import TraceId
 
 class TestTraceId:
     def test_generate_new_id(self):
-        """新規Trace ID生成のフォーマット検証"""
+        """Verify format of newly generated Trace ID."""
         trace = TraceId.generate()
         trace_str = str(trace)
 
@@ -22,7 +22,7 @@ class TestTraceId:
         assert len(segments[2]) == 24  # unique id
 
     def test_parse_existing_header(self):
-        """既存ヘッダーのパース検証"""
+        """Verify parsing of an existing header."""
         header = "Root=1-5759e988-bd862e3fe1be46a994272793;Parent=53995c3f42cd8ad8;Sampled=1"
         trace = TraceId.parse(header)
 
@@ -32,7 +32,7 @@ class TestTraceId:
         assert str(trace) == header
 
     def test_parse_partial_header(self):
-        """部分的なヘッダー（Rootのみ）のパース"""
+        """Parse a partial header (Root only)."""
         header = "Root=1-5759e988-bd862e3fe1be46a994272793"
         trace = TraceId.parse(header)
         assert trace.root == "1-5759e988-bd862e3fe1be46a994272793"
@@ -40,7 +40,7 @@ class TestTraceId:
         assert trace.sampled == "1"  # Default to 1
 
     def test_to_root_id(self):
-        """ログ用の Root ID (Request ID) 取得"""
+        """Get Root ID (Request ID) for logs."""
         header = "Root=1-5759e988-bd862e3fe1be46a994272793;Parent=53995c3f42cd8ad8"
         trace = TraceId.parse(header)
         assert trace.to_root_id() == "1-5759e988-bd862e3fe1be46a994272793"

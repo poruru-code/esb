@@ -1,9 +1,9 @@
 """
-Reconciliation (Orphan Container Cleanup) E2E テスト
+Reconciliation (orphan container cleanup) E2E test.
 
-検証シナリオ:
-1. Grace Period 検証: 新規作成コンテナは Reconciliation で削除されない（60秒猶予）
-2. Adoption 検証: Gateway 再起動後も既存コンテナが再利用される
+Scenarios:
+1. Grace Period: newly created containers are not deleted by reconciliation (60s grace)
+2. Adoption: existing containers are reused after Gateway restart
 """
 
 import os
@@ -21,19 +21,19 @@ from tests.conftest import (
 
 
 class TestReconciliation:
-    """Reconciliation (孤児コンテナクリーンアップ) 機能の検証"""
+    """Verify reconciliation (orphan container cleanup) behavior."""
 
     def test_grace_period_prevents_premature_deletion(self, auth_token):
         """
-        E2E: Grace Period により作成直後のコンテナが Reconciliation で削除されないことを検証
+        E2E: ensure containers created just before reconciliation are not deleted.
 
-        シナリオ:
-        1. Lambda を呼び出してコンテナを起動
-        2. Gateway を再起動（コンテナが Gateway の Pool から外れ「孤児」状態になる）
-        3. Gateway 再起動直後（Grace Period 内）に Lambda を再度呼び出し
-        4. 既存コンテナが再利用される（Adoption）ことを確認
+        Scenario:
+        1. Invoke Lambda to start a container
+        2. Restart Gateway (container leaves Gateway pool and becomes orphan)
+        3. Invoke Lambda again within Grace Period
+        4. Confirm existing container is reused (Adoption)
         """
-        # 1. Lambda を呼び出してコンテナを起動
+        # 1. Invoke Lambda to start container.
         print("Step 1: Initial Lambda invocation (cold start)...")
         response1 = call_api("/api/echo", auth_token, {"message": "warmup"})
         assert response1.status_code == 200
@@ -41,10 +41,10 @@ class TestReconciliation:
         assert data1["success"] is True
         print(f"Initial invocation successful: {data1}")
 
-        # 少し待ってからコンテナが確実に稼働していることを確認
+        # Wait briefly to ensure container is running.
         time.sleep(2)
 
-        # 2. Gateway を再起動（コンテナは Agent で稼働中だが、Gateway Pool からは外れる）
+        # 2. Restart Gateway (container runs in Agent but leaves Gateway pool).
         print("Step 2: Restarting Gateway container...")
         restart_result = subprocess.run(
             ["docker", "compose", "restart", "gateway"],
@@ -58,7 +58,7 @@ class TestReconciliation:
             f"Failed to restart gateway: {restart_result.stderr}"
         )
 
-        # Gateway のヘルスチェック待機
+        # Wait for Gateway health check.
         print("Step 3: Waiting for Gateway to become healthy...")
         for i in range(15):
             try:
@@ -72,10 +72,10 @@ class TestReconciliation:
                 pass
             time.sleep(2)
 
-        # 短い安定化待ち（Grace Period 内であることを確認）
+        # Short stabilization wait (still within Grace Period).
         time.sleep(3)
 
-        # 3. Grace Period 内に Lambda を再度呼び出し
+        # 3. Invoke Lambda again within Grace Period.
         print("Step 4: Post-restart invocation (should reuse existing container via Adoption)...")
         response2 = call_api("/api/echo", auth_token, {"message": "after restart"})
 
@@ -87,7 +87,7 @@ class TestReconciliation:
         assert data2["success"] is True
         print(f"Post-restart invocation successful: {data2}")
 
-        # 4. 追加検証: 連続呼び出しで安定性確認
+        # 4. Additional verification: stability via repeated calls.
         print("Step 5: Additional invocations to verify stability...")
         for i in range(3):
             resp = call_api("/api/echo", auth_token, {"message": f"stability-{i}"})

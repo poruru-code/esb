@@ -4,19 +4,19 @@ package esb.agent.v1;
 option go_package = "github.com/poruru/edge-serverless-box/services/agent/pkg/api/v1";
 
 service AgentService {
-  // コンテナを確保し、接続情報を返す (なければ起動、あれば再利用)
+  // Ensure a container and return connection info (start if missing, reuse if present).
   rpc EnsureContainer (EnsureContainerRequest) returns (WorkerInfo);
   
-  // 明示的にコンテナを停止・削除する
+  // Explicitly stop and remove a container.
   rpc DestroyContainer (DestroyContainerRequest) returns (DestroyContainerResponse);
 
-  // コンテナを一時停止する (Warm Start 用)
+  // Pause a container (for warm starts).
   rpc PauseContainer (PauseContainerRequest) returns (PauseContainerResponse);
 
-  // コンテナを再開する (Warm Start 用)
+  // Resume a container (for warm starts).
   rpc ResumeContainer (ResumeContainerRequest) returns (ResumeContainerResponse);
 
-  // 管理下の全コンテナの状態を取得 (Phase 3: Janitor 用)
+  // Get state of all managed containers (Phase 3: Janitor).
   rpc ListContainers (ListContainersRequest) returns (ListContainersResponse);
 }
 
@@ -58,7 +58,7 @@ message WorkerInfo {
   int32 port = 4;
 }
 
-// Phase 3: ListContainers 用メッセージ
+// Phase 3: message for ListContainers.
 message ListContainersRequest {}
 
 message ListContainersResponse {
@@ -69,7 +69,7 @@ message ContainerState {
   string container_id = 1;
   string function_name = 2;
   string status = 3;      // "RUNNING", "PAUSED", "STOPPED", "UNKNOWN"
-  int64 last_used_at = 4; // Unix Timestamp (秒)
+  int64 last_used_at = 4; // Unix Timestamp (seconds)
   string container_name = 5;
-  int64 created_at = 6;   // Unix Timestamp (秒) - コンテナ作成時刻
+  int64 created_at = 6;   // Unix Timestamp (seconds) - container creation time
 }

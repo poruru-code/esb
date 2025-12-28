@@ -57,9 +57,9 @@ def robust_lambda_logger(service_name: str = "lambda"):
 
             logger = logging.getLogger()
 
-            # セットアップ: VictoriaLogsHandlerが存在しなければ追加
+            # Setup: add VictoriaLogsHandler if missing.
             if vl_url:
-                # 既存ハンドラーチェック（重複防止）
+                # Check for existing handlers (avoid duplicates).
                 if not any(isinstance(h, VictoriaLogsHandler) for h in logger.handlers):
                     handler = VictoriaLogsHandler(
                         url=vl_url,
@@ -68,21 +68,21 @@ def robust_lambda_logger(service_name: str = "lambda"):
                     handler.setFormatter(CustomJsonFormatter())
                     logger.addHandler(handler)
 
-                    # ログレベル調整（必要に応じて）
+                    # Adjust log level if needed.
                     if logger.getEffectiveLevel() > logging.INFO:
                         logger.setLevel(logging.INFO)
 
-                # 標準出力のハイジャック
+                # Hijack stdout/stderr.
                 sys.stdout = StreamToLogger(logging.getLogger("stdout"), logging.INFO)
                 sys.stderr = StreamToLogger(logging.getLogger("stderr"), logging.ERROR)
 
             try:
                 return func(event, context)
             finally:
-                # 終了処理: フラッシュと復元
+                # Teardown: flush and restore.
 
-                # 同期ハンドラーであっても、明示的にflushを呼ぶ習慣をつける
-                # (将来的にバッファリングを入れた場合への備え)
+                # Call flush explicitly even for sync handlers
+                # (in case buffering is added later).
                 for h in logger.handlers:
                     if isinstance(h, VictoriaLogsHandler):
                         h.flush()

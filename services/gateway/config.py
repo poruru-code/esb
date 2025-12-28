@@ -1,8 +1,8 @@
 """
-Gateway設定定義
+Gateway configuration definition.
 
-環境変数から設定をロードし、Pydanticモデルとして提供します。
-pydantic-settings を使用して型安全性とデフォルト値を管理します。
+Loads configuration from environment variables and provides a Pydantic model.
+Uses pydantic-settings for type safety and defaults.
 """
 
 import sys
@@ -12,83 +12,83 @@ from services.common.core.config import BaseAppConfig
 
 class GatewayConfig(BaseAppConfig):
     """
-    Gatewayサービスの設定管理
+    Configuration management for the Gateway service.
     """
 
-    # サーバー設定
-    UVICORN_WORKERS: int = Field(default=4, description="ワーカープロセス数")
-    UVICORN_BIND_ADDR: str = Field(default="0.0.0.0:8000", description="リッスンアドレス")
+    # Server settings
+    UVICORN_WORKERS: int = Field(default=4, description="Number of worker processes")
+    UVICORN_BIND_ADDR: str = Field(default="0.0.0.0:8000", description="Listen address")
 
-    # パス設定
+    # Path settings
     ROUTING_CONFIG_PATH: str = Field(
-        default="/app/config/routing.yml", description="ルーティング定義ファイルパス"
+        default="/app/config/routing.yml", description="Routing definition file path"
     )
     FUNCTIONS_CONFIG_PATH: str = Field(
-        default="/app/config/functions.yml", description="Lambda関数定義ファイルパス"
+        default="/app/config/functions.yml", description="Lambda function definition file path"
     )
-    SSL_CERT_PATH: str = Field(default="/app/config/ssl/server.crt", description="SSL証明書パス")
-    SSL_KEY_PATH: str = Field(default="/app/config/ssl/server.key", description="SSL秘密鍵パス")
-    DATA_ROOT_PATH: str = Field(default="/data", description="子コンテナデータのルートパス")
-    LOGS_ROOT_PATH: str = Field(default="/logs", description="ログ集約先のルートパス")
+    SSL_CERT_PATH: str = Field(default="/app/config/ssl/server.crt", description="SSL cert path")
+    SSL_KEY_PATH: str = Field(default="/app/config/ssl/server.key", description="SSL key path")
+    DATA_ROOT_PATH: str = Field(default="/data", description="Root path for child container data")
+    LOGS_ROOT_PATH: str = Field(default="/logs", description="Root path for log aggregation")
     VICTORIALOGS_URL: str = Field(default="", description="VictoriaLogs ingestion URL")
 
-    # 認証・セキュリティ (必須 - 環境変数から設定)
-    JWT_SECRET_KEY: str = Field(..., min_length=32, description="JWT署名用シークレットキー")
-    JWT_EXPIRES_DELTA: int = Field(default=3000, description="トークン有効期限(秒)")
-    # x-api-key は静的なダミー認証キー
-    X_API_KEY: str = Field(..., description="内部サービス間通信用APIキー")
+    # Authentication/security (required from env)
+    JWT_SECRET_KEY: str = Field(..., min_length=32, description="JWT signing secret key")
+    JWT_EXPIRES_DELTA: int = Field(default=3000, description="Token expiry (seconds)")
+    # x-api-key is a static dummy auth key
+    X_API_KEY: str = Field(..., description="API key for internal service communication")
 
-    # モックユーザー認証情報 (必須 - 環境変数から設定)
-    AUTH_USER: str = Field(..., description="認証ユーザー名")
-    AUTH_PASS: str = Field(..., description="認証パスワード")
+    # Mock user credentials (required from env)
+    AUTH_USER: str = Field(..., description="Auth username")
+    AUTH_PASS: str = Field(..., description="Auth password")
 
-    # 認証エンドポイント
-    AUTH_ENDPOINT_PATH: str = Field(default="/user/auth/v1", description="認証エンドポイントパス")
+    # Auth endpoint
+    AUTH_ENDPOINT_PATH: str = Field(default="/user/auth/v1", description="Auth endpoint path")
 
-    # 外部連携 (接続先ホスト名は必須 - 環境変数から設定)
-    CONTAINERS_NETWORK: str = Field(..., description="Lambdaコンテナの所属ネットワーク")
-    GATEWAY_INTERNAL_URL: str = Field(..., description="コンテナから見たGateway URL")
-    LAMBDA_INVOKE_TIMEOUT: float = Field(default=30.0, description="Lambda呼び出しタイムアウト(秒)")
+    # External integration (hostnames required from env)
+    CONTAINERS_NETWORK: str = Field(..., description="Network for Lambda containers")
+    GATEWAY_INTERNAL_URL: str = Field(..., description="Gateway URL from containers")
+    LAMBDA_INVOKE_TIMEOUT: float = Field(default=30.0, description="Lambda invoke timeout (seconds)")
 
-    # 流量制御 (Phase 4-1)
-    MAX_CONCURRENT_REQUESTS: int = Field(default=10, description="関数あたりの同時実行上限")
-    QUEUE_TIMEOUT_SECONDS: int = Field(default=10, description="キュー待機タイムアウト")
+    # Flow control (Phase 4-1)
+    MAX_CONCURRENT_REQUESTS: int = Field(default=10, description="Max concurrent per function")
+    QUEUE_TIMEOUT_SECONDS: int = Field(default=10, description="Queue wait timeout")
 
-    # サーキットブレーカー設定
-    CIRCUIT_BREAKER_THRESHOLD: int = Field(default=5, description="失敗しきい値")
+    # Circuit breaker settings
+    CIRCUIT_BREAKER_THRESHOLD: int = Field(default=5, description="Failure threshold")
     CIRCUIT_BREAKER_RECOVERY_TIMEOUT: float = Field(
-        default=30.0, description="復旧試行までの待機時間(秒)"
+        default=30.0, description="Wait time before recovery attempt (seconds)"
     )
 
     # Auto-Scaling
-    DEFAULT_MAX_CAPACITY: int = Field(default=1, description="デフォルト最大容量")
-    DEFAULT_MIN_CAPACITY: int = Field(default=0, description="デフォルト最小容量")
-    POOL_ACQUIRE_TIMEOUT: float = Field(default=30.0, description="ワーカー取得タイムアウト")
-    HEARTBEAT_INTERVAL: int = Field(default=30, description="Heartbeat送信間隔(秒)")
+    DEFAULT_MAX_CAPACITY: int = Field(default=1, description="Default max capacity")
+    DEFAULT_MIN_CAPACITY: int = Field(default=0, description="Default min capacity")
+    POOL_ACQUIRE_TIMEOUT: float = Field(default=30.0, description="Worker acquisition timeout")
+    HEARTBEAT_INTERVAL: int = Field(default=30, description="Heartbeat interval (seconds)")
     GATEWAY_IDLE_TIMEOUT_SECONDS: int = Field(
-        default=300, description="Gateway側アイドルタイムアウト(秒)"
+        default=300, description="Gateway idle timeout (seconds)"
     )
     ORPHAN_GRACE_PERIOD_SECONDS: int = Field(
-        default=60, description="孤児コンテナ削除の猶予時間(秒)"
+        default=60, description="Grace period before removing orphan containers (seconds)"
     )
 
     # Phase 1: Go Agent Settings
     AGENT_GRPC_ADDRESS: str = Field(default="esb-agent:50051", description="Go Agent gRPC address")
     USE_GRPC_AGENT: bool = Field(default=False, description="Whether to use Go Agent via gRPC")
 
-    # FastAPI設定
-    root_path: str = Field(default="", description="APIのルートパス（プロキシ用）")
+    # FastAPI settings
+    root_path: str = Field(default="", description="API root path (for proxy)")
 
     # model_config is inherited
 
 
-# シングルトンとして設定をロード
-# pydantic-settings はインスタンス化時に環境変数を読み込む
+# Load config as a singleton.
+# pydantic-settings reads environment variables during instantiation.
 try:
     config = GatewayConfig()
 except Exception as e:
-    # 開発環境など .env がない場合や必須変数が欠けている場合のフォールバックは
-    # 必要に応じて検討するが、基本はエラーで落とす
+    # Consider fallback for missing .env or required vars in dev environments,
+    # but default to failing fast.
     sys.stderr.write(f"Failed to load configuration: {e}\n")
-    # テスト実行時などのために、一部デフォルトで許容する場合のロジックを入れることも可能
+    # For tests, optional logic could allow some defaults if needed.
     raise

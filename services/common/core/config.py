@@ -8,19 +8,19 @@ from pydantic import Field
 
 class BaseAppConfig(BaseSettings):
     """
-    アプリケーション共通設定
+    Common application settings.
     """
 
-    LOG_LEVEL: str = Field(default="INFO", description="ログレベル")
-    VERIFY_SSL: bool = Field(default=False, description="SSL証明書の検証を行うか")
+    LOG_LEVEL: str = Field(default="INFO", description="Log level")
+    VERIFY_SSL: bool = Field(default=False, description="Whether to verify SSL certificates")
 
     # ===== Lambda Container Defaults =====
-    LAMBDA_PORT: int = Field(default=8080, description="Lambda RIEコンテナのポート番号")
+    LAMBDA_PORT: int = Field(default=8080, description="Port number for Lambda RIE container")
     READINESS_TIMEOUT: int = Field(
-        default=30, description="コンテナReadinessチェックのタイムアウト(秒)"
+        default=30, description="Timeout in seconds for container readiness checks"
     )
     DOCKER_DAEMON_TIMEOUT: int = Field(
-        default=30, description="Docker Daemon起動待機のタイムアウト(秒)"
+        default=30, description="Timeout in seconds waiting for Docker daemon startup"
     )
 
     model_config = SettingsConfigDict(

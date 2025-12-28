@@ -1,7 +1,7 @@
 """
-S3 互換 Lambda (RustFS/MinIO)
+S3-compatible Lambda (RustFS/MinIO).
 
-S3 API 操作を提供するシンプルな Lambda 関数。
+A simple Lambda function providing S3 API operations.
 """
 
 import json
@@ -16,10 +16,10 @@ def lambda_handler(event, context):
     if ping_response := handle_ping(event):
         return ping_response
 
-    # 環境変数から Trace ID を取得
+    # Get Trace ID from environment variables.
     trace_id = os.environ.get("_X_AMZN_TRACE_ID", "not-found")
 
-    # ユーザー情報を取得
+    # Get user information.
     username = (
         event.get("requestContext", {}).get("authorizer", {}).get("cognito:username", "anonymous")
     )
@@ -27,7 +27,7 @@ def lambda_handler(event, context):
     body = parse_event_body(event)
     action = body.get("action", "test")
 
-    # 構造化ログ出力
+    # Structured log output.
     timestamp = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
     print(
         json.dumps(

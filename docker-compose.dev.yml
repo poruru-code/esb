@@ -1,12 +1,12 @@
-# 開発用オーバーライド
-# 外部APIアクセスが必要な場合に使用
+# Development overrides.
+# Use when external API access is required.
 #
-# 使用方法:
+# Usage:
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 
 networks:
   esb-internal-network:
-    internal: false  # 開発時は外部アクセス許可
+    internal: false  # Allow external access during development.
 
 services:
   agent:

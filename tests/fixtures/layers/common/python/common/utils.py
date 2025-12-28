@@ -3,13 +3,13 @@ import json
 
 def parse_event_body(event):
     """
-    API Gatewayイベントのbodyをパースして辞書を返す。
-    Proxy Eventの場合は 'body' キーから、そうでない場合は event 自体をパースする。
+    Parse the API Gateway event body and return a dict.
+    For Proxy Events, parse the 'body' key; otherwise parse the event itself.
     """
     if not isinstance(event, dict):
         return {}
 
-    # Proxy Event の場合
+    # Proxy Event case.
     if "body" in event:
         body = event["body"]
         if isinstance(body, str):
@@ -19,14 +19,14 @@ def parse_event_body(event):
                 return {}
         return body
 
-    # 非 Proxy Event (Direct Payload) の場合
+    # Non-proxy event (direct payload) case.
     return event
 
 
 def handle_ping(event):
     """
-    RIEからのハートビート(ping)を処理する
-    戻り値がNoneでない場合、それをレスポンスとして返す
+    Handle heartbeat (ping) from RIE.
+    If return value is not None, return it as the response.
     """
     if isinstance(event, dict) and event.get("ping"):
         return {"statusCode": 200, "body": "pong"}
@@ -35,7 +35,7 @@ def handle_ping(event):
 
 def create_response(status_code=200, body=None, headers=None):
     """
-    API Gateway互換のレスポンス辞書を作成する
+    Create an API Gateway-compatible response dict.
     """
     if headers is None:
         headers = {"Content-Type": "application/json"}

@@ -11,19 +11,19 @@ from pydantic import BaseModel, Field
 @dataclass
 class WorkerInfo:
     """
-    コンテナの状態管理に必要なメタデータ
+    Metadata required for container state management.
 
-    Auto-Scaling対応:
-    - frozen=False に変更 (last_used_at 更新のため)
-    - __eq__, __hash__ を id ベースに変更 (Set/Dict 内での同一性保持)
+    Auto-scaling support:
+    - Set frozen=False (to update last_used_at)
+    - Use id-based __eq__/__hash__ (identity in Set/Dict)
     """
 
-    id: str  # コンテナID (Docker ID)
-    name: str  # コンテナ名 (lambda-{function}-{suffix})
-    ip_address: str  # コンテナIP (実行用)
-    port: int = 8080  # サービスポート
-    created_at: float = 0.0  # 作成時刻
-    last_used_at: float = 0.0  # 最終使用時刻 (Auto-Scaling用)
+    id: str  # Container ID (Docker ID)
+    name: str  # Container name (lambda-{function}-{suffix})
+    ip_address: str  # Container IP (for execution)
+    port: int = 8080  # Service port
+    created_at: float = 0.0  # Creation time
+    last_used_at: float = 0.0  # Last used time (for auto-scaling)
 
     def __eq__(self, other):
         if isinstance(other, WorkerInfo):
@@ -35,27 +35,29 @@ class WorkerInfo:
 
 
 class ContainerProvisionRequest(BaseModel):
-    """Gateway -> Manager: コンテナプロビジョニングリクエスト"""
+    """Gateway -> Manager: container provisioning request."""
 
-    function_name: str = Field(..., description="関数名")
-    count: int = Field(default=1, ge=1, le=10, description="作成するコンテナ数")
-    image: Optional[str] = Field(None, description="使用するDockerイメージ")
-    env: Dict[str, str] = Field(default_factory=dict, description="注入する環境変数")
-    request_id: Optional[str] = Field(None, description="トレース用リクエストID")
-    dry_run: bool = Field(default=False, description="ドライラン")
+    function_name: str = Field(..., description="Function name")
+    count: int = Field(default=1, ge=1, le=10, description="Number of containers to create")
+    image: Optional[str] = Field(None, description="Docker image to use")
+    env: Dict[str, str] = Field(default_factory=dict, description="Environment variables to inject")
+    request_id: Optional[str] = Field(None, description="Request ID for tracing")
+    dry_run: bool = Field(default=False, description="Dry run")
 
 
 class ContainerProvisionResponse(BaseModel):
-    """Manager -> Gateway: プロビジョニング結果"""
+    """Manager -> Gateway: provisioning result."""
 
-    workers: List[WorkerInfo] = Field(..., description="作成されたワーカーリスト")
+    workers: List[WorkerInfo] = Field(..., description="List of created workers")
 
 
 class HeartbeatRequest(BaseModel):
-    """Gateway -> Manager: Heartbeat (Janitor用)"""
+    """Gateway -> Manager: heartbeat (for Janitor)."""
 
-    function_name: str = Field(..., description="関数名")
-    container_names: List[str] = Field(..., description="現在プールで保持しているコンテナ名リスト")
+    function_name: str = Field(..., description="Function name")
+    container_names: List[str] = Field(
+        ..., description="List of container names currently in the pool"
+    )
 
 
 # =============================================================================
@@ -65,18 +67,18 @@ class HeartbeatRequest(BaseModel):
 
 class ContainerEnsureRequest(BaseModel):
     """
-    Gateway -> Manager: コンテナ起動リクエスト
+    Gateway -> Manager: container start request.
     """
 
-    function_name: str = Field(..., description="起動対象の関数名（コンテナ名）")
-    image: Optional[str] = Field(None, description="使用するDockerイメージ")
-    env: Dict[str, str] = Field(default_factory=dict, description="注入する環境変数")
+    function_name: str = Field(..., description="Target function name (container name)")
+    image: Optional[str] = Field(None, description="Docker image to use")
+    env: Dict[str, str] = Field(default_factory=dict, description="Environment variables to inject")
 
 
 class ContainerInfoResponse(BaseModel):
     """
-    Manager -> Gateway: コンテナ接続情報
+    Manager -> Gateway: container connection information.
     """
 
-    host: str = Field(..., description="コンテナのホスト名またはIP")
-    port: int = Field(..., description="サービスポート番号")
+    host: str = Field(..., description="Container host name or IP")
+    port: int = Field(..., description="Service port")

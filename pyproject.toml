@@ -4,21 +4,21 @@ version = "0.1.0"
 description = "High-fidelity Lambda runtime for edge and local development, powered by AWS Lambda RIE."
 requires-python = ">=3.12"
 dependencies = [
-    # API Gateway互換サーバー
+    # API Gateway compatible server
     "fastapi>=0.104.1",
     "uvicorn[standard]>=0.24.0",
     "python-multipart>=0.0.6",
-    # Docker操作
+    # Docker operations
     "docker>=6.1.3",
-    # スケジューラ
+    # Scheduler
     "apscheduler>=3.10.4",
-    # JWT認証
+    # JWT authentication
     "pyjwt>=2.8.0",
-    # データベース (ScyllaDB / Cassandra互換)
-    # cassandra-driverはGatewayでは未使用、ビルド短縮のため削除
-    # AWS SDK (S3/DynamoDB互換)
+    # Database (ScyllaDB / Cassandra compatible)
+    # cassandra-driver is unused in Gateway and removed to shorten builds
+    # AWS SDK (S3/DynamoDB compatible)
     "boto3>=1.34.0",
-    # 設定管理
+    # Configuration management
     "pydantic>=2.5.0",
     "pydantic-settings>=2.0.0",
     "python-dotenv>=1.0.0",
@@ -41,8 +41,8 @@ dev = [
     "black>=23.11.0",
     "ruff>=0.1.6",
     "lefthook",  # Git hooks manager
-    "cryptography>=41.0.0",  # SSL証明書生成用
-    "requests>=2.31.0",      # テスト用
+    "cryptography>=41.0.0",  # For SSL certificate generation
+    "requests>=2.31.0",      # For tests
 ]
 
 [build-system]
@@ -72,4 +72,3 @@ filterwarnings = [
 markers = [
     "slow: marks tests as slow (may take several minutes)",
 ]
-

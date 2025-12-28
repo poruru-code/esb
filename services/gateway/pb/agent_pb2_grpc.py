@@ -71,31 +71,31 @@ class AgentServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
 
     def EnsureContainer(self, request, context):
-        """コンテナを確保し、接続情報を返す (なければ起動、あれば再利用)"""
+        """Ensure a container and return connection info (start if missing, reuse if present)."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details("Method not implemented!")
         raise NotImplementedError("Method not implemented!")
 
     def DestroyContainer(self, request, context):
-        """明示的にコンテナを停止・削除する"""
+        """Explicitly stop and remove a container."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details("Method not implemented!")
         raise NotImplementedError("Method not implemented!")
 
     def PauseContainer(self, request, context):
-        """コンテナを一時停止する (Warm Start 用)"""
+        """Pause a container (for warm starts)."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details("Method not implemented!")
         raise NotImplementedError("Method not implemented!")
 
     def ResumeContainer(self, request, context):
-        """コンテナを再開する (Warm Start 用)"""
+        """Resume a container (for warm starts)."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details("Method not implemented!")
         raise NotImplementedError("Method not implemented!")
 
     def ListContainers(self, request, context):
-        """管理下の全コンテナの状態を取得 (Phase 3: Janitor 用)"""
+        """Get state of all managed containers (Phase 3: Janitor)."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details("Method not implemented!")
         raise NotImplementedError("Method not implemented!")

@@ -110,18 +110,18 @@ class CustomJsonFormatter(logging.Formatter):
 
 def setup_logging(config_path: str = "logging.yml"):
     """
-    YAML設定ファイルを読み込み、環境変数を置換した上でロギングを初期化します。
+    Load the YAML config, substitute environment variables, and initialize logging.
     """
     if not os.path.exists(config_path):
         logging.basicConfig(level=logging.INFO)
         return
 
     with open(config_path, "r", encoding="utf-8") as f:
-        # string.Templateを使用して環境変数を置換
-        # ${LOG_LEVEL} などの形式に対応
+        # Substitute environment variables using string.Template.
+        # Supports ${LOG_LEVEL} format.
         template = string.Template(f.read())
 
-        # デフォルト値の設定
+        # Default values.
         mapping = os.environ.copy()
         if "LOG_LEVEL" not in mapping:
             mapping["LOG_LEVEL"] = "INFO"
@@ -133,8 +133,8 @@ def setup_logging(config_path: str = "logging.yml"):
 
 class VictoriaLogsHandler(logging.Handler):
     """
-    VictoriaLogsへHTTPで直接ログを送信するハンドラー。
-    失敗時は標準エラー出力へフォールバックし、Dockerのjson-fileログドライバーに任せる。
+    Handler that sends logs directly to VictoriaLogs over HTTP.
+    On failure, fall back to stderr and rely on Docker's json-file driver.
     """
 
     def __init__(self, url: str, stream_fields: dict = None, timeout: float = 0.5):
@@ -145,27 +145,27 @@ class VictoriaLogsHandler(logging.Handler):
 
     def emit(self, record: logging.LogRecord):
         try:
-            # ログメッセージの生成
+            # Build log message.
             if self.formatter:
                 msg = self.formatter.format(record)
             else:
                 msg = record.getMessage()
 
-            # JSON形式であることを期待するが、そうでなければラップする
+            # Expect JSON; wrap otherwise.
             try:
                 log_entry = json.loads(msg)
             except json.JSONDecodeError:
                 log_entry = {"message": msg, "level": record.levelname}
 
-            # stream_fields をログデータ本体にもマージする
-            # URLパラメータだけでなく、JSONボディにも含めることで
-            # VictoriaLogsが確実にストリームとして認識できるようにする
+            # Merge stream_fields into the log payload.
+            # Include them in JSON body as well as URL params so VictoriaLogs
+            # recognizes the stream reliably.
             if self.stream_fields:
                 for k, v in self.stream_fields.items():
                     if k not in log_entry:
                         log_entry[k] = v
 
-            # URLパラメータ構築
+            # Build URL parameters.
             params = [
                 ("_stream_fields", ",".join(self.stream_fields.keys())),
                 ("_msg_field", "message"),
@@ -177,7 +177,7 @@ class VictoriaLogsHandler(logging.Handler):
             query_string = urllib.parse.urlencode(params)
             full_url = f"{self.url}?{query_string}"
 
-            # データ送信
+            # Send data.
             data = json.dumps(log_entry, ensure_ascii=False).encode("utf-8")
             req = urllib.request.Request(
                 full_url,
@@ -190,8 +190,8 @@ class VictoriaLogsHandler(logging.Handler):
                 with urllib.request.urlopen(req, timeout=self.timeout) as res:
                     res.read()
             except (OSError, urllib.error.URLError) as e:
-                # フォールバック: 標準エラー出力へ
-                # sys.__stderr__ を使用して StreamToLogger による無限ループを回避
+                # Fallback: write to stderr.
+                # Use sys.__stderr__ to avoid StreamToLogger infinite loops.
                 fallback_msg = json.dumps(
                     {
                         "fallback": "victorialogs_failed",
@@ -204,7 +204,7 @@ class VictoriaLogsHandler(logging.Handler):
                 try:
                     stream.write(fallback_msg + "\n")
                 except Exception:
-                    pass  # 最悪のケースでもアプリ停止を防ぐ
+                    pass  # Prevent app from crashing in worst case.
 
         except Exception:
             self.handleError(record)
@@ -215,27 +215,27 @@ class VictoriaLogsHandler(logging.Handler):
 
 def configure_queue_logging(service_name: str, vl_url: str = None):
     """
-    非同期QueueLoggingを構成する。
-    Gateway/Managerなどの常駐プロセスで使用。
+    Configure async QueueLogging.
+    Used for long-running processes like Gateway/Manager.
     """
     if not vl_url:
         return
 
-    # 1. 送信用の実ハンドラー (別スレッドで動作)
+    # 1. Real handler for sending (runs on a separate thread).
     real_handler = VictoriaLogsHandler(
         url=vl_url, stream_fields={"container_name": service_name, "job": "services"}
     )
     real_handler.setFormatter(CustomJsonFormatter())
 
-    # 2. キューとQueueHandler (アプリ側)
+    # 2. Queue and QueueHandler (app side).
     log_queue = queue.Queue(-1)
     queue_handler = logging.handlers.QueueHandler(log_queue)
 
-    # 3. リスナー起動
+    # 3. Start listener.
     listener = logging.handlers.QueueListener(log_queue, real_handler)
     listener.start()
     atexit.register(listener.stop)
 
-    # 4. ルートロガーに追加
+    # 4. Add to root logger.
     root = logging.getLogger()
     root.addHandler(queue_handler)

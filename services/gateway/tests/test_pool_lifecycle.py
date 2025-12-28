@@ -7,8 +7,8 @@ from services.common.models.internal import WorkerInfo
 
 class TestContainerPoolLifecycle:
     """
-    ContainerPool のライフサイクルとタイムスタンプ更新を検証するテスト
-    ユーザー指示: 試行錯誤ではなく根拠（テスト）に基づいて修正を行うため。
+    Tests for ContainerPool lifecycle and timestamp updates.
+    User directive: apply fixes based on evidence (tests), not trial-and-error.
     """
 
     @pytest.fixture
@@ -20,7 +20,7 @@ class TestContainerPoolLifecycle:
     @pytest.mark.asyncio
     async def test_last_used_at_updates_on_release(self, pool):
         """
-        release() 呼び出し時に last_used_at が更新されることを確認
+        Ensure last_used_at updates on release().
         """
 
         # Mock provision callback
@@ -44,7 +44,7 @@ class TestContainerPoolLifecycle:
     @pytest.mark.asyncio
     async def test_adopt_sets_timestamp(self, pool):
         """
-        adopt() 呼び出し時に last_used_at が現在時刻に設定されることを確認
+        Ensure adopt() sets last_used_at to the current time.
         """
         worker = WorkerInfo(id="w2", name="w2", ip_address="2.2.2.2", last_used_at=0.0)
 
@@ -57,7 +57,7 @@ class TestContainerPoolLifecycle:
     @pytest.mark.asyncio
     async def test_prune_respects_last_used_at(self, pool):
         """
-        prune_idle_workers() が last_used_at を正しく評価することを確認
+        Ensure prune_idle_workers() evaluates last_used_at correctly.
         """
         # Add a worker that is "old" manually
         old_worker = WorkerInfo(id="w_old", name="w_old", ip_address="1.1.1.1")

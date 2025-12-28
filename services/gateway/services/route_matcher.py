@@ -1,11 +1,11 @@
 """
-ルートマッチングサービス
+Route matching service.
 
-routing.ymlを読み込み、リクエストパス/メソッドからターゲットコンテナを特定します。
+Loads routing.yml and resolves target containers from request paths/methods.
 
 Note:
-    FastAPIの APIRouter とは異なる機能を提供します。
-    このモジュールは設定ファイルベースのルーティングマッチングロジックです。
+    Provides functionality different from FastAPI's APIRouter.
+    This module implements config-based route matching logic.
 """
 
 import re
@@ -30,7 +30,7 @@ class RouteMatcher:
 
     def load_routing_config(self) -> List[Dict[str, Any]]:
         """
-        routing.ymlを読み込んでキャッシュ
+        Load routing.yml and cache it.
         """
         try:
             with open(self.config_path, "r", encoding="utf-8") as f:
@@ -48,12 +48,12 @@ class RouteMatcher:
 
     def _path_to_regex(self, path_pattern: str) -> str:
         """
-        パスパターンを正規表現に変換
+        Convert a path pattern to a regular expression.
 
-        例: "/users/{user_id}/posts/{post_id}"
+        Example: "/users/{user_id}/posts/{post_id}"
             → "^/users/(?P<user_id>[^/]+)/posts/(?P<post_id>[^/]+)$"
         """
-        # {param} を名前付きキャプチャグループに置換
+        # Replace {param} with named capture groups.
         regex_pattern = re.sub(r"\{(\w+)\}", r"(?P<\1>[^/]+)", path_pattern)
         return f"^{regex_pattern}$"
 
@@ -61,18 +61,18 @@ class RouteMatcher:
         self, request_path: str, request_method: str
     ) -> Tuple[Optional[str], Dict[str, str], Optional[str], Dict[str, Any]]:
         """
-        リクエストパスとメソッドからターゲットコンテナを特定
+        Resolve the target container from request path and method.
 
         Args:
-            request_path: リクエストパス (例: "/api/users/123")
-            request_method: HTTPメソッド (例: "POST")
+            request_path: request path (e.g., "/api/users/123")
+            request_method: HTTP method (e.g., "POST")
 
         Returns:
             Tuple of:
-                - target_container: コンテナ名 (見つからない場合はNone)
-                - path_params: パスパラメータの辞書
-                - route_path: マッチしたルートのパスパターン (resource用)
-                - function_config: function設定（image, environment等）
+                - target_container: container name (None if not found)
+                - path_params: dict of path parameters
+                - route_path: matched route pattern (for resource)
+                - function_config: function settings (image, environment, etc.)
         """
         if not self._routing_config:
             self.load_routing_config()
@@ -81,31 +81,31 @@ class RouteMatcher:
             route_path = route.get("path", "")
             route_method = route.get("method", "").upper()
 
-            # メソッドが一致するか確認
+            # Check if method matches.
             if request_method.upper() != route_method:
                 continue
 
-            # パスパターンを正規表現に変換してマッチング
+            # Convert path pattern to regex and match.
             regex_pattern = self._path_to_regex(route_path)
             match = re.match(regex_pattern, request_path)
 
             if match:
-                # パスパラメータを抽出
+                # Extract path parameters.
                 path_params = match.groupdict()
 
-                # function 設定を取得（新形式: 文字列、旧形式: 辞書）
+                # Get function config (new format: string, old format: dict).
                 function_ref = route.get("function", {})
 
                 if isinstance(function_ref, str):
-                    # 新形式: function_registry から設定を取得
+                    # New format: fetch config from function_registry.
                     target_container = function_ref
                     function_config = self.function_registry.get_function_config(function_ref) or {}
                 else:
-                    # 旧形式（後方互換）: 辞書から直接取得
+                    # Old format (backward compatible): use dict directly.
                     target_container = function_ref.get("container", "")
                     function_config = function_ref
 
                 return target_container, path_params, route_path, function_config
 
-        # マッチするルートが見つからない
+        # No matching route found.
         return None, {}, None, {}

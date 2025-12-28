@@ -1,8 +1,8 @@
 """
-ManagerClient のテスト (TDD Red フェーズ)
+ManagerClient tests (TDD Red phase).
 
-エラーマッピングとRequestId伝播の機能をテストします。
-まだ実装がないため、これらのテストは失敗するはずです。
+Test error mapping and RequestId propagation.
+These tests are expected to fail until implementation is complete.
 """
 
 import pytest
@@ -19,7 +19,7 @@ def mock_client():
 
 @pytest.mark.asyncio
 async def test_ensure_container_success(mock_client):
-    """正常系: コンテナ起動成功"""
+    """Happy path: container starts successfully."""
     mock_response = MagicMock(spec=httpx.Response)
     mock_response.status_code = 200
     mock_response.json.return_value = {"host": "10.0.0.1", "port": 8080}
@@ -36,7 +36,7 @@ async def test_ensure_container_success(mock_client):
 
 @pytest.mark.asyncio
 async def test_ensure_container_network_failure(mock_client):
-    """Manager への接続失敗 -> OrchestratorUnreachableError"""
+    """Connection failure to Manager -> OrchestratorUnreachableError."""
     from services.gateway.core.exceptions import OrchestratorUnreachableError
 
     mock_client.post.side_effect = httpx.RequestError("Connection failed", request=MagicMock())
@@ -49,7 +49,7 @@ async def test_ensure_container_network_failure(mock_client):
 
 @pytest.mark.asyncio
 async def test_ensure_container_timeout(mock_client):
-    """Manager タイムアウト -> OrchestratorTimeoutError"""
+    """Manager timeout -> OrchestratorTimeoutError."""
     from services.gateway.core.exceptions import OrchestratorTimeoutError
 
     mock_client.post.side_effect = httpx.TimeoutException("Timeout", request=MagicMock())
@@ -104,10 +104,10 @@ async def test_ensure_container_400_docker_error(mock_client):
 
 @pytest.mark.asyncio
 async def test_trace_id_propagation(mock_client):
-    """TraceId が X-Amzn-Trace-Id ヘッダーで伝播される"""
+    """TraceId propagates via X-Amzn-Trace-Id header."""
     from services.common.core.request_context import set_trace_id, clear_trace_id
 
-    # TraceId を設定
+    # Set TraceId.
     test_trace_id = "Root=1-abcdef01-1234567890abcdef12345678;Sampled=1"
     set_trace_id(test_trace_id)
 
@@ -120,7 +120,7 @@ async def test_trace_id_propagation(mock_client):
     manager_client = ManagerClient(mock_client)
     await manager_client.ensure_container("test-func")
 
-    # X-Amzn-Trace-Id ヘッダーが付与されているか検証
+    # Verify X-Amzn-Trace-Id header is set.
     args, kwargs = mock_client.post.call_args
     assert "headers" in kwargs
     assert kwargs["headers"]["X-Amzn-Trace-Id"] == test_trace_id
@@ -135,7 +135,7 @@ async def test_trace_id_propagation(mock_client):
 
 @pytest.mark.asyncio
 async def test_ensure_container_cache_hit(mock_client):
-    """キャッシュヒット時は Manager への HTTP リクエストをスキップ"""
+    """Skip Manager HTTP request on cache hit."""
     from services.gateway.services.container_cache import ContainerHostCache
 
     cache = ContainerHostCache()
@@ -145,12 +145,12 @@ async def test_ensure_container_cache_hit(mock_client):
     host = await manager_client.ensure_container("test-func")
 
     assert host == "cached-host"
-    mock_client.post.assert_not_called()  # HTTP リクエストなし
+    mock_client.post.assert_not_called()  # No HTTP request.
 
 
 @pytest.mark.asyncio
 async def test_ensure_container_cache_miss_then_cache(mock_client):
-    """キャッシュミス時は Manager を呼び出し、結果をキャッシュ"""
+    """On cache miss, call Manager and cache the result."""
     from services.gateway.services.container_cache import ContainerHostCache
 
     cache = ContainerHostCache()
@@ -176,7 +176,7 @@ async def test_ensure_container_cache_miss_then_cache(mock_client):
 
 @pytest.mark.asyncio
 async def test_invalidate_cache_clears_entry(mock_client):
-    """ManagerClient.invalidate_cache() でキャッシュがクリアされる"""
+    """ManagerClient.invalidate_cache() clears the cache."""
     from services.gateway.services.container_cache import ContainerHostCache
 
     cache = ContainerHostCache()
@@ -193,7 +193,7 @@ async def test_invalidate_cache_clears_entry(mock_client):
 
 @pytest.mark.asyncio
 async def test_cache_miss_retry_after_invalidation(mock_client):
-    """キャッシュ無効化後は Manager に再問い合わせする"""
+    """After cache invalidation, query Manager again."""
     from services.gateway.services.container_cache import ContainerHostCache
 
     cache = ContainerHostCache()
@@ -228,7 +228,7 @@ async def test_cache_miss_retry_after_invalidation(mock_client):
 
 @pytest.mark.asyncio
 async def test_singleflight_coalesces_concurrent_requests(mock_client):
-    """同時リクエストが1回の Manager 呼び出しに統合される (Thundering Herd 対策)"""
+    """Coalesce concurrent requests into a single Manager call (thundering herd)."""
     import asyncio
     from services.gateway.services.container_cache import ContainerHostCache
 
@@ -238,7 +238,7 @@ async def test_singleflight_coalesces_concurrent_requests(mock_client):
     async def slow_manager_response(*args, **kwargs):
         nonlocal call_count
         call_count += 1
-        await asyncio.sleep(0.1)  # Manager 処理をシミュレート
+        await asyncio.sleep(0.1)  # Simulate Manager processing.
         mock_response = MagicMock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.json.return_value = {"host": "coalesced-host", "port": 8080}
@@ -249,23 +249,23 @@ async def test_singleflight_coalesces_concurrent_requests(mock_client):
 
     manager_client = ManagerClient(mock_client, cache=cache)
 
-    # 3件の同時リクエストを発行
+    # Issue three concurrent requests.
     results = await asyncio.gather(
         manager_client.ensure_container("test-func"),
         manager_client.ensure_container("test-func"),
         manager_client.ensure_container("test-func"),
     )
 
-    # 全員同じ結果を受け取る
+    # All receive the same result.
     assert results == ["coalesced-host", "coalesced-host", "coalesced-host"]
 
-    # Manager への呼び出しは1回だけ
+    # Only one call to Manager.
     assert call_count == 1
 
 
 @pytest.mark.asyncio
 async def test_singleflight_propagates_error_to_all_waiters(mock_client):
-    """エラー時は全待機者にエラーが伝播される"""
+    """Errors propagate to all waiters."""
     import asyncio
     from services.gateway.services.container_cache import ContainerHostCache
     from services.gateway.core.exceptions import OrchestratorUnreachableError
@@ -280,7 +280,7 @@ async def test_singleflight_propagates_error_to_all_waiters(mock_client):
 
     manager_client = ManagerClient(mock_client, cache=cache)
 
-    # 3件の同時リクエストを発行 (return_exceptions=True でエラーを収集)
+    # Issue three concurrent requests (collect errors with return_exceptions=True).
     results = await asyncio.gather(
         manager_client.ensure_container("test-func"),
         manager_client.ensure_container("test-func"),
@@ -288,7 +288,7 @@ async def test_singleflight_propagates_error_to_all_waiters(mock_client):
         return_exceptions=True,
     )
 
-    # 全員が同じエラーを受け取る
+    # Everyone receives the same error.
     assert len(results) == 3
     for err in results:
         assert isinstance(err, OrchestratorUnreachableError)

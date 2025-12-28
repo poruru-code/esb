@@ -1,10 +1,10 @@
 """
-Lambda 呼び出しテスト (E2E)
+Lambda invocation tests (E2E).
 
-検証シナリオ:
-1. 基本呼び出し: Client -> Gateway -> Echo
-2. 同期連鎖呼び出し: Client -> Gateway -> Chain (boto3) -> Echo (Sync)
-3. 非同期連鎖呼び出し: Client -> Gateway -> Chain (boto3) -> Echo (Async)
+Scenarios:
+1. Basic invocation: Client -> Gateway -> Echo
+2. Sync chained invocation: Client -> Gateway -> Chain (boto3) -> Echo (Sync)
+3. Async chained invocation: Client -> Gateway -> Chain (boto3) -> Echo (Async)
 """
 
 import json
@@ -17,10 +17,10 @@ from tests.conftest import (
 
 
 class TestLambda:
-    """Lambda 呼び出し機能の検証"""
+    """Verify Lambda invocation functionality."""
 
     def test_basic_invocation(self, auth_token):
-        """基本呼び出し: Client -> Gateway -> Echo"""
+        """Basic invocation: Client -> Gateway -> Echo."""
         response = call_api("/api/echo", auth_token, {"message": "hello-basic"})
 
         assert response.status_code == 200
@@ -30,14 +30,14 @@ class TestLambda:
         assert data["user"] == AUTH_USER
 
     def test_sync_chain_invoke(self, auth_token):
-        """同期連鎖呼び出し: Client -> Gateway -> Chain (boto3 sync) -> Echo"""
+        """Sync chained invocation: Client -> Gateway -> Chain (boto3 sync) -> Echo."""
         response = call_api("/api/lambda", auth_token, {"next_target": "lambda-echo"})
 
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
 
-        # 子(lambda-echo)のレスポンス検証
+        # Verify child (lambda-echo) response.
         child = data.get("child")
         assert child is not None
         assert child.get("statusCode") == 200
@@ -48,7 +48,7 @@ class TestLambda:
 
     # VictoriaLogs is now working - unskipped
     def test_async_chain_invoke(self, auth_token):
-        """非同期連鎖呼び出し: Client -> Gateway -> Chain (boto3 async) -> Echo"""
+        """Async chained invocation: Client -> Gateway -> Chain (boto3 async) -> Echo."""
         response = call_api(
             "/api/lambda", auth_token, {"next_target": "lambda-echo", "async": True}
         )
@@ -57,18 +57,18 @@ class TestLambda:
         data = response.json()
         assert data["success"] is True
 
-        # 非同期呼び出しが開始されたことの確認
+        # Confirm async invocation started.
         child = data.get("child")
         assert child is not None
         assert child.get("status") == "async-started"
         assert child.get("status_code") == 202
 
-        # Trace ID を取得して VictoriaLogs で実行を確認
+        # Get Trace ID and confirm execution in VictoriaLogs.
         trace_id = data.get("trace_id")
         assert trace_id is not None
         root_trace_id = trace_id.split(";")[0].replace("Root=", "")
 
-        # VictoriaLogs で lambda-echo のログを確認
+        # Check lambda-echo logs in VictoriaLogs.
         logs = query_victorialogs_by_filter(
             filters={
                 "trace_id": root_trace_id,
@@ -81,7 +81,7 @@ class TestLambda:
         assert len(logs["hits"]) >= 1, (
             f"Async execution log not found for trace_id: {root_trace_id}"
         )
-        # ログに Echo メッセージが含まれるか確認 (フィールド名は message または _msg)
+        # Ensure Echo message appears in logs (field name message or _msg).
         found_echo = any(
             "Echo: from-chain" in hit.get("message", "")
             or "Echo: from-chain" in hit.get("_msg", "")

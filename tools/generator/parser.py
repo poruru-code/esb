@@ -1,8 +1,8 @@
 """
 SAM Template Parser
 
-SAMテンプレート(YAML)をパースし、Lambda関数の情報を抽出します。
-CloudFormation intrinsic functions (!Sub, !Ref等) を安全に処理します。
+Parse SAM template (YAML) and extract Lambda function information.
+Safely handle CloudFormation intrinsic functions (!Sub, !Ref, etc.).
 """
 
 import yaml
@@ -10,13 +10,13 @@ from typing import Any
 
 
 class CfnLoader(yaml.SafeLoader):
-    """CloudFormation intrinsic functionsを処理するYAMLローダー"""
+    """YAML loader that handles CloudFormation intrinsic functions."""
 
     pass
 
 
 def cfn_constructor(loader: yaml.Loader, node: yaml.Node) -> Any:
-    """CloudFormation タグ用のコンストラクタ"""
+    """Constructor for CloudFormation tags."""
     if isinstance(node, yaml.ScalarNode):
         return loader.construct_scalar(node)
     elif isinstance(node, yaml.SequenceNode):
@@ -26,18 +26,18 @@ def cfn_constructor(loader: yaml.Loader, node: yaml.Node) -> Any:
     return ""
 
 
-# CloudFormation タグを登録
+# Register CloudFormation tags.
 for tag in ["!Ref", "!Sub", "!GetAtt", "!ImportValue", "!If", "!Join", "!Select", "!Split"]:
     yaml.add_constructor(tag, cfn_constructor, Loader=CfnLoader)
 
 
 def parse_sam_template(content: str, parameters: dict | None = None) -> dict:
     """
-    SAMテンプレート文字列をパースし、Lambda関数のリストを返す
+    Parse a SAM template string and return a list of Lambda functions.
 
     Args:
-        content: SAMテンプレートのYAML文字列
-        parameters: パラメータ置換用の辞書（オプション）
+        content: SAM template YAML string
+        parameters: dict for parameter substitution (optional)
 
     Returns:
         {
@@ -58,7 +58,7 @@ def parse_sam_template(content: str, parameters: dict | None = None) -> dict:
 
     data = yaml.load(content, Loader=CfnLoader)
 
-    # Globalsからデフォルト値を取得
+    # Get default values from Globals.
     globals_config = data.get("Globals", {}).get("Function", {})
     default_runtime = globals_config.get("Runtime", "python3.12")
     default_handler = globals_config.get("Handler", "lambda_function.lambda_handler")
@@ -72,40 +72,40 @@ def parse_sam_template(content: str, parameters: dict | None = None) -> dict:
     for logical_id, resource in resources.items():
         resource_type = resource.get("Type", "")
 
-        # AWS::Serverless::Function のみ対象
+        # Only target AWS::Serverless::Function.
         if resource_type != "AWS::Serverless::Function":
             continue
 
         props = resource.get("Properties", {})
 
-        # 関数名を取得（!Sub等を解決）
+        # Get function name (resolve !Sub, etc.).
         function_name = props.get("FunctionName", logical_id)
         function_name = _resolve_intrinsic(function_name, parameters)
 
-        # コードURI
+        # Code URI.
         code_uri = props.get("CodeUri", "./")
         code_uri = _resolve_intrinsic(code_uri, parameters)
         if not code_uri.endswith("/"):
             code_uri += "/"
 
-        # ハンドラ（PropertiesまたはGlobalsから）
+        # Handler (from Properties or Globals).
         handler = props.get("Handler", default_handler)
 
-        # ランタイム（PropertiesまたはGlobalsから）
+        # Runtime (from Properties or Globals).
         runtime = props.get("Runtime", default_runtime)
 
-        # 環境変数
+        # Environment variables.
         env_vars = props.get("Environment", {}).get("Variables", {})
-        # 環境変数の値も解決
+        # Resolve environment variable values as well.
         resolved_env = {}
         for key, value in env_vars.items():
             resolved_env[key] = _resolve_intrinsic(value, parameters)
 
-        # --- Phase 1: Events (API Gateway) 解析 ---
+        # --- Phase 1: Events (API Gateway) parsing ---
         events = props.get("Events", {})
         api_routes = []
         for event_name, event_props in events.items():
-            # Type: Api (API Gateway) のみを対象にする
+            # Only handle Type: Api (API Gateway).
             if event_props.get("Type") == "Api":
                 evt_properties = event_props.get("Properties", {})
                 path = evt_properties.get("Path")
@@ -114,7 +114,7 @@ def parse_sam_template(content: str, parameters: dict | None = None) -> dict:
                 if path and method:
                     api_routes.append({"path": path, "method": method})
 
-        # --- Phase 1.5: Scaling (SAM Standard) 解析 ---
+        # --- Phase 1.5: Scaling (SAM Standard) parsing ---
         max_capacity = props.get("ReservedConcurrentExecutions")
         provisioned_config = props.get("ProvisionedConcurrencyConfig", {})
         min_capacity = provisioned_config.get("ProvisionedConcurrentExecutions")
@@ -140,12 +140,12 @@ def parse_sam_template(content: str, parameters: dict | None = None) -> dict:
             }
         )
 
-    # --- Phase 2: Resources & Layers 解析 ---
+    # --- Phase 2: Resources & Layers parsing ---
     dynamodb_tables = []
     s3_buckets = []
     layers = {}  # logical_id -> {name, content_uri}
 
-    # 先に LayerVersion を解析
+    # Parse LayerVersion first.
     for logical_id, resource in resources.items():
         resource_type = resource.get("Type", "")
         props = resource.get("Properties", {})
@@ -182,9 +182,9 @@ def parse_sam_template(content: str, parameters: dict | None = None) -> dict:
             bucket_name = _resolve_intrinsic(bucket_name, parameters)
             s3_buckets.append({"BucketName": bucket_name})
 
-    # Phase 3: Function に Layer 情報を紐付け
+    # Phase 3: Attach layer information to functions.
     for func in functions:
-        # この時点では func は辞書
+        # At this point func is a dict.
         logical_id = func["logical_id"]
         resource = resources.get(logical_id, {})
         props = resource.get("Properties", {})
@@ -214,14 +214,14 @@ def parse_sam_template(content: str, parameters: dict | None = None) -> dict:
 
 def _resolve_intrinsic(value: Any, parameters: dict) -> str:
     """
-    CloudFormation intrinsic functionを解決する
+    Resolve a CloudFormation intrinsic function.
 
-    簡易実装: !Sub ${Param} 形式のみ対応
+    Simple implementation: only supports !Sub ${Param} format.
     """
     if not isinstance(value, str):
         return str(value) if value is not None else ""
 
-    # ${Param} 形式を置換
+    # Replace ${Param} format.
     import re
 
     def replace_param(match):

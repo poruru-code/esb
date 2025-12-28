@@ -1,8 +1,8 @@
 """
-Lambda Invoker Service
+Lambda Invoker Service.
 
-InvocationBackend ストラテジーを通じてワーカーを取得し、Lambda RIEに対してInvokeリクエストを送信します。
-boto3.client('lambda').invoke() 互換のエンドポイント用のビジネスロジック層です。
+Acquires workers via the InvocationBackend strategy and sends invoke requests to Lambda RIE.
+Business logic layer for boto3.client('lambda').invoke()-compatible endpoints.
 """
 
 import logging
@@ -36,24 +36,24 @@ class WorkerState:
 
 class InvocationBackend(Protocol):
     """
-    実行バックエンドの抽象インターフェース
-    PoolManager (Python) や将来の AgentClient (Go/gRPC) がこれを実装する
+    Abstract interface for execution backends.
+    Implemented by PoolManager (Python) and future AgentClient (Go/gRPC).
     """
 
     async def acquire_worker(self, function_name: str) -> WorkerInfo:
-        """関数実行用のワーカーを取得"""
+        """Acquire a worker for function execution."""
         ...
 
     async def release_worker(self, function_name: str, worker: WorkerInfo) -> None:
-        """ワーカーを返却"""
+        """Release a worker."""
         ...
 
     async def evict_worker(self, function_name: str, worker: WorkerInfo) -> None:
-        """ワーカーを破棄"""
+        """Evict a worker."""
         ...
 
     async def list_workers(self) -> List[WorkerState]:
-        """全ワーカーの状態を取得 (Janitor 用)"""
+        """Get state of all workers (for Janitor)."""
         ...
 
 
@@ -76,13 +76,13 @@ class LambdaInvoker:
         self.registry = registry
         self.config = config
         self.backend = backend
-        # 関数名ごとのブレーカーを保持
+        # Store per-function breakers.
         self.breakers: Dict[str, CircuitBreaker] = {}
 
     async def invoke_function(
         self, function_name: str, payload: bytes, timeout: int = 300
     ) -> httpx.Response:
-        """指定された名称の Lambda を実行"""
+        """Invoke the specified Lambda."""
         func_config = self.registry.get_function_config(function_name)
         if not func_config:
             raise LambdaExecutionError(function_name, "Function not found in registry")
@@ -96,7 +96,7 @@ class LambdaInvoker:
 
         worker: Optional[WorkerInfo] = None
         try:
-            # 1. バックエンドからワーカーを取得 (Strategy Pattern)
+            # 1. Acquire worker from backend (strategy pattern).
             try:
                 worker = await self.backend.acquire_worker(function_name)
                 host = worker.ip_address
@@ -108,14 +108,14 @@ class LambdaInvoker:
             rie_url = f"http://{host}:{port}/2015-03-31/functions/function/invocations"
             logger.info(f"Invoking {function_name} at {rie_url} (trace_id: {trace_id})")
 
-            # 3. ブレーカー経由でリクエスト実行
+            # 3. Execute request via breaker.
             async def do_post():
                 headers = {
                     "Content-Type": "application/json",
                 }
                 if trace_id:
                     headers["X-Amzn-Trace-Id"] = trace_id
-                    # RIE 対策: ClientContext に Trace ID を埋め込む
+                    # RIE workaround: embed Trace ID in ClientContext.
                     client_context = {"custom": {"trace_id": trace_id}}
                     json_ctx = json.dumps(client_context)
                     b64_ctx = base64.b64encode(json_ctx.encode("utf-8")).decode("utf-8")
@@ -130,7 +130,7 @@ class LambdaInvoker:
                     timeout=timeout,
                 )
 
-                # 判定: 回路を遮断すべき「失敗」かどうか
+                # Determine whether the response counts as a failure.
                 is_failure = False
                 if response.status_code >= 500:
                     is_failure = True
@@ -203,7 +203,7 @@ class LambdaInvoker:
             )
             raise LambdaExecutionError(function_name, e) from e
         finally:
-            # 常にプールへ返却 (evict済みの場合は worker=None)
+            # Always return to pool (worker=None if evicted).
             if worker is not None:
                 try:
                     await self.backend.release_worker(function_name, worker)
@@ -211,7 +211,7 @@ class LambdaInvoker:
                     logger.error(f"Failed to release worker for {function_name}: {e}")
 
     def _get_breaker(self, function_name: str) -> CircuitBreaker:
-        """関数ごとのサーキットブレーカーを取得または作成"""
+        """Get or create a circuit breaker per function."""
         if function_name not in self.breakers:
             self.breakers[function_name] = CircuitBreaker(
                 failure_threshold=self.config.CIRCUIT_BREAKER_THRESHOLD,

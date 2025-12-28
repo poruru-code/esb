@@ -1,9 +1,9 @@
 """
-耐障害性・パフォーマンス機能テスト
+Resilience and performance tests.
 
-- Manager再起動時のコンテナ復元 (Adopt & Sync)
-- コンテナホストキャッシュ (Managerへの負荷軽減)
-- Circuit Breaker (Lambdaクラッシュ時の遮断)
+- Container recovery after Manager restart (Adopt & Sync)
+- Container host cache (reduce Manager load)
+- Circuit Breaker (block on Lambda crash)
 """
 
 import os
@@ -24,22 +24,22 @@ from tests.conftest import (
 
 
 class TestResilience:
-    """耐障害性・パフォーマンス機能の検証"""
+    """Verify resilience and performance features."""
 
     # Unskipped - Go Agent restart recovery should work
     def test_orchestrator_restart_recovery(self, auth_token):
         """
-        E2E: Manager/Agent再起動時のコンテナ復元検証 (Adopt & Sync)
+        E2E: verify container recovery after Manager/Agent restart (Adopt & Sync).
 
-        Echo Lambda を使用 (S3 依存なし)
+        Uses Echo Lambda (no S3 dependency).
 
-        USE_GRPC_AGENT=True の場合: agent を再起動
-        USE_GRPC_AGENT=False の場合: orchestrator を再起動
+        USE_GRPC_AGENT=True: restart agent
+        USE_GRPC_AGENT=False: restart orchestrator
         """
         use_grpc_agent = os.environ.get("USE_GRPC_AGENT", "false").lower() == "true"
         service_to_restart = "agent" if use_grpc_agent else "orchestrator"
 
-        # 1. 最初の呼び出し（コンテナ起動）
+        # 1. Initial invocation (container startup).
         print("Step 1: Initial Lambda invocation (cold start)...")
         response1 = call_api("/api/echo", auth_token, {"message": "warmup"})
         assert response1.status_code == 200
@@ -48,7 +48,7 @@ class TestResilience:
 
         time.sleep(3)
 
-        # 2. Manager/Agentコンテナを再起動
+        # 2. Restart Manager/Agent container.
         print(f"Step 2: Restarting {service_to_restart} container...")
         restart_result = subprocess.run(
             ["docker", "compose", "restart", service_to_restart],
@@ -64,7 +64,7 @@ class TestResilience:
 
         time.sleep(ORCHESTRATOR_RESTART_WAIT)
 
-        # ヘルスチェック（間接的）
+        # Indirect health check.
         for i in range(15):
             try:
                 health_resp = requests.get(
@@ -78,7 +78,7 @@ class TestResilience:
 
         time.sleep(STABILIZATION_WAIT)
 
-        # 3. 再起動後の呼び出し（コンテナ復元確認）
+        # 3. Post-restart invocation (verify container recovery).
         print("Step 3: Post-restart invocation (should be warm start)...")
 
         response2 = request_with_retry(
@@ -103,14 +103,13 @@ class TestResilience:
 
     def test_gateway_cache_hit(self, auth_token):
         """
-        E2E: Gateway のコンテナプーリングが機能していることを検証
+        E2E: verify Gateway container pooling works.
 
-        PoolManager アーキテクチャでは、Gateway が Orchestrator を経由せずに
-        プール内のワーカーを直接管理します。このテストでは、連続リクエストが
-        プールからワーカーを再利用して成功することを検証します。
+        In PoolManager architecture, Gateway manages workers directly without the Orchestrator.
+        This test verifies that consecutive requests reuse workers from the pool.
         """
 
-        # 1. 1回目リクエスト (プールにワーカーなし -> プロビジョニング発生)
+        # 1. First request (no worker in pool -> provisioning).
         resp1 = call_api(
             "/api/faulty",
             auth_token,
@@ -119,7 +118,7 @@ class TestResilience:
         assert resp1.status_code == 200, f"First request failed: {resp1.text}"
         print("First request succeeded (cold start or pooled)")
 
-        # 2. 2回目リクエスト (プールからワーカー再利用)
+        # 2. Second request (reuse worker from pool).
         resp2 = call_api(
             "/api/faulty",
             auth_token,
@@ -128,7 +127,7 @@ class TestResilience:
         assert resp2.status_code == 200, f"Second request failed: {resp2.text}"
         print("Second request succeeded (should be warm/pooled)")
 
-        # 3. 3回目リクエスト (継続的な再利用確認)
+        # 3. Third request (confirm continued reuse).
         resp3 = call_api(
             "/api/faulty",
             auth_token,
@@ -139,15 +138,15 @@ class TestResilience:
 
     def test_circuit_breaker(self, auth_token):
         """
-        E2E: Lambda のクラッシュ時に Circuit Breaker が作動することを検証
+        E2E: verify Circuit Breaker triggers on Lambda crashes.
         """
 
-        # 1. ウォームアップ
+        # 1. Warm up.
         print("Warming up lambda-faulty...")
         call_api("/api/faulty", auth_token, {"action": "hello"})
 
         try:
-            # 2. 失敗を繰り返す
+            # 2. Repeated failures.
             for i in range(3):
                 print(f"Attempt {i + 1} (crashing lambda)...")
                 start = time.time()
@@ -156,7 +155,7 @@ class TestResilience:
                 print(f"Status: {resp.status_code}, Body: {resp.text}, Latency: {duration:.2f}s")
                 assert resp.status_code == 502, f"Expected 502, got {resp.status_code}"
 
-            # 3. 4回目リクエスト (Circuit Breaker OPEN)
+            # 3. Fourth request (Circuit Breaker OPEN).
             print("Request 4 (expecting Circuit Breaker Open)...")
             start = time.time()
             resp = call_api("/api/faulty", auth_token, {"action": "hello"}, timeout=10)
@@ -166,11 +165,11 @@ class TestResilience:
             assert resp.status_code == 502
             assert duration < 1.0, "Circuit Breaker should fail fast (< 1.0s)"
 
-            # 4. 復旧待ち
+            # 4. Wait for recovery.
             print("Waiting for Circuit Breaker recovery (11s)...")
             time.sleep(11)
 
-            # 5. 復旧確認
+            # 5. Confirm recovery.
             print("Request 5 (expecting recovery)...")
             resp = call_api("/api/faulty", auth_token, {"action": "hello"})
             assert resp.status_code == 200, f"Recovery failed: {resp.text}"

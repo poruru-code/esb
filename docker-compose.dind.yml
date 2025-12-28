@@ -1,5 +1,5 @@
-# 【A】ホストOSで実行するComposeファイル（DinD親コンテナを起動）
-# 本番環境ではこのファイルを使用してDinD環境全体を起動する
+# [A] Compose file for running on the host OS (starts the DinD parent container).
+# Use this file to start the entire DinD environment in production.
 
 services:
   # ============================================
@@ -10,7 +10,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: esb-root
-    privileged: true  # DinDに必須
+    privileged: true  # Required for DinD.
     ports:
       - "443:443"     # Gateway API (HTTPS)
       - "9000:9000"   # RustFS API
@@ -18,8 +18,8 @@ services:
       - "9428:9428"   # VictoriaLogs
       - "8001:8001"   # ScyllaDB Alternator
     volumes:
-      # データ永続化（ホストOS -> 親コンテナ -> 子コンテナ）
+      # Data persistence (host OS -> parent container -> child container).
       - ./data:/app/data
-      # ログ集約
+      # Log aggregation.
       - ./logs:/logs
     restart: unless-stopped

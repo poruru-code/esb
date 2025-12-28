@@ -20,7 +20,7 @@ async def test_lambda_invoker_strategy_initialization():
     config = GatewayConfig()
     backend = AsyncMock(spec=InvocationBackend)
 
-    # この呼び出しは、現状の LambdaInvoker (旧引数) では失敗するはず
+    # This call should fail with the current LambdaInvoker (old args).
     invoker = LambdaInvoker(client=client, registry=registry, config=config, backend=backend)
 
     assert invoker.backend == backend

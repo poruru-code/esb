@@ -1,7 +1,7 @@
 """
-カスタム例外クラス
+Custom exception classes.
 
-Lambda呼び出しに関するエラーを表現します。
+Represent errors related to Lambda invocation.
 """
 
 import logging
@@ -14,13 +14,13 @@ logger = logging.getLogger(__name__)
 
 
 class LambdaInvokeError(Exception):
-    """Lambda呼び出しの基底例外クラス"""
+    """Base exception class for Lambda invocation."""
 
     pass
 
 
 class FunctionNotFoundError(LambdaInvokeError):
-    """関数が見つからない場合の例外"""
+    """Raised when a function is not found."""
 
     def __init__(self, function_name: str):
         self.function_name = function_name
@@ -28,7 +28,7 @@ class FunctionNotFoundError(LambdaInvokeError):
 
 
 class ContainerStartError(LambdaInvokeError):
-    """コンテナ起動に失敗した場合の例外"""
+    """Raised when container startup fails."""
 
     def __init__(self, function_name: str, cause: Exception):
         self.function_name = function_name
@@ -37,7 +37,7 @@ class ContainerStartError(LambdaInvokeError):
 
 
 class LambdaExecutionError(LambdaInvokeError):
-    """Lambda実行に失敗した場合の例外"""
+    """Raised when Lambda execution fails."""
 
     def __init__(self, function_name: str, cause: Exception):
         self.function_name = function_name
@@ -47,7 +47,7 @@ class LambdaExecutionError(LambdaInvokeError):
 
 
 class OrchestratorError(LambdaInvokeError):
-    """Orchestrator サービスからのエラー"""
+    """Error from the orchestrator service."""
 
     def __init__(self, status_code: int, detail: str):
         self.status_code = status_code
@@ -56,14 +56,14 @@ class OrchestratorError(LambdaInvokeError):
 
 
 class OrchestratorTimeoutError(OrchestratorError):
-    """Orchestrator サービスのタイムアウトエラー"""
+    """Timeout error from the orchestrator service."""
 
     def __init__(self, detail: str = "Orchestrator request timed out"):
         super().__init__(408, detail)
 
 
 class OrchestratorUnreachableError(LambdaInvokeError):
-    """Orchestrator サービスへの接続失敗"""
+    """Failed to connect to the orchestrator service."""
 
     def __init__(self, cause: Exception):
         self.cause = cause
@@ -71,7 +71,7 @@ class OrchestratorUnreachableError(LambdaInvokeError):
 
 
 class ResourceExhaustedError(LambdaInvokeError):
-    """リソース枯渇（キュー満杯・タイムアウト）時の例外"""
+    """Raised when resources are exhausted (queue full or timeout)."""
 
     def __init__(self, detail: str = "Request timed out in queue"):
         super().__init__(detail)
@@ -84,7 +84,7 @@ class ResourceExhaustedError(LambdaInvokeError):
 
 async def global_exception_handler(request: Request, exc: Exception):
     """
-    未処理の例外を一元的にキャッチするハンドラ
+    Catch-all handler for unhandled exceptions.
     """
     error_detail = str(exc)
     logger.error(
@@ -104,14 +104,14 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     """
-    HTTPException のハンドラ
+    Handler for HTTPException.
     """
     return JSONResponse(status_code=exc.status_code, content={"message": exc.detail})
 
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     """
-    バリデーションエラーのハンドラ
+    Handler for validation errors.
     """
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

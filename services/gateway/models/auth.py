@@ -1,30 +1,30 @@
 """
-認証に関連する Pydantic モデル定義
+Pydantic models related to authentication.
 """
 
 from pydantic import BaseModel
 
 
 class AuthParameters(BaseModel):
-    """認証パラメータ"""
+    """Authentication parameters."""
 
     USERNAME: str
     PASSWORD: str
 
 
 class AuthRequest(BaseModel):
-    """認証リクエスト"""
+    """Authentication request."""
 
     AuthParameters: AuthParameters
 
 
 class AuthenticationResult(BaseModel):
-    """認証結果"""
+    """Authentication result."""
 
     IdToken: str
 
 
 class AuthResponse(BaseModel):
-    """認証レスポンス"""
+    """Authentication response."""
 
     AuthenticationResult: AuthenticationResult

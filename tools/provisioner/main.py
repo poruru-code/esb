@@ -5,12 +5,12 @@ import boto3
 from botocore.exceptions import ClientError, EndpointConnectionError
 from pathlib import Path
 
-# プロジェクトルートのパス解決
+# Resolve the project root path.
 project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
 from tools.generator.parser import parse_sam_template  # noqa: E402
 
-# デフォルト設定
+# Default settings.
 SCYLLADB_ENDPOINT = "http://localhost:8001"
 RUSTFS_ENDPOINT = "http://localhost:9000"
 AWS_REGION = "ap-northeast-1"
@@ -41,7 +41,7 @@ def get_s3_client():
 
 
 def wait_for_service(client, service_name, max_retries=30):
-    """サービスが応答するまで待機"""
+    """Wait until the service responds."""
     print(f"Waiting for {service_name}...", end="", flush=True)
     for _ in range(max_retries):
         try:
@@ -60,7 +60,7 @@ def wait_for_service(client, service_name, max_retries=30):
 
 def provision_dynamodb(tables):
     client = get_dynamodb_client()
-    # テスト環境（Mock時）などで list_tables が失敗しないようにガード
+    # Guard against list_tables failures in test environments (mocked, etc.).
     try:
         existing_tables = client.list_tables()["TableNames"]
     except Exception:
@@ -74,7 +74,7 @@ def provision_dynamodb(tables):
 
         print(f"Creating DynamoDB Table: {name}")
 
-        # boto3引数へ変換・サニタイズ
+        # Convert/sanitize for boto3 parameters.
         params = {
             "TableName": name,
             "KeySchema": table_def["KeySchema"],
@@ -82,7 +82,7 @@ def provision_dynamodb(tables):
             "BillingMode": table_def["BillingMode"],
         }
 
-        # ProvisionedThroughputの調整 (PAY_PER_REQUEST の場合は不要)
+        # Adjust ProvisionedThroughput (not needed for PAY_PER_REQUEST).
         if table_def["BillingMode"] == "PROVISIONED":
             if table_def.get("ProvisionedThroughput"):
                 params["ProvisionedThroughput"] = {
@@ -140,7 +140,7 @@ def provision_s3(buckets):
 
 
 def main(template_path=None):
-    # テンプレート読み込み
+    # Load template.
     if template_path is None:
         template_path = project_root / "tests/fixtures/template.yaml"
     else:
@@ -153,11 +153,11 @@ def main(template_path=None):
     with open(template_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    # 解析
+    # Parse.
     parsed = parse_sam_template(content)
     resources = parsed.get("resources", {})
 
-    # プロビジョニング実行
+    # Run provisioning.
     if resources.get("dynamodb"):
         provision_dynamodb(resources["dynamodb"])
 

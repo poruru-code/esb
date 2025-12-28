@@ -1,7 +1,7 @@
 """
-サービスパッケージ
+Services package.
 
-ビジネスロジックと外部連携を提供します。
+Provides business logic and external integrations.
 """
 
 from .function_registry import FunctionRegistry

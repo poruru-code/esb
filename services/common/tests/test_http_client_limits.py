@@ -7,13 +7,13 @@ from services.common.core.http_client import HttpClientFactory
 class TestHttpClientLimits:
     @patch("httpx.AsyncClient")
     def test_create_async_client_defaults_limits(self, mock_client):
-        """AsyncClient 作成時にデフォルトで拡張された Limits が適用されること"""
+        """Ensure extended default Limits are applied when creating AsyncClient."""
         config = BaseAppConfig(VERIFY_SSL=True)
         factory = HttpClientFactory(config)
 
         factory.create_async_client()
 
-        # 呼び出し時の引数を確認
+        # Check call arguments.
         args, kwargs = mock_client.call_args
         limits = kwargs.get("limits")
 
@@ -23,7 +23,7 @@ class TestHttpClientLimits:
 
     @patch("httpx.AsyncClient")
     def test_create_async_client_override_limits(self, mock_client):
-        """引数で Limits を指定した場合、それが優先されること"""
+        """Ensure provided Limits override the defaults."""
         config = BaseAppConfig(VERIFY_SSL=True)
         factory = HttpClientFactory(config)
 

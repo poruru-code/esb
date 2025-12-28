@@ -17,7 +17,7 @@ class SmartReloader(FileSystemEventHandler):
     def __init__(self):
         self.docker_client = docker.from_env()
         self.last_trigger = 0
-        self.cooldown = 1.0  # 重複実行防止用クールダウン(秒)
+        self.cooldown = 1.0  # Cooldown to prevent duplicate runs (seconds).
 
     def on_modified(self, event):
         if event.is_directory:
@@ -31,12 +31,12 @@ class SmartReloader(FileSystemEventHandler):
         filename = path.name
 
         try:
-            # Case 1: template.yaml の変更
+            # Case 1: template.yaml changed.
             if filename == "template.yaml":
                 self.handle_template_change()
                 self.last_trigger = time.time()
 
-            # Case 2: Lambda関数コードの変更
+            # Case 2: Lambda function code changed.
             elif path.suffix == ".py" and "functions" in str(path):
                 self.handle_function_change(path)
                 self.last_trigger = time.time()
@@ -47,7 +47,7 @@ class SmartReloader(FileSystemEventHandler):
     def handle_template_change(self):
         logging.step("Template change detected.")
 
-        # 1. Config再生成
+        # 1. Regenerate config.
         logging.info("Regenerating configs...")
         from tools.cli.commands.build import generator
         from tools.cli.config import PROJECT_ROOT, E2E_DIR, TEMPLATE_YAML
@@ -57,14 +57,14 @@ class SmartReloader(FileSystemEventHandler):
             config_path = PROJECT_ROOT / "tests/fixtures/generator.yml"
 
         config = generator.load_config(config_path)
-        # テンプレートパスを解決
+        # Resolve template path.
         if "paths" not in config:
             config["paths"] = {}
         config["paths"]["sam_template"] = str(TEMPLATE_YAML)
 
         generator.generate_files(config=config, project_root=PROJECT_ROOT)
 
-        # 2. Gateway再起動 (ルーティング反映のため)
+        # 2. Restart Gateway (to apply routing changes).
         logging.info("Restarting Gateway...")
         try:
             subprocess.run(
@@ -73,7 +73,7 @@ class SmartReloader(FileSystemEventHandler):
         except subprocess.CalledProcessError as e:
             logging.error(f"Failed to restart gateway: {e}")
 
-        # 3. リソース再プロビジョニング (DBテーブル追加など)
+        # 3. Re-provision resources (e.g., add DB tables).
         logging.info("Provisioning resources...")
         provisioner.main(template_path=TEMPLATE_YAML)
         logging.success("System updated.")
@@ -98,7 +98,7 @@ class SmartReloader(FileSystemEventHandler):
 
                     logging.step(f"Code change detected: {logging.highlight(func_dir_name)}")
 
-                    # 1. イメージのリビルド
+                    # 1. Rebuild the image.
                     print(
                         f"  • Rebuilding image: {logging.highlight(image_tag)} ...",
                         end="",
@@ -113,7 +113,7 @@ class SmartReloader(FileSystemEventHandler):
                     )
                     print(f" {logging.Color.GREEN}✅{logging.Color.END}")
 
-                    # 2. 実行中の古いコンテナを停止
+                    # 2. Stop running old containers.
                     containers = self.docker_client.containers.list(
                         filters={"ancestor": f"{image_tag}"}
                     )
@@ -128,7 +128,7 @@ class SmartReloader(FileSystemEventHandler):
 
 
 def run(args):
-    # .env.test の読み込み
+    # Load .env.test.
     env_file = PROJECT_ROOT / "tests" / ".env.test"
     if env_file.exists():
         logging.info(f"Loading environment variables from {logging.highlight(env_file)}")

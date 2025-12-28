@@ -107,13 +107,13 @@ async def test_lambda_invoker_logging_on_error():
 @pytest.mark.asyncio
 async def test_lambda_invoker_always_uses_pool_backend():
     """
-    Step 2: ENABLE_CONTAINER_POOLING が False でも PoolManager が注入されることを検証
+    Step 2: ensure PoolManager is injected even when ENABLE_CONTAINER_POOLING is False.
     """
     from services.gateway.main import app
     from services.gateway.services.pool_manager import PoolManager
     from fastapi.testclient import TestClient
 
-    # lifespan 内での外部呼び出しをすべて抑制するために patch する
+    # Patch to suppress external calls during lifespan.
     with (
         patch("services.gateway.main.config") as mock_config,
         patch(
@@ -122,7 +122,7 @@ async def test_lambda_invoker_always_uses_pool_backend():
         ),
         patch("services.gateway.services.janitor.HeartbeatJanitor.start", new_callable=AsyncMock),
     ):
-        # 他の必要なコンフィグを設定
+        # Set other required config values.
         mock_config.LAMBDA_INVOKE_TIMEOUT = 30
         mock_config.LAMBDA_PORT = 8080
         mock_config.USE_GRPC_AGENT = True
@@ -133,8 +133,8 @@ async def test_lambda_invoker_always_uses_pool_backend():
         mock_config.HEARTBEAT_INTERVAL = 30
         mock_config.GATEWAY_IDLE_TIMEOUT_SECONDS = 300
 
-        # TestClient を使うことで lifespan を実行させる
+        # Use TestClient to run lifespan.
         with TestClient(app) as _:
             invoker = app.state.lambda_invoker
-            # backend が PoolManager のインスタンスであることを確認
+            # Ensure backend is a PoolManager instance.
             assert isinstance(invoker.backend, PoolManager)

@@ -1,8 +1,8 @@
 """
-Lambda Gateway - API Gateway互換サーバー
+Lambda Gateway - API Gateway compatible server
 
-AWS API GatewayとLambda Authorizerの挙動を再現し、
-routing.ymlに基づいてリクエストをLambda RIEコンテナに転送します。
+Replicates AWS API Gateway and Lambda Authorizer behavior and forwards
+requests to Lambda RIE containers based on routing.yml.
 """
 
 from contextlib import asynccontextmanager
@@ -59,7 +59,7 @@ logger = logging.getLogger("gateway.main")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """アプリケーションのライフサイクル管理"""
+    """Manage application lifecycle."""
     # Initialize shared HTTP client
     # timeout config can be fine-tuned
     factory = HttpClientFactory(config)
@@ -156,7 +156,7 @@ app = FastAPI(
 )
 
 
-# ミドルウェアの登録（デコレーター方式）
+# Register middleware (decorator style).
 @app.middleware("http")
 async def trace_propagation_middleware(request: Request, call_next):
     """
@@ -172,7 +172,7 @@ async def trace_propagation_middleware(request: Request, call_next):
 
     start_time = time.perf_counter()
 
-    # Trace ID の取得または生成
+    # Get or generate Trace ID.
     trace_id_str = request.headers.get("X-Amzn-Trace-Id")
 
     if trace_id_str:
@@ -182,24 +182,24 @@ async def trace_propagation_middleware(request: Request, call_next):
             logger.warning(
                 f"Failed to parse incoming X-Amzn-Trace-Id: '{trace_id_str}', error: {e}"
             )
-            # 形式が不正な場合は強制的に再生成
+            # Force regeneration on invalid format.
             trace = TraceId.generate()
             trace_id_str = str(trace)
             set_trace_id(trace_id_str)
     else:
-        # 存在しない場合は新規生成
+        # Generate a new one if missing.
         trace = TraceId.generate()
         trace_id_str = str(trace)
         set_trace_id(trace_id_str)
 
-    # Request ID の生成 (Trace IDとは独立)
+    # Generate Request ID (independent of Trace ID).
     req_id = generate_request_id()
 
-    # レスポンス待機
+    # Await response.
     try:
         response = await call_next(request)
 
-        # レスポンスヘッダーへの付与
+        # Attach to response headers.
         response.headers["X-Amzn-Trace-Id"] = trace_id_str
         response.headers["x-amzn-RequestId"] = req_id
 
@@ -224,11 +224,11 @@ async def trace_propagation_middleware(request: Request, call_next):
 
         return response
     finally:
-        # クリーンアップ
+        # Cleanup.
         clear_trace_id()
 
 
-# 例外ハンドラの登録
+# Register exception handlers.
 app.add_exception_handler(Exception, global_exception_handler)
 app.add_exception_handler(StarletteHTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
@@ -251,7 +251,7 @@ async def resource_exhausted_handler(request: Request, exc: ResourceExhaustedErr
 
 
 # ===========================================
-# エンドポイント定義
+# Endpoint definitions.
 # ===========================================
 
 
@@ -259,7 +259,7 @@ async def resource_exhausted_handler(request: Request, exc: ResourceExhaustedErr
 async def authenticate_user(
     request: AuthRequest, response: Response, x_api_key: Optional[str] = Header(None)
 ):
-    """ユーザー認証エンドポイント"""
+    """User authentication endpoint."""
     if not x_api_key or x_api_key != config.X_API_KEY:
         logger.warning("Auth failed. Invalid API Key received.")
         raise HTTPException(status_code=401, detail="Unauthorized")
@@ -286,7 +286,7 @@ async def authenticate_user(
 
 @app.get("/health")
 async def health_check():
-    """ヘルスチェックエンドポイント"""
+    """Health check endpoint."""
     return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}
 
 
@@ -304,16 +304,16 @@ async def invoke_lambda_api(
     registry: FunctionRegistryDep,
 ):
     """
-    AWS Lambda Invoke API 互換エンドポイント
-    boto3.client('lambda').invoke() からのリクエストを処理
+    AWS Lambda Invoke API compatible endpoint.
+    Handles requests from boto3.client('lambda').invoke().
 
     InvocationType:
-      - RequestResponse（デフォルト）: 同期呼び出し、結果を返す
-      - Event: 非同期呼び出し、即座に202を返す
+      - RequestResponse (default): synchronous, return result
+      - Event: asynchronous, return 202 immediately
     """
     # Retrieve dependencies (Now injected via DI)
 
-    # 関数存在チェック（404判定用）
+    # Check function existence (for 404).
     if registry.get_function_config(function_name) is None:
         return JSONResponse(
             status_code=404,
@@ -325,13 +325,13 @@ async def invoke_lambda_api(
 
     try:
         if invocation_type == "Event":
-            # 非同期呼び出し：バックグラウンドで実行、即座に202を返す
+            # Async invoke: run in background, return 202 immediately.
             background_tasks.add_task(invoker.invoke_function, function_name, body)
             return Response(status_code=202, content=b"", media_type="application/json")
         else:
-            # 同期呼び出し：結果を待って返す
+            # Sync invoke: wait for the result.
             resp = await invoker.invoke_function(function_name, body)
-            # RIEのレスポンスをそのままクライアント(boto3)へ中継
+            # Pass through the RIE response to the client (boto3).
             return Response(
                 content=resp.content,
                 status_code=resp.status_code,
@@ -354,9 +354,9 @@ async def gateway_handler(
     invoker: LambdaInvokerDep,
 ):
     """
-    キャッチオールルート：routing.ymlに基づいてLambda RIEに転送
+    Catch-all route: forward to Lambda RIE based on routing.yml.
 
-    認証とルーティング解決は DI で自動的に行われる。
+    Authentication and routing resolution are handled via DI.
     """
     # Build Event and Invoke Lambda
     try:
@@ -373,7 +373,7 @@ async def gateway_handler(
         payload = json.dumps(event).encode("utf-8")
         lambda_response = await invoker.invoke_function(target.container_name, payload)
 
-        # レスポンス変換
+        # Transform response.
         result = parse_lambda_response(lambda_response)
         if "raw_content" in result:
             return Response(
@@ -386,8 +386,8 @@ async def gateway_handler(
         )
 
     except httpx.RequestError as e:
-        # Lambda 接続失敗時はキャッシュを無効化
-        # 次回リクエストで Orchestrator に再問い合わせし、コンテナを再起動
+        # Invalidate cache on Lambda connection failure.
+        # Next request re-queries the orchestrator and restarts the container.
         logger.error(
             f"Lambda connection failed for {target.container_name}",
             extra={

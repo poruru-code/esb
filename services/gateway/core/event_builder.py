@@ -27,20 +27,20 @@ class EventBuilder(ABC):
 
 
 class V1ProxyEventBuilder(EventBuilder):
-    """API Gateway V1 (REST API) 互換のイベントビルダー"""
+    """API Gateway V1 (REST API) compatible event builder."""
 
     async def build(self, request: Request, body: bytes, **kwargs) -> Dict[str, Any]:
         """
-        API Gateway Lambda Proxy Integration互換のeventオブジェクトを構築
+        Build an API Gateway Lambda Proxy Integration-compatible event object.
         """
         user_id = kwargs.get("user_id", "anonymous")
         path_params = kwargs.get("path_params", {})
         route_path = kwargs.get("route_path", str(request.url.path))
 
-        # gzip圧縮されているか確認
+        # Check if gzip-compressed.
         is_base64 = "gzip" in request.headers.get("content-encoding", "").lower()
 
-        # ボディの処理
+        # Process body.
         if is_base64:
             body_content = base64.b64encode(body).decode("utf-8")
         else:
@@ -50,7 +50,7 @@ class V1ProxyEventBuilder(EventBuilder):
                 body_content = base64.b64encode(body).decode("utf-8")
                 is_base64 = True
 
-        # クエリパラメータ
+        # Query parameters.
         query_params: Dict[str, str] = {}
         multi_query_params: Dict[str, list] = {}
         if request.query_params:
@@ -59,7 +59,7 @@ class V1ProxyEventBuilder(EventBuilder):
                 query_params[key] = values[-1] if values else ""
                 multi_query_params[key] = values
 
-        # ヘッダー
+        # Headers.
         headers: Dict[str, str] = {}
         multi_headers: Dict[str, list] = {}
         for key in request.headers.keys():
@@ -67,19 +67,19 @@ class V1ProxyEventBuilder(EventBuilder):
             headers[key] = values[-1] if values else ""
             multi_headers[key] = values
 
-        # RequestID取得 (Contextから取得)
+        # Get RequestID (from context).
         aws_request_id = get_request_id()
 
-        # フォールバック (基本的にはMiddlewareで生成されているはず)
+        # Fallback (middleware should usually generate it).
         if not aws_request_id:
             aws_request_id = str(uuid.uuid4())
 
-        # HTTP バージョン取得
+        # Get HTTP version.
         http_version = (
             request.scope.get("http_version", "1.1") if hasattr(request, "scope") else "1.1"
         )
 
-        # Pydantic モデルを使用してイベントを構築
+        # Build event using Pydantic models.
         event_model = APIGatewayProxyEvent(
             resource=route_path,
             path=str(request.url.path),

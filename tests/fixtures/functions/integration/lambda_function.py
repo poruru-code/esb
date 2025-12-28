@@ -9,15 +9,15 @@ logger.setLevel(logging.INFO)
 
 
 def lambda_handler(event, context):
-    # RIE Heartbeat
+    # RIE heartbeat.
     if ping_response := handle_ping(event):
         return ping_response
 
-    # 環境変数から Trace ID を取得
+    # Get Trace ID from environment variables.
     trace_id = os.environ.get("_X_AMZN_TRACE_ID", "not-found")
     logger.info(f"Trace ID in environment: {trace_id}")
 
-    # ボディのパース (API Gateway or Direct)
+    # Parse body (API Gateway or direct).
     body = parse_event_body(event)
     next_target = body.get("next_target")
     is_async = body.get("async", False)

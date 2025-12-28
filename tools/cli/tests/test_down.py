@@ -9,7 +9,7 @@ from tools.cli.commands import down
 @patch("docker.from_env")
 @patch("subprocess.check_call")
 def test_down_basic(mock_subprocess, mock_docker):
-    """down コマンドが docker compose down を実行すること"""
+    """Ensure down runs docker compose down."""
     mock_client = MagicMock()
     mock_client.containers.list.return_value = []
     mock_docker.return_value = mock_client
@@ -29,7 +29,7 @@ def test_down_basic(mock_subprocess, mock_docker):
 @patch("docker.from_env")
 @patch("subprocess.check_call")
 def test_down_with_volumes(mock_subprocess, mock_docker):
-    """down --volumes が docker compose down --volumes を実行すること"""
+    """Ensure down --volumes runs docker compose down --volumes."""
     mock_client = MagicMock()
     mock_client.containers.list.return_value = []
     mock_docker.return_value = mock_client
@@ -45,7 +45,7 @@ def test_down_with_volumes(mock_subprocess, mock_docker):
 @patch("docker.from_env")
 @patch("subprocess.check_call")
 def test_down_cleans_lambda_containers(mock_subprocess, mock_docker):
-    """down が Lambda コンテナ (created_by=sample-dind) をクリーンアップすること"""
+    """Ensure down cleans Lambda containers (created_by=sample-dind)."""
     mock_container_running = MagicMock()
     mock_container_running.status = "running"
     mock_container_running.name = "lambda-test-running"
@@ -61,11 +61,11 @@ def test_down_cleans_lambda_containers(mock_subprocess, mock_docker):
     args = Namespace(volumes=False)
     down.run(args)
     
-    # running コンテナは kill -> remove
+    # Running container: kill -> remove.
     mock_container_running.kill.assert_called_once()
     mock_container_running.remove.assert_called_once_with(force=True)
     
-    # stopped コンテナは remove のみ
+    # Stopped container: remove only.
     mock_container_stopped.kill.assert_not_called()
     mock_container_stopped.remove.assert_called_once_with(force=True)
 
@@ -73,7 +73,7 @@ def test_down_cleans_lambda_containers(mock_subprocess, mock_docker):
 @patch("docker.from_env")
 @patch("subprocess.check_call")
 def test_down_continues_on_container_error(mock_subprocess, mock_docker):
-    """個別コンテナ削除失敗時も処理を継続すること"""
+    """Ensure processing continues if an individual container removal fails."""
     mock_container = MagicMock()
     mock_container.status = "running"
     mock_container.name = "lambda-failing"
@@ -84,7 +84,7 @@ def test_down_continues_on_container_error(mock_subprocess, mock_docker):
     mock_docker.return_value = mock_client
     
     args = Namespace(volumes=False, rmi=False)
-    # 例外が発生しないこと (ワーニングのみ)
+    # No exception should be raised (warning only).
     down.run(args)
     
     mock_subprocess.assert_called_once()
@@ -93,7 +93,7 @@ def test_down_continues_on_container_error(mock_subprocess, mock_docker):
 @patch("docker.from_env")
 @patch("subprocess.check_call")
 def test_down_with_rmi(mock_subprocess, mock_docker):
-    """down --rmi で --rmi all オプションが渡されること"""
+    """Ensure down --rmi passes the --rmi all option."""
     mock_client = MagicMock()
     mock_client.containers.list.return_value = []
     mock_docker.return_value = mock_client

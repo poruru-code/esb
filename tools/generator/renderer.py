@@ -1,8 +1,7 @@
 """
 Dockerfile and functions.yml Renderer
 
-SAMテンプレートから抽出した関数情報をもとに、
-DockerfileとFunctions.ymlを生成します。
+Generate Dockerfile and functions.yml from function info extracted from a SAM template.
 """
 
 import os
@@ -17,11 +16,11 @@ def render_dockerfile(
     docker_config: dict,
 ) -> str:
     """
-    Dockerfileをレンダリングする
+    Render a Dockerfile.
 
     Args:
-        func_config: 関数設定
-        docker_config: Docker設定
+        func_config: function settings
+        docker_config: Docker settings
     """
     env = Environment(
         loader=FileSystemLoader(TEMPLATE_DIR),
@@ -30,14 +29,14 @@ def render_dockerfile(
     )
     template = env.get_template("Dockerfile.j2")
 
-    # ランタイムからPythonバージョンを抽出
+    # Extract Python version from runtime.
     runtime = func_config.get("runtime", "python3.12")
     python_version = runtime.replace("python", "")
 
-    # Layerの分離 (Zip vs Directory)
+    # Separate layers (zip vs directory).
     layers = func_config.get("layers", [])
 
-    # Phase 5 Step 0: CONTAINER_REGISTRY サポート
+    # Phase 5 Step 0: CONTAINER_REGISTRY support.
     registry = os.getenv("CONTAINER_REGISTRY")
     if registry:
         base_image = f"{registry}/esb-lambda-base:latest"
@@ -64,15 +63,15 @@ def render_functions_yml(
     functions: list[dict],
 ) -> str:
     """
-    functions.yml をレンダリングする
+    Render functions.yml.
 
     Args:
-        functions: 関数リスト
-            - name: 関数名
-            - environment: 環境変数辞書
+        functions: list of functions
+            - name: function name
+            - environment: environment variable dict
 
     Returns:
-        functions.yml文字列
+        functions.yml string
     """
     env = Environment(
         loader=FileSystemLoader(TEMPLATE_DIR),
@@ -88,15 +87,15 @@ def render_routing_yml(
     functions: list[dict],
 ) -> str:
     """
-    routing.yml をレンダリングする (Phase 1 拡張)
+    Render routing.yml (Phase 1 extension).
 
     Args:
-        functions: 関数リスト
-            - name: 関数名
-            - events: イベントリスト (path, method を含む)
+        functions: list of functions
+            - name: function name
+            - events: list of events (includes path, method)
 
     Returns:
-        routing.yml文字列
+        routing.yml string
     """
     env = Environment(
         loader=FileSystemLoader(TEMPLATE_DIR),

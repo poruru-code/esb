@@ -7,31 +7,31 @@ from tools.generator import main as generator
 from tools.cli import config as cli_config
 from tools.cli.core import logging
 
-# ESB Lambda ベースイメージ用のディレクトリ
+# Directory for the ESB Lambda base image.
 RUNTIME_DIR = cli_config.PROJECT_ROOT / "tools" / "generator" / "runtime"
 BASE_IMAGE_TAG = "esb-lambda-base:latest"
 
 
 def ensure_registry_running():
-    """Registryが必要な場合、起動を確認し、必要なら起動する"""
+    """Ensure the registry is running when required."""
     registry = os.getenv("CONTAINER_REGISTRY")
     if not registry:
-        return  # Registry不要
+        return  # Registry not required.
 
     logging.info(f"Checking if registry ({registry}) is running...")
 
     try:
         import requests
 
-        # Registryの健全性チェック
+        # Registry health check.
         response = requests.get(f"http://{registry}/v2/", timeout=2)
         if response.status_code == 200:
             logging.success(f"Registry ({registry}) is already running.")
             return
     except Exception:
-        pass  # Registry未起動
+        pass  # Registry not running.
 
-    # Registryを起動
+    # Start the registry.
     logging.warning(f"Registry ({registry}) is not running. Starting it now...")
     try:
         subprocess.check_call(
@@ -42,7 +42,7 @@ def ensure_registry_running():
         )
         logging.success(f"Registry ({registry}) started successfully.")
 
-        # 起動完了を待つ
+        # Wait for startup completion.
         import time
 
         for _ in range(10):
@@ -61,7 +61,7 @@ def ensure_registry_running():
 
 
 def build_base_image(no_cache=False):
-    """ESB Lambda ベースイメージをビルドする"""
+    """Build the ESB Lambda base image."""
     client = docker.from_env()
     dockerfile_path = RUNTIME_DIR / "Dockerfile.base"
 
@@ -69,7 +69,7 @@ def build_base_image(no_cache=False):
         logging.warning(f"Base Dockerfile not found: {dockerfile_path}")
         return False
 
-    # レジストリプレフィックスを環境変数から取得（デフォルトはlocalhost:5000）
+    # Get registry prefix from environment (default: localhost:5000).
     registry = os.getenv("CONTAINER_REGISTRY", "localhost:5010")
     image_tag = f"{registry}/{BASE_IMAGE_TAG}"
 
@@ -112,7 +112,7 @@ def build_base_image(no_cache=False):
 
 
 def _extract_function_name_from_dockerfile(dockerfile_path) -> str | None:
-    """Dockerfile から FunctionName を抽出する"""
+    """Extract FunctionName from a Dockerfile."""
     try:
         with open(dockerfile_path, "r", encoding="utf-8") as f:
             for line in f:
@@ -125,11 +125,11 @@ def _extract_function_name_from_dockerfile(dockerfile_path) -> str | None:
 
 def build_function_images(functions, template_path, no_cache=False, verbose=False):
     """
-    各関数のイメージをビルドする
+    Build images for each function.
     """
     client = docker.from_env()
 
-    # レジストリプレフィックスを環境変数から取得（デフォルトはlocalhost:5000）
+    # Get registry prefix from environment (default: localhost:5000).
     registry = os.getenv("CONTAINER_REGISTRY", "localhost:5010")
 
     logging.step("Building function images...")
@@ -147,8 +147,8 @@ def build_function_images(functions, template_path, no_cache=False, verbose=Fals
 
         print(f"  • Building {logging.highlight(image_tag)} ...", end="", flush=True)
         try:
-            # ビルドコンテキストは生成されたステージングディレクトリ (context_path)
-            # Dockerfile名は "Dockerfile" 固定
+            # Build context is the generated staging directory (context_path).
+            # Dockerfile name is fixed as "Dockerfile".
             client.images.build(
                 path=str(context_path),
                 dockerfile="Dockerfile",
@@ -197,15 +197,15 @@ def run(args):
     if dry_run:
         logging.info("Running in DRY-RUN mode. No files will be written, no images built.")
 
-    # 0. Registry起動確認（必要な場合）
+    # 0. Ensure registry is running (when required).
     ensure_registry_running()
 
-    # 1. 設定ファイル生成 (Phase 1 Generator)
+    # 1. Generate configuration files (Phase 1 Generator).
     logging.step("Generating configurations...")
     logging.info(f"Using template: {logging.highlight(cli_config.TEMPLATE_YAML)}")
 
-    # Generator の設定をロード
-    # テンプレートと同じディレクトリにある generator.yml を優先
+    # Load generator config.
+    # Prefer generator.yml in the same directory as the template.
     config_path = cli_config.E2E_DIR / "generator.yml"
 
     if not config_path.exists():
@@ -214,10 +214,10 @@ def run(args):
 
         print(f"ℹ Configuration file not found at: {config_path}")
         if questionary.confirm("Do you want to initialize configuration now?").ask():
-            # Init コマンドを呼び出し (引数は現在の args を流用、ただし template だけ渡す)
+            # Call init (reuse current args, but only pass template).
             init_args = type("Args", (), {"template": str(cli_config.TEMPLATE_YAML)})
             init.run(init_args)
-            # Init完了後、再度ビルドを継続するか確認しても良いが、一旦終了する
+            # After init, we could ask to continue build, but exit for now.
             logging.info("Configuration initialized. Please run build command again.")
             return
         else:
@@ -226,7 +226,7 @@ def run(args):
 
     config = generator.load_config(config_path)
 
-    # テンプレートパスを解決
+    # Resolve template path.
     if "paths" not in config:
         config["paths"] = {}
     config["paths"]["sam_template"] = str(cli_config.TEMPLATE_YAML)
@@ -244,7 +244,7 @@ def run(args):
 
     logging.success("Configurations generated.")
 
-    # 2. ベースイメージビルド
+    # 2. Build the base image.
     no_cache = getattr(args, "no_cache", False)
 
     if not build_base_image(no_cache=no_cache):
@@ -252,7 +252,7 @@ def run(args):
 
         sys.exit(1)
 
-    # 3. Lambda関数イメージビルド
+    # 3. Build Lambda function images.
     build_function_images(
         functions=functions,
         template_path=cli_config.TEMPLATE_YAML,

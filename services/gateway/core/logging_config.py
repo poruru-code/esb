@@ -6,13 +6,13 @@ from services.common.core.logging_config import setup_logging as common_setup_lo
 
 def setup_logging():
     """
-    YAML設定ファイルを読み込み、ロギングを初期化します。
-    VictoriaLogs への非同期ログ送信も設定します。
+    Load the YAML config and initialize logging.
+    Also configure async log delivery to VictoriaLogs.
     """
     config_path = os.getenv("LOG_CONFIG_PATH", "/app/config/gateway_log.yaml")
     common_setup_logging(config_path)
 
-    # VictoriaLogs への非同期送信設定
+    # Configure async delivery to VictoriaLogs.
     vl_url = os.getenv("VICTORIALOGS_URL", "")
     if vl_url:
         if not vl_url.endswith("/insert/jsonline"):

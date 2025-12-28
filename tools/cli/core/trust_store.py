@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 
 def install_root_ca(ca_cert_path: Path):
-    """OSのトラストストアにRoot CAを登録する"""
+    """Install the Root CA into the OS trust store."""
     system = platform.system()
     ca_cert_path = ca_cert_path.resolve()
 
@@ -18,26 +18,26 @@ def install_root_ca(ca_cert_path: Path):
 
     try:
         if system == "Windows":
-            # 冪等性チェック
+            # Idempotency check.
             check_cmd = ["certutil", "-verifystore", "Root", "ESB Root CA"]
             check_res = subprocess.run(check_cmd, capture_output=True, text=True)
             if check_res.returncode == 0:
                 logger.info("Root CA 'ESB Root CA' is already trusted. Skipping installation.")
                 return
 
-            # Windows: certutilを使用
-            # Trusted Root Certification Authorities (Root) に追加
+            # Windows: use certutil.
+            # Add to Trusted Root Certification Authorities (Root).
             cmd = ["certutil", "-addstore", "-f", "Root", str(ca_cert_path)]
             try:
                 subprocess.run(cmd, check=True, capture_output=True)
             except subprocess.CalledProcessError as e:
-                # 権限不足 ( Access is denied / 0x80070005 ) の場合、昇格を試みる
+                # If access denied (0x80070005), attempt elevation.
                 if "2147942405" in str(e) or "Access is denied" in (
                     e.stderr.decode() if e.stderr else ""
                 ):
                     logger.info("Access denied. Attempting to elevate privileges via PowerShell...")
-                    # PowerShellを使用して管理者権限でcertutilを実行
-                    # スクリプトブロック形式にして引用符の問題を回避
+                    # Use PowerShell to run certutil as administrator.
+                    # Use a script block to avoid quoting issues.
                     ps_script = f"Start-Process -FilePath 'certutil.exe' -ArgumentList '-addstore', '-f', 'Root', '`\"{ca_cert_path}`\"' -Verb RunAs -Wait"
                     ps_cmd = ["powershell", "-Command", ps_script]
                     subprocess.run(ps_cmd, check=True)
@@ -45,7 +45,7 @@ def install_root_ca(ca_cert_path: Path):
                     raise
 
         elif system == "Darwin":
-            # 冪等性チェック
+            # Idempotency check.
             check_cmd = ["security", "find-certificate", "-c", "ESB Root CA"]
             check_res = subprocess.run(check_cmd, capture_output=True)
             if check_res.returncode == 0:
@@ -54,7 +54,7 @@ def install_root_ca(ca_cert_path: Path):
                 )
                 return
 
-            # macOS: securityを使用
+            # macOS: use security.
             cmd = [
                 "sudo",
                 "security",
@@ -69,7 +69,7 @@ def install_root_ca(ca_cert_path: Path):
             subprocess.run(cmd, check=True, capture_output=True)
 
         elif system == "Linux":
-            # Linux: update-ca-certificatesを使用
+            # Linux: use update-ca-certificates.
             dest_dir = Path("/usr/local/share/ca-certificates")
             if not dest_dir.exists():
                 logger.warning(f"{dest_dir} does not exist. Skipping trust store update.")
@@ -77,8 +77,8 @@ def install_root_ca(ca_cert_path: Path):
 
             dest_path = dest_dir / "esb-rootCA.crt"
             logger.info(f"Copying CA cert to {dest_path}...")
-            # sudoが必要な場合が多いが、ここでは単純にコピーを試みる
-            # 実際にはCLIが管理者権限で実行されるか、内部でsudoを使う必要がある
+            # sudo is often required; here we just attempt a copy.
+            # In practice, the CLI needs admin privileges or must use sudo internally.
             subprocess.run(["sudo", "cp", str(ca_cert_path), str(dest_path)], check=True)
             subprocess.run(["sudo", "update-ca-certificates"], check=True)
 

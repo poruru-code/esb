@@ -18,7 +18,7 @@ SSL_KEY_SIZE = 4096
 
 
 def get_local_ip() -> str:
-    """ローカルIPアドレスを取得"""
+    """Get the local IP address."""
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))
@@ -30,7 +30,7 @@ def get_local_ip() -> str:
 
 
 def generate_root_ca(cert_dir: Path):
-    """Root CAを生成"""
+    """Generate a Root CA."""
     ca_key_file = cert_dir / "rootCA.key"
     ca_cert_file = cert_dir / "rootCA.crt"
 
@@ -40,13 +40,13 @@ def generate_root_ca(cert_dir: Path):
 
     logger.info("Generating Private Root CA...")
 
-    # Root CAの秘密鍵を生成
+    # Generate the Root CA private key.
     ca_key = rsa.generate_private_key(
         public_exponent=65537,
         key_size=SSL_KEY_SIZE,
     )
 
-    # Root CAの証明書を生成
+    # Generate the Root CA certificate.
     subject = issuer = x509.Name(
         [
             x509.NameAttribute(NameOID.COUNTRY_NAME, "JP"),
@@ -91,11 +91,11 @@ def generate_root_ca(cert_dir: Path):
 
 
 def generate_server_cert(cert_dir: Path, ca_key_path: Path, ca_cert_path: Path):
-    """CA署名付きサーバー証明書を生成"""
+    """Generate a CA-signed server certificate."""
     server_key_file = cert_dir / "server.key"
     server_cert_file = cert_dir / "server.crt"
 
-    # 冪等性チェック: サーバー証明書と鍵が存在し、CA証明書より新しい場合はスキップ
+    # Idempotency check: skip if server cert/key exists and is newer than the CA cert.
     if server_key_file.exists() and server_cert_file.exists():
         server_cert_mtime = server_cert_file.stat().st_mtime
         ca_cert_mtime = ca_cert_path.stat().st_mtime
@@ -105,19 +105,19 @@ def generate_server_cert(cert_dir: Path, ca_key_path: Path, ca_cert_path: Path):
 
     logger.info("Generating Server Certificate signed by Private CA...")
 
-    # CA鍵と証明書を読み込む
+    # Load the CA key and certificate.
     with open(ca_key_path, "rb") as f:
         ca_key = serialization.load_pem_private_key(f.read(), password=None)
     with open(ca_cert_path, "rb") as f:
         ca_cert = x509.load_pem_x509_certificate(f.read())
 
-    # サーバー秘密鍵を生成
+    # Generate the server private key.
     server_key = rsa.generate_private_key(
         public_exponent=65537,
         key_size=SSL_KEY_SIZE,
     )
 
-    # SAN (Subject Alternative Name) を構築
+    # Build the SAN (Subject Alternative Name) list.
     hostname = socket.gethostname()
     local_ip = get_local_ip()
 
@@ -136,7 +136,7 @@ def generate_server_cert(cert_dir: Path, ca_key_path: Path, ca_cert_path: Path):
         except ValueError:
             pass
 
-    # 証明書を構築
+    # Build the certificate.
     subject = x509.Name(
         [
             x509.NameAttribute(NameOID.COUNTRY_NAME, "JP"),
@@ -188,7 +188,7 @@ def generate_server_cert(cert_dir: Path, ca_key_path: Path, ca_cert_path: Path):
 
 
 def ensure_certs(cert_dir: Path = None):
-    """証明書一式を準備する"""
+    """Prepare the full certificate set."""
     from tools.cli.config import DEFAULT_CERT_DIR
 
     if cert_dir is None:

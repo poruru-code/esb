@@ -16,38 +16,38 @@ import requests
 
 
 def wait_for_gateway(timeout=60):
-    """Gatewayが応答するまで待機"""
+    """Wait until Gateway responds."""
     start_time = time.time()
-    # 実際にはCLIからは動的に取得するべきだが、テスト環境ではlocalhost:443 (Gateway) を想定
-    # config.py から取得するか、デフォルト値を使用
+    # Ideally this should be retrieved dynamically from the CLI, but in tests we
+    # assume localhost:443 (Gateway). Use config.py or a default value.
     url = "https://localhost/health"
 
     logging.step("Waiting for Gateway...")
     while time.time() - start_time < timeout:
         try:
-            # verify=False で自己署名証明書を許容
+            # verify=False allows a self-signed certificate.
             if requests.get(url, verify=False, timeout=1).status_code == 200:
                 logging.success("Gateway is ready!")
                 return True
         except Exception:
             time.sleep(1)
-            # 進捗表示としてドットを出すのはloggingの仕様次第だが、ここではシンプルに待機
+            # We could print dots for progress, but keep it simple here.
 
     logging.error("Gateway failed to start.")
     return False
 
 
 def run(args):
-    # 0. SSL証明書の準備
+    # 0. Prepare SSL certificates.
     ensure_certs(PROJECT_ROOT / "certs")
 
-    # .env.test の読み込み (run_tests.py と同様)
+    # Load .env.test (same as run_tests.py).
     env_file = PROJECT_ROOT / "tests" / ".env.test"
     if env_file.exists():
         logging.info(f"Loading environment variables from {logging.highlight(env_file)}")
         load_dotenv(env_file, override=False)
 
-    # 1. カスタム設定の反映 (generator.yml があればパスを環境変数にセット)
+    # 1. Apply custom settings (set env vars if generator.yml exists).
     config_path = cli_config.E2E_DIR / "generator.yml"
     if config_path.exists():
         try:
@@ -62,17 +62,17 @@ def run(args):
         except Exception as e:
             logging.warning(f"Failed to load generator.yml for environment injection: {e}")
 
-    # 2. ビルド要求があれば実行
+    # 2. Run build if requested.
     if getattr(args, "build", False):
         build.run(args)
 
-    # 2. サービス起動
+    # 2. Start services.
     logging.step("Starting services...")
     cmd = ["docker", "compose", "up"]
     if getattr(args, "detach", True):
         cmd.append("-d")
 
-    # サービス自体の再ビルドも行う
+    # Rebuild services themselves.
     if getattr(args, "build", False):
         cmd.append("--build")
 
@@ -82,7 +82,7 @@ def run(args):
         logging.error(f"Failed to start services: {e}")
         sys.exit(1)
 
-    # 3. インフラプロビジョニング
+    # 3. Infrastructure provisioning.
     logging.step("Preparing infrastructure...")
     from tools.cli.config import TEMPLATE_YAML
 
@@ -90,7 +90,7 @@ def run(args):
 
     logging.success("Environment is ready! (https://localhost:443)")
 
-    # 4. 待機ロジック (オプション)
+    # 4. Wait logic (optional).
     if getattr(args, "wait", False):
         if not wait_for_gateway():
             sys.exit(1)

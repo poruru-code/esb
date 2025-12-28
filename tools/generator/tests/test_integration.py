@@ -4,10 +4,10 @@ from tools.generator.main import generate_files
 
 
 class TestGeneratorIntegration:
-    """ジェネレータ統合テスト"""
+    """Generator integration tests."""
 
     def test_generate_from_sam_template(self):
-        """SAMテンプレートからファイルを生成できる"""
+        """Ensure files can be generated from a SAM template."""
         sam_content = """
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
@@ -35,11 +35,11 @@ Resources:
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir = Path(tmpdir)
 
-            # SAMテンプレートを作成
+            # Create a SAM template.
             sam_path = tmpdir / "template.yaml"
             sam_path.write_text(sam_content, encoding="utf-8")
 
-            # 関数ディレクトリを作成 (source dir)
+            # Create function directory (source dir).
             src_dir = tmpdir / "src"
             func_src_dir = src_dir / "hello"
             func_src_dir.mkdir(parents=True)
@@ -47,14 +47,14 @@ Resources:
                 "def lambda_handler(event, context): pass", encoding="utf-8"
             )
 
-            # sitecustomize.py (ツールリソース) を作成 (main.pyが探すパス)
+            # Create sitecustomize.py (tool resource) at the path main.py expects.
             # Default is: tools/generator/lib/sitecustomize.py
             # But the generator is running from tmpdir? No, main.py adds default string.
             # But renderer context uses that string in COPY.
             # Dockerfile generation does NOT check file existence on host.
             # So we don't strictly need to create it for GENERATION test.
 
-            # 簡易設定
+            # Simple config.
             config = {
                 "paths": {
                     "sam_template": str(sam_path),
@@ -65,12 +65,12 @@ Resources:
                 # docker config omitted to test default behavior
             }
 
-            # 生成実行
+            # Generate.
             # NOTE: renderer.py loads templates from file relative to renderer.py location.
             # This works even if processing in tmpdir as long as installed package is utilized.
             generate_files(config, project_root=tmpdir)
 
-            # 検証
+            # Verify.
             # Note: main.py uses output_dir / "functions" / func_name / "Dockerfile"
             dockerfile = tmpdir / "out" / "functions" / "lambda-hello" / "Dockerfile"
             assert dockerfile.exists(), f"Dockerfile should be generated at {dockerfile}"

@@ -1,8 +1,8 @@
 """
-DynamoDB 互換テスト (ScyllaDB)
+DynamoDB compatibility tests (ScyllaDB).
 
-- DynamoDB API の互換性検証
-- ScyllaDB バックエンドでの動作確認
+- Verify DynamoDB API compatibility
+- Validate behavior with ScyllaDB backend
 """
 
 import time
@@ -18,10 +18,10 @@ from tests.conftest import (
 
 
 class TestDynamo:
-    """DynamoDB 互換性の検証"""
+    """Verify DynamoDB compatibility."""
 
     def test_put_get(self, auth_token):
-        """E2E: DynamoDB PutItem/GetItem 互換テスト (ScyllaDB)"""
+        """E2E: DynamoDB PutItem/GetItem compatibility (ScyllaDB)."""
         max_retries = SCYLLA_WAIT_RETRIES
         response = None
 
@@ -53,7 +53,7 @@ class TestDynamo:
         assert data["retrieved_item"]["id"]["S"] == data["item_id"]
 
     def test_update_item(self, auth_token):
-        """E2E: DynamoDB UpdateItem 互換テスト"""
+        """E2E: DynamoDB UpdateItem compatibility."""
         # 1. PutItem
         put_response = call_api(
             "/api/dynamo",
@@ -72,7 +72,7 @@ class TestDynamo:
         assert update_response.status_code == 200
         assert update_response.json()["success"] is True
 
-        # 3. GetItem → 更新を確認
+        # 3. GetItem -> verify update
         get_response = call_api(
             "/api/dynamo",
             auth_token,
@@ -84,7 +84,7 @@ class TestDynamo:
         assert data["item"]["message"]["S"] == "Updated message"
 
     def test_delete_item(self, auth_token):
-        """E2E: DynamoDB DeleteItem 互換テスト"""
+        """E2E: DynamoDB DeleteItem compatibility."""
         # 1. PutItem
         put_response = call_api(
             "/api/dynamo",
@@ -103,7 +103,7 @@ class TestDynamo:
         assert delete_response.status_code == 200
         assert delete_response.json()["deleted"] is True
 
-        # 3. GetItem → 見つからないことを確認
+        # 3. GetItem -> ensure not found
         get_response = call_api(
             "/api/dynamo",
             auth_token,
@@ -114,7 +114,7 @@ class TestDynamo:
         assert data["found"] is False
 
     def test_get_nonexistent(self, auth_token):
-        """E2E: DynamoDB 存在しないアイテム取得テスト"""
+        """E2E: get non-existent DynamoDB item."""
         fake_id = str(uuid.uuid4())
 
         response = call_api(

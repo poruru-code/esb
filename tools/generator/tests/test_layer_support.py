@@ -5,7 +5,7 @@ from tools.generator.renderer import render_dockerfile
 
 class TestLayerSupport(unittest.TestCase):
     def test_parse_layers(self):
-        """AWS::Serverless::LayerVersionをパースできるか"""
+        """Ensure AWS::Serverless::LayerVersion can be parsed."""
         template = """
         Resources:
           MyLayer:
@@ -26,7 +26,7 @@ class TestLayerSupport(unittest.TestCase):
 
         parsed = parse_sam_template(template)
 
-        # 関数にLayer情報が紐付いているか
+        # Ensure layer info is attached to the function.
         functions = parsed["functions"]
         self.assertEqual(len(functions), 1)
         func = functions[0]
@@ -38,7 +38,7 @@ class TestLayerSupport(unittest.TestCase):
         self.assertEqual(layer["content_uri"], "layers/common/")
 
     def test_render_dockerfile_with_layers(self):
-        """Layerを含むDockerfileが正しく生成されるか"""
+        """Ensure a Dockerfile with layers is generated correctly."""
         func_config = {
             "name": "lambda-my-func",
             "runtime": "python3.12",
@@ -49,11 +49,11 @@ class TestLayerSupport(unittest.TestCase):
 
         dockerfile = render_dockerfile(func_config, docker_config)
 
-        # COPY コマンドが含まれているか
+        # Ensure COPY commands are present.
         self.assertIn("COPY layers/common/ /opt/", dockerfile)
 
     def test_parse_layers_from_globals(self):
-        """Globalsに定義されたLayerが関数に適用されるか"""
+        """Ensure layers defined in Globals are applied to functions."""
         template = """
         Globals:
           Function:
@@ -77,12 +77,12 @@ class TestLayerSupport(unittest.TestCase):
         self.assertEqual(len(functions), 1)
         func = functions[0]
 
-        # GlobalsのLayerが適用されていること
+        # Ensure the Globals layer is applied.
         self.assertIn("layers", func)
         self.assertEqual(len(func["layers"]), 1)
         self.assertEqual(func["layers"][0]["name"], "common-layer")
     def test_render_dockerfile_with_zip_layer(self):
-        """Zip Layerが含まれる場合、Multi-stage build (unzip) が生成されること"""
+        """Ensure zip layers generate the expected Dockerfile output."""
         from tools.generator import renderer
         func = {
             "name": "test-func",

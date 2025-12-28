@@ -1,7 +1,7 @@
 """
-TargetFunction モデル
+TargetFunction model.
 
-ルーティングの解決結果を表すデータクラス。
+Data class representing the result of routing resolution.
 """
 
 from typing import Dict, Any
@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 class TargetFunction(BaseModel):
     """
-    ルーティング解決によって特定された Lambda 関数の情報
+    Lambda function information resolved by routing.
     """
 
     container_name: str

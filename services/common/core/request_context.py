@@ -1,6 +1,6 @@
 """
-RequestContext コンテキスト管理
-ContextVar を使用して、非同期処理間で TraceId を共有します。
+RequestContext management.
+Use ContextVar to share TraceId across async execution.
 """
 
 from contextvars import ContextVar
@@ -8,25 +8,25 @@ from typing import Optional
 from .trace import TraceId
 
 
-# Trace ID (フルヘッダー形式) を格納するコンテキスト変数
+# Context variable for Trace ID (full header format).
 _trace_id_var: ContextVar[Optional[str]] = ContextVar("trace_id", default=None)
-# Request ID (UUID) を格納するコンテキスト変数
+# Context variable for Request ID (UUID).
 _request_id_var: ContextVar[Optional[str]] = ContextVar("request_id", default=None)
 
 
 def get_trace_id() -> Optional[str]:
-    """現在の Trace ID を取得"""
+    """Get the current Trace ID."""
     return _trace_id_var.get()
 
 
 def get_request_id() -> Optional[str]:
-    """現在の Request ID を取得"""
+    """Get the current Request ID."""
     return _request_id_var.get()
 
 
 def generate_request_id() -> str:
     """
-    現在のコンテキスト用に新しいRequest ID (UUID) を生成してセットする。
+    Generate and set a new Request ID (UUID) for the current context.
     """
     import uuid
 
@@ -37,13 +37,13 @@ def generate_request_id() -> str:
 
 def set_trace_id(trace_id_str: str) -> str:
     """
-    Trace ID を設定する
+    Set the Trace ID.
 
     Args:
-        trace_id_str: X-Amzn-Trace-Id ヘッダー形式の文字列
+        trace_id_str: X-Amzn-Trace-Id header string
 
     Returns:
-        設定されたフル Trace ID 文字列
+        The full Trace ID string that was set
     """
     try:
         trace = TraceId.parse(trace_id_str)
@@ -54,6 +54,6 @@ def set_trace_id(trace_id_str: str) -> str:
 
 
 def clear_trace_id() -> None:
-    """Trace ID コンテキストをクリア"""
+    """Clear the Trace ID context."""
     _trace_id_var.set(None)
     _request_id_var.set(None)

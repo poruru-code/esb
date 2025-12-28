@@ -20,7 +20,7 @@ def mock_registry():
 def mock_backend():
     backend = AsyncMock()
 
-    # function_name に応じて異なるホストを返すように設定
+    # Return different hosts based on function_name.
     async def side_effect(function_name, **kwargs):
         if function_name == "func-1":
             return WorkerInfo(id="c1", name="w1", ip_address="10.0.0.1", port=9001)
@@ -42,7 +42,7 @@ def gateway_config():
 @pytest.mark.asyncio
 @respx.mock
 async def test_invoker_circuit_breaker_opens(mock_registry, mock_backend, gateway_config):
-    """Invokerが失敗を検知して回路を遮断することを確認"""
+    """Ensure invoker detects failures and opens the circuit."""
     async with httpx.AsyncClient() as client:
         invoker = LambdaInvoker(
             client=client,
@@ -54,26 +54,26 @@ async def test_invoker_circuit_breaker_opens(mock_registry, mock_backend, gatewa
         function_name = "test-function"
         rie_url = "http://10.0.0.1:9001/2015-03-31/functions/function/invocations"
 
-        # 常に失敗(500)を返す
+        # Always return failure (500).
         respx.post(rie_url).mock(return_value=httpx.Response(500))
 
-        # CircuitBreaker が 5回失敗で OPEN になる（デフォルト）
+        # CircuitBreaker opens after 5 failures (default).
         for _ in range(5):
             with pytest.raises(LambdaExecutionError):
                 await invoker.invoke_function(function_name, b"{}")
 
-        # 6回目は CircuitBreakerOpenError が発生し、LambdaExecutionError にラップされる
+        # 6th call triggers CircuitBreakerOpenError wrapped in LambdaExecutionError.
         with pytest.raises(LambdaExecutionError) as exc:
             await invoker.invoke_function(function_name, b"{}")
 
-        # OPEN 状態であることを確認
+        # Ensure it is open.
         assert "Circuit Breaker Open" in str(exc.value)
 
 
 @pytest.mark.asyncio
 @respx.mock
 async def test_invoker_per_function_breaker(mock_registry, mock_backend, gateway_config):
-    """関数ごとに独立したブレーカーが機能することを確認"""
+    """Ensure breakers are independent per function."""
     async with httpx.AsyncClient() as client:
         invoker = LambdaInvoker(
             client=client,
@@ -85,25 +85,25 @@ async def test_invoker_per_function_breaker(mock_registry, mock_backend, gateway
         f1 = "func-1"
         f2 = "func-2"
 
-        # ホストが分かれているのでURLで識別可能
+        # URLs are distinguishable because hosts differ.
         url1 = "http://10.0.0.1:9001/2015-03-31/functions/function/invocations"
         url2 = "http://10.0.0.2:9002/2015-03-31/functions/function/invocations"
 
         respx.post(url1).mock(return_value=httpx.Response(500))
         respx.post(url2).mock(return_value=httpx.Response(200, content=b"ok"))
 
-        # func-1 を遮断状態にする
+        # Open the circuit for func-1.
         for _ in range(5):
             try:
                 await invoker.invoke_function(f1, b"{}")
             except Exception:
                 pass
 
-        # func-1 は遮断されている
+        # func-1 should be open.
         with pytest.raises(LambdaExecutionError) as exc:
             await invoker.invoke_function(f1, b"{}")
         assert "Circuit Breaker Open" in str(exc.value)
 
-        # func-2 は正常に動くはず
+        # func-2 should work normally.
         resp = await invoker.invoke_function(f2, b"{}")
         assert resp.status_code == 200

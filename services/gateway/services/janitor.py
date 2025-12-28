@@ -18,10 +18,9 @@ logger = logging.getLogger("gateway.janitor")
 
 class HeartbeatJanitor:
     """
-    Gateway → Manager への定期的な Heartbeat 送信
+    Periodic heartbeats from Gateway to Manager.
 
-    保持しているワーカーIDリストを送信し、
-    Manager側でOrphanコンテナを検出・削除させる。
+    Sends the list of worker IDs so the Manager can detect and remove orphan containers.
     """
 
     def __init__(
@@ -38,14 +37,14 @@ class HeartbeatJanitor:
         self._task: asyncio.Task | None = None
 
     async def start(self) -> None:
-        """Heartbeat Loop 開始"""
+        """Start the heartbeat loop."""
         self._task = asyncio.create_task(self._loop())
         logger.info(
             f"Heartbeat Janitor started (interval: {self.interval}s, idle_timeout: {self.idle_timeout}s)"
         )
 
     async def stop(self) -> None:
-        """Heartbeat Loop 停止"""
+        """Stop the heartbeat loop."""
         if self._task:
             self._task.cancel()
             try:
@@ -55,7 +54,7 @@ class HeartbeatJanitor:
         logger.info("Heartbeat Janitor stopped")
 
     async def _loop(self) -> None:
-        """定期実行ループ"""
+        """Periodic execution loop."""
         while True:
             try:
                 await asyncio.sleep(self.interval)
@@ -66,8 +65,8 @@ class HeartbeatJanitor:
                 logger.error(f"Heartbeat failed: {e}")
 
     async def _send_heartbeat(self) -> None:
-        """Pruning 後に Heartbeat 送信"""
-        # 1. まず Pruning を実行
+        """Send heartbeat after pruning."""
+        # 1. Run pruning first.
         try:
             pruned = await self.pool_manager.prune_all_pools(self.idle_timeout)
             for fname, workers in pruned.items():
@@ -75,14 +74,14 @@ class HeartbeatJanitor:
         except Exception as e:
             logger.error(f"Pruning failed: {e}")
 
-        # 1.5 Reconciliation (Orphan Cleanup)
-        # Gateway管理外のコンテナがあれば削除する
+        # 1.5 Reconciliation (orphan cleanup)
+        # Remove containers not managed by the Gateway.
         try:
             await self.pool_manager.reconcile_orphans()
         except Exception as e:
             logger.error(f"Reconciliation failed: {e}")
 
-        # 2. 残っているワーカーの名前リストを送信 (Manager がいる場合のみ)
+        # 2. Send remaining worker names (only if Manager is present).
         if self.manager_client:
             worker_names = self.pool_manager.get_all_worker_names()
             for function_name, names in worker_names.items():
@@ -93,10 +92,10 @@ class HeartbeatJanitor:
 
 class ResourceJanitor:
     """
-    Phase 3: gRPC Agent 用のリソース管理 Janitor
+    Phase 3: Resource janitor for gRPC Agent.
 
-    - cleanup_on_startup(): Gateway 起動時に Paused コンテナを一掃
-    - run_loop(): 定期的にアイドルコンテナを削除
+    - cleanup_on_startup(): clear paused containers on Gateway startup
+    - run_loop(): periodically remove idle containers
     """
 
     def __init__(
@@ -112,14 +111,14 @@ class ResourceJanitor:
 
     async def cleanup_on_startup(self) -> int:
         """
-        Gateway 起動時のクリーンアップ
+        Cleanup on Gateway startup.
 
-        Option B: Paused なコンテナを全て削除する
-        Gateway 再起動後、メモリ上の状態は消失しているため
-        Paused コンテナは再利用できない (ゾンビ扱い)
+        Option B: delete all paused containers.
+        After a Gateway restart, in-memory state is gone,
+        so paused containers cannot be reused (treated as zombies).
 
         Returns:
-            削除したコンテナ数
+            Number of containers removed
         """
         logger.info("Starting startup cleanup...")
         workers = await self.backend.list_workers()
@@ -147,14 +146,14 @@ class ResourceJanitor:
         return removed_count
 
     async def start(self) -> None:
-        """定期クリーンアップループ開始"""
+        """Start the periodic cleanup loop."""
         self._task = asyncio.create_task(self._run_loop())
         logger.info(
             f"Resource Janitor started (interval: {self.cleanup_interval}s, idle_timeout: {self.idle_timeout}s)"
         )
 
     async def stop(self) -> None:
-        """定期クリーンアップループ停止"""
+        """Stop the periodic cleanup loop."""
         if self._task:
             self._task.cancel()
             try:
@@ -165,9 +164,9 @@ class ResourceJanitor:
 
     async def _run_loop(self) -> None:
         """
-        定期実行ループ
+        Periodic execution loop.
 
-        PAUSED かつ idle_timeout を超過したコンテナを削除する
+        Remove containers that are PAUSED and exceed idle_timeout.
         """
         while True:
             try:
@@ -179,7 +178,7 @@ class ResourceJanitor:
                 logger.error(f"Periodic cleanup failed: {e}")
 
     async def _cleanup_idle_containers(self) -> None:
-        """アイドルコンテナのクリーンアップ"""
+        """Clean up idle containers."""
         now = int(time.time())
         workers = await self.backend.list_workers()
         evicted_count = 0

@@ -5,7 +5,7 @@ from tools.cli.main import main
 
 
 def test_cli_help(capsys):
-    """--help が正常に動作するか確認"""
+    """Ensure --help works correctly."""
     with patch.object(sys, "argv", ["esb", "--help"]):
         with pytest.raises(SystemExit) as e:
             main()
@@ -22,7 +22,7 @@ def test_cli_help(capsys):
 
 @patch("tools.cli.commands.build.run")
 def test_cli_build_dispatch(mock_build_run):
-    """build サブコマンドが正しくディスパッチされるか確認"""
+    """Ensure the build subcommand is dispatched correctly."""
     with patch.object(sys, "argv", ["esb", "build"]):
         main()
     mock_build_run.assert_called_once()
@@ -30,18 +30,18 @@ def test_cli_build_dispatch(mock_build_run):
 
 @patch("tools.cli.commands.up.run")
 def test_cli_up_dispatch(mock_up_run):
-    """up サブコマンドが正しくディスパッチされるか確認"""
+    """Ensure the up subcommand is dispatched correctly."""
     with patch.object(sys, "argv", ["esb", "up", "--build"]):
         main()
     mock_up_run.assert_called_once()
     args = mock_up_run.call_args[0][0]
     assert args.build is True
-    assert args.detach is True  # デフォルト値
+    assert args.detach is True  # Default value.
 
 
 @patch("tools.cli.commands.init.run")
 def test_cli_init_dispatch(mock_init_run):
-    """init サブコマンドが正しくディスパッチされるか確認"""
+    """Ensure the init subcommand is dispatched correctly."""
     with patch.object(sys, "argv", ["esb", "init"]):
         main()
     mock_init_run.assert_called_once()
@@ -50,7 +50,7 @@ def test_cli_init_dispatch(mock_init_run):
 @patch("tools.cli.commands.init.run")
 @patch("tools.cli.config.set_template_yaml")
 def test_cli_template_argument(mock_set_template, mock_init_run):
-    """--template 引数が set_template_yaml を呼び出すか確認"""
+    """Ensure --template calls set_template_yaml."""
     with patch.object(sys, "argv", ["esb", "--template", "/path/to/template.yaml", "init"]):
         main()
     mock_set_template.assert_called_once_with("/path/to/template.yaml")
@@ -59,7 +59,7 @@ def test_cli_template_argument(mock_set_template, mock_init_run):
 
 @patch("tools.cli.commands.down.run")
 def test_cli_down_dispatch(mock_down_run):
-    """down サブコマンドが正しくディスパッチされるか確認"""
+    """Ensure the down subcommand is dispatched correctly."""
     with patch.object(sys, "argv", ["esb", "down"]):
         main()
     mock_down_run.assert_called_once()
@@ -67,7 +67,7 @@ def test_cli_down_dispatch(mock_down_run):
 
 @patch("tools.cli.commands.down.run")
 def test_cli_down_volumes_flag(mock_down_run):
-    """down --volumes フラグが正しく渡されるか確認"""
+    """Ensure the down --volumes flag is passed correctly."""
     with patch.object(sys, "argv", ["esb", "down", "--volumes"]):
         main()
     mock_down_run.assert_called_once()
@@ -77,7 +77,7 @@ def test_cli_down_volumes_flag(mock_down_run):
 
 @patch("tools.cli.commands.logs.run")
 def test_cli_logs_dispatch(mock_logs_run):
-    """logs サブコマンドが正しくディスパッチされるか確認"""
+    """Ensure the logs subcommand is dispatched correctly."""
     with patch.object(sys, "argv", ["esb", "logs"]):
         main()
     mock_logs_run.assert_called_once()
@@ -85,7 +85,7 @@ def test_cli_logs_dispatch(mock_logs_run):
 
 @patch("tools.cli.commands.logs.run")
 def test_cli_logs_with_options(mock_logs_run):
-    """logs のオプションが正しく渡されるか確認"""
+    """Ensure logs options are passed correctly."""
     with patch.object(sys, "argv", ["esb", "logs", "gateway", "-f", "--tail", "100"]):
         main()
     mock_logs_run.assert_called_once()

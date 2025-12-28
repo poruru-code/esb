@@ -6,7 +6,7 @@ from importlib.metadata import metadata
 
 
 def run(args):
-    # .env.test の読み込み
+    # Load .env.test.
     env_file = PROJECT_ROOT / "tests" / ".env.test"
     if env_file.exists():
         load_dotenv(env_file, override=False)
@@ -23,9 +23,9 @@ def run(args):
         logging.success("Services stopped.")
     except subprocess.CalledProcessError as e:
         logging.error(f"Failed to stop services: {e}")
-        # compose down に失敗しても Lambda コンテナのクリーンアップは試みる
+        # Attempt to clean up Lambda containers even if compose down fails.
 
-    # Lambda コンテナ（created_by=edge-serverless-box）のクリーンアップ
+    # Clean up Lambda containers (created_by=edge-serverless-box).
     import docker
 
     try:

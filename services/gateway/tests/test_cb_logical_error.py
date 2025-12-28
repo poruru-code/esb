@@ -34,7 +34,7 @@ async def test_circuit_breaker_on_rie_200_error_FINAL():
 
     invoker = LambdaInvoker(mock_client, registry, config, backend)
 
-    # RIE がよく返す「200 だけどエラー」のレスポンス
+    # RIE often returns "200 but error" responses.
     error_body = {
         "errorType": "Runtime.ExitError",
         "errorMessage": "RequestId: xxx Error: Runtime exited with error: exit status 1",
@@ -45,16 +45,16 @@ async def test_circuit_breaker_on_rie_200_error_FINAL():
             return_value=httpx.Response(200, json=error_body)
         )
 
-        # 1回目リクエスト (200 Error) -> 失敗としてカウントされるべき
+        # First request (200 Error) -> should count as failure.
         with pytest.raises(Exception):
             await invoker.invoke_function("test-func", b"{}")
 
-        # 2回目リクエスト -> 失敗としてカウントされ、回路が開くはず
+        # Second request -> failure counted, circuit should open.
         with pytest.raises(Exception):
             await invoker.invoke_function("test-func", b"{}")
 
-        # 3回目リクエスト -> 回路が開いているので CircuitBreakerOpenError が投げられるはず
-        # それが LambdaInvoker でラップされて LambdaExecutionError になる
+        # Third request -> CircuitBreakerOpenError expected due to open circuit.
+        # LambdaInvoker wraps it into LambdaExecutionError.
         from services.gateway.core.exceptions import LambdaExecutionError
 
         with pytest.raises(LambdaExecutionError) as excinfo:

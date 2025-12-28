@@ -30,34 +30,34 @@ Resources:
 """
 
 def test_parse_sam_template_with_substitution(sample_template):
-    """パラメータ置換が各フィールド(CodeUri, LayerName, ContentUri)に適用されること"""
+    """Ensure parameter substitution applies to CodeUri, LayerName, and ContentUri."""
     params = {"Prefix": "prod"}
     
     parsed = parser.parse_sam_template(sample_template, parameters=params)
     functions = parsed["functions"]
     layers = parsed["resources"]["layers"]
     
-    # 1. Function CodeUri
+    # 1. Function CodeUri.
     func = functions[0]
     assert func["name"] == "func-prod"
     assert func["code_uri"] == "./src/prod/"
     
-    # 2. Layer Name & ContentUri
-    # parser内でlayerを解決すると list of dict になる
-    # layers リソース自体の確認
+    # 2. Layer Name & ContentUri.
+    # Layer resolution in parser yields a list of dicts.
+    # Verify the layers resource itself.
     assert len(layers) == 1
     layer = layers[0]
     assert layer["name"] == "layer-prod"
     assert layer["content_uri"] == "./layers/prod/"
     
-    # 3. Function linked layers
+    # 3. Function linked layers.
     assert len(func["layers"]) == 1
     linked_layer = func["layers"][0]
     assert linked_layer["name"] == "layer-prod"
     assert linked_layer["content_uri"] == "./layers/prod/"
 
 def test_resolve_intrinsic_regex():
-    """_resolve_intrinsic の正規表現テスト (内部関数だが重要なのでテスト)"""
+    """Regex test for _resolve_intrinsic (internal but important)."""
     from tools.generator.parser import _resolve_intrinsic
     
     params = {"Env": "dev", "Region": "ap-northeast-1"}

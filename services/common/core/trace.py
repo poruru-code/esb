@@ -16,8 +16,8 @@ class TraceId:
 
     @classmethod
     def generate(cls) -> "TraceId":
-        """新規 Trace ID を生成する (Root=1-timehex-uniqueid)"""
-        # AWS 準拠: 8桁の 16進数 timestamp
+        """Generate a new Trace ID (Root=1-timehex-uniqueid)."""
+        # AWS compliant: 8-digit hex timestamp.
         epoch_hex = f"{int(time.time()):08x}"
         unique_id = secrets.token_hex(12)  # 24 chars
         root = f"1-{epoch_hex}-{unique_id}"
@@ -25,7 +25,7 @@ class TraceId:
 
     @classmethod
     def parse(cls, header: str) -> "TraceId":
-        """X-Amzn-Trace-Id ヘッダー文字列をパースする"""
+        """Parse an X-Amzn-Trace-Id header string."""
         # print(f"[TraceId] Parsing header: '{header}'")
         parts = {}
         for part in header.split(";"):
@@ -40,7 +40,7 @@ class TraceId:
         parent = parts.get("Parent")
         sampled = parts.get("Sampled", "1")
 
-        # もし Root= 形式ではないが ID らしきものが直接渡された場合のフォールバック
+        # Fallback if a raw ID is provided without Root= format.
         if not root and header and "-" in header and "=" not in header:
             # print(f"[TraceId] Header looks like a raw ID, using it as root")
             root = header.strip()
@@ -49,11 +49,11 @@ class TraceId:
         return cls(root=root, parent=parent, sampled=sampled)
 
     def to_root_id(self) -> str:
-        """Root ID 部分のみを返す (Request ID として使用)"""
+        """Return only the Root ID (used as Request ID)."""
         return self.root
 
     def __str__(self) -> str:
-        """ヘッダー形式の文字列を生成する"""
+        """Generate the header-formatted string."""
         s = f"Root={self.root}"
         if self.parent:
             s += f";Parent={self.parent}"

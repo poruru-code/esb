@@ -1,8 +1,8 @@
 """
-E2E テスト共通 Fixture とヘルパー関数
+Shared fixtures and helpers for E2E tests.
 
-テストファイル分割のための共通設定。
-各テストファイルはこの conftest.py から fixture と定数を利用する。
+Common settings for split test files.
+Each test file uses fixtures and constants from this conftest.py.
 """
 
 import os
@@ -14,7 +14,7 @@ import pytest
 import requests
 from dotenv import load_dotenv
 
-# .env.test をロード (run_tests.py を経由しない場合でもテスト可能にする)
+# Load .env.test (enable tests even without run_tests.py).
 env_file = Path(__file__).parent / ".env.test"
 if env_file.exists():
     print(f"Loading .env.test from {env_file} (base/defaults only)")
@@ -30,7 +30,7 @@ factory = HttpClientFactory(config)
 factory.configure_global_settings()
 VERIFY_SSL = config.VERIFY_SSL
 
-# テスト用設定
+# Test settings
 GATEWAY_PORT = os.getenv("GATEWAY_PORT", "443")
 GATEWAY_URL = os.getenv("GATEWAY_URL", f"https://localhost:{GATEWAY_PORT}")
 
@@ -38,7 +38,7 @@ VICTORIALOGS_PORT = os.getenv("VICTORIALOGS_PORT", "9428")
 VICTORIALOGS_URL = os.getenv("VICTORIALOGS_URL", f"http://localhost:{VICTORIALOGS_PORT}")
 API_KEY = config.X_API_KEY
 
-# 認証情報は環境変数から取得 (.env.test でロード済み)
+# Auth info is read from environment variables (loaded from .env.test).
 AUTH_USER = os.environ.get("AUTH_USER", "")
 AUTH_PASS = os.environ.get("AUTH_PASS", "")
 
@@ -57,7 +57,7 @@ STABILIZATION_WAIT = 3
 
 @pytest.fixture(scope="module")
 def gateway_health():
-    """Gateway のヘルスチェック (module スコープ)"""
+    """Gateway health check (module scope)."""
     for i in range(HEALTH_CHECK_RETRIES):
         try:
             response = requests.get(
@@ -75,7 +75,7 @@ def gateway_health():
 
 
 def get_auth_token() -> str:
-    """認証して JWT トークンを取得"""
+    """Authenticate and get a JWT token."""
     response = requests.post(
         f"{GATEWAY_URL}{config.AUTH_ENDPOINT_PATH}",
         json={"AuthParameters": {"USERNAME": AUTH_USER, "PASSWORD": AUTH_PASS}},
@@ -97,40 +97,40 @@ def query_victorialogs_by_filter(
     poll_interval: float = 1.0,
 ) -> dict:
     """
-    VictoriaLogs から任意のフィルタ条件でログをクエリ
+    Query logs from VictoriaLogs using filter conditions.
 
-    VictoriaLogs LogsQL API を使用:
-    - フィルタ: `field:"value"` 形式で AND 結合
-    - 時間フィルタ: start/end パラメータ (ISO8601/RFC3339 形式)
+    Uses VictoriaLogs LogsQL API:
+    - Filters: `field:"value"` format combined with AND
+    - Time filters: start/end parameters (ISO8601/RFC3339)
 
     Args:
-        filters: フィールド名と値の辞書 (例: {"trace_id": "xxx", "container_name": "gateway"})
-        raw_query: 直接指定する LogsQL クエリ (filters と排他)
-        start: 検索開始時刻 (ISO8601/RFC3339 形式, 例: "2025-12-24T01:00:00Z")
-        end: 検索終了時刻 (ISO8601/RFC3339 形式)
-        timeout: ポーリングタイムアウト秒数
-        limit: 取得件数上限
-        min_hits: 最小ヒット数 (この数以上のログが取得できるまでポーリング)
-        poll_interval: ポーリング間隔 (秒)
+        filters: dict of field names and values (e.g., {"trace_id": "xxx", "container_name": "gateway"})
+        raw_query: direct LogsQL query (exclusive with filters)
+        start: search start time (ISO8601/RFC3339, e.g., "2025-12-24T01:00:00Z")
+        end: search end time (ISO8601/RFC3339)
+        timeout: polling timeout in seconds
+        limit: max number of hits
+        min_hits: minimum hits to stop polling
+        poll_interval: polling interval (seconds)
 
     Returns:
-        クエリ結果の dict (hits フィールドにログリストが含まれる)
+        Dict of query results (hits contains logs)
 
     Example:
-        # trace_id で検索
+        # Search by trace_id.
         query_victorialogs_by_filter(filters={"trace_id": "1-abc123"})
 
-        # 複数フィルタ + 時間フィルタ
+        # Multiple filters + time filter.
         query_victorialogs_by_filter(
             filters={"logger": "boto3.mock", "log_group": "/aws/lambda/test"},
             start="2025-12-24T00:00:00Z",
             min_hits=4,
         )
 
-        # 直接 LogsQL を指定
+        # Direct LogsQL query.
         query_victorialogs_by_filter(raw_query='level:ERROR AND container_name:"gateway"')
     """
-    # クエリ文字列の構築
+    # Build query string.
     if raw_query:
         query = raw_query
     elif filters:
@@ -141,7 +141,7 @@ def query_victorialogs_by_filter(
 
     params: dict[str, str | int] = {"query": query, "limit": limit}
 
-    # 時間フィルタを追加 (VictoriaLogs HTTP API の start/end パラメータ)
+    # Add time filters (VictoriaLogs HTTP API start/end params).
     if start:
         params["start"] = start
     if end:
@@ -184,15 +184,15 @@ def query_victorialogs(
     start: str | None = None,
 ) -> dict:
     """
-    VictoriaLogs から Trace ID を含むログをクエリ (後方互換ラッパー)
+    Query logs containing Trace ID from VictoriaLogs (backward-compatible wrapper).
 
     Args:
-        trace_id_root: 検索する Trace ID (root 部分)
-        timeout: タイムアウト秒数
-        start: 検索開始時刻 (ISO8601/RFC3339 形式)
+        trace_id_root: Trace ID to search for (root portion)
+        timeout: timeout in seconds
+        start: search start time (ISO8601/RFC3339)
 
     Returns:
-        クエリ結果の dict (hits フィールドにログが含まれる)
+        Dict of query results (hits contains logs)
     """
     return query_victorialogs_by_filter(
         filters={"trace_id": trace_id_root},
@@ -203,7 +203,7 @@ def query_victorialogs(
 
 @pytest.fixture(scope="module")
 def auth_token(gateway_health) -> str:
-    """認証トークンを取得 (モジュールスコープでキャッシュ)"""
+    """Get auth token (cached at module scope)."""
     return get_auth_token()
 
 
@@ -216,18 +216,18 @@ def request_with_retry(
     **kwargs,
 ) -> requests.Response:
     """
-    リトライ付き HTTP リクエスト
+    HTTP request with retries.
 
     Args:
-        method: HTTP メソッド (get, post, etc.)
-        url: リクエスト先 URL
-        max_retries: 最大リトライ回数
-        retry_interval: リトライ間隔 (秒)
-        retry_on_status: リトライ対象のステータスコード
-        **kwargs: requests に渡す追加パラメータ
+        method: HTTP method (get, post, etc.)
+        url: request URL
+        max_retries: max retry count
+        retry_interval: retry interval (seconds)
+        retry_on_status: status codes that trigger retries
+        **kwargs: additional params for requests
 
     Returns:
-        requests.Response オブジェクト
+        requests.Response object
     """
     response = None
     for i in range(max_retries):
@@ -256,24 +256,24 @@ def call_api(
     **kwargs,
 ) -> requests.Response:
     """
-    Gateway 経由で API を呼び出す共通ヘルパー
+    Common helper to call APIs via Gateway.
 
     Args:
-        path: API パス (例: "/api/echo", "/api/call")
-        auth_token: 認証トークン (None の場合は認証なしでリクエスト)
-        payload: リクエストボディ (JSON)
-        method: HTTP メソッド (デフォルト: post)
-        timeout: リクエストタイムアウト
-        **kwargs: requests に渡す追加パラメータ
+        path: API path (e.g., "/api/echo", "/api/call")
+        auth_token: auth token (no auth when None)
+        payload: request body (JSON)
+        method: HTTP method (default: post)
+        timeout: request timeout
+        **kwargs: additional params for requests
 
     Returns:
-        requests.Response オブジェクト
+        requests.Response object
 
     Example:
-        # 認証あり
+        # With authentication.
         response = call_api("/api/echo", auth_token, {"message": "hello"})
 
-        # 認証なし (401 テスト用)
+        # Without authentication (for 401 tests).
         response = call_api("/api/echo", payload={"message": "hello"})
     """
     url = f"{GATEWAY_URL}{path}"

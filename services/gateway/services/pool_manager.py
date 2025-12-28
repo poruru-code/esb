@@ -18,10 +18,10 @@ logger = logging.getLogger("gateway.pool_manager")
 
 class PoolManager:
     """
-    全関数のプールを統括管理
+    Manage pools for all functions.
 
-    - プール作成は遅延初期化 (get_pool で初めて作成)
-    - 関数ごとに独立した max_capacity を設定可能
+    - Pools are lazily initialized (created on first get_pool)
+    - Each function can have its own max_capacity
     """
 
     def __init__(
@@ -31,8 +31,8 @@ class PoolManager:
     ):
         """
         Args:
-            provision_client: Manager への provision リクエストを送信するクライアント
-            config_loader: 関数名から設定を取得するコールバック (function_name -> config dict)
+            provision_client: client that sends provision requests to the Manager
+            config_loader: callback to fetch config by function name (function_name -> config dict)
         """
         self._pools: Dict[str, ContainerPool] = {}
         self._lock = asyncio.Lock()
@@ -40,7 +40,7 @@ class PoolManager:
         self.config_loader = config_loader
 
     async def get_pool(self, function_name: str) -> ContainerPool:
-        """関数名からプールを取得（なければ作成）"""
+        """Get a pool by function name (create if missing)."""
         if function_name not in self._pools:
             async with self._lock:
                 if function_name not in self._pools:
@@ -59,26 +59,26 @@ class PoolManager:
         return self._pools[function_name]
 
     async def _provision_wrapper(self, function_name: str) -> List[WorkerInfo]:
-        """Provision API ラッパー (List[WorkerInfo] を返す)"""
+        """Provision API wrapper (returns List[WorkerInfo])."""
         return await self.provision_client.provision(function_name)
 
     async def acquire_worker(self, function_name: str) -> WorkerInfo:
-        """ワーカーを取得"""
+        """Acquire a worker."""
         pool = await self.get_pool(function_name)
         return await pool.acquire(self._provision_wrapper)
 
     async def release_worker(self, function_name: str, worker: WorkerInfo) -> None:
-        """ワーカーを返却"""
+        """Release a worker."""
         if function_name in self._pools:
             await self._pools[function_name].release(worker)
 
     async def evict_worker(self, function_name: str, worker: WorkerInfo) -> None:
-        """死んだワーカーを除外"""
+        """Evict a dead worker."""
         if function_name in self._pools:
             await self._pools[function_name].evict(worker)
 
     def get_all_worker_names(self) -> Dict[str, List[str]]:
-        """Heartbeat用: 全プールの全Worker Nameを収集 (Busy + Idle)"""
+        """For heartbeat: collect all worker names across pools (busy + idle)."""
         result = {}
         for fname, pool in self._pools.items():
             result[fname] = pool.get_all_names()
@@ -86,7 +86,7 @@ class PoolManager:
 
     def _extract_function_name(self, name: str) -> Optional[str]:
         """
-        コンテナ名から関数名を抽出
+        Extract function name from container name.
         Format: lambda-{function_name}-{suffix}
         """
         if not name.startswith("lambda-"):
@@ -102,7 +102,7 @@ class PoolManager:
         return "-".join(parts[1:-1])
 
     async def cleanup_all_containers(self) -> int:
-        """Agent から全コンテナを取得し、すべて削除する（起動時のクリーンアップ用）"""
+        """Fetch all containers from Agent and delete them (startup cleanup)."""
         try:
             containers = await self.provision_client.list_containers()
             count = 0
@@ -120,7 +120,7 @@ class PoolManager:
             return 0
 
     async def sync_with_manager(self) -> None:
-        """Orchestrator から既存コンテナを取得しプールに取り込み (Phase 1 互換)"""
+        """Adopt existing containers from the orchestrator (Phase 1 compatibility)."""
         try:
             containers = await self.provision_client.list_containers()
             adopted_count = 0
@@ -136,7 +136,7 @@ class PoolManager:
             logger.error(f"Failed to sync with manager: {e}")
 
     async def shutdown_all(self) -> None:
-        """全プールをドレインし、コンテナを削除"""
+        """Drain all pools and delete containers."""
         logger.info("Shutting down all pools...")
         for fname, pool in self._pools.items():
             workers = await pool.drain()
@@ -147,7 +147,7 @@ class PoolManager:
                     logger.error(f"Failed to delete {w.name}: {e}")
 
     async def prune_all_pools(self, idle_timeout: float) -> Dict[str, List[WorkerInfo]]:
-        """全プールで Pruning を実行し、Orchestrator から削除"""
+        """Prune all pools and delete from orchestrator."""
         result = {}
         for fname, pool in self._pools.items():
             pruned = await pool.prune_idle_workers(idle_timeout)
@@ -164,10 +164,10 @@ class PoolManager:
 
     async def reconcile_orphans(self) -> int:
         """
-        Gateway管理外のコンテナ（Orphan）を検出し、Agent経由で削除する (Full Reconciliation)
+        Detect containers not managed by the Gateway (orphans) and delete via Agent (full reconciliation).
 
-        Grace Period: 作成から ORPHAN_GRACE_PERIOD_SECONDS 以内のコンテナは削除対象外。
-        これにより、作成中〜Readiness Check 中のコンテナが誤削除されるのを防ぐ。
+        Grace period: containers created within ORPHAN_GRACE_PERIOD_SECONDS are excluded.
+        This prevents deleting containers during creation/readiness checks.
         """
         import time
         from services.gateway.config import config as gateway_config
@@ -176,25 +176,25 @@ class PoolManager:
         current_time = time.time()
 
         try:
-            # 1. Agent から現在の全コンテナを取得
+            # 1. Get all current containers from Agent.
             actual_containers = await self.provision_client.list_containers()
             if not actual_containers:
                 return 0
 
-            # 2. Gateway が認識している全ワーカーIDを収集
+            # 2. Collect all worker IDs known to the Gateway.
             known_ids = set()
             for pool in self._pools.values():
                 workers = pool.get_all_workers()
                 for w in workers:
                     known_ids.add(w.id)
 
-            # 3. Orphan を検出 (Actual にあるが Known にない)
+            # 3. Detect orphans (present in actual but not known).
             orphans = [c for c in actual_containers if c.id not in known_ids]
 
-            # 4. Orphan を削除 (Grace Period を考慮)
+            # 4. Delete orphans (respect grace period).
             removed_count = 0
             for orphan in orphans:
-                # Grace Period チェック: 作成から grace_period 秒以内のコンテナはスキップ
+                # Grace period check: skip containers created within grace_period seconds.
                 container_age = current_time - orphan.created_at
                 if container_age < grace_period:
                     logger.debug(

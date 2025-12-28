@@ -3,15 +3,15 @@ from tools.provisioner.main import provision_dynamodb, provision_s3
 
 
 class TestProvisioner:
-    """Provisioner の単体テスト"""
+    """Unit tests for the provisioner."""
 
     @patch("tools.provisioner.main.get_dynamodb_client")
     def test_provision_dynamodb_creates_table_if_not_exists(self, mock_get_client):
-        """テーブルが存在しない場合、作成を試みる"""
+        """Create a table when it does not exist."""
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client
 
-        # 既存テーブルなし
+        # No existing tables.
         mock_client.list_tables.return_value = {"TableNames": []}
 
         tables = [
@@ -31,11 +31,11 @@ class TestProvisioner:
 
     @patch("tools.provisioner.main.get_dynamodb_client")
     def test_provision_dynamodb_skips_if_exists(self, mock_get_client):
-        """テーブルが既に存在する場合、作成をスキップする"""
+        """Skip creation when the table already exists."""
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client
 
-        # 既存テーブルあり
+        # Existing table present.
         mock_client.list_tables.return_value = {"TableNames": ["test-table"]}
 
         tables = [{"TableName": "test-table"}]
@@ -46,11 +46,11 @@ class TestProvisioner:
 
     @patch("tools.provisioner.main.get_s3_client")
     def test_provision_s3_creates_bucket_if_not_exists(self, mock_get_client):
-        """バケットが存在しない場合、作成を試みる"""
+        """Create a bucket when it does not exist."""
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client
 
-        # 既存バケットなし
+        # No existing buckets.
         mock_client.list_buckets.return_value = {"Buckets": []}
 
         buckets = [{"BucketName": "test-bucket"}]
@@ -61,11 +61,11 @@ class TestProvisioner:
 
     @patch("tools.provisioner.main.get_s3_client")
     def test_provision_s3_skips_if_exists(self, mock_get_client):
-        """バケットが既に存在する場合、作成をスキップする"""
+        """Skip creation when the bucket already exists."""
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client
 
-        # 既存バケットあり
+        # Existing bucket present.
         mock_client.list_buckets.return_value = {"Buckets": [{"Name": "test-bucket"}]}
 
         buckets = [{"BucketName": "test-bucket"}]

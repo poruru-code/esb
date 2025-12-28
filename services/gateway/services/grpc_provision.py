@@ -88,7 +88,7 @@ class GrpcProvisionClient:
     async def _wait_for_readiness(
         self, function_name: str, host: str, port: int, timeout: float = 10.0
     ):
-        """TCPコネクション確立を試行してreadinessを確認"""
+        """Confirm readiness by attempting to establish a TCP connection."""
         import asyncio
         import time
         from services.gateway.core.exceptions import ContainerStartError

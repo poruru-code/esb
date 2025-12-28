@@ -10,23 +10,23 @@ from tools.cli.core.trust_store import install_root_ca
 
 def run(args):
     """
-    インタラクティブなウィザードを実行し、generator.yml を生成する
+    Run the interactive wizard and generate generator.yml.
     """
     print("🚀 Initializing Edge Serverless Box configuration...")
 
-    # 1. テンプレートファイルの探索
-    # 優先順位: 1) main parser の --template (cli_config.TEMPLATE_YAML)
-    #          2) サブパーサーの --template (args.template)
-    #          3) カレントディレクトリ探索
+    # 1. Find the template file.
+    # Priority: 1) main parser --template (cli_config.TEMPLATE_YAML)
+    #           2) subparser --template (args.template)
+    #           3) current directory search
     template_path = None
     
-    # cli_config.TEMPLATE_YAML が設定されていればそれを使用（main parser経由）
+    # Use cli_config.TEMPLATE_YAML if set (via main parser).
     if cli_config.TEMPLATE_YAML and cli_config.TEMPLATE_YAML.exists():
         template_path = cli_config.TEMPLATE_YAML.resolve()
     elif args.template:
         template_path = Path(args.template).resolve()
     else:
-        # デフォルトの探索順
+        # Default search order.
         candidates = [
             Path("template.yaml"),
             Path("template.yml"),
@@ -37,7 +37,7 @@ def run(args):
                 break
     
     if not template_path or not template_path.exists():
-        # 見つからない場合は入力を求める
+        # Prompt for input if not found.
         path_input = questionary.path("Path to SAM template.yaml:").ask()
         if not path_input:
             print("❌ No template provided. Aborting.")
@@ -47,7 +47,7 @@ def run(args):
     print(f"ℹ Using template: {template_path}")
     sys.stdout.flush()
 
-    # 2. テンプレートのロードとパラメータ抽出
+    # 2. Load the template and extract parameters.
     from tools.generator.parser import CfnLoader
     try:
         with open(template_path, 'r', encoding='utf-8') as f:
@@ -75,7 +75,7 @@ def run(args):
                 sys.exit(1)
             param_values[key] = user_val
 
-    # 3. その他の設定項目
+    # 3. Additional settings.
     print("\n⚙ Additional Configuration:")
     sys.stdout.flush()
     
@@ -86,7 +86,7 @@ def run(args):
         sys.exit(1)
     
     # Output Directory
-    # デフォルトはテンプレートと同じディレクトリ配下の .esb
+    # Default is .esb under the template directory.
     default_output_dir = template_path.parent / ".esb"
     output_dir_input = questionary.path("Output Directory for artifacts:", default=str(default_output_dir)).ask()
     if output_dir_input is None:
@@ -94,8 +94,8 @@ def run(args):
         sys.exit(1)
     output_dir = Path(output_dir_input).resolve()
 
-    # 4. generator.yml の生成
-    # パスをテンプレートからの相対パスに変換してポータブルにする
+    # 4. Generate generator.yml.
+    # Convert paths to be relative to the template for portability.
     base_dir = template_path.parent
     
     def to_rel(p: Path) -> str:
@@ -106,7 +106,7 @@ def run(args):
 
     generator_config = {
         "app": {
-            "name": "", # prefixがあれば入れたいが、一旦空で
+            "name": "", # Keep empty for now; could add a prefix later.
             "tag": image_tag
         },
         "paths": {
@@ -118,10 +118,10 @@ def run(args):
     if param_values:
         generator_config["parameters"] = param_values
 
-    # 保存先: テンプレートと同じディレクトリに generator.yml を作成
+    # Save location: create generator.yml in the same directory as the template.
     save_path = template_path.parent / "generator.yml"
     
-    # 既存チェック
+    # Check for existing file.
     if save_path.exists():
         overwrite = questionary.confirm(f"File {save_path} already exists. Overwrite?").ask()
         if not overwrite:
@@ -137,7 +137,7 @@ def run(args):
         print(f"❌ Failed to save config: {e}")
         sys.exit(1)
 
-    # 5. SSL証明書の準備とOS信頼登録
+    # 5. Prepare SSL certificates and install OS trust.
     print("\n🔐 Preparing SSL certificates and trust store...")
     try:
         from tools.cli.config import DEFAULT_CERT_DIR

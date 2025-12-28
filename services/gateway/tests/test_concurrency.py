@@ -7,8 +7,8 @@ from services.gateway.core.exceptions import ResourceExhaustedError
 @pytest.mark.asyncio
 async def test_fifo_ordering():
     """
-    limit=1 の状態で A, B, C を投入し、A 完了後に B が開始し、B 完了後に C が開始することを確認する。
-    (厳密な FIFO の検証)
+    With limit=1, submit A, B, C and ensure B starts after A, and C after B.
+    (Strict FIFO verification)
     """
     throttle = FunctionThrottle(limit=1)
     execution_order = []
@@ -19,17 +19,17 @@ async def test_fifo_ordering():
             await asyncio.sleep(delay)
             execution_order.append(f"{name}_end")
 
-    # A を開始 (枠を占有)
+    # Start A (occupy the slot).
     task_a = asyncio.create_task(worker("A", 0.1))
-    await asyncio.sleep(0.01)  # A が確実に acquire するまで待機
+    await asyncio.sleep(0.01)  # Wait for A to acquire.
 
-    # B, C を待機列に投入
+    # Queue B and C.
     task_b = asyncio.create_task(worker("B", 0.01))
     task_c = asyncio.create_task(worker("C", 0.01))
 
     await asyncio.gather(task_a, task_b, task_c)
 
-    # 期待される順序: A開始 -> A終了 -> B開始 -> B終了 -> C開始 -> C終了
+    # Expected order: A_start -> A_end -> B_start -> B_end -> C_start -> C_end
     expected = ["A_start", "A_end", "B_start", "B_end", "C_start", "C_end"]
     assert execution_order == expected
 
@@ -37,14 +37,14 @@ async def test_fifo_ordering():
 @pytest.mark.asyncio
 async def test_timeout_raises_resource_exhausted():
     """
-    枠が一杯の状態で、指定時間内に空きが出ない場合に ResourceExhaustedError が発生することを確認する。
+    Ensure ResourceExhaustedError is raised when no slot frees within timeout.
     """
     throttle = FunctionThrottle(limit=1)
 
-    # 枠を埋める
+    # Fill the slot.
     await throttle.acquire(timeout=1.0)
 
-    # 2つ目のリクエストはタイムアウトするはず
+    # Second request should time out.
     with pytest.raises(ResourceExhaustedError) as excinfo:
         await throttle.acquire(timeout=0.1)
 
@@ -54,18 +54,18 @@ async def test_timeout_raises_resource_exhausted():
 @pytest.mark.asyncio
 async def test_cancel_removes_from_waiters():
     """
-    待機中のタスクがキャンセルされた場合、waiters から正しく削除されることを確認する。
+    Ensure a cancelled waiting task is removed from waiters.
     """
     throttle = FunctionThrottle(limit=1)
-    await throttle.acquire(timeout=1.0)  # 1つ目
+    await throttle.acquire(timeout=1.0)  # First
 
-    # 2つ目を待機状態にする
+    # Put second into waiting state.
     waiter_task = asyncio.create_task(throttle.acquire(timeout=1.0))
     await asyncio.sleep(0.01)
 
     assert len(throttle.waiters) == 1
 
-    # キャンセル
+    # Cancel.
     waiter_task.cancel()
     try:
         await waiter_task
@@ -78,7 +78,7 @@ async def test_cancel_removes_from_waiters():
 @pytest.mark.asyncio
 async def test_concurrency_manager_singleton_per_function():
     """
-    ConcurrencyManager が同じ関数名に対して同じ FunctionThrottle を返すことを確認する。
+    Ensure ConcurrencyManager returns the same FunctionThrottle for the same function.
     """
     manager = ConcurrencyManager(default_limit=5, default_timeout=10)
     throttle1 = manager.get_throttle("func1")
@@ -93,13 +93,13 @@ async def test_concurrency_manager_singleton_per_function():
 @pytest.mark.asyncio
 async def test_concurrency_manager_with_registry():
     """
-    ConcurrencyManager が FunctionRegistry からリミットを取得することを確認する。
+    Ensure ConcurrencyManager gets limits from FunctionRegistry.
     """
     from unittest.mock import MagicMock
 
     mock_registry = MagicMock()
-    # mock_registry.get_function_config.return_value に相当する設定
-    # 1. scaling.max_capacity がある場合
+    # Config equivalent to mock_registry.get_function_config return value.
+    # 1. scaling.max_capacity present
     mock_registry.get_function_config.side_effect = lambda name: {
         "func_with_scaling": {"scaling": {"max_capacity": 2}},
         "func_with_reserved": {"ReservedConcurrentExecutions": 3},
@@ -110,7 +110,7 @@ async def test_concurrency_manager_with_registry():
         default_limit=10, default_timeout=10, function_registry=mock_registry
     )
 
-    # 1. scaling.max_capacity 優先
+    # 1. Prefer scaling.max_capacity.
     assert manager.get_throttle("func_with_scaling").limit == 2
     # 2. ReservedConcurrentExecutions
     assert manager.get_throttle("func_with_reserved").limit == 3

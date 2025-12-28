@@ -8,7 +8,7 @@ from tools.cli.commands import logs
 
 @patch("subprocess.run")
 def test_logs_basic(mock_run):
-    """logs コマンドが docker compose logs を実行すること"""
+    """Ensure logs runs docker compose logs."""
     args = Namespace(service=None, follow=False, tail=None, timestamps=False)
     logs.run(args)
     
@@ -19,7 +19,7 @@ def test_logs_basic(mock_run):
 
 @patch("subprocess.run")
 def test_logs_with_service(mock_run):
-    """logs [service] で特定サービスのログを表示すること"""
+    """Ensure logs [service] displays logs for a specific service."""
     args = Namespace(service="gateway", follow=False, tail=None, timestamps=False)
     logs.run(args)
     
@@ -30,7 +30,7 @@ def test_logs_with_service(mock_run):
 
 @patch("subprocess.run")
 def test_logs_follow(mock_run):
-    """logs --follow で --follow オプションが渡されること"""
+    """Ensure logs --follow passes the --follow option."""
     args = Namespace(service=None, follow=True, tail=None, timestamps=False)
     logs.run(args)
     
@@ -41,7 +41,7 @@ def test_logs_follow(mock_run):
 
 @patch("subprocess.run")
 def test_logs_tail(mock_run):
-    """logs --tail N で最新N行が指定されること"""
+    """Ensure logs --tail N sets the latest N lines."""
     args = Namespace(service=None, follow=False, tail=50, timestamps=False)
     logs.run(args)
     
@@ -53,7 +53,7 @@ def test_logs_tail(mock_run):
 
 @patch("subprocess.run")
 def test_logs_timestamps(mock_run):
-    """logs --timestamps でタイムスタンプが表示されること"""
+    """Ensure logs --timestamps shows timestamps."""
     args = Namespace(service=None, follow=False, tail=None, timestamps=True)
     logs.run(args)
     
@@ -64,7 +64,7 @@ def test_logs_timestamps(mock_run):
 
 @patch("subprocess.run")
 def test_logs_combined_options(mock_run):
-    """複数オプションの組み合わせが正しく動作すること"""
+    """Ensure combined options work correctly."""
     args = Namespace(service="manager", follow=True, tail=100, timestamps=True)
     logs.run(args)
     

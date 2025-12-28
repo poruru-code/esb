@@ -1,9 +1,8 @@
 """
-RIE 環境での Trace ID ブリッジ用デコレータ
+Trace ID bridging decorator for the RIE environment.
 
-AWS Lambda 本番環境では _X_AMZN_TRACE_ID 環境変数が自動設定されますが、
-RIE (Runtime Interface Emulator) ではこの機能がないため、
-ClientContext 経由で Trace ID を受け渡します。
+In AWS Lambda production, the _X_AMZN_TRACE_ID environment variable is set automatically,
+but RIE (Runtime Interface Emulator) lacks this, so we pass the Trace ID via ClientContext.
 """
 
 import asyncio
@@ -15,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def _set_trace_id_from_context(context):
-    """ClientContext から Trace ID を取り出し、環境変数にセットする"""
+    """Extract Trace ID from ClientContext and set it in the environment."""
     if hasattr(context, "client_context") and context.client_context:
         custom = getattr(context.client_context, "custom", None)
         if custom and isinstance(custom, dict) and "trace_id" in custom:
@@ -27,10 +26,10 @@ def _set_trace_id_from_context(context):
 
 def hydrate_trace_id(handler):
     """
-    RIE 環境において、ClientContext から Trace ID を取り出し、
-    環境変数 _X_AMZN_TRACE_ID にセットするデコレータ。
+    Decorator for RIE that extracts a Trace ID from ClientContext and sets
+    the _X_AMZN_TRACE_ID environment variable.
 
-    sync/async 両方のハンドラに対応。
+    Supports both sync and async handlers.
 
     Usage:
         @hydrate_trace_id

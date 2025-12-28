@@ -30,8 +30,8 @@ class GrpcBackend:
 
     async def acquire_worker(self, function_name: str) -> WorkerInfo:
         """
-        gRPC 経由でエージェントからワーカー（コンテナ）を取得
-        (流量制御を適用)
+        Acquire a worker (container) from the agent via gRPC
+        (with flow control applied).
         """
         if self.concurrency_manager:
             throttle = self.concurrency_manager.get_throttle(function_name)
@@ -54,7 +54,7 @@ class GrpcBackend:
     async def _wait_for_readiness(
         self, function_name: str, host: str, port: int, timeout: float = 10.0
     ):
-        """TCPコネクション確立を試行してreadinessを確認"""
+        """Confirm readiness by attempting to establish a TCP connection."""
         import asyncio
         import time
 
@@ -62,7 +62,7 @@ class GrpcBackend:
         last_error = None
         while time.time() - start_time < timeout:
             try:
-                # asyncio.open_connection でTCP疎通確認
+                # Check TCP connectivity with asyncio.open_connection.
                 _, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=1.0)
                 writer.close()
                 await writer.wait_closed()
@@ -103,7 +103,7 @@ class GrpcBackend:
 
     async def release_worker(self, function_name: str, worker: WorkerInfo) -> None:
         """
-        ワーカーを返却
+        Release a worker.
         """
         if self.concurrency_manager:
             throttle = self.concurrency_manager.get_throttle(function_name)
@@ -111,7 +111,7 @@ class GrpcBackend:
 
     async def evict_worker(self, function_name: str, worker: WorkerInfo) -> None:
         """
-        ワーカーを明示的に破壊
+        Explicitly evict a worker.
         """
         req = agent_pb2.DestroyContainerRequest(function_name=function_name, container_id=worker.id)
         try:
@@ -122,7 +122,7 @@ class GrpcBackend:
 
     async def list_workers(self) -> List[WorkerState]:
         """
-        Agent から全ワーカーの状態を取得 (Janitor 用)
+        Get the state of all workers from Agent (for Janitor).
         """
         req = agent_pb2.ListContainersRequest()
         try:

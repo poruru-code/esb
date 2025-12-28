@@ -2,10 +2,10 @@ from tools.generator.renderer import render_dockerfile, render_functions_yml
 
 
 class TestDockerfileRenderer:
-    """Dockerfileレンダラーのテスト"""
+    """Tests for the Dockerfile renderer."""
 
     def test_render_simple_dockerfile(self):
-        """シンプルなDockerfileを生成できる"""
+        """Generate a simple Dockerfile."""
         func_config = {
             "name": "lambda-hello",
             "code_uri": "functions/hello/",
@@ -26,7 +26,7 @@ class TestDockerfileRenderer:
         assert 'CMD [ "lambda_function.lambda_handler" ]' in result
 
     def test_render_dockerfile_with_requirements(self):
-        """requirements.txt がある場合 pip install を含む"""
+        """Include pip install when requirements.txt is present."""
         func_config = {
             "name": "lambda-hello",
             "code_uri": "functions/hello/",
@@ -46,10 +46,10 @@ class TestDockerfileRenderer:
 
 
 class TestFunctionsYmlRenderer:
-    """functions.yml レンダラーのテスト"""
+    """Tests for the functions.yml renderer."""
 
     def test_render_functions_yml(self):
-        """functions.yml を生成できる"""
+        """Generate functions.yml."""
         functions = [
             {
                 "name": "lambda-hello",
@@ -76,7 +76,7 @@ class TestFunctionsYmlRenderer:
         assert "S3_ENDPOINT" in result
 
     def test_render_functions_yml_with_scaling(self):
-        """関数ごとのスケーリング設定を含むfunctions.ymlを生成できる"""
+        """Generate functions.yml with per-function scaling settings."""
         functions = [
             {
                 "name": "lambda-echo",
@@ -96,7 +96,7 @@ class TestFunctionsYmlRenderer:
         assert "min_capacity: 1" in result
 
     def test_render_routing_yml(self):
-        """routing.yml を生成できる"""
+        """Generate routing.yml."""
         from tools.generator.renderer import render_routing_yml
 
         functions = [

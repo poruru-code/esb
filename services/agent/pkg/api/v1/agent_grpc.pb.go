@@ -31,15 +31,15 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AgentServiceClient interface {
-	// コンテナを確保し、接続情報を返す (なければ起動、あれば再利用)
+	// Ensure a container and return connection info (start if missing, reuse if present).
 	EnsureContainer(ctx context.Context, in *EnsureContainerRequest, opts ...grpc.CallOption) (*WorkerInfo, error)
-	// 明示的にコンテナを停止・削除する
+	// Explicitly stop and remove a container.
 	DestroyContainer(ctx context.Context, in *DestroyContainerRequest, opts ...grpc.CallOption) (*DestroyContainerResponse, error)
-	// コンテナを一時停止する (Warm Start 用)
+	// Pause a container (for warm starts).
 	PauseContainer(ctx context.Context, in *PauseContainerRequest, opts ...grpc.CallOption) (*PauseContainerResponse, error)
-	// コンテナを再開する (Warm Start 用)
+	// Resume a container (for warm starts).
 	ResumeContainer(ctx context.Context, in *ResumeContainerRequest, opts ...grpc.CallOption) (*ResumeContainerResponse, error)
-	// 管理下の全コンテナの状態を取得 (Phase 3: Janitor 用)
+	// Get state of all managed containers (Phase 3: Janitor).
 	ListContainers(ctx context.Context, in *ListContainersRequest, opts ...grpc.CallOption) (*ListContainersResponse, error)
 }
 
@@ -105,15 +105,15 @@ func (c *agentServiceClient) ListContainers(ctx context.Context, in *ListContain
 // All implementations must embed UnimplementedAgentServiceServer
 // for forward compatibility.
 type AgentServiceServer interface {
-	// コンテナを確保し、接続情報を返す (なければ起動、あれば再利用)
+	// Ensure a container and return connection info (start if missing, reuse if present).
 	EnsureContainer(context.Context, *EnsureContainerRequest) (*WorkerInfo, error)
-	// 明示的にコンテナを停止・削除する
+	// Explicitly stop and remove a container.
 	DestroyContainer(context.Context, *DestroyContainerRequest) (*DestroyContainerResponse, error)
-	// コンテナを一時停止する (Warm Start 用)
+	// Pause a container (for warm starts).
 	PauseContainer(context.Context, *PauseContainerRequest) (*PauseContainerResponse, error)
-	// コンテナを再開する (Warm Start 用)
+	// Resume a container (for warm starts).
 	ResumeContainer(context.Context, *ResumeContainerRequest) (*ResumeContainerResponse, error)
-	// 管理下の全コンテナの状態を取得 (Phase 3: Janitor 用)
+	// Get state of all managed containers (Phase 3: Janitor).
 	ListContainers(context.Context, *ListContainersRequest) (*ListContainersResponse, error)
 	mustEmbedUnimplementedAgentServiceServer()
 }

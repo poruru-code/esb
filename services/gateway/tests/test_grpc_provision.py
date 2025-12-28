@@ -83,7 +83,7 @@ async def test_provision_success(grpc_client, mock_stub, mock_registry):
 
 @pytest.mark.asyncio
 async def test_grpc_delete_container(mock_stub, mock_registry):
-    """delete_container がエージェントの DestroyContainer を呼ぶことを確認"""
+    """Ensure delete_container calls the agent DestroyContainer."""
     from services.gateway.services.grpc_provision import GrpcProvisionClient
 
     mock_stub.DestroyContainer = AsyncMock()
@@ -98,7 +98,7 @@ async def test_grpc_delete_container(mock_stub, mock_registry):
 
 @pytest.mark.asyncio
 async def test_grpc_list_containers(mock_stub, mock_registry):
-    """list_containers がエージェントの ListContainers を呼び、上位互換の結果を返すことを確認"""
+    """Ensure list_containers calls ListContainers and returns compatible results."""
     from services.gateway.services.grpc_provision import GrpcProvisionClient
 
     mock_stub.ListContainers = AsyncMock()

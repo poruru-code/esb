@@ -14,7 +14,7 @@ def reloader():
 @patch("tools.generator.main.generate_files")
 @patch("tools.provisioner.main.main")
 def test_handle_template_change(mock_provisioner, mock_generate_files, mock_subprocess, reloader):
-    """template.yaml 変更時のリロードフローを確認"""
+    """Verify the reload flow when template.yaml changes."""
     reloader.handle_template_change()
 
     mock_generate_files.assert_called_once()
@@ -28,7 +28,7 @@ def test_handle_template_change(mock_provisioner, mock_generate_files, mock_subp
 @patch("tools.cli.config.E2E_DIR", Path("tests/fixtures"))
 @patch("docker.from_env")
 def test_handle_function_change(mock_docker_env, reloader):
-    """関数コード変更時のイメージビルドとコンテナ停止フローを確認"""
+    """Verify image rebuild and container stop flow on function code changes."""
     mock_client = MagicMock()
     reloader.docker_client = mock_client
 
@@ -40,10 +40,10 @@ def test_handle_function_change(mock_docker_env, reloader):
             test_path = Path("tests/fixtures/functions/hello/lambda_function.py")
             reloader.handle_function_change(test_path)
 
-    # 1. イメージビルドが呼ばれたか
+    # 1. Ensure image build was called.
     mock_client.images.build.assert_called_once()
     kwargs = mock_client.images.build.call_args[1]
     assert "lambda-hello" in kwargs["tag"]
 
-    # 2. 実行中コンテナの停止が呼ばれたか
+    # 2. Ensure running containers were stopped.
     mock_client.containers.list.assert_called_once()

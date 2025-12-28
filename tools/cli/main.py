@@ -3,7 +3,7 @@ import argparse
 import sys
 from pathlib import Path
 
-# プロジェクトルートをパスに追加
+# Add the project root to sys.path.
 project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.append(str(project_root))
@@ -72,7 +72,7 @@ def main():
 
     args = parser.parse_args()
 
-    # --template オプションが指定された場合、コンフィグを上書き
+    # Override config when --template is specified.
     if args.template:
         from tools.cli.config import set_template_yaml
 

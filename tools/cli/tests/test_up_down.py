@@ -7,17 +7,17 @@ from tools.cli.commands.down import run as run_down
 @patch("tools.provisioner.main.main")
 @patch("tools.cli.commands.build.run")
 def test_up_command_flow(mock_build_run, mock_provisioner_main, mock_subprocess):
-    """up コマンドが build, docker compose, provisioner を正しく呼び出すか確認"""
+    """Ensure the up command calls build, docker compose, and the provisioner."""
     args = MagicMock()
     args.build = True
     args.detach = True
 
     run_up(args)
 
-    # 1. build が呼ばれたか
+    # 1. Ensure build was called.
     mock_build_run.assert_called_once_with(args)
 
-    # 2. docker compose up が呼ばれたか
+    # 2. Ensure docker compose up was called.
     mock_subprocess.assert_called_once()
     cmd = mock_subprocess.call_args[0][0]
     assert "docker" in cmd
@@ -25,13 +25,13 @@ def test_up_command_flow(mock_build_run, mock_provisioner_main, mock_subprocess)
     assert "up" in cmd
     assert "-d" in cmd
 
-    # 3. provisioner が呼ばれたか
+    # 3. Ensure the provisioner was called.
     mock_provisioner_main.assert_called_once()
 
 
 @patch("subprocess.check_call")
 def test_down_command_flow(mock_subprocess):
-    """down コマンドが docker compose down を呼び出すか確認"""
+    """Ensure the down command calls docker compose down."""
     args = MagicMock()
     args.volumes = False
     run_down(args)
@@ -44,7 +44,7 @@ def test_down_command_flow(mock_subprocess):
 
 @patch("subprocess.check_call")
 def test_down_command_volumes_option(mock_subprocess):
-    """down --volumes が --volumes オプションを付与するか確認"""
+    """Ensure down --volumes passes the --volumes option."""
     args = MagicMock()
     args.volumes = True
     run_down(args)

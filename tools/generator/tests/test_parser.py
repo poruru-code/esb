@@ -2,10 +2,10 @@ from tools.generator.parser import parse_sam_template
 
 
 class TestSamParser:
-    """SAMテンプレートパーサーのテスト"""
+    """Tests for the SAM template parser."""
 
     def test_parse_simple_function(self):
-        """シンプルな関数定義をパースできる"""
+        """Parse a simple function definition."""
         sam_content = """
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
@@ -29,7 +29,7 @@ Resources:
         assert func["runtime"] == "python3.12"
 
     def test_parse_function_with_environment(self):
-        """環境変数を含む関数をパースできる"""
+        """Parse a function with environment variables."""
         sam_content = """
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
@@ -55,7 +55,7 @@ Resources:
         assert func["environment"]["BUCKET_NAME"] == "test-bucket"
 
     def test_parse_globals(self):
-        """Globalsセクションからデフォルト値を取得できる"""
+        """Get default values from the Globals section."""
         sam_content = """
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
@@ -76,12 +76,12 @@ Resources:
         result = parse_sam_template(sam_content)
 
         func = result["functions"][0]
-        # Globals から継承
+        # Inherited from Globals.
         assert func["runtime"] == "python3.12"
         assert func["handler"] == "lambda_function.lambda_handler"
 
     def test_skip_non_function_resources(self):
-        """Function以外のリソースはスキップする"""
+        """Skip resources that are not Functions."""
         sam_content = """
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
@@ -102,12 +102,12 @@ Resources:
 """
         result = parse_sam_template(sam_content)
 
-        # Function のみ抽出
+        # Extract only Function resources.
         assert len(result["functions"]) == 1
         assert result["functions"][0]["name"] == "lambda-hello"
 
     def test_parse_function_with_events(self):
-        """Events (API Gateway) を含む関数をパースできる"""
+        """Parse a function that includes API Gateway events."""
         sam_content = """
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
@@ -137,7 +137,7 @@ Resources:
         assert func["events"][0]["method"] == "post"
 
     def test_parse_function_with_scaling(self):
-        """スケーリング設定（SAM標準プロパティ）をパースできる"""
+        """Parse scaling settings (SAM standard properties)."""
         sam_content = """
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
@@ -159,7 +159,7 @@ Resources:
         assert func["scaling"]["min_capacity"] == 2
 
     def test_parse_resources(self):
-        """DynamoDBとS3リソースをパースできる"""
+        """Parse DynamoDB and S3 resources."""
         sam_content = """
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
@@ -190,17 +190,17 @@ Resources:
         assert "resources" in result
         resources = result["resources"]
 
-        # DynamoDB 検証
+        # DynamoDB verification.
         assert len(resources["dynamodb"]) == 1
         table = resources["dynamodb"][0]
         assert table["TableName"] == "my-test-table"
         assert table["BillingMode"] == "PAY_PER_REQUEST"
 
-        # S3 検証
+        # S3 verification.
         assert len(resources["s3"]) == 2
         bucket1 = next(b for b in resources["s3"] if b["BucketName"] == "my-test-bucket")
         assert bucket1 is not None
 
-        # Logical ID がバケット名になるケースの検証
+        # Verify the case where the logical ID becomes the bucket name.
         bucket2 = next(b for b in resources["s3"] if b["BucketName"] == "logicalbucket")
         assert bucket2 is not None

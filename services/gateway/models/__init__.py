@@ -1,7 +1,7 @@
 """
-データモデル定義パッケージ
+Data model definitions package.
 
-Pydanticモデルを集約し、他のモジュールから利用可能にします。
+Aggregates Pydantic models for use in other modules.
 """
 
 from .auth import (

@@ -2,10 +2,10 @@
 set -e
 
 echo "Starting Docker daemon..."
-# Docker daemonをバックグラウンドで起動
+# Start the Docker daemon in the background.
 dockerd-entrypoint.sh &
 
-# Docker daemonの起動を待機
+# Wait for the Docker daemon to start.
 timeout=${DOCKER_DAEMON_TIMEOUT:-60}
 while ! docker info > /dev/null 2>&1; do
     if [ $timeout -le 0 ]; then
@@ -19,15 +19,15 @@ done
 
 echo "Docker daemon started successfully"
 
-# ESB CLI が使用する環境変数の準備
-# tests/.env.test が存在しない場合はテンプレートから作成
+# Prepare environment variables for the ESB CLI.
+# Create tests/.env.test from the template if it doesn't exist.
 if [ ! -f /app/tests/.env.test ]; then
     echo "Initializing environment variables from .env.example..."
     mkdir -p /app/tests
     cp /app/.env.example /app/tests/.env.test
 fi
 
-# プリビルドされたイメージ (.tar) があればロード (起動高速化のため)
+# Load prebuilt images (.tar) if present (to speed up startup).
 if [ -d /app/build/lambda-images ]; then
     echo "Checking for pre-built images..."
     for tarfile in /app/build/lambda-images/*.tar; do
@@ -38,13 +38,13 @@ if [ -d /app/build/lambda-images ]; then
     done
 fi
 
-# ESB CLI を使って環境を起動
-# --build: 内部で設定を生成し、不足しているイメージをビルド
-# --detach: サービスをバックグラウンドで起動
+# Start the environment using the ESB CLI.
+# --build: generate configuration and build missing images.
+# --detach: start services in the background.
 echo "Starting Edge Serverless Box via CLI..."
 cd /app
 esb up --build --detach
 
-# ログを表示して待機（コンテナ終了を防ぐ）
+# Tail logs to keep the container alive.
 echo "All services started. Tailing logs..."
 docker compose logs -f

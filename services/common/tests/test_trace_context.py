@@ -1,5 +1,5 @@
 """
-TraceContext のテスト (Trace ID 統一版)
+TraceContext tests (unified Trace ID)
 """
 
 import pytest
@@ -11,13 +11,13 @@ from services.common.core.request_context import (
 
 
 def test_get_trace_id_default_is_none():
-    """初期状態では TraceId は None"""
+    """TraceId is None by default."""
     clear_trace_id()
     assert get_trace_id() is None
 
 
 def test_set_trace_id_with_valid_string():
-    """TraceId (Root=...) を明示的に設定できる"""
+    """TraceId (Root=...) can be set explicitly."""
     trace_str = "Root=1-676b8f34-e432f8314483756f7098e60b;Sampled=1"
     result = set_trace_id(trace_str)
     assert result == trace_str
@@ -26,7 +26,7 @@ def test_set_trace_id_with_valid_string():
 
 
 def test_clear_trace_id():
-    """TraceId をクリアできる"""
+    """TraceId can be cleared."""
     trace_str = "Root=1-676b8f34-e432f8314483756f7098e60b;Sampled=1"
     set_trace_id(trace_str)
     assert get_trace_id() == trace_str
@@ -37,7 +37,7 @@ def test_clear_trace_id():
 
 @pytest.mark.asyncio
 async def test_trace_id_isolation_in_async_context():
-    """非同期タスク間で TraceId が分離される (ContextVar の動作確認)"""
+    """TraceId is isolated across async tasks (ContextVar behavior)."""
     import asyncio
 
     trace_a = "Root=1-aaaaaaaa-aaaaaaaaaaaaaaaaaaaaaaaa;Sampled=1"

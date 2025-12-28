@@ -64,7 +64,7 @@ async def test_v1_event_builder_build():
 
 @pytest.mark.asyncio
 async def test_event_builder_uses_generated_request_id():
-    """Event BuilderがContextのRequest IDを使用することを確認"""
+    """Ensure the Event Builder uses the Request ID from context."""
     from unittest.mock import MagicMock
     from services.common.core import request_context
 
@@ -81,13 +81,13 @@ async def test_event_builder_uses_generated_request_id():
     request.client.host = "1.2.3.4"
     request.scope = {"http_version": "1.1"}
 
-    # Contextセット
+    # Set context.
     trace_id_str = "Root=1-abc-123;Sampled=1"
 
     request_context.clear_trace_id()
     request_context.set_trace_id(trace_id_str)
 
-    # UUIDを生成してContextにセット
+    # Generate UUID and set it in context.
     req_id_str = request_context.generate_request_id()
 
     # Act

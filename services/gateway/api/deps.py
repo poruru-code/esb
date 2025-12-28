@@ -1,7 +1,7 @@
 """
-Dependency Injection for Gateway API
+Dependency Injection for Gateway API.
 
-FastAPI の Depends を使用してリクエストハンドラの依存性を管理します。
+Manage request handler dependencies using FastAPI Depends.
 """
 
 from typing import Annotated, Optional
@@ -59,16 +59,16 @@ EventBuilderDep = Annotated[EventBuilder, Depends(get_event_builder)]
 
 async def verify_authorization(authorization: Optional[str] = Header(None)) -> str:
     """
-    JWT トークンを検証してユーザーIDを返す。
+    Verify a JWT token and return the user ID.
 
     Args:
-        authorization: Authorization ヘッダー
+        authorization: Authorization header
 
     Returns:
-        ユーザーID
+        User ID
 
     Raises:
-        HTTPException: 認証失敗時に 401
+        HTTPException: 401 on authentication failure
     """
     if not authorization:
         raise HTTPException(status_code=401, detail="Unauthorized")
@@ -82,17 +82,17 @@ async def verify_authorization(authorization: Optional[str] = Header(None)) -> s
 
 async def resolve_lambda_target(request: Request, route_matcher: RouteMatcherDep) -> TargetFunction:
     """
-    リクエストパスから Lambda 関数ターゲット情報を解決する。
+    Resolve the Lambda function target from the request path.
 
     Args:
-        request: FastAPI Request オブジェクト
-        route_matcher: RouteMatcher サービス (DI)
+        request: FastAPI Request object
+        route_matcher: RouteMatcher service (DI)
 
     Returns:
-        TargetFunction: ターゲット関数の情報
+        TargetFunction: target function info
 
     Raises:
-        HTTPException: ルーティングマッチしない場合に 404
+        HTTPException: 404 when no route matches
     """
     path = request.url.path
     method = request.method

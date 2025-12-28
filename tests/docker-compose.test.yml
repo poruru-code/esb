@@ -1,12 +1,11 @@
-# E2Eテスト用オーバーライド設定
-# 使用方法: docker compose -f docker-compose.yml -f docker-compose.test.yml up -d
+# Overrides for E2E tests
+# Usage: docker compose -f docker-compose.yml -f docker-compose.test.yml up -d
 #
-# ファイル単位でマウントし、他の設定ファイル（gateway_log.yaml, SSL等）はそのまま
+# Mount files individually; keep other config files (gateway_log.yaml, SSL, etc.) as-is
 
 services:
   gateway:
     volumes:
-      # E2Eテスト用の設定ファイルのみ上書き
+      # Override only the E2E test config files
       - ./tests/fixtures/.esb/config/functions.yml:/app/config/functions.yml:ro
       - ./tests/fixtures/.esb/config/routing.yml:/app/config/routing.yml:ro
-
