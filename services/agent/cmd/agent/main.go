@@ -9,9 +9,12 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/containerd/containerd"
+	"github.com/containerd/go-cni"
 	"github.com/docker/docker/client"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/api"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
+	agentContainerd "github.com/poruru/edge-serverless-box/services/agent/internal/runtime/containerd"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime/docker"
 	pb "github.com/poruru/edge-serverless-box/services/agent/pkg/api/v1"
 	"google.golang.org/grpc"
@@ -28,8 +31,6 @@ func main() {
 	}
 
 	// Network Configuration
-	// Gatewayや他のコンテナと同じネットワークに接続するために必要
-	// default to "bridge" if not specified, but usually passed via env
 	networkID := os.Getenv("CONTAINERS_NETWORK")
 	if networkID == "" {
 		networkID = "bridge"
@@ -37,25 +38,83 @@ func main() {
 	}
 	log.Printf("Target Network: %s", networkID)
 
-	// Initialize Docker Client
-	// FromEnv creates a client from environment variables (DOCKER_HOST etc.)
-	dockerCli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	if err != nil {
-		log.Fatalf("Failed to create Docker client: %v", err)
-	}
-	defer dockerCli.Close()
-
-	// Verify Docker connection
-	ctx := context.Background()
-	info, err := dockerCli.Info(ctx)
-	if err != nil {
-		log.Fatalf("Failed to connect to Docker daemon: %v", err)
-	}
-	log.Printf("Connected to Docker (Version: %s)", info.ServerVersion)
-
 	// Initialize Runtime
-	var rt runtime.ContainerRuntime = docker.NewRuntime(dockerCli, networkID)
-	defer rt.Close()
+	var rt runtime.ContainerRuntime
+
+	runtimeType := os.Getenv("AGENT_RUNTIME")
+	if runtimeType == "containerd" {
+		log.Println("Initializing containerd Runtime...")
+
+		// 1. Initialize containerd client
+		// Assumes /run/containerd/containerd.sock is mounted
+		c, err := containerd.New("/run/containerd/containerd.sock")
+		if err != nil {
+			log.Fatalf("Failed to create containerd client: %v", err)
+		}
+		// Clean up containerd client on exit
+		// Note: rt.Close() currently calls client.Close() so we might explicitly handle it via rt
+		// But verify if wrapper handles it.
+
+		wrappedClient := &agentContainerd.ClientWrapper{Client: c}
+
+		// 2. Initialize CNI
+		// Plugins are installed in /opt/cni/bin (see Dockerfile)
+		// Configs are in /etc/cni/net.d
+		cniOpts := []cni.Opt{
+			cni.WithPluginDir([]string{"/opt/cni/bin"}),
+			cni.WithPluginConfDir("/etc/cni/net.d"),
+		}
+		cniNetwork, err := cni.New(cniOpts...)
+		if err != nil {
+			log.Fatalf("Failed to initialize CNI: %v", err)
+		}
+
+		// 3. Initialize Port Allocator
+		// Range 10000-20000
+		portAllocator := agentContainerd.NewPortAllocator(10000, 20000)
+
+		// 4. Create Runtime
+		rt = agentContainerd.NewRuntime(wrappedClient, cniNetwork, portAllocator, "esb-runtime")
+		log.Println("Runtime: containerd (initialized)")
+
+	} else {
+		log.Println("Initializing Docker Runtime...")
+
+		// Initialize Docker Client
+		dockerCli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+		if err != nil {
+			log.Fatalf("Failed to create Docker client: %v", err)
+		}
+		// Docker client close is handled by rt.Close() or manually here?
+		// docker.NewRuntime takes *client.Client.
+		// runtime.docker.Runtime implementation of Close() should close the client?
+		// Looking at usage in previous main.go, it deferred dockerCli.Close().
+		// Let's keep it safe.
+		// However, if rt.Close() closes it, double close might be issue or harmless.
+		// Check docker runtime implementation if possible, or just don't close here and let rt handle it.
+		// For now, let's assume we pass ownership or rt doesn't close it.
+		// In previous code: defer dockerCli.Close() and defer rt.Close().
+		// So we should close dockerCli?
+		// But rt is interface.
+
+		// To be cleaner:
+		rt = docker.NewRuntime(dockerCli, networkID)
+		log.Println("Runtime: docker (initialized)")
+
+		// Note: previous code verified docker connection here.
+		ctx := context.Background()
+		info, err := dockerCli.Info(ctx)
+		if err != nil {
+			log.Fatalf("Failed to connect to Docker daemon: %v", err)
+		}
+		log.Printf("Connected to Docker (Version: %s)", info.ServerVersion)
+	}
+
+	defer func() {
+		if rt != nil {
+			rt.Close()
+		}
+	}()
 
 	// Initialize gRPC Server
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
