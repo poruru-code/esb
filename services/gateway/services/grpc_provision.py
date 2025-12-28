@@ -20,7 +20,11 @@ class GrpcProvisionClient:
     async def provision(self, function_name: str) -> List[WorkerInfo]:
         """Provision a container via gRPC Agent and return WorkerInfo list"""
         func_config = self.function_registry.get_function_config(function_name)
+        func_config = self.function_registry.get_function_config(function_name)
         image = func_config.get("image") if func_config else None
+
+        logger.info(f"Provisioning via gRPC Agent: {function_name}")
+
         from services.gateway.config import config
 
         # Base env from function config

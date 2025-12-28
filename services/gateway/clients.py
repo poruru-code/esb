@@ -5,6 +5,7 @@ from services.common.models.internal import WorkerInfo
 
 logger = logging.getLogger("gateway.clients")
 
+
 class ProvisionClient:
     """Wrapper for Manager provision API"""
 
@@ -27,6 +28,8 @@ class ProvisionClient:
         func_config = self.function_registry.get_function_config(function_name)
         image = func_config.get("image") if func_config else None
         env = func_config.get("environment", {}) if func_config else {}
+
+        logger.info(f"Provisioning via Legacy Manager: {function_name}")
 
         response = await self.client.post(
             f"{self.manager_url}/containers/provision",
@@ -75,6 +78,7 @@ class ProvisionClient:
             )
             for w in data["containers"]
         ]
+
 
 class HeartbeatClient:
     """Wrapper for Manager heartbeat API"""

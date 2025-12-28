@@ -132,6 +132,7 @@ async def lifespan(app: FastAPI):
         grpc_backend = None
         resource_janitor = None
     else:
+        logger.info("Initializing Gateway with Legacy Manager Backend")
         provision_client = ProvisionClient(
             client,
             config.ORCHESTRATOR_URL,

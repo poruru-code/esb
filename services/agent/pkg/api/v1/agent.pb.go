@@ -7,12 +7,11 @@
 package v1
 
 import (
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
-
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
 const (
@@ -623,14 +622,16 @@ const file_agent_proto_rawDesc = "" +
 	"\x16ListContainersResponse\x12<\n" +
 	"\n" +
 	"containers\x18\x01 \x03(\v2\x1c.esb.agent.v1.ContainerStateR\n" +
-	"containers\"\xb9\x01\n" +
+	"containers\"\xd8\x01\n" +
 	"\x0eContainerState\x12!\n" +
 	"\fcontainer_id\x18\x01 \x01(\tR\vcontainerId\x12#\n" +
 	"\rfunction_name\x18\x02 \x01(\tR\ffunctionName\x12\x16\n" +
 	"\x06status\x18\x03 \x01(\tR\x06status\x12 \n" +
 	"\flast_used_at\x18\x04 \x01(\x03R\n" +
 	"lastUsedAt\x12%\n" +
-	"\x0econtainer_name\x18\x05 \x01(\tR\rcontainerName2\xde\x03\n" +
+	"\x0econtainer_name\x18\x05 \x01(\tR\rcontainerName\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\x06 \x01(\x03R\tcreatedAt2\xde\x03\n" +
 	"\fAgentService\x12Q\n" +
 	"\x0fEnsureContainer\x12$.esb.agent.v1.EnsureContainerRequest\x1a\x18.esb.agent.v1.WorkerInfo\x12a\n" +
 	"\x10DestroyContainer\x12%.esb.agent.v1.DestroyContainerRequest\x1a&.esb.agent.v1.DestroyContainerResponse\x12[\n" +
