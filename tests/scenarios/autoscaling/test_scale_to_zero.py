@@ -4,11 +4,10 @@ Scale-to-Zero E2E Tests
 Tests container cleanup after idle timeout.
 These tests require specific environment configuration and may take several minutes.
 
-NOTE: These tests require PoolManager mode (USE_GRPC_AGENT=False).
-Go Agent uses ResourceJanitor for idle cleanup, tested separately.
+NOTE: These tests run against the gRPC Agent path.
 
 Usage:
-    IDLE_TIMEOUT_MINUTES=1 pytest tests/scenarios/autoscaling/test_scale_to_zero.py -v
+    GATEWAY_IDLE_TIMEOUT_SECONDS=60 pytest tests/scenarios/autoscaling/test_scale_to_zero.py -v
 """
 
 import os
@@ -19,9 +18,6 @@ import pytest
 from tests.conftest import call_api
 import grpc
 from services.gateway.pb import agent_pb2, agent_pb2_grpc
-
-# Go Agent uses ResourceJanitor for idle cleanup. We can run this test in Go Agent mode too.
-USE_GRPC_AGENT = os.environ.get("USE_GRPC_AGENT", "false").lower() == "true"
 
 
 def _normalize_function_name(function_name: str) -> str:
@@ -40,16 +36,16 @@ def _grpc_list_containers():
 
 def get_container_ids(function_name: str) -> list[str]:
     """Get container IDs for a function name pattern"""
-    if USE_GRPC_AGENT:
-        target = _normalize_function_name(function_name)
+    target = _normalize_function_name(function_name)
+    try:
         return [
-            c.container_id
-            for c in _grpc_list_containers()
-            if c.function_name == target
+            c.container_id for c in _grpc_list_containers() if c.function_name == target
         ]
-    cmd = ["docker", "ps", "-q", "-f", f"name=lambda-{function_name}"]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-    return result.stdout.strip().splitlines()
+    except grpc.RpcError:
+        # Fallback for local debugging when gRPC is not reachable.
+        cmd = ["docker", "ps", "-q", "-f", f"name=lambda-{function_name}"]
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        return result.stdout.strip().splitlines()
 
 
 def get_container_count(function_name: str) -> int:
@@ -57,17 +53,22 @@ def get_container_count(function_name: str) -> int:
     return len(get_container_ids(function_name))
 
 
-# Skip this module unless IDLE_TIMEOUT_MINUTES is set to a short value
+# Skip this module unless idle timeout is set to a short value
 IDLE_TIMEOUT_MINUTES = int(os.environ.get("IDLE_TIMEOUT_MINUTES", 5))
+IDLE_TIMEOUT_SECONDS = max(
+    1, int(os.environ.get("GATEWAY_IDLE_TIMEOUT_SECONDS", IDLE_TIMEOUT_MINUTES * 60))
+)
+HEARTBEAT_INTERVAL = int(os.environ.get("HEARTBEAT_INTERVAL", 30))
+BUFFER_SECONDS = min(30, max(10, HEARTBEAT_INTERVAL * 2))
 SKIP_REASON = (
-    "Scale-to-zero tests require IDLE_TIMEOUT_MINUTES <= 2. "
-    f"Current value: {IDLE_TIMEOUT_MINUTES}. "
-    "Run with: IDLE_TIMEOUT_MINUTES=1 pytest ..."
+    "Scale-to-zero tests require idle timeout <= 120s. "
+    f"Current value: {IDLE_TIMEOUT_SECONDS}s. "
+    "Run with: GATEWAY_IDLE_TIMEOUT_SECONDS=60 (or less) pytest ..."
 )
 
 
 @pytest.mark.slow
-@pytest.mark.skipif(IDLE_TIMEOUT_MINUTES > 2, reason=SKIP_REASON)
+@pytest.mark.skipif(IDLE_TIMEOUT_SECONDS > 120, reason=SKIP_REASON)
 class TestScaleToZero:
     """
     Tests for Scale-to-Zero functionality.
@@ -76,7 +77,7 @@ class TestScaleToZero:
     being idle for the configured timeout period.
 
     IMPORTANT: These tests require:
-    - IDLE_TIMEOUT_MINUTES=1 (or 2) to run in reasonable time
+    - GATEWAY_IDLE_TIMEOUT_SECONDS <= 120 (or IDLE_TIMEOUT_MINUTES <= 2)
     - Containers must be in a clean state before running
     """
 
@@ -90,7 +91,11 @@ class TestScaleToZero:
         3. Wait for IDLE_TIMEOUT + buffer
         4. Verify container is removed
         """
-        print(f"\n[Scale-to-Zero] Testing with IDLE_TIMEOUT_MINUTES={IDLE_TIMEOUT_MINUTES}")
+        print(
+            "\n[Scale-to-Zero] Testing with "
+            f"IDLE_TIMEOUT_SECONDS={IDLE_TIMEOUT_SECONDS} "
+            f"(buffer={BUFFER_SECONDS}s)"
+        )
 
         # 1. Provision a container
         print("[Step 1] Invoking Lambda to provision container...")
@@ -107,12 +112,12 @@ class TestScaleToZero:
 
         # 3. Wait for idle timeout
         # Add 30 seconds buffer for cleanup scheduler delay
-        wait_time = (IDLE_TIMEOUT_MINUTES * 60) + 30
+        wait_time = IDLE_TIMEOUT_SECONDS + BUFFER_SECONDS
         print(f"[Step 3] Waiting {wait_time}s for idle timeout and cleanup...")
 
         # Poll periodically to detect early cleanup
         elapsed = 0
-        poll_interval = 15
+        poll_interval = min(15, max(5, IDLE_TIMEOUT_SECONDS // 2))
         while elapsed < wait_time:
             time.sleep(poll_interval)
             elapsed += poll_interval
@@ -128,7 +133,7 @@ class TestScaleToZero:
         print(f"[Step 4] Final container count: {final_count}")
 
         assert final_count == 0, (
-            f"Container should be cleaned up after {IDLE_TIMEOUT_MINUTES}m idle. "
+            f"Container should be cleaned up after {IDLE_TIMEOUT_SECONDS}s idle. "
             f"Still running: {final_count} containers"
         )
 
@@ -141,7 +146,11 @@ class TestScaleToZero:
         2. Send periodic requests to keep it active
         3. Verify container remains running past IDLE_TIMEOUT
         """
-        print(f"\n[Active Container] Testing with IDLE_TIMEOUT_MINUTES={IDLE_TIMEOUT_MINUTES}")
+        print(
+            "\n[Active Container] Testing with "
+            f"IDLE_TIMEOUT_SECONDS={IDLE_TIMEOUT_SECONDS} "
+            f"(buffer={BUFFER_SECONDS}s)"
+        )
 
         # 1. Provision a container
         print("[Step 1] Invoking Lambda to provision container...")
@@ -158,8 +167,10 @@ class TestScaleToZero:
 
         # 2. Keep container active with periodic requests
         # Wait slightly longer than idle timeout, but send requests every 30s
-        total_wait = (IDLE_TIMEOUT_MINUTES * 60) + 30
-        request_interval = 30
+        total_wait = IDLE_TIMEOUT_SECONDS + BUFFER_SECONDS
+        request_interval = max(1, min(30, IDLE_TIMEOUT_SECONDS // 2))
+        if request_interval >= IDLE_TIMEOUT_SECONDS:
+            request_interval = max(1, IDLE_TIMEOUT_SECONDS - 1)
         elapsed = 0
 
         print(f"[Step 2] Keeping container active for {total_wait}s...")

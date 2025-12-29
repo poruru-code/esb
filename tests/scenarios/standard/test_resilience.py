@@ -33,11 +33,9 @@ class TestResilience:
 
         Uses Echo Lambda (no S3 dependency).
 
-        USE_GRPC_AGENT=True: restart agent
-        USE_GRPC_AGENT=False: restart orchestrator
+        Always restart the gRPC agent in current architecture.
         """
-        use_grpc_agent = os.environ.get("USE_GRPC_AGENT", "false").lower() == "true"
-        service_to_restart = "agent" if use_grpc_agent else "orchestrator"
+        service_to_restart = "agent"
 
         # 1. Initial invocation (container startup).
         print("Step 1: Initial Lambda invocation (cold start)...")

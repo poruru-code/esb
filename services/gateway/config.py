@@ -78,7 +78,6 @@ class GatewayConfig(BaseAppConfig):
 
     # Phase 1: Go Agent Settings
     AGENT_GRPC_ADDRESS: str = Field(default="esb-agent:50051", description="Go Agent gRPC address")
-    USE_GRPC_AGENT: bool = Field(default=False, description="Whether to use Go Agent via gRPC")
 
     # FastAPI settings
     root_path: str = Field(default="", description="API root path (for proxy)")

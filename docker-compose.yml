@@ -47,8 +47,9 @@ services:
       retries: 5
     restart: unless-stopped
     networks:
-      - external_network # Public exposure
-      - internal_network # Lambda-to-Lambda communication
+      external_network:
+        ipv4_address: 172.30.0.10
+      internal_network: {}
 
   # ============================================
   # ScyllaDB (DynamoDB Compatible DB)
@@ -69,8 +70,9 @@ services:
       start_period: 180s
     restart: unless-stopped
     networks:
-      - external_network # Public exposure
-      - internal_network # Lambda-to-Lambda communication
+      external_network:
+        ipv4_address: 172.30.0.11
+      internal_network: {}
 
   # Fluent Bit is deprecated. Logs are sent directly from each service to VictoriaLogs.
 
@@ -122,8 +124,41 @@ services:
       start_period: 10s
     restart: unless-stopped
     networks:
-      - external_network # Public exposure
-      - internal_network # Lambda-to-Lambda communication
+      external_network:
+        ipv4_address: 172.30.0.12
+      internal_network: {}
+
+  # ============================================
+  # Runtime Node (containerd + DNAT)
+  # ============================================
+  runtime-node:
+    build:
+      context: services/runtime-node
+      dockerfile: Dockerfile
+    container_name: esb-runtime-node
+    privileged: true
+    ports:
+      - "443:443"
+      - "50051:50051"
+    volumes:
+      - runtime_containerd_run:/run/containerd
+      - runtime_containerd_lib:/var/lib/containerd
+      - esb_cni_data:/var/lib/cni
+    environment:
+      - CNI_GW_IP=10.88.0.1
+      - DNAT_S3_IP=172.30.0.10
+      - DNAT_DB_IP=172.30.0.11
+      - DNAT_VL_IP=172.30.0.12
+      - DNAT_APPLY_OUTPUT=1
+    healthcheck:
+      test: ["CMD", "ctr", "-a", "/run/containerd/containerd.sock", "version"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - external_network
 
   # ============================================
   # API Gateway (Facade)
@@ -134,8 +169,8 @@ services:
       context: .
       dockerfile: services/gateway/Dockerfile
     container_name: esb-gateway
-    # Host Network: Gateway listens on localhost:443
-    network_mode: host
+    # runtime-node NetNS: Gateway listens on 0.0.0.0:443
+    network_mode: "service:runtime-node"
     volumes:
       - ${ESB_CERT_DIR:-~/.esb/certs}/server.crt:/app/config/ssl/server.crt:ro
       - ${ESB_CERT_DIR:-~/.esb/certs}/server.key:/app/config/ssl/server.key:ro
@@ -152,7 +187,6 @@ services:
       - AUTH_PASS=${AUTH_PASS?AUTH_PASS is required}
       - CONTAINERS_NETWORK=${LAMBDA_NETWORK?LAMBDA_NETWORK is required}
       - GATEWAY_INTERNAL_URL=https://10.88.0.1:443  # Lambda containers -> Host Network Gateway (CNI bridge)
-      - USE_GRPC_AGENT=true
       - AGENT_GRPC_ADDRESS=localhost:50051  # Host Network
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - RUSTFS_ACCESS_KEY=${RUSTFS_ACCESS_KEY?RUSTFS_ACCESS_KEY is required}
@@ -162,7 +196,7 @@ services:
       - CIRCUIT_BREAKER_RECOVERY_TIMEOUT=${CIRCUIT_BREAKER_RECOVERY_TIMEOUT:-30.0}
       - PYTHONUNBUFFERED=1
       # VictoriaLogs direct-send configuration (Lambda via grpc_provision.py)
-      - VICTORIALOGS_URL=http://10.88.0.1:9428  # Host Network (CNI bridge)
+      - VICTORIALOGS_URL=http://10.88.0.1:9428  # CNI bridge gateway (DNAT)
       # Auto-Scaling Configuration
       - DEFAULT_MAX_CAPACITY=${DEFAULT_MAX_CAPACITY:-1}
       - DEFAULT_MIN_CAPACITY=${DEFAULT_MIN_CAPACITY:-0}
@@ -172,6 +206,8 @@ services:
       - ENABLE_CONTAINER_PAUSE=${ENABLE_CONTAINER_PAUSE:-false}
       - PAUSE_IDLE_SECONDS=${PAUSE_IDLE_SECONDS:-30}
     depends_on:
+      runtime-node:
+        condition: service_healthy
       agent:
         condition: service_started
       database:
@@ -192,21 +228,23 @@ services:
       dockerfile: Dockerfile
     container_name: esb-agent
     privileged: true
-    pid: host
-    # Host Network: Agent listens on localhost:50051
-    network_mode: host
+    pid: "container:esb-runtime-node"
+    # runtime-node NetNS: Agent listens on localhost:50051
+    network_mode: "service:runtime-node"
     volumes:
-      - /run/containerd:/run/containerd  # Required for socket, fifo, and shim access
-      - /var/lib/containerd:/var/lib/containerd  # Required for snapshot access
+      - runtime_containerd_run:/run/containerd  # Required for socket, fifo, and shim access
+      - runtime_containerd_lib:/var/lib/containerd  # Required for snapshot access
       - ./services/agent/config/cni:/etc/cni/net.d:ro
       - esb_cni_data:/var/lib/cni
       - ${ESB_CERT_DIR:-~/.esb/certs}/rootCA.crt:/usr/local/share/ca-certificates/esb-rootCA.crt:ro
     environment:
-      - AGENT_RUNTIME=containerd  # Use containerd with host network strategy
+      - AGENT_RUNTIME=containerd  # Use containerd with runtime-node netns strategy
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - PORT=50051
-      - CONTAINER_REGISTRY=localhost:5010  # Host Network access
+      - CONTAINER_REGISTRY=esb-registry:5010  # TLS SAN matches esb-registry
     depends_on:
+      runtime-node:
+        condition: service_healthy
       registry:
         condition: service_healthy
     command: >
@@ -218,6 +256,8 @@ volumes:
   rustfs_data:
   victorialogs_data:
   registry_data:
+  runtime_containerd_run:
+  runtime_containerd_lib:
   esb_cni_data:
 
 
@@ -226,6 +266,9 @@ networks:
   external_network:
     name: ${EXTERNAL_NETWORK?EXTERNAL_NETWORK is required}
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
   # Lambda-to-Lambda network only (no external access).
   internal_network:
     name: ${LAMBDA_NETWORK?LAMBDA_NETWORK is required}

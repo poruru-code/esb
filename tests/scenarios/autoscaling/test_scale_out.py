@@ -4,9 +4,6 @@ Scale-Out E2E Tests
 Tests that verify multiple containers are spawned when MAX_CAPACITY > 1.
 These tests require DEFAULT_MAX_CAPACITY > 1 to be meaningful.
 
-NOTE: These tests require PoolManager mode (USE_GRPC_AGENT=False).
-Go Agent does not support multi-container scaling.
-
 Usage:
     DEFAULT_MAX_CAPACITY=3 pytest tests/scenarios/autoscaling/test_scale_out.py -v
 """
@@ -21,8 +18,7 @@ from tests.conftest import call_api
 import grpc
 from services.gateway.pb import agent_pb2, agent_pb2_grpc
 
-# Go Agent (Phase 1) is single-container, but we can verify it respects MAX_CAPACITY=1 or queues requests.
-USE_GRPC_AGENT = os.environ.get("USE_GRPC_AGENT", "false").lower() == "true"
+# Scale-out tests run against the gRPC Agent path.
 
 
 def _normalize_function_name(function_name: str) -> str:
@@ -41,16 +37,16 @@ def _grpc_list_containers():
 
 def get_container_ids(function_name: str) -> list[str]:
     """Get container IDs for a function name pattern"""
-    if USE_GRPC_AGENT:
-        target = _normalize_function_name(function_name)
+    target = _normalize_function_name(function_name)
+    try:
         return [
-            c.container_id
-            for c in _grpc_list_containers()
-            if c.function_name == target
+            c.container_id for c in _grpc_list_containers() if c.function_name == target
         ]
-    cmd = ["docker", "ps", "-q", "-f", f"name=lambda-{function_name}"]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-    return result.stdout.strip().splitlines()
+    except grpc.RpcError:
+        # Fallback for local debugging when gRPC is not reachable.
+        cmd = ["docker", "ps", "-q", "-f", f"name=lambda-{function_name}"]
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        return result.stdout.strip().splitlines()
 
 
 def get_container_count(function_name: str) -> int:

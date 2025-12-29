@@ -15,18 +15,12 @@ services:
       dockerfile: services/agent/Dockerfile.dev
     container_name: esb-agent
     privileged: true
-    pid: host
     volumes:
       - ./services/agent:/app
-      - /var/run/docker.sock:/var/run/docker.sock
-      - /run/containerd/containerd.sock:/run/containerd/containerd.sock
       - ./services/agent/config/cni:/etc/cni/net.d
       - esb_cni_data:/var/lib/cni
     environment:
       - PORT=50051
       - CONTAINERS_NETWORK=${LAMBDA_NETWORK:-esb-internal-network}
       - LOG_LEVEL=DEBUG
-    networks:
-      - internal_network
-      - external_network
     restart: unless-stopped
