@@ -1,0 +1,13 @@
+# Firecracker mode overrides (Phase C experimentation).
+# Usage:
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.fc.yml docker compose up -d
+#
+# Note:
+# - This file only switches the containerd runtime name used by the agent.
+# - The firecracker runtime/shim must be installed in runtime-node beforehand.
+
+services:
+  agent:
+    environment:
+      - AGENT_RUNTIME=containerd
+      - CONTAINERD_RUNTIME=io.containerd.firecracker.v2

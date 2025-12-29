@@ -226,6 +226,14 @@ flowchart LR
 
 ---
 
+## Phase C 切り替え運用（現行との共存）
+
+- 基本は **Phase B の構成を維持**し、Firecracker 検証は compose override で切り替える。
+- 例: `COMPOSE_FILE=docker-compose.yml:docker-compose.fc.yml docker compose up -d`
+- `docker-compose.fc.yml` で `CONTAINERD_RUNTIME=io.containerd.firecracker.v2` を指定し、containerd の runtime のみを差し替える。
+
+---
+
 ## Phase C 移行ステップ（案）
 
 ### C-0: 前提固定

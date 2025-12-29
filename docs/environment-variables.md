@@ -119,6 +119,7 @@ cp .env.example .env
 |--------|--------------|------|
 | `AGENT_GRPC_ADDRESS` | `esb-agent:50051` | Go Agent の gRPC アドレス（`docker-compose.yml` では `localhost:50051`） |
 | `AGENT_RUNTIME` | `docker` | Agent のランタイム (`docker` または `containerd`) |
+| `CONTAINERD_RUNTIME` | `""` | containerd の runtime 名（`AGENT_RUNTIME=containerd` のとき有効。未指定ならデフォルト。例: `io.containerd.firecracker.v2`） |
 | `PORT` | `50051` | Go Agent の gRPC ポート |
 | `CONTAINER_REGISTRY` | `""` | 取得/プッシュ先のコンテナレジストリ。設定時は `{registry}/{function_name}:latest` を使用 |
 | `CNI_CONF_DIR` | `/etc/cni/net.d` | containerd 用 CNI 設定ディレクトリ |
@@ -196,6 +197,7 @@ cp .env.example .env
 - `LOG_LEVEL`
 - `PORT`
 - `AGENT_RUNTIME`
+- `CONTAINERD_RUNTIME`
 - `CONTAINER_REGISTRY`
 - `CNI_CONF_DIR`
 - `CNI_CONF_FILE`

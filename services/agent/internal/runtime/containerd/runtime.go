@@ -182,7 +182,7 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 	}
 
 	// 2. Create Container with CNI networking
-	container, err := r.client.NewContainer(ctx, containerID,
+	createOpts := []containerd.NewContainerOpts{
 		containerd.WithSnapshotter("overlayfs"),
 		containerd.WithNewSnapshot(containerID, imgObj),
 		containerd.WithNewSpec(
@@ -192,7 +192,12 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 			runtime.LabelFunctionName: req.FunctionName,
 			runtime.LabelCreatedBy:    runtime.ValueCreatedByAgent,
 		}),
-	)
+	}
+	if runtimeName := strings.TrimSpace(os.Getenv("CONTAINERD_RUNTIME")); runtimeName != "" {
+		// Allow runtime override (e.g. firecracker shim) without changing agent mode.
+		createOpts = append(createOpts, containerd.WithRuntime(runtimeName, nil))
+	}
+	container, err := r.client.NewContainer(ctx, containerID, createOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create container: %w", err)
 	}
