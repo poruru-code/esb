@@ -304,13 +304,28 @@ async def list_container_metrics(user_id: UserIdDep, pool_manager: PoolManagerDe
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
     metrics_list = []
+    failures = 0
     for container, result in zip(containers, results):
         if isinstance(result, Exception):
             logger.error(f"Failed to fetch metrics for container {container.id}: {result}")
+            failures += 1
+            metrics_list.append(
+                {
+                    "container_id": container.id,
+                    "container_name": container.name,
+                    "error": str(result),
+                }
+            )
             continue
         metrics_list.append(asdict(result))
 
-    return {"containers": metrics_list}
+    if failures == len(containers):
+        raise HTTPException(
+            status_code=503,
+            detail="Container metrics are unavailable from Agent runtime",
+        )
+
+    return {"containers": metrics_list, "failures": failures}
 
 
 # ===========================================
