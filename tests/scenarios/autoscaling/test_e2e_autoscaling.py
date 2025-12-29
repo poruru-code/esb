@@ -1,9 +1,6 @@
 """
 Auto-Scaling E2E Tests
 Tests the Pool behavior, Reuse, and Concurrent Request Handling.
-
-NOTE: These tests require PoolManager mode (USE_GRPC_AGENT=False).
-Go Agent (USE_GRPC_AGENT=True) does not support multi-container scaling.
 """
 
 import concurrent.futures
@@ -15,9 +12,8 @@ from tests.conftest import call_api
 import grpc
 from services.gateway.pb import agent_pb2, agent_pb2_grpc
 
-# Note: Auto-Scaling tests were previously skipped for Go Agent mode.
-# With Phase 4-1, Concurrency Control is implemented in Gateway, so we can run these.
-USE_GRPC_AGENT = os.environ.get("USE_GRPC_AGENT", "false").lower() == "true"
+# Auto-Scaling tests run against the gRPC Agent path.
+GRPC_TIMEOUT_SECONDS = float(os.environ.get("GRPC_TIMEOUT_SECONDS", "1.0"))
 
 
 def _normalize_function_name(function_name: str) -> str:
@@ -29,23 +25,26 @@ def _normalize_function_name(function_name: str) -> str:
 def _grpc_list_containers():
     address = os.environ.get("AGENT_GRPC_ADDRESS", "localhost:50051")
     with grpc.insecure_channel(address) as channel:
+        grpc.channel_ready_future(channel).result(timeout=GRPC_TIMEOUT_SECONDS)
         stub = agent_pb2_grpc.AgentServiceStub(channel)
-        resp = stub.ListContainers(agent_pb2.ListContainersRequest())
+        resp = stub.ListContainers(
+            agent_pb2.ListContainersRequest(), timeout=GRPC_TIMEOUT_SECONDS
+        )
         return resp.containers
 
 
 def get_container_ids(function_name: str) -> list[str]:
     """Get container IDs for a function name pattern"""
-    if USE_GRPC_AGENT:
-        target = _normalize_function_name(function_name)
+    target = _normalize_function_name(function_name)
+    try:
         return [
-            c.container_id
-            for c in _grpc_list_containers()
-            if c.function_name == target
+            c.container_id for c in _grpc_list_containers() if c.function_name == target
         ]
-    cmd = ["docker", "ps", "-q", "-f", f"name=lambda-{function_name}"]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-    return result.stdout.strip().splitlines()
+    except (grpc.RpcError, grpc.FutureTimeoutError):
+        # Fallback for local debugging when gRPC is not reachable.
+        cmd = ["docker", "ps", "-q", "-f", f"name=lambda-{function_name}"]
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        return result.stdout.strip().splitlines()
 
 
 def get_container_count(function_name: str) -> int:
@@ -58,31 +57,36 @@ def cleanup_lambda_containers() -> None:
     Clean up all lambda containers created by ESB.
     This ensures test idempotency regardless of previous state.
     """
-    if USE_GRPC_AGENT:
+    try:
         address = os.environ.get("AGENT_GRPC_ADDRESS", "localhost:50051")
         with grpc.insecure_channel(address) as channel:
+            grpc.channel_ready_future(channel).result(timeout=GRPC_TIMEOUT_SECONDS)
             stub = agent_pb2_grpc.AgentServiceStub(channel)
-            resp = stub.ListContainers(agent_pb2.ListContainersRequest())
+            resp = stub.ListContainers(
+                agent_pb2.ListContainersRequest(), timeout=GRPC_TIMEOUT_SECONDS
+            )
             for c in resp.containers:
                 try:
                     stub.DestroyContainer(
-                        agent_pb2.DestroyContainerRequest(container_id=c.container_id)
+                        agent_pb2.DestroyContainerRequest(container_id=c.container_id),
+                        timeout=GRPC_TIMEOUT_SECONDS,
                     )
                 except grpc.RpcError:
                     pass
         return
-    # Find all containers with our label
-    cmd = ["docker", "ps", "-aq", "-f", "label=created_by=esb"]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-    container_ids = result.stdout.strip().splitlines()
+    except (grpc.RpcError, grpc.FutureTimeoutError):
+        # Fallback for local debugging when gRPC is not reachable.
+        cmd = ["docker", "ps", "-aq", "-f", "label=created_by=esb"]
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        container_ids = result.stdout.strip().splitlines()
 
-    if container_ids:
-        # Force remove all matching containers
-        subprocess.run(
-            ["docker", "rm", "-f"] + container_ids,
-            capture_output=True,
-            check=False,  # Don't fail if some are already removed
-        )
+        if container_ids:
+            # Force remove all matching containers
+            subprocess.run(
+                ["docker", "rm", "-f"] + container_ids,
+                capture_output=True,
+                check=False,  # Don't fail if some are already removed
+            )
 
 
 @pytest.fixture(scope="module", autouse=True)

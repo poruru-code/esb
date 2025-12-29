@@ -117,7 +117,6 @@ cp .env.example .env
 
 | 変数名 | デフォルト値 | 説明 |
 |--------|--------------|------|
-| `USE_GRPC_AGENT` | `false` | **現在の Gateway 実装では常に gRPC Agent を使用**（値は参照されません） |
 | `AGENT_GRPC_ADDRESS` | `esb-agent:50051` | Go Agent の gRPC アドレス（`docker-compose.yml` では `localhost:50051`） |
 | `AGENT_RUNTIME` | `docker` | Agent のランタイム (`docker` または `containerd`) |
 | `PORT` | `50051` | Go Agent の gRPC ポート |
@@ -125,6 +124,18 @@ cp .env.example .env
 | `CNI_CONF_DIR` | `/etc/cni/net.d` | containerd 用 CNI 設定ディレクトリ |
 | `CNI_CONF_FILE` | `/etc/cni/net.d/10-esb.conflist` | containerd 用 CNI 設定ファイル |
 | `CNI_BIN_DIR` | `/opt/cni/bin` | containerd 用 CNI バイナリディレクトリ |
+
+### runtime-node (DNAT) 設定
+
+| 変数名 | デフォルト値 | 説明 | 使用コンポーネント |
+|--------|--------------|------|--------------------|
+| `CNI_GW_IP` | `10.88.0.1` | CNI bridge の gateway IP（DNAT の宛先） | runtime-node |
+| `DNAT_S3_IP` | `""` | `10.88.0.1:9000` を転送する RustFS の固定 IP | runtime-node |
+| `DNAT_DB_IP` | `""` | `10.88.0.1:8001` を転送する Scylla Alternator の固定 IP | runtime-node |
+| `DNAT_VL_IP` | `""` | `10.88.0.1:9428` を転送する VictoriaLogs の固定 IP | runtime-node |
+| `DNAT_DB_DPORT` | `8001` | 10.88.0.1 側の DB 宛ポート | runtime-node |
+| `DNAT_DB_PORT` | `8000` | 転送先 DB の実ポート | runtime-node |
+| `DNAT_APPLY_OUTPUT` | `1` | `1` のとき OUTPUT へ DNAT を適用（SNAT/MASQUERADE も必要） | runtime-node |
 
 ### ストレージ設定
 
@@ -169,7 +180,6 @@ cp .env.example .env
 - `RUSTFS_SECRET_KEY`
 
 **オプション（頻繁に変更）**:
-- `USE_GRPC_AGENT` (現在は無視)
 - `AGENT_GRPC_ADDRESS`
 - `LOG_LEVEL`
 - `LAMBDA_INVOKE_TIMEOUT`

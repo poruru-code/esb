@@ -6,7 +6,6 @@ os.environ["X_API_KEY"] = "fake-api-key"
 os.environ["AUTH_USER"] = "test-user"
 os.environ["AUTH_PASS"] = "test-pass"
 os.environ["CONTAINERS_NETWORK"] = "test-net"
-os.environ["USE_GRPC_AGENT"] = "true"
 os.environ["AGENT_GRPC_ADDRESS"] = "localhost:50051"
 
 import pytest
