@@ -240,6 +240,46 @@ flowchart LR
 - Runtime API 互換の **Supervisor** を用意（init/invoke/shutdown）。
 - 既存の Gateway → worker ルートを **Supervisor に吸収**。
 
+### C-2.5: rootfs 変換パイプラインを定義
+- 目的: 取得したコンテナイメージを **Firecracker 用 ext4 rootfs** に変換し、
+  以降の起動で再利用できる形にする。
+- 入力: OCI イメージ（ref または digest）、snapshotter（例: overlayfs）。
+- 出力: rootfs イメージ（ext4）+ 付随メタデータ（digest, size, created_at など）。
+
+- 変換手順（例: `ctr` 利用、疑似コマンド）
+  ```bash
+  # 1) pull & unpack
+  ctr -n esb-runtime images pull <image>
+  ctr -n esb-runtime images unpack <image>
+
+  # 2) snapshot を mount（snapshot_key は実装側で管理）
+  ctr -n esb-runtime snapshots mount /run/esb/rootfs-src/<key> overlayfs <snapshot_key>
+
+  # 3) サイズ見積もり（+余白 64-128MB など）
+  SIZE_MB=$(du -s --block-size=1M /run/esb/rootfs-src/<key> | awk '{print $1+128}')
+
+  # 4) ext4 生成
+  dd if=/dev/zero of=/var/lib/esb/fc/rootfs/<key>.ext4 bs=1M count=$SIZE_MB
+  mkfs.ext4 -F /var/lib/esb/fc/rootfs/<key>.ext4
+  mount -o loop /var/lib/esb/fc/rootfs/<key>.ext4 /run/esb/rootfs-dst/<key>
+
+  # 5) ルートFS書き出し（rsync または tar）
+  rsync -aHAX /run/esb/rootfs-src/<key>/ /run/esb/rootfs-dst/<key>/
+
+  # 6) cleanup
+  umount /run/esb/rootfs-dst/<key>
+  ctr -n esb-runtime snapshots unmount /run/esb/rootfs-src/<key>
+  ```
+
+- 保存先（例）: `/var/lib/esb/fc/rootfs/` に ext4 と metadata を保存。
+- キャッシュキー（例）:
+  - `image digest` + `rootfs format version` + `runtime supervisor version`
+  - いずれか変更で invalidate。
+- GC 方針（例）:
+  - LRU / TTL を併用し、最大容量を超えたら古いものから削除。
+  - 未参照の rootfs を優先して削除。
+- rootfs 変換の責務は **runtime-node/agent 側**に置く（Supervisor へは渡さない）。
+
 ### C-3: agent の CNI 付与対象 PID を検証
 - `/proc/<pid>/ns/net` が **firecracker shim/jailer に対して有効**か確認。
 - もし task PID が netns を持たない場合は、**対象 PID の取得ロジック**を調整。
