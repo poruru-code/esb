@@ -57,6 +57,25 @@ v2.1 の核となる機能です。
 *   **Active Pruning**: Gateway 側の `Janitor` が定期的にプールをチェックします。最終利用時刻 (`last_used_at`) から `GATEWAY_IDLE_TIMEOUT_SECONDS` を経過したコンテナはプールから除外され、Go Agent に対して即座に削除リクエストが送信されます。
 *   **Reconciliation**: Janitor は Agent のコンテナ一覧と Gateway 管理下の差分を比較し、孤児コンテナを削除します（`ORPHAN_GRACE_PERIOD_SECONDS` で作成直後は保護）。
 
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Janitor as HeartbeatJanitor
+    participant Pool as ContainerPool
+    participant Agent as Go Agent
+    participant Container
+
+    Janitor->>Pool: Scan pools
+    Pool-->>Janitor: Idle list (last_used_at > timeout)
+    Janitor->>Agent: Delete idle containers
+    Agent-->>Janitor: Deletion result
+    Janitor->>Agent: List containers
+    Agent-->>Janitor: Active container list
+    Janitor->>Janitor: Reconcile orphan containers
+    Janitor->>Agent: Delete orphan containers
+    Agent-->>Janitor: Deletion result
+```
+
 ### 4. Startup Cleanup (再起動時の整理)
 Gateway 起動時には、Agent に問い合わせて既存コンテナを一括削除します。これにより状態不整合を回避し、クリーンな状態からプールを再構築します。
 
