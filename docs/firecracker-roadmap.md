@@ -69,7 +69,7 @@ flowchart LR
 
     HostPorts --> RuntimeNode
     RuntimeNode --- ExternalNet
-    RuntimeNode -. optional .- InternalNet
+    RuntimeNode -.->|optional| InternalNet
 
     Registry["esb-registry:5010"]
     Victoria["victorialogs:9428"]
@@ -100,6 +100,7 @@ flowchart LR
 - DNAT は PREROUTING を基本とし、runtime-node 内から叩く場合のみ OUTPUT を併用。
 - OUTPUT で DNAT する場合は **SNAT(MASQUERADE) を必須**。
 - registry は **DNAT 対象外**（`esb-registry:5010` を直接使用）。
+- DNAT 対象は **S3/Dynamo/Logs のみに限定**し、その他は service 名直アクセスに統一する。
 - 具体的な転送先:
   - `10.88.0.1:9000` -> RustFS (`s3-storage` 固定 IP):9000
   - `10.88.0.1:8001` -> Scylla Alternator (`database` 固定 IP):8000
@@ -115,6 +116,10 @@ flowchart LR
 - **Gateway/Agent/外部ネットワークの関係は維持**（Phase B の外形は崩さない）。
 - **sitecustomize / boto3 hook / Trace 伝播**は維持。
 - **worker への Invoke は `worker.ip:8080` を維持**。
+
+### Runtime Supervisor の責務（Phase C 固定）
+- **Runtime API 互換 + Invoke 入口(8080) + ログ/メトリクス中継**までを担う。
+- 画像 pull / CNI / DNAT 管理は **runtime-node/agent 側**に残す（責務を広げない）。
 
 ### Phase C 構成図（想定）
 
@@ -167,7 +172,7 @@ flowchart LR
 
     HostPorts --> RuntimeNode
     RuntimeNode --- ExternalNet
-    RuntimeNode -. optional .- InternalNet
+    RuntimeNode -.->|optional| InternalNet
 
     Registry["esb-registry:5010"]
     Victoria["victorialogs:9428"]
@@ -191,6 +196,8 @@ flowchart LR
   end
 ```
 
+※補足: Phase C の CNI add/del は **「VM 内部に IP を直接付与」ではなく、tap/bridge が netns に接続される**ことを指す。VM 内の IP 付与は別管理（DHCP/静的）である前提。
+
 ### AS IS → TO BE の差分（Phase C）
 | 項目 | AS IS（Phase B） | TO BE（Phase C） |
 | --- | --- | --- |
@@ -202,6 +209,14 @@ flowchart LR
 | registry | `esb-registry:5010` 直指定 | 同じ |
 | 10.88.0.1 DNAT | runtime-node 内 | 同じ |
 | agent の CNI 付与 | `/proc/<pid>/ns/net` | **同様の PID が参照可能であることが前提** |
+
+---
+
+## Phase C Go/No-Go（最優先の判定）
+
+**Go:** containerd が返す task/shim/jailer の PID から netns が参照でき、**現方式の CNI add/del が成立**する。  
+**No-Go:** 参照できない（jailer が別 PID/別 ns、または netns を持たない）。  
+→ **No-Go の場合は設計変更が必須**（例: CNI 操作を runtime-node 側へ移す／firecracker runtime が返す PID に合わせて agent を改修）。
 
 ---
 
