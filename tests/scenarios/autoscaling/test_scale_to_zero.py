@@ -19,6 +19,8 @@ from tests.conftest import call_api
 import grpc
 from services.gateway.pb import agent_pb2, agent_pb2_grpc
 
+GRPC_TIMEOUT_SECONDS = float(os.environ.get("GRPC_TIMEOUT_SECONDS", "1.0"))
+
 
 def _normalize_function_name(function_name: str) -> str:
     if function_name.startswith("lambda-"):
@@ -29,8 +31,11 @@ def _normalize_function_name(function_name: str) -> str:
 def _grpc_list_containers():
     address = os.environ.get("AGENT_GRPC_ADDRESS", "localhost:50051")
     with grpc.insecure_channel(address) as channel:
+        grpc.channel_ready_future(channel).result(timeout=GRPC_TIMEOUT_SECONDS)
         stub = agent_pb2_grpc.AgentServiceStub(channel)
-        resp = stub.ListContainers(agent_pb2.ListContainersRequest())
+        resp = stub.ListContainers(
+            agent_pb2.ListContainersRequest(), timeout=GRPC_TIMEOUT_SECONDS
+        )
         return resp.containers
 
 
@@ -41,7 +46,7 @@ def get_container_ids(function_name: str) -> list[str]:
         return [
             c.container_id for c in _grpc_list_containers() if c.function_name == target
         ]
-    except grpc.RpcError:
+    except (grpc.RpcError, grpc.FutureTimeoutError):
         # Fallback for local debugging when gRPC is not reachable.
         cmd = ["docker", "ps", "-q", "-f", f"name=lambda-{function_name}"]
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
