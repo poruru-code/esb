@@ -18,6 +18,8 @@ from ..services.function_registry import FunctionRegistry
 from ..services.route_matcher import RouteMatcher
 from ..services.lambda_invoker import LambdaInvoker
 from ..services.pool_manager import PoolManager
+from ..client import OrchestratorClient
+from ..services.container_cache import ContainerHostCache
 
 
 # ==========================================
@@ -47,6 +49,21 @@ def get_event_builder(request: Request) -> EventBuilder:
 
 def get_pool_manager(request: Request) -> PoolManager:
     return request.app.state.pool_manager
+
+
+def get_orchestrator_client(request: Request) -> OrchestratorClient:
+    client = getattr(request.app.state, "orchestrator_client", None)
+    if client:
+        return client
+
+    cache = getattr(request.app.state, "container_cache", None)
+    if cache is None:
+        cache = ContainerHostCache()
+        request.app.state.container_cache = cache
+
+    orchestrator_client = OrchestratorClient(request.app.state.http_client, cache=cache)
+    request.app.state.orchestrator_client = orchestrator_client
+    return orchestrator_client
 
 
 # Service Dependency Type Aliases
