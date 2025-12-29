@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/containers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -43,9 +44,15 @@ func TestRuntime_List_ReturnsContainerStates(t *testing.T) {
 	// Mock container setup
 	mockContainer := new(MockContainer)
 	mockContainer.On("ID").Return(containerID)
+	mockContainer.On("Info", mock.Anything, mock.Anything).Return(containers.Container{
+		CreatedAt: time.Now(),
+		Labels: map[string]string{
+			"esb_function": "test-func",
+		},
+	}, nil)
 	mockContainer.On("Labels", mock.Anything).Return(map[string]string{
 		"esb_function": "test-func",
-	}, nil)
+	}, nil).Maybe()
 
 	mockTask := new(MockTask)
 	mockContainer.On("Task", mock.Anything, mock.Anything).Return(mockTask, nil)

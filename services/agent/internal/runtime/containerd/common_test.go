@@ -7,6 +7,7 @@ import (
 	"syscall"
 
 	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/containers"
 	"github.com/containerd/containerd/cio"
 	"github.com/containerd/containerd/content"
 	"github.com/containerd/containerd/images"
@@ -137,6 +138,14 @@ func (m *MockContainer) NewTask(ctx context.Context, creator cio.Creator, opts .
 func (m *MockContainer) Labels(ctx context.Context) (map[string]string, error) {
 	args := m.Called(ctx)
 	return args.Get(0).(map[string]string), args.Error(1)
+}
+
+func (m *MockContainer) Info(ctx context.Context, opts ...containerd.InfoOpts) (containers.Container, error) {
+	args := m.Called(ctx, opts)
+	if args.Get(0) == nil {
+		return containers.Container{}, args.Error(1)
+	}
+	return args.Get(0).(containers.Container), args.Error(1)
 }
 
 // MockTask mocks containerd.Task
