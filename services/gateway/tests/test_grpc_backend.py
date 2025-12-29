@@ -56,7 +56,8 @@ async def test_acquire_worker_success(backend, mock_stub):
         id="cat-id", name="cat-name", ip_address="10.0.0.5", port=8080
     )
 
-    worker = await backend.acquire_worker("test-func")
+    with patch.object(backend, "_wait_for_readiness", new_callable=AsyncMock):
+        worker = await backend.acquire_worker("test-func")
 
     assert worker.id == "cat-id"
     assert worker.name == "cat-name"

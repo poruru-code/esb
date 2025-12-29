@@ -40,8 +40,13 @@ class PoolManager:
         self._lock = asyncio.Lock()
         self.provision_client = provision_client
         self.config_loader = config_loader
-        self.pause_enabled = pause_enabled and pause_idle_seconds > 0
-        self.pause_idle_seconds = pause_idle_seconds
+        try:
+            pause_idle_value = float(pause_idle_seconds)
+        except (TypeError, ValueError):
+            pause_idle_value = 0.0
+
+        self.pause_enabled = bool(pause_enabled) and pause_idle_value > 0
+        self.pause_idle_seconds = pause_idle_value
         self._pause_tasks: Dict[str, asyncio.Task] = {}
         self._paused_ids: Set[str] = set()
 

@@ -28,15 +28,16 @@ class GrpcProvisionClient:
         from services.gateway.config import config
 
         # Base env from function config
-        env = func_config.get("environment", {}) if func_config else {}
+        env = dict(func_config.get("environment", {})) if func_config else {}
 
         # Inject RIE & Observability Variables
         env["AWS_LAMBDA_FUNCTION_NAME"] = function_name
         env["AWS_LAMBDA_FUNCTION_VERSION"] = "$LATEST"
         env["AWS_REGION"] = env.get("AWS_REGION", "ap-northeast-1")
 
-        if config.VICTORIALOGS_URL:
-            env["VICTORIALOGS_URL"] = config.VICTORIALOGS_URL
+        victorialogs_url = getattr(config, "VICTORIALOGS_URL", "")
+        if isinstance(victorialogs_url, str) and victorialogs_url:
+            env["VICTORIALOGS_URL"] = victorialogs_url
 
         # Inject LOG_LEVEL for sitecustomize.py logging filter
         import os
@@ -45,8 +46,9 @@ class GrpcProvisionClient:
         env["LOG_LEVEL"] = log_level
 
         # Inject GATEWAY_INTERNAL_URL for chain invocations
-        if config.GATEWAY_INTERNAL_URL:
-            env["GATEWAY_INTERNAL_URL"] = config.GATEWAY_INTERNAL_URL
+        gateway_internal_url = getattr(config, "GATEWAY_INTERNAL_URL", "")
+        if isinstance(gateway_internal_url, str) and gateway_internal_url:
+            env["GATEWAY_INTERNAL_URL"] = gateway_internal_url
 
         # Inject Timeout & Memory from config
         if func_config:

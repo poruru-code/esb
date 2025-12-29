@@ -9,6 +9,12 @@ from argparse import Namespace
 from tools.cli.commands import init
 
 
+@pytest.fixture(autouse=True)
+def suppress_trust_store_install(monkeypatch):
+    monkeypatch.setattr(init, "ensure_certs", lambda *args, **kwargs: None)
+    monkeypatch.setattr(init, "install_root_ca", lambda *args, **kwargs: None)
+
+
 @pytest.fixture
 def mock_template_yaml():
     return """

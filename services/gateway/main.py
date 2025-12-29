@@ -296,10 +296,15 @@ async def authenticate_user(
     )
 
 
-@app.get("/health")
 async def health_check():
-    """Health check endpoint."""
+    """Health check implementation."""
     return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}
+
+
+@app.get("/health")
+async def health_check_endpoint():
+    """Health check endpoint."""
+    return await health_check()
 
 
 @app.get("/metrics/containers")
