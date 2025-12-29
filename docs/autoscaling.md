@@ -103,10 +103,54 @@ MyFunction:
     *   **Reliability**: `try...finally` ブロックにより、タイムアウトや例外発生時でも確実にワーカーがプールに返却または除外（Evict）されます。
 4.  **Release**: コンテナをプールに返却 (`last_used_at` 更新)
 
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Client
+    participant Gateway
+    participant Pool as ContainerPool
+    participant Agent as Go Agent
+    participant Container
+
+    Client->>Gateway: Invoke request
+    Gateway->>Pool: Acquire worker
+    alt Idle container available
+        Pool-->>Gateway: Return idle container
+    else No idle container
+        alt Capacity available
+            Gateway->>Agent: Provision container
+            Agent-->>Gateway: Container ready
+        else At max capacity
+            Gateway->>Pool: Condition.wait()
+            Pool-->>Gateway: Worker released
+        end
+    end
+    Gateway->>Container: Invoke Lambda
+    Container-->>Gateway: Response / completion
+    Gateway->>Pool: Release worker (update last_used_at)
+    Gateway-->>Client: Response
+```
+
 ### Janitor フロー (周期実行)
 1.  **Pruning**: 各プールをスキャン。`last_used_at` > timeout のコンテナをリストアップ。
 2.  **Reconciliation**: Agent の一覧と Gateway の管理情報を比較し、孤児を検出。
 3.  **Deletion**: 検出したコンテナを gRPC で削除。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Janitor as HeartbeatJanitor
+    participant Pool as ContainerPool
+    participant Agent as Go Agent
+
+    Janitor->>Pool: Scan idle containers
+    Pool-->>Janitor: Idle list (timeout exceeded)
+    Janitor->>Agent: List containers
+    Agent-->>Janitor: Active container list
+    Janitor->>Janitor: Reconcile + build delete list
+    Janitor->>Agent: Delete containers (gRPC)
+    Agent-->>Janitor: Deletion result
+```
 
 ## 制限事項
 
