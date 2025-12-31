@@ -22,6 +22,41 @@
 | `esb down`  | サービスを停止し、コンテナを削除します。                                           | `--volumes (-v)`                             |
 | `esb reset` | 環境を完全に初期化し、DB等のデータも全て削除して再構築します。                     | `--yes (-y)`, `--rmi`                        |
 | `esb logs`  | サービスログを表示します。                                                       | `--follow (-f)`, `--tail`, `--timestamps`    |
+| `esb node add` | Compute Node を登録します。                                                  | `--host`, `--password`, `--skip-key-setup`   |
+| `esb node doctor` | Compute Node の前提チェックを行います。                                   | `--name`, `--host`, `--strict`               |
+| `esb node provision` | Compute Node に必要な依存をプロビジョニングします。                 | `--name`, `--host`, `--sudo-password`, `--sudo-nopasswd`, `--firecracker-*`, `--devmapper-*` |
+
+### Compute Node 管理（Phase C）
+
+Firecracker 用の Compute Node を **SSH 経由で登録・検査・準備** します。
+初回登録時に `~/.esb/id_ed25519` を生成し、リモートの `authorized_keys` に登録します。
+
+```bash
+# 1. Node 登録（初回のみパスワード入力）
+esb node add --host esb@10.1.1.220
+
+# 2. Node 前提チェック
+esb node doctor
+
+# 3. Node 依存関係のセットアップ（sudo パスワードが必要）
+esb node provision --sudo-password <SUDO_PASSWORD>
+
+# 3-1. sudo の NOPASSWD を設定する場合（初回のみ）
+esb node provision --sudo-nopasswd --sudo-password <SUDO_PASSWORD>
+
+# 3-2. NOPASSWD 設定済みの再実行
+esb node provision --sudo-nopasswd
+```
+
+補足:
+- 鍵を使いたくない場合は `esb node add --host ... --skip-key-setup` を使います。
+- `esb node provision` は sudo が必要です。sudo が通らない場合はリモート側の sudoers を確認してください。
+- `--sudo-nopasswd` は SSH ユーザーに対して `/etc/sudoers.d/esb-<user>` を作成します。
+- Firecracker のバージョンやインストール先を変えたい場合は `--firecracker-version` などのオプションを使用します。
+- Kernel/RootFS や devmapper の設定を変えたい場合は `--firecracker-kernel-url` / `--devmapper-pool` などを指定します。
+- RootFS はデフォルトで `make image` により生成し、`/var/lib/firecracker-containerd/runtime/default-rootfs.img` に配置します。
+- `--firecracker-rootfs-url` を指定するとダウンロード優先になり、ビルドはスキップされます。
+- Kernel/RootFS は **marker + sha256** により再収束します（手動削除は不要）。
 
 ## アーキテクチャ
 

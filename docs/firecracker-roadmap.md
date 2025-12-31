@@ -171,12 +171,12 @@ flowchart LR
   end
 
   Gateway <-->|gRPC| Agent
-  Gateway -->|Invoke (L7 proxy)| Agent
+  Gateway -->|"Invoke (L7 proxy)"| Agent
   Agent -->|Invoke proxy\nHTTP :8080| Supervisor
 
   Tunnel["L3 tunnel / static route (future)\n10.88.0.0/16"] -.-> RuntimeNode
   Tunnel -.-> Gateway
-  Gateway -.->|Invoke (future)\nworker.ip:8080| Supervisor
+  Gateway -.->|"Invoke (future)<br>worker.ip:8080"| Supervisor
 
   Agent -->|Pull images / rootfs| Registry
   LocalProxy -->|TCP| Victoria
@@ -229,6 +229,40 @@ flowchart LR
 - runtime-node へ firecracker-containerd / shim / firecracker / jailer と runtime 設定を導入。
 - `ctr` で firecracker runtime による起動が通ることを確認。
   - `/etc/containerd/firecracker-runtime.json` を使用（kernel/rootfs は `/var/lib/firecracker-containerd/runtime`）
+  - Compute Node 側は `esb node provision` でバイナリ・設定・kernel/rootfs・devmapper を準備する。
+  - `esb node doctor` で `cmd_firecracker` / `fc_kernel` / `devmapper_pool` が OK になっていることを確認する。
+  - `firecracker-containerd` を起動し、`firecracker-ctr` で起動確認を行う。
+  - **C-1 完了確認（実測ログ）**
+    - rootfs は **agent 入りの `rootfs.img`** が必須（`make image` で生成）。Quickstart の rootfs だけだと `vsock dial refused` で失敗する。
+    - `firecracker-ctr` は **`--snapshotter devmapper`** を必ず指定する（overlayfs だと stub drive で失敗する）。
+
+```bash
+# Compute Node で rootfs を作成（firecracker-containerd）
+git clone https://github.com/firecracker-microvm/firecracker-containerd.git
+cd firecracker-containerd
+make image
+
+sudo mkdir -p /var/lib/firecracker-containerd/runtime
+sudo cp tools/image-builder/rootfs.img /var/lib/firecracker-containerd/runtime/default-rootfs.img
+sudo curl -fsSL -o /var/lib/firecracker-containerd/runtime/default-vmlinux.bin \
+  https://s3.amazonaws.com/spec.ccfc.min/img/quickstart_guide/x86_64/kernels/vmlinux.bin
+
+# firecracker-containerd 起動
+sudo firecracker-containerd \
+  --config /etc/firecracker-containerd/config.toml \
+  --address /run/firecracker-containerd/containerd.sock \
+  --root /var/lib/firecracker-containerd \
+  --state /run/firecracker-containerd
+
+# C-1 smoke
+sudo firecracker-ctr --address /run/firecracker-containerd/containerd.sock \
+  --namespace default images pull --snapshotter devmapper \
+  docker.io/library/alpine:latest
+sudo firecracker-ctr --address /run/firecracker-containerd/containerd.sock \
+  --namespace default run --rm --snapshotter devmapper --runtime aws.firecracker \
+  docker.io/library/alpine:latest fc-smoke /bin/sh -c 'echo hello from firecracker'
+```
+  - 成功条件: `hello from firecracker` が出力されること。
 
 ### C-1.5: L7 先行で Invoke 経路を成立
 - Gateway → Agent（gRPC）→ Supervisor への L7 代理で Invoke を通す。

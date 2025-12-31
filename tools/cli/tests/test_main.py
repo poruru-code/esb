@@ -18,6 +18,7 @@ def test_cli_help(capsys):
     assert "watch" in captured.out
     assert "down" in captured.out
     assert "init" in captured.out
+    assert "node" in captured.out
 
 
 @patch("tools.cli.commands.build.run")
@@ -81,6 +82,32 @@ def test_cli_logs_dispatch(mock_logs_run):
     with patch.object(sys, "argv", ["esb", "logs"]):
         main()
     mock_logs_run.assert_called_once()
+
+
+@patch("tools.cli.commands.node.run")
+def test_cli_node_add_dispatch(mock_node_run):
+    """Ensure the node add subcommand is dispatched correctly."""
+    with patch.object(sys, "argv", ["esb", "node", "add"]):
+        main()
+    mock_node_run.assert_called_once()
+
+
+@patch("tools.cli.commands.node.run")
+def test_cli_node_doctor_dispatch(mock_node_run):
+    """Ensure the node doctor subcommand is dispatched correctly."""
+    with patch.object(sys, "argv", ["esb", "node", "doctor"]):
+        main()
+    mock_node_run.assert_called_once()
+
+
+@patch("tools.cli.commands.node.run")
+def test_cli_node_provision_dispatch(mock_node_run):
+    """Ensure the node provision subcommand is dispatched correctly."""
+    with patch.object(sys, "argv", ["esb", "node", "provision"]):
+        main()
+    mock_node_run.assert_called_once()
+
+
 
 
 @patch("tools.cli.commands.logs.run")
