@@ -36,6 +36,7 @@ GATEWAY_URL = os.getenv("GATEWAY_URL", f"https://localhost:{GATEWAY_PORT}")
 
 VICTORIALOGS_PORT = os.getenv("VICTORIALOGS_PORT", "9428")
 VICTORIALOGS_URL = os.getenv("VICTORIALOGS_URL", f"http://localhost:{VICTORIALOGS_PORT}")
+VICTORIALOGS_QUERY_URL = os.getenv("VICTORIALOGS_QUERY_URL", VICTORIALOGS_URL)
 API_KEY = config.X_API_KEY
 
 # Auth info is read from environment variables (loaded from .env.test).
@@ -151,7 +152,7 @@ def query_victorialogs_by_filter(
     while time.time() - poll_start_time < timeout:
         try:
             response = requests.get(
-                f"{VICTORIALOGS_URL}/select/logsql/query",
+                f"{VICTORIALOGS_QUERY_URL}/select/logsql/query",
                 params=params,
                 timeout=DEFAULT_REQUEST_TIMEOUT,
             )

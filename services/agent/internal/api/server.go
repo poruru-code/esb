@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"time"
 
@@ -74,42 +75,64 @@ func (s *AgentServer) InvokeWorker(ctx context.Context, req *pb.InvokeWorkerRequ
 	reqCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	httpReq, err := http.NewRequestWithContext(reqCtx, http.MethodPost, url, bytes.NewReader(req.Payload))
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to build request: %v", err)
+	connectTimeout := 2 * time.Second
+	if timeout > 0 && timeout < connectTimeout {
+		connectTimeout = timeout
 	}
-
-	for key, value := range req.Headers {
-		if key == "" {
-			continue
+	transport := &http.Transport{
+		DialContext: (&net.Dialer{Timeout: connectTimeout}).DialContext,
+	}
+	client := &http.Client{
+		Timeout:   timeout,
+		Transport: transport,
+	}
+	backoff := 100 * time.Millisecond
+	for {
+		httpReq, err := http.NewRequestWithContext(reqCtx, http.MethodPost, url, bytes.NewReader(req.Payload))
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to build request: %v", err)
 		}
-		httpReq.Header.Set(key, value)
-	}
+		for key, value := range req.Headers {
+			if key == "" {
+				continue
+			}
+			httpReq.Header.Set(key, value)
+		}
 
-	client := &http.Client{Timeout: timeout}
-	resp, err := client.Do(httpReq)
-	if err != nil {
-		return nil, status.Errorf(codes.Unavailable, "failed to invoke worker: %v", err)
-	}
-	defer resp.Body.Close()
+		resp, err := client.Do(httpReq)
+		if err == nil {
+			defer resp.Body.Close()
+			body, readErr := io.ReadAll(resp.Body)
+			if readErr != nil {
+				return nil, status.Errorf(codes.Internal, "failed to read response body: %v", readErr)
+			}
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to read response body: %v", err)
-	}
+			headers := make(map[string]string, len(resp.Header))
+			for key, values := range resp.Header {
+				if len(values) > 0 {
+					headers[key] = values[0]
+				}
+			}
 
-	headers := make(map[string]string, len(resp.Header))
-	for key, values := range resp.Header {
-		if len(values) > 0 {
-			headers[key] = values[0]
+			return &pb.InvokeWorkerResponse{
+				StatusCode: int32(resp.StatusCode),
+				Headers:    headers,
+				Body:       body,
+			}, nil
+		}
+
+		if reqCtx.Err() != nil {
+			return nil, status.Errorf(codes.DeadlineExceeded, "invoke timeout: %v", err)
+		}
+
+		time.Sleep(backoff)
+		if backoff < time.Second {
+			backoff *= 2
+			if backoff > time.Second {
+				backoff = time.Second
+			}
 		}
 	}
-
-	return &pb.InvokeWorkerResponse{
-		StatusCode: int32(resp.StatusCode),
-		Headers:    headers,
-		Body:       body,
-	}, nil
 }
 
 func (s *AgentServer) DestroyContainer(ctx context.Context, req *pb.DestroyContainerRequest) (*pb.DestroyContainerResponse, error) {

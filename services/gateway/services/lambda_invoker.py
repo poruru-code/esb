@@ -8,6 +8,7 @@ Business logic layer for boto3.client('lambda').invoke()-compatible endpoints.
 import logging
 import json
 import base64
+import grpc
 import httpx
 from typing import Dict, Optional, Protocol, List
 from dataclasses import dataclass
@@ -107,6 +108,14 @@ class LambdaInvoker:
             except Exception as e:
                 raise ContainerStartError(function_name, e) from e
 
+            if self.agent_invoker and breaker.state == "OPEN":
+                if isinstance(breaker.last_error, (grpc.aio.AioRpcError, httpx.ConnectError)):
+                    breaker.state = "HALF_OPEN"
+                    logger.info(
+                        "Circuit breaker forced to HALF_OPEN after worker acquisition",
+                        extra={"function_name": function_name},
+                    )
+
             # 2. POST to Lambda RIE
             rie_url = f"http://{host}:{port}/2015-03-31/functions/function/invocations"
             logger.info(f"Invoking {function_name} at {rie_url} (trace_id: {trace_id})")
@@ -174,6 +183,20 @@ class LambdaInvoker:
         except CircuitBreakerOpenError as e:
             logger.error(f"Circuit breaker open for {function_name}: {e}")
             raise LambdaExecutionError(function_name, "Circuit Breaker Open") from e
+        except grpc.aio.AioRpcError as e:
+            logger.error(
+                f"Lambda invocation failed for function '{function_name}': {e}",
+                extra={
+                    "function_name": function_name,
+                    "target_url": rie_url,
+                    "error_type": type(e).__name__,
+                    "error_detail": str(e),
+                },
+            )
+            if worker is not None:
+                await self.backend.evict_worker(function_name, worker)
+                worker = None  # prevent release in finally
+            raise LambdaExecutionError(function_name, e) from e
         except httpx.ConnectError as e:
             # Self-Healing: Evict dead worker on connection error
             logger.error(

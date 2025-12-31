@@ -74,7 +74,7 @@ class TestLambda:
                 "trace_id": root_trace_id,
                 "container_name": "lambda-echo",
             },
-            min_hits=1,
+            min_hits=2,
             timeout=LOG_WAIT_TIMEOUT,
         )
 

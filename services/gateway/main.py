@@ -389,11 +389,18 @@ async def invoke_lambda_api(
     try:
         if invocation_type == "Event":
             # Async invoke: run in background, return 202 immediately.
-            background_tasks.add_task(invoker.invoke_function, function_name, body)
+            background_tasks.add_task(
+                invoker.invoke_function,
+                function_name,
+                body,
+                timeout=config.LAMBDA_INVOKE_TIMEOUT,
+            )
             return Response(status_code=202, content=b"", media_type="application/json")
         else:
             # Sync invoke: wait for the result.
-            resp = await invoker.invoke_function(function_name, body)
+            resp = await invoker.invoke_function(
+                function_name, body, timeout=config.LAMBDA_INVOKE_TIMEOUT
+            )
             # Pass through the RIE response to the client (boto3).
             return Response(
                 content=resp.content,
@@ -434,7 +441,9 @@ async def gateway_handler(
 
         # Invoke Lambda via LambdaInvoker (handles container ensure & RIE req)
         payload = json.dumps(event).encode("utf-8")
-        lambda_response = await invoker.invoke_function(target.container_name, payload)
+        lambda_response = await invoker.invoke_function(
+            target.container_name, payload, timeout=config.LAMBDA_INVOKE_TIMEOUT
+        )
 
         # Transform response.
         result = parse_lambda_response(lambda_response)

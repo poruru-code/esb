@@ -23,6 +23,7 @@ class CircuitBreaker:
         self.recovery_timeout = recovery_timeout
         self.failures = 0
         self.last_failure_time: float = 0
+        self.last_error: Exception | None = None
         self.state = "CLOSED"  # CLOSED, OPEN, HALF_OPEN
 
     async def call(self, func: Callable, *args, **kwargs) -> Any:
@@ -47,6 +48,7 @@ class CircuitBreaker:
         except Exception as e:
             self.failures += 1
             self.last_failure_time = time.time()
+            self.last_error = e
 
             # Failure in HALF_OPEN immediately returns to OPEN.
             if self.failures >= self.failure_threshold or self.state == "HALF_OPEN":
@@ -60,3 +62,4 @@ class CircuitBreaker:
         self.failures = 0
         self.state = "CLOSED"
         self.last_failure_time = 0
+        self.last_error = None
