@@ -9,8 +9,8 @@ suites:
       - "tests/scenarios/smoke/"
     exclude: []
 
-  autoscaling_suite:
-    description: "Auto-Scaling and Standard Scenarios"
+  standard:
+    description: "Standard E2E Scenarios (Autoscaling + Standard)"
     targets:
       - "tests/scenarios/autoscaling/"
       - "tests/scenarios/standard/"
@@ -19,7 +19,7 @@ suites:
 profiles:
   # Profile A: Firecracker Mode (using autoscaling config)
   # Corresponds to legacy "Auto-Scaling" scenario
-  fc-autoscaling:
+  e2e-firecracker:
     description: "Firecracker Mode with Auto-Scaling"
     mode: firecracker
     env_file: "tests/environments/.env.autoscaling"
@@ -27,7 +27,7 @@ profiles:
   # Profile B: Containerd Mode (using containerd + autoscaling config?)
   # Legacy "Auto-Scaling (Containerd)" used .env.containerd
   # We assume .env.containerd inherits/overrides necessary bits.
-  ctr-autoscaling:
+  e2e-containerd:
     description: "Containerd Mode with Auto-Scaling"
     mode: containerd
     env_file: "tests/environments/.env.containerd"
@@ -36,11 +36,11 @@ matrix:
   # Smoke tests first (fast feedback)
   - suite: smoke
     profiles:
-      - ctr-autoscaling
-      - fc-autoscaling
+      - e2e-containerd
+      - e2e-firecracker
 
   # Full suite on both profiles
-  - suite: autoscaling_suite
+  - suite: standard
     profiles:
-      - ctr-autoscaling
-      - fc-autoscaling
+      - e2e-containerd
+      - e2e-firecracker

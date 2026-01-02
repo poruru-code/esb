@@ -436,8 +436,14 @@ esb node doctor --require-up
 ```
 
 ```bash
-# 環境を起動した状態で実行
+# Matrix定義に従い、全スイート（Containerd, Firecracker）を実行
 python tests/run_tests.py
+
+# 特定のプロファイルのみ実行（例: Containerdモードのみ）
+python tests/run_tests.py --profile e2e-containerd
+
+# 特定のテストファイルのみ実行（プロファイル指定が必須）
+python tests/run_tests.py --test-target tests/scenarios/standard/test_lambda.py --profile e2e-containerd
 ```
 
 #### Unit Tests

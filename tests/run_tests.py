@@ -44,34 +44,46 @@ def main():
     warnings.filterwarnings("ignore", category=DeprecationWarning)
 
     parser = argparse.ArgumentParser(description="E2E Test Runner (ESB CLI Wrapper)")
-    parser.add_argument("--build", action="store_true", help="Rebuild images before running")
-    parser.add_argument("--cleanup", action="store_true", help="Stop containers after tests")
-    parser.add_argument("--reset", action="store_true", help="Full reset before running")
+    parser.add_argument("--build", action="store_true", help="Rebuild images before running tests")
+    parser.add_argument("--cleanup", action="store_true", help="Cleanup environment after successful tests")
+    parser.add_argument(
+        "--reset", action="store_true", help="Reset environment before running tests"
+    )
     parser.add_argument("--unit", action="store_true", help="Run unit tests")
     parser.add_argument("--unit-only", action="store_true", help="Run unit tests only")
     parser.add_argument(
         "--test-target", type=str, help="Specific pytest target (e.g. tests/test_trace.py)"
     )
     parser.add_argument(
-        "--env-file",
+        "--profile",
         type=str,
-        default="tests/environments/.env.standard",
-        help="Path to env file (default: tests/environments/.env.standard)",
+        help="Profile to use for single target run (e.g. e2e-containerd)",
     )
-
     args = parser.parse_args()
 
     # --- Single Target Mode (Legacy/Debug) ---
+    # --- Single Target Mode (Legacy/Debug) ---
     if args.test_target:
-        default_env = "tests/environments/.env.standard"
+        if not args.profile:
+            print("[ERROR] --profile is required when using --test-target.")
+            print(f"Available profiles: {', '.join(profiles.keys())}")
+            sys.exit(1)
+        
+        if args.profile not in profiles:
+            print(f"[ERROR] Profile '{args.profile}' not found in matrix.")
+            sys.exit(1)
+            
+        profile_def = profiles[args.profile]
+        
         user_scenario = {
-            "name": "User-Specified",
-            "env_file": args.env_file if args.env_file != "tests/environments/.env.standard" else default_env,
+            "name": f"User-Specified on {args.profile}",
+            "env_file": profile_def.get("env_file"),
+            "runtime_mode": profile_def.get("mode"),
+            "esb_env": args.profile, # Use profile name as environment name
             "targets": [args.test_target],
             "exclude": [],
         }
-        # If the user provides an env file that implies a mode, we might miss it.
-        # But usually single target debug runs on current mode.
+        
         run_scenario(args, user_scenario)
         sys.exit(0)
 
@@ -89,13 +101,7 @@ def main():
         if args.unit_only:
             sys.exit(0)
 
-    # Load Base Environment (Global)
-    base_env_path = PROJECT_ROOT / "tests" / ".env.test"
-    if base_env_path.exists():
-        load_dotenv(base_env_path, override=False)
-        print(f"Loaded base environment from: {base_env_path}")
-
-    # --- Test Matrix Execution ---
+    # --- Load Test Matrix (Needed for Profile Info) ---
     import yaml
 
     matrix_file = PROJECT_ROOT / "tests" / "test_matrix.yaml"
@@ -110,11 +116,20 @@ def main():
     profiles = config_matrix.get("profiles", {})
     matrix = config_matrix.get("matrix", [])
 
+    # Load Base Environment (Global)
+    base_env_path = PROJECT_ROOT / "tests" / ".env.test"
+    if base_env_path.exists():
+        load_dotenv(base_env_path, override=False)
+        print(f"Loaded base environment from: {base_env_path}")
+    
+    # --- Test Matrix Execution ---
+
     print("\nStarting Full E2E Test Suite (Matrix-Based)\n")
     failed_entries = []
 
-    base_esb_env = os.environ.get("ESB_ENV", "e2e")
-    print(f"DEBUG: base_esb_env resolved to: {base_esb_env}")
+
+
+    initialized_profiles = set()
 
     for entry in matrix:
         suite_name = entry["suite"]
@@ -127,6 +142,10 @@ def main():
         suite_def = suites[suite_name]
         
         for profile_name in profile_names:
+            # Filter by profile if specified (Matrix Run)
+            if args.profile and profile_name != args.profile:
+                continue
+            
             if profile_name not in profiles:
                 print(f"[ERROR] Profile '{profile_name}' not defined in profiles.")
                 continue
@@ -135,12 +154,8 @@ def main():
             
             # Construct Scenario Object for compatibility with run_scenario
             # Dynamic ESB_ENV Calculation
-            # 1. Default (Local): "e2e" -> Use profile name directly (e.g. "ctr_autoscaling")
-            # 2. CI/Specific: "run123" -> Prefix profile name (e.g. "run123-ctr_autoscaling")
-            if base_esb_env == "e2e":
-                target_env = profile_name
-            else:
-                target_env = f"{base_esb_env}-{profile_name}"
+            # Use profile name directly as environment name (e.g. "e2e-containerd")
+            target_env = profile_name
             
             scenario = {
                 "name": f"{suite_name} on {profile_name}",
@@ -154,8 +169,58 @@ def main():
             print(f"\n[Matrix] Running Suite: '{suite_name}' on Profile: '{profile_name}'")
             print(f"         > Environment: {target_env}")
             
+            # Determine if we should upgrade/reset environment
+            # Only reset if requested AND not yet initialized for this profile
+            should_reset = args.reset and (profile_name not in initialized_profiles)
+            
+            # Determine if we should build
+            # Only build if requested AND not yet initialized
+            should_build = args.build and (profile_name not in initialized_profiles)
+            
+            # Determine cleanup
+            # Ideally only cleanup at the very end of all suites for this profile?
+            # For now, let's DISABLE cleanup between suites of same profile to preserve state.
+            # But wait, matrix iterates by Suite then Profile.
+            # Suite A [P1, P2] -> Suite B [P1, P2]
+            # When Suite A P1 finishes, we keep it. Suite A P2 runs (different env).
+            # When Suite B P1 runs, we reuse P1 env.
+            should_cleanup = args.cleanup # This might need nuanced logic if we want to clean at VERY end.
+            # For this specific fix (Smoke -> Main), we explicitly WANT to reuse.
+            # So if we are reusing, we must NOT have cleaned up previously.
+            # Implication: The previous run_scenario must NOT have cleaned up.
+            
+            # Update: run_scenario logic controls cleanup based on arg.
+            # We need to pass specific instructions to run_scenario.
+            
+            scenario_args = {
+                "perform_reset": should_reset,
+                "perform_build": should_build,
+                # If we plan to reuse this profile later, we should arguably NOT cleanup yet?
+                # But detecting "is this the last time P1 is used" is complex.
+                # Let's rely on the fact that if --cleanup is False (default), we keep it.
+                # If --cleanup is True, user wants it gone. 
+                # BUT for Smoke->Suite flow, user likely wants --cleanup set but applied only at end.
+                # Let's enforce: If it's initialized (reused), don't reset.
+            }
+            
+            scenario = {
+                "name": f"{suite_name} on {profile_name}",
+                "env_file": profile_def.get("env_file"),
+                "runtime_mode": profile_def.get("mode"),
+                "esb_env": target_env,
+                "targets": suite_def.get("targets", []),
+                "exclude": suite_def.get("exclude", []),
+                **scenario_args
+            }
+
+            print(f"\n[Matrix] Running Suite: '{suite_name}' on Profile: '{profile_name}'")
+            print(f"         > Environment: {target_env}")
+            print(f"         > Action: Reset={should_reset}, Build={should_build}")
+            
             try:
                 run_scenario(args, scenario)
+                # Mark as initialized after successful (or attempted) run
+                initialized_profiles.add(profile_name)
             except SystemExit as e:
                 if e.code != 0:
                     print(f"\n[FAILED] {scenario['name']} FAILED.")
@@ -176,6 +241,12 @@ def main():
 
 def run_scenario(args, scenario):
     """Run a single scenario."""
+    
+    # Determine actions based on scenario overrides or global args
+    do_reset = scenario.get("perform_reset", args.reset)
+    do_build = scenario.get("perform_build", args.build)
+    do_cleanup = args.cleanup # Currently global only
+    
     # 0. Runtime Mode Setup (Optional)
     if "runtime_mode" in scenario:
         print(f"Switching runtime mode to: {scenario['runtime_mode']}")
@@ -235,32 +306,45 @@ def run_scenario(args, scenario):
     # Define common override arguments
     override_args = ["-f", "tests/docker-compose.test.yml"]
     env_args = ["--env", env_name]
+    template_args = ["--template", env["ESB_TEMPLATE"]]
 
     try:
         # 2. Reset / Build
         # Stop containers from previous scenario to release ports/resources
-        if args.reset:
-             print(f"DEBUG: Reset requested. Running esb down for scenario {scenario['name']}")
-             run_esb(["down", "-v"] + override_args + env_args, check=True)
-             
-             import shutil
-             # Note: Checking global fixtures dir might be risky if concurrent tests delete it?
-             # Ideally fixtures should be scoped too, but for verify we skip reset usually.
-             esb_dir = PROJECT_ROOT / "tests" / "fixtures" / ".esb"
-             if esb_dir.exists():
-                 shutil.rmtree(esb_dir)
-             run_esb(["build", "--no-cache"] + override_args + env_args)
+        if do_reset:
+            print(f"DEBUG: Reset requested. Running esb down for scenario {scenario['name']}")
+            run_esb(template_args + ["down", "-v"] + override_args + env_args, check=True)
+
+            import shutil
+            # Note: Checking global fixtures dir might be risky if concurrent tests delete it?
+            # Ideally fixtures should be scoped too, but for verify we skip reset usually.
+            esb_dir = PROJECT_ROOT / "tests" / "fixtures" / ".esb"
+            if esb_dir.exists():
+                shutil.rmtree(esb_dir)
+            run_esb(template_args + ["build", "--no-cache"] + override_args + env_args)
         else:
              # Default behavior: Stop to preserve data/state (unless build requested, but even then stop is safer)
-             print(f"DEBUG: Stopping previous services (preserving state)...")
-             run_esb(["stop"] + override_args + env_args, check=True)
+             # MODIFICATION: If we are reusing the environment (Smoke -> Main), do we even STOP?
+             # Smoke test leaves containers UP. Main test expects them UP (or restarts them).
+             # If we stop here, we lose the "Smoke passed state" (though data persists).
+             # But run_esb("up") will restart them anyway.
+             # However, stopping allows mode switching (firecracker <-> containerd) without conflict 
+             # if they share resources (like ports). 
+             # Since we have distinct environments (e2e-containerd vs e2e-firecracker),
+             # and they use DIFFERENT ports (mapped in config), we might not strictly need to stop.
+             # BUT, to be safe and consistent:
+             if scenario.get("perform_reset") is False:
+                 print(f"DEBUG: Skipping Reset/Stop (Reusing environment)...")
+             else:
+                 print(f"DEBUG: Stopping previous services (preserving state)...")
+                 run_esb(template_args + ["stop"] + override_args + env_args, check=True)
             
-        if args.build and not args.reset:
-             run_esb(["build", "--no-cache"] + override_args + env_args)
+        if do_build and not do_reset:
+             run_esb(template_args + ["build", "--no-cache"] + override_args + env_args)
 
         # 3. UP
-        up_args = ["up", "--detach", "--wait"] + override_args + env_args
-        if args.build or args.reset:
+        up_args = template_args + ["up", "--detach", "--wait"] + override_args + env_args
+        if do_build or do_reset:
             up_args.append("--build")
 
         run_esb(up_args)
@@ -287,7 +371,7 @@ def run_scenario(args, scenario):
     finally:
         # 5. Cleanup (Conditional)
         if args.cleanup:
-            run_esb(["down"] + override_args + env_args)
+            run_esb(template_args + ["down"] + override_args + env_args)
         # If not cleanup, we leave containers running for debugging last scenario
         # But next scenario execution will force down anyway.
 
