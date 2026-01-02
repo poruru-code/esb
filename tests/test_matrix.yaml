@@ -1,0 +1,46 @@
+# Test Execution Matrix
+# Defines which Test Suites run on which Profiles (Mode + Env).
+
+suites:
+  # Quick connectivity checks - run first
+  smoke:
+    description: "Fast connectivity tests for all components"
+    targets:
+      - "tests/scenarios/smoke/"
+    exclude: []
+
+  autoscaling_suite:
+    description: "Auto-Scaling and Standard Scenarios"
+    targets:
+      - "tests/scenarios/autoscaling/"
+      - "tests/scenarios/standard/"
+    exclude: []
+
+profiles:
+  # Profile A: Firecracker Mode (using autoscaling config)
+  # Corresponds to legacy "Auto-Scaling" scenario
+  fc-autoscaling:
+    description: "Firecracker Mode with Auto-Scaling"
+    mode: firecracker
+    env_file: "tests/environments/.env.autoscaling"
+
+  # Profile B: Containerd Mode (using containerd + autoscaling config?)
+  # Legacy "Auto-Scaling (Containerd)" used .env.containerd
+  # We assume .env.containerd inherits/overrides necessary bits.
+  ctr-autoscaling:
+    description: "Containerd Mode with Auto-Scaling"
+    mode: containerd
+    env_file: "tests/environments/.env.containerd"
+
+matrix:
+  # Smoke tests first (fast feedback)
+  - suite: smoke
+    profiles:
+      - ctr-autoscaling
+      - fc-autoscaling
+
+  # Full suite on both profiles
+  - suite: autoscaling_suite
+    profiles:
+      - ctr-autoscaling
+      - fc-autoscaling
