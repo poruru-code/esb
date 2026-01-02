@@ -324,6 +324,7 @@ esb reset
 | ----------------------------------------------------------------------------- | ------------------------------------ |
 | [環境変数一覧](docs/environment-variables.md)                                | 全環境変数の役割と設定方法           |
 | [trace-propagation.md](docs/trace-propagation.md)                             | X-Amzn-Trace-Id トレーシング         |
+| [architecture-containerd.md](docs/architecture-containerd.md)                 | 標準実行モード (Docker) の構成図     |
 | [container-management.md](docs/container-management.md)                       | コンテナ管理とイメージ運用           |
 | [container-cache.md](docs/container-cache.md)                                 | コンテナホストキャッシュ             |
 | [orchestrator-restart-resilience.md](docs/orchestrator-restart-resilience.md) | Agent/Gateway再起動時のコンテナ整理  |
