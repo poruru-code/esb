@@ -1,4 +1,4 @@
-from . import down, up
+from . import down, up, build
 from tools.cli.core import logging
 
 
@@ -33,18 +33,34 @@ def run(args):
             for k, v in kwargs.items():
                 setattr(self, k, v)
 
+    env = getattr(args, "env", "default")
+
     rmi = getattr(args, "rmi", False)
     if rmi:
         logging.info("Deleting all containers, volumes, and images...")
     else:
         logging.info("Deleting all containers and volumes...")
     
-    down_args = ResetArgs(volumes=True, rmi=rmi)
+    down_args = ResetArgs(volumes=True, rmi=rmi, env=env)
     down.run(down_args)
 
     # 2. Restart (forced build).
     logging.info("Rebuilding and starting services...")
-    up_args = ResetArgs(build=True, detach=True)
+    
+    # Explicitly run function build (since 'up' doesn't do it anymore)
+    # We pass the same args, assuming 'build' flag is acceptable or we pass build-specific args if needed.
+    # build.run() expects args to have build-related attributes.
+    # Creating a BuildArgs shim or reusing args?
+    # args in 'reset' might not have 'no_cache' etc unless we add them to reset parser.
+    # For now, we perform a standard build.
+    class BuildArgs(ResetArgs):
+        pass
+    
+    # Default to standard build
+    build_args = BuildArgs(no_cache=False, dry_run=False, verbose=getattr(args, "verbose", False), file=getattr(args, "file", []), env=env)
+    build.run(build_args)
+
+    up_args = ResetArgs(build=True, detach=True, env=env)
     up.run(up_args)
 
     logging.success("Environment has been successfully reset.")

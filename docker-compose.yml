@@ -8,7 +8,7 @@ services:
   # ============================================
   permission-helper:
     image: alpine
-    container_name: esb-permission-helper
+    container_name: ${ESB_PROJECT_NAME:-esb}-permission-helper
     volumes:
       - rustfs_data:/data/rustfs
     command: >
@@ -22,13 +22,13 @@ services:
   # ============================================
   s3-storage:
     image: rustfs/rustfs:latest
-    container_name: esb-storage
+    container_name: ${ESB_PROJECT_NAME:-esb}-s3-storage
     depends_on:
       permission-helper:
         condition: service_completed_successfully
     ports:
-      - "${RUSTFS_API_PORT:-9000}:9000" # S3 API
-      - "${RUSTFS_CONSOLE_PORT:-9001}:9001" # Console
+      - "${ESB_PORT_STORAGE:-9000}:9000" # S3 API
+      - "${ESB_PORT_STORAGE_MGMT:-9001}:9001" # Console
     volumes:
       - rustfs_data:/data/rustfs
       - ./config/lifecycle.yml:/app/config/lifecycle.yml:ro
@@ -57,9 +57,9 @@ services:
   # ============================================
   database:
     image: scylladb/scylla:latest
-    container_name: esb-database
+    container_name: ${ESB_PROJECT_NAME:-esb}-database
     ports:
-      - "${SCYLLADB_PORT:-8001}:8000" # Alternator API (Host 8001 -> Container 8000)
+      - "${ESB_PORT_DATABASE:-8001}:8000" # Alternator API (Host 8001 -> Container 8000)
     volumes:
       - scylladb_data:/var/lib/scylla
     command: --smp 1 --memory ${SCYLLADB_MEMORY:-1}G --developer-mode 1 --alternator-port 8000 --alternator-address 0.0.0.0 --alternator-write-isolation always_use_lwt
@@ -79,9 +79,9 @@ services:
   # ============================================
   registry:
     image: registry:2
-    container_name: esb-registry
+    container_name: ${ESB_PROJECT_NAME:-esb}-registry
     ports:
-      - "${REGISTRY_PORT:-5010}:5010" # Registry API (pushes from host)
+      - "${ESB_PORT_REGISTRY:-5010}:5010" # Registry API (pushes from host)
     volumes:
       - registry_data:/var/lib/registry
       - ${ESB_CERT_DIR:-~/.esb/certs}/server.crt:/certs/server.crt:ro
@@ -106,9 +106,9 @@ services:
   # ============================================
   victorialogs:
     image: victoriametrics/victoria-logs:latest
-    container_name: victorialogs
+    container_name: ${ESB_PROJECT_NAME:-esb}-victorialogs
     ports:
-      - "${VICTORIALOGS_PORT:-9428}:9428" # VictoriaLogs UI/API
+      - "${ESB_PORT_VICTORIALOGS:-9428}:9428" # VictoriaLogs UI/API
     volumes:
       - victorialogs_data:/victoria-logs-data
     command:
@@ -133,9 +133,9 @@ services:
     build:
       context: .
       dockerfile: services/gateway/Dockerfile
-    container_name: esb-gateway
+    container_name: ${ESB_PROJECT_NAME:-esb}-gateway
     ports:
-      - "443:443"
+      - "${ESB_PORT_GATEWAY_HTTPS:-443}:443"
     cap_add:
       - NET_ADMIN
     devices:
@@ -161,7 +161,8 @@ services:
       - GATEWAY_WORKER_ROUTE_VIA_HOST=${GATEWAY_WORKER_ROUTE_VIA_HOST:-}
       - GATEWAY_WORKER_ROUTE_VIA=${GATEWAY_WORKER_ROUTE_VIA:-}
       - GATEWAY_WORKER_ROUTE_CIDR=${GATEWAY_WORKER_ROUTE_CIDR:-10.88.0.0/16}
-      - AGENT_GRPC_ADDRESS=${AGENT_GRPC_ADDRESS:-runtime-node:50051}
+      - GATEWAY_WORKER_ROUTE_CIDR=${GATEWAY_WORKER_ROUTE_CIDR:-10.88.0.0/16}
+      # AGENT_GRPC_ADDRESS is injected by adapter files (fc.yml / containerd.yml)
       - AGENT_INVOKE_PROXY=${AGENT_INVOKE_PROXY:-false}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - RUSTFS_ACCESS_KEY=${RUSTFS_ACCESS_KEY?RUSTFS_ACCESS_KEY is required}
@@ -202,11 +203,11 @@ volumes:
 networks:
   # Public network (exposed ports).
   external_network:
-    name: ${EXTERNAL_NETWORK?EXTERNAL_NETWORK is required}
+    name: ${ESB_NETWORK_EXTERNAL:-test-external}
     driver: bridge
     ipam:
       config:
-        - subnet: 172.30.0.0/24
+        - subnet: ${ESB_SUBNET_EXTERNAL:-172.50.0.0/16}
   # Lambda-to-Lambda network only (no external access).
   internal_network:
     name: ${LAMBDA_NETWORK?LAMBDA_NETWORK is required}

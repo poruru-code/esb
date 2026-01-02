@@ -1,23 +1,25 @@
-# Where: docker-compose.containerd.yml
-# What: Adapter overrides for single-node (core + compute) deployments.
-# Why: Join control and compute services on one host without extra_hosts.
-
 services:
-  runtime-node:
+  # ------------------------------------------
+  # 1. Agent Wiring (Standalone)
+  # ------------------------------------------
+  agent:
+    # Participate in Network Directly
     networks:
       - external_network
-    extra_hosts: []
-
-  agent:
     depends_on:
-      registry:
-        condition: service_healthy
+      registry: { condition: service_healthy }
     environment:
+      - AGENT_RUNTIME=docker
       - CONTAINER_REGISTRY=esb-registry:5010
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 
+  # ------------------------------------------
+  # 2. Gateway Wiring
+  # ------------------------------------------
   gateway:
     depends_on:
-      agent:
-        condition: service_started
+      agent: { condition: service_started }
     environment:
-      - AGENT_GRPC_ADDRESS=runtime-node:50051
+      # Connect to Agent Directly
+      - AGENT_GRPC_ADDRESS=agent:50051

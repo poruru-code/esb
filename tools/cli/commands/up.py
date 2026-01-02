@@ -6,7 +6,7 @@ import sys
 import yaml
 import subprocess
 from pathlib import Path
-from . import build
+# from . import build
 from tools.provisioner import main as provisioner
 from tools.cli import config as cli_config
 from tools.cli import compose as cli_compose
@@ -24,9 +24,12 @@ import requests
 def wait_for_gateway(timeout=60):
     """Wait until Gateway responds."""
     start_time = time.time()
-    # Ideally this should be retrieved dynamically from the CLI, but in tests we
-    # assume localhost:443 (Gateway). Use config.py or a default value.
-    url = "https://localhost/health"
+    start_time = time.time()
+    
+    # Dynamically resolve Gateway port based on active environment
+    mapping = cli_config.get_port_mapping()
+    port = mapping.get("ESB_PORT_GATEWAY_HTTPS", "443")
+    url = f"https://localhost:{port}/health"
 
     logging.step("Waiting for Gateway...")
     while time.time() - start_time < timeout:
@@ -124,12 +127,8 @@ def run(args):
                     "Set it manually or run `esb node add` to populate nodes.yaml."
                 )
 
-    # 2. Run build if requested.
-    if getattr(args, "build", False):
-        build.run(args)
-
     # 2. Start services.
-    logging.step("Starting services...")
+    logging.step(f"Starting services for environment: {logging.highlight(cli_config.get_env_name())}...")
     compose_args = ["up"]
     if getattr(args, "detach", True):
         compose_args.append("-d")
@@ -137,9 +136,27 @@ def run(args):
     # Rebuild services themselves.
     if getattr(args, "build", False):
         compose_args.append("--build")
-    cmd = cli_compose.build_compose_command(compose_args, target="control")
+    
+    extra_files = getattr(args, "file", [])
+    
+    # Calculate isolation variables
+    env_name = cli_config.get_env_name()
+    project_name = f"esb-{env_name}".lower()
+    os.environ["ESB_PROJECT_NAME"] = project_name
+    
+    # Update os.environ with isolation vars so docker-compose picks them up
+    os.environ.update(cli_config.get_port_mapping(env_name))
+    os.environ.update(cli_config.get_subnet_config(env_name))
+
+    cmd = cli_compose.build_compose_command(
+        compose_args, 
+        target="control", 
+        extra_files=extra_files,
+        project_name=project_name
+    )
 
     try:
+        # Pass updated env to subprocess implicitly (os.environ is updated)
         subprocess.check_call(cmd)
     except subprocess.CalledProcessError as e:
         logging.error(f"Failed to start services: {e}")

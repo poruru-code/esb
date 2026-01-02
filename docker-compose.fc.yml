@@ -1,0 +1,69 @@
+services:
+  # ------------------------------------------
+  # 1. Runtime Node (Parent Container)
+  # ------------------------------------------
+  runtime-node:
+    build:
+      context: services/runtime-node
+      dockerfile: Dockerfile
+    container_name: ${ESB_PROJECT_NAME:-esb}-runtime-node
+    privileged: true
+    ports:
+      - "50051:50051"
+    networks:
+      - external_network
+    environment:
+      - CNI_GW_IP=10.88.0.1
+      - DNAT_APPLY_OUTPUT=1
+      # Local Integration
+      - DNAT_S3_IP=esb-storage
+      - DNAT_DB_IP=esb-database
+      - DNAT_VL_IP=victorialogs
+    healthcheck:
+      test: ["CMD", "ctr", "-a", "/run/containerd/containerd.sock", "version"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+  local-proxy:
+    image: haproxy:2.8-alpine
+    container_name: ${ESB_PROJECT_NAME:-esb}-local-proxy
+    network_mode: "service:runtime-node"
+    volumes:
+      - ./config/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    depends_on:
+      runtime-node: { condition: service_started }
+    restart: unless-stopped
+
+  # ------------------------------------------
+  # 2. Agent Wiring (Child Container)
+  # ------------------------------------------
+  agent:
+    network_mode: "service:runtime-node"
+    pid: "container:${ESB_PROJECT_NAME:-esb}-runtime-node"
+    depends_on:
+      runtime-node: { condition: service_healthy }
+    volumes:
+      - runtime_containerd_run:/run/containerd
+      - runtime_containerd_lib:/var/lib/containerd
+      - esb_cni_data:/var/lib/cni
+      - ./services/agent/config/cni:/etc/cni/net.d:ro
+    environment:
+      - AGENT_RUNTIME=containerd
+      - CONTAINERD_RUNTIME=aws.firecracker
+      - CONTAINER_REGISTRY=esb-registry:5010
+
+  # ------------------------------------------
+  # 3. Gateway Wiring
+  # ------------------------------------------
+  gateway:
+    depends_on:
+      agent: { condition: service_started }
+    environment:
+      # Connect to Runtime Node (Host of Agent)
+      - AGENT_GRPC_ADDRESS=runtime-node:50051
+
+volumes:
+  runtime_containerd_run:
+  runtime_containerd_lib:
+  esb_cni_data:

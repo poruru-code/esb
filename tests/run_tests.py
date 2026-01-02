@@ -47,10 +47,6 @@ def main():
     parser.add_argument("--build", action="store_true", help="Rebuild images before running")
     parser.add_argument("--cleanup", action="store_true", help="Stop containers after tests")
     parser.add_argument("--reset", action="store_true", help="Full reset before running")
-    # --dind is detected by config.py/CLI or via COMPOSE_FILE.
-    parser.add_argument(
-        "--dind", action="store_true", help="Use DinD mode (docker-compose.dind.yml)"
-    )
     parser.add_argument("--unit", action="store_true", help="Run unit tests")
     parser.add_argument("--unit-only", action="store_true", help="Run unit tests only")
     parser.add_argument(
@@ -90,7 +86,17 @@ def main():
                 "tests/scenarios/standard/",
             ],
             "exclude": [],
-        }
+        },
+        {
+            "name": "Auto-Scaling (Containerd)",
+            "env_file": "tests/environments/.env.containerd",
+            "runtime_mode": "containerd",
+            "targets": [
+                "tests/scenarios/autoscaling/",
+                "tests/scenarios/standard/",
+            ],
+            "exclude": [],
+        },
     ]
 
     # If target specified via CLI, run a single target (legacy compatible).
@@ -140,6 +146,11 @@ def main():
 
 def run_scenario(args, scenario):
     """Run a single scenario."""
+    # 0. Runtime Mode Setup (Optional)
+    if "runtime_mode" in scenario:
+        print(f"Switching runtime mode to: {scenario['runtime_mode']}")
+        run_esb(["mode", "set", scenario["runtime_mode"]])
+
     # 1. Environment Setup
     base_env_path = PROJECT_ROOT / "tests" / ".env.test"
     if base_env_path.exists():
@@ -164,46 +175,59 @@ def run_scenario(args, scenario):
     esb_template = os.getenv("ESB_TEMPLATE", "tests/fixtures/template.yaml")
     env["ESB_TEMPLATE"] = str(PROJECT_ROOT / esb_template)
 
-    print(f"DEBUG: env_path={env_path}, exists={env_path.exists()}")
-    print(f"DEBUG: EXTERNAL_NETWORK in os.environ: {os.environ.get('EXTERNAL_NETWORK')}")
-    print(f"DEBUG: EXTERNAL_NETWORK in env dict: {env.get('EXTERNAL_NETWORK')}")
+    # Environment Isolation Logic
+    from tools.cli import config as cli_config
+    env_name = os.environ.get("ESB_ENV", "default")
+    env["ESB_ENV"] = env_name
+    
+    # Calculate ports and subnets to inject into pytest environment
+    env.update(cli_config.get_port_mapping(env_name))
+    env.update(cli_config.get_subnet_config(env_name))
 
-    separator = ";" if os.name == "nt" else ":"
-    base_compose = "docker-compose.dind.yml" if args.dind else "docker-compose.yml"
-    compose_files = [base_compose, "tests/docker-compose.test.yml"]
-    env["COMPOSE_FILE"] = separator.join(compose_files)
+    print(f"DEBUG: env_path={env_path}, exists={env_path.exists()}")
+    print(f"DEBUG: Running in environment: {env_name}")
+    print(f"DEBUG: Gateway Port: {env.get('ESB_PORT_GATEWAY_HTTPS')}")
+
+    # Map ESB CLI ports to Test Suite expected variables
+    env["GATEWAY_PORT"] = env.get("ESB_PORT_GATEWAY_HTTPS", "443")
+    env["VICTORIALOGS_PORT"] = env.get("ESB_PORT_VICTORIALOGS", "9428")
+    env["GATEWAY_URL"] = f"https://localhost:{env['GATEWAY_PORT']}"
+    env["VICTORIALOGS_URL"] = f"http://localhost:{env['VICTORIALOGS_PORT']}"
+    env["VICTORIALOGS_QUERY_URL"] = env["VICTORIALOGS_URL"]
 
     # Update current process env for helper calls
     os.environ.update(env)
 
     ensure_firecracker_node_up()
 
+    # Define common override arguments
+    override_args = ["-f", "tests/docker-compose.test.yml"]
+    env_args = ["--env", env_name]
+
     try:
         # 2. Reset / Build
-        # Reset is recommended between scenarios to force env var refresh in containers
-        # But we can skip full artifact delete to save time, mostly just down/up needed
-
-        # Always DOWN first to stop containers from previous scenario.
-        run_esb(["down"], check=False)
-
+        # Stop containers from previous scenario to release ports/resources
         if args.reset:
-            # Full reset requested (artifacts, etc).
-            # ... (Same reset logic as before) ...
-            import shutil
-
-            esb_dir = PROJECT_ROOT / "tests" / "fixtures" / ".esb"
-            if esb_dir.exists():
-                shutil.rmtree(esb_dir)
-            run_esb(["build", "--no-cache"])
-        elif args.build:
-            run_esb(["build", "--no-cache"])
-
-        # Ensure 'build' happens at least once if artifacts missing?
-        # For now assume user runs with --build or --reset initially or artifacts exist.
+             print(f"DEBUG: Reset requested. Running esb down for scenario {scenario['name']}")
+             run_esb(["down", "-v"] + override_args + env_args, check=True)
+             
+             import shutil
+             # Note: Checking global fixtures dir might be risky if concurrent tests delete it?
+             # Ideally fixtures should be scoped too, but for verify we skip reset usually.
+             esb_dir = PROJECT_ROOT / "tests" / "fixtures" / ".esb"
+             if esb_dir.exists():
+                 shutil.rmtree(esb_dir)
+             run_esb(["build", "--no-cache"] + override_args + env_args)
+        else:
+             # Default behavior: Stop to preserve data/state (unless build requested, but even then stop is safer)
+             print(f"DEBUG: Stopping previous services (preserving state)...")
+             run_esb(["stop"] + override_args + env_args, check=True)
+            
+        if args.build and not args.reset:
+             run_esb(["build", "--no-cache"] + override_args + env_args)
 
         # 3. UP
-        up_args = ["up", "--detach", "--wait"]
-        # Only rebuild if explicitly asked, otherwise reuse images.
+        up_args = ["up", "--detach", "--wait"] + override_args + env_args
         if args.build or args.reset:
             up_args.append("--build")
 
@@ -218,6 +242,7 @@ def run_scenario(args, scenario):
         for excl in scenario["exclude"]:
             pytest_cmd.extend(["--ignore", excl])
 
+        # Pass the full env with calculated ports to pytest
         result = subprocess.run(pytest_cmd, cwd=PROJECT_ROOT, check=False, env=env)
 
         if result.returncode != 0:
@@ -230,7 +255,7 @@ def run_scenario(args, scenario):
     finally:
         # 5. Cleanup (Conditional)
         if args.cleanup:
-            run_esb(["down"])
+            run_esb(["down"] + override_args + env_args)
         # If not cleanup, we leave containers running for debugging last scenario
         # But next scenario execution will force down anyway.
 

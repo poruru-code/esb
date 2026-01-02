@@ -18,7 +18,7 @@ RUNTIME_DIR = cli_config.PROJECT_ROOT / "tools" / "generator" / "runtime"
 BASE_IMAGE_TAG = "esb-lambda-base:latest"
 
 
-def ensure_registry_running():
+def ensure_registry_running(extra_files=None, project_name=None):
     """Ensure the registry is running when required."""
     registry = os.getenv("CONTAINER_REGISTRY")
     if not registry:
@@ -41,7 +41,12 @@ def ensure_registry_running():
     logging.warning(f"Registry ({registry}) is not running. Starting it now...")
     try:
         subprocess.check_call(
-            cli_compose.build_compose_command(["up", "-d", "registry"], target="control"),
+            cli_compose.build_compose_command(
+                ["up", "-d", "registry"], 
+                target="control",
+                extra_files=extra_files,
+                project_name=project_name
+            ),
             cwd=cli_config.PROJECT_ROOT,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -203,6 +208,19 @@ def run(args):
     if dry_run:
         logging.info("Running in DRY-RUN mode. No files will be written, no images built.")
 
+    # Calculate and inject isolation variables (required for ensure_registry_running)
+    env_name = cli_config.get_env_name()
+    project_name = f"esb-{env_name}".lower()
+    os.environ["ESB_PROJECT_NAME"] = project_name
+    
+    port_mapping = cli_config.get_port_mapping(env_name)
+    os.environ.update(port_mapping)
+    os.environ.update(cli_config.get_subnet_config(env_name))
+    
+    # Calculate dynamic registry address
+    registry_port = port_mapping.get("ESB_PORT_REGISTRY", "5010")
+    os.environ["CONTAINER_REGISTRY"] = f"localhost:{registry_port}"
+
     # 1. Generate configuration files (Phase 1 Generator).
     logging.step("Generating configurations...")
     logging.info(f"Using template: {logging.highlight(cli_config.TEMPLATE_YAML)}")
@@ -229,7 +247,8 @@ def run(args):
 
     # 0. Ensure registry is running (when required).
     if not dry_run:
-        ensure_registry_running()
+        extra_files = getattr(args, "file", [])
+        ensure_registry_running(extra_files=extra_files, project_name=project_name)
 
     config = generator.load_config(config_path)
 

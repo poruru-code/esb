@@ -1,0 +1,20 @@
+services:
+  agent:
+    image: esb-agent:latest
+    build:
+      context: services/agent
+      dockerfile: Dockerfile
+    container_name: ${ESB_PROJECT_NAME:-esb}-agent
+    cap_add: [NET_ADMIN, SYS_ADMIN]
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - PORT=50051
+      - CONTAINER_REGISTRY=${CONTAINER_REGISTRY:-esb-registry:5010}
+      - CNI_SUBNET=${CNI_SUBNET:-}
+      # Default: Overridden by Adapter
+      - AGENT_RUNTIME=${AGENT_RUNTIME:-containerd} 
+    volumes:
+      - ${ESB_CERT_DIR:-~/.esb/certs}/rootCA.crt:/usr/local/share/ca-certificates/esb-rootCA.crt:ro
+    command: >
+      sh -c "update-ca-certificates && /app/agent"
+    restart: unless-stopped

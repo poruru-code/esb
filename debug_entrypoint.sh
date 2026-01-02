@@ -24,6 +24,12 @@ DEVMAPPER_DIR="${DEVMAPPER_DIR:-/var/lib/containerd/devmapper2}"
 DEVMAPPER_DATA_SIZE="${DEVMAPPER_DATA_SIZE:-10G}"
 DEVMAPPER_META_SIZE="${DEVMAPPER_META_SIZE:-2G}"
 DEVMAPPER_UDEV="${DEVMAPPER_UDEV:-0}"
+DEVMAPPER_NODE_READY_RETRIES="${DEVMAPPER_NODE_READY_RETRIES:-10}"
+DEVMAPPER_NODE_READY_INTERVAL="${DEVMAPPER_NODE_READY_INTERVAL:-0.2}"
+DEVMAPPER_WATCH_INTERVAL="${DEVMAPPER_WATCH_INTERVAL:-0.2}"
+DEVMAPPER_UDEV_SETTLE_TIMEOUT="${DEVMAPPER_UDEV_SETTLE_TIMEOUT:-5}"
+DEVMAPPER_ASYNC_REMOVE="${DEVMAPPER_ASYNC_REMOVE:-}"
+DEVMAPPER_DISCARD_BLOCKS="${DEVMAPPER_DISCARD_BLOCKS:-}"
 WG_CONTROL_NET="${WG_CONTROL_NET:-}"
 WG_CONTROL_GW="${WG_CONTROL_GW:-}"
 WG_CONTROL_GW_HOST="${WG_CONTROL_GW_HOST:-gateway}"
@@ -221,32 +227,132 @@ mkdir -p /var/lib/firecracker-containerd/runtime /var/lib/firecracker-containerd
 start_udevd
 start_firecracker_fifo_reader
 
-create_devmapper_pool() {
-  echo "INFO: Creating devmapper pool $DEVMAPPER_POOL..."
-  mkdir -p "$DEVMAPPER_DIR"
-  data_file="$DEVMAPPER_DIR/data-device"
-  meta_file="$DEVMAPPER_DIR/meta-device"
+normalize_bool() {
+  value="$(echo "${1:-}" | tr '[:upper:]' '[:lower:]' | tr -d ' ')"
+  case "$value" in
+    1|true|yes|on) echo "true" ;;
+    0|false|no|off) echo "false" ;;
+    *) return 1 ;;
+  esac
+}
 
-  if [ ! -f "$data_file" ]; then
-    truncate -s "$DEVMAPPER_DATA_SIZE" "$data_file"
+maybe_patch_devmapper_config() {
+  config_path="$CONTAINERD_CONFIG"
+  if [ -z "$config_path" ] || [ ! -f "$config_path" ]; then
+    return
   fi
-  if [ ! -f "$meta_file" ]; then
-    truncate -s "$DEVMAPPER_META_SIZE" "$meta_file"
+  if ! grep -q 'io.containerd.snapshotter.v1.devmapper' "$config_path"; then
+    return
   fi
 
-  # Find or attach loop devices
-  data_dev=$(losetup -fP --show "$data_file")
-  meta_dev=$(losetup -fP --show "$meta_file")
+  pool_value=""
+  if [ -n "$DEVMAPPER_POOL" ]; then
+    pool_value="$DEVMAPPER_POOL"
+  fi
+  async_value=""
+  discard_value=""
+  if [ -n "$DEVMAPPER_ASYNC_REMOVE" ]; then
+    if async_value="$(normalize_bool "$DEVMAPPER_ASYNC_REMOVE")"; then
+      if grep -q '^[[:space:]]*async_remove' "$config_path"; then
+        async_value=""
+      fi
+    else
+      echo "WARN: invalid DEVMAPPER_ASYNC_REMOVE=$DEVMAPPER_ASYNC_REMOVE; skipping"
+    fi
+  fi
+  if [ -n "$DEVMAPPER_DISCARD_BLOCKS" ]; then
+    if discard_value="$(normalize_bool "$DEVMAPPER_DISCARD_BLOCKS")"; then
+      if grep -q '^[[:space:]]*discard_blocks' "$config_path"; then
+        discard_value=""
+      fi
+    else
+      echo "WARN: invalid DEVMAPPER_DISCARD_BLOCKS=$DEVMAPPER_DISCARD_BLOCKS; skipping"
+    fi
+  fi
+  if [ -z "$async_value" ] && [ -z "$discard_value" ] && [ -z "$pool_value" ]; then
+    return
+  fi
 
-  sector_size=512
-  data_size_bytes=$(blockdev --getsize64 -q "$data_dev")
-  length_sectors=$((data_size_bytes / sector_size))
-  data_block_size=128
-  low_water_mark=32768
-  table="0 ${length_sectors} thin-pool ${meta_dev} ${data_dev} ${data_block_size} ${low_water_mark} 1 skip_block_zeroing"
+  tmp="${config_path}.tmp"
+  if ! awk -v pool="$pool_value" -v async="$async_value" -v discard="$discard_value" '
+    BEGIN { in_dev = 0; pool_done = 0; async_done = 0; discard_done = 0 }
+    $0 ~ /^[[:space:]]*\[plugins\."io\.containerd\.snapshotter\.v1\.devmapper"\]/ {
+      in_dev = 1
+      pool_done = 0
+      async_done = 0
+      discard_done = 0
+      print
+      next
+    }
+    in_dev && $0 ~ /^[[:space:]]*\[/ {
+      if (pool != "" && pool_done == 0) { print "    pool_name = \"" pool "\"" }
+      if (async != "" && async_done == 0) { print "    async_remove = " async }
+      if (discard != "" && discard_done == 0) { print "    discard_blocks = " discard }
+      in_dev = 0
+      print
+      next
+    }
+    in_dev && $0 ~ /^[[:space:]]*pool_name[[:space:]]*=/ {
+      if (pool != "") {
+        print "    pool_name = \"" pool "\""
+        pool_done = 1
+        next
+      }
+    }
+    in_dev && $0 ~ /^[[:space:]]*async_remove[[:space:]]*=/ {
+      if (async != "") {
+        print "    async_remove = " async
+        async_done = 1
+        next
+      }
+    }
+    in_dev && $0 ~ /^[[:space:]]*discard_blocks[[:space:]]*=/ {
+      if (discard != "") {
+        print "    discard_blocks = " discard
+        discard_done = 1
+        next
+      }
+    }
+    { print }
+    END {
+      if (in_dev) {
+        if (pool != "" && pool_done == 0) { print "    pool_name = \"" pool "\"" }
+        if (async != "" && async_done == 0) { print "    async_remove = " async }
+        if (discard != "" && discard_done == 0) { print "    discard_blocks = " discard }
+      }
+    }
+  ' "$config_path" > "$tmp"; then
+    echo "WARN: failed to render devmapper config patch"
+    rm -f "$tmp"
+    return
+  fi
+  if ! mv "$tmp" "$config_path"; then
+    echo "WARN: failed to update devmapper config at $config_path"
+    rm -f "$tmp"
+  fi
+}
 
-  echo "$table" | dmsetup create "$DEVMAPPER_POOL"
-  dmsetup mknodes "$DEVMAPPER_POOL"
+maybe_udev_settle() {
+  if [ "$DEVMAPPER_UDEV" != "1" ]; then
+    return
+  fi
+  if ! command -v udevadm >/dev/null 2>&1; then
+    return
+  fi
+  udevadm settle --timeout="$DEVMAPPER_UDEV_SETTLE_TIMEOUT" >/dev/null 2>&1 || true
+}
+
+wait_for_devmapper_node() {
+  node_path="$1"
+  tries="$DEVMAPPER_NODE_READY_RETRIES"
+  interval="$DEVMAPPER_NODE_READY_INTERVAL"
+  while [ "$tries" -gt 0 ] && [ ! -e "$node_path" ]; do
+    sleep "$interval"
+    tries=$((tries - 1))
+  done
+  if [ ! -e "$node_path" ]; then
+    echo "WARN: devmapper node still missing: $node_path"
+  fi
 }
 
 ensure_devmapper_ready() {
@@ -264,22 +370,16 @@ ensure_devmapper_ready() {
   fi
 
   if ! env $dm_env dmsetup status "$DEVMAPPER_POOL" >/dev/null 2>&1; then
-    echo "WARN: Devmapper pool ${DEVMAPPER_POOL} is missing. Attempting to create..."
-    create_devmapper_pool
-    if ! env $dm_env dmsetup status "$DEVMAPPER_POOL" >/dev/null 2>&1; then
-        echo "ERROR: Devmapper pool ${DEVMAPPER_POOL} failed to be created."
-        exit 1
-    fi
+    echo "ERROR: Devmapper pool ${DEVMAPPER_POOL} is missing. Run esb node provision."
+    exit 1
   fi
 
   env $dm_env dmsetup mknodes "$DEVMAPPER_POOL" >/dev/null 2>&1 || true
+  maybe_udev_settle
   if [ ! -e "/dev/mapper/$DEVMAPPER_POOL" ]; then
-    tries=10
-    while [ "$tries" -gt 0 ] && [ ! -e "/dev/mapper/$DEVMAPPER_POOL" ]; do
-      dmsetup mknodes "$DEVMAPPER_POOL" >/dev/null 2>&1 || true
-      sleep 0.2
-      tries=$((tries - 1))
-    done
+    env $dm_env dmsetup mknodes "$DEVMAPPER_POOL" >/dev/null 2>&1 || true
+    maybe_udev_settle
+    wait_for_devmapper_node "/dev/mapper/$DEVMAPPER_POOL"
   fi
 }
 
@@ -301,11 +401,12 @@ start_devmapper_watcher() {
           "${DEVMAPPER_POOL}-snap-"*)
             if [ ! -e "/dev/mapper/$dev" ]; then
               dmsetup mknodes "$dev" >/dev/null 2>&1 || true
+              wait_for_devmapper_node "/dev/mapper/$dev"
             fi
             ;;
         esac
       done
-      sleep 0.5
+      sleep "$DEVMAPPER_WATCH_INTERVAL"
     done
   ) &
 }
@@ -318,6 +419,7 @@ fi
 
 ensure_devmapper_ready
 start_devmapper_watcher
+maybe_patch_devmapper_config
 
 if [ -n "$CONTAINERD_CONFIG" ]; then
   exec "$CONTAINERD_BIN" --config "$CONTAINERD_CONFIG" --address /run/containerd/containerd.sock
