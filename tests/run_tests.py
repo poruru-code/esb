@@ -59,6 +59,9 @@ def main():
         type=str,
         help="Profile to use for single target run (e.g. e2e-containerd)",
     )
+    parser.add_argument(
+        "--fail-fast", action="store_true", help="Stop on first suite failure"
+    )
     args = parser.parse_args()
 
     # --- Load Test Matrix (Needed for Profile Info) ---
@@ -223,11 +226,17 @@ def main():
                 if e.code != 0:
                     print(f"\n[FAILED] {scenario['name']} FAILED.")
                     failed_entries.append(scenario["name"])
+                    if args.fail_fast:
+                        print("\n[FAIL-FAST] Stopping due to --fail-fast option.")
+                        sys.exit(1)
                 else:
                     print(f"\n[PASSED] {scenario['name']} PASSED.")
             except Exception as e:
                 print(f"\n[FAILED] {scenario['name']} FAILED with exception: {e}")
                 failed_entries.append(scenario["name"])
+                if args.fail_fast:
+                    print("\n[FAIL-FAST] Stopping due to --fail-fast option.")
+                    sys.exit(1)
 
     if failed_entries:
         print(f"\n[FAILED] The following matrix entries failed: {', '.join(failed_entries)}")
@@ -295,6 +304,7 @@ def run_scenario(args, scenario):
     env["GATEWAY_URL"] = f"https://localhost:{env['GATEWAY_PORT']}"
     env["VICTORIALOGS_URL"] = f"http://localhost:{env['VICTORIALOGS_PORT']}"
     env["VICTORIALOGS_QUERY_URL"] = env["VICTORIALOGS_URL"]
+    env["AGENT_GRPC_ADDRESS"] = f"localhost:{env.get('ESB_PORT_AGENT_GRPC', '50051')}"
 
     # Update current process env for helper calls
     os.environ.update(env)

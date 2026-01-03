@@ -134,8 +134,7 @@ services:
       context: .
       dockerfile: services/gateway/Dockerfile
     container_name: ${ESB_PROJECT_NAME:-esb}-gateway
-    ports:
-      - "${ESB_PORT_GATEWAY_HTTPS:-443}:443"
+    # NOTE: ports and networks are defined by adapter files (fc.yml / containerd.yml)
     volumes:
       - ${ESB_CERT_DIR:-~/.esb/certs}/server.crt:/app/config/ssl/server.crt:ro
       - ${ESB_CERT_DIR:-~/.esb/certs}/server.key:/app/config/ssl/server.key:ro
@@ -175,8 +174,6 @@ services:
       - GATEWAY_IDLE_TIMEOUT_SECONDS=${GATEWAY_IDLE_TIMEOUT_SECONDS:-300}
       - ENABLE_CONTAINER_PAUSE=${ENABLE_CONTAINER_PAUSE:-false}
       - PAUSE_IDLE_SECONDS=${PAUSE_IDLE_SECONDS:-30}
-    networks:
-      - external_network
     depends_on:
       database:
         condition: service_healthy

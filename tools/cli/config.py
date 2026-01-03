@@ -50,9 +50,10 @@ MODE_CONFIG_PATH = ESB_HOME / "mode.yaml" # Deprecated use get_mode_config_path(
 
 MODE_CONFIG_VERSION = 1
 ESB_MODE_CONTAINERD = "containerd"
+ESB_MODE_DOCKER = "docker"
 ESB_MODE_FIRECRACKER = "firecracker"
-VALID_ESB_MODES = (ESB_MODE_CONTAINERD, ESB_MODE_FIRECRACKER)
-DEFAULT_ESB_MODE = ESB_MODE_CONTAINERD
+VALID_ESB_MODES = (ESB_MODE_CONTAINERD, ESB_MODE_DOCKER, ESB_MODE_FIRECRACKER)
+DEFAULT_ESB_MODE = ESB_MODE_DOCKER
 DEFAULT_AGENT_GRPC_PORT = 50051
 
 def get_port_mapping(env_name: str = None) -> dict[str, str]:
@@ -116,6 +117,7 @@ COMPOSE_CONTROL_FILE = PROJECT_ROOT / "docker-compose.yml"
 COMPOSE_WORKER_FILE = PROJECT_ROOT / "docker-compose.worker.yml"
 COMPOSE_FC_FILE = PROJECT_ROOT / "docker-compose.fc.yml"
 COMPOSE_CONTAINERD_FILE = PROJECT_ROOT / "docker-compose.containerd.yml"
+COMPOSE_DOCKER_FILE = PROJECT_ROOT / "docker-compose.docker.yml"
 
 # Deprecated constants (kept for safety if referenced elsewhere)
 COMPOSE_COMPUTE_FILE = PROJECT_ROOT / "docker-compose.node.yml" 

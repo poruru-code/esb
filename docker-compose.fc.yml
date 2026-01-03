@@ -57,6 +57,10 @@ services:
   # 3. Gateway Wiring (WireGuard for FC Mode)
   # ------------------------------------------
   gateway:
+    ports:
+      - "${ESB_PORT_GATEWAY_HTTPS:-443}:443"
+    networks:
+      - external_network
     cap_add:
       - NET_ADMIN
     devices:

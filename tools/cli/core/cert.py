@@ -21,6 +21,8 @@ WG_GATEWAY_IP = "10.99.0.1"
 def _required_sans() -> tuple[set[str], set[str]]:
     required_dns = {
         "localhost",
+        "registry",  # For containerd mode
+        "gateway",   # For containerd mode
         "esb-registry",
         "esb-gateway",
         "host.docker.internal",
@@ -157,6 +159,8 @@ def generate_server_cert(cert_dir: Path, ca_key_path: Path, ca_cert_path: Path):
     san_list = [
         x509.DNSName("localhost"),
         x509.DNSName(hostname),
+        x509.DNSName("registry"),  # For containerd mode (CONTAINER_REGISTRY=registry:5010)
+        x509.DNSName("gateway"),   # For containerd mode
         x509.DNSName("esb-registry"),
         x509.DNSName("esb-gateway"),
         x509.DNSName("host.docker.internal"),

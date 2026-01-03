@@ -130,6 +130,18 @@ class PoolManager:
         pool = await self.get_pool(function_name)
         while True:
             worker = await pool.acquire(self._provision_wrapper)
+            # Observability: Log worker acquisition details
+            reuse_status = "REUSED" if worker.last_used_at > worker.created_at else "NEW"
+            logger.info(
+                f"Acquired worker {worker.id} for {function_name} ({reuse_status})",
+                extra={
+                    "worker_id": worker.id,
+                    "function_name": function_name,
+                    "ip_address": worker.ip_address,
+                    "reuse_status": reuse_status,
+                },
+            )
+
             if self.pause_enabled:
                 await self._cancel_pause_task(worker.id)
                 if worker.id in self._paused_ids:

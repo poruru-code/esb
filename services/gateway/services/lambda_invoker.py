@@ -184,33 +184,35 @@ class LambdaInvoker:
             logger.error(f"Circuit breaker open for {function_name}: {e}")
             raise LambdaExecutionError(function_name, "Circuit Breaker Open") from e
         except grpc.aio.AioRpcError as e:
+            # Observability: Capture details for debugging
             logger.error(
                 f"Lambda invocation failed for function '{function_name}': {e}",
                 extra={
                     "function_name": function_name,
                     "target_url": rie_url,
+                    "worker_id": worker.id if worker else "N/A",
+                    "worker_ip": worker.ip_address if worker else "N/A",
                     "error_type": type(e).__name__,
                     "error_detail": str(e),
                 },
             )
-            if worker is not None:
-                await self.backend.evict_worker(function_name, worker)
-                worker = None  # prevent release in finally
+            # IMPORTANT: Releasing worker is handled in finally, but for gRPC errors
+            # we might want to evict if we suspect the worker is dead.
+            # However, for now, we rely on PoolManager's health checks or let it be released.
             raise LambdaExecutionError(function_name, e) from e
         except httpx.ConnectError as e:
-            # Self-Healing: Evict dead worker on connection error
+            # Observability: Capture details for debugging
             logger.error(
                 f"Lambda invocation failed for function '{function_name}': {e}",
                 extra={
                     "function_name": function_name,
                     "target_url": rie_url,
+                    "worker_id": worker.id if worker else "N/A",
+                    "worker_ip": worker.ip_address if worker else "N/A",
                     "error_type": type(e).__name__,
                     "error_detail": str(e),
                 },
             )
-            if worker is not None:
-                await self.backend.evict_worker(function_name, worker)
-                worker = None  # prevent release in finally
             raise LambdaExecutionError(function_name, e) from e
         except (httpx.RequestError, httpx.HTTPStatusError) as e:
             logger.error(
@@ -218,6 +220,8 @@ class LambdaInvoker:
                 extra={
                     "function_name": function_name,
                     "target_url": rie_url,
+                    "worker_id": worker.id if worker else "N/A",
+                    "worker_ip": worker.ip_address if worker else "N/A",
                     "error_type": type(e).__name__,
                     "error_detail": str(e),
                 },
@@ -229,6 +233,8 @@ class LambdaInvoker:
                 extra={
                     "function_name": function_name,
                     "target_url": rie_url if "rie_url" in locals() else "N/A",
+                    "worker_id": worker.id if worker else "N/A",
+                    "worker_ip": worker.ip_address if worker else "N/A",
                     "error_type": type(e).__name__,
                     "error_detail": str(e),
                 },

@@ -1,31 +1,91 @@
 services:
   # ------------------------------------------
-  # 1. Agent Wiring (Standalone)
+  # 1. Runtime Node (Containerd Host Container)
   # ------------------------------------------
-  agent:
-    # Participate in Network Directly
+  runtime-node:
+    build:
+      context: services/runtime-node
+      dockerfile: Dockerfile
+    container_name: ${ESB_PROJECT_NAME:-esb}-runtime-node
+    privileged: true
+    ports:
+      - "${ESB_PORT_AGENT_GRPC:-50051}:50051"
+      - "${ESB_PORT_GATEWAY_HTTPS:-443}:443"  # Gateway port (shared network)
     networks:
       - external_network
-    depends_on:
-      registry: { condition: service_healthy }
     environment:
-      - AGENT_RUNTIME=docker
-      - CONTAINER_REGISTRY=localhost:${ESB_PORT_REGISTRY:-5010}
-      - CONTAINERS_NETWORK=${ESB_NETWORK_EXTERNAL:-test-external}
+      - CNI_GW_IP=10.88.0.1
+      # Local-proxy mode: DNAT 10.88.0.1:port -> 127.0.0.1:port (local-proxy -> Docker services)
+      - DNAT_APPLY_OUTPUT=1
+      - DNAT_S3_IP=127.0.0.1
+      - DNAT_DB_IP=127.0.0.1
+      - DNAT_VL_IP=127.0.0.1
+      - VHOST_VSOCK_REQUIRED=0
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      # Share containerd socket and state with Agent
+      - runtime_containerd_run:/run/containerd
+      - runtime_containerd_lib:/var/lib/containerd
+    healthcheck:
+      test: ["CMD", "ctr", "-a", "/run/containerd/containerd.sock", "version"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # ------------------------------------------
+  # 2. local-proxy (HAProxy for DNS resolution)
+  # ------------------------------------------
+  local-proxy:
+    image: haproxy:2.8-alpine
+    container_name: ${ESB_PROJECT_NAME:-esb}-local-proxy
+    network_mode: "service:runtime-node"
+    volumes:
+      - ./config/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    depends_on:
+      runtime-node: { condition: service_started }
+    restart: unless-stopped
+
+  # ------------------------------------------
+  # 3. Agent Wiring (Shares network with runtime-node)
+  # ------------------------------------------
+  agent:
+    network_mode: "service:runtime-node"
+    pid: "container:${ESB_PROJECT_NAME:-esb}-runtime-node"
+    depends_on:
+      runtime-node: { condition: service_healthy }
+      registry: { condition: service_healthy }
+    volumes:
+      - runtime_containerd_run:/run/containerd
+      - runtime_containerd_lib:/var/lib/containerd
+      - esb_cni_data:/var/lib/cni
+      - ./services/agent/config/cni:/etc/cni/net.d:ro
+    environment:
+      - AGENT_RUNTIME=containerd
+      # No Firecracker shim - use default containerd runtime
+      - CONTAINER_REGISTRY=registry:5010
+      - CONTAINERS_NETWORK=${ESB_NETWORK_EXTERNAL:-test-external}
 
   registry:
     healthcheck:
       test: ["CMD-SHELL", "wget -q -Y off --no-check-certificate --spider https://localhost:5010/v2/ || exit 1"]
 
   # ------------------------------------------
-  # 2. Gateway Wiring
+  # 4. Gateway Wiring (Shares network namespace with runtime-node)
   # ------------------------------------------
   gateway:
+    network_mode: "service:runtime-node"
     depends_on:
       agent: { condition: service_started }
     environment:
-      # Connect to Agent Directly
-      - AGENT_GRPC_ADDRESS=agent:50051
-      - GATEWAY_INTERNAL_URL=https://${ESB_PROJECT_NAME:-esb}-gateway:443
+      # Connect to Agent (same network namespace)
+      - AGENT_GRPC_ADDRESS=localhost:50051
+      # Gateway URL accessible from CNI subnet
+      - GATEWAY_INTERNAL_URL=https://10.88.0.1:443
+      # Lambda service endpoints - use CNI gateway for DNAT to local-proxy
+      - S3_ENDPOINT=http://10.88.0.1:9000
+      - DYNAMODB_ENDPOINT=http://10.88.0.1:8001
+      - GATEWAY_VICTORIALOGS_URL=http://10.88.0.1:9428
+
+volumes:
+  runtime_containerd_run:
+  runtime_containerd_lib:
+  esb_cni_data:

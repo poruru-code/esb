@@ -19,9 +19,11 @@ def resolve_compose_files(mode: str | None = None, target: str = "control") -> l
             files.append(cli_config.COMPOSE_FC_FILE)
         elif resolved_mode == cli_config.ESB_MODE_CONTAINERD:
             files.append(cli_config.COMPOSE_CONTAINERD_FILE)
+        elif resolved_mode == cli_config.ESB_MODE_DOCKER:
+            files.append(cli_config.COMPOSE_DOCKER_FILE)
         else:
-            # Fallback to containerd for unknown modes
-            files.append(cli_config.COMPOSE_CONTAINERD_FILE)
+            # Fallback to docker for unknown modes
+            files.append(cli_config.COMPOSE_DOCKER_FILE)
 
     elif target == "compute":
         # Compute only (Worker + Runtime Adapter)
@@ -31,8 +33,10 @@ def resolve_compose_files(mode: str | None = None, target: str = "control") -> l
             files.append(cli_config.COMPOSE_FC_FILE)
         elif resolved_mode == cli_config.ESB_MODE_CONTAINERD:
             files.append(cli_config.COMPOSE_CONTAINERD_FILE)
+        elif resolved_mode == cli_config.ESB_MODE_DOCKER:
+            files.append(cli_config.COMPOSE_DOCKER_FILE)
         else:
-            files.append(cli_config.COMPOSE_CONTAINERD_FILE)
+            files.append(cli_config.COMPOSE_DOCKER_FILE)
 
     else:
         raise ValueError(f"Unsupported compose target: {target}")

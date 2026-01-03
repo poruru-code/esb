@@ -18,30 +18,35 @@ suites:
 
 profiles:
   # Profile A: Firecracker Mode (using autoscaling config)
-  # Corresponds to legacy "Auto-Scaling" scenario
   e2e-firecracker:
     description: "Firecracker Mode with Auto-Scaling"
     mode: firecracker
     env_file: "tests/environments/.env.autoscaling"
 
-  # Profile B: Containerd Mode (using containerd + autoscaling config?)
-  # Legacy "Auto-Scaling (Containerd)" used .env.containerd
-  # We assume .env.containerd inherits/overrides necessary bits.
+  # Profile B: Pure Containerd Mode (with local-proxy)
   e2e-containerd:
-    description: "Containerd Mode with Auto-Scaling"
+    description: "Pure Containerd Mode with Auto-Scaling"
     mode: containerd
     env_file: "tests/environments/.env.containerd"
+
+  # Profile C: Docker Runtime Mode (AGENT_RUNTIME=docker)
+  e2e-docker:
+    description: "Docker Runtime Mode with Auto-Scaling"
+    mode: docker
+    env_file: "tests/environments/.env.docker"
 
 
 matrix:
   # Smoke tests first (fast feedback)
   - suite: smoke
     profiles:
+      - e2e-docker
       - e2e-containerd
       - e2e-firecracker
 
-  # Full suite on both profiles
+  # Full suite on all profiles
   - suite: standard
     profiles:
+      - e2e-docker
       - e2e-containerd
       - e2e-firecracker
