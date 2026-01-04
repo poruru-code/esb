@@ -282,10 +282,6 @@ func extractIPv4(result *cni.Result) (string, error) {
 		return "", fmt.Errorf("CNI result is nil")
 	}
 	for _, cfg := range result.Interfaces {
-		// Only consider interfaces inside a sandbox (container namespace)
-		if cfg.Sandbox == "" {
-			continue
-		}
 		for _, ipCfg := range cfg.IPConfigs {
 			if ip := ipCfg.IP.To4(); ip != nil {
 				return ip.String(), nil

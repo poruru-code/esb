@@ -15,16 +15,17 @@ def test_up_command_flow(mock_build_run, mock_provisioner_main, mock_subprocess)
 
     run_up(args)
 
-    # 1. Ensure build was called.
-    mock_build_run.assert_called_once_with(args)
+    # 1. Ensure build was NOT called (we rely on docker compose --build).
+    mock_build_run.assert_not_called()
 
-    # 2. Ensure docker compose up was called.
+    # 2. Ensure docker compose up was called with --build.
     mock_subprocess.assert_called_once()
     cmd = mock_subprocess.call_args[0][0]
     assert "docker" in cmd
     assert "compose" in cmd
     assert "up" in cmd
     assert "-d" in cmd
+    assert "--build" in cmd
 
     # 3. Ensure the provisioner was called.
     mock_provisioner_main.assert_called_once()

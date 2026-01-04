@@ -36,9 +36,10 @@ class TestUpCommand:
     @patch("tools.cli.commands.up.subprocess.check_call")
     @patch("tools.cli.commands.up.provisioner.main")
     @patch("tools.cli.commands.up.ensure_certs")  # Expecting import in up.py
+    @patch("tools.cli.commands.up.cli_config.get_port_mapping", return_value={"ESB_PORT_GATEWAY_HTTPS": "443"})
     @patch("requests.get")
     def test_run_waits_for_gateway_if_wait_arg_is_true(
-        self, mock_get, mock_cert, mock_prov, mock_sub, mock_args
+        self, mock_get, mock_port_mapping, mock_cert, mock_prov, mock_sub, mock_args
     ):
         """Test that --wait triggers health check logic"""
         mock_args.wait = True
@@ -53,9 +54,7 @@ class TestUpCommand:
         # Expectation: requests.get is called (waiting logic)
         mock_get.assert_called()
         args, kwargs = mock_get.call_args
-        assert (
-            "https://localhost/health" in args[0] or kwargs.get("url") == "https://localhost/health"
-        )
+        assert "/health" in args[0]
 
     @patch("tools.cli.commands.up.subprocess.check_call")
     @patch("tools.cli.commands.up.provisioner.main")

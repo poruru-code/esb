@@ -12,15 +12,19 @@ def test_resolve_compose_files_containerd_control():
         files = cli_compose.resolve_compose_files(target="control")
     assert files == [
         cli_config.COMPOSE_BASE_FILE,
-        cli_config.COMPOSE_COMPUTE_FILE,
-        cli_config.COMPOSE_ADAPTER_FILE,
+        cli_config.COMPOSE_WORKER_FILE,
+        cli_config.COMPOSE_CONTAINERD_FILE,
     ]
 
 
 def test_resolve_compose_files_firecracker_control():
     with patch("tools.cli.compose.runtime_mode.get_mode", return_value=cli_config.ESB_MODE_FIRECRACKER):
         files = cli_compose.resolve_compose_files(target="control")
-    assert files == [cli_config.COMPOSE_CONTROL_FILE]
+    assert files == [
+        cli_config.COMPOSE_BASE_FILE,
+        cli_config.COMPOSE_WORKER_FILE,
+        cli_config.COMPOSE_FC_FILE,
+    ]
 
 
 def test_build_compose_command_containerd_order():
@@ -33,9 +37,10 @@ def test_build_compose_command_containerd_order():
         "-f",
         str(cli_config.COMPOSE_BASE_FILE),
         "-f",
-        str(cli_config.COMPOSE_COMPUTE_FILE),
+        str(cli_config.COMPOSE_WORKER_FILE),
         "-f",
-        str(cli_config.COMPOSE_ADAPTER_FILE),
+        str(cli_config.COMPOSE_CONTAINERD_FILE),
         "up",
         "-d",
     ]
+

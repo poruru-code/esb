@@ -107,7 +107,7 @@ def test_build_function_images_dockerfile_missing(mock_docker):
 def test_build_function_images_build_failure_exits(mock_docker, tmp_path):
     """Exit with sys.exit(1) when the build fails."""
     mock_client = MagicMock()
-    mock_client.images.build.side_effect = Exception("Build failed")
+    mock_client.images.build.side_effect = RuntimeError("Build failed")
     mock_docker.return_value = mock_client
     
     dockerfile = tmp_path / "Dockerfile"

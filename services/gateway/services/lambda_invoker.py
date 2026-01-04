@@ -196,9 +196,10 @@ class LambdaInvoker:
                     "error_detail": str(e),
                 },
             )
-            # IMPORTANT: Releasing worker is handled in finally, but for gRPC errors
-            # we might want to evict if we suspect the worker is dead.
-            # However, for now, we rely on PoolManager's health checks or let it be released.
+            # Self-Healing: Evict dead worker on gRPC error
+            if worker is not None:
+                await self.backend.evict_worker(function_name, worker)
+                worker = None  # prevent release in finally
             raise LambdaExecutionError(function_name, e) from e
         except httpx.ConnectError as e:
             # Observability: Capture details for debugging
@@ -213,6 +214,10 @@ class LambdaInvoker:
                     "error_detail": str(e),
                 },
             )
+            # Self-Healing: Evict dead worker on connection error
+            if worker is not None:
+                await self.backend.evict_worker(function_name, worker)
+                worker = None  # prevent release in finally
             raise LambdaExecutionError(function_name, e) from e
         except (httpx.RequestError, httpx.HTTPStatusError) as e:
             logger.error(

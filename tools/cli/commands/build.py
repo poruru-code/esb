@@ -208,7 +208,7 @@ def build_function_images(functions, template_path, no_cache=False, verbose=Fals
                 )
             else:
                 logging.error(f"Push failed: {e}")
-            import sys
+
 
             sys.exit(1)
 

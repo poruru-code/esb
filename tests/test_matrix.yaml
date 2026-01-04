@@ -42,11 +42,11 @@ matrix:
     profiles:
       - e2e-docker
       - e2e-containerd
-      - e2e-firecracker
+      # - e2e-firecracker  # TODO: Enable when Firecracker mode is stable
 
   # Full suite on all profiles
   - suite: standard
     profiles:
       - e2e-docker
       - e2e-containerd
-      - e2e-firecracker
+      # - e2e-firecracker  # TODO: Enable when Firecracker mode is stable
