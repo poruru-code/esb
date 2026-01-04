@@ -13,6 +13,7 @@ services:
       - CNI_SUBNET=${CNI_SUBNET:-}
       # Default: Overridden by Adapter
       - AGENT_RUNTIME=${AGENT_RUNTIME:-containerd} 
+      - CONTAINERS_NETWORK=${ESB_NETWORK_EXTERNAL:-test-external}
     volumes:
       - ${ESB_CERT_DIR:-~/.esb/certs}/rootCA.crt:/usr/local/share/ca-certificates/esb-rootCA.crt:ro
     command: >

@@ -1,4 +1,5 @@
 import logging
+import os
 from typing import List, Any
 from services.common.models.internal import WorkerInfo, ContainerMetrics
 from services.gateway.pb import agent_pb2
@@ -27,7 +28,7 @@ class GrpcProvisionClient:
 
         logger.info(f"Provisioning via gRPC Agent: {function_name}")
 
-        from services.gateway.config import config
+        from services.gateway.config import config, ServiceDefaults
 
         # Base env from function config
         env = dict(func_config.get("environment", {})) if func_config else {}
@@ -36,16 +37,19 @@ class GrpcProvisionClient:
         env["AWS_LAMBDA_FUNCTION_NAME"] = function_name
         env["AWS_LAMBDA_FUNCTION_VERSION"] = "$LATEST"
         env["AWS_REGION"] = env.get("AWS_REGION", "ap-northeast-1")
+        
+        # Data Plane Host (fallback for Containerd mode)
+        data_plane_host = getattr(config, "ESB_DATA_PLANE_HOST", "10.88.0.1")
 
-        # Inject VictoriaLogs URL (use GATEWAY_VICTORIALOGS_URL for container-accessible address)
-        # GATEWAY_VICTORIALOGS_URL uses Docker DNS (e.g., victorialogs:9428)
-        # VICTORIALOGS_URL is for host access (e.g., localhost:14028)
-        import os
-        gateway_victorialogs_url = os.environ.get("GATEWAY_VICTORIALOGS_URL", "")
-        victorialogs_url = gateway_victorialogs_url or getattr(config, "VICTORIALOGS_URL", "")
-        if isinstance(victorialogs_url, str) and victorialogs_url:
-            env["VICTORIALOGS_URL"] = victorialogs_url
-
+        # 1. VictoriaLogs (CloudWatch Logs)
+        vl_url = getattr(config, "GATEWAY_VICTORIALOGS_URL", "")
+        
+        if not vl_url:
+            vl_url = f"{ServiceDefaults.PROTOCOL}://{data_plane_host}:{ServiceDefaults.VICTORIALOGS_PORT}"
+        
+        if vl_url:
+            env["VICTORIALOGS_URL"] = vl_url
+            env["AWS_ENDPOINT_URL_CLOUDWATCH_LOGS"] = vl_url
 
         # Inject LOG_LEVEL for sitecustomize.py logging filter
         log_level = os.environ.get("LOG_LEVEL", "INFO")
@@ -56,21 +60,22 @@ class GrpcProvisionClient:
         if isinstance(gateway_internal_url, str) and gateway_internal_url:
             env["GATEWAY_INTERNAL_URL"] = gateway_internal_url
 
-        # Inject AWS Endpoint URLs for service discovery
-        dynamodb_endpoint = getattr(config, "DYNAMODB_ENDPOINT", "")
-        if dynamodb_endpoint:
-            env["AWS_ENDPOINT_URL_DYNAMODB"] = str(dynamodb_endpoint)
-            env["AWS_ENDPOINT_URL_DYNAMO"] = str(dynamodb_endpoint)  # Non-standard but common fallback
-            env["DYNAMODB_ENDPOINT"] = str(dynamodb_endpoint)        # Legacy support
+        # 2. DynamoDB
+        ddb_url = getattr(config, "DYNAMODB_ENDPOINT", "")
+        if not ddb_url:
+            ddb_url = f"{ServiceDefaults.PROTOCOL}://{data_plane_host}:{ServiceDefaults.DYNAMODB_PORT}"
+        
+        env["AWS_ENDPOINT_URL_DYNAMODB"] = ddb_url
+        env["AWS_ENDPOINT_URL_DYNAMO"] = ddb_url
+        env["DYNAMODB_ENDPOINT"] = ddb_url
 
-        s3_endpoint = getattr(config, "S3_ENDPOINT", "")
-        if s3_endpoint:
-            env["AWS_ENDPOINT_URL_S3"] = str(s3_endpoint)
-            env["S3_ENDPOINT"] = str(s3_endpoint)                    # Legacy support
-
-        # Inject CloudWatch Logs via VictoriaLogs
-        if victorialogs_url:
-            env["AWS_ENDPOINT_URL_CLOUDWATCH_LOGS"] = victorialogs_url
+        # 3. S3
+        s3_url = getattr(config, "S3_ENDPOINT", "")
+        if not s3_url:
+            s3_url = f"{ServiceDefaults.PROTOCOL}://{data_plane_host}:{ServiceDefaults.S3_PORT}"
+            
+        env["AWS_ENDPOINT_URL_S3"] = s3_url
+        env["S3_ENDPOINT"] = s3_url
 
         # Inject Timeout & Memory from config
         if func_config:
@@ -78,6 +83,8 @@ class GrpcProvisionClient:
                 env["AWS_LAMBDA_FUNCTION_TIMEOUT"] = str(func_config["timeout"])
             if "memory_size" in func_config:
                 env["AWS_LAMBDA_FUNCTION_MEMORY_SIZE"] = str(func_config["memory_size"])
+
+        logger.warning(f"DEBUG Provisioning Env: {env}")
 
         req = agent_pb2.EnsureContainerRequest(
             function_name=function_name,

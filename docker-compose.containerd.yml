@@ -14,7 +14,7 @@ services:
     networks:
       - external_network
     environment:
-      - CNI_GW_IP=10.88.0.1
+      - CNI_GW_IP=${ESB_DATA_PLANE_HOST:-10.88.0.1}
       # Local-proxy mode: DNAT 10.88.0.1:port -> 127.0.0.1:port (local-proxy -> Docker services)
       - DNAT_APPLY_OUTPUT=1
       - DNAT_S3_IP=127.0.0.1
@@ -79,10 +79,11 @@ services:
       # Connect to Agent (same network namespace)
       - AGENT_GRPC_ADDRESS=localhost:50051
       # Gateway URL accessible from CNI subnet
-      - GATEWAY_INTERNAL_URL=https://10.88.0.1:443
-      # Lambda service endpoints - use CNI gateway for DNAT to local-proxy
-      - S3_ENDPOINT=http://10.88.0.1:9000
-      - DYNAMODB_ENDPOINT=http://10.88.0.1:8001
+      # Gateway URL accessible from CNI subnet
+      - GATEWAY_INTERNAL_URL=https://${ESB_DATA_PLANE_HOST:-10.88.0.1}:443
+      # Data Plane Host (for constructing S3/DB endpoints in code)
+      - ESB_DATA_PLANE_HOST=${ESB_DATA_PLANE_HOST:-10.88.0.1}
+      # Log Shipping: Use local-proxy (HAProxy) to reach VictoriaLogs
       - GATEWAY_VICTORIALOGS_URL=http://10.88.0.1:9428
 
 volumes:

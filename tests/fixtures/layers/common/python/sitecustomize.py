@@ -193,122 +193,6 @@ class LocalLogHandler:
             pass
 
 
-# --- Logic: VictoriaLogs Hook Class ---
-
-
-class VictoriaLogsStdoutHook:
-    """Hook stdout and also send writes to VictoriaLogs."""
-
-    def __init__(self, original_stream, container_name, vl_url):
-        self._original = original_stream
-        self._container_name = container_name
-        self._vl_url = vl_url
-
-    def write(self, buf):
-        # Write to original stdout.
-        self._original.write(buf)
-
-        # Also send to VictoriaLogs (skip empty/whitespace-only).
-        if self._vl_url and buf.strip():
-            for line in buf.rstrip().splitlines():
-                if line.strip():
-                    self._send_to_victorialogs(line)
-
-    def _send_to_victorialogs(self, message):
-        import urllib.request
-        import urllib.parse
-        import urllib.error
-
-        try:
-            # Determine whether it's JSON.
-            try:
-                log_entry = json.loads(message)
-            except (json.JSONDecodeError, ValueError):
-                # Ensure string type.
-                if isinstance(message, bytes):
-                    try:
-                        msg_str = message.decode("utf-8", errors="replace")
-                    except Exception:
-                        msg_str = str(message)
-                else:
-                    msg_str = str(message)
-
-                # Infer level (search tags/keywords case-insensitively).
-                msg_upper = msg_str.upper()
-                level = "INFO"
-                if "DEBUG" in msg_upper or "TRACE" in msg_upper:
-                    level = "DEBUG"
-                elif "WARN" in msg_upper:
-                    level = "WARNING"
-                elif "ERROR" in msg_upper or "CRIT" in msg_upper:
-                    level = "ERROR"
-
-                log_entry = {
-                    "_time": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
-                    "level": level,
-                    "message": msg_str,
-                }
-
-            # Add container_name and job (do not overwrite existing values).
-            if "container_name" not in log_entry:
-                log_entry["container_name"] = self._container_name
-            if "job" not in log_entry:
-                log_entry["job"] = "lambda"
-
-            # Auto-attach Trace ID.
-            if "trace_id" not in log_entry:
-                tid = _get_current_trace_id()
-                if tid:
-                    log_entry["trace_id"] = tid
-
-            # Auto-attach Request ID.
-            if "aws_request_id" not in log_entry:
-                rid = _get_current_request_id()
-                if rid:
-                    log_entry["aws_request_id"] = rid
-
-            # Convert timestamp -> _time (for consistency).
-            if "_time" not in log_entry:
-                if "timestamp" in log_entry:
-                    log_entry["_time"] = log_entry.pop("timestamp")
-                else:
-                    log_entry["_time"] = datetime.now(timezone.utc).isoformat(
-                        timespec="milliseconds"
-                    )
-
-            params = urllib.parse.urlencode(
-                {
-                    "_stream_fields": "container_name,job",
-                    "_msg_field": "message",
-                    "_time_field": "_time",
-                    "container_name": self._container_name,
-                    "job": "lambda",
-                }
-            )
-            full_url = f"{self._vl_url.rstrip('/')}/insert/jsonline?{params}"
-
-            data = json.dumps(log_entry, ensure_ascii=False).encode("utf-8")
-            req = urllib.request.Request(
-                full_url,
-                data=data,
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-
-            # Use longer timeout for robustness
-            with urllib.request.urlopen(req, timeout=2.0) as res:
-                res.read()
-        except Exception:
-            # Ignore send failures (stdout already written).
-            pass
-
-    def flush(self):
-        self._original.flush()
-
-    def __getattr__(self, name):
-        return getattr(self._original, name)
-
-
 # --- Logic: Auto Trace ID Hydration (Monkey Patching awslambdaric) ---
 
 
@@ -325,6 +209,117 @@ def _patch_awslambdaric():
         return
 
     original_handle_event_request = awslambdaric.bootstrap.handle_event_request
+
+    class VictoriaLogsStdoutHook:
+        """Hook stdout and also send writes to VictoriaLogs."""
+
+        def __init__(self, original_stream, container_name, vl_url):
+            self._original = original_stream
+            self._container_name = container_name
+            self._vl_url = vl_url
+
+        def write(self, buf):
+            # Write to original stdout.
+            self._original.write(buf)
+
+            # Also send to VictoriaLogs (skip empty/whitespace-only).
+            if self._vl_url and buf.strip():
+                for line in buf.rstrip().splitlines():
+                    if line.strip():
+                        self._send_to_victorialogs(line)
+
+        def _send_to_victorialogs(self, message):
+            import urllib.request
+            import urllib.parse
+            import urllib.error
+
+            try:
+                # Determine whether it's JSON.
+                try:
+                    log_entry = json.loads(message)
+                except (json.JSONDecodeError, ValueError):
+                    # Ensure string type.
+                    if isinstance(message, bytes):
+                        try:
+                            msg_str = message.decode("utf-8", errors="replace")
+                        except Exception:
+                            msg_str = str(message)
+                    else:
+                        msg_str = str(message)
+
+                    # Infer level (search tags/keywords case-insensitively).
+                    msg_upper = msg_str.upper()
+                    level = "INFO"
+                    if "DEBUG" in msg_upper or "TRACE" in msg_upper:
+                        level = "DEBUG"
+                    elif "WARN" in msg_upper:
+                        level = "WARNING"
+                    elif "ERROR" in msg_upper or "CRIT" in msg_upper:
+                        level = "ERROR"
+
+                    log_entry = {
+                        "_time": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
+                        "level": level,
+                        "message": msg_str,
+                    }
+
+                # Add container_name and job (do not overwrite existing values).
+                if "container_name" not in log_entry:
+                    log_entry["container_name"] = self._container_name
+                if "job" not in log_entry:
+                    log_entry["job"] = "lambda"
+
+                # Auto-attach Trace ID.
+                if "trace_id" not in log_entry:
+                    tid = _get_current_trace_id()
+                    if tid:
+                        log_entry["trace_id"] = tid
+
+                # Auto-attach Request ID.
+                if "aws_request_id" not in log_entry:
+                    rid = _get_current_request_id()
+                    if rid:
+                        log_entry["aws_request_id"] = rid
+
+                # Convert timestamp -> _time (for consistency).
+                if "_time" not in log_entry:
+                    if "timestamp" in log_entry:
+                        log_entry["_time"] = log_entry.pop("timestamp")
+                    else:
+                        log_entry["_time"] = datetime.now(timezone.utc).isoformat(
+                            timespec="milliseconds"
+                        )
+
+                params = urllib.parse.urlencode(
+                    {
+                        "_stream_fields": "container_name,job",
+                        "_msg_field": "message",
+                        "_time_field": "_time",
+                        "container_name": self._container_name,
+                        "job": "lambda",
+                    }
+                )
+                full_url = f"{self._vl_url.rstrip('/')}/insert/jsonline?{params}"
+
+                data = json.dumps(log_entry, ensure_ascii=False).encode("utf-8")
+                req = urllib.request.Request(
+                    full_url,
+                    data=data,
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+
+                with urllib.request.urlopen(req, timeout=0.5) as res:
+                    res.read()
+            except Exception:
+                # Ignore send failures (stdout already written).
+                pass
+
+        def flush(self):
+            self._original.flush()
+
+        def __getattr__(self, name):
+            return getattr(self._original, name)
 
     @functools.wraps(original_handle_event_request)
     def patched_handle_event_request(

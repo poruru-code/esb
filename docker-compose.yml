@@ -50,7 +50,7 @@ services:
     restart: unless-stopped
     networks:
       external_network: {}
-      internal_network: {}
+
 
   # ============================================
   # ScyllaDB (DynamoDB Compatible DB)
@@ -72,7 +72,7 @@ services:
     restart: unless-stopped
     networks:
       external_network: {}
-      internal_network: {}
+
 
   # ============================================
   # Container Registry (Local)
@@ -99,7 +99,6 @@ services:
     restart: unless-stopped
     networks:
       - external_network
-      - internal_network
 
   # ============================================
   # VictoriaLogs
@@ -123,7 +122,7 @@ services:
     restart: unless-stopped
     networks:
       external_network: {}
-      internal_network: {}
+
 
   # ============================================
   # API Gateway (Facade)
@@ -149,7 +148,7 @@ services:
       - X_API_KEY=${X_API_KEY?X_API_KEY is required}
       - AUTH_USER=${AUTH_USER?AUTH_USER is required}
       - AUTH_PASS=${AUTH_PASS?AUTH_PASS is required}
-      - CONTAINERS_NETWORK=${LAMBDA_NETWORK?LAMBDA_NETWORK is required}
+      - CONTAINERS_NETWORK=${ESB_NETWORK_EXTERNAL:-test-external}
       # GATEWAY_INTERNAL_URL is injected by adapter files (fc.yml / containerd.yml)
       # AGENT_GRPC_ADDRESS is injected by adapter files (fc.yml / containerd.yml)
       - AGENT_INVOKE_PROXY=${AGENT_INVOKE_PROXY:-false}
@@ -162,10 +161,9 @@ services:
       - PYTHONUNBUFFERED=1
       # VictoriaLogs direct-send configuration (Lambda via grpc_provision.py)
       - VICTORIALOGS_URL=${VICTORIALOGS_URL:-http://${ESB_PROJECT_NAME:-esb}-victorialogs:9428}  # Gateway -> VictoriaLogs
-      - GATEWAY_VICTORIALOGS_URL=${GATEWAY_VICTORIALOGS_URL:-}
-      # Data store endpoints for Lambda injection
-      - DYNAMODB_ENDPOINT=http://${ESB_PROJECT_NAME:-esb}-database:8000
-      - S3_ENDPOINT=http://${ESB_PROJECT_NAME:-esb}-s3-storage:9000
+      # GATEWAY_VICTORIALOGS_URL moved to docker.yml
+      # DYNAMODB_ENDPOINT moved to docker.yml
+      # S3_ENDPOINT moved to docker.yml
       # Auto-Scaling Configuration
       - DEFAULT_MAX_CAPACITY=${DEFAULT_MAX_CAPACITY:-1}
       - DEFAULT_MIN_CAPACITY=${DEFAULT_MIN_CAPACITY:-0}
@@ -198,8 +196,3 @@ networks:
     ipam:
       config:
         - subnet: ${ESB_SUBNET_EXTERNAL:-172.50.0.0/16}
-  # Lambda-to-Lambda network only (no external access).
-  internal_network:
-    name: ${LAMBDA_NETWORK?LAMBDA_NETWORK is required}
-    driver: bridge
-    internal: true
