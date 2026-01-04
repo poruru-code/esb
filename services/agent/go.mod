@@ -5,7 +5,10 @@ go 1.24.11
 require (
 	github.com/containerd/cgroups/v3 v3.0.2
 	github.com/containerd/containerd v1.7.25
+	github.com/containerd/containerd/api v1.8.0
 	github.com/containerd/go-cni v1.1.13
+	github.com/containerd/platforms v0.2.1
+	github.com/containerd/typeurl/v2 v2.2.0
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/docker/go-connections v0.6.0
 	github.com/opencontainers/go-digest v1.0.0
@@ -22,15 +25,12 @@ require (
 	github.com/Microsoft/hcsshim v0.11.7 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/containerd/cgroups v1.1.0 // indirect
-	github.com/containerd/containerd/api v1.8.0 // indirect
 	github.com/containerd/continuity v0.4.4 // indirect
 	github.com/containerd/errdefs v1.0.0 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/fifo v1.1.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
-	github.com/containerd/platforms v0.2.1 // indirect
 	github.com/containerd/ttrpc v1.2.7 // indirect
-	github.com/containerd/typeurl/v2 v2.2.0 // indirect
 	github.com/containernetworking/cni v1.3.0 // indirect
 	github.com/cyphar/filepath-securejoin v0.5.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect

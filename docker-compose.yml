@@ -8,7 +8,7 @@ services:
   # ============================================
   permission-helper:
     image: alpine
-    container_name: esb-permission-helper
+    container_name: ${ESB_PROJECT_NAME:-esb}-permission-helper
     volumes:
       - rustfs_data:/data/rustfs
     command: >
@@ -22,13 +22,13 @@ services:
   # ============================================
   s3-storage:
     image: rustfs/rustfs:latest
-    container_name: esb-storage
+    container_name: ${ESB_PROJECT_NAME:-esb}-s3-storage
     depends_on:
       permission-helper:
         condition: service_completed_successfully
     ports:
-      - "${RUSTFS_API_PORT:-9000}:9000" # S3 API
-      - "${RUSTFS_CONSOLE_PORT:-9001}:9001" # Console
+      - "${ESB_PORT_STORAGE:-9000}:9000" # S3 API
+      - "${ESB_PORT_STORAGE_MGMT:-9001}:9001" # Console
     volumes:
       - rustfs_data:/data/rustfs
       - ./config/lifecycle.yml:/app/config/lifecycle.yml:ro
@@ -50,16 +50,16 @@ services:
     restart: unless-stopped
     networks:
       external_network: {}
-      internal_network: {}
+
 
   # ============================================
   # ScyllaDB (DynamoDB Compatible DB)
   # ============================================
   database:
     image: scylladb/scylla:latest
-    container_name: esb-database
+    container_name: ${ESB_PROJECT_NAME:-esb}-database
     ports:
-      - "${SCYLLADB_PORT:-8001}:8000" # Alternator API (Host 8001 -> Container 8000)
+      - "${ESB_PORT_DATABASE:-8001}:8000" # Alternator API (Host 8001 -> Container 8000)
     volumes:
       - scylladb_data:/var/lib/scylla
     command: --smp 1 --memory ${SCYLLADB_MEMORY:-1}G --developer-mode 1 --alternator-port 8000 --alternator-address 0.0.0.0 --alternator-write-isolation always_use_lwt
@@ -72,16 +72,16 @@ services:
     restart: unless-stopped
     networks:
       external_network: {}
-      internal_network: {}
+
 
   # ============================================
   # Container Registry (Local)
   # ============================================
   registry:
     image: registry:2
-    container_name: esb-registry
+    container_name: ${ESB_PROJECT_NAME:-esb}-registry
     ports:
-      - "${REGISTRY_PORT:-5010}:5010" # Registry API (pushes from host)
+      - "${ESB_PORT_REGISTRY:-5010}:5010" # Registry API (pushes from host)
     volumes:
       - registry_data:/var/lib/registry
       - ${ESB_CERT_DIR:-~/.esb/certs}/server.crt:/certs/server.crt:ro
@@ -99,16 +99,15 @@ services:
     restart: unless-stopped
     networks:
       - external_network
-      - internal_network
 
   # ============================================
   # VictoriaLogs
   # ============================================
   victorialogs:
     image: victoriametrics/victoria-logs:latest
-    container_name: victorialogs
+    container_name: ${ESB_PROJECT_NAME:-esb}-victorialogs
     ports:
-      - "${VICTORIALOGS_PORT:-9428}:9428" # VictoriaLogs UI/API
+      - "${ESB_PORT_VICTORIALOGS:-9428}:9428" # VictoriaLogs UI/API
     volumes:
       - victorialogs_data:/victoria-logs-data
     command:
@@ -123,7 +122,7 @@ services:
     restart: unless-stopped
     networks:
       external_network: {}
-      internal_network: {}
+
 
   # ============================================
   # API Gateway (Facade)
@@ -133,20 +132,13 @@ services:
     build:
       context: .
       dockerfile: services/gateway/Dockerfile
-    container_name: esb-gateway
-    ports:
-      - "443:443"
-    cap_add:
-      - NET_ADMIN
-    devices:
-      - /dev/net/tun:/dev/net/tun
+    container_name: ${ESB_PROJECT_NAME:-esb}-gateway
+    # NOTE: ports and networks are defined by adapter files (fc.yml / containerd.yml)
     volumes:
       - ${ESB_CERT_DIR:-~/.esb/certs}/server.crt:/app/config/ssl/server.crt:ro
       - ${ESB_CERT_DIR:-~/.esb/certs}/server.key:/app/config/ssl/server.key:ro
       - ${GATEWAY_FUNCTIONS_YML:-./config/functions.yml}:/app/config/functions.yml:ro
       - ${GATEWAY_ROUTING_YML:-./config/routing.yml}:/app/config/routing.yml:ro
-      - ${ESB_WG_GATEWAY_CONF:-~/.esb/wireguard/gateway/wg0.conf}:/app/config/wireguard/wg0.conf:ro
-      - ./config/haproxy.gateway.cfg:/app/config/haproxy.gateway.cfg:ro
     environment:
       - UVICORN_BIND_ADDR=0.0.0.0:443
       - ENABLE_SSL=true
@@ -156,12 +148,9 @@ services:
       - X_API_KEY=${X_API_KEY?X_API_KEY is required}
       - AUTH_USER=${AUTH_USER?AUTH_USER is required}
       - AUTH_PASS=${AUTH_PASS?AUTH_PASS is required}
-      - CONTAINERS_NETWORK=${LAMBDA_NETWORK?LAMBDA_NETWORK is required}
-      - GATEWAY_INTERNAL_URL=${GATEWAY_INTERNAL_URL:-https://10.99.0.1:443}  # Lambda containers -> Gateway via WG
-      - GATEWAY_WORKER_ROUTE_VIA_HOST=${GATEWAY_WORKER_ROUTE_VIA_HOST:-}
-      - GATEWAY_WORKER_ROUTE_VIA=${GATEWAY_WORKER_ROUTE_VIA:-}
-      - GATEWAY_WORKER_ROUTE_CIDR=${GATEWAY_WORKER_ROUTE_CIDR:-10.88.0.0/16}
-      - AGENT_GRPC_ADDRESS=${AGENT_GRPC_ADDRESS:-runtime-node:50051}
+      - CONTAINERS_NETWORK=${ESB_NETWORK_EXTERNAL:-test-external}
+      # GATEWAY_INTERNAL_URL is injected by adapter files (fc.yml / containerd.yml)
+      # AGENT_GRPC_ADDRESS is injected by adapter files (fc.yml / containerd.yml)
       - AGENT_INVOKE_PROXY=${AGENT_INVOKE_PROXY:-false}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - RUSTFS_ACCESS_KEY=${RUSTFS_ACCESS_KEY?RUSTFS_ACCESS_KEY is required}
@@ -171,8 +160,10 @@ services:
       - CIRCUIT_BREAKER_RECOVERY_TIMEOUT=${CIRCUIT_BREAKER_RECOVERY_TIMEOUT:-30.0}
       - PYTHONUNBUFFERED=1
       # VictoriaLogs direct-send configuration (Lambda via grpc_provision.py)
-      - VICTORIALOGS_URL=${VICTORIALOGS_URL:-http://victorialogs:9428}  # Gateway -> VictoriaLogs
-      - GATEWAY_VICTORIALOGS_URL=${GATEWAY_VICTORIALOGS_URL:-}
+      - VICTORIALOGS_URL=${VICTORIALOGS_URL:-http://${ESB_PROJECT_NAME:-esb}-victorialogs:9428}  # Gateway -> VictoriaLogs
+      # GATEWAY_VICTORIALOGS_URL moved to docker.yml
+      # DYNAMODB_ENDPOINT moved to docker.yml
+      # S3_ENDPOINT moved to docker.yml
       # Auto-Scaling Configuration
       - DEFAULT_MAX_CAPACITY=${DEFAULT_MAX_CAPACITY:-1}
       - DEFAULT_MIN_CAPACITY=${DEFAULT_MIN_CAPACITY:-0}
@@ -181,8 +172,6 @@ services:
       - GATEWAY_IDLE_TIMEOUT_SECONDS=${GATEWAY_IDLE_TIMEOUT_SECONDS:-300}
       - ENABLE_CONTAINER_PAUSE=${ENABLE_CONTAINER_PAUSE:-false}
       - PAUSE_IDLE_SECONDS=${PAUSE_IDLE_SECONDS:-30}
-    networks:
-      - external_network
     depends_on:
       database:
         condition: service_healthy
@@ -202,13 +191,8 @@ volumes:
 networks:
   # Public network (exposed ports).
   external_network:
-    name: ${EXTERNAL_NETWORK?EXTERNAL_NETWORK is required}
+    name: ${ESB_NETWORK_EXTERNAL:-test-external}
     driver: bridge
     ipam:
       config:
-        - subnet: 172.30.0.0/24
-  # Lambda-to-Lambda network only (no external access).
-  internal_network:
-    name: ${LAMBDA_NETWORK?LAMBDA_NETWORK is required}
-    driver: bridge
-    internal: true
+        - subnet: ${ESB_SUBNET_EXTERNAL:-172.50.0.0/16}

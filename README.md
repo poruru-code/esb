@@ -324,6 +324,7 @@ esb reset
 | ----------------------------------------------------------------------------- | ------------------------------------ |
 | [環境変数一覧](docs/environment-variables.md)                                | 全環境変数の役割と設定方法           |
 | [trace-propagation.md](docs/trace-propagation.md)                             | X-Amzn-Trace-Id トレーシング         |
+| [architecture-containerd.md](docs/architecture-containerd.md)                 | 標準実行モード (Docker) の構成図     |
 | [container-management.md](docs/container-management.md)                       | コンテナ管理とイメージ運用           |
 | [container-cache.md](docs/container-cache.md)                                 | コンテナホストキャッシュ             |
 | [orchestrator-restart-resilience.md](docs/orchestrator-restart-resilience.md) | Agent/Gateway再起動時のコンテナ整理  |
@@ -436,8 +437,14 @@ esb node doctor --require-up
 ```
 
 ```bash
-# 環境を起動した状態で実行
+# Matrix定義に従い、全スイート（Containerd, Firecracker）を実行
 python tests/run_tests.py
+
+# 特定のプロファイルのみ実行（例: Containerdモードのみ）
+python tests/run_tests.py --profile e2e-containerd
+
+# 特定のテストファイルのみ実行（プロファイル指定が必須）
+python tests/run_tests.py --test-target tests/scenarios/standard/test_lambda.py --profile e2e-containerd
 ```
 
 #### Unit Tests

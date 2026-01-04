@@ -43,7 +43,7 @@ class ContainerPool:
         self._idle_workers: Deque[WorkerInfo] = deque()
 
         # Ledger of all existing containers (busy + idle).
-        self._all_workers: Set[WorkerInfo] = set()
+        self._all_workers: Dict[str, WorkerInfo] = {}
 
         # Number of in-flight provisions (for capacity checks).
         self._provisioning_count = 0
@@ -88,7 +88,8 @@ class ContainerPool:
             async with self._cv:
                 # Even if another worker exceeds max_capacity, register and
                 # decrement provision_count (for safety).
-                self._all_workers.add(worker)
+                # Register/Update the authoritative object.
+                self._all_workers[worker.id] = worker
                 self._provisioning_count -= 1
                 return worker
         except BaseException:
@@ -105,6 +106,8 @@ class ContainerPool:
         """
         async with self._cv:
             worker.last_used_at = time.time()
+            # Ensure the authoritative map has this instance (or update it)
+            self._all_workers[worker.id] = worker
             self._idle_workers.append(worker)
             # Important: notify waiters that a resource is available.
             self._cv.notify_all()
@@ -114,8 +117,8 @@ class ContainerPool:
         Evict a dead worker from the pool (self-healing).
         """
         async with self._cv:
-            if worker in self._all_workers:
-                self._all_workers.discard(worker)
+            if worker.id in self._all_workers:
+                del self._all_workers[worker.id]
             if self._idle_workers:
                 self._idle_workers = deque(
                     w for w in self._idle_workers if w.id != worker.id
@@ -125,18 +128,18 @@ class ContainerPool:
 
     def get_all_names(self) -> List[str]:
         """For heartbeat: list of all names (busy + idle)."""
-        return [w.name for w in self._all_workers]
+        return [w.name for w in self._all_workers.values()]
 
     def get_all_workers(self) -> List[WorkerInfo]:
         """Get all currently managed workers."""
-        return list(self._all_workers)
+        return list(self._all_workers.values())
 
     async def is_idle(self, worker_id: str) -> bool:
         """指定ワーカーがアイドルキューに存在するか確認"""
         async with self._cv:
             if not any(w.id == worker_id for w in self._idle_workers):
                 return False
-            return any(w.id == worker_id for w in self._all_workers)
+            return worker_id in self._all_workers
 
     @property
     def size(self) -> int:
@@ -155,7 +158,8 @@ class ContainerPool:
             while self._idle_workers:
                 worker = self._idle_workers.popleft()
                 if now - worker.last_used_at > idle_timeout:
-                    self._all_workers.discard(worker)
+                    if worker.id in self._all_workers:
+                        del self._all_workers[worker.id]
                     pruned.append(worker)
                 else:
                     surviving.append(worker)
@@ -168,25 +172,28 @@ class ContainerPool:
 
             return pruned
 
-    async def adopt(self, worker: WorkerInfo) -> None:
-        """Adopt a container into the pool on startup."""
+    async def adopt(self, worker: WorkerInfo) -> bool:
+        """
+        Adopt an existing container into the pool.
+        Returns True if adopted, False if at capacity.
+        """
         async with self._cv:
-            if len(self._all_workers) + self._provisioning_count < self.max_capacity:
-                # Only set timeout baseline if unset.
+            if len(self._all_workers) >= self.max_capacity:
+                return False
+
+            if worker.id not in self._all_workers:
                 if worker.last_used_at == 0:
                     worker.last_used_at = time.time()
-                self._all_workers.add(worker)
+                self._all_workers[worker.id] = worker
                 self._idle_workers.append(worker)
                 self._cv.notify_all()
-            else:
-                logger.warning(
-                    f"Adopt: Capacity limit reached for {self.function_name} while adopting {worker.name}."
-                )
+                return True
+            return False
 
     async def drain(self) -> List[WorkerInfo]:
         """Drain all workers on shutdown."""
         async with self._cv:
-            workers = list(self._all_workers)
+            workers = list(self._all_workers.values())
             self._all_workers.clear()
             self._idle_workers.clear()
             self._provisioning_count = 0

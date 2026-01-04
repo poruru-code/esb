@@ -23,6 +23,7 @@ class TestHeartbeatJanitor:
             }
         )
         pm.prune_all_pools = AsyncMock(return_value={})
+        pm.reconcile_orphans = AsyncMock(return_value=0)
         return pm
 
     @pytest.fixture

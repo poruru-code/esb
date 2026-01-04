@@ -11,8 +11,13 @@ sys.path.append(str(project_root))
 from tools.generator.parser import parse_sam_template  # noqa: E402
 
 # Default settings.
-SCYLLADB_ENDPOINT = "http://localhost:8001"
-RUSTFS_ENDPOINT = "http://localhost:9000"
+import os
+
+# Default settings (read from environment or default to single-host ports).
+db_port = os.environ.get("ESB_PORT_DATABASE", "8001")
+s3_port = os.environ.get("ESB_PORT_STORAGE", "9000")
+SCYLLADB_ENDPOINT = f"http://localhost:{db_port}"
+RUSTFS_ENDPOINT = f"http://localhost:{s3_port}"
 AWS_REGION = "ap-northeast-1"
 RUSTFS_ACCESS_KEY = "rustfsadmin"
 RUSTFS_SECRET_KEY = "rustfsadmin"

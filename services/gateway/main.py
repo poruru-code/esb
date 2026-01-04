@@ -330,21 +330,37 @@ async def list_container_metrics(user_id: UserIdDep, pool_manager: PoolManagerDe
 
     metrics_list = []
     failures = 0
+    not_implemented_errors = 0
+
     for container, result in zip(containers, results):
         if isinstance(result, Exception):
-            logger.error(f"Failed to fetch metrics for container {container.id}: {result}")
+            err_msg = str(result)
+            logger.error(f"Failed to fetch metrics for container {container.id}: {err_msg}")
+            
+            # Check for "not implemented" error from Agent (Docker runtime)
+            if "metrics not implemented" in err_msg.lower():
+                not_implemented_errors += 1
+            
             failures += 1
             metrics_list.append(
                 {
                     "container_id": container.id,
                     "container_name": container.name,
-                    "error": str(result),
+                    "error": err_msg,
                 }
             )
             continue
         metrics_list.append(asdict(result))
 
     if failures == len(containers):
+        # If all failed and at least one was "not implemented", return 501
+        # (Assuming consistent runtime across containers)
+        if not_implemented_errors > 0:
+             raise HTTPException(
+                status_code=501,
+                detail="Container metrics are not implemented for the current runtime (e.g. Docker)",
+            )
+        
         raise HTTPException(
             status_code=503,
             detail="Container metrics are unavailable from Agent runtime",

@@ -80,7 +80,7 @@ class TestContainerPoolAcquire:
 
         await pool.acquire(provision_callback)
 
-        assert mock_worker in pool._all_workers
+        assert mock_worker.id in pool._all_workers
         assert pool.get_all_names() == ["w1"]
 
     @pytest.mark.asyncio
@@ -89,7 +89,7 @@ class TestContainerPoolAcquire:
 
         # Pre-populate idle queue
         pool._idle_workers.append(mock_worker)
-        pool._all_workers.add(mock_worker)
+        pool._all_workers[mock_worker.id] = mock_worker
 
         provision_callback = AsyncMock()
 
@@ -105,8 +105,8 @@ class TestContainerPoolAcquire:
         from services.common.models.internal import WorkerInfo
 
         # Fill up capacity (simulate 2 workers acquired)
-        pool._all_workers.add(mock_worker)
-        pool._all_workers.add(WorkerInfo(id="c2", name="w2", ip_address="10.0.0.2"))
+        pool._all_workers[mock_worker.id] = mock_worker
+        pool._all_workers["c2"] = WorkerInfo(id="c2", name="w2", ip_address="10.0.0.2")
         
         # In Condition-based pool, fill _all_workers is enough to prevent new provision
         # but to prevent acquire from returning, we don't put them in _idle_workers.
@@ -134,7 +134,7 @@ class TestContainerPoolRelease:
         worker = WorkerInfo(id="c1", name="w1", ip_address="10.0.0.1")
 
         # Simulate acquire (add to all_workers)
-        pool._all_workers.add(worker)
+        pool._all_workers[worker.id] = worker
 
         # Release
         await pool.release(worker)
@@ -151,8 +151,8 @@ class TestContainerPoolRelease:
         worker = WorkerInfo(id="c1", name="w1", ip_address="10.0.0.1")
 
         # Fill capacity
-        pool._all_workers.add(worker)
-        pool._all_workers.add(WorkerInfo(id="c2", name="w2", ip_address="10.0.0.2"))
+        pool._all_workers[worker.id] = worker
+        pool._all_workers["c2"] = WorkerInfo(id="c2", name="w2", ip_address="10.0.0.2")
 
         # Start waiting acquire
         async def wait_and_acquire():
@@ -185,11 +185,11 @@ class TestContainerPoolEvict:
         from services.common.models.internal import WorkerInfo
 
         worker = WorkerInfo(id="c1", name="w1", ip_address="10.0.0.1")
-        pool._all_workers.add(worker)
+        pool._all_workers[worker.id] = worker
 
         await pool.evict(worker)
 
-        assert worker not in pool._all_workers
+        assert worker.id not in pool._all_workers
         assert pool.get_all_names() == []
 
     @pytest.mark.asyncio
@@ -200,8 +200,8 @@ class TestContainerPoolEvict:
         dead_worker = WorkerInfo(id="c_dead", name="dead", ip_address="10.0.0.99")
         new_worker = WorkerInfo(id="c_new", name="new", ip_address="10.0.0.100")
 
-        pool._all_workers.add(dead_worker)
-        pool._all_workers.add(WorkerInfo(id="c2", name="w2", ip_address="10.0.0.2"))
+        pool._all_workers[dead_worker.id] = dead_worker
+        pool._all_workers["c2"] = WorkerInfo(id="c2", name="w2", ip_address="10.0.0.2")
 
         # Start waiting acquire
         provision_callback = AsyncMock(return_value=[new_worker])

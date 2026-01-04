@@ -171,9 +171,10 @@ class TestScaleToZero:
         print(f"[Step 1] Initial container ID: {initial_id}")
 
         # 2. Keep container active with periodic requests
-        # Wait slightly longer than idle timeout, but send requests every 30s
+        # Wait slightly longer than idle timeout, but send requests frequently
         total_wait = IDLE_TIMEOUT_SECONDS + BUFFER_SECONDS
-        request_interval = max(1, min(30, IDLE_TIMEOUT_SECONDS // 2))
+        # Higher frequency (every 10s or less) to avoid Janitor races
+        request_interval = max(1, min(10, IDLE_TIMEOUT_SECONDS // 3))
         if request_interval >= IDLE_TIMEOUT_SECONDS:
             request_interval = max(1, IDLE_TIMEOUT_SECONDS - 1)
         elapsed = 0
@@ -184,7 +185,9 @@ class TestScaleToZero:
             elapsed += request_interval
 
             # Send a keep-alive request
-            response = call_api("/api/scaling", auth_token, {"message": f"keepalive-{elapsed}"})
+            response = call_api(
+                "/api/scaling", auth_token, {"message": f"keepalive-{elapsed}"}, timeout=30
+            )
             current_ids = get_container_ids("scaling")
 
             print(

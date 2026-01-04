@@ -18,7 +18,7 @@ RUNTIME_DIR = cli_config.PROJECT_ROOT / "tools" / "generator" / "runtime"
 BASE_IMAGE_TAG = "esb-lambda-base:latest"
 
 
-def ensure_registry_running():
+def ensure_registry_running(extra_files=None, project_name=None):
     """Ensure the registry is running when required."""
     registry = os.getenv("CONTAINER_REGISTRY")
     if not registry:
@@ -28,12 +28,20 @@ def ensure_registry_running():
 
     try:
         import requests
+        from urllib3.exceptions import InsecureRequestWarning
+        # Suppress insecure request warnings for local registry checks
+        requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 
-        # Registry health check.
-        response = requests.get(f"http://{registry}/v2/", timeout=2)
-        if response.status_code == 200:
-            logging.success(f"Registry ({registry}) is already running.")
-            return
+        # Try HTTPS first, then fallback to HTTP for health check.
+        urls = [f"https://{registry}/v2/", f"http://{registry}/v2/"]
+        for url in urls:
+            try:
+                response = requests.get(url, timeout=2, verify=False)
+                if response.status_code == 200:
+                    logging.success(f"Registry ({registry}) is already running (via {url.split(':')[0]}).")
+                    return
+            except Exception:
+                continue
     except Exception:
         pass  # Registry not running.
 
@@ -41,7 +49,12 @@ def ensure_registry_running():
     logging.warning(f"Registry ({registry}) is not running. Starting it now...")
     try:
         subprocess.check_call(
-            cli_compose.build_compose_command(["up", "-d", "registry"], target="control"),
+            cli_compose.build_compose_command(
+                ["up", "-d", "registry"], 
+                target="control",
+                extra_files=extra_files,
+                project_name=project_name
+            ),
             cwd=cli_config.PROJECT_ROOT,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -53,9 +66,15 @@ def ensure_registry_running():
 
         for _ in range(10):
             try:
-                response = requests.get(f"http://{registry}/v2/", timeout=1)
-                if response.status_code == 200:
-                    return
+                # Try HTTPS first, then fallback to HTTP for health check.
+                urls = [f"https://{registry}/v2/", f"http://{registry}/v2/"]
+                for url in urls:
+                    try:
+                        response = requests.get(url, timeout=1, verify=False)
+                        if response.status_code == 200:
+                            return
+                    except Exception:
+                        continue
             except Exception:
                 pass
             time.sleep(0.5)
@@ -170,8 +189,6 @@ def build_function_images(functions, template_path, no_cache=False, verbose=Fals
                 raise
             else:
                 logging.error(f"Build failed for {image_tag}. Use --verbose for details.")
-                import sys
-
                 sys.exit(1)
 
         # Push to registry
@@ -191,7 +208,7 @@ def build_function_images(functions, template_path, no_cache=False, verbose=Fals
                 )
             else:
                 logging.error(f"Push failed: {e}")
-            import sys
+
 
             sys.exit(1)
 
@@ -202,6 +219,19 @@ def run(args):
 
     if dry_run:
         logging.info("Running in DRY-RUN mode. No files will be written, no images built.")
+
+    # Calculate and inject isolation variables (required for ensure_registry_running)
+    env_name = cli_config.get_env_name()
+    project_name = f"esb-{env_name}".lower()
+    os.environ["ESB_PROJECT_NAME"] = project_name
+    
+    port_mapping = cli_config.get_port_mapping(env_name)
+    os.environ.update(port_mapping)
+    os.environ.update(cli_config.get_subnet_config(env_name))
+    
+    # Calculate dynamic registry address
+    registry_port = port_mapping.get("ESB_PORT_REGISTRY", "5010")
+    os.environ["CONTAINER_REGISTRY"] = f"localhost:{registry_port}"
 
     # 1. Generate configuration files (Phase 1 Generator).
     logging.step("Generating configurations...")
@@ -229,7 +259,8 @@ def run(args):
 
     # 0. Ensure registry is running (when required).
     if not dry_run:
-        ensure_registry_running()
+        extra_files = getattr(args, "file", [])
+        ensure_registry_running(extra_files=extra_files, project_name=project_name)
 
     config = generator.load_config(config_path)
 
@@ -255,8 +286,6 @@ def run(args):
     no_cache = getattr(args, "no_cache", False)
 
     if not build_base_image(no_cache=no_cache):
-        import sys
-
         sys.exit(1)
 
     # 3. Build Lambda function images.

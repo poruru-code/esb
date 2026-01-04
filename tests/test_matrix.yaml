@@ -1,0 +1,52 @@
+# Test Execution Matrix
+# Defines which Test Suites run on which Profiles (Mode + Env).
+
+suites:
+  # Quick connectivity checks - run first
+  smoke:
+    description: "Fast connectivity tests for all components"
+    targets:
+      - "tests/scenarios/smoke/"
+    exclude: []
+
+  standard:
+    description: "Standard E2E Scenarios (Autoscaling + Standard)"
+    targets:
+      - "tests/scenarios/autoscaling/"
+      - "tests/scenarios/standard/"
+    exclude: []
+
+profiles:
+  # Profile A: Firecracker Mode (using autoscaling config)
+  e2e-firecracker:
+    description: "Firecracker Mode with Auto-Scaling"
+    mode: firecracker
+    env_file: "tests/environments/.env.autoscaling"
+
+  # Profile B: Pure Containerd Mode (with local-proxy)
+  e2e-containerd:
+    description: "Pure Containerd Mode with Auto-Scaling"
+    mode: containerd
+    env_file: "tests/environments/.env.containerd"
+
+  # Profile C: Docker Runtime Mode (AGENT_RUNTIME=docker)
+  e2e-docker:
+    description: "Docker Runtime Mode with Auto-Scaling"
+    mode: docker
+    env_file: "tests/environments/.env.docker"
+
+
+matrix:
+  # Smoke tests first (fast feedback)
+  - suite: smoke
+    profiles:
+      - e2e-docker
+      - e2e-containerd
+      # - e2e-firecracker  # TODO: Enable when Firecracker mode is stable
+
+  # Full suite on all profiles
+  - suite: standard
+    profiles:
+      - e2e-docker
+      - e2e-containerd
+      # - e2e-firecracker  # TODO: Enable when Firecracker mode is stable

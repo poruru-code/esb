@@ -14,6 +14,7 @@ esb build                   # generate config + build images
 esb up --build              # start services (Docker Compose)
 esb watch                   # hot reload on file changes
 python tests/run_tests.py   # full E2E suite
+python tests/run_tests.py --profile e2e-containerd  # specific profile
 python tests/run_tests.py --unit-only
 ```
 Use `uv run esb ...` if the venv is not activated.

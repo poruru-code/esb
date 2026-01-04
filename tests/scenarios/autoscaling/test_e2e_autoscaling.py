@@ -89,11 +89,12 @@ def cleanup_lambda_containers() -> None:
             )
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="module", autouse=False)  # Disabled - causes issues with suite transitions
 def clean_lambda_containers_before_tests():
     """
     Module-scoped fixture that cleans up Lambda containers before running tests.
     This ensures idempotent test execution regardless of previous state.
+    NOTE: Disabled (autouse=False) because it interferes with smoke->standard suite transitions.
     """
     cleanup_lambda_containers()
     yield

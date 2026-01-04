@@ -31,7 +31,7 @@ async def test_pool_prune_idle_workers():
 
     # Check remaining
     assert pool.size == 1
-    assert w2 in pool._all_workers
+    assert w2.id in pool._all_workers
 
 
 @pytest.mark.asyncio
@@ -43,7 +43,7 @@ async def test_pool_adopt():
     await pool.adopt(w1)
 
     assert pool.size == 1
-    assert w1 in pool._all_workers
+    assert w1.id in pool._all_workers
     # Check semaphore logic (adopt should decrease available slots? No, adopt adds existing resource)
     # Actually adopt adds to _all_workers and _idle_workers (makes it available)
     # But usually pool starts with capacity 0?

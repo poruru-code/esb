@@ -49,6 +49,7 @@ class PoolManager:
         self.pause_idle_seconds = pause_idle_value
         self._pause_tasks: Dict[str, asyncio.Task] = {}
         self._paused_ids: Set[str] = set()
+        self._deleting_ids: Set[str] = set()  # Track IDs in process of deletion
 
         if self.pause_enabled and (
             not hasattr(provision_client, "pause_container")
@@ -129,6 +130,18 @@ class PoolManager:
         pool = await self.get_pool(function_name)
         while True:
             worker = await pool.acquire(self._provision_wrapper)
+            # Observability: Log worker acquisition details
+            reuse_status = "REUSED" if worker.last_used_at > worker.created_at else "NEW"
+            logger.info(
+                f"Acquired worker {worker.id} for {function_name} ({reuse_status})",
+                extra={
+                    "worker_id": worker.id,
+                    "function_name": function_name,
+                    "ip_address": worker.ip_address,
+                    "reuse_status": reuse_status,
+                },
+            )
+
             if self.pause_enabled:
                 await self._cancel_pause_task(worker.id)
                 if worker.id in self._paused_ids:
@@ -226,10 +239,13 @@ class PoolManager:
         for fname, pool in self._pools.items():
             workers = await pool.drain()
             for w in workers:
+                self._deleting_ids.add(w.id)
                 try:
                     await self.provision_client.delete_container(w.id)
                 except Exception as e:
                     logger.error(f"Failed to delete {w.name}: {e}")
+                finally:
+                    self._deleting_ids.discard(w.id)
 
     async def prune_all_pools(self, idle_timeout: float) -> Dict[str, List[WorkerInfo]]:
         """Prune all pools and delete from orchestrator."""
@@ -243,11 +259,14 @@ class PoolManager:
                 result[fname] = pruned
                 # Delete from orchestrator
                 for w in pruned:
+                    self._deleting_ids.add(w.id)
                     try:
                         await self.provision_client.delete_container(w.id)
                         logger.info(f"Pruned and deleted idle container: {w.name}")
                     except Exception as e:
                         logger.error(f"Failed to delete pruned container {w.name}: {e}")
+                    finally:
+                        self._deleting_ids.discard(w.id)
         return result
 
     async def reconcile_orphans(self) -> int:
@@ -276,8 +295,11 @@ class PoolManager:
                 for w in workers:
                     known_ids.add(w.id)
 
-            # 3. Detect orphans (present in actual but not known).
-            orphans = [c for c in actual_containers if c.id not in known_ids]
+            # 3. Detect orphans (present in actual but not known and not already being deleted).
+            orphans = [
+                c for c in actual_containers 
+                if c.id not in known_ids and c.id not in self._deleting_ids
+            ]
 
             # 4. Delete orphans (respect grace period).
             removed_count = 0

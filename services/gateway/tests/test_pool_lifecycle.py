@@ -64,14 +64,14 @@ class TestContainerPoolLifecycle:
         old_worker.last_used_at = time.time() - 100  # 100 seconds ago
 
         # Add to idle queue directly for testing state
-        pool._all_workers.add(old_worker)
+        pool._all_workers[old_worker.id] = old_worker
         pool._idle_workers.append(old_worker)  # deque uses append, not put_nowait
 
         # Add a worker that is "new"
         new_worker = WorkerInfo(id="w_new", name="w_new", ip_address="2.2.2.2")
         new_worker.last_used_at = time.time()  # Now
 
-        pool._all_workers.add(new_worker)
+        pool._all_workers[new_worker.id] = new_worker
         pool._idle_workers.append(new_worker)
 
         # Prune with 60s timeout (Now a coroutine)
@@ -80,4 +80,4 @@ class TestContainerPoolLifecycle:
         assert old_worker in pruned
         assert new_worker not in pruned
         assert len(pool._all_workers) == 1
-        assert new_worker in pool._all_workers
+        assert new_worker.id in pool._all_workers

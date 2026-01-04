@@ -11,7 +11,7 @@ project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.append(str(project_root))
 
-from tools.cli.commands import build, up, watch, down, reset, init, logs, node, mode  # noqa: E402
+from tools.cli.commands import build, up, watch, down, stop, reset, init, logs, node, mode  # noqa: E402
 
 
 def main():
@@ -40,6 +40,12 @@ def main():
         help="Show what would be generated without writing files or building",
     )
     build_parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
+    build_parser.add_argument(
+        "-f", "--file", action="append", help="Specify an additional compose file"
+    )
+    build_parser.add_argument(
+        "--env", type=str, default="default", help="Environment name"
+    )
 
     # --- up command ---
     up_parser = subparsers.add_parser("up", help="Start the environment")
@@ -48,6 +54,12 @@ def main():
         "--detach", "-d", action="store_true", default=True, help="Run in background"
     )
     up_parser.add_argument("--wait", action="store_true", help="Wait for services to be ready")
+    up_parser.add_argument(
+        "-f", "--file", action="append", help="Specify an additional compose file"
+    )
+    up_parser.add_argument(
+        "--env", type=str, default="default", help="Environment name"
+    )
 
     # --- watch command ---
     subparsers.add_parser("watch", help="Watch for changes and hot-reload")
@@ -60,6 +72,21 @@ def main():
         action="store_true",
         help="Remove named volumes declared in the volumes section",
     )
+    down_parser.add_argument(
+        "-f", "--file", action="append", help="Specify an additional compose file"
+    )
+    down_parser.add_argument(
+        "--env", type=str, default="default", help="Environment name"
+    )
+
+    # --- stop command ---
+    stop_parser = subparsers.add_parser("stop", help="Stop the environment (preserve state)")
+    stop_parser.add_argument(
+        "-f", "--file", action="append", help="Specify an additional compose file"
+    )
+    stop_parser.add_argument(
+        "--env", type=str, default="default", help="Environment name"
+    )
 
     # --- reset command ---
     reset_parser = subparsers.add_parser(
@@ -67,6 +94,9 @@ def main():
     )
     reset_parser.add_argument("--yes", "-y", action="store_true", help="Skip confirmation prompt")
     reset_parser.add_argument("--rmi", action="store_true", help="Remove images as well")
+    reset_parser.add_argument(
+        "--env", type=str, default="default", help="Environment name"
+    )
 
     # --- logs command ---
     logs_parser = subparsers.add_parser("logs", help="View service logs")
@@ -74,6 +104,9 @@ def main():
     logs_parser.add_argument("--follow", "-f", action="store_true", help="Follow log output")
     logs_parser.add_argument("--tail", type=int, default=None, help="Number of lines to show")
     logs_parser.add_argument("--timestamps", "-t", action="store_true", help="Show timestamps")
+    logs_parser.add_argument(
+        "--env", type=str, default="default", help="Environment name"
+    )
 
     # --- mode command ---
     mode_parser = subparsers.add_parser("mode", help="Manage runtime mode")
@@ -301,6 +334,11 @@ def main():
 
         set_template_yaml(args.template)
 
+    # Set ESB_ENV for the current process
+    if hasattr(args, "env") and args.env:
+        import os
+        os.environ["ESB_ENV"] = args.env
+
     try:
         if args.command == "init":
             init.run(args)
@@ -312,6 +350,8 @@ def main():
             watch.run(args)
         elif args.command == "down":
             down.run(args)
+        elif args.command == "stop":
+            stop.run(args)
         elif args.command == "reset":
             reset.run(args)
         elif args.command == "logs":

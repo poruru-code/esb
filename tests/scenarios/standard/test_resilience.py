@@ -47,14 +47,25 @@ class TestResilience:
         time.sleep(3)
 
         # 2. Restart Manager/Agent container.
+        from tools.cli import compose
+
+        # 2. Restart Manager/Agent container.
         print(f"Step 2: Restarting {service_to_restart} container...")
+        
+        # Determine project name to ensure we target the running stack
+        # (run_tests.py usually sets this effectively via env or directory context)
+        project_name = os.getenv("ESB_PROJECT_NAME")
+
+        cmd = compose.build_compose_command(
+            ["restart", service_to_restart],
+            target="control",
+            project_name=project_name
+        )
+        
         restart_result = subprocess.run(
-            ["docker", "compose", "restart", service_to_restart],
+            cmd,
             capture_output=True,
             text=True,
-            cwd=os.path.dirname(
-                os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            ),
         )
         assert restart_result.returncode == 0, (
             f"Failed to restart {service_to_restart}: {restart_result.stderr}"

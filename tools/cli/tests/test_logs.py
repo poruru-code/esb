@@ -24,8 +24,8 @@ def test_logs_basic(mock_run, _mock_mode):
     assert "logs" in cmd
     assert "-f" in cmd
     assert str(cli_config.COMPOSE_BASE_FILE) in cmd
-    assert str(cli_config.COMPOSE_COMPUTE_FILE) in cmd
-    assert str(cli_config.COMPOSE_ADAPTER_FILE) in cmd
+    assert str(cli_config.COMPOSE_WORKER_FILE) in cmd
+    assert str(cli_config.COMPOSE_CONTAINERD_FILE) in cmd
 
 
 @patch("tools.cli.compose.runtime_mode.get_mode", return_value=cli_config.ESB_MODE_CONTAINERD)

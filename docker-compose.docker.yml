@@ -1,0 +1,40 @@
+services:
+  # ------------------------------------------
+  # 1. Agent Wiring (Standalone)
+  # ------------------------------------------
+  agent:
+    # Participate in Network Directly
+    networks:
+      - external_network
+    depends_on:
+      registry: { condition: service_healthy }
+    environment:
+      - AGENT_RUNTIME=docker
+      - CONTAINER_REGISTRY=localhost:${ESB_PORT_REGISTRY:-5010}
+      - CONTAINERS_NETWORK=${ESB_NETWORK_EXTERNAL:-test-external}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  registry:
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -Y off --no-check-certificate --spider https://localhost:5010/v2/ || exit 1"]
+
+  # ------------------------------------------
+  # 2. Gateway Wiring
+  # ------------------------------------------
+  gateway:
+    ports:
+      - "${ESB_PORT_GATEWAY_HTTPS:-443}:443"
+    networks:
+      - external_network
+    depends_on:
+      agent: { condition: service_started }
+    environment:
+      # Connect to Agent Directly
+      - AGENT_GRPC_ADDRESS=agent:50051
+      - GATEWAY_INTERNAL_URL=https://${ESB_PROJECT_NAME:-esb}-gateway:443
+      # Docker Mode Endpoints (Explicit DNS)
+      - S3_ENDPOINT=http://${ESB_PROJECT_NAME:-esb}-s3-storage:9000
+      - DYNAMODB_ENDPOINT=http://${ESB_PROJECT_NAME:-esb}-database:8000
+      - GATEWAY_VICTORIALOGS_URL=http://${ESB_PROJECT_NAME:-esb}-victorialogs:9428
+      # ESB_DATA_PLANE_HOST is ignored in Docker mode if endpoints are set
