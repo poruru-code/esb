@@ -37,16 +37,15 @@ profiles:
 
 
 matrix:
-  # Smoke tests first (fast feedback)
-  - suite: smoke
-    profiles:
-      - e2e-docker
-      - e2e-containerd
-      # - e2e-firecracker  # TODO: Enable when Firecracker mode is stable
-
-  # Full suite on all profiles
-  - suite: standard
-    profiles:
-      - e2e-docker
-      - e2e-containerd
+  # Group 1: Docker
+  - profile: e2e-docker
+    suites:
+      - smoke
+      - standard
+      
+  # Group 2: Containerd
+  - profile: e2e-containerd
+    suites:
+      - smoke
+      - standard
       # - e2e-firecracker  # TODO: Enable when Firecracker mode is stable

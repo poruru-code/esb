@@ -45,7 +45,9 @@ def main():
 
     parser = argparse.ArgumentParser(description="E2E Test Runner (ESB CLI Wrapper)")
     parser.add_argument("--build", action="store_true", help="Rebuild images before running tests")
-    parser.add_argument("--cleanup", action="store_true", help="Cleanup environment after successful tests")
+    parser.add_argument(
+        "--cleanup", action="store_true", help="Cleanup environment after successful tests"
+    )
     parser.add_argument(
         "--reset", action="store_true", help="Reset environment before running tests"
     )
@@ -59,9 +61,7 @@ def main():
         type=str,
         help="Profile to use for single target run (e.g. e2e-containerd)",
     )
-    parser.add_argument(
-        "--fail-fast", action="store_true", help="Stop on first suite failure"
-    )
+    parser.add_argument("--fail-fast", action="store_true", help="Stop on first suite failure")
     args = parser.parse_args()
 
     # --- Load Test Matrix (Needed for Profile Info) ---
@@ -86,22 +86,22 @@ def main():
             print("[ERROR] --profile is required when using --test-target.")
             print(f"Available profiles: {', '.join(profiles.keys())}")
             sys.exit(1)
-        
+
         if args.profile not in profiles:
             print(f"[ERROR] Profile '{args.profile}' not found in matrix.")
             sys.exit(1)
-            
+
         profile_def = profiles[args.profile]
-        
+
         user_scenario = {
             "name": f"User-Specified on {args.profile}",
             "env_file": profile_def.get("env_file"),
             "runtime_mode": profile_def.get("mode"),
-            "esb_env": args.profile, # Use profile name as environment name
+            "esb_env": args.profile,  # Use profile name as environment name
             "targets": [args.test_target],
             "exclude": [],
         }
-        
+
         run_scenario(args, user_scenario)
         sys.exit(0)
 
@@ -124,86 +124,75 @@ def main():
     if base_env_path.exists():
         load_dotenv(base_env_path, override=False)
         print(f"Loaded base environment from: {base_env_path}")
-    
+
     print("\nStarting Full E2E Test Suite (Matrix-Based)\n")
     failed_entries = []
-
-
 
     initialized_profiles = set()
 
     for entry in matrix:
-        suite_name = entry["suite"]
-        profile_names = entry["profiles"]
+        # Determine structure type: Profile-First (New) or Suite-First (Legacy)
+        is_profile_first = "profile" in entry and "suites" in entry
+        is_suite_first = "suite" in entry and "profiles" in entry
 
-        if suite_name not in suites:
-            print(f"[ERROR] Suite '{suite_name}' not defined in suites.")
+        if not is_profile_first and not is_suite_first:
+            print(f"[ERROR] Invalid matrix entry format: {entry}")
             continue
 
-        suite_def = suites[suite_name]
-        
-        for profile_name in profile_names:
-            # Filter by profile if specified (Matrix Run)
-            if args.profile and profile_name != args.profile:
-                continue
-            
+        # normalize to list of (suite, profile) tuples to execute for this entry
+        items_to_run = []
+
+        if is_profile_first:
+            profile_name = entry["profile"]
+            target_suites = entry["suites"]
+
             if profile_name not in profiles:
                 print(f"[ERROR] Profile '{profile_name}' not defined in profiles.")
                 continue
 
-            profile_def = profiles[profile_name]
-            
-            # Construct Scenario Object for compatibility with run_scenario
-            # Dynamic ESB_ENV Calculation
-            # Use profile name directly as environment name (e.g. "e2e-containerd")
-            target_env = profile_name
-            
-            scenario = {
-                "name": f"{suite_name} on {profile_name}",
-                "env_file": profile_def.get("env_file"),
-                "runtime_mode": profile_def.get("mode"),
-                "esb_env": target_env,
-                "targets": suite_def.get("targets", []),
-                "exclude": suite_def.get("exclude", []),
-            }
+            # Filter global profile arg
+            if args.profile and profile_name != args.profile:
+                continue
 
-            print(f"\n[Matrix] Running Suite: '{suite_name}' on Profile: '{profile_name}'")
-            print(f"         > Environment: {target_env}")
-            
-            # Determine if we should upgrade/reset environment
-            # Only reset if requested AND not yet initialized for this profile
+            for s_name in target_suites:
+                if s_name not in suites:
+                    print(f"[ERROR] Suite '{s_name}' not defined in suites.")
+                    continue
+                items_to_run.append((s_name, profile_name))
+
+        else:  # is_suite_first
+            suite_name = entry["suite"]
+            target_profiles = entry["profiles"]
+
+            if suite_name not in suites:
+                print(f"[ERROR] Suite '{suite_name}' not defined in suites.")
+                continue
+
+            for p_name in target_profiles:
+                if p_name not in profiles:
+                    print(f"[ERROR] Profile '{p_name}' not defined in profiles.")
+                    continue
+
+                if args.profile and p_name != args.profile:
+                    continue
+                items_to_run.append((suite_name, p_name))
+
+        # Execute items
+        for suite_name, profile_name in items_to_run:
+            profile_def = profiles[profile_name]
+            suite_def = suites[suite_name]
+
+            target_env = profile_name  # Use profile name as environment name
+
+            # Reset/Build logic based on Profile Initialization
             should_reset = args.reset and (profile_name not in initialized_profiles)
-            
-            # Determine if we should build
-            # Only build if requested AND not yet initialized
             should_build = args.build and (profile_name not in initialized_profiles)
-            
-            # Determine cleanup
-            # Ideally only cleanup at the very end of all suites for this profile?
-            # For now, let's DISABLE cleanup between suites of same profile to preserve state.
-            # But wait, matrix iterates by Suite then Profile.
-            # Suite A [P1, P2] -> Suite B [P1, P2]
-            # When Suite A P1 finishes, we keep it. Suite A P2 runs (different env).
-            # When Suite B P1 runs, we reuse P1 env.
-            should_cleanup = args.cleanup # This might need nuanced logic if we want to clean at VERY end.
-            # For this specific fix (Smoke -> Main), we explicitly WANT to reuse.
-            # So if we are reusing, we must NOT have cleaned up previously.
-            # Implication: The previous run_scenario must NOT have cleaned up.
-            
-            # Update: run_scenario logic controls cleanup based on arg.
-            # We need to pass specific instructions to run_scenario.
-            
+
             scenario_args = {
                 "perform_reset": should_reset,
                 "perform_build": should_build,
-                # If we plan to reuse this profile later, we should arguably NOT cleanup yet?
-                # But detecting "is this the last time P1 is used" is complex.
-                # Let's rely on the fact that if --cleanup is False (default), we keep it.
-                # If --cleanup is True, user wants it gone. 
-                # BUT for Smoke->Suite flow, user likely wants --cleanup set but applied only at end.
-                # Let's enforce: If it's initialized (reused), don't reset.
             }
-            
+
             scenario = {
                 "name": f"{suite_name} on {profile_name}",
                 "env_file": profile_def.get("env_file"),
@@ -211,16 +200,15 @@ def main():
                 "esb_env": target_env,
                 "targets": suite_def.get("targets", []),
                 "exclude": suite_def.get("exclude", []),
-                **scenario_args
+                **scenario_args,
             }
 
             print(f"\n[Matrix] Running Suite: '{suite_name}' on Profile: '{profile_name}'")
             print(f"         > Environment: {target_env}")
             print(f"         > Action: Reset={should_reset}, Build={should_build}")
-            
+
             try:
                 run_scenario(args, scenario)
-                # Mark as initialized after successful (or attempted) run
                 initialized_profiles.add(profile_name)
             except SystemExit as e:
                 if e.code != 0:
@@ -248,12 +236,12 @@ def main():
 
 def run_scenario(args, scenario):
     """Run a single scenario."""
-    
+
     # Determine actions based on scenario overrides or global args
     do_reset = scenario.get("perform_reset", args.reset)
     do_build = scenario.get("perform_build", args.build)
-    do_cleanup = args.cleanup # Currently global only
-    
+    # do_cleanup = args.cleanup # Currently global only (Unused)
+
     # 0. Runtime Mode Setup (Optional)
     if "runtime_mode" in scenario:
         print(f"Switching runtime mode to: {scenario['runtime_mode']}")
@@ -285,11 +273,11 @@ def run_scenario(args, scenario):
 
     # Environment Isolation Logic
     from tools.cli import config as cli_config
-    
+
     # Use scenario-specific ESB_ENV (Matrix) or fallback to process env (Legacy)
     env_name = scenario.get("esb_env", os.environ.get("ESB_ENV", "default"))
     env["ESB_ENV"] = env_name
-    
+
     # Calculate ports and subnets to inject into pytest environment
     env.update(cli_config.get_port_mapping(env_name))
     env.update(cli_config.get_subnet_config(env_name))
@@ -324,6 +312,7 @@ def run_scenario(args, scenario):
             run_esb(template_args + ["down", "-v"] + override_args + env_args, check=True)
 
             import shutil
+
             # Note: Checking global fixtures dir might be risky if concurrent tests delete it?
             # Ideally fixtures should be scoped too, but for verify we skip reset usually.
             esb_dir = PROJECT_ROOT / "tests" / "fixtures" / ".esb"
@@ -331,24 +320,24 @@ def run_scenario(args, scenario):
                 shutil.rmtree(esb_dir)
             run_esb(template_args + ["build", "--no-cache"] + override_args + env_args)
         else:
-             # Default behavior: Stop to preserve data/state (unless build requested, but even then stop is safer)
-             # MODIFICATION: If we are reusing the environment (Smoke -> Main), do we even STOP?
-             # Smoke test leaves containers UP. Main test expects them UP (or restarts them).
-             # If we stop here, we lose the "Smoke passed state" (though data persists).
-             # But run_esb("up") will restart them anyway.
-             # However, stopping allows mode switching (firecracker <-> containerd) without conflict 
-             # if they share resources (like ports). 
-             # Since we have distinct environments (e2e-containerd vs e2e-firecracker),
-             # and they use DIFFERENT ports (mapped in config), we might not strictly need to stop.
-             # BUT, to be safe and consistent:
-             if scenario.get("perform_reset") is False:
-                 print(f"DEBUG: Skipping Reset/Stop (Reusing environment)...")
-             else:
-                 print(f"DEBUG: Stopping previous services (preserving state)...")
-                 run_esb(template_args + ["stop"] + override_args + env_args, check=True)
-            
+            # Default behavior: Stop to preserve data/state (unless build requested, but even then stop is safer)
+            # MODIFICATION: If we are reusing the environment (Smoke -> Main), do we even STOP?
+            # Smoke test leaves containers UP. Main test expects them UP (or restarts them).
+            # If we stop here, we lose the "Smoke passed state" (though data persists).
+            # But run_esb("up") will restart them anyway.
+            # However, stopping allows mode switching (firecracker <-> containerd) without conflict
+            # if they share resources (like ports).
+            # Since we have distinct environments (e2e-containerd vs e2e-firecracker),
+            # and they use DIFFERENT ports (mapped in config), we might not strictly need to stop.
+            # BUT, to be safe and consistent:
+            if scenario.get("perform_reset") is False:
+                print("DEBUG: Skipping Reset/Stop (Reusing environment)...")
+            else:
+                print("DEBUG: Stopping previous services (preserving state)...")
+                run_esb(template_args + ["stop"] + override_args + env_args, check=True)
+
         if do_build and not do_reset:
-             run_esb(template_args + ["build", "--no-cache"] + override_args + env_args)
+            run_esb(template_args + ["build", "--no-cache"] + override_args + env_args)
 
         # 3. UP
         up_args = template_args + ["up", "--detach", "--wait"] + override_args + env_args
