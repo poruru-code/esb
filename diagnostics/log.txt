@@ -1,0 +1,495 @@
+Running: /mnt/d/projects/padma-on-premises/.venv/bin/python -m tools.cli.main --template /mnt/d/projects/padma-on-premises/tests/fixtures/template.yaml build --no-cache -f tests/docker-compose.test.yml --env e2e-docker
+➜ Generating configurations...
+ℹ Using template: /mnt/d/projects/padma-on-premises/tests/fixtures/template.yaml
+Generated 7 Dockerfile(s), functions.yml, and routing.yml
+✅ Configurations generated.
+➜ Building base image...
+  • Building esb-lambda-base:latest ... ✅
+➜ Building function images...
+  • Building lambda-connectivity:latest ... ✅
+  • Building lambda-integration:latest ... ✅
+  • Building lambda-s3:latest ... ✅
+  • Building lambda-dynamo:latest ... ✅
+  • Building lambda-echo:latest ... ✅
+  • Building lambda-chaos:latest ... ✅
+  • Building lambda-scaling:latest ... ✅
+✅ Build complete.
+Running: /mnt/d/projects/padma-on-premises/.venv/bin/python -m tools.cli.main --template /mnt/d/projects/padma-on-premises/tests/fixtures/template.yaml up --detach --wait -f tests/docker-compose.test.yml --env e2e-docker --build
+ℹ Loading environment variables from /mnt/d/projects/padma-on-premises/tests/.env.test
+➜ Starting services for environment: e2e-docker...
+[+] Building 27.1s (41/41) FINISHED                                                                                                                                                                                                                                                                                                                                                                                                                                                             
+ => [internal] load local bake definitions                                                                                                                                                                                                                                                                                                                                                                                                                                                 0.0s
+ => => reading from stdin 1.56kB                                                                                                                                                                                                                                                                                                                                                                                                                                                           0.0s
+ => [gateway internal] load build definition from Dockerfile                                                                                                                                                                                                                                                                                                                                                                                                                               0.4s
+ => => transferring dockerfile: 1.75kB                                                                                                                                                                                                                                                                                                                                                                                                                                                     0.4s
+ => [agent internal] load build definition from Dockerfile                                                                                                                                                                                                                                                                                                                                                                                                                                 0.3s
+ => => transferring dockerfile: 1.06kB                                                                                                                                                                                                                                                                                                                                                                                                                                                     0.3s
+ => [agent internal] load metadata for docker.io/library/alpine:3.19                                                                                                                                                                                                                                                                                                                                                                                                                       2.0s
+ => [agent internal] load metadata for docker.io/library/golang:1.24                                                                                                                                                                                                                                                                                                                                                                                                                       2.0s
+ => [gateway internal] load metadata for docker.io/library/python:3.12-slim                                                                                                                                                                                                                                                                                                                                                                                                                1.6s
+ => [gateway internal] load .dockerignore                                                                                                                                                                                                                                                                                                                                                                                                                                                  0.6s
+ => => transferring context: 400B                                                                                                                                                                                                                                                                                                                                                                                                                                                          0.6s
+ => [agent internal] load .dockerignore                                                                                                                                                                                                                                                                                                                                                                                                                                                    0.5s
+ => => transferring context: 2B                                                                                                                                                                                                                                                                                                                                                                                                                                                            0.5s
+ => [gateway internal] load build context                                                                                                                                                                                                                                                                                                                                                                                                                                                 12.7s
+ => => transferring context: 10.61kB                                                                                                                                                                                                                                                                                                                                                                                                                                                      12.7s
+ => [gateway builder 1/8] FROM docker.io/library/python:3.12-slim@sha256:a75662dfec8d90bd7161c91050be2e0a9b21d284f3b7a7253d5db25f7d583fb3                                                                                                                                                                                                                                                                                                                                                  0.1s
+ => => resolve docker.io/library/python:3.12-slim@sha256:a75662dfec8d90bd7161c91050be2e0a9b21d284f3b7a7253d5db25f7d583fb3                                                                                                                                                                                                                                                                                                                                                                  0.0s
+ => [agent builder 1/6] FROM docker.io/library/golang:1.24@sha256:a61b432ba08dc45cc81d572932fa4cc3a8e3cb2321282f73891db455e735b507                                                                                                                                                                                                                                                                                                                                                         0.1s
+ => => resolve docker.io/library/golang:1.24@sha256:a61b432ba08dc45cc81d572932fa4cc3a8e3cb2321282f73891db455e735b507                                                                                                                                                                                                                                                                                                                                                                       0.1s
+ => [agent internal] load build context                                                                                                                                                                                                                                                                                                                                                                                                                                                    3.8s
+ => => transferring context: 2.01kB                                                                                                                                                                                                                                                                                                                                                                                                                                                        3.8s
+ => [agent prod 1/6] FROM docker.io/library/alpine:3.19@sha256:6baf43584bcb78f2e5847d1de515f23499913ac9f12bdf834811a3145eb11ca1                                                                                                                                                                                                                                                                                                                                                            0.1s
+ => => resolve docker.io/library/alpine:3.19@sha256:6baf43584bcb78f2e5847d1de515f23499913ac9f12bdf834811a3145eb11ca1                                                                                                                                                                                                                                                                                                                                                                       0.1s
+ => CACHED [agent prod 2/6] WORKDIR /app                                                                                                                                                                                                                                                                                                                                                                                                                                                   0.0s
+ => CACHED [agent prod 3/6] RUN apk --no-cache add ca-certificates iptables containerd-ctr curl                                                                                                                                                                                                                                                                                                                                                                                            0.0s
+ => CACHED [agent prod 4/6] RUN CNI_PLUGINS_VERSION="v1.3.0" &&     ARCH=$(uname -m) &&     if [ "$ARCH" = "x86_64" ]; then ARCH="amd64"; fi &&     if [ "$ARCH" = "aarch64" ]; then ARCH="arm64"; fi &&     curl -L -o cni-plugins.tgz "https://github.com/containernetworking/plugins/releases/download/${CNI_PLUGINS_VERSION}/cni-plugins-linux-${ARCH}-${CNI_PLUGINS_VERSION}.tgz" &&     mkdir -p /opt/cni/bin &&     tar -C /opt/cni/bin -xzf cni-plugins.tgz &&     rm cni-plugins  0.0s
+ => CACHED [agent prod 5/6] COPY config/cni/ /etc/cni/net.d/                                                                                                                                                                                                                                                                                                                                                                                                                               0.0s
+ => CACHED [agent builder 2/6] WORKDIR /app                                                                                                                                                                                                                                                                                                                                                                                                                                                0.0s
+ => CACHED [agent builder 3/6] COPY go.mod go.sum ./                                                                                                                                                                                                                                                                                                                                                                                                                                       0.0s
+ => CACHED [agent builder 4/6] RUN go mod download                                                                                                                                                                                                                                                                                                                                                                                                                                         0.0s
+ => CACHED [agent builder 5/6] COPY . .                                                                                                                                                                                                                                                                                                                                                                                                                                                    0.0s
+ => CACHED [agent builder 6/6] RUN CGO_ENABLED=0 GOOS=linux go build -o /app/agent ./cmd/agent                                                                                                                                                                                                                                                                                                                                                                                             0.0s
+ => CACHED [agent prod 6/6] COPY --from=builder /app/agent /app/agent                                                                                                                                                                                                                                                                                                                                                                                                                      0.0s
+ => [agent] exporting to image                                                                                                                                                                                                                                                                                                                                                                                                                                                             0.2s
+ => => exporting layers                                                                                                                                                                                                                                                                                                                                                                                                                                                                    0.0s
+ => => exporting manifest sha256:03485dd6ba86a772b70a00d324973d12c065d27650b4831423d7f3b53171a41e                                                                                                                                                                                                                                                                                                                                                                                          0.0s
+ => => exporting config sha256:ebbcad1a3aebf611a8801f078b69640b5b719dc5cfcba2bdba145a6a30d68523                                                                                                                                                                                                                                                                                                                                                                                            0.0s
+ => => exporting attestation manifest sha256:b22f3af5bbbe7d76ba559dc4497a27782bc931fb87d2892887d7ad55ef66cd95                                                                                                                                                                                                                                                                                                                                                                              0.1s
+ => => exporting manifest list sha256:eb58a34be1be3be88e064806385043c034602ba47a08d0feee45af829c8023d1                                                                                                                                                                                                                                                                                                                                                                                     0.0s
+ => => naming to docker.io/library/esb-agent:latest                                                                                                                                                                                                                                                                                                                                                                                                                                        0.0s
+ => => unpacking to docker.io/library/esb-agent:latest                                                                                                                                                                                                                                                                                                                                                                                                                                     0.0s
+ => [agent] resolving provenance for metadata file                                                                                                                                                                                                                                                                                                                                                                                                                                         0.0s
+ => CACHED [gateway builder 2/8] WORKDIR /app                                                                                                                                                                                                                                                                                                                                                                                                                                              0.0s
+ => CACHED [gateway stage-1 3/9] RUN apt-get update && apt-get install -y --no-install-recommends     haproxy     iproute2     wireguard-go     wireguard-tools   && rm -rf /var/lib/apt/lists/*                                                                                                                                                                                                                                                                                           0.0s
+ => CACHED [gateway builder 3/8] RUN pip install --no-cache-dir uv                                                                                                                                                                                                                                                                                                                                                                                                                         0.0s
+ => CACHED [gateway builder 4/8] RUN uv venv /app/.venv                                                                                                                                                                                                                                                                                                                                                                                                                                    0.0s
+ => CACHED [gateway builder 5/8] COPY pyproject.toml README.md /app/                                                                                                                                                                                                                                                                                                                                                                                                                       0.0s
+ => CACHED [gateway builder 6/8] COPY tools /app/tools                                                                                                                                                                                                                                                                                                                                                                                                                                     0.0s
+ => CACHED [gateway builder 7/8] RUN uv pip compile pyproject.toml -o requirements.txt &&     uv pip install -r requirements.txt                                                                                                                                                                                                                                                                                                                                                           0.0s
+ => CACHED [gateway builder 8/8] RUN uv pip install .                                                                                                                                                                                                                                                                                                                                                                                                                                      0.0s
+ => CACHED [gateway stage-1 4/9] COPY --from=builder /app/.venv /app/.venv                                                                                                                                                                                                                                                                                                                                                                                                                 0.0s
+ => CACHED [gateway stage-1 5/9] COPY services/common /app/services/common                                                                                                                                                                                                                                                                                                                                                                                                                 0.0s
+ => CACHED [gateway stage-1 6/9] COPY services/gateway /app/services/gateway                                                                                                                                                                                                                                                                                                                                                                                                               0.0s
+ => CACHED [gateway stage-1 7/9] COPY config /app/config                                                                                                                                                                                                                                                                                                                                                                                                                                   0.0s
+ => CACHED [gateway stage-1 8/9] COPY services/gateway/entrypoint.sh /app/entrypoint.sh                                                                                                                                                                                                                                                                                                                                                                                                    0.0s
+ => CACHED [gateway stage-1 9/9] RUN chmod +x /app/entrypoint.sh                                                                                                                                                                                                                                                                                                                                                                                                                           0.0s
+ => [gateway] exporting to image                                                                                                                                                                                                                                                                                                                                                                                                                                                           0.2s
+ => => exporting layers                                                                                                                                                                                                                                                                                                                                                                                                                                                                    0.0s
+ => => exporting manifest sha256:f7677f504ce745a7ce7a7cc98d5b2e20dcf1ff6545b60f4573c725849e27a235                                                                                                                                                                                                                                                                                                                                                                                          0.0s
+ => => exporting config sha256:af2a20c729b9138960b4168636d289eaaa460ed934f8409afc71ffeb99aa44dc                                                                                                                                                                                                                                                                                                                                                                                            0.0s
+ => => exporting attestation manifest sha256:46b55cd74d6737b4f54bf561a9156c27b08c8f418487df16c624f06235b4225e                                                                                                                                                                                                                                                                                                                                                                              0.1s
+ => => exporting manifest list sha256:96a4a522a57d544b6ba5c835602bcc1eee989f7d7204f0721a8df2c769c6b6cf                                                                                                                                                                                                                                                                                                                                                                                     0.0s
+ => => naming to docker.io/library/gateway-api:latest                                                                                                                                                                                                                                                                                                                                                                                                                                      0.0s
+ => => unpacking to docker.io/library/gateway-api:latest                                                                                                                                                                                                                                                                                                                                                                                                                                   0.0s
+ => [gateway] resolving provenance for metadata file                                                                                                                                                                                                                                                                                                                                                                                                                                       0.0s
+[+] up 13/13
+ ✔ Image esb-agent:latest                     Built                                                                                                                                                                                                                                                                                                                                                                                                                                       29.4s 
+ ✔ Image gateway-api:latest                   Built                                                                                                                                                                                                                                                                                                                                                                                                                                       29.4s 
+ ✔ Network esb-e2e-docker_default             Created                                                                                                                                                                                                                                                                                                                                                                                                                                      0.0s 
+ ✔ Network esb_ext_e2e-docker                 Created                                                                                                                                                                                                                                                                                                                                                                                                                                      0.0s 
+ ✔ Volume esb-e2e-docker_victorialogs_data    Created                                                                                                                                                                                                                                                                                                                                                                                                                                      0.0s 
+ ✔ Volume esb-e2e-docker_rustfs_data          Created                                                                                                                                                                                                                                                                                                                                                                                                                                      0.0s 
+ ✔ Volume esb-e2e-docker_scylladb_data        Created                                                                                                                                                                                                                                                                                                                                                                                                                                      0.0s 
+ ✔ Container esb-e2e-docker-agent             Created                                                                                                                                                                                                                                                                                                                                                                                                                                      0.2s 
+ ✔ Container esb-e2e-docker-victorialogs      Healthy                                                                                                                                                                                                                                                                                                                                                                                                                                      5.9s 
+ ✔ Container esb-e2e-docker-permission-helper Exited                                                                                                                                                                                                                                                                                                                                                                                                                                       1.2s 
+ ✔ Container esb-e2e-docker-database          Healthy                                                                                                                                                                                                                                                                                                                                                                                                                                     12.4s 
+ ✔ Container esb-e2e-docker-s3-storage        Healthy                                                                                                                                                                                                                                                                                                                                                                                                                                     11.7s 
+ ✔ Container esb-e2e-docker-gateway           Created                                                                                                                                                                                                                                                                                                                                                                                                                                      0.1s 
+➜ Preparing infrastructure...
+Creating DynamoDB Table: e2e-test-table
+✅ Created DynamoDB Table: e2e-test-table
+✅ Created S3 Bucket: e2e-test-bucket
+✅ Environment is ready! (https://localhost:443)
+➜ Waiting for Gateway...
+/mnt/d/projects/padma-on-premises/.venv/lib/python3.12/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'localhost'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+✅ Gateway is ready!
+
+=== Running Tests for Combined Scenarios for e2e-docker ===
+
+===================================================================================================================================================================================================================================== test session starts ======================================================================================================================================================================================================================================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0 -- /mnt/d/projects/padma-on-premises/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /mnt/d/projects/padma-on-premises
+configfile: pyproject.toml
+plugins: anyio-4.12.0, asyncio-1.3.0, respx-0.22.0, typeguard-4.4.4
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 39 items                                                                                                                                                                                                                                                                                                                                                                                                                                                                             
+
+tests/scenarios/smoke/test_connectivity.py::TestConnectivity::test_gateway_health PASSED                                                                                                                                                                                                                                                                                                                                                                                                 [  2%]
+tests/scenarios/smoke/test_connectivity.py::TestConnectivity::test_victorialogs_health PASSED                                                                                                                                                                                                                                                                                                                                                                                            [  5%]
+tests/scenarios/smoke/test_connectivity.py::TestConnectivity::test_lambda_basic_invoke PASSED                                                                                                                                                                                                                                                                                                                                                                                            [  7%]
+tests/scenarios/smoke/test_connectivity.py::TestConnectivity::test_dynamodb_connectivity PASSED                                                                                                                                                                                                                                                                                                                                                                                          [ 10%]
+tests/scenarios/smoke/test_connectivity.py::TestConnectivity::test_s3_connectivity PASSED                                                                                                                                                                                                                                                                                                                                                                                                [ 12%]
+tests/scenarios/smoke/test_connectivity.py::TestConnectivity::test_chain_invoke PASSED                                                                                                                                                                                                                                                                                                                                                                                                   [ 15%]
+tests/scenarios/autoscaling/test_e2e_autoscaling.py::TestAutoScaling::test_pool_provision_and_reuse PASSED                                                                                                                                                                                                                                                                                                                                                                               [ 17%]
+tests/scenarios/autoscaling/test_e2e_autoscaling.py::TestAutoScaling::test_concurrent_queueing PASSED                                                                                                                                                                                                                                                                                                                                                                                    [ 20%]
+tests/scenarios/autoscaling/test_e2e_autoscaling.py::TestConcurrentStress::test_concurrent_stress_10_requests PASSED                                                                                                                                                                                                                                                                                                                                                                     [ 23%]
+tests/scenarios/autoscaling/test_e2e_autoscaling.py::TestConcurrentStress::test_concurrent_different_functions PASSED                                                                                                                                                                                                                                                                                                                                                                    [ 25%]
+tests/scenarios/autoscaling/test_scale_out.py::TestScaleOut::test_multiple_containers_spawn PASSED                                                                                                                                                                                                                                                                                                                                                                                       [ 28%]
+tests/scenarios/autoscaling/test_scale_out.py::TestScaleOut::test_respects_max_capacity PASSED                                                                                                                                                                                                                                                                                                                                                                                           [ 30%]
+tests/scenarios/autoscaling/test_scale_to_zero.py::TestScaleToZero::test_idle_container_cleanup PASSED                                                                                                                                                                                                                                                                                                                                                                                   [ 33%]
+tests/scenarios/autoscaling/test_scale_to_zero.py::TestScaleToZero::test_active_container_not_cleaned PASSED                                                                                                                                                                                                                                                                                                                                                                             [ 35%]
+tests/scenarios/standard/test_dynamo.py::TestDynamo::test_put_get PASSED                                                                                                                                                                                                                                                                                                                                                                                                                 [ 38%]
+tests/scenarios/standard/test_dynamo.py::TestDynamo::test_update_item PASSED                                                                                                                                                                                                                                                                                                                                                                                                             [ 41%]
+tests/scenarios/standard/test_dynamo.py::TestDynamo::test_delete_item PASSED                                                                                                                                                                                                                                                                                                                                                                                                             [ 43%]
+tests/scenarios/standard/test_dynamo.py::TestDynamo::test_get_nonexistent PASSED                                                                                                                                                                                                                                                                                                                                                                                                         [ 46%]
+tests/scenarios/standard/test_gateway_basics.py::TestGatewayBasics::test_health PASSED                                                                                                                                                                                                                                                                                                                                                                                                   [ 48%]
+tests/scenarios/standard/test_gateway_basics.py::TestGatewayBasics::test_auth PASSED                                                                                                                                                                                                                                                                                                                                                                                                     [ 51%]
+tests/scenarios/standard/test_gateway_basics.py::TestGatewayBasics::test_routing_401 PASSED                                                                                                                                                                                                                                                                                                                                                                                              [ 53%]
+tests/scenarios/standard/test_gateway_basics.py::TestGatewayBasics::test_routing_404 PASSED                                                                                                                                                                                                                                                                                                                                                                                              [ 56%]
+tests/scenarios/standard/test_id_specs.py::TestIDSpecs::test_id_propagation_with_chain FAILED                                                                                                                                                                                                                                                                                                                                                                                            [ 58%]
+tests/scenarios/standard/test_lambda.py::TestLambda::test_basic_invocation PASSED                                                                                                                                                                                                                                                                                                                                                                                                        [ 61%]
+tests/scenarios/standard/test_lambda.py::TestLambda::test_sync_chain_invoke PASSED                                                                                                                                                                                                                                                                                                                                                                                                       [ 64%]
+tests/scenarios/standard/test_lambda.py::TestLambda::test_async_chain_invoke PASSED                                                                                                                                                                                                                                                                                                                                                                                                      [ 66%]
+tests/scenarios/standard/test_metrics_api.py::TestMetricsAPI::test_metrics_api PASSED                                                                                                                                                                                                                                                                                                                                                                                                    [ 69%]
+tests/scenarios/standard/test_observability.py::TestObservability::test_structured_log_format PASSED                                                                                                                                                                                                                                                                                                                                                                                     [ 71%]
+tests/scenarios/standard/test_observability.py::TestObservability::test_cloudwatch_logs_passthrough PASSED                                                                                                                                                                                                                                                                                                                                                                               [ 74%]
+tests/scenarios/standard/test_reconciliation.py::TestReconciliation::test_grace_period_prevents_premature_deletion PASSED                                                                                                                                                                                                                                                                                                                                                                [ 76%]
+tests/scenarios/standard/test_resilience.py::TestResilience::test_orchestrator_restart_recovery PASSED                                                                                                                                                                                                                                                                                                                                                                                   [ 79%]
+tests/scenarios/standard/test_resilience.py::TestResilience::test_gateway_cache_hit PASSED                                                                                                                                                                                                                                                                                                                                                                                               [ 82%]
+tests/scenarios/standard/test_resilience.py::TestResilience::test_circuit_breaker PASSED                                                                                                                                                                                                                                                                                                                                                                                                 [ 84%]
+tests/scenarios/standard/test_s3.py::TestS3::test_put_get PASSED                                                                                                                                                                                                                                                                                                                                                                                                                         [ 87%]
+tests/scenarios/standard/test_s3.py::TestS3::test_list_objects PASSED                                                                                                                                                                                                                                                                                                                                                                                                                    [ 89%]
+tests/scenarios/standard/test_s3.py::TestS3::test_delete_object PASSED                                                                                                                                                                                                                                                                                                                                                                                                                   [ 92%]
+tests/scenarios/standard/test_s3.py::TestS3::test_overwrite PASSED                                                                                                                                                                                                                                                                                                                                                                                                                       [ 94%]
+tests/scenarios/standard/test_s3.py::TestS3::test_list_with_prefix PASSED                                                                                                                                                                                                                                                                                                                                                                                                                [ 97%]
+tests/scenarios/standard/test_trace_propagation.py::TestTrace::test_chained_trace_consistency FAILED                                                                                                                                                                                                                                                                                                                                                                                     [100%]
+
+=========================================================================================================================================================================================================================================== FAILURES ===========================================================================================================================================================================================================================================
+__________________________________________________________________________________________________________________________________________________________________________________________________________________________ TestIDSpecs.test_id_propagation_with_chain __________________________________________________________________________________________________________________________________________________________________________________________________________________________
+
+self = <test_id_specs.TestIDSpecs object at 0x721c305f2f30>, auth_token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0LWFkbWluIiwiZXhwIjoxNzY3NzAxMDk0LCJpYXQiOjE3Njc2OTgwOTR9.bZKNop6366Hlig8uNA9i7XH8q2slcUD67zsWv9FKaWY'
+
+    def test_id_propagation_with_chain(self, auth_token):
+        """
+        Verify Trace ID propagation and Request ID independence across a call chain.
+        Chain: Client -> Gateway -> Lambda(integration) -> Gateway -> Lambda(echo)
+        """
+        # 1. Prepare unique IDs
+        unique_marker = uuid.uuid4().hex[:12]
+        epoch_hex = hex(int(time.time()))[2:]
+        # Format: Root=1-{time}-{id};Sampled=1
+        trace_id_value = f"1-{epoch_hex}-{uuid.uuid4().hex[:24]}"
+        trace_id_header = f"Root={trace_id_value};Sampled=1"
+    
+        print(f"Starting Chain ID spec test with Trace ID: {trace_id_value}")
+    
+        # 2. Invoke Lambda Chain
+        # Calls /api/lambda (lambda-integration), which calls lambda-echo
+        response = call_api(
+            "/api/lambda",
+            auth_token,
+            {"next_target": "lambda-echo", "message": f"Chain Verification {unique_marker}"},
+            headers={"X-Amzn-Trace-Id": trace_id_header},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+    
+        # 3. Wait for logs in VictoriaLogs
+        print(f"Waiting for chain logs with trace_id: {trace_id_value} ...")
+    
+        logs_found = {"gateway": [], "lambda-integration": [], "lambda-echo": []}
+    
+        start_time = time.time()
+        while time.time() - start_time < LOG_WAIT_TIMEOUT:
+            # Query by trace_id matches
+            result = query_victorialogs_by_filter(
+                raw_query=f'trace_id:"{trace_id_value}"', timeout=2, limit=100
+            )
+            hits = result.get("hits", [])
+    
+            if hits:
+                for log in hits:
+                    container = log.get("container_name", "")
+                    job = log.get("job", "")
+    
+                    if "gateway" in container or job == "gateway":
+                        logs_found["gateway"].append(log)
+                    elif "lambda-integration" in container:
+                        logs_found["lambda-integration"].append(log)
+                    elif "lambda-echo" in container:
+                        logs_found["lambda-echo"].append(log)
+    
+            # Check if we have at least one log from each component
+            if (
+                len(logs_found["gateway"]) > 0
+                and len(logs_found["lambda-integration"]) > 0
+                and len(logs_found["lambda-echo"]) > 0
+            ):
+                break
+    
+            time.sleep(2)
+    
+        # 4. Verifications
+    
+        # 4.1 Trace ID Propagation (Global)
+>       assert len(logs_found["gateway"]) > 0, "Gateway logs missing for Chain Trace ID"
+E       AssertionError: Gateway logs missing for Chain Trace ID
+E       assert 0 > 0
+E        +  where 0 = len([])
+
+tests/scenarios/standard/test_id_specs.py:89: AssertionError
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- Captured stdout call -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Starting Chain ID spec test with Trace ID: 1-695ceeae-7b1bfcb989634342996e094d
+Waiting for chain logs with trace_id: 1-695ceeae-7b1bfcb989634342996e094d ...
+___________________________________________________________________________________________________________________________________________________________________________________________________________________________ TestTrace.test_chained_trace_consistency ___________________________________________________________________________________________________________________________________________________________________________________________________________________________
+
+self = <test_trace_propagation.TestTrace object at 0x721c3042c1d0>, auth_token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0LWFkbWluIiwiZXhwIjoxNzY3NzAxMjYyLCJpYXQiOjE3Njc2OTgyNjJ9.sOShu1n4U2xaTnkYn6kxooDQVKWr7-EXIlSd1PeZi0g'
+
+    def test_chained_trace_consistency(self, auth_token):
+        """
+        E2E: ensure Trace ID is preserved across Client -> Gateway -> Lambda A -> Lambda B.
+    
+        Verification points:
+        1. Lambda A's trace_id matches the sent Trace ID
+        2. Logs after test start time include Trace ID in all components:
+           - esb-gateway
+           - lambda-integration
+           - lambda-connectivity
+        """
+        # Record test start time.
+        test_start_time = datetime.now(timezone.utc)
+    
+        # Generate AWS-compatible Trace ID.
+        epoch_hex = hex(int(time.time()))[2:]
+        unique_id = uuid.uuid4().hex[:24]
+        custom_trace_id = f"Root=1-{epoch_hex}-{unique_id};Sampled=1"
+        root_id = f"1-{epoch_hex}-{unique_id}"
+    
+        # 1. Invoke Lambda A, which calls Lambda B (connectivity) internally.
+        payload = {"next_target": "lambda-connectivity"}
+    
+        response = requests.post(
+            f"{GATEWAY_URL}/2015-03-31/functions/lambda-integration/invocations",
+            json=payload,
+            headers={"Authorization": f"Bearer {auth_token}", "X-Amzn-Trace-Id": custom_trace_id},
+            verify=VERIFY_SSL,
+            timeout=30,
+        )
+    
+        assert response.status_code == 200, f"Request failed with status {response.status_code}"
+    
+        data = response.json()
+        body = json.loads(data.get("body", "{}"))
+    
+        # --- Verification 1: trace_id in Lambda A response ---
+        lambda_a_trace_id = body.get("trace_id")
+        assert lambda_a_trace_id is not None, "Lambda A did not return trace_id in response"
+        assert lambda_a_trace_id != "not-found", (
+            "Lambda A failed to receive Trace ID. Got 'not-found'. "
+            "Expected Trace ID to be propagated via X-Amz-Client-Context header."
+        )
+    
+        # Verify Root portion matches.
+        expected_root = f"Root={root_id}"
+        assert expected_root in lambda_a_trace_id, (
+            f"Lambda A received wrong Trace ID. "
+            f"Expected root: {expected_root}, Got: {lambda_a_trace_id}"
+        )
+    
+        # Ensure child info for chained invocation exists.
+        child_info = body.get("child")
+        assert child_info is not None, "Lambda A did not return child (Lambda B) info"
+    
+        print(f"[OK] Lambda A trace_id: {lambda_a_trace_id}")
+        print("[OK] Lambda B (child) response received")
+    
+        # --- Verification 2: Trace ID appears in each component via VictoriaLogs ---
+        # Wait for logs (max 45 seconds).
+        # Note: query_victorialogs returns with min_hits=1, so Gateway logs may appear before Lambda logs.
+        # Loop until all components are present.
+    
+        expected_components = {"esb-gateway", "lambda-integration", "lambda-connectivity"}
+        found_components = set()
+    
+        wait_start = time.time()
+        wait_timeout = 45
+    
+        print(f"Waiting for logs from: {expected_components} (Timeout: {wait_timeout}s)")
+    
+        while time.time() - wait_start < wait_timeout:
+            # Convert test start time to ISO8601 for VictoriaLogs query.
+            start_time_iso = test_start_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+            logs = query_victorialogs(root_id, timeout=1, start=start_time_iso)
+            hits = logs.get("hits", [])
+    
+            current_found = set()
+            for log in hits:
+                container_name = log.get("container_name", "")
+                stream = log.get("_stream", "")
+    
+                for component in expected_components:
+                    if component in container_name or f'container_name="{component}"' in stream:
+                        current_found.add(component)
+    
+            found_components = current_found
+            missing = expected_components - found_components
+    
+            if not missing:
+                break
+    
+            time.sleep(2)
+    
+        print(f"Found {len(hits)} logs for Trace ID root: {root_id}")
+        print(f"Components with Trace ID: {found_components}")
+    
+        missing_components = expected_components - found_components
+        if missing_components:
+            # Strict: fail if Trace ID not found in all components.
+            print(f"DEBUG Logs found: {json.dumps(logs, indent=2)}", flush=True)
+>           raise AssertionError(
+                f"[FAILED] Trace ID did not appear in VictoriaLogs for: {missing_components}. "
+                f"Found in: {found_components}. "
+                f"Ensure sitecustomize.py is auto-hydrating trace IDs and logs are shipped."
+            )
+E           AssertionError: [FAILED] Trace ID did not appear in VictoriaLogs for: {'esb-gateway'}. Found in: {'lambda-integration', 'lambda-connectivity'}. Ensure sitecustomize.py is auto-hydrating trace IDs and logs are shipped.
+
+tests/scenarios/standard/test_trace_propagation.py:114: AssertionError
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- Captured stdout call -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+[OK] Lambda A trace_id: Root=1-695cef56-a0612eb7128944eebead9e94;Sampled=1
+[OK] Lambda B (child) response received
+Waiting for logs from: {'lambda-integration', 'lambda-connectivity', 'esb-gateway'} (Timeout: 45s)
+Found 11 logs for Trace ID root: 1-695cef56-a0612eb7128944eebead9e94
+Components with Trace ID: {'lambda-integration', 'lambda-connectivity'}
+DEBUG Logs found: {
+  "hits": [
+    {
+      "_time": "2026-01-06T11:17:43.881Z",
+      "_stream_id": "0000000000000000e99f3041c6d517a9da0b7cac05af945c",
+      "_stream": "{container_name=\"lambda-connectivity\",job=\"lambda\"}",
+      "_msg": "[INFO]\t2026-01-06T11:17:43.880Z\t50168f41-7a78-49b1-9af6-b749e1696381\tProcessing action for user: anonymous",
+      "aws_request_id": "50168f41-7a78-49b1-9af6-b749e1696381",
+      "container_name": "lambda-connectivity",
+      "job": "lambda",
+      "trace_id": "Root=1-695cef56-a0612eb7128944eebead9e94;Sampled=1",
+      "level": "INFO"
+    },
+    {
+      "_time": "2026-01-06T11:17:43.872Z",
+      "_stream_id": "0000000000000000e99f3041c6d517a9da0b7cac05af945c",
+      "_stream": "{container_name=\"lambda-connectivity\",job=\"lambda\"}",
+      "_msg": "Hydrated _X_AMZN_TRACE_ID: Root=1-695cef56-a0612eb7128944eebead9e94;Sampled=1",
+      "aws_request_id": "50168f41-7a78-49b1-9af6-b749e1696381",
+      "container_name": "lambda-connectivity",
+      "job": "lambda",
+      "trace_id": "Root=1-695cef56-a0612eb7128944eebead9e94;Sampled=1",
+      "_sitecustomize": "true",
+      "level": "DEBUG",
+      "logger": "sitecustomize"
+    },
+    {
+      "_time": "2026-01-06T11:17:43.412Z",
+      "_stream_id": "00000000000000007825a3e5b65e7597edc5967faa93c3bb",
+      "_stream": "{container_name=\"lambda-integration\",job=\"lambda\"}",
+      "_msg": "  warnings.warn(",
+      "aws_request_id": "77768e26-da9a-48d4-8c74-5e53e50e5f25",
+      "container_name": "lambda-integration",
+      "job": "lambda",
+      "level": "WARNING",
+      "trace_id": "Root=1-695cef56-a0612eb7128944eebead9e94;Sampled=1"
+    },
+    {
+      "_time": "2026-01-06T11:17:43.41Z",
+      "_stream_id": "00000000000000007825a3e5b65e7597edc5967faa93c3bb",
+      "_stream": "{container_name=\"lambda-integration\",job=\"lambda\"}",
+      "_msg": "/var/lang/lib/python3.12/site-packages/urllib3/connectionpool.py:1063: InsecureRequestWarning: Unverified HTTPS request is being made to host 'esb-e2e-docker-gateway'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/1.26.x/advanced-usage.html#ssl-warnings",
+      "aws_request_id": "77768e26-da9a-48d4-8c74-5e53e50e5f25",
+      "container_name": "lambda-integration",
+      "job": "lambda",
+      "trace_id": "Root=1-695cef56-a0612eb7128944eebead9e94;Sampled=1",
+      "level": "WARNING"
+    },
+    {
+      "_time": "2026-01-06T11:17:43.398Z",
+      "_stream_id": "00000000000000007825a3e5b65e7597edc5967faa93c3bb",
+      "_stream": "{container_name=\"lambda-integration\",job=\"lambda\"}",
+      "_msg": "[sitecustomize] Injected Trace ID into ClientContext for RIE: Root=1-695cef56-a0612eb7128944eebead9e94;Sampled=1",
+      "aws_request_id": "77768e26-da9a-48d4-8c74-5e53e50e5f25",
+      "container_name": "lambda-integration",
+      "job": "lambda",
+      "trace_id": "Root=1-695cef56-a0612eb7128944eebead9e94;Sampled=1",
+      "level": "DEBUG"
+    },
+    {
+      "_time": "2026-01-06T11:17:43.394Z",
+      "_stream_id": "00000000000000007825a3e5b65e7597edc5967faa93c3bb",
+      "_stream": "{container_name=\"lambda-integration\",job=\"lambda\"}",
+      "_msg": "[sitecustomize] Registered ClientContext hook for lambda.Invoke",
+      "aws_request_id": "77768e26-da9a-48d4-8c74-5e53e50e5f25",
+      "container_name": "lambda-integration",
+      "job": "lambda",
+      "trace_id": "Root=1-695cef56-a0612eb7128944eebead9e94;Sampled=1",
+      "level": "INFO"
+    },
+    {
+      "_time": "2026-01-06T11:17:43.344Z",
+      "_stream_id": "00000000000000007825a3e5b65e7597edc5967faa93c3bb",
+      "_stream": "{container_name=\"lambda-integration\",job=\"lambda\"}",
+      "_msg": "[INFO]\t2026-01-06T11:17:43.344Z\t77768e26-da9a-48d4-8c74-5e53e50e5f25\tFound credentials in environment variables.",
+      "aws_request_id": "77768e26-da9a-48d4-8c74-5e53e50e5f25",
+      "container_name": "lambda-integration",
+      "job": "lambda",
+      "trace_id": "Root=1-695cef56-a0612eb7128944eebead9e94;Sampled=1",
+      "level": "INFO"
+    },
+    {
+      "_time": "2026-01-06T11:17:43.338Z",
+      "_stream_id": "00000000000000007825a3e5b65e7597edc5967faa93c3bb",
+      "_stream": "{container_name=\"lambda-integration\",job=\"lambda\"}",
+      "_msg": "[sitecustomize] Redirecting lambda to https://esb-e2e-docker-gateway:443",
+      "aws_request_id": "77768e26-da9a-48d4-8c74-5e53e50e5f25",
+      "container_name": "lambda-integration",
+      "job": "lambda",
+      "trace_id": "Root=1-695cef56-a0612eb7128944eebead9e94;Sampled=1",
+      "level": "INFO"
+    },
+    {
+      "_time": "2026-01-06T11:17:43.337Z",
+      "_stream_id": "00000000000000007825a3e5b65e7597edc5967faa93c3bb",
+      "_stream": "{container_name=\"lambda-integration\",job=\"lambda\"}",
+      "_msg": "[INFO]\t2026-01-06T11:17:43.336Z\t77768e26-da9a-48d4-8c74-5e53e50e5f25\tChaining sync invocation to lambda-connectivity",
+      "aws_request_id": "77768e26-da9a-48d4-8c74-5e53e50e5f25",
+      "container_name": "lambda-integration",
+      "job": "lambda",
+      "trace_id": "Root=1-695cef56-a0612eb7128944eebead9e94;Sampled=1",
+      "level": "INFO"
+    },
+    {
+      "_time": "2026-01-06T11:17:43.335Z",
+      "_stream_id": "00000000000000007825a3e5b65e7597edc5967faa93c3bb",
+      "_stream": "{container_name=\"lambda-integration\",job=\"lambda\"}",
+      "_msg": "[INFO]\t2026-01-06T11:17:43.335Z\t77768e26-da9a-48d4-8c74-5e53e50e5f25\tTrace ID in environment: Root=1-695cef56-a0612eb7128944eebead9e94;Sampled=1",
+      "aws_request_id": "77768e26-da9a-48d4-8c74-5e53e50e5f25",
+      "container_name": "lambda-integration",
+      "job": "lambda",
+      "trace_id": "Root=1-695cef56-a0612eb7128944eebead9e94;Sampled=1",
+      "level": "DEBUG"
+    },
+    {
+      "_time": "2026-01-06T11:17:43.325Z",
+      "_stream_id": "00000000000000007825a3e5b65e7597edc5967faa93c3bb",
+      "_stream": "{container_name=\"lambda-integration\",job=\"lambda\"}",
+      "_msg": "Hydrated _X_AMZN_TRACE_ID: Root=1-695cef56-a0612eb7128944eebead9e94;Sampled=1",
+      "aws_request_id": "77768e26-da9a-48d4-8c74-5e53e50e5f25",
+      "container_name": "lambda-integration",
+      "job": "lambda",
+      "trace_id": "Root=1-695cef56-a0612eb7128944eebead9e94;Sampled=1",
+      "_sitecustomize": "true",
+      "level": "DEBUG",
+      "logger": "sitecustomize"
+    }
+  ]
+}
+=================================================================================================================================================================================================================================== short test summary info ====================================================================================================================================================================================================================================
+FAILED tests/scenarios/standard/test_id_specs.py::TestIDSpecs::test_id_propagation_with_chain - AssertionError: Gateway logs missing for Chain Trace ID
+FAILED tests/scenarios/standard/test_trace_propagation.py::TestTrace::test_chained_trace_consistency - AssertionError: [FAILED] Trace ID did not appear in VictoriaLogs for: {'esb-gateway'}. Found in: {'lambda-integration', 'lambda-connectivity'}. Ensure sitecustomize.py is auto-hydrating trace IDs and logs are shipped.
+=========================================================================================================================================================================================================================== 2 failed, 37 passed in 525.14s (0:08:45) ===========================================================================================================================================================================================================================
+
+[FAILED] Profile 'e2e-docker' FAILED.
+
+[FAILED] The following matrix entries failed: e2e-docker
+(edge-serverless-box) akira@NAGANO-NUC2:/mnt/d/projects/padma-on-premises$ 
