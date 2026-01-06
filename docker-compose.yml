@@ -154,7 +154,7 @@ services:
       - CIRCUIT_BREAKER_RECOVERY_TIMEOUT=${CIRCUIT_BREAKER_RECOVERY_TIMEOUT:-30.0}
       - PYTHONUNBUFFERED=1
       # VictoriaLogs direct-send configuration (Lambda via grpc_provision.py)
-      - VICTORIALOGS_URL=${VICTORIALOGS_URL:-http://${ESB_PROJECT_NAME:-esb}-victorialogs:9428}  # Gateway -> VictoriaLogs
+      - VICTORIALOGS_URL=${VICTORIALOGS_URL:-http://victorialogs:9428}  # Gateway -> VictoriaLogs
       # GATEWAY_VICTORIALOGS_URL moved to docker.yml
       # DYNAMODB_ENDPOINT moved to docker.yml
       # S3_ENDPOINT moved to docker.yml

@@ -6,6 +6,7 @@ import sys
 import yaml
 import subprocess
 from pathlib import Path
+
 # from . import build
 from tools.provisioner import main as provisioner
 from tools.cli import config as cli_config
@@ -26,7 +27,7 @@ def wait_for_gateway(timeout=60):
     """Wait until Gateway responds."""
     start_time = time.time()
     start_time = time.time()
-    
+
     # Dynamically resolve Gateway port based on active environment (already in os.environ)
     port = os.environ.get("ESB_PORT_GATEWAY_HTTPS", "443")
     url = f"https://localhost:{port}/health"
@@ -54,7 +55,7 @@ def _should_override_agent_address(current: str | None) -> bool:
         "localhost:50051",
         "127.0.0.1:50051",
         "::1:50051",
-        "esb-agent:50051",
+        "agent:50051",
         "runtime-node:50051",
     }
 
@@ -129,7 +130,9 @@ def run(args):
                 )
 
     # 2. Start services.
-    logging.step(f"Starting services for environment: {logging.highlight(cli_config.get_env_name())}...")
+    logging.step(
+        f"Starting services for environment: {logging.highlight(cli_config.get_env_name())}..."
+    )
     compose_args = ["up"]
     if getattr(args, "detach", True):
         compose_args.append("-d")
@@ -137,15 +140,12 @@ def run(args):
     # Rebuild services themselves.
     if getattr(args, "build", False):
         compose_args.append("--build")
-    
+
     extra_files = getattr(args, "file", [])
     project_name = os.environ.get("ESB_PROJECT_NAME")
 
     cmd = cli_compose.build_compose_command(
-        compose_args, 
-        target="control", 
-        extra_files=extra_files,
-        project_name=project_name
+        compose_args, target="control", extra_files=extra_files, project_name=project_name
     )
 
     try:

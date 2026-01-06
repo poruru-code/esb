@@ -135,11 +135,7 @@ def main():
         if args.unit_only:
             sys.exit(0)
 
-    # Load Base Environment (Global)
-    base_env_path = PROJECT_ROOT / "tests" / ".env.test"
-    if base_env_path.exists():
-        load_dotenv(base_env_path, override=False)
-        print(f"Loaded base environment from: {base_env_path}")
+    # Load Base Environment is now skipped to ensure profile isolation
 
     print("\nStarting Full E2E Test Suite (Matrix-Based)\n")
     failed_entries = []
@@ -414,15 +410,7 @@ def run_scenario(args, scenario):
         print(f"Switching runtime mode to: {scenario['runtime_mode']} (env: {env_name})")
         run_esb(["mode", "set", scenario["runtime_mode"]])
 
-    # 1. Environment Setup
-    base_env_path = PROJECT_ROOT / "tests" / ".env.test"
-    if base_env_path.exists():
-        load_dotenv(base_env_path, override=True)
-        print(f"Loaded base environment from: {base_env_path}")
-    else:
-        print(f"Warning: Base environment file not found: {base_env_path}")
-
-    # Load Scenario-Specific Env File
+    # Load Scenario-Specific Env File (Required for isolation)
     if scenario.get("env_file"):
         env_file_path = PROJECT_ROOT / scenario["env_file"]
         if env_file_path.exists():
@@ -430,6 +418,8 @@ def run_scenario(args, scenario):
             print(f"Loaded scenario environment from: {env_file_path}")
         else:
             print(f"Warning: Scenario environment file not found: {env_file_path}")
+    else:
+        print("Warning: No env_file specified for this scenario. Operating with system env only.")
 
     # Environment Isolation & Ports Logic
     from tools.cli import config as cli_config

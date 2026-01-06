@@ -22,9 +22,7 @@ def _required_sans() -> tuple[set[str], set[str]]:
     required_dns = {
         "localhost",
         "registry",  # For containerd mode
-        "gateway",   # For containerd mode
-        "esb-registry",
-        "esb-gateway",
+        "gateway",  # For containerd mode
         "host.docker.internal",
     }
     required_ips = {
@@ -160,9 +158,7 @@ def generate_server_cert(cert_dir: Path, ca_key_path: Path, ca_cert_path: Path):
         x509.DNSName("localhost"),
         x509.DNSName(hostname),
         x509.DNSName("registry"),  # For containerd mode (CONTAINER_REGISTRY=registry:5010)
-        x509.DNSName("gateway"),   # For containerd mode
-        x509.DNSName("esb-registry"),
-        x509.DNSName("esb-gateway"),
+        x509.DNSName("gateway"),  # For containerd mode
         x509.DNSName("host.docker.internal"),
         x509.IPAddress(ipaddress.IPv4Address("127.0.0.1")),
         x509.IPAddress(ipaddress.IPv4Address(WG_GATEWAY_IP)),

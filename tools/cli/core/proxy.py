@@ -8,27 +8,19 @@ from typing import Iterable
 
 # Default destinations that should bypass corporate proxies for local ESB services.
 DEFAULT_NO_PROXY_TARGETS: tuple[str, ...] = (
-    "localhost",
-    "127.0.0.1",
-    "::1",
-    "registry",
-    "esb-registry",
-    "gateway",
-    "esb-gateway",
-    "runtime-node",
-    "esb-runtime-node",
     "agent",
-    "esb-agent",
-    "local-proxy",
-    "esb-local-proxy",
-    "s3-storage",
-    "esb-s3-storage",
     "database",
-    "esb-database",
+    "gateway",
+    "local-proxy",
+    "localhost",
+    "registry",
+    "runtime-node",
+    "s3-storage",
     "victorialogs",
-    "esb-victorialogs",
+    "::1",
     "10.88.0.0/16",
     "10.99.0.1",
+    "127.0.0.1",
     "172.20.0.0/16",
 )
 
@@ -134,7 +126,9 @@ def apply_proxy_env(extra_no_proxy: Iterable[str] | None = None) -> dict[str, st
     return env
 
 
-def prepare_env(base_env: dict[str, str] | None = None, extra_no_proxy: Iterable[str] | None = None) -> dict[str, str]:
+def prepare_env(
+    base_env: dict[str, str] | None = None, extra_no_proxy: Iterable[str] | None = None
+) -> dict[str, str]:
     """
     Prepare an environment mapping for subprocess calls with proxy variables injected.
     """

@@ -16,9 +16,9 @@ services:
       - CNI_GW_IP=10.88.0.1
       - DNAT_APPLY_OUTPUT=1
       # Local Integration
-      - DNAT_S3_IP=esb-storage
-      - DNAT_DB_IP=esb-database
-      - DNAT_VL_IP=victorialogs
+      - DNAT_S3_IP=127.0.0.1
+      - DNAT_DB_IP=127.0.0.1
+      - DNAT_VL_IP=127.0.0.1
     healthcheck:
       test: ["CMD", "ctr", "-a", "/run/containerd/containerd.sock", "version"]
       interval: 5s

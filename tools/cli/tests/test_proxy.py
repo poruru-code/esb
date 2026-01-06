@@ -6,14 +6,30 @@ from tools.cli.core import proxy
 
 
 def test_collect_proxy_env_skips_when_unset(monkeypatch):
-    for key in ("HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy", "NO_PROXY", "no_proxy", "ESB_NO_PROXY_EXTRA"):
+    for key in (
+        "HTTP_PROXY",
+        "http_proxy",
+        "HTTPS_PROXY",
+        "https_proxy",
+        "NO_PROXY",
+        "no_proxy",
+        "ESB_NO_PROXY_EXTRA",
+    ):
         monkeypatch.delenv(key, raising=False)
     env = proxy.collect_proxy_env()
     assert env == {}
 
 
 def test_collect_proxy_env_merges_defaults(monkeypatch):
-    for key in ("HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy", "NO_PROXY", "no_proxy", "ESB_NO_PROXY_EXTRA"):
+    for key in (
+        "HTTP_PROXY",
+        "http_proxy",
+        "HTTPS_PROXY",
+        "https_proxy",
+        "NO_PROXY",
+        "no_proxy",
+        "ESB_NO_PROXY_EXTRA",
+    ):
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv("HTTP_PROXY", "http://proxy.corp:3128")
     monkeypatch.delenv("NO_PROXY", raising=False)
@@ -22,7 +38,7 @@ def test_collect_proxy_env_merges_defaults(monkeypatch):
     assert env["HTTP_PROXY"] == "http://proxy.corp:3128"
     merged = env["NO_PROXY"].split(",")
     assert "localhost" in merged
-    assert "esb-registry" in merged
+    assert "registry" in merged
 
 
 def test_prepare_env_respects_extra_no_proxy(monkeypatch):

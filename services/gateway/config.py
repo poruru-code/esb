@@ -12,6 +12,7 @@ from services.common.core.config import BaseAppConfig
 
 class ServiceDefaults:
     """Default values for internal services to avoid magic numbers."""
+
     PROTOCOL = "http"
     S3_PORT = 9000
     DYNAMODB_PORT = 8000  # Gateway view (Container is 8000, Host is 8001? Check compose)
@@ -44,7 +45,9 @@ class GatewayConfig(BaseAppConfig):
     DATA_ROOT_PATH: str = Field(default="/data", description="Root path for child container data")
     LOGS_ROOT_PATH: str = Field(default="/logs", description="Root path for log aggregation")
     VICTORIALOGS_URL: str = Field(default="", description="VictoriaLogs ingestion URL (Gateway)")
-    GATEWAY_VICTORIALOGS_URL: str = Field(default="", description="VictoriaLogs ingestion URL (Lambda Injection)")
+    GATEWAY_VICTORIALOGS_URL: str = Field(
+        default="", description="VictoriaLogs ingestion URL (Lambda Injection)"
+    )
 
     # Authentication/security (required from env)
     JWT_SECRET_KEY: str = Field(..., min_length=32, description="JWT signing secret key")
@@ -62,8 +65,12 @@ class GatewayConfig(BaseAppConfig):
     # External integration (hostnames required from env)
     CONTAINERS_NETWORK: str = Field(..., description="Network for Lambda containers")
     GATEWAY_INTERNAL_URL: str = Field(..., description="Gateway URL from containers")
-    ESB_DATA_PLANE_HOST: str = Field(default="10.88.0.1", description="Host for data plane services")
-    LAMBDA_INVOKE_TIMEOUT: float = Field(default=30.0, description="Lambda invoke timeout (seconds)")
+    ESB_DATA_PLANE_HOST: str = Field(
+        default="10.88.0.1", description="Host for data plane services"
+    )
+    LAMBDA_INVOKE_TIMEOUT: float = Field(
+        default=30.0, description="Lambda invoke timeout (seconds)"
+    )
 
     # Data store endpoints for injection into Lambda
     DYNAMODB_ENDPOINT: str = Field(default="", description="Internal DynamoDB endpoint")
@@ -96,7 +103,7 @@ class GatewayConfig(BaseAppConfig):
     )
 
     # Phase 1: Go Agent Settings
-    AGENT_GRPC_ADDRESS: str = Field(default="esb-agent:50051", description="Go Agent gRPC address")
+    AGENT_GRPC_ADDRESS: str = Field(default="agent:50051", description="Go Agent gRPC address")
     AGENT_INVOKE_PROXY: bool = Field(
         default=False, description="Invoke workers via Agent (L7 proxy) instead of direct IP"
     )
