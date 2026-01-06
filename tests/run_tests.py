@@ -8,9 +8,20 @@ import sys
 import subprocess
 from pathlib import Path
 from dotenv import load_dotenv
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 # Project root
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
+
+# Terminal colors for parallel output
+COLORS = [
+    "\033[36m",  # Cyan
+    "\033[32m",  # Green
+    "\033[34m",  # Blue
+    "\033[35m",  # Magenta
+    "\033[33m",  # Yellow
+]
+COLOR_RESET = "\033[0m"
 
 
 def run_esb(args: list[str], check: bool = True):
@@ -62,6 +73,11 @@ def main():
         help="Profile to use for single target run (e.g. e2e-containerd)",
     )
     parser.add_argument("--fail-fast", action="store_true", help="Stop on first suite failure")
+    parser.add_argument(
+        "--parallel",
+        action="store_true",
+        help="Run profiles in parallel (e.g., e2e-docker and e2e-containerd simultaneously)",
+    )
     args = parser.parse_args()
 
     # --- Load Test Matrix (Needed for Profile Info) ---
@@ -130,6 +146,9 @@ def main():
 
     initialized_profiles = set()
 
+    # Build list of all scenarios to run, grouped by profile
+    profile_scenarios: dict[str, list[dict]] = {}
+
     for entry in matrix:
         # Determine structure type: Profile-First (New) or Suite-First (Legacy)
         is_profile_first = "profile" in entry and "suites" in entry
@@ -177,54 +196,90 @@ def main():
                     continue
                 items_to_run.append((suite_name, p_name))
 
-        # Execute items
+        # Build scenarios
         for suite_name, profile_name in items_to_run:
             profile_def = profiles[profile_name]
             suite_def = suites[suite_name]
 
             target_env = profile_name  # Use profile name as environment name
 
-            # Reset/Build logic based on Profile Initialization
-            should_reset = args.reset and (profile_name not in initialized_profiles)
-            should_build = args.build and (profile_name not in initialized_profiles)
+            if profile_name not in profile_scenarios:
+                profile_scenarios[profile_name] = {
+                    "name": f"Combined Scenarios for {profile_name}",
+                    "env_file": profile_def.get("env_file"),
+                    "runtime_mode": profile_def.get("mode"),
+                    "esb_env": target_env,
+                    "env_vars": profile_def.get("env_vars", {}),
+                    "targets": [],
+                    "exclude": [],
+                }
+            
+            # Merge targets and exclusions
+            profile_scenarios[profile_name]["targets"].extend(suite_def.get("targets", []))
+            profile_scenarios[profile_name]["exclude"].extend(suite_def.get("exclude", []))
 
-            scenario_args = {
-                "perform_reset": should_reset,
-                "perform_build": should_build,
-            }
+    # --- Global Reset (if requested) ---
+    if args.reset:
+        print("\n[RESET] Fully cleaning all test artifact directories in tests/fixtures/.esb/")
+        import shutil
+        for p_name in profiles.keys():
+            esb_dir = PROJECT_ROOT / "tests" / "fixtures" / ".esb" / p_name
+            if esb_dir.exists():
+                print(f"  • Removing {esb_dir}")
+                shutil.rmtree(esb_dir)
 
-            scenario = {
-                "name": f"{suite_name} on {profile_name}",
-                "env_file": profile_def.get("env_file"),
-                "runtime_mode": profile_def.get("mode"),
-                "esb_env": target_env,
-                "targets": suite_def.get("targets", []),
-                "exclude": suite_def.get("exclude", []),
-                **scenario_args,
-            }
+    # --- Parallel Execution Mode ---
+    if args.parallel and len(profile_scenarios) > 1:
+        print(f"\n[PARALLEL] Starting parallel execution for {len(profile_scenarios)} profiles: {', '.join(profile_scenarios.keys())}")
+        print("[PARALLEL] Build, infrastructure setup, and tests will run simultaneously across profiles.\n")
 
-            print(f"\n[Matrix] Running Suite: '{suite_name}' on Profile: '{profile_name}'")
-            print(f"         > Environment: {target_env}")
-            print(f"         > Action: Reset={should_reset}, Build={should_build}")
+        results = run_profiles_parallel(
+            profile_scenarios,
+            reset=args.reset,
+            build=args.build,
+            cleanup=args.cleanup,
+            fail_fast=args.fail_fast,
+        )
 
-            try:
-                run_scenario(args, scenario)
-                initialized_profiles.add(profile_name)
-            except SystemExit as e:
-                if e.code != 0:
-                    print(f"\n[FAILED] {scenario['name']} FAILED.")
-                    failed_entries.append(scenario["name"])
-                    if args.fail_fast:
-                        print("\n[FAIL-FAST] Stopping due to --fail-fast option.")
-                        sys.exit(1)
-                else:
-                    print(f"\n[PASSED] {scenario['name']} PASSED.")
-            except Exception as e:
-                print(f"\n[FAILED] {scenario['name']} FAILED with exception: {e}")
-                failed_entries.append(scenario["name"])
+        for profile_name, (success, profile_failed) in results.items():
+            if not success:
+                failed_entries.extend(profile_failed)
+
+        if failed_entries:
+            print(f"\n[FAILED] The following profiles failed: {', '.join(failed_entries)}")
+            sys.exit(1)
+
+        print("\n[PASSED] ALL MATRIX ENTRIES PASSED!")
+        sys.exit(0)
+
+    # --- Sequential Execution (Default) ---
+    for profile_name, scenario in profile_scenarios.items():
+        # Inject initialization flags into the scenario
+        scenario["perform_reset"] = args.reset
+        scenario["perform_build"] = args.build
+
+        print(f"\n[Matrix] Running Profile: '{profile_name}'")
+        print(f"         > Environment: {scenario['esb_env']}")
+        print(f"         > Targets: {', '.join(scenario['targets'])}")
+
+        try:
+            run_scenario(args, scenario)
+            initialized_profiles.add(profile_name)
+        except SystemExit as e:
+            if e.code != 0:
+                print(f"\n[FAILED] Profile '{profile_name}' FAILED.")
+                failed_entries.append(profile_name)
                 if args.fail_fast:
                     print("\n[FAIL-FAST] Stopping due to --fail-fast option.")
                     sys.exit(1)
+            else:
+                print(f"\n[PASSED] Profile '{profile_name}' PASSED.")
+        except Exception as e:
+            print(f"\n[FAILED] Profile '{profile_name}' FAILED with exception: {e}")
+            failed_entries.append(profile_name)
+            if args.fail_fast:
+                print("\n[FAIL-FAST] Stopping due to --fail-fast option.")
+                sys.exit(1)
 
     if failed_entries:
         print(f"\n[FAILED] The following matrix entries failed: {', '.join(failed_entries)}")
@@ -234,65 +289,161 @@ def main():
     sys.exit(0)
 
 
+def run_profiles_parallel(
+    profile_scenarios: dict[str, list[dict]],
+    reset: bool,
+    build: bool,
+    cleanup: bool,
+    fail_fast: bool,
+) -> dict[str, tuple[bool, list[str]]]:
+    """
+    Run multiple profiles in parallel using subprocesses.
+    Each profile runs its suites sequentially within its own subprocess.
+    Returns: dict mapping profile_name to (success, failed_scenario_names)
+    """
+    results = {}
+
+    with ProcessPoolExecutor(max_workers=len(profile_scenarios)) as executor:
+        future_to_profile = {}
+
+        for profile_name, scenario in profile_scenarios.items():
+            # Build command for subprocess
+            cmd = [
+                sys.executable,
+                "-m",
+                "tests.run_tests",
+                "--profile",
+                profile_name,
+            ]
+            if reset:
+                cmd.append("--reset")
+            if build:
+                cmd.append("--build")
+            if cleanup:
+                cmd.append("--cleanup")
+            if fail_fast:
+                cmd.append("--fail-fast")
+
+            print(f"[PARALLEL] Starting profile: {profile_name}")
+            # Assign a color based on the profile's index
+            profile_index = list(profile_scenarios.keys()).index(profile_name)
+            color_code = COLORS[profile_index % len(COLORS)]
+            
+            future = executor.submit(run_profile_subprocess, profile_name, cmd, color_code)
+            future_to_profile[future] = profile_name
+
+        for future in as_completed(future_to_profile):
+            profile_name = future_to_profile[future]
+            try:
+                returncode, output = future.result()
+                success = returncode == 0
+                failed_list = [] if success else [f"Profile {profile_name}"]
+
+                if success:
+                    print(f"[PARALLEL] Profile {profile_name} PASSED")
+                else:
+                    print(f"[PARALLEL] Profile {profile_name} FAILED (exit code: {returncode})")
+
+                results[profile_name] = (success, failed_list)
+            except Exception as e:
+                print(f"[PARALLEL] Profile {profile_name} FAILED with exception: {e}")
+                results[profile_name] = (False, [f"Profile {profile_name} (exception)"])
+
+    return results
+
+
+def run_profile_subprocess(profile_name: str, cmd: list[str], color_code: str = "") -> tuple[int, str]:
+    """Run a profile in a subprocess and stream output with prefix."""
+    prefix = f"{color_code}[{profile_name}]{COLOR_RESET}"
+    
+    process = subprocess.Popen(
+        cmd,
+        cwd=PROJECT_ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,  # Line buffered
+    )
+
+    output_lines = []
+    
+    # Read output line by line as it becomes available
+    try:
+        if process.stdout:
+            for line in iter(process.stdout.readline, ""):
+                clean_line = line.rstrip()
+                print(f"{prefix} {clean_line}", flush=True)
+                output_lines.append(line)
+    except Exception as e:
+        print(f"{prefix} Error reading output: {e}")
+
+    returncode = process.wait()
+
+    # Write output to a log file for debugging
+    log_file = PROJECT_ROOT / "tests" / f".parallel-{profile_name}.log"
+    with open(log_file, "w", encoding="utf-8") as f:
+        f.write(f"=== {profile_name} combined output ===\n")
+        f.writelines(output_lines)
+
+    return returncode, "".join(output_lines)
+
+
 def run_scenario(args, scenario):
     """Run a single scenario."""
 
     # Determine actions based on scenario overrides or global args
     do_reset = scenario.get("perform_reset", args.reset)
     do_build = scenario.get("perform_build", args.build)
-    # do_cleanup = args.cleanup # Currently global only (Unused)
+    
+    # 0. Set ESB_ENV first (needed for mode config path)
+    env_name = scenario.get("esb_env", os.environ.get("ESB_ENV", "default"))
+    os.environ["ESB_ENV"] = env_name
 
-    # 0. Runtime Mode Setup (Optional)
+    # 1. Runtime Mode Setup (Optional)
     if "runtime_mode" in scenario:
-        print(f"Switching runtime mode to: {scenario['runtime_mode']}")
+        print(f"Switching runtime mode to: {scenario['runtime_mode']} (env: {env_name})")
         run_esb(["mode", "set", scenario["runtime_mode"]])
 
     # 1. Environment Setup
     base_env_path = PROJECT_ROOT / "tests" / ".env.test"
     if base_env_path.exists():
-        load_dotenv(base_env_path, override=False)
+        load_dotenv(base_env_path, override=True)
         print(f"Loaded base environment from: {base_env_path}")
     else:
         print(f"Warning: Base environment file not found: {base_env_path}")
 
-    # Ignore args.env_file and use scenario['env_file'].
-    env_path = PROJECT_ROOT / scenario["env_file"]
-    if env_path.exists():
-        load_dotenv(env_path, override=True)  # Override previous scenario vars
-        print(f"Loaded environment from: {env_path}")
-    else:
-        print(f"Warning: Environment file not found: {env_path}")
+    # Load Scenario-Specific Env File
+    if scenario.get("env_file"):
+        env_file_path = PROJECT_ROOT / scenario["env_file"]
+        if env_file_path.exists():
+            load_dotenv(env_file_path, override=True)
+            print(f"Loaded scenario environment from: {env_file_path}")
+        else:
+            print(f"Warning: Scenario environment file not found: {env_file_path}")
 
-    # Reload env vars into dict to pass to subprocess
-    # NOTE: os.environ is updated by load_dotenv, but we explicitly fetch fresh copy
+    # Environment Isolation & Ports Logic
+    from tools.cli import config as cli_config
+    
+    # 2. Setup the global context (os.environ) for this environment
+    cli_config.setup_environment(env_name)
+    
+    # 3. Reload env vars into a dict for passing to subprocess (pytest)
     env = os.environ.copy()
 
-    # ESB_TEMPLATE etc setup (Shared logic)
-    esb_template = os.getenv("ESB_TEMPLATE", "tests/fixtures/template.yaml")
-    env["ESB_TEMPLATE"] = str(PROJECT_ROOT / esb_template)
-
-    # Environment Isolation Logic
-    from tools.cli import config as cli_config
-
-    # Use scenario-specific ESB_ENV (Matrix) or fallback to process env (Legacy)
-    env_name = scenario.get("esb_env", os.environ.get("ESB_ENV", "default"))
-    env["ESB_ENV"] = env_name
-
-    # Calculate ports and subnets to inject into pytest environment
-    env.update(cli_config.get_port_mapping(env_name))
-    env.update(cli_config.get_subnet_config(env_name))
-
-    print(f"DEBUG: env_path={env_path}, exists={env_path.exists()}")
-    print(f"DEBUG: Running in environment: {env_name}")
-    print(f"DEBUG: Gateway Port: {env.get('ESB_PORT_GATEWAY_HTTPS')}")
-
-    # Map ESB CLI ports to Test Suite expected variables
+    # Capture calculated values for convenience
     env["GATEWAY_PORT"] = env.get("ESB_PORT_GATEWAY_HTTPS", "443")
     env["VICTORIALOGS_PORT"] = env.get("ESB_PORT_VICTORIALOGS", "9428")
     env["GATEWAY_URL"] = f"https://localhost:{env['GATEWAY_PORT']}"
     env["VICTORIALOGS_URL"] = f"http://localhost:{env['VICTORIALOGS_PORT']}"
     env["VICTORIALOGS_QUERY_URL"] = env["VICTORIALOGS_URL"]
     env["AGENT_GRPC_ADDRESS"] = f"localhost:{env.get('ESB_PORT_AGENT_GRPC', '50051')}"
+    
+    # Merge scenario-specific environment variables
+    env.update(scenario.get("env_vars", {}))
+    
+    # Explicitly set template path
+    esb_template = os.getenv("ESB_TEMPLATE", "tests/fixtures/template.yaml")
+    env["ESB_TEMPLATE"] = str(PROJECT_ROOT / esb_template)
 
     # Update current process env for helper calls
     os.environ.update(env)
@@ -306,38 +457,22 @@ def run_scenario(args, scenario):
 
     try:
         # 2. Reset / Build
-        # Stop containers from previous scenario to release ports/resources
         if do_reset:
-            print(f"DEBUG: Reset requested. Running esb down for scenario {scenario['name']}")
+            print(f"➜ Resetting environment: {env_name}")
             run_esb(template_args + ["down", "-v"] + override_args + env_args, check=True)
-
-            import shutil
-
-            # Note: Checking global fixtures dir might be risky if concurrent tests delete it?
-            # Ideally fixtures should be scoped too, but for verify we skip reset usually.
-            esb_dir = PROJECT_ROOT / "tests" / "fixtures" / ".esb"
-            if esb_dir.exists():
-                shutil.rmtree(esb_dir)
+            # Re-generate configurations via build
+            run_esb(template_args + ["build", "--no-cache"] + override_args + env_args)
+        elif do_build:
+            print(f"➜ Building environment: {env_name}")
             run_esb(template_args + ["build", "--no-cache"] + override_args + env_args)
         else:
-            # Default behavior: Stop to preserve data/state (unless build requested, but even then stop is safer)
-            # MODIFICATION: If we are reusing the environment (Smoke -> Main), do we even STOP?
-            # Smoke test leaves containers UP. Main test expects them UP (or restarts them).
-            # If we stop here, we lose the "Smoke passed state" (though data persists).
-            # But run_esb("up") will restart them anyway.
-            # However, stopping allows mode switching (firecracker <-> containerd) without conflict
-            # if they share resources (like ports).
-            # Since we have distinct environments (e2e-containerd vs e2e-firecracker),
-            # and they use DIFFERENT ports (mapped in config), we might not strictly need to stop.
-            # BUT, to be safe and consistent:
-            if scenario.get("perform_reset") is False:
-                print("DEBUG: Skipping Reset/Stop (Reusing environment)...")
-            else:
-                print("DEBUG: Stopping previous services (preserving state)...")
-                run_esb(template_args + ["stop"] + override_args + env_args, check=True)
+            print(f"➜ Using existing environment: {env_name}")
+            # Ensure services are stopped before starting (without destroying data)
+            run_esb(template_args + ["stop"] + override_args + env_args, check=True)
 
-        if do_build and not do_reset:
-            run_esb(template_args + ["build", "--no-cache"] + override_args + env_args)
+        # If build_only, skip UP and tests
+        if scenario.get("build_only"):
+            return
 
         # 3. UP
         up_args = template_args + ["up", "--detach", "--wait"] + override_args + env_args
@@ -347,6 +482,10 @@ def run_scenario(args, scenario):
         run_esb(up_args)
 
         # 4. Run Tests
+        if not scenario["targets"]:
+            # No test targets specified, skip test execution
+            return
+
         print(f"\n=== Running Tests for {scenario['name']} ===\n")
 
         pytest_cmd = [sys.executable, "-m", "pytest"] + scenario["targets"] + ["-v"]

@@ -11,7 +11,7 @@ from tools.cli.core import logging
 def _run_get() -> None:
     current = runtime_mode.get_mode()
     logging.info(f"Current mode: {logging.highlight(current)}")
-    logging.info(f"Config: {logging.highlight(str(cli_config.MODE_CONFIG_PATH))}")
+    logging.info(f"Config: {logging.highlight(str(cli_config.get_mode_config_path()))}")
 
 
 def _run_set(args) -> None:
@@ -21,7 +21,7 @@ def _run_set(args) -> None:
         logging.error(str(exc))
         sys.exit(1)
     logging.success(f"Mode set to {logging.highlight(data['mode'])}")
-    logging.info(f"Config: {logging.highlight(str(cli_config.MODE_CONFIG_PATH))}")
+    logging.info(f"Config: {logging.highlight(str(cli_config.get_mode_config_path()))}")
 
 
 def run(args) -> None:
