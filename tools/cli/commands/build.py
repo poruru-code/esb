@@ -16,7 +16,13 @@ from tools.cli.core import proxy
 
 # Directory for the ESB Lambda base image.
 RUNTIME_DIR = cli_config.PROJECT_ROOT / "tools" / "generator" / "runtime"
-BASE_IMAGE_TAG = "esb-lambda-base:latest"
+
+
+def get_base_image_tag(tag: str = None) -> str:
+    """Evaluate base image tag dynamically."""
+    if tag is None:
+        tag = cli_config.get_image_tag()
+    return f"esb-lambda-base:{tag}"
 
 
 def ensure_registry_running(registry=None, extra_files=None, project_name=None):
@@ -31,6 +37,7 @@ def ensure_registry_running(registry=None, extra_files=None, project_name=None):
     try:
         import requests
         from urllib3.exceptions import InsecureRequestWarning
+
         # Suppress insecure request warnings for local registry checks
         requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 
@@ -40,7 +47,9 @@ def ensure_registry_running(registry=None, extra_files=None, project_name=None):
             try:
                 response = requests.get(url, timeout=2, verify=False)
                 if response.status_code == 200:
-                    logging.success(f"Registry ({registry}) is already running (via {url.split(':')[0]}).")
+                    logging.success(
+                        f"Registry ({registry}) is already running (via {url.split(':')[0]})."
+                    )
                     return
             except Exception:
                 continue
@@ -52,10 +61,10 @@ def ensure_registry_running(registry=None, extra_files=None, project_name=None):
     try:
         subprocess.check_call(
             cli_compose.build_compose_command(
-                ["up", "-d", "registry"], 
+                ["up", "-d", "registry"],
                 target="control",
                 extra_files=extra_files,
-                project_name=project_name
+                project_name=project_name,
             ),
             cwd=cli_config.PROJECT_ROOT,
             stdout=subprocess.DEVNULL,
@@ -98,10 +107,11 @@ def build_base_image(no_cache=False, push_registry=None):
 
     # Use push_registry if provided, otherwise fallback to CONTAINER_REGISTRY
     registry = push_registry or os.getenv("CONTAINER_REGISTRY")
+    base_tag = get_base_image_tag(cli_config.get_image_tag())
     if registry:
-        image_tag = f"{registry}/{BASE_IMAGE_TAG}"
+        image_tag = f"{registry}/{base_tag}"
     else:
-        image_tag = BASE_IMAGE_TAG  # Local tag only
+        image_tag = base_tag  # Local tag only
 
     logging.step("Building base image...")
     print(f"  • Building {logging.highlight(image_tag)} ...", end="", flush=True)
@@ -157,7 +167,9 @@ def _extract_function_name_from_dockerfile(dockerfile_path) -> str | None:
     return None
 
 
-def build_function_images(functions, template_path, no_cache=False, verbose=False, push_registry=None):
+def build_function_images(
+    functions, template_path, no_cache=False, verbose=False, push_registry=None
+):
     """
     Build images for each function.
     """
@@ -176,20 +188,23 @@ def build_function_images(functions, template_path, no_cache=False, verbose=Fals
         if not dockerfile_path:
             logging.warning(f"No Dockerfile path defined for {function_name}")
             continue
-            
+
         dockerfile_full_path = Path(dockerfile_path)
         if not dockerfile_full_path.exists():
-            logging.warning(f"Dockerfile not found for {function_name} at {dockerfile_full_path.absolute()}")
+            logging.warning(
+                f"Dockerfile not found for {function_name} at {dockerfile_full_path.absolute()}"
+            )
             continue
 
         if verbose:
             logging.info(f"Using Dockerfile: {dockerfile_full_path.absolute()}")
 
         # Use push_registry if provided, otherwise fallback to local tagging
+        image_tag_only = cli_config.get_image_tag()
         if registry:
-            image_tag = f"{registry}/{function_name}:latest"
+            image_tag = f"{registry}/{function_name}:{image_tag_only}"
         else:
-            image_tag = f"{function_name}:latest"
+            image_tag = f"{function_name}:{image_tag_only}"
 
         print(f"  • Building {logging.highlight(image_tag)} ...", end="", flush=True)
         try:
@@ -235,7 +250,6 @@ def build_function_images(functions, template_path, no_cache=False, verbose=Fals
             else:
                 logging.error(f"Push failed: {e}")
 
-
             sys.exit(1)
 
 
@@ -252,7 +266,7 @@ def run(args):
     # Environment is already setup by main.py (setup_environment)
     env_name = cli_config.get_env_name()
     project_name = os.environ.get("ESB_PROJECT_NAME")
-    
+
     registry_config = cli_config.get_registry_config(env_name)
     external_registry = registry_config["external"]
     internal_registry = registry_config["internal"]
@@ -284,7 +298,9 @@ def run(args):
     # 0. Ensure registry is running (when required).
     if not dry_run:
         extra_files = getattr(args, "file", [])
-        ensure_registry_running(registry=external_registry, extra_files=extra_files, project_name=project_name)
+        ensure_registry_running(
+            registry=external_registry, extra_files=extra_files, project_name=project_name
+        )
 
     config = generator.load_config(config_path)
 
@@ -292,7 +308,7 @@ def run(args):
     if "paths" not in config:
         config["paths"] = {}
     config["paths"]["sam_template"] = str(cli_config.TEMPLATE_YAML)
-    
+
     # Set output directory based on environment name
     # This allows parallel builds for different environments
     config["paths"]["output_dir"] = f".esb/{env_name}/"
@@ -308,6 +324,7 @@ def run(args):
         registry_external=external_registry,
         registry_internal=internal_registry,
         parameters=parameters,
+        tag=cli_config.get_image_tag(env_name),
     )
 
     if dry_run:
@@ -332,7 +349,9 @@ def run(args):
     )
 
     if runtime_mode.get_mode() == cli_config.ESB_MODE_FIRECRACKER:
-        if not build_service_images.build_and_push(no_cache=no_cache, push_registry=external_registry):
+        if not build_service_images.build_and_push(
+            no_cache=no_cache, push_registry=external_registry
+        ):
             sys.exit(1)
 
     logging.success("Build complete.")

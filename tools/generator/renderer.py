@@ -4,7 +4,6 @@ Dockerfile and functions.yml Renderer
 Generate Dockerfile and functions.yml from function info extracted from a SAM template.
 """
 
-import os
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 
@@ -15,6 +14,7 @@ def render_dockerfile(
     func_config: dict,
     docker_config: dict,
     registry: str | None = None,
+    tag: str = "latest",
 ) -> str:
     """
     Render a Dockerfile.
@@ -39,9 +39,9 @@ def render_dockerfile(
 
     # Use provided registry address (External Address for build phase)
     if registry:
-        base_image = f"{registry}/esb-lambda-base:latest"
+        base_image = f"{registry}/esb-lambda-base:{tag}"
     else:
-        base_image = "esb-lambda-base:latest"
+        base_image = f"esb-lambda-base:{tag}"
 
     context = {
         "name": func_config.get("name", "unknown"),
@@ -62,6 +62,7 @@ def render_dockerfile(
 def render_functions_yml(
     functions: list[dict],
     registry: str | None = None,
+    tag: str = "latest",
 ) -> str:
     """
     Render functions.yml.
@@ -81,7 +82,7 @@ def render_functions_yml(
     )
     template = env.get_template("functions.yml.j2")
 
-    return template.render(functions=functions, registry=registry)
+    return template.render(functions=functions, registry=registry, tag=tag)
 
 
 def render_routing_yml(

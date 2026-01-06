@@ -1,4 +1,5 @@
-from tools.cli.config import find_project_root, PROJECT_ROOT
+import os
+from tools.cli.config import find_project_root, PROJECT_ROOT, get_image_tag
 
 
 def test_find_project_root():
@@ -11,3 +12,16 @@ def test_find_project_root():
 def test_paths_are_absolute():
     """Ensure configured paths are absolute."""
     assert PROJECT_ROOT.is_absolute()
+
+
+def test_get_image_tag():
+    """Ensure image tag is resolved correctly."""
+    # Default without env var should be the env name
+    assert get_image_tag("prod") == "prod"
+
+    # With env var should override
+    os.environ["ESB_IMAGE_TAG"] = "custom-tag"
+    try:
+        assert get_image_tag("prod") == "custom-tag"
+    finally:
+        del os.environ["ESB_IMAGE_TAG"]

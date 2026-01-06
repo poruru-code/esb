@@ -122,7 +122,7 @@ services:
   # API Gateway (Facade)
   # ============================================
   gateway:
-    image: gateway-api:latest
+    image: gateway-api:${ESB_IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: services/gateway/Dockerfile

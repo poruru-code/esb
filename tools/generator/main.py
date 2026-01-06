@@ -43,6 +43,7 @@ def generate_files(
     registry_external: str | None = None,
     registry_internal: str | None = None,
     parameters: dict | None = None,
+    tag: str | None = None,
 ) -> list:
     """
     Generate files from a SAM template.
@@ -57,17 +58,23 @@ def generate_files(
         project_root = Path.cwd()
 
     paths = config.get("paths", {})
+    app_config = config.get("app", {})
     docker_config = config.get("docker", {})
+
+    # Resolve tag: explicit arg > config > default "latest"
+    resolved_tag = tag or app_config.get("tag", "latest")
     # Set default sitecustomize_source if not configured
     if "sitecustomize_source" not in docker_config:
-        docker_config["sitecustomize_source"] = "tools/generator/runtime/site-packages/sitecustomize.py"
+        docker_config["sitecustomize_source"] = (
+            "tools/generator/runtime/site-packages/sitecustomize.py"
+        )
 
     # Load the SAM template.
     # If sam_template is absolute, use it as-is; otherwise resolve from project_root.
     sam_template_path = Path(paths.get("sam_template", "template.yaml"))
     if not sam_template_path.is_absolute():
         sam_template_path = (project_root / sam_template_path).resolve()
-    
+
     if not sam_template_path.exists():
         raise FileNotFoundError(f"SAM template not found: {sam_template_path}")
 
@@ -94,7 +101,6 @@ def generate_files(
     if verbose:
         print(f"Found {len(functions)} function(s)")
 
-    import shutil
 
     # Output directory (relative to base_dir).
     output_dir_raw = Path(paths.get("output_dir", ".esb/"))
@@ -134,7 +140,7 @@ def generate_files(
         staging_src_dir = dockerfile_dir / "src"
         if func_src_dir.exists() and func_src_dir.is_dir():
             shutil.copytree(func_src_dir, staging_src_dir, dirs_exist_ok=True)
-        
+
         # Pass relative staging paths to the renderer.
         func["code_uri"] = "src/"
         func["dockerfile_path"] = str(dockerfile_dir / "Dockerfile")
@@ -148,14 +154,14 @@ def generate_files(
             content_uri = layer_copy.get("content_uri", "")
             if not content_uri:
                 continue
-                
+
             layer_src = _resolve_resource_path(content_uri)
-            
+
             if layer_src.exists():
                 target_name = layer_src.name
                 layers_dir = dockerfile_dir / "layers"
                 layers_dir.mkdir(parents=True, exist_ok=True)
-                
+
                 # Per-layer directory: layers/<layer_name>/
                 # Whether unzipped or copied, place everything under this directory.
                 staging_layer_root = layers_dir / target_name
@@ -164,13 +170,13 @@ def generate_files(
                     shutil.rmtree(staging_layer_root)
                 staging_layer_root.mkdir(parents=True, exist_ok=True)
 
-                if layer_src.is_file() and layer_src.suffix == '.zip':
+                if layer_src.is_file() and layer_src.suffix == ".zip":
                     # Unzip files when the layer is a zip file.
                     if verbose:
                         print(f"Unzipping layer: {layer_src} -> {staging_layer_root}")
-                    with zipfile.ZipFile(layer_src, 'r') as zip_ref:
+                    with zipfile.ZipFile(layer_src, "r") as zip_ref:
                         zip_ref.extractall(staging_layer_root)
-                    
+
                     # Pass as a directory to the Dockerfile.
                     layer_copy["content_uri"] = f"layers/{target_name}"
 
@@ -180,19 +186,18 @@ def generate_files(
                         print(f"Copying layer directory: {layer_src} -> {staging_layer_root}")
                     # staging_layer_root already exists; copy content using dirs_exist_ok=True.
                     shutil.copytree(layer_src, staging_layer_root, dirs_exist_ok=True)
-    
+
                     layer_copy["content_uri"] = f"layers/{target_name}"
-                
+
                 else:
                     if verbose:
                         print(f"WARNING: Skipping unsupported layer type: {layer_src}")
                     continue
 
                 new_layers.append(layer_copy)
-        
+
         # Layer list rewritten to local paths for this function.
         func["layers"] = new_layers
-
 
         # 4. Copy sitecustomize.py.
         # Try resolving sitecustomize_source relative to base_dir, otherwise project_root.
@@ -221,7 +226,7 @@ def generate_files(
 
         # Render Dockerfile.
         dockerfile_content = render_dockerfile(
-            func, docker_config_copy, registry=registry_external
+            func, docker_config_copy, registry=registry_external, tag=resolved_tag
         )
 
         if dry_run:
@@ -256,12 +261,15 @@ def generate_files(
         # Fix for Docker behavior: if target is a directory, remove it.
         if target_path.exists() and not target_path.is_file():
             import shutil
+
             shutil.rmtree(target_path)
         with open(target_path, "w", encoding="utf-8") as f:
             f.write(content)
 
-    functions_yml_content = render_functions_yml(functions, registry=registry_internal)
-    
+    functions_yml_content = render_functions_yml(
+        functions, registry=registry_internal, tag=resolved_tag
+    )
+
     # Also render routing.yml
 
     if dry_run:
@@ -283,7 +291,7 @@ def generate_files(
     else:
         # Default convention: output_dir/config/routing.yml.
         routing_yml_path = output_dir / "config" / "routing.yml"
-    
+
     routing_yml_content = render_routing_yml(functions)
 
     if dry_run:
@@ -296,7 +304,7 @@ def generate_files(
 
     if not dry_run:
         print(f"Generated {len(functions)} Dockerfile(s), functions.yml, and routing.yml")
-    
+
     return functions
 
 

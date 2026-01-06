@@ -213,7 +213,7 @@ def main():
                     "targets": [],
                     "exclude": [],
                 }
-            
+
             # Merge targets and exclusions
             profile_scenarios[profile_name]["targets"].extend(suite_def.get("targets", []))
             profile_scenarios[profile_name]["exclude"].extend(suite_def.get("exclude", []))
@@ -222,6 +222,7 @@ def main():
     if args.reset:
         print("\n[RESET] Fully cleaning all test artifact directories in tests/fixtures/.esb/")
         import shutil
+
         for p_name in profiles.keys():
             esb_dir = PROJECT_ROOT / "tests" / "fixtures" / ".esb" / p_name
             if esb_dir.exists():
@@ -230,8 +231,12 @@ def main():
 
     # --- Parallel Execution Mode ---
     if args.parallel and len(profile_scenarios) > 1:
-        print(f"\n[PARALLEL] Starting parallel execution for {len(profile_scenarios)} profiles: {', '.join(profile_scenarios.keys())}")
-        print("[PARALLEL] Build, infrastructure setup, and tests will run simultaneously across profiles.\n")
+        print(
+            f"\n[PARALLEL] Starting parallel execution for {len(profile_scenarios)} profiles: {', '.join(profile_scenarios.keys())}"
+        )
+        print(
+            "[PARALLEL] Build, infrastructure setup, and tests will run simultaneously across profiles.\n"
+        )
 
         results = run_profiles_parallel(
             profile_scenarios,
@@ -328,7 +333,7 @@ def run_profiles_parallel(
             # Assign a color based on the profile's index
             profile_index = list(profile_scenarios.keys()).index(profile_name)
             color_code = COLORS[profile_index % len(COLORS)]
-            
+
             future = executor.submit(run_profile_subprocess, profile_name, cmd, color_code)
             future_to_profile[future] = profile_name
 
@@ -352,10 +357,12 @@ def run_profiles_parallel(
     return results
 
 
-def run_profile_subprocess(profile_name: str, cmd: list[str], color_code: str = "") -> tuple[int, str]:
+def run_profile_subprocess(
+    profile_name: str, cmd: list[str], color_code: str = ""
+) -> tuple[int, str]:
     """Run a profile in a subprocess and stream output with prefix."""
     prefix = f"{color_code}[{profile_name}]{COLOR_RESET}"
-    
+
     process = subprocess.Popen(
         cmd,
         cwd=PROJECT_ROOT,
@@ -366,7 +373,7 @@ def run_profile_subprocess(profile_name: str, cmd: list[str], color_code: str = 
     )
 
     output_lines = []
-    
+
     # Read output line by line as it becomes available
     try:
         if process.stdout:
@@ -394,10 +401,13 @@ def run_scenario(args, scenario):
     # Determine actions based on scenario overrides or global args
     do_reset = scenario.get("perform_reset", args.reset)
     do_build = scenario.get("perform_build", args.build)
-    
+
     # 0. Set ESB_ENV first (needed for mode config path)
     env_name = scenario.get("esb_env", os.environ.get("ESB_ENV", "default"))
     os.environ["ESB_ENV"] = env_name
+
+    # 0.5 Clear previous image tag to avoid leaks between scenarios in the same process
+    os.environ.pop("ESB_IMAGE_TAG", None)
 
     # 1. Runtime Mode Setup (Optional)
     if "runtime_mode" in scenario:
@@ -423,14 +433,15 @@ def run_scenario(args, scenario):
 
     # Environment Isolation & Ports Logic
     from tools.cli import config as cli_config
-    
+
     # 2. Setup the global context (os.environ) for this environment
     cli_config.setup_environment(env_name)
 
     # 2.5 Inject Proxy Settings (Ensure NO_PROXY includes all internal services)
     from tools.cli.core import proxy
+
     proxy.apply_proxy_env()
-    
+
     # 3. Reload env vars into a dict for passing to subprocess (pytest)
     env = os.environ.copy()
 
@@ -441,10 +452,10 @@ def run_scenario(args, scenario):
     env["VICTORIALOGS_URL"] = f"http://localhost:{env['VICTORIALOGS_PORT']}"
     env["VICTORIALOGS_QUERY_URL"] = env["VICTORIALOGS_URL"]
     env["AGENT_GRPC_ADDRESS"] = f"localhost:{env.get('ESB_PORT_AGENT_GRPC', '50051')}"
-    
+
     # Merge scenario-specific environment variables
     env.update(scenario.get("env_vars", {}))
-    
+
     # Explicitly set template path
     esb_template = os.getenv("ESB_TEMPLATE", "tests/fixtures/template.yaml")
     env["ESB_TEMPLATE"] = str(PROJECT_ROOT / esb_template)

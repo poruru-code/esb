@@ -259,33 +259,6 @@ mkdir -p /var/lib/firecracker-containerd/runtime /var/lib/firecracker-containerd
 start_udevd
 start_firecracker_fifo_reader
 
-create_devmapper_pool() {
-  echo "INFO: Creating devmapper pool $DEVMAPPER_POOL..."
-  mkdir -p "$DEVMAPPER_DIR"
-  data_file="$DEVMAPPER_DIR/data-device"
-  meta_file="$DEVMAPPER_DIR/meta-device"
-
-  if [ ! -f "$data_file" ]; then
-    truncate -s "$DEVMAPPER_DATA_SIZE" "$data_file"
-  fi
-  if [ ! -f "$meta_file" ]; then
-    truncate -s "$DEVMAPPER_META_SIZE" "$meta_file"
-  fi
-
-  # Find or attach loop devices
-  data_dev=$(losetup -fP --show "$data_file")
-  meta_dev=$(losetup -fP --show "$meta_file")
-
-  sector_size=512
-  data_size_bytes=$(blockdev --getsize64 -q "$data_dev")
-  length_sectors=$((data_size_bytes / sector_size))
-  data_block_size=128
-  low_water_mark=32768
-  table="0 ${length_sectors} thin-pool ${meta_dev} ${data_dev} ${data_block_size} ${low_water_mark} 1 skip_block_zeroing"
-
-  echo "$table" | dmsetup create "$DEVMAPPER_POOL"
-  dmsetup mknodes "$DEVMAPPER_POOL"
-}
 
 ensure_devmapper_ready() {
   if [ -z "$DEVMAPPER_POOL" ]; then
@@ -302,12 +275,8 @@ ensure_devmapper_ready() {
   fi
 
   if ! env $dm_env dmsetup status "$DEVMAPPER_POOL" >/dev/null 2>&1; then
-    echo "WARN: Devmapper pool ${DEVMAPPER_POOL} is missing. Attempting to create..."
-    create_devmapper_pool
-    if ! env $dm_env dmsetup status "$DEVMAPPER_POOL" >/dev/null 2>&1; then
-        echo "ERROR: Devmapper pool ${DEVMAPPER_POOL} failed to be created."
-        exit 1
-    fi
+    echo "ERROR: Devmapper pool ${DEVMAPPER_POOL} is missing. Run esb node provision."
+    exit 1
   fi
 
   env $dm_env dmsetup mknodes "$DEVMAPPER_POOL" >/dev/null 2>&1 || true
