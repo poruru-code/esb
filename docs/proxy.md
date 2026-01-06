@@ -19,6 +19,8 @@ Edge Serverless Box を企業プロキシ環境で利用する際の設定と挙
   - `/etc/profile.d/esb-proxy.sh` を生成して SSH セッション内のツールがプロキシを継承する
   - Docker/containerd の systemd drop-in を配置し、デーモンがプロキシを利用するようにして
     `daemon-reload` + `docker` / `containerd` を再起動
+- Gateway 内の httpx クライアントは `trust_env=False` / `proxies=None` で生成されるため、
+  環境変数由来のプロキシを見に行かず、ハートビートなどの内部通信はプロキシ経由になりません。
 
 ### 追加の `NO_PROXY`
 

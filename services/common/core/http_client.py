@@ -38,6 +38,9 @@ class HttpClientFactory:
         # Default limits for high throughput (can be overridden by caller)
         if "limits" not in kwargs:
             kwargs["limits"] = httpx.Limits(max_keepalive_connections=20, max_connections=100)
+        # Avoid leaking host HTTP(S)_PROXY/NO_PROXY into internal calls unless explicitly requested.
+        kwargs.setdefault("trust_env", False)
+        kwargs.setdefault("proxies", None)
 
         return httpx.AsyncClient(verify=verify, **kwargs)
 
