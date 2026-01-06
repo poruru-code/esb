@@ -17,16 +17,21 @@ SERVICE_IMAGES: dict[str, Path] = {
 }
 
 
-def build_and_push(no_cache: bool = False) -> bool:
+def build_and_push(no_cache: bool = False, push_registry: str | None = None) -> bool:
     client = docker.from_env()
-    registry = os.getenv("CONTAINER_REGISTRY", "localhost:5010")
+    
+    # Use push_registry if provided, otherwise fallback to CONTAINER_REGISTRY
+    registry = push_registry or os.getenv("CONTAINER_REGISTRY")
 
     for name, context in SERVICE_IMAGES.items():
         if not context.exists():
             logging.warning(f"Service build context not found: {context}")
             return False
 
-        image_tag = f"{registry}/{name}:latest"
+        if registry:
+            image_tag = f"{registry}/{name}:latest"
+        else:
+            image_tag = f"{name}:latest"
         logging.step(f"Building service image: {name}")
         print(f"  • Building {logging.highlight(image_tag)} ...", end="", flush=True)
         try:
@@ -42,6 +47,12 @@ def build_and_push(no_cache: bool = False) -> bool:
             print(f" {logging.Color.RED}❌{logging.Color.END}")
             logging.error(f"Service image build failed ({name}): {exc}")
             return False
+
+        # Push to registry
+        if not push_registry and not os.getenv("CONTAINER_REGISTRY"):
+            continue  # Skip push
+        
+        registry = push_registry or os.getenv("CONTAINER_REGISTRY")
 
         print(f"  • Pushing {logging.highlight(image_tag)} ...", end="", flush=True)
         try:

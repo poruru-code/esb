@@ -4,6 +4,44 @@
 # Why: Keep firecracker/containerd runtime wiring consistent on compute hosts.
 set -eu
 
+# Cgroup v2 Delegation Fix for Nested Containers (DIND/SIND)
+# Required when running containerd inside Docker with cgroup v2 + systemd driver.
+# The issue: cgroup v2's "no internal processes" rule prevents runc from creating
+# containers when the parent cgroup has domain controllers enabled.
+# Solution: Move our process to a leaf cgroup and enable controllers for children.
+setup_cgroupv2_delegation() {
+  # Only apply if cgroup v2 is in use (unified hierarchy)
+  if [ ! -f /sys/fs/cgroup/cgroup.controllers ]; then
+    return 0
+  fi
+
+  # Check if we're in a non-root cgroup (typical in Docker)
+  current_cgroup=$(cat /proc/self/cgroup 2>/dev/null | grep "^0::" | cut -d: -f3)
+  if [ -z "$current_cgroup" ] || [ "$current_cgroup" = "/" ]; then
+    # We're at root or hybrid mode, apply delegation
+    echo "INFO: Applying cgroup v2 delegation fix..."
+    
+    # Create init cgroup for our processes
+    mkdir -p /sys/fs/cgroup/init
+    
+    # Move all current processes to the init cgroup
+    while read -r proc; do
+      echo "$proc" > /sys/fs/cgroup/init/cgroup.procs 2>/dev/null || true
+    done < /sys/fs/cgroup/cgroup.procs
+    
+    # Enable all available controllers for child cgroups
+    while read -r controller; do
+      echo "+$controller" > /sys/fs/cgroup/cgroup.subtree_control 2>/dev/null || true
+    done < /sys/fs/cgroup/cgroup.controllers
+    
+    echo "INFO: Cgroup v2 delegation configured successfully"
+  else
+    echo "INFO: Running in nested cgroup ($current_cgroup), skipping root delegation"
+  fi
+}
+
+setup_cgroupv2_delegation
+
 CNI_GW_IP="${CNI_GW_IP:-10.88.0.1}"
 DNAT_APPLY_OUTPUT="${DNAT_APPLY_OUTPUT:-1}"
 

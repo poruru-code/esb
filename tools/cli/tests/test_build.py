@@ -131,11 +131,12 @@ def test_build_function_images_build_failure_exits(mock_docker, tmp_path):
 # run() command end-to-end tests
 # ============================================================
 
+@patch("tools.cli.commands.build.ensure_registry_running")
 @patch("tools.cli.commands.build.build_function_images")
 @patch("tools.cli.commands.build.build_base_image")
 @patch("tools.cli.commands.build.generator.generate_files")
 @patch("tools.cli.commands.build.generator.load_config")
-def test_build_command_flow(mock_load_config, mock_generate_files, mock_build_base, mock_build_funcs):
+def test_build_command_flow(mock_load_config, mock_generate_files, mock_build_base, mock_build_funcs, mock_ensure_registry):
     """Ensure build calls the generator and Docker builds correctly."""
     mock_load_config.return_value = {"app": {"name": "", "tag": "latest"}, "paths": {}}
     mock_generate_files.return_value = [{"name": "test-func", "dockerfile_path": "/path/to/Dockerfile"}]
@@ -153,6 +154,7 @@ def test_build_command_flow(mock_load_config, mock_generate_files, mock_build_ba
     mock_build_funcs.assert_called_once()
 
 
+@patch("tools.cli.commands.build.ensure_registry_running")
 @patch("tools.cli.commands.build.build_service_images.build_and_push", return_value=True)
 @patch("tools.cli.commands.build.build_function_images")
 @patch("tools.cli.commands.build.build_base_image")
@@ -164,6 +166,7 @@ def test_build_command_firecracker_builds_service_images(
     mock_build_base,
     mock_build_funcs,
     mock_build_services,
+    mock_ensure_registry,
     monkeypatch,
 ):
     """Build service images when running in firecracker mode."""
@@ -242,6 +245,9 @@ def test_build_redirects_to_init_when_config_missing_and_confirmed():
         mock_cli_config.E2E_DIR = MagicMock()
         mock_cli_config.E2E_DIR.__truediv__.return_value = mock_config_path
         mock_cli_config.TEMPLATE_YAML = "/tmp/template.yaml"
+        mock_cli_config.get_env_name.return_value = "default"
+        mock_cli_config.get_port_mapping.return_value = {}
+        mock_cli_config.get_registry_config.return_value = {"external": "localhost:5010", "internal": "registry:5010"}
         
         with patch("questionary.confirm") as mock_confirm, \
              patch("tools.cli.commands.init.run") as mock_init_run, \
@@ -272,6 +278,9 @@ def test_build_aborts_when_config_missing_and_cancelled():
         # Mock E2E_DIR so that E2E_DIR / "generator.yml" returns our mock_config_path
         mock_cli_config.E2E_DIR = MagicMock()
         mock_cli_config.E2E_DIR.__truediv__.return_value = mock_config_path
+        mock_cli_config.get_env_name.return_value = "default"
+        mock_cli_config.get_port_mapping.return_value = {}
+        mock_cli_config.get_registry_config.return_value = {"external": "localhost:5010", "internal": "registry:5010"}
         
         with patch("questionary.confirm") as mock_confirm, \
              patch("tools.cli.commands.init.run") as mock_init_run, \
@@ -283,3 +292,44 @@ def test_build_aborts_when_config_missing_and_cancelled():
             build.run(args)
             
             mock_init_run.assert_not_called()
+
+@patch("tools.cli.commands.build.docker.from_env")
+def test_build_base_image_without_registry(mock_docker, monkeypatch):
+    """Build base image locally when CONTAINER_REGISTRY is not set."""
+    monkeypatch.delenv("CONTAINER_REGISTRY", raising=False)
+    mock_client = MagicMock()
+    mock_docker.return_value = mock_client
+    
+    with patch("tools.cli.commands.build.RUNTIME_DIR", Path("/tmp/fake_runtime")):
+        with patch.object(Path, "exists", return_value=True):
+            result = build_base_image(no_cache=False)
+    
+    assert result is True
+    # Ensure push was NOT called
+    mock_client.images.push.assert_not_called()
+
+
+@patch("tools.cli.commands.build.docker.from_env")
+def test_build_function_images_without_registry(mock_docker, monkeypatch, tmp_path):
+    """Build function images locally when CONTAINER_REGISTRY is not set."""
+    monkeypatch.delenv("CONTAINER_REGISTRY", raising=False)
+    mock_client = MagicMock()
+    mock_docker.return_value = mock_client
+    
+    # Create a dummy Dockerfile.
+    dockerfile = tmp_path / "Dockerfile"
+    dockerfile.write_text("FROM python:3.12")
+    
+    functions = [
+        {
+            "name": "test-func",
+            "dockerfile_path": str(dockerfile),
+            "context_path": str(tmp_path),
+        }
+    ]
+    
+    build_function_images(functions, template_path=str(tmp_path / "template.yaml"))
+    
+    assert mock_client.images.build.called
+    # Ensure push was NOT called
+    mock_client.images.push.assert_not_called()

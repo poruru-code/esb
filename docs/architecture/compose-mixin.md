@@ -13,12 +13,13 @@ ESB (Edge Serverless Box) では、ランタイムモード（Containerd / Firec
 
 ## ファイル構成と役割
 
-| ファイル名 | 役割 | 必須 | 説明 |
-|------------|------|------|------|
-| **`docker-compose.yml`** | **Core** | ✅ | コントロールプレーン（Gateway, DB, Registry, S3, etc）を提供します。ランタイムに依存しません。 |
-| **`docker-compose.worker.yml`** | **Worker** | ✅ | **Agent の基本定義**（Image, Env, Volumes）を提供します。**ネットワークやポート設定を含みません**。純粋なコンピュートユニットの定義です。 |
-| **`docker-compose.fc.yml`** | **FC Adapter** | (択一) | **Firecracker モード用**のアダプターです。<br>1. `runtime-node` (Firecracker VM Manager) を定義します。<br>2. Agent を `runtime-node` の Sidecar (Network Namespace共有) として上書きします。<br>3. Gateway の接続先を `runtime-node:50051` に設定します。 |
-| **`docker-compose.containerd.yml`** | **Ctr Adapter** | (択一) | **Containerd モード用**のアダプターです。<br>1. Agent に独自のネットワーク設定とポート (`50051`) を付与し、完全な Standalone として動作させます。<br>2. Gateway の接続先を `agent:50051` に設定します。 |
+| ファイル名                          | 役割            | 必須     | 説明                                                                                                                                                                                                                                                       |
+| ----------------------------------- | --------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`docker-compose.yml`**            | **Core**        | ✅        | コントロールプレーン（Gateway, DB, Registry, S3, etc）を提供します。ランタイムに依存しません。                                                                                                                                                             |
+| **`docker-compose.worker.yml`**     | **Worker**      | ✅        | **Agent の基本定義**（Image, Env, Volumes）を提供します。**ネットワークやポート設定を含みません**。純粋なコンピュートユニットの定義です。                                                                                                                  |
+| **`docker-compose.registry.yml`**   | **Registry**    | (条件付) | **内蔵レジストリ**を定義します。Docker モードでは不要、Containerd/Firecracker モードでは必須です。                                                                                                                                                         |
+| **`docker-compose.fc.yml`**         | **FC Adapter**  | (択一)   | **Firecracker モード用**のアダプターです。<br>1. `runtime-node` (Firecracker VM Manager) を定義します。<br>2. Agent を `runtime-node` の Sidecar (Network Namespace共有) として上書きします。<br>3. Gateway の接続先を `runtime-node:50051` に設定します。 |
+| **`docker-compose.containerd.yml`** | **Ctr Adapter** | (択一)   | **Containerd モード用**のアダプターです。<br>1. Agent に独自のネットワーク設定とポート (`50051`) を付与し、完全な Standalone として動作させます。<br>2. Gateway の接続先を `agent:50051` に設定します。                                                    |
 
 ## モード別の構成図
 
@@ -62,10 +63,10 @@ CLI (`esb up`) が自動的にモードを検出し、適切なファイルを `
 
 **Containerd Mode:**
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.worker.yml -f docker-compose.containerd.yml up -d
+docker compose -f docker-compose.yml -f docker-compose.registry.yml -f docker-compose.worker.yml -f docker-compose.containerd.yml up -d
 ```
 
 **Firecracker Mode:**
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.worker.yml -f docker-compose.fc.yml up -d
+docker compose -f docker-compose.yml -f docker-compose.registry.yml -f docker-compose.worker.yml -f docker-compose.fc.yml up -d
 ```

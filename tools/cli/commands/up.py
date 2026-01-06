@@ -148,6 +148,13 @@ def run(args):
     os.environ.update(cli_config.get_port_mapping(env_name))
     os.environ.update(cli_config.get_subnet_config(env_name))
 
+    # Inject registry config
+    registry_config = cli_config.get_registry_config(env_name)
+    if registry_config["internal"]:
+        os.environ["CONTAINER_REGISTRY"] = registry_config["internal"]
+    else:
+        os.environ.pop("CONTAINER_REGISTRY", None)
+
     cmd = cli_compose.build_compose_command(
         compose_args, 
         target="control", 

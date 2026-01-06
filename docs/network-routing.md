@@ -119,6 +119,9 @@ runtime-node の entrypoint が以下を設定します:
 
 ## Registry (Firecracker/Compute -> Control)
 
+> [!IMPORTANT]
+> 本セクションは、レジストリを介してイメージを配布する Firecracker モードおよび Containerd モード専用の仕様です。Docker モードではレジストリを使用せず、サポートもされません。
+
 - Compute 側の image pull は **WG 経由で `10.99.0.1:5010`** に到達する前提。
 - Gateway コンテナ内で HAProxy を起動し、`10.99.0.1:5010 -> esb-registry:5010` を中継する。
   - 設定ファイル: `config/haproxy.gateway.cfg`

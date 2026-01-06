@@ -60,9 +60,10 @@ tools/generator/runtime/
 
 **ソース**: Generator により自動生成
 
-生成される Dockerfile（`CONTAINER_REGISTRY` 設定時はプレフィックス付き）:
+生成される Dockerfile（`CONTAINER_REGISTRY` 設定時はプレフィックス付き、未設定時はローカルイメージ名を使用）:
 ```dockerfile
-FROM localhost:5010/esb-lambda-base:latest
+# CONTAINER_REGISTRY未設定時の例
+FROM esb-lambda-base:latest
 
 # Layer (template.yaml で定義)
 COPY tests/fixtures/layers/common/ /opt/

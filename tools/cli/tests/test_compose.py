@@ -13,6 +13,7 @@ def test_resolve_compose_files_containerd_control():
     assert files == [
         cli_config.COMPOSE_BASE_FILE,
         cli_config.COMPOSE_WORKER_FILE,
+        cli_config.COMPOSE_REGISTRY_FILE,
         cli_config.COMPOSE_CONTAINERD_FILE,
     ]
 
@@ -23,6 +24,7 @@ def test_resolve_compose_files_firecracker_control():
     assert files == [
         cli_config.COMPOSE_BASE_FILE,
         cli_config.COMPOSE_WORKER_FILE,
+        cli_config.COMPOSE_REGISTRY_FILE,
         cli_config.COMPOSE_FC_FILE,
     ]
 
@@ -38,6 +40,8 @@ def test_build_compose_command_containerd_order():
         str(cli_config.COMPOSE_BASE_FILE),
         "-f",
         str(cli_config.COMPOSE_WORKER_FILE),
+        "-f",
+        str(cli_config.COMPOSE_REGISTRY_FILE),
         "-f",
         str(cli_config.COMPOSE_CONTAINERD_FILE),
         "up",

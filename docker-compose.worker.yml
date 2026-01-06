@@ -9,7 +9,7 @@ services:
     environment:
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - PORT=50051
-      - CONTAINER_REGISTRY=${CONTAINER_REGISTRY:-esb-registry:5010}
+      - CONTAINER_REGISTRY=${CONTAINER_REGISTRY:-}
       - CNI_SUBNET=${CNI_SUBNET:-}
       # Default: Overridden by Adapter
       - AGENT_RUNTIME=${AGENT_RUNTIME:-containerd} 

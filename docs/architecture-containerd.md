@@ -25,11 +25,8 @@ flowchart TD
             VL["VictoriaLogs"]
         end
 
-        Registry["Local Registry"]
-        
         %% Vertical Stack
         Gateway --- DS
-        DS --- Registry
     end
 
     subgraph CMP ["Compute Plane (Docker Runtime)"]
@@ -51,7 +48,7 @@ flowchart TD
     Gateway <-->|"gRPC"| Agent
     Agent --- DockerSock
     DockerSock -.->|"Manage"| WorkerA
-    Agent -->|"Pull Image"| Registry
+    %% Registry is not used in Docker mode
 
     %% Networking
     Gateway -->|"Invoke (L3 Direct)"| WorkerA
@@ -145,7 +142,7 @@ flowchart TD
     Gateway <-->|"gRPC"| Agent
     Agent --- Containerd
     Containerd -.->|"Manage"| WorkerA
-    Agent -->|"Pull Image"| Registry
+    Agent -->|"Pull Image (from Registry)"| Registry
     
     %% Networking
     Gateway -->|"Invoke (L3 Direct)"| WorkerA
@@ -194,11 +191,12 @@ sequenceDiagram
 
 ## スペック比較
 
-| 項目 | Docker ランタイム | Containerd ランタイム |
-| :--- | :--- | :--- |
-| **Agent ランタイム** | `docker` | `containerd` |
-| **接続方法** | `/var/run/docker.sock` | `/run/containerd/containerd.sock` |
-| **ワーカーの隔離** | 名前空間 (Docker ネットワーク) | 名前空間 (CNI ブリッジ) |
-| **ネットワーク構成** | Docker ブリッジ (L3 接点あり) | CNI ブリッジ (完全隔離 + Proxy) |
-| **オーバーヘッド** | 最小 | 低 (containerd 直操作) |
-| **適した用途** | 開発・デバッグ | 本番環境、高性能・高密度環境 |
+| 項目                 | Docker ランタイム              | Containerd ランタイム             |
+| :------------------- | :----------------------------- | :-------------------------------- |
+| **Agent ランタイム** | `docker`                       | `containerd`                      |
+| **接続方法**         | `/var/run/docker.sock`         | `/run/containerd/containerd.sock` |
+| **ワーカーの隔離**   | 名前空間 (Docker ネットワーク) | 名前空間 (CNI ブリッジ)           |
+| **ネットワーク構成** | Docker ブリッジ (L3 接点あり)  | CNI ブリッジ (完全隔離 + Proxy)   |
+| **オーバーヘッド**   | 最小                           | 低 (containerd 直操作)            |
+| **内蔵レジストリ**   | 不要 (ローカルイメージを使用)  | 必要 (イメージ配布に利用)         |
+| **適した用途**       | 開発・デバッグ                 | 本番環境、高性能・高密度環境      |

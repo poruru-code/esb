@@ -14,6 +14,7 @@ TEMPLATE_DIR = Path(__file__).parent / "templates"
 def render_dockerfile(
     func_config: dict,
     docker_config: dict,
+    registry: str | None = None,
 ) -> str:
     """
     Render a Dockerfile.
@@ -36,8 +37,7 @@ def render_dockerfile(
     # Separate layers (zip vs directory).
     layers = func_config.get("layers", [])
 
-    # Phase 5 Step 0: CONTAINER_REGISTRY support.
-    registry = os.getenv("CONTAINER_REGISTRY")
+    # Use provided registry address (External Address for build phase)
     if registry:
         base_image = f"{registry}/esb-lambda-base:latest"
     else:
@@ -61,6 +61,7 @@ def render_dockerfile(
 
 def render_functions_yml(
     functions: list[dict],
+    registry: str | None = None,
 ) -> str:
     """
     Render functions.yml.
@@ -80,7 +81,7 @@ def render_functions_yml(
     )
     template = env.get_template("functions.yml.j2")
 
-    return template.render(functions=functions)
+    return template.render(functions=functions, registry=registry)
 
 
 def render_routing_yml(

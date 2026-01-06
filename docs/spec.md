@@ -43,6 +43,7 @@ flowchart TD
     Gateway -->|HTTP| Lambda
     
     Agent -->|containerd/CNI| Lambda
+    Agent -.-|Pull (Containerd/FC only)| Registry["Registry"]
     
     Lambda -->|AWS SDK| RustFS
     Lambda -->|AWS SDK| DB
@@ -73,14 +74,14 @@ services/gateway/
 ```
 
 #### 主要コンポーネント
-| モジュール                         | 責務                                                                 |
-| ---------------------------------- | -------------------------------------------------------------------- |
-| `core/event_builder.py`            | API Gateway Lambda Proxy Integration互換イベント構築                 |
-| `services/gateway/services/pool_manager.py` | コンテナのキャパシティ確保、プロビジョニング要求、返却管理 |
-| `services/container_pool.py`       | 関数ごとの Condition 待ち行列管理とコンテナインスタンスの保持       |
-| `services/janitor.py`              | アイドル/孤児コンテナの整理                                          |
-| `services/lambda_invoker.py`       | `httpx` を使用した Lambda RIE へのリクエスト送信                     |
-| `services/grpc_provision.py`       | Go Agent への gRPC 呼び出し                                           |
+| モジュール                                  | 責務                                                          |
+| ------------------------------------------- | ------------------------------------------------------------- |
+| `core/event_builder.py`                     | API Gateway Lambda Proxy Integration互換イベント構築          |
+| `services/gateway/services/pool_manager.py` | コンテナのキャパシティ確保、プロビジョニング要求、返却管理    |
+| `services/container_pool.py`                | 関数ごとの Condition 待ち行列管理とコンテナインスタンスの保持 |
+| `services/janitor.py`                       | アイドル/孤児コンテナの整理                                   |
+| `services/lambda_invoker.py`                | `httpx` を使用した Lambda RIE へのリクエスト送信              |
+| `services/grpc_provision.py`                | Go Agent への gRPC 呼び出し                                   |
 
 ### 2.2 Go Agent (Internal)
 - **役割**: Lambdaコンテナのライフサイクル管理（オンデマンド起動、削除、状態取得）。
@@ -111,14 +112,14 @@ services/gateway/
 Gateway は external_network 上で起動し、443 をホストに公開します。Agent は runtime-node の NetNS を共有し、runtime-node が 50051 を公開します。
 分離構成では 50051（runtime-node/agent）は Compute 側に存在します。
 
-| サービス名     | コンテナ内ポート | ホスト公開ポート | URL                     | プロトコル          |
-| -------------- | ---------------- | ---------------- | ----------------------- | ------------------- |
-| Gateway API    | 443              | 443              | `https://localhost:443` | HTTPS               |
-| Agent gRPC     | 50051            | 50051            | `grpc://<compute-host>:50051` | gRPC               |
-| RustFS API     | 9000             | 9000             | `http://localhost:9000` | HTTP                |
-| RustFS Console | 9001             | 9001             | `http://localhost:9001` | HTTP                |
-| ScyllaDB       | 8000             | 8001             | `http://localhost:8001` | HTTP (DynamoDB API) |
-| VictoriaLogs   | 9428             | 9428             | `http://localhost:9428` | HTTP                |
+| サービス名     | コンテナ内ポート | ホスト公開ポート | URL                           | プロトコル          |
+| -------------- | ---------------- | ---------------- | ----------------------------- | ------------------- |
+| Gateway API    | 443              | 443              | `https://localhost:443`       | HTTPS               |
+| Agent gRPC     | 50051            | 50051            | `grpc://<compute-host>:50051` | gRPC                |
+| RustFS API     | 9000             | 9000             | `http://localhost:9000`       | HTTP                |
+| RustFS Console | 9001             | 9001             | `http://localhost:9001`       | HTTP                |
+| ScyllaDB       | 8000             | 8001             | `http://localhost:8001`       | HTTP (DynamoDB API) |
+| VictoriaLogs   | 9428             | 9428             | `http://localhost:9428`       | HTTP                |
 
 補足:
 - 単一ノード構成では `docker-compose.containerd.yml` が runtime-node を external_network に参加させ、Gateway から `runtime-node:50051` で接続できます。
@@ -132,23 +133,25 @@ Gateway は external_network 上で起動し、443 をホストに公開しま�
     - `rustfs_data` -> RustFSデータ
     - `scylladb_data` -> ScyllaDBデータ
     - `victorialogs_data` -> ログデータ
-    - `registry_data` -> レジストリデータ
+    - `registry_data` -> レジストリデータ（Containerd/Firecracker のみ）
 
 ## 5. デプロイメントモデル
 
 ### 5.1 Compose ファイル構成
 
-| ファイル | 役割 | 主な用途 |
-| --- | --- | --- |
-| `docker-compose.yml` | Control/Core（Gateway + 依存サービス） | Control Plane（単一ノード/分離構成の共通） |
-| `docker-compose.node.yml` | Compute（runtime-node/agent/local-proxy） | Compute Node（Firecracker/remote） |
-| `docker-compose.containerd.yml` | Adapter（単一ノード結合） | Core + Compute を同一ホストで統合 |
+| ファイル                          | 役割                                      | 主な用途                                   |
+| --------------------------------- | ----------------------------------------- | ------------------------------------------ |
+| `docker-compose.yml`              | Control/Core（Gateway + 依存サービス）    | Control Plane（単一ノード/分離構成の共通） |
+| **`docker-compose.registry.yml`** | **Registry**                              | Containerd/Firecracker モードで自動追加    |
+| `docker-compose.node.yml`         | Compute（runtime-node/agent/local-proxy） | Compute Node（Firecracker/remote）         |
+| `docker-compose.containerd.yml`   | Adapter（単一ノード結合）                 | Core + Compute を同一ホストで統合          |
 
 ### 5.2 起動パターン（docker compose）
 
 単一ノード（containerd）:
 ```bash
 docker compose -f docker-compose.yml \
+  -f docker-compose.registry.yml \
   -f docker-compose.node.yml \
   -f docker-compose.containerd.yml up -d
 ```

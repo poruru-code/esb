@@ -16,8 +16,10 @@ def resolve_compose_files(mode: str | None = None, target: str = "control") -> l
         files.extend([cli_config.COMPOSE_BASE_FILE, cli_config.COMPOSE_WORKER_FILE])
 
         if resolved_mode == cli_config.ESB_MODE_FIRECRACKER:
+            files.append(cli_config.COMPOSE_REGISTRY_FILE)
             files.append(cli_config.COMPOSE_FC_FILE)
         elif resolved_mode == cli_config.ESB_MODE_CONTAINERD:
+            files.append(cli_config.COMPOSE_REGISTRY_FILE)
             files.append(cli_config.COMPOSE_CONTAINERD_FILE)
         elif resolved_mode == cli_config.ESB_MODE_DOCKER:
             files.append(cli_config.COMPOSE_DOCKER_FILE)

@@ -58,16 +58,21 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 
 	containerName := fmt.Sprintf("%s%s-%d", runtime.ContainerNamePrefix, req.FunctionName, time.Now().UnixNano())
 
-	// Phase 5 Step 0: Pull image from registry if not present
-	fmt.Printf("[Agent] Pulling image %s...\n", imageName)
-	pullReader, err := r.client.ImagePull(ctx, imageName, image.PullOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to pull image %s: %w", imageName, err)
-	}
-	defer pullReader.Close()
+	// Phase 5 Step 0: Pull image from registry if set
+	registry := os.Getenv("CONTAINER_REGISTRY")
+	if registry != "" {
+		fmt.Printf("[Agent] Pulling image %s...\n", imageName)
+		pullReader, err := r.client.ImagePull(ctx, imageName, image.PullOptions{})
+		if err != nil {
+			return nil, fmt.Errorf("failed to pull image %s: %w", imageName, err)
+		}
+		defer pullReader.Close()
 
-	// Wait for pull to complete
-	_, _ = io.Copy(io.Discard, pullReader)
+		// Wait for pull to complete
+		_, _ = io.Copy(io.Discard, pullReader)
+	} else {
+		fmt.Printf("[Agent] Skipping pull for local image %s (no registry configured)\n", imageName)
+	}
 
 	envList := make([]string, 0, len(req.Env))
 	for k, v := range req.Env {

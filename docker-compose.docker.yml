@@ -6,18 +6,11 @@ services:
     # Participate in Network Directly
     networks:
       - external_network
-    depends_on:
-      registry: { condition: service_healthy }
     environment:
       - AGENT_RUNTIME=docker
-      - CONTAINER_REGISTRY=localhost:${ESB_PORT_REGISTRY:-5010}
       - CONTAINERS_NETWORK=${ESB_NETWORK_EXTERNAL:-test-external}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-
-  registry:
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q -Y off --no-check-certificate --spider https://localhost:5010/v2/ || exit 1"]
 
   # ------------------------------------------
   # 2. Gateway Wiring

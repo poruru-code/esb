@@ -51,7 +51,7 @@ services:
     environment:
       - AGENT_RUNTIME=containerd
       - CONTAINERD_RUNTIME=aws.firecracker
-      - CONTAINER_REGISTRY=esb-registry:5010
+      - CONTAINER_REGISTRY=registry:5010
 
   # ------------------------------------------
   # 3. Gateway Wiring (WireGuard for FC Mode)

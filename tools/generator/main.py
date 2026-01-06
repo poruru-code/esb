@@ -40,6 +40,8 @@ def generate_files(
     project_root: Path | None = None,
     dry_run: bool = False,
     verbose: bool = False,
+    registry_external: str | None = None,
+    registry_internal: str | None = None,
 ) -> list:
     """
     Generate files from a SAM template.
@@ -214,7 +216,9 @@ def generate_files(
         func["has_requirements"] = (staging_src_dir / "requirements.txt").exists()
 
         # Render Dockerfile.
-        dockerfile_content = render_dockerfile(func, docker_config_copy)
+        dockerfile_content = render_dockerfile(
+            func, docker_config_copy, registry=registry_external
+        )
 
         if dry_run:
             print(f"\n📄 [DryRun] Staging: {dockerfile_dir} (Source: {func_src_dir})")
@@ -240,7 +244,9 @@ def generate_files(
         # Default convention: output_dir/config/functions.yml.
         functions_yml_path = output_dir / "config" / "functions.yml"
 
-    functions_yml_content = render_functions_yml(functions)
+    functions_yml_content = render_functions_yml(functions, registry=registry_internal)
+    
+    # Also render routing.yml
 
     if dry_run:
         print(f"\n📄 [DryRun] Target: {functions_yml_path}")

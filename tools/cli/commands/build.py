@@ -18,9 +18,10 @@ RUNTIME_DIR = cli_config.PROJECT_ROOT / "tools" / "generator" / "runtime"
 BASE_IMAGE_TAG = "esb-lambda-base:latest"
 
 
-def ensure_registry_running(extra_files=None, project_name=None):
+def ensure_registry_running(registry=None, extra_files=None, project_name=None):
     """Ensure the registry is running when required."""
-    registry = os.getenv("CONTAINER_REGISTRY")
+    if not registry:
+        registry = os.getenv("CONTAINER_REGISTRY")
     if not registry:
         return  # Registry not required.
 
@@ -85,7 +86,7 @@ def ensure_registry_running(extra_files=None, project_name=None):
         sys.exit(1)
 
 
-def build_base_image(no_cache=False):
+def build_base_image(no_cache=False, push_registry=None):
     """Build the ESB Lambda base image."""
     client = docker.from_env()
     dockerfile_path = RUNTIME_DIR / "Dockerfile.base"
@@ -94,9 +95,12 @@ def build_base_image(no_cache=False):
         logging.warning(f"Base Dockerfile not found: {dockerfile_path}")
         return False
 
-    # Get registry prefix from environment (default: localhost:5000).
-    registry = os.getenv("CONTAINER_REGISTRY", "localhost:5010")
-    image_tag = f"{registry}/{BASE_IMAGE_TAG}"
+    # Use push_registry if provided, otherwise fallback to CONTAINER_REGISTRY
+    registry = push_registry or os.getenv("CONTAINER_REGISTRY")
+    if registry:
+        image_tag = f"{registry}/{BASE_IMAGE_TAG}"
+    else:
+        image_tag = BASE_IMAGE_TAG  # Local tag only
 
     logging.step("Building base image...")
     print(f"  • Building {logging.highlight(image_tag)} ...", end="", flush=True)
@@ -116,6 +120,9 @@ def build_base_image(no_cache=False):
         return False
 
     # Push to registry
+    if not push_registry and not os.getenv("CONTAINER_REGISTRY"):
+        return True  # Skip push
+
     print(f"  • Pushing {logging.highlight(image_tag)} ...", end="", flush=True)
     try:
         for line in client.images.push(image_tag, stream=True, decode=True):
@@ -148,14 +155,14 @@ def _extract_function_name_from_dockerfile(dockerfile_path) -> str | None:
     return None
 
 
-def build_function_images(functions, template_path, no_cache=False, verbose=False):
+def build_function_images(functions, template_path, no_cache=False, verbose=False, push_registry=None):
     """
     Build images for each function.
     """
     client = docker.from_env()
 
-    # Get registry prefix from environment (default: localhost:5000).
-    registry = os.getenv("CONTAINER_REGISTRY", "localhost:5010")
+    # Use push_registry if provided, otherwise fallback to CONTAINER_REGISTRY
+    registry = push_registry or os.getenv("CONTAINER_REGISTRY")
 
     logging.step("Building function images...")
 
@@ -164,11 +171,23 @@ def build_function_images(functions, template_path, no_cache=False, verbose=Fals
         dockerfile_path = func.get("dockerfile_path")
         context_path = func.get("context_path")
 
-        if not dockerfile_path or not Path(dockerfile_path).exists():
-            logging.warning(f"Dockerfile not found for {function_name} at {dockerfile_path}")
+        if not dockerfile_path:
+            logging.warning(f"No Dockerfile path defined for {function_name}")
+            continue
+            
+        dockerfile_full_path = Path(dockerfile_path)
+        if not dockerfile_full_path.exists():
+            logging.warning(f"Dockerfile not found for {function_name} at {dockerfile_full_path.absolute()}")
             continue
 
-        image_tag = f"{registry}/{function_name}:latest"
+        if verbose:
+            logging.info(f"Using Dockerfile: {dockerfile_full_path.absolute()}")
+
+        # Use push_registry if provided, otherwise fallback to local tagging
+        if registry:
+            image_tag = f"{registry}/{function_name}:latest"
+        else:
+            image_tag = f"{function_name}:latest"
 
         print(f"  • Building {logging.highlight(image_tag)} ...", end="", flush=True)
         try:
@@ -192,6 +211,10 @@ def build_function_images(functions, template_path, no_cache=False, verbose=Fals
                 sys.exit(1)
 
         # Push to registry
+        if not push_registry and not os.getenv("CONTAINER_REGISTRY"):
+            continue  # Skip push
+
+        registry = push_registry or os.getenv("CONTAINER_REGISTRY")
         print(f"  • Pushing {logging.highlight(image_tag)} ...", end="", flush=True)
         try:
             for line in client.images.push(image_tag, stream=True, decode=True):
@@ -227,11 +250,15 @@ def run(args):
     
     port_mapping = cli_config.get_port_mapping(env_name)
     os.environ.update(port_mapping)
-    os.environ.update(cli_config.get_subnet_config(env_name))
+    # Calculate dynamic registry addresses
+    registry_config = cli_config.get_registry_config(env_name)
+    external_registry = registry_config["external"]
+    internal_registry = registry_config["internal"]
     
-    # Calculate dynamic registry address
-    registry_port = port_mapping.get("ESB_PORT_REGISTRY", "5010")
-    os.environ["CONTAINER_REGISTRY"] = f"localhost:{registry_port}"
+    if internal_registry:
+        os.environ["CONTAINER_REGISTRY"] = internal_registry
+    else:
+        os.environ.pop("CONTAINER_REGISTRY", None)
 
     # 1. Generate configuration files (Phase 1 Generator).
     logging.step("Generating configurations...")
@@ -260,7 +287,7 @@ def run(args):
     # 0. Ensure registry is running (when required).
     if not dry_run:
         extra_files = getattr(args, "file", [])
-        ensure_registry_running(extra_files=extra_files, project_name=project_name)
+        ensure_registry_running(registry=external_registry, extra_files=extra_files, project_name=project_name)
 
     config = generator.load_config(config_path)
 
@@ -274,6 +301,8 @@ def run(args):
         project_root=cli_config.PROJECT_ROOT,
         dry_run=dry_run,
         verbose=verbose,
+        registry_external=external_registry,
+        registry_internal=internal_registry,
     )
 
     if dry_run:
@@ -285,7 +314,7 @@ def run(args):
     # 2. Build the base image.
     no_cache = getattr(args, "no_cache", False)
 
-    if not build_base_image(no_cache=no_cache):
+    if not build_base_image(no_cache=no_cache, push_registry=external_registry):
         sys.exit(1)
 
     # 3. Build Lambda function images.
@@ -294,10 +323,11 @@ def run(args):
         template_path=cli_config.TEMPLATE_YAML,
         no_cache=no_cache,
         verbose=verbose,
+        push_registry=external_registry,
     )
 
     if runtime_mode.get_mode() == cli_config.ESB_MODE_FIRECRACKER:
-        if not build_service_images.build_and_push(no_cache=no_cache):
+        if not build_service_images.build_and_push(no_cache=no_cache, push_registry=external_registry):
             sys.exit(1)
 
     logging.success("Build complete.")

@@ -18,20 +18,20 @@ Why: Provide a single entry point for developers and operators.
 
 ### CLI コマンド一覧
 
-| コマンド    | 説明                                                                       | 主なオプション             |
-| ----------- | -------------------------------------------------------------------------- | -------------------------- |
-| `esb init`  | `generator.yml` を対話的に生成します。新規プロジェクト開始時に実行します。         | `--template (-t)`                            |
-| `esb build` | `template.yaml` から設定を生成し、Docker イメージをビルドします。                  | `--no-cache`, `--dry-run`, `--verbose (-v)`  |
-| `esb up`    | サービスの起動とインフラのプロビジョニングを一括で行います（デフォルトでdetach）。 | `--build`, `--wait`                          |
-| `esb watch` | ファイル変更を監視し、自動的にリロード・リビルドを実行します。                     | -                                            |
-| `esb down`  | サービスを停止し、コンテナを削除します。                                           | `--volumes (-v)`                             |
-| `esb reset` | 環境を完全に初期化し、DB等のデータも全て削除して再構築します。                     | `--yes (-y)`, `--rmi`                        |
-| `esb logs`  | サービスログを表示します。                                                       | `--follow (-f)`, `--tail`, `--timestamps`    |
-| `esb mode`  | 実行モードを取得/設定します。                                                     | `get`, `set <containerd|firecracker>`       |
-| `esb node add` | Compute Node を登録します。                                                  | `--host`, `--password`, `--skip-key-setup`   |
-| `esb node doctor` | Compute Node の前提チェックを行います。                                   | `--name`, `--host`, `--strict`               |
-| `esb node up` | Compute Node 上で compose を起動します（Firecracker モードのみ）。             | `--name`, `--host`                           |
-| `esb node provision` | Compute Node に必要な依存をプロビジョニングします。                 | `--name`, `--host`, `--sudo-password`, `--sudo-nopasswd`, `--firecracker-*`, `--devmapper-*` |
+| コマンド             | 説明                                                                               | 主なオプション                                                                               |
+| -------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `esb init`           | `generator.yml` を対話的に生成します。新規プロジェクト開始時に実行します。         | `--template (-t)`                                                                            |
+| `esb build`          | `template.yaml` から設定を生成し、Docker イメージをビルドします。                  | `--no-cache`, `--dry-run`, `--verbose (-v)`                                                  |
+| `esb up`             | サービスの起動とインフラのプロビジョニングを一括で行います（デフォルトでdetach）。 | `--build`, `--wait`                                                                          |
+| `esb watch`          | ファイル変更を監視し、自動的にリロード・リビルドを実行します。                     | -                                                                                            |
+| `esb down`           | サービスを停止し、コンテナを削除します。                                           | `--volumes (-v)`                                                                             |
+| `esb reset`          | 環境を完全に初期化し、DB等のデータも全て削除して再構築します。                     | `--yes (-y)`, `--rmi`                                                                        |
+| `esb logs`           | サービスログを表示します。                                                         | `--follow (-f)`, `--tail`, `--timestamps`                                                    |
+| `esb mode`           | 実行モードを取得/設定します。                                                      | `get`, `set <containerd                                                                      | firecracker>` |
+| `esb node add`       | Compute Node を登録します。                                                        | `--host`, `--password`, `--skip-key-setup`                                                   |
+| `esb node doctor`    | Compute Node の前提チェックを行います。                                            | `--name`, `--host`, `--strict`                                                               |
+| `esb node up`        | Compute Node 上で compose を起動します（Firecracker モードのみ）。                 | `--name`, `--host`                                                                           |
+| `esb node provision` | Compute Node に必要な依存をプロビジョニングします。                                | `--name`, `--host`, `--sudo-password`, `--sudo-nopasswd`, `--firecracker-*`, `--devmapper-*` |
 
 補足:
 - 実行モードは `~/.esb/mode.yaml` に保存されます。
@@ -72,7 +72,7 @@ esb node up --name node-1
 - `esb node up` は `runtime-node` を先に起動し、その後 `docker compose pull` と `up -d --force-recreate` を行います。
 - `esb node provision` は ESB Root CA を配布し、`/etc/docker/certs.d/<registry>/ca.crt` を設定します。
 - `ESB_CONTROL_HOST` が未設定の場合は `GATEWAY_INTERNAL_URL` のホスト名を利用します。
-- `CONTAINER_REGISTRY` 未設定時は `ESB_CONTROL_HOST` と `REGISTRY_PORT` から `CONTAINER_REGISTRY` を組み立てます。
+- `CONTAINER_REGISTRY` 未設定時は、Containerd/Firecracker モードでは `ESB_CONTROL_HOST` 和 `REGISTRY_PORT` から組み立てます。Docker モードではレジストリを使用せず、ローカルイメージを直接参照します（レジストリ経由の配布はサポートしません）。
 - Firecracker モードでは `esb build` が `esb-runtime-node`/`esb-agent` をレジストリへ push します。
 - `esb node provision` は sudo が必要です。sudo が通らない場合はリモート側の sudoers を確認してください。
 - `--sudo-nopasswd` は SSH ユーザーに対して `/etc/sudoers.d/esb-<user>` を作成します。
@@ -110,7 +110,7 @@ flowchart TD
     LocalProxy -->|TCP| RustFS
     LocalProxy -->|TCP| ScyllaDB
     LocalProxy -->|TCP| VictoriaLogs
-    Agent -->|Pull images| Registry
+    Agent -.->|"Pull images (Containerd/FC only)"| Registry
     
     subgraph Toolchain ["CLI Toolchain"]
         esb[esb CLI] -->|build| Generator[SAM Generator]
@@ -156,11 +156,11 @@ flowchart TD
 
 ### Compose ファイル構成と起動パターン
 
-| ファイル | 役割 | 主な用途 |
-| --- | --- | --- |
-| `docker-compose.yml` | Control/Core（Gateway + 依存サービス） | Control Plane（単一ノード/分離構成の共通） |
-| `docker-compose.node.yml` | Compute（runtime-node/agent/local-proxy） | Compute Node（Firecracker/remote） |
-| `docker-compose.containerd.yml` | Adapter（単一ノード結合） | Core + Compute を同一ホストで統合 |
+| ファイル                        | 役割                                      | 主な用途                                   |
+| ------------------------------- | ----------------------------------------- | ------------------------------------------ |
+| `docker-compose.yml`            | Control/Core（Gateway + 依存サービス）    | Control Plane（単一ノード/分離構成の共通） |
+| `docker-compose.node.yml`       | Compute（runtime-node/agent/local-proxy） | Compute Node（Firecracker/remote）         |
+| `docker-compose.containerd.yml` | Adapter（単一ノード結合）                 | Core + Compute を同一ホストで統合          |
 
 #### 起動パターン（docker compose）
 
@@ -322,7 +322,7 @@ esb reset
 
 | ドキュメント                                                                  | 説明                                 |
 | ----------------------------------------------------------------------------- | ------------------------------------ |
-| [環境変数一覧](docs/environment-variables.md)                                | 全環境変数の役割と設定方法           |
+| [環境変数一覧](docs/environment-variables.md)                                 | 全環境変数の役割と設定方法           |
 | [trace-propagation.md](docs/trace-propagation.md)                             | X-Amzn-Trace-Id トレーシング         |
 | [architecture-containerd.md](docs/architecture-containerd.md)                 | 標準実行モード (Docker) の構成図     |
 | [container-management.md](docs/container-management.md)                       | コンテナ管理とイメージ運用           |

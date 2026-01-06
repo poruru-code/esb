@@ -90,6 +90,22 @@ def get_port_mapping(env_name: str = None) -> dict[str, str]:
     }
     return mapping
 
+def get_registry_config(env_name: str = None) -> dict[str, str | None]:
+    """Calculate external and internal registry addresses."""
+    from tools.cli import runtime_mode
+    
+    current_mode = runtime_mode.get_mode()
+    if current_mode == ESB_MODE_DOCKER:
+        return {"external": None, "internal": None}
+    
+    port_mapping = get_port_mapping(env_name)
+    registry_port = port_mapping.get("ESB_PORT_REGISTRY", "5010")
+    
+    return {
+        "external": f"localhost:{registry_port}",
+        "internal": "registry:5010"
+    }
+
 def get_subnet_config(env_name: str = None) -> dict[str, str]:
     """Calculate subnet configuration (simple offset strategy)."""
     if env_name is None:
@@ -118,6 +134,7 @@ COMPOSE_WORKER_FILE = PROJECT_ROOT / "docker-compose.worker.yml"
 COMPOSE_FC_FILE = PROJECT_ROOT / "docker-compose.fc.yml"
 COMPOSE_CONTAINERD_FILE = PROJECT_ROOT / "docker-compose.containerd.yml"
 COMPOSE_DOCKER_FILE = PROJECT_ROOT / "docker-compose.docker.yml"
+COMPOSE_REGISTRY_FILE = PROJECT_ROOT / "docker-compose.registry.yml"
 
 # Deprecated constants (kept for safety if referenced elsewhere)
 COMPOSE_COMPUTE_FILE = PROJECT_ROOT / "docker-compose.node.yml" 
