@@ -12,6 +12,7 @@ from tools.cli import compose as cli_compose
 from tools.cli import runtime_mode
 from tools.cli import build_service_images
 from tools.cli.core import logging
+from tools.cli.core import proxy
 
 # Directory for the ESB Lambda base image.
 RUNTIME_DIR = cli_config.PROJECT_ROOT / "tools" / "generator" / "runtime"
@@ -112,6 +113,7 @@ def build_base_image(no_cache=False, push_registry=None):
             tag=image_tag,
             nocache=no_cache,
             rm=True,
+            buildargs=proxy.docker_build_args(),
         )
         print(f" {logging.Color.GREEN}✅{logging.Color.END}")
     except Exception as e:
@@ -199,6 +201,7 @@ def build_function_images(functions, template_path, no_cache=False, verbose=Fals
                 tag=image_tag,
                 nocache=no_cache,
                 rm=True,
+                buildargs=proxy.docker_build_args(),
             )
             print(f" {logging.Color.GREEN}✅{logging.Color.END}")
         except Exception as e:
@@ -239,6 +242,9 @@ def build_function_images(functions, template_path, no_cache=False, verbose=Fals
 def run(args):
     dry_run = getattr(args, "dry_run", False)
     verbose = getattr(args, "verbose", False)
+
+    # Normalize proxy variables early for compose/docker calls.
+    proxy.apply_proxy_env()
 
     if dry_run:
         logging.info("Running in DRY-RUN mode. No files will be written, no images built.")

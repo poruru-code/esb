@@ -51,6 +51,19 @@ def _args(**overrides):
     return Namespace(**base)
 
 
+def test_build_inventory_hosts_injects_proxy(monkeypatch):
+    monkeypatch.setenv("HTTP_PROXY", "http://proxy.internal:3128")
+    monkeypatch.setenv("NO_PROXY", "127.0.0.1")
+    nodes = [{"id": "node-1", "host": "10.0.0.5"}]
+    args = _args()
+
+    hosts = node_cmd._build_inventory_hosts(nodes, args, ssh_password=None, sudo_password=None)
+    _, data = hosts[0]
+
+    assert data["esb_http_proxy"] == "http://proxy.internal:3128"
+    assert "localhost" in data["esb_no_proxy"].split(",")
+
+
 def test_parse_payload_json():
     payload = {"host": "10.0.0.5", "user": "esb"}
     assert node_cmd._parse_payload(json.dumps(payload)) == payload

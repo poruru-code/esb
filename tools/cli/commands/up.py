@@ -17,6 +17,7 @@ from dotenv import load_dotenv
 
 from tools.cli.core import logging
 from tools.cli.core.cert import ensure_certs
+from tools.cli.core import proxy
 import time
 import requests
 
@@ -91,6 +92,7 @@ def run(args):
     # 0. Prepare SSL certificates.
     cert_dir = Path(os.environ.get("ESB_CERT_DIR", str(cli_config.DEFAULT_CERT_DIR))).expanduser()
     ensure_certs(cert_dir)
+    proxy.apply_proxy_env()
 
     # Load .env.test (same as run_tests.py).
     env_file = PROJECT_ROOT / "tests" / ".env.test"
@@ -164,7 +166,7 @@ def run(args):
 
     try:
         # Pass updated env to subprocess implicitly (os.environ is updated)
-        subprocess.check_call(cmd)
+        subprocess.check_call(cmd, env=proxy.prepare_env())
     except subprocess.CalledProcessError as e:
         logging.error(f"Failed to start services: {e}")
         sys.exit(1)

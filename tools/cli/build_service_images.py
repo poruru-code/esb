@@ -10,6 +10,7 @@ import docker
 
 from tools.cli import config as cli_config
 from tools.cli.core import logging
+from tools.cli.core import proxy
 
 SERVICE_IMAGES: dict[str, Path] = {
     "esb-runtime-node": cli_config.PROJECT_ROOT / "services" / "runtime-node",
@@ -41,6 +42,7 @@ def build_and_push(no_cache: bool = False, push_registry: str | None = None) -> 
                 tag=image_tag,
                 nocache=no_cache,
                 rm=True,
+                buildargs=proxy.docker_build_args(),
             )
             print(f" {logging.Color.GREEN}✅{logging.Color.END}")
         except Exception as exc:

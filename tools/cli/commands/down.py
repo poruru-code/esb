@@ -7,6 +7,7 @@ from tools.cli import compose as cli_compose
 from dotenv import load_dotenv
 from tools.cli.core import logging
 from importlib.metadata import metadata
+from tools.cli.core import proxy
 
 
 def run(args):
@@ -45,7 +46,7 @@ def run(args):
     )
 
     try:
-        subprocess.check_call(cmd)
+        subprocess.check_call(cmd, env=proxy.prepare_env())
         logging.success("Services stopped.")
     except subprocess.CalledProcessError as e:
         logging.error(f"Failed to stop services: {e}")
