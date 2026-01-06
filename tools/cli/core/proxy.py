@@ -94,9 +94,29 @@ def collect_proxy_env(extra_no_proxy: Iterable[str] | None = None) -> dict[str, 
     has_extra = os.environ.get(_EXTRA_NO_PROXY_ENV)
 
     if has_proxy_vars or existing_no_proxy or has_extra:
+        # Dynamically add project-specific service names if ESB_PROJECT_NAME is set
+        project_name = os.environ.get("ESB_PROJECT_NAME")
+        dynamic_targets = []
+        if project_name:
+            # Common internal services that might be accessed via service discovery
+            services = [
+                "s3-storage",
+                "database",
+                "victorialogs",
+                "gateway",
+                "agent",
+                "registry",
+            ]
+            dynamic_targets = [f"{project_name}-{s}" for s in services]
+
+        # Combine defaults, dynamic targets, and extras
+        all_targets = list(DEFAULT_NO_PROXY_TARGETS) + dynamic_targets
+        if extra_no_proxy:
+            all_targets.extend(extra_no_proxy)
+
         merged_no_proxy = merge_no_proxy(
             existing_no_proxy,
-            extras=extra_no_proxy or DEFAULT_NO_PROXY_TARGETS,
+            extras=all_targets,
         )
         if merged_no_proxy:
             env["NO_PROXY"] = merged_no_proxy

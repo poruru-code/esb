@@ -426,6 +426,10 @@ def run_scenario(args, scenario):
     
     # 2. Setup the global context (os.environ) for this environment
     cli_config.setup_environment(env_name)
+
+    # 2.5 Inject Proxy Settings (Ensure NO_PROXY includes all internal services)
+    from tools.cli.core import proxy
+    proxy.apply_proxy_env()
     
     # 3. Reload env vars into a dict for passing to subprocess (pytest)
     env = os.environ.copy()
@@ -445,8 +449,10 @@ def run_scenario(args, scenario):
     esb_template = os.getenv("ESB_TEMPLATE", "tests/fixtures/template.yaml")
     env["ESB_TEMPLATE"] = str(PROJECT_ROOT / esb_template)
 
-    # Update current process env for helper calls
-    os.environ.update(env)
+    # Note: Do NOT update os.environ with 'env' here.
+    # 'env' contains localhost URLs (e.g. VICTORIALOGS_URL=http://localhost:...) intended for pytest.
+    # If we inject these into os.environ, 'run_esb' (esb up) will pick them up and pass them to Docker containers,
+    # causing services to try to connect to localhost (themselves) instead of the correct container.
 
     ensure_firecracker_node_up()
 
