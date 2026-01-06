@@ -11,11 +11,22 @@ project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.append(str(project_root))
 
-from tools.cli.commands import build, up, watch, down, stop, reset, init, logs, node, mode  # noqa: E402
+# Commands will be imported inside main() to ensure env vars are set first.
 
 
 def main():
+    # Set ESB_ENV early if specified in sys.argv to ensure config picks it up
+    # We do a quick scan because subparsers don't allow global access to 'env' easily before parse_args
+    for i, arg in enumerate(sys.argv):
+        if arg == "--env" and i + 1 < len(sys.argv):
+            import os
+            os.environ["ESB_ENV"] = sys.argv[i + 1]
+
     from tools.cli import config as cli_config
+    from tools.cli.commands import build, up, watch, down, stop, reset, init, logs, node, mode
+
+    # Setup environment variables (ports, networks, registry) automatically
+    cli_config.setup_environment()
 
     parser = argparse.ArgumentParser(
         description="Edge Serverless Box CLI", formatter_class=argparse.RawDescriptionHelpFormatter
@@ -44,7 +55,7 @@ def main():
         "-f", "--file", action="append", help="Specify an additional compose file"
     )
     build_parser.add_argument(
-        "--env", type=str, default="default", help="Environment name"
+        "--env", type=str, help="Environment name"
     )
 
     # --- up command ---
@@ -58,7 +69,7 @@ def main():
         "-f", "--file", action="append", help="Specify an additional compose file"
     )
     up_parser.add_argument(
-        "--env", type=str, default="default", help="Environment name"
+        "--env", type=str, help="Environment name"
     )
 
     # --- watch command ---
@@ -76,7 +87,7 @@ def main():
         "-f", "--file", action="append", help="Specify an additional compose file"
     )
     down_parser.add_argument(
-        "--env", type=str, default="default", help="Environment name"
+        "--env", type=str, help="Environment name"
     )
 
     # --- stop command ---
@@ -85,7 +96,7 @@ def main():
         "-f", "--file", action="append", help="Specify an additional compose file"
     )
     stop_parser.add_argument(
-        "--env", type=str, default="default", help="Environment name"
+        "--env", type=str, help="Environment name"
     )
 
     # --- reset command ---
@@ -95,7 +106,7 @@ def main():
     reset_parser.add_argument("--yes", "-y", action="store_true", help="Skip confirmation prompt")
     reset_parser.add_argument("--rmi", action="store_true", help="Remove images as well")
     reset_parser.add_argument(
-        "--env", type=str, default="default", help="Environment name"
+        "--env", type=str, help="Environment name"
     )
 
     # --- logs command ---
@@ -105,7 +116,7 @@ def main():
     logs_parser.add_argument("--tail", type=int, default=None, help="Number of lines to show")
     logs_parser.add_argument("--timestamps", "-t", action="store_true", help="Show timestamps")
     logs_parser.add_argument(
-        "--env", type=str, default="default", help="Environment name"
+        "--env", type=str, help="Environment name"
     )
 
     # --- mode command ---
@@ -328,16 +339,10 @@ def main():
 
     args = parser.parse_args()
 
-    # Override config when --template is specified.
+    # Template override handled after parse_args
     if args.template:
         from tools.cli.config import set_template_yaml
-
         set_template_yaml(args.template)
-
-    # Set ESB_ENV for the current process
-    if hasattr(args, "env") and args.env:
-        import os
-        os.environ["ESB_ENV"] = args.env
 
     try:
         if args.command == "init":

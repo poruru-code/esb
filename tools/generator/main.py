@@ -42,6 +42,7 @@ def generate_files(
     verbose: bool = False,
     registry_external: str | None = None,
     registry_internal: str | None = None,
+    parameters: dict | None = None,
 ) -> list:
     """
     Generate files from a SAM template.
@@ -81,10 +82,13 @@ def generate_files(
         sam_content = f.read()
 
     # Parameter substitution settings.
-    parameters = config.get("parameters", {})
+    # Merge parameters from config and function arguments.
+    gen_params = config.get("parameters", {})
+    if parameters:
+        gen_params.update(parameters)
 
     # Parse.
-    parsed = parse_sam_template(sam_content, parameters)
+    parsed = parse_sam_template(sam_content, gen_params)
     functions = parsed["functions"]
 
     if verbose:
@@ -244,6 +248,18 @@ def generate_files(
         # Default convention: output_dir/config/functions.yml.
         functions_yml_path = output_dir / "config" / "functions.yml"
 
+    def _ensure_safe_write(target_path: Path, content: str):
+        """Write content to file, ensuring target is not a directory (Docker clobber fix)."""
+        if verbose:
+            print(f"Generating: {target_path}")
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        # Fix for Docker behavior: if target is a directory, remove it.
+        if target_path.exists() and not target_path.is_file():
+            import shutil
+            shutil.rmtree(target_path)
+        with open(target_path, "w", encoding="utf-8") as f:
+            f.write(content)
+
     functions_yml_content = render_functions_yml(functions, registry=registry_internal)
     
     # Also render routing.yml
@@ -254,11 +270,7 @@ def generate_files(
         print(functions_yml_content.strip())
         print("-" * 60)
     else:
-        if verbose:
-            print(f"Generating: {functions_yml_path}")
-        functions_yml_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(functions_yml_path, "w", encoding="utf-8") as f:
-            f.write(functions_yml_content)
+        _ensure_safe_write(functions_yml_path, functions_yml_content)
 
     # Generate routing.yml (relative to base_dir, default under output_dir/config/).
     routing_yml_raw = paths.get("routing_yml")
@@ -280,11 +292,7 @@ def generate_files(
         print(routing_yml_content.strip())
         print("-" * 60)
     else:
-        if verbose:
-            print(f"Generating: {routing_yml_path}")
-        routing_yml_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(routing_yml_path, "w", encoding="utf-8") as f:
-            f.write(routing_yml_content)
+        _ensure_safe_write(routing_yml_path, routing_yml_content)
 
     if not dry_run:
         print(f"Generated {len(functions)} Dockerfile(s), functions.yml, and routing.yml")

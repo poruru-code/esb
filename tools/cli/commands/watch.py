@@ -56,6 +56,7 @@ class SmartReloader(FileSystemEventHandler):
         logging.info("Regenerating configs...")
         from tools.cli.commands.build import generator
         from tools.cli.config import PROJECT_ROOT, E2E_DIR, TEMPLATE_YAML
+        from tools.cli import config as cli_config
 
         config_path = E2E_DIR / "generator.yml"
         if not config_path.exists():
@@ -66,6 +67,10 @@ class SmartReloader(FileSystemEventHandler):
         if "paths" not in config:
             config["paths"] = {}
         config["paths"]["sam_template"] = str(TEMPLATE_YAML)
+        
+        # Set output directory based on environment name
+        env_name = cli_config.get_env_name()
+        config["paths"]["output_dir"] = f".esb/{env_name}/"
 
         generator.generate_files(config=config, project_root=PROJECT_ROOT)
 

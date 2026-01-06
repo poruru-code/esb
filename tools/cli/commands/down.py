@@ -27,16 +27,7 @@ def run(args):
         compose_args.extend(["--rmi", "all"])
     
     extra_files = getattr(args, "file", [])
-
-    # Calculate isolation variables
-    env_name = cli_config.get_env_name()
-    project_name = f"esb-{env_name}".lower()
-    os.environ["ESB_PROJECT_NAME"] = project_name
-    
-    # Update os.environ with isolation vars so docker-compose picks them up
-    # This is crucial so that variable substitution in docker-compose.yml works during 'down'
-    os.environ.update(cli_config.get_port_mapping(env_name))
-    os.environ.update(cli_config.get_subnet_config(env_name))
+    project_name = os.environ.get("ESB_PROJECT_NAME")
 
     cmd = cli_compose.build_compose_command(
         compose_args, 
@@ -57,9 +48,8 @@ def run(args):
 
     try:
         client = docker.from_env()
-        project_name = metadata("edge-serverless-box")["Name"]
         lambda_containers = client.containers.list(
-            all=True, filters={"label": f"created_by={project_name}"}
+            all=True, filters={"label": "created_by=esb"}
         )
         if lambda_containers:
             logging.step(f"Cleaning up {len(lambda_containers)} Lambda containers...")

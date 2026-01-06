@@ -27,9 +27,8 @@ def wait_for_gateway(timeout=60):
     start_time = time.time()
     start_time = time.time()
     
-    # Dynamically resolve Gateway port based on active environment
-    mapping = cli_config.get_port_mapping()
-    port = mapping.get("ESB_PORT_GATEWAY_HTTPS", "443")
+    # Dynamically resolve Gateway port based on active environment (already in os.environ)
+    port = os.environ.get("ESB_PORT_GATEWAY_HTTPS", "443")
     url = f"https://localhost:{port}/health"
 
     logging.step("Waiting for Gateway...")
@@ -140,22 +139,7 @@ def run(args):
         compose_args.append("--build")
     
     extra_files = getattr(args, "file", [])
-    
-    # Calculate isolation variables
-    env_name = cli_config.get_env_name()
-    project_name = f"esb-{env_name}".lower()
-    os.environ["ESB_PROJECT_NAME"] = project_name
-    
-    # Update os.environ with isolation vars so docker-compose picks them up
-    os.environ.update(cli_config.get_port_mapping(env_name))
-    os.environ.update(cli_config.get_subnet_config(env_name))
-
-    # Inject registry config
-    registry_config = cli_config.get_registry_config(env_name)
-    if registry_config["internal"]:
-        os.environ["CONTAINER_REGISTRY"] = registry_config["internal"]
-    else:
-        os.environ.pop("CONTAINER_REGISTRY", None)
+    project_name = os.environ.get("ESB_PROJECT_NAME")
 
     cmd = cli_compose.build_compose_command(
         compose_args, 

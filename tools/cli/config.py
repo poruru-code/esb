@@ -32,16 +32,34 @@ def get_env_name() -> str:
 def get_esb_home() -> Path:
     """Resolve the ESB home directory based on environment."""
     env_name = get_env_name()
-    base = Path.home() / ".esb"
-    if env_name == "default":
-        return base
-    return base / env_name
+    return Path.home() / ".esb" / env_name
 
 def get_cert_dir() -> Path:
     return get_esb_home() / "certs"
 
 def get_mode_config_path() -> Path:
     return get_esb_home() / "mode.yaml"
+
+def setup_environment(env_name: str = None) -> None:
+    """Inject all environment-specific variables into os.environ."""
+    if env_name is None:
+        env_name = get_env_name()
+    
+    # 1. ESB_PROJECT_NAME
+    os.environ["ESB_PROJECT_NAME"] = f"esb-{env_name}".lower()
+    
+    # 2. Ports
+    os.environ.update(get_port_mapping(env_name))
+    
+    # 3. Subnets & Networks
+    os.environ.update(get_subnet_config(env_name))
+    
+    # 4. Registry
+    reg_config = get_registry_config(env_name)
+    if reg_config["internal"]:
+        os.environ["CONTAINER_REGISTRY"] = reg_config["internal"]
+    else:
+        os.environ.pop("CONTAINER_REGISTRY", None)
 
 # Backward compatibility constants (Try to use functions instead where possible)
 ESB_HOME = Path.home() / ".esb" # Warning: This is static, might not match current env if used directly.
@@ -89,6 +107,27 @@ def get_port_mapping(env_name: str = None) -> dict[str, str]:
         "ESB_PORT_VICTORIALOGS": str(9428 + offset),
     }
     return mapping
+
+def get_generator_parameters(env_name: str = None) -> dict[str, str]:
+    """Calculate parameters for the SAM template generator based on current mode."""
+    from tools.cli import runtime_mode
+    current_mode = runtime_mode.get_mode()
+    
+    # Common parameters (like ports) are already handled by environment variables
+    # but we can explicitly pass hosts here.
+    if current_mode == ESB_MODE_DOCKER:
+        # In Docker mode, use service names as hostnames
+        return {
+            "S3_ENDPOINT_HOST": "s3-storage",
+            "DYNAMODB_ENDPOINT_HOST": "database",
+        }
+    else:
+        # In Firecracker/Containerd mode, use host IP (bridge address)
+        # 10.88.0.1 is the gateway IP in the VM network
+        return {
+            "S3_ENDPOINT_HOST": "10.88.0.1",
+            "DYNAMODB_ENDPOINT_HOST": "10.88.0.1",
+        }
 
 def get_registry_config(env_name: str = None) -> dict[str, str | None]:
     """Calculate external and internal registry addresses."""
