@@ -17,6 +17,7 @@ from urllib.parse import urlparse
 import yaml
 
 from tools.cli.core import logging
+from tools.cli.core import proxy
 from tools.cli import config as cli_config
 from tools.cli import compose as cli_compose
 from tools.cli import runtime_mode
@@ -1055,6 +1056,7 @@ def _build_inventory_hosts(
     control_host = _resolve_control_host()
     registry_port = os.environ.get("REGISTRY_PORT", "5010").strip() or "5010"
     ca_cert_path = Path.home() / ".esb" / "certs" / "rootCA.crt"
+    proxy_settings = proxy.provision_proxy_data()
     for node in nodes:
         host = node["host"]
         user = args.user or node.get("user") or "root"
@@ -1103,6 +1105,14 @@ def _build_inventory_hosts(
             data["esb_devmapper_base_image_size"] = args.devmapper_base_image_size
         if getattr(args, "devmapper_udev", None) is not None:
             data["esb_devmapper_udev"] = bool(args.devmapper_udev)
+
+        if any(proxy_settings.values()):
+            if proxy_settings["http_proxy"]:
+                data["esb_http_proxy"] = proxy_settings["http_proxy"]
+            if proxy_settings["https_proxy"]:
+                data["esb_https_proxy"] = proxy_settings["https_proxy"]
+            if proxy_settings["no_proxy"]:
+                data["esb_no_proxy"] = proxy_settings["no_proxy"]
 
         wireguard_conf = _normalize_path(getattr(args, "wg_conf", None))
         if wireguard_conf and not Path(wireguard_conf).exists():

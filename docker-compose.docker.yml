@@ -9,6 +9,12 @@ services:
     environment:
       - AGENT_RUNTIME=docker
       - CONTAINERS_NETWORK=${ESB_NETWORK_EXTERNAL:-test-external}
+      - HTTP_PROXY
+      - HTTPS_PROXY
+      - NO_PROXY
+      - http_proxy
+      - https_proxy
+      - no_proxy
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
 
@@ -31,3 +37,9 @@ services:
       - DYNAMODB_ENDPOINT=http://${ESB_PROJECT_NAME:-esb}-database:8000
       - GATEWAY_VICTORIALOGS_URL=http://${ESB_PROJECT_NAME:-esb}-victorialogs:9428
       # ESB_DATA_PLANE_HOST is ignored in Docker mode if endpoints are set
+      - HTTP_PROXY
+      - HTTPS_PROXY
+      - NO_PROXY
+      - http_proxy
+      - https_proxy
+      - no_proxy

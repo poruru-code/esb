@@ -27,3 +27,13 @@ def test_provision_applies_hv_network_tuning():
     content = provision_script.read_text(encoding="utf-8")
 
     assert "ethtool -K eth0 tx-checksumming off" in content
+
+
+def test_provision_contains_proxy_hooks():
+    repo_root = _find_repo_root(Path(__file__).resolve())
+    provision_script = repo_root / "tools" / "pyinfra" / "esb_node_provision.py"
+    content = provision_script.read_text(encoding="utf-8")
+
+    assert "apt.conf.d/95esb-proxy" in content
+    assert "/etc/profile.d/esb-proxy.sh" in content
+    assert "docker.service.d/http-proxy.conf" in content

@@ -4,6 +4,7 @@ import pytest
 
 from tools.cli.commands.build import run, build_base_image, build_function_images
 from tools.cli import config as cli_config
+from tools.cli.core import proxy
 
 
 @pytest.fixture(autouse=True)
@@ -30,6 +31,8 @@ def test_build_base_image_success(mock_docker):
     
     assert result is True
     mock_client.images.build.assert_called_once()
+    expected_args = proxy.docker_build_args()
+    assert mock_client.images.build.call_args.kwargs.get("buildargs") == expected_args
 
 
 @patch("tools.cli.commands.build.docker.from_env")
@@ -53,6 +56,23 @@ def test_build_base_image_build_failure(mock_docker):
             result = build_base_image(no_cache=True)
     
     assert result is False
+
+
+@patch("tools.cli.commands.build.docker.from_env")
+def test_build_base_image_respects_proxy_env(mock_docker, monkeypatch):
+    """Ensure proxy environment variables are forwarded to docker builds."""
+    monkeypatch.setenv("HTTP_PROXY", "http://proxy.internal:3128")
+    monkeypatch.setenv("NO_PROXY", "127.0.0.1")
+    mock_client = MagicMock()
+    mock_docker.return_value = mock_client
+    
+    with patch("tools.cli.commands.build.RUNTIME_DIR", Path("/tmp/fake_runtime")):
+        with patch.object(Path, "exists", return_value=True):
+            build_base_image(no_cache=False)
+    
+    buildargs = mock_client.images.build.call_args.kwargs.get("buildargs") or {}
+    assert buildargs["HTTP_PROXY"] == "http://proxy.internal:3128"
+    assert "localhost" in buildargs["NO_PROXY"]
 
 
 # ============================================================
@@ -80,6 +100,8 @@ def test_build_function_images_success(mock_docker, tmp_path):
     build_function_images(functions, template_path=str(tmp_path / "template.yaml"))
     
     mock_client.images.build.assert_called_once()
+    expected_args = proxy.docker_build_args()
+    assert mock_client.images.build.call_args.kwargs.get("buildargs") == expected_args
 
 
 @patch("tools.cli.commands.build.docker.from_env")
@@ -205,11 +227,18 @@ def test_build_dry_run_mode(mock_load_config, mock_generate_files):
         mock_base.assert_not_called()
 
 
+@patch("tools.cli.commands.build.ensure_registry_running")
 @patch("tools.cli.commands.build.build_function_images")
 @patch("tools.cli.commands.build.build_base_image")
 @patch("tools.cli.commands.build.generator.generate_files")
 @patch("tools.cli.commands.build.generator.load_config")
-def test_build_base_image_failure_exits(mock_load_config, mock_generate_files, mock_build_base, mock_build_funcs):
+def test_build_base_image_failure_exits(
+    mock_load_config,
+    mock_generate_files,
+    mock_build_base,
+    mock_build_funcs,
+    mock_ensure_registry,
+):
     """Exit with sys.exit(1) when base image build fails."""
     mock_load_config.return_value = {"app": {}, "paths": {}}
     mock_generate_files.return_value = []

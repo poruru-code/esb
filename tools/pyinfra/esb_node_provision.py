@@ -322,18 +322,84 @@ registry_port = str(host.data.get("esb_registry_port") or "5010").strip()
 user_home = f"/home/{user}" if user and user != "root" else "/root"
 esb_cert_dir = f"{user_home}/.esb/certs"
 docker_daemon_config = "{\n  \"storage-driver\": \"overlay2\"\n}\n"
+apt_proxy_path = "/etc/apt/apt.conf.d/95esb-proxy"
+docker_proxy_path = "/etc/systemd/system/docker.service.d/http-proxy.conf"
+containerd_proxy_path = "/etc/systemd/system/containerd.service.d/http-proxy.conf"
+profile_proxy_path = "/etc/profile.d/esb-proxy.sh"
+
+http_proxy = host.data.get("esb_http_proxy") or ""
+https_proxy = host.data.get("esb_https_proxy") or ""
+no_proxy = host.data.get("esb_no_proxy") or ""
+
+proxy_env: dict[str, str] = {}
+if http_proxy:
+    proxy_env["http_proxy"] = http_proxy
+    proxy_env["HTTP_PROXY"] = http_proxy
+if https_proxy:
+    proxy_env["https_proxy"] = https_proxy
+    proxy_env["HTTPS_PROXY"] = https_proxy
+if no_proxy:
+    proxy_env["no_proxy"] = no_proxy
+    proxy_env["NO_PROXY"] = no_proxy
+
+shell_env = proxy_env or None
+
+proxy_exports: list[str] = []
+for key, value in (
+    ("http_proxy", http_proxy),
+    ("HTTP_PROXY", http_proxy),
+    ("https_proxy", https_proxy),
+    ("HTTPS_PROXY", https_proxy),
+    ("no_proxy", no_proxy),
+    ("NO_PROXY", no_proxy),
+):
+    if value:
+        proxy_exports.append(f'export {key}="{value}"')
+
+if http_proxy or https_proxy:
+    apt_lines: list[str] = []
+    if http_proxy:
+        apt_lines.append(f'Acquire::http::Proxy "{http_proxy}";')
+    if https_proxy:
+        apt_lines.append(f'Acquire::https::Proxy "{https_proxy}";')
+    server.shell(
+        name="Configure apt proxy for ESB provisioning",
+        commands=[_write_file_command(apt_proxy_path, "\n".join(apt_lines) + "\n")],
+        env=shell_env,
+    )
+else:
+    server.shell(
+        name="Remove apt proxy when not configured",
+        commands=[f"rm -f {apt_proxy_path}"],
+        env=shell_env,
+    )
+
+if proxy_exports:
+    server.shell(
+        name="Persist proxy environment for shell sessions",
+        commands=[_write_file_command(profile_proxy_path, "\n".join(proxy_exports) + "\n")],
+        env=shell_env,
+    )
+else:
+    server.shell(
+        name="Remove proxy profile when not configured",
+        commands=[f"rm -f {profile_proxy_path}"],
+        env=shell_env,
+    )
 
 
 apt.packages(
     name="Remove legacy Docker packages",
     packages=legacy_docker_packages,
     present=False,
+    env=shell_env,
 )
 
 apt.packages(
     name="Install base packages for ESB node",
     packages=packages,
     update=True,
+    env=shell_env,
 )
 
 server.shell(
@@ -355,12 +421,14 @@ server.shell(
             ]
         )
     ],
+    env=shell_env,
 )
 
 apt.packages(
     name="Install Docker Engine and Compose plugin",
     packages=docker_packages,
     update=True,
+    env=shell_env,
 )
 
 server.shell(
@@ -378,6 +446,54 @@ server.shell(
         )
     ],
 )
+
+if proxy_env:
+    files.directory(
+        name="Ensure Docker proxy drop-in directory exists",
+        path="/etc/systemd/system/docker.service.d",
+        present=True,
+        recursive=True,
+        mode="0755",
+    )
+    files.directory(
+        name="Ensure containerd proxy drop-in directory exists",
+        path="/etc/systemd/system/containerd.service.d",
+        present=True,
+        recursive=True,
+        mode="0755",
+    )
+    env_entries = []
+    if http_proxy:
+        env_entries.extend([f'"HTTP_PROXY={http_proxy}"', f'"http_proxy={http_proxy}"'])
+    if https_proxy:
+        env_entries.extend([f'"HTTPS_PROXY={https_proxy}"', f'"https_proxy={https_proxy}"'])
+    if no_proxy:
+        env_entries.extend([f'"NO_PROXY={no_proxy}"', f'"no_proxy={no_proxy}"'])
+
+    if env_entries:
+        docker_proxy_unit = "[Service]\nEnvironment=" + " ".join(env_entries) + "\n"
+        server.shell(
+            name="Configure Docker systemd proxy",
+            commands=[_write_file_command(docker_proxy_path, docker_proxy_unit)],
+            env=shell_env,
+        )
+        containerd_proxy_unit = "[Service]\nEnvironment=" + " ".join(env_entries) + "\n"
+        server.shell(
+            name="Configure containerd systemd proxy",
+            commands=[_write_file_command(containerd_proxy_path, containerd_proxy_unit)],
+            env=shell_env,
+        )
+else:
+    server.shell(
+        name="Remove Docker systemd proxy drop-in when not configured",
+        commands=[f"rm -f {docker_proxy_path}"],
+        env=shell_env,
+    )
+    server.shell(
+        name="Remove containerd systemd proxy drop-in when not configured",
+        commands=[f"rm -f {containerd_proxy_path}"],
+        env=shell_env,
+    )
 
 if ca_cert_src and Path(ca_cert_src).exists():
     files.directory(
@@ -511,6 +627,7 @@ install -m 0755 "$dir/jailer-v{firecracker_version}-${{arch}}" "{firecracker_ins
 rm -rf "$tmpdir"
 """
     ],
+    env=shell_env,
 )
 
 server.shell(
@@ -546,6 +663,7 @@ echo "$build_id" > "$marker"
 rm -rf "$tmpdir"
 """
     ],
+    env=shell_env,
 )
 
 files.directory(
@@ -791,6 +909,7 @@ echo "$expected_source" > "$kernel_source_marker"
 echo "$computed_sha" > "$kernel_sha_marker"
 """
     ],
+    env=shell_env,
 )
 
 server.shell(
@@ -834,6 +953,7 @@ echo "$expected_source" > "$rootfs_source_marker"
 echo "$computed_sha" > "$rootfs_sha_marker"
 """
     ],
+    env=shell_env,
 )
 
 server.shell(
@@ -858,10 +978,15 @@ server.shell(
                 "set -eu",
                 "if command -v systemctl >/dev/null 2>&1; then",
                 "  systemctl daemon-reload",
+                f"  if [ -f \"{docker_proxy_path}\" ] || [ -f \"{containerd_proxy_path}\" ]; then",
+                "    systemctl restart docker || true",
+                "    systemctl restart containerd || true",
+                "  fi",
                 "fi",
             ]
         )
     ],
+    env=shell_env,
 )
 
 server.service(
@@ -1016,6 +1141,7 @@ echo "$expected_source" > "$rootfs_source_marker"
 echo "$computed_sha" > "$rootfs_sha_marker"
 """
     ],
+    env=shell_env,
 )
 
 server.service(

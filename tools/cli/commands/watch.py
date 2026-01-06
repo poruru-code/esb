@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 
 
 from tools.cli.core import logging
+from tools.cli.core import proxy
 
 
 class SmartReloader(FileSystemEventHandler):
@@ -80,6 +81,7 @@ class SmartReloader(FileSystemEventHandler):
                 cli_compose.build_compose_command(["restart", "gateway"], target="control"),
                 check=True,
                 capture_output=True,
+                env=proxy.prepare_env(),
             )
         except subprocess.CalledProcessError as e:
             logging.error(f"Failed to restart gateway: {e}")
@@ -121,6 +123,7 @@ class SmartReloader(FileSystemEventHandler):
                         dockerfile=relative_dockerfile,
                         tag=image_tag,
                         rm=True,
+                        buildargs=proxy.docker_build_args(),
                     )
                     print(f" {logging.Color.GREEN}✅{logging.Color.END}")
 
@@ -144,6 +147,8 @@ def run(args):
     if env_file.exists():
         logging.info(f"Loading environment variables from {logging.highlight(env_file)}")
         load_dotenv(env_file, verbose=False, override=False)
+
+    proxy.apply_proxy_env()
 
     logging.step("Watching for changes...")
     print(f"   • {logging.highlight('template.yaml')}: Reconfigures Gateway & Resources")
