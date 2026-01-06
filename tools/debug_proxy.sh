@@ -49,13 +49,21 @@ log "=========================================="
 docker compose -f docker-compose.yml config s3-storage | grep -i -A 10 "environment" >> "$LOG_FILE" 2>&1 || log "No environment section found for s3-storage"
 
 log ""
+log ""
 log "=========================================="
 log " 3. Container Runtime Environment"
 log "=========================================="
-log "Spinning up s3-storage to check actual env vars inside container..."
-# Using --rm and --entrypoint to just print env
-docker compose -f docker-compose.yml run --rm --entrypoint env s3-storage > /tmp/esb_container_env 2>&1
-grep -i proxy /tmp/esb_container_env | tee -a "$LOG_FILE" || log "No proxy variables found inside container!"
+log "Inspecting env vars of RUNNING s3-storage container..."
+# Using exec to see the actual environment of the container started by run_tests.py
+if [ -n "$(docker compose -f docker-compose.yml ps -q s3-storage)" ]; then
+    docker compose -f docker-compose.yml exec s3-storage env > /tmp/esb_container_env 2>&1
+    grep -i proxy /tmp/esb_container_env | tee -a "$LOG_FILE" || log "No proxy variables found inside running container!"
+else
+    log "WARNING: s3-storage container is NOT running. Cannot inspect exact test state."
+    log "Attempting to run a fresh container (Note: This may not match run_tests.py environment)..."
+    docker compose -f docker-compose.yml run --rm --entrypoint env s3-storage > /tmp/esb_container_env 2>&1
+    grep -i proxy /tmp/esb_container_env | tee -a "$LOG_FILE" || log "No proxy variables found inside fresh container!"
+fi
 
 log ""
 log "=========================================="
