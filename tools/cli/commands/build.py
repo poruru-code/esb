@@ -243,22 +243,13 @@ def run(args):
     if dry_run:
         logging.info("Running in DRY-RUN mode. No files will be written, no images built.")
 
-    # Calculate and inject isolation variables (required for ensure_registry_running)
+    # Environment is already setup by main.py (setup_environment)
     env_name = cli_config.get_env_name()
-    project_name = f"esb-{env_name}".lower()
-    os.environ["ESB_PROJECT_NAME"] = project_name
+    project_name = os.environ.get("ESB_PROJECT_NAME")
     
-    port_mapping = cli_config.get_port_mapping(env_name)
-    os.environ.update(port_mapping)
-    # Calculate dynamic registry addresses
     registry_config = cli_config.get_registry_config(env_name)
     external_registry = registry_config["external"]
     internal_registry = registry_config["internal"]
-    
-    if internal_registry:
-        os.environ["CONTAINER_REGISTRY"] = internal_registry
-    else:
-        os.environ.pop("CONTAINER_REGISTRY", None)
 
     # 1. Generate configuration files (Phase 1 Generator).
     logging.step("Generating configurations...")
@@ -295,6 +286,13 @@ def run(args):
     if "paths" not in config:
         config["paths"] = {}
     config["paths"]["sam_template"] = str(cli_config.TEMPLATE_YAML)
+    
+    # Set output directory based on environment name
+    # This allows parallel builds for different environments
+    config["paths"]["output_dir"] = f".esb/{env_name}/"
+
+    # Get dynamic parameters based on current mode (e.g., endpoint hosts)
+    parameters = cli_config.get_generator_parameters(env_name)
 
     functions = generator.generate_files(
         config=config,
@@ -303,6 +301,7 @@ def run(args):
         verbose=verbose,
         registry_external=external_registry,
         registry_internal=internal_registry,
+        parameters=parameters,
     )
 
     if dry_run:

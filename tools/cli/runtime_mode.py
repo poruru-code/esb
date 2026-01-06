@@ -26,7 +26,7 @@ def _default_mode_config() -> dict[str, Any]:
 
 
 def load_mode(path: Path | None = None) -> dict[str, Any]:
-    config_path = path or cli_config.MODE_CONFIG_PATH
+    config_path = path or cli_config.get_mode_config_path()
     if not config_path.exists():
         return _default_mode_config()
     try:
@@ -57,7 +57,7 @@ def save_mode(mode: str, path: Path | None = None) -> dict[str, Any]:
         "version": cli_config.MODE_CONFIG_VERSION,
         "mode": normalized,
     }
-    config_path = path or cli_config.MODE_CONFIG_PATH
+    config_path = path or cli_config.get_mode_config_path()
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(yaml.safe_dump(data, sort_keys=False))
     return data

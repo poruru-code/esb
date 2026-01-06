@@ -3,7 +3,6 @@ package docker
 import (
 	"context"
 	"io"
-	"strings"
 	"testing"
 
 	"github.com/docker/docker/api/types/container"
@@ -67,8 +66,8 @@ func TestRuntime_Ensure(t *testing.T) {
 		Image:        "test-image",
 	}
 
-	mockClient.On("ImagePull", ctx, "test-image", mock.Anything).
-		Return(io.NopCloser(strings.NewReader("")), nil).Once()
+	// Note: ImagePull is only called when CONTAINER_REGISTRY is set.
+	// Since we don't set it in tests, this mock is not needed.
 
 	// 1. Create
 	mockClient.On("ContainerCreate", ctx, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
@@ -105,8 +104,7 @@ func TestRuntime_Ensure_AlwaysCreatesNew(t *testing.T) {
 		FunctionName: "test-func",
 	}
 
-	mockClient.On("ImagePull", ctx, "test-func:latest", mock.Anything).
-		Return(io.NopCloser(strings.NewReader("")), nil).Once()
+	// Note: ImagePull is only called when CONTAINER_REGISTRY is set.
 
 	// Should NOT call ContainerList for lookups anymore (if we strictly follow the factory pattern)
 	// Or even if it does, it should create a NEW one.
@@ -134,8 +132,7 @@ func TestRuntime_Ensure_AlwaysCreatesNew(t *testing.T) {
 	assert.Equal(t, "new-id-1", info1.ID)
 
 	// Execute second call - should create ANOTHER one
-	mockClient.On("ImagePull", ctx, "test-func:latest", mock.Anything).
-		Return(io.NopCloser(strings.NewReader("")), nil).Once()
+
 	mockClient.On("ContainerCreate", ctx, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return(container.CreateResponse{ID: "new-id-2"}, nil).Once()
 	mockClient.On("ContainerStart", ctx, "new-id-2", mock.Anything).Return(nil).Once()
