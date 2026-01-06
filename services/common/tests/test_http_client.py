@@ -27,7 +27,7 @@ class TestHttpClientFactory:
         _, kwargs = mock_client.call_args
         assert kwargs["verify"] is False
         assert kwargs["trust_env"] is False
-        assert kwargs["proxies"] is None
+        assert "proxies" not in kwargs
 
     @patch("httpx.AsyncClient")
     def test_create_async_client_verify_true(self, mock_client):
@@ -43,7 +43,7 @@ class TestHttpClientFactory:
         _, kwargs = mock_client.call_args
         assert kwargs["verify"] is True
         assert kwargs["trust_env"] is False
-        assert kwargs["proxies"] is None
+        assert "proxies" not in kwargs
 
     @patch("urllib3.disable_warnings")
     def test_configure_global_settings_disable_warnings(self, mock_disable):
