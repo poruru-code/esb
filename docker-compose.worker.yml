@@ -14,6 +14,12 @@ services:
       # Default: Overridden by Adapter
       - AGENT_RUNTIME=${AGENT_RUNTIME:-containerd} 
       - CONTAINERS_NETWORK=${ESB_NETWORK_EXTERNAL:-test-external}
+      - HTTP_PROXY
+      - HTTPS_PROXY
+      - NO_PROXY
+      - http_proxy
+      - https_proxy
+      - no_proxy
     volumes:
       - ${ESB_CERT_DIR:-~/.esb/certs}/rootCA.crt:/usr/local/share/ca-certificates/esb-rootCA.crt:ro
     command: >

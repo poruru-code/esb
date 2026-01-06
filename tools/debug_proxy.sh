@@ -49,7 +49,6 @@ log "=========================================="
 docker compose -f docker-compose.yml config s3-storage | grep -i -A 10 "environment" >> "$LOG_FILE" 2>&1 || log "No environment section found for s3-storage"
 
 log ""
-log ""
 log "=========================================="
 log " 3. Container Runtime Environment"
 log "=========================================="
@@ -78,7 +77,9 @@ if [ -z "$(docker compose -f docker-compose.yml ps -q gateway)" ]; then
 fi
 
 log "Testing connection from s3-storage to gateway (internal)..."
-docker compose -f docker-compose.yml exec s3-storage curl -v http://gateway:8080/health >> "$LOG_FILE" 2>&1 && log "SUCCESS: Internal connection to Gateway established" || log "FAILURE: Could not connect to internal Gateway"
+# Gateway listens on 443 (HTTPS) inside. Using -k for self-signed certs.
+log "curl -k -v https://gateway:443/health"
+docker compose -f docker-compose.yml exec s3-storage curl -k -v https://gateway:443/health >> "$LOG_FILE" 2>&1 && log "SUCCESS: Internal connection to Gateway established" || log "FAILURE: Could not connect to internal Gateway"
 
 log ""
 log "=========================================="

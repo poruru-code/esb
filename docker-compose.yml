@@ -42,6 +42,12 @@ services:
       - RUSTFS_DEDUPLICATION=${RUSTFS_DEDUPLICATION:-true}
       - RUSTFS_COMPRESSION=${RUSTFS_COMPRESSION:-auto}
       - RUSTFS_LIFECYCLE_POLICY_PATH=/app/config/lifecycle.yml
+      - HTTP_PROXY
+      - HTTPS_PROXY
+      - NO_PROXY
+      - http_proxy
+      - https_proxy
+      - no_proxy
     healthcheck:
       test: [ "CMD", "sh", "-c", "curl -f --noproxy '*' http://127.0.0.1:9000/health" ]
       interval: 10s
@@ -63,6 +69,13 @@ services:
     volumes:
       - scylladb_data:/var/lib/scylla
     command: --smp 1 --memory ${SCYLLADB_MEMORY:-1}G --developer-mode 1 --alternator-port 8000 --alternator-address 0.0.0.0 --alternator-write-isolation always_use_lwt
+    environment:
+      - HTTP_PROXY
+      - HTTPS_PROXY
+      - NO_PROXY
+      - http_proxy
+      - https_proxy
+      - no_proxy
     healthcheck:
       test: [ "CMD-SHELL", "cqlsh -e 'DESCRIBE KEYSPACES' || exit 1" ]
       interval: 10s
@@ -87,6 +100,13 @@ services:
     command:
       - "-storageDataPath=/victoria-logs-data"
       - "-retentionPeriod=7d"
+    environment:
+      - HTTP_PROXY
+      - HTTPS_PROXY
+      - NO_PROXY
+      - http_proxy
+      - https_proxy
+      - no_proxy
     healthcheck:
       test: [ "CMD", "wget", "-q", "-Y", "off", "--spider", "http://127.0.0.1:9428/health" ]
       interval: 10s
@@ -146,6 +166,12 @@ services:
       - GATEWAY_IDLE_TIMEOUT_SECONDS=${GATEWAY_IDLE_TIMEOUT_SECONDS:-300}
       - ENABLE_CONTAINER_PAUSE=${ENABLE_CONTAINER_PAUSE:-false}
       - PAUSE_IDLE_SECONDS=${PAUSE_IDLE_SECONDS:-30}
+      - HTTP_PROXY
+      - HTTPS_PROXY
+      - NO_PROXY
+      - http_proxy
+      - https_proxy
+      - no_proxy
     depends_on:
       database:
         condition: service_healthy
