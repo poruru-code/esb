@@ -19,13 +19,6 @@ done
 
 echo "Docker daemon started successfully"
 
-# Prepare environment variables for the ESB CLI.
-# Create tests/.env.test from the template if it doesn't exist.
-if [ ! -f /app/tests/.env.test ]; then
-    echo "Initializing environment variables from .env.example..."
-    mkdir -p /app/tests
-    cp /app/.env.example /app/tests/.env.test
-fi
 
 # Load prebuilt images (.tar) if present (to speed up startup).
 if [ -d /app/build/lambda-images ]; then

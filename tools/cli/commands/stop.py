@@ -5,15 +5,12 @@ import subprocess
 import os
 from tools.cli.config import PROJECT_ROOT
 from tools.cli import compose as cli_compose
-from dotenv import load_dotenv
+
 from tools.cli.core import logging
 from tools.cli.core import proxy
 
 def run(args):
-    # Load .env.test.
-    env_file = PROJECT_ROOT / "tests" / ".env.test"
-    if env_file.exists():
-        load_dotenv(env_file, override=False)
+
 
     from tools.cli import config as cli_config
 

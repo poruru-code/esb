@@ -5,20 +5,23 @@ import os
 import sys
 import yaml
 import subprocess
+import shutil
 from pathlib import Path
 
 # from . import build
+from tools.cli.commands import build
 from tools.provisioner import main as provisioner
 from tools.cli import config as cli_config
 from tools.cli import compose as cli_compose
 from tools.cli import runtime_mode
 from tools.cli.config import PROJECT_ROOT
-from dotenv import load_dotenv
+
 
 
 from tools.cli.core import logging
 from tools.cli.core.cert import ensure_certs
 from tools.cli.core import proxy
+from tools.cli.core import context
 import time
 import requests
 
@@ -89,16 +92,15 @@ def _resolve_firecracker_agent_address() -> str | None:
 
 
 def run(args):
+    # If --build is specified, we'll build first which creates the config dir
+    # So only require_built if we're NOT building
+    will_build = getattr(args, "build", False)
+    context.enforce_env_arg(args, require_initialized=True, require_built=not will_build)
+
     # 0. Prepare SSL certificates.
     cert_dir = Path(os.environ.get("ESB_CERT_DIR", str(cli_config.DEFAULT_CERT_DIR))).expanduser()
     ensure_certs(cert_dir)
     proxy.apply_proxy_env()
-
-    # Load .env.test (same as run_tests.py).
-    env_file = PROJECT_ROOT / "tests" / ".env.test"
-    if env_file.exists():
-        logging.info(f"Loading environment variables from {logging.highlight(env_file)}")
-        load_dotenv(env_file, override=False)
 
     # 1. Apply custom settings (set env vars if generator.yml exists).
     config_path = cli_config.E2E_DIR / "generator.yml"
@@ -114,6 +116,15 @@ def run(args):
                 os.environ["GATEWAY_ROUTING_YML"] = str(paths["routing_yml"])
         except Exception as e:
             logging.warning(f"Failed to load generator.yml for environment injection: {e}")
+
+    # 1. Build if requested
+    if getattr(args, "build", False):
+        build.run(args)
+
+    # 2. Start services.
+    logging.step(
+        f"Starting services for environment: {logging.highlight(cli_config.get_env_name())}..."
+    )
 
     if runtime_mode.get_mode() == cli_config.ESB_MODE_FIRECRACKER:
         if _should_override_agent_address(os.environ.get("AGENT_GRPC_ADDRESS")):
@@ -137,7 +148,8 @@ def run(args):
     if getattr(args, "detach", True):
         compose_args.append("-d")
 
-    # Rebuild services themselves.
+    # Rebuild services themselves (Note: build.run already did major work, 
+    # but docker compose --build ensures specific wiring is correct)
     if getattr(args, "build", False):
         compose_args.append("--build")
 

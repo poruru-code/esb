@@ -148,20 +148,19 @@ flowchart TD
 │   ├── cli/                 # ★ ESB CLI ツール (New)
 │   ├── generator/           # SAM Template Generator
 │   └── provisioner/         # Infrastructure Provisioner
-├── tests/
-│   ├── e2e/                 # E2Eテスト用Lambda関数
-│   │   ├── template.yaml    # SAM Source of Truth
-│   │   └── functions/       # Lambda関数コード
+├── e2e/                 # E2Eテスト用Lambda関数
+│   ├── template.yaml    # SAM Source of Truth
+│   └── functions/       # Lambda関数コード
 
 ```
 
 ### Compose ファイル構成と起動パターン
 
-| ファイル                        | 役割                                      | 主な用途                                   |
-| ------------------------------- | ----------------------------------------- | ------------------------------------------ |
-| `docker-compose.yml`            | Control/Core（Gateway + 依存サービス）    | Control Plane（単一ノード/分離構成の共通） |
-| `docker-compose.node.yml`       | Compute（runtime-node/agent/coredns）     | Compute Node（Firecracker/remote）         |
-| `docker-compose.containerd.yml` | Adapter（単一ノード結合 / coredns）       | Core + Compute を同一ホストで統合          |
+| ファイル                        | 役割                                   | 主な用途                                   |
+| ------------------------------- | -------------------------------------- | ------------------------------------------ |
+| `docker-compose.yml`            | Control/Core（Gateway + 依存サービス） | Control Plane（単一ノード/分離構成の共通） |
+| `docker-compose.node.yml`       | Compute（runtime-node/agent/coredns）  | Compute Node（Firecracker/remote）         |
+| `docker-compose.containerd.yml` | Adapter（単一ノード結合 / coredns）    | Core + Compute を同一ホストで統合          |
 
 #### 起動パターン（docker compose）
 
@@ -250,7 +249,7 @@ esb --template /path/to/template.yaml init
 1. 環境変数 `ESB_TEMPLATE` で指定されたパス
 2. カレントディレクトリ直下の `template.yaml`
 3. プロジェクトルート直下の `template.yaml`
-4. `tests/fixtures/template.yaml` (デフォルトのサンプル)
+4. `e2e/fixtures/template.yaml` (デフォルトのサンプル)
 
 ### サービスの起動 (`esb up`)
 
@@ -440,13 +439,13 @@ esb node doctor --require-up
 
 ```bash
 # Matrix定義に従い、全スイート（Containerd, Firecracker）を実行
-python tests/run_tests.py
+python e2e/run_tests.py
 
 # 特定のプロファイルのみ実行（例: Containerdモードのみ）
-python tests/run_tests.py --profile e2e-containerd
+python e2e/run_tests.py --profile e2e-containerd
 
 # 特定のテストファイルのみ実行（プロファイル指定が必須）
-python tests/run_tests.py --test-target tests/scenarios/standard/test_lambda.py --profile e2e-containerd
+python e2e/run_tests.py --test-target e2e/scenarios/standard/test_lambda.py --profile e2e-containerd
 ```
 
 #### Unit Tests
@@ -454,7 +453,7 @@ python tests/run_tests.py --test-target tests/scenarios/standard/test_lambda.py 
 
 ```bash
 # ユニットテストのみ実行
-python tests/run_tests.py --unit-only
+python e2e/run_tests.py --unit-only
 ```
 
 ## トラブルシューティング

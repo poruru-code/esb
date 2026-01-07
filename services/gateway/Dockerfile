@@ -46,8 +46,22 @@ ENV PYTHONPATH=/app
 # Copy services code
 COPY services/common /app/services/common
 COPY services/gateway /app/services/gateway
-# Copy Config
+# Copy Config (base: SSL certs, HAProxy, etc.)
 COPY config /app/config
+
+# Environment-specific config (functions.yml, routing.yml)
+# Build arg: --build-arg ESB_CONFIG_DIR=e2e/fixtures/.esb/e2e-docker/config
+# Default to services/gateway/config if not set (keeps build valid, but no baked config)
+ARG ESB_CONFIG_DIR=""
+COPY ${ESB_CONFIG_DIR:-services/gateway/config}/ /tmp/esb_config/
+RUN if [ -n "$ESB_CONFIG_DIR" ] && [ -f /tmp/esb_config/functions.yml ]; then \
+      cp /tmp/esb_config/functions.yml /app/config/functions.yml && \
+      cp /tmp/esb_config/routing.yml /app/config/routing.yml; \
+    else \
+      echo "WARNING: Pre-baked configuration not found. Expecting runtime volume mounts."; \
+    fi && \
+    rm -rf /tmp/esb_config
+
 COPY services/gateway/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 

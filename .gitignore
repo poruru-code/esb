@@ -73,3 +73,6 @@ build/lambda-images/*.tar
 config/wireguard/**/wg0.conf
 # Go Agent Binary
 services/agent/agent*
+
+# ESB Staging for external templates
+services/gateway/.esb-staging/

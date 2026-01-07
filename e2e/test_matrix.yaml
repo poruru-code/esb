@@ -6,14 +6,14 @@ suites:
   smoke:
     description: "Fast connectivity tests for all components"
     targets:
-      - "tests/scenarios/smoke/"
+      - "e2e/scenarios/smoke/"
     exclude: []
 
   standard:
     description: "Standard E2E Scenarios (Autoscaling + Standard)"
     targets:
-      - "tests/scenarios/autoscaling/"
-      - "tests/scenarios/standard/"
+      - "e2e/scenarios/autoscaling/"
+      - "e2e/scenarios/standard/"
     exclude: []
 
 profiles:
@@ -21,19 +21,19 @@ profiles:
   e2e-firecracker:
     description: "Firecracker Mode with Auto-Scaling"
     mode: firecracker
-    env_file: "tests/environments/.env.firecracker"
+    env_file: "e2e/environments/.env.firecracker"
 
   # Profile B: Pure Containerd Mode (with local-proxy)
   e2e-containerd:
     description: "Pure Containerd Mode with Auto-Scaling"
     mode: containerd
-    env_file: "tests/environments/.env.containerd"
+    env_file: "e2e/environments/.env.containerd"
 
   # Profile C: Docker Runtime Mode (AGENT_RUNTIME=docker)
   e2e-docker:
     description: "Docker Runtime Mode with Auto-Scaling"
     mode: docker
-    env_file: "tests/environments/.env.docker"
+    env_file: "e2e/environments/.env.docker"
 
 
 matrix:

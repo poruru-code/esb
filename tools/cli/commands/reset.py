@@ -1,11 +1,14 @@
 from . import down, up, build
 from tools.cli.core import logging
+from tools.cli.core import context
 
 
 def run(args):
     """
     Fully reset the environment: docker compose down -v -> esb up --build
     """
+    context.enforce_env_arg(args, require_built=True)
+
     logging.warning("This command will PERMANENTLY DELETE all database tables and S3 buckets.")
 
     # Skip confirmation if --yes is provided

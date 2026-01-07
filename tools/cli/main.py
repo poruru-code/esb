@@ -14,19 +14,11 @@ if str(project_root) not in sys.path:
 # Commands will be imported inside main() to ensure env vars are set first.
 
 
+
 def main():
-    # Set ESB_ENV early if specified in sys.argv to ensure config picks it up
-    # We do a quick scan because subparsers don't allow global access to 'env' easily before parse_args
-    for i, arg in enumerate(sys.argv):
-        if arg == "--env" and i + 1 < len(sys.argv):
-            import os
-            os.environ["ESB_ENV"] = sys.argv[i + 1]
-
     from tools.cli import config as cli_config
+    from tools.cli.core import context
     from tools.cli.commands import build, up, watch, down, stop, reset, init, logs, node, mode
-
-    # Setup environment variables (ports, networks, registry) automatically
-    cli_config.setup_environment()
 
     parser = argparse.ArgumentParser(
         description="Edge Serverless Box CLI", formatter_class=argparse.RawDescriptionHelpFormatter
@@ -37,8 +29,14 @@ def main():
     subparsers = parser.add_subparsers(dest="command", required=True, help="Command to execute")
 
     # --- init command ---
-    subparsers.add_parser("init", help="Initialize generator configuration interactively")
-    # Note: --template is handled by main parser, not subparser
+    init_parser = subparsers.add_parser("init", help="Initialize generator configuration interactively")
+    init_parser.add_argument(
+        "--env", 
+        type=str, 
+        default=None,
+        help="Environment name(s) for silent initialization (comma-separated, e.g., 'e2e-docker,e2e-containerd'). When specified, runs non-interactively with defaults."
+    )
+    # Note: --template is handled by main parser, not subparser. Environment is prompted in the wizard (unless --env is given).
 
     # --- build command ---
     build_parser = subparsers.add_parser("build", help="Generate config and build function images")
@@ -336,13 +334,26 @@ def main():
         help="Increase pyinfra verbosity (repeatable)",
     )
 
-
     args = parser.parse_args()
 
-    # Template override handled after parse_args
+    # Template override handled FIRST so that E2E_DIR is correctly set for generator.yml lookup
     if args.template:
         from tools.cli.config import set_template_yaml
         set_template_yaml(args.template)
+    
+    # Ensure template is available (required for most commands)
+    from tools.cli import config as cli_config
+    if cli_config.TEMPLATE_YAML is None and args.command != "mode":
+        print("❌ No template specified.")
+        print("\nPlease specify a template using --template or set ESB_TEMPLATE environment variable:")
+        print("  esb --template=<path/to/template.yaml> <command>")
+        print("  ESB_TEMPLATE=<path/to/template.yaml> esb <command>")
+        sys.exit(1)
+
+    # Enforce environment argument if present (main entrypoint is lenient on existence)
+    # Skip interactive selection for init command - it prompts for environment name in its wizard
+    skip_interactive = (args.command == "init")
+    context.enforce_env_arg(args, require_built=False, skip_interactive=skip_interactive)
 
     try:
         if args.command == "init":

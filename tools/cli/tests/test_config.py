@@ -14,8 +14,9 @@ def test_paths_are_absolute():
     assert PROJECT_ROOT.is_absolute()
 
 
-def test_get_image_tag():
+def test_get_image_tag(monkeypatch):
     """Ensure image tag is resolved correctly."""
+    monkeypatch.delenv("ESB_IMAGE_TAG", raising=False)
     # Default without env var should be the env name
     assert get_image_tag("prod") == "prod"
 

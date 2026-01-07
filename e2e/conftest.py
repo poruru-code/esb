@@ -15,13 +15,26 @@ import requests
 # Environment variables are expected to be injected by run_tests.py or system.
 # Shared fixture loading continues as normal.
 
-from services.common.core.http_client import HttpClientFactory  # noqa: E402
-from services.gateway.config import config  # noqa: E402
+try:
+    from services.common.core.http_client import HttpClientFactory
+    from services.gateway.config import config
 
-# Global SSL configuration
-factory = HttpClientFactory(config)
-factory.configure_global_settings()
-VERIFY_SSL = config.VERIFY_SSL
+    # Global SSL configuration
+    factory = HttpClientFactory(config)
+    factory.configure_global_settings()
+    VERIFY_SSL = config.VERIFY_SSL
+    API_KEY = config.X_API_KEY
+except Exception as e:
+    # Fallback for unit tests where env vars are missing
+    print(f"Warning: Failed to load Gateway config in conftest (likely unit test): {e}")
+    from unittest.mock import MagicMock
+    config = MagicMock()
+    config.VERIFY_SSL = False
+    config.X_API_KEY = "dummy"
+    config.AUTH_ENDPOINT_PATH = "/auth"
+    VERIFY_SSL = False
+    API_KEY = "dummy"
+    HttpClientFactory = MagicMock()  # type: ignore
 
 # Test settings
 GATEWAY_PORT = os.getenv("GATEWAY_PORT", "443")
@@ -32,7 +45,7 @@ VICTORIALOGS_URL = os.getenv("VICTORIALOGS_URL", f"http://localhost:{VICTORIALOG
 VICTORIALOGS_QUERY_URL = os.getenv("VICTORIALOGS_QUERY_URL", VICTORIALOGS_URL)
 API_KEY = config.X_API_KEY
 
-# Auth info is read from environment variables (loaded from .env.test).
+# Auth info is read from environment variables.
 AUTH_USER = os.environ.get("AUTH_USER", "")
 AUTH_PASS = os.environ.get("AUTH_PASS", "")
 

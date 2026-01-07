@@ -126,13 +126,13 @@ services:
     build:
       context: .
       dockerfile: services/gateway/Dockerfile
+      args:
+        ESB_CONFIG_DIR: ${ESB_CONFIG_DIR:-}
     container_name: ${ESB_PROJECT_NAME:-esb}-gateway
     # NOTE: ports and networks are defined by adapter files (fc.yml / containerd.yml)
     volumes:
       - ${ESB_CERT_DIR:-~/.esb/certs}/server.crt:/app/config/ssl/server.crt:ro
       - ${ESB_CERT_DIR:-~/.esb/certs}/server.key:/app/config/ssl/server.key:ro
-      - ${GATEWAY_FUNCTIONS_YML:-./config/functions.yml}:/app/config/functions.yml:ro
-      - ${GATEWAY_ROUTING_YML:-./config/routing.yml}:/app/config/routing.yml:ro
     environment:
       - UVICORN_BIND_ADDR=0.0.0.0:443
       - ENABLE_SSL=true

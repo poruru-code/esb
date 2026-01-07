@@ -3,10 +3,11 @@ from tools.cli.commands.up import run as run_up
 from tools.cli.commands.down import run as run_down
 
 
+@patch("tools.cli.commands.up.context.enforce_env_arg")
 @patch("subprocess.check_call")
 @patch("tools.provisioner.main.main")
 @patch("tools.cli.commands.build.run")
-def test_up_command_flow(mock_build_run, mock_provisioner_main, mock_subprocess):
+def test_up_command_flow(mock_build_run, mock_provisioner_main, mock_subprocess, mock_enforce):
     """Ensure the up command calls build, docker compose, and the provisioner."""
     args = MagicMock()
     args.build = True
@@ -15,8 +16,8 @@ def test_up_command_flow(mock_build_run, mock_provisioner_main, mock_subprocess)
 
     run_up(args)
 
-    # 1. Ensure build was NOT called (we rely on docker compose --build).
-    mock_build_run.assert_not_called()
+    # 1. Ensure Phase 1 Build (generation) was called.
+    mock_build_run.assert_called_once()
 
     # 2. Ensure docker compose up was called with --build.
     mock_subprocess.assert_called_once()
