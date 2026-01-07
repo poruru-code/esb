@@ -155,15 +155,39 @@ def run(args):
         logging.error(f"Failed to start services: {e}")
         sys.exit(1)
 
+    # 2.5 Discover and persist dynamic ports
+    from tools.cli.core.port_discovery import discover_ports, save_ports, apply_ports_to_env, log_ports
+    
+    env_name = cli_config.get_env_name()
+    mode = runtime_mode.get_mode()
+    compose_files = [str(p) for p in cli_compose.resolve_compose_files(mode)] + (extra_files or [])
+    
+    logging.step("Discovering assigned ports...")
+    ports = discover_ports(project_name, compose_files, mode)
+    
+    if ports:
+        # Apply to environment variables
+        apply_ports_to_env(ports)
+        
+        # Persist to file
+        port_file = save_ports(env_name, ports)
+        logging.info(f"Port mapping saved to {logging.highlight(str(port_file))}")
+        
+        # Log port assignments
+        log_ports(env_name, ports)
+
     # 3. Infrastructure provisioning.
     logging.step("Preparing infrastructure...")
     from tools.cli.config import TEMPLATE_YAML
 
     provisioner.main(template_path=TEMPLATE_YAML)
 
-    logging.success("Environment is ready! (https://localhost:443)")
+    # Display dynamic gateway port
+    gateway_port = os.environ.get("ESB_PORT_GATEWAY_HTTPS", "443")
+    logging.success(f"Environment is ready! (https://localhost:{gateway_port})")
 
     # 4. Wait logic (optional).
     if getattr(args, "wait", False):
         if not wait_for_gateway():
             sys.exit(1)
+

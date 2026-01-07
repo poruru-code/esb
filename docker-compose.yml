@@ -27,8 +27,8 @@ services:
       permission-helper:
         condition: service_completed_successfully
     ports:
-      - "${ESB_PORT_STORAGE:-9000}:9000" # S3 API
-      - "${ESB_PORT_STORAGE_MGMT:-9001}:9001" # Console
+      - "${ESB_PORT_STORAGE:-0}:9000" # S3 API
+      - "${ESB_PORT_STORAGE_MGMT:-0}:9001" # Console
     volumes:
       - rustfs_data:/data/rustfs
       - ./config/lifecycle.yml:/app/config/lifecycle.yml:ro
@@ -65,7 +65,7 @@ services:
     image: scylladb/scylla:latest
     container_name: ${ESB_PROJECT_NAME:-esb}-database
     ports:
-      - "${ESB_PORT_DATABASE:-8001}:8000" # Alternator API (Host 8001 -> Container 8000)
+      - "${ESB_PORT_DATABASE:-0}:8000" # Alternator API (Host dynamic -> Container 8000)
     volumes:
       - scylladb_data:/var/lib/scylla
     command: --smp 1 --memory ${SCYLLADB_MEMORY:-1}G --developer-mode 1 --alternator-port 8000 --alternator-address 0.0.0.0 --alternator-write-isolation always_use_lwt
@@ -94,7 +94,7 @@ services:
     image: victoriametrics/victoria-logs:latest
     container_name: ${ESB_PROJECT_NAME:-esb}-victorialogs
     ports:
-      - "${ESB_PORT_VICTORIALOGS:-9428}:9428" # VictoriaLogs UI/API
+      - "${ESB_PORT_VICTORIALOGS:-0}:9428" # VictoriaLogs UI/API
     volumes:
       - victorialogs_data:/victoria-logs-data
     command:

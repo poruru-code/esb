@@ -488,6 +488,23 @@ def run_scenario(args, scenario):
 
         run_esb(up_args)
 
+        # 3.5 Load dynamic ports from ports.json (created by esb up)
+        from tools.cli.core.port_discovery import load_ports, apply_ports_to_env, log_ports
+        
+        ports = load_ports(env_name)
+        if ports:
+            apply_ports_to_env(ports)
+            log_ports(env_name, ports)
+            
+            # Update env dict for pytest subprocess
+            env["GATEWAY_PORT"] = str(ports.get("ESB_PORT_GATEWAY_HTTPS", env.get("GATEWAY_PORT", "443")))
+            env["VICTORIALOGS_PORT"] = str(ports.get("ESB_PORT_VICTORIALOGS", env.get("VICTORIALOGS_PORT", "9428")))
+            env["GATEWAY_URL"] = f"https://localhost:{env['GATEWAY_PORT']}"
+            env["VICTORIALOGS_URL"] = f"http://localhost:{env['VICTORIALOGS_PORT']}"
+            env["VICTORIALOGS_QUERY_URL"] = env["VICTORIALOGS_URL"]
+            if "ESB_PORT_AGENT_GRPC" in ports:
+                env["AGENT_GRPC_ADDRESS"] = f"localhost:{ports['ESB_PORT_AGENT_GRPC']}"
+
         # 4. Run Tests
         if not scenario["targets"]:
             # No test targets specified, skip test execution

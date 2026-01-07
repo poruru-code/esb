@@ -9,7 +9,7 @@ services:
     container_name: ${ESB_PROJECT_NAME:-esb}-runtime-node
     privileged: true
     ports:
-      - "50051:50051"
+      - "${ESB_PORT_AGENT_GRPC:-0}:50051"
     networks:
       - external_network
     environment:
@@ -69,7 +69,7 @@ services:
   # ------------------------------------------
   gateway:
     ports:
-      - "${ESB_PORT_GATEWAY_HTTPS:-443}:443"
+      - "${ESB_PORT_GATEWAY_HTTPS:-0}:443"
     networks:
       - external_network
     cap_add:

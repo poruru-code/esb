@@ -23,7 +23,7 @@ services:
   # ------------------------------------------
   gateway:
     ports:
-      - "${ESB_PORT_GATEWAY_HTTPS:-443}:443"
+      - "${ESB_PORT_GATEWAY_HTTPS:-0}:443"
     networks:
       - external_network
     depends_on:

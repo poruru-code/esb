@@ -9,8 +9,8 @@ services:
     container_name: ${ESB_PROJECT_NAME:-esb}-runtime-node
     privileged: true
     ports:
-      - "${ESB_PORT_AGENT_GRPC:-50051}:50051"
-      - "${ESB_PORT_GATEWAY_HTTPS:-443}:443"  # Gateway port (shared network)
+      - "${ESB_PORT_AGENT_GRPC:-0}:50051"
+      - "${ESB_PORT_GATEWAY_HTTPS:-0}:443"  # Gateway port (shared network)
     networks:
       - external_network
     environment:
