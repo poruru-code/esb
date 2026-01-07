@@ -32,12 +32,15 @@ type DockerClient interface {
 type Runtime struct {
 	client    DockerClient
 	networkID string
+	env       string
 }
 
-func NewRuntime(client DockerClient, networkID string) *Runtime {
+// NewRuntime creates a new Docker runtime.
+func NewRuntime(client DockerClient, networkID string, env string) *Runtime {
 	return &Runtime{
 		client:    client,
 		networkID: networkID,
+		env:       env,
 	}
 }
 
@@ -58,7 +61,8 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 		}
 	}
 
-	containerName := fmt.Sprintf("%s%s-%s", runtime.ContainerNamePrefix, req.FunctionName, uuid.New().String())
+	// Phase 7: Use new container name format: esb-{env}-{func}-{uuid}
+	containerName := fmt.Sprintf("esb-%s-%s-%s", r.env, req.FunctionName, uuid.New().String())
 
 	// Phase 5 Step 0: Pull image from registry if set
 	registry := os.Getenv("CONTAINER_REGISTRY")
@@ -87,6 +91,7 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 		Labels: map[string]string{
 			runtime.LabelFunctionName: req.FunctionName,
 			runtime.LabelCreatedBy:    runtime.ValueCreatedByAgent,
+			runtime.LabelEsbEnv:       r.env,
 		},
 		ExposedPorts: nat.PortSet{
 			"8080/tcp": struct{}{},
@@ -171,6 +176,8 @@ func (r *Runtime) GC(ctx context.Context) error {
 func (r *Runtime) List(ctx context.Context) ([]runtime.ContainerState, error) {
 	filter := filters.NewArgs()
 	filter.Add("label", fmt.Sprintf("%s=%s", runtime.LabelCreatedBy, runtime.ValueCreatedByAgent))
+	// Phase 7: Filter by environment label
+	filter.Add("label", fmt.Sprintf("%s=%s", runtime.LabelEsbEnv, r.env))
 
 	containers, err := r.client.ContainerList(ctx, container.ListOptions{
 		Filters: filter,

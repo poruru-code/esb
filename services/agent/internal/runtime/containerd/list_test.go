@@ -15,7 +15,7 @@ import (
 func TestRuntime_List_Empty(t *testing.T) {
 	mockCli := new(MockClient)
 	mockCNI := new(MockCNI)
-	rt := NewRuntime(mockCli, mockCNI, "esb")
+	rt := NewRuntime(mockCli, mockCNI, "esb", "test-env")
 	ctx := context.Background()
 
 	// Mock: No containers exist
@@ -33,11 +33,11 @@ func TestRuntime_List_Empty(t *testing.T) {
 func TestRuntime_List_ReturnsContainerStates(t *testing.T) {
 	mockCli := new(MockClient)
 	mockCNI := new(MockCNI)
-	rt := NewRuntime(mockCli, mockCNI, "esb")
+	rt := NewRuntime(mockCli, mockCNI, "esb", "test-env")
 	ctx := context.Background()
 
 	// Pre-populate accessTracker to simulate a container that was used
-	containerID := "lambda-test-func-1234"
+	containerID := "esb-test-env-test-func-1234"
 	testTime := time.Now().Add(-5 * time.Minute)
 	rt.accessTracker.Store(containerID, testTime)
 
@@ -81,9 +81,9 @@ func TestRuntime_List_ReturnsContainerStates(t *testing.T) {
 func TestRuntime_AccessTracker_RecordsOnResume(t *testing.T) {
 	mockCli := new(MockClient)
 	mockCNI := new(MockCNI)
-	rt := NewRuntime(mockCli, mockCNI, "esb")
+	rt := NewRuntime(mockCli, mockCNI, "esb", "test-env")
 	ctx := context.Background()
-	containerID := "lambda-resume-test-1234"
+	containerID := "esb-test-env-resume-test-1234"
 
 	mockContainer := new(MockContainer)
 	mockTask := new(MockTask)

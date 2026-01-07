@@ -39,15 +39,17 @@ type Runtime struct {
 	cni           cni.CNI
 	cniMu         sync.Mutex // serialize CNI operations to avoid bridge races
 	namespace     string
+	env           string
 	accessTracker sync.Map // map[containerID]time.Time - tracks last access time
 }
 
 // NewRuntime creates a new containerd runtime with CNI networking.
-func NewRuntime(client ContainerdClient, cniPlugin cni.CNI, namespace string) *Runtime {
+func NewRuntime(client ContainerdClient, cniPlugin cni.CNI, namespace string, env string) *Runtime {
 	return &Runtime{
 		client:    client,
 		cni:       cniPlugin,
 		namespace: namespace,
+		env:       env,
 	}
 }
 
@@ -96,16 +98,31 @@ func mapTaskState(status containerd.ProcessStatus) string {
 	}
 }
 
-func extractFunctionName(containerID string) string {
-	if !strings.HasPrefix(containerID, runtime.ContainerNamePrefix) {
+// extractFunctionName extracts function name from container ID.
+// Format: esb-{env}-{func}-{uuid}
+func extractFunctionName(containerID, env string) string {
+	prefix := fmt.Sprintf("esb-%s-", env)
+	if !strings.HasPrefix(containerID, prefix) {
 		return ""
 	}
-	trimmed := strings.TrimPrefix(containerID, runtime.ContainerNamePrefix)
-	parts := strings.Split(trimmed, "-")
-	if len(parts) < 2 {
+	trimmed := strings.TrimPrefix(containerID, prefix)
+	// Remaining: {func}-{uuid}
+	// UUID has dashes, but usually function name doesn't have double dashes or is separated by last dash?
+	// Actually UUID format is 8-4-4-4-12.
+	// Function name might contain dashes.
+	// Strategy: Split by dash, remove last 5 parts? (uuid has 5 parts usually: 8-4-4-4-12)
+	// But simple uuid.New().String()
+	// Let's rely on LastIndex of specific pattern or just assume last part is UUID if it wasn't split by dashes?
+	// Wait, containerID generation: fmt.Sprintf("esb-%s-%s-%s", r.env, req.FunctionName, uuid.New().String())
+	// So it is {prefix}{func}-{uuid}
+	// If func has dashes, it's ambiguous if we parse from string.
+	// Ideally we rely on labels. This logic is fallback.
+	// Let's do a best effort: Remove the last 36+ chars (UUID length + dash)?
+	// UUID string length is 36. "-UUID" is 37 chars.
+	if len(trimmed) < 37 {
 		return ""
 	}
-	return strings.Join(parts[:len(parts)-1], "-")
+	return trimmed[:len(trimmed)-37]
 }
 
 func extractTaskMetrics(metric *types.Metric) (uint64, uint64, uint64, uint64, error) {
@@ -181,7 +198,8 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 		}
 	}
 
-	containerID := fmt.Sprintf("%s%s-%s", runtime.ContainerNamePrefix, req.FunctionName, uuid.New().String())
+	// Phase 7: Use new container name format: esb-{env}-{func}-{uuid}
+	containerID := fmt.Sprintf("esb-%s-%s-%s", r.env, req.FunctionName, uuid.New().String())
 
 	// 1. Ensure image (only for Cold Start)
 	imgObj, err := r.ensureImage(ctx, image)
@@ -214,6 +232,7 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 		containerd.WithContainerLabels(map[string]string{
 			runtime.LabelFunctionName: req.FunctionName,
 			runtime.LabelCreatedBy:    runtime.ValueCreatedByAgent,
+			runtime.LabelEsbEnv:       r.env,
 		}),
 	}
 	if runtimeName := strings.TrimSpace(os.Getenv("CONTAINERD_RUNTIME")); runtimeName != "" {
@@ -424,7 +443,7 @@ func (r *Runtime) Metrics(ctx context.Context, id string) (*runtime.ContainerMet
 		functionName = labels[runtime.LabelFunctionName]
 	}
 	if functionName == "" {
-		functionName = extractFunctionName(id)
+		functionName = extractFunctionName(id, r.env)
 	}
 
 	result := &runtime.ContainerMetrics{
@@ -484,8 +503,11 @@ func (r *Runtime) List(ctx context.Context) ([]runtime.ContainerState, error) {
 	for _, c := range containers {
 		containerID := c.ID()
 
-		// Skip containers not managed by our runtime (check for lambda- prefix)
-		if !strings.HasPrefix(containerID, runtime.ContainerNamePrefix) {
+		// Skip containers not managed by our runtime (check for esb-{env}- prefix)
+		// Or assume namespace isolation is enough.
+		// Let's use prefix check to be safe against accidental manual creations in same namespace
+		prefix := fmt.Sprintf("esb-%s-", r.env)
+		if !strings.HasPrefix(containerID, prefix) {
 			continue
 		}
 
@@ -502,6 +524,11 @@ func (r *Runtime) List(ctx context.Context) ([]runtime.ContainerState, error) {
 				functionName = labels[runtime.LabelFunctionName]
 			}
 		}
+		if functionName == "" {
+			// Phase 7: Clean fallback
+			functionName = extractFunctionName(containerID, r.env)
+		}
+
 		if createdAt.IsZero() {
 			createdAt = time.Now()
 		}

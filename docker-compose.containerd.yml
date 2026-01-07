@@ -60,6 +60,7 @@ services:
       # No Firecracker shim - use default containerd runtime
       - CONTAINER_REGISTRY=registry:5010
       - CONTAINERS_NETWORK=${ESB_NETWORK_EXTERNAL:-test-external}
+      - ESB_ENV=${ESB_ENV:-default}
 
   registry:
     healthcheck:
@@ -75,7 +76,6 @@ services:
     environment:
       # Connect to Agent (same network namespace)
       - AGENT_GRPC_ADDRESS=localhost:50051
-      # Gateway URL accessible from CNI subnet
       # Gateway URL accessible from CNI subnet
       - GATEWAY_INTERNAL_URL=https://${ESB_DATA_PLANE_HOST:-10.88.0.1}:443
       # Data Plane Host (for constructing S3/DB endpoints in code)
