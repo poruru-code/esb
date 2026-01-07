@@ -12,7 +12,7 @@ import time
 
 import requests
 
-from tests.conftest import (
+from e2e.conftest import (
     GATEWAY_URL,
     VERIFY_SSL,
     DEFAULT_REQUEST_TIMEOUT,

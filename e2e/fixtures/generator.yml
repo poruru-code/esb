@@ -1,9 +1,0 @@
-app:
-  name: ''
-  tag: e2e-docker
-environments:
-- e2e-docker
-- e2e-containerd
-paths:
-  sam_template: template.yaml
-  output_dir: .esb/

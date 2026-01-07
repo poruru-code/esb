@@ -10,7 +10,7 @@ import uuid
 
 import pytest
 
-from tests.conftest import (
+from e2e.conftest import (
     SCYLLA_WAIT_INTERVAL,
     SCYLLA_WAIT_RETRIES,
     call_api,

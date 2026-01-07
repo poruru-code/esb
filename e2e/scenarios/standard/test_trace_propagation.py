@@ -3,7 +3,7 @@ import uuid
 import time
 import json
 from datetime import datetime, timezone
-from tests.conftest import GATEWAY_URL, VERIFY_SSL, query_victorialogs
+from e2e.conftest import GATEWAY_URL, VERIFY_SSL, query_victorialogs
 
 
 class TestTrace:

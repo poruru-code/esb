@@ -3,7 +3,7 @@ import os
 import json
 import requests
 
-from tests.conftest import (
+from e2e.conftest import (
     GATEWAY_URL,
     VICTORIALOGS_URL,
     VERIFY_SSL,

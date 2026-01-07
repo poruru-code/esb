@@ -15,7 +15,7 @@ import subprocess
 import time
 
 import pytest
-from tests.conftest import call_api
+from e2e.conftest import call_api
 import grpc
 from services.gateway.pb import agent_pb2, agent_pb2_grpc
 

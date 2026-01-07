@@ -7,7 +7,7 @@ S3 compatibility tests (RustFS/MinIO).
 
 import uuid
 
-from tests.conftest import call_api
+from e2e.conftest import call_api
 
 
 class TestS3:

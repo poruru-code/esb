@@ -8,7 +8,7 @@ Scenarios:
 """
 
 import json
-from tests.conftest import (
+from e2e.conftest import (
     AUTH_USER,
     LOG_WAIT_TIMEOUT,
     query_victorialogs_by_filter,

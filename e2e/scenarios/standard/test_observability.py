@@ -11,7 +11,7 @@ import uuid
 
 import requests
 
-from tests.conftest import (
+from e2e.conftest import (
     GATEWAY_URL,
     VERIFY_SSL,
     LOG_WAIT_TIMEOUT,

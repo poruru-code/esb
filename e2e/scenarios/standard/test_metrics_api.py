@@ -7,7 +7,7 @@ Gateway metrics API tests.
 
 import time
 import requests
-from tests.conftest import (
+from e2e.conftest import (
     GATEWAY_URL,
     VERIFY_SSL,
     call_api,
