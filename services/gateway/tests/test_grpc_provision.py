@@ -118,7 +118,7 @@ async def test_provision_fallback_containerd(grpc_client, mock_stub, mock_regist
 
         # derived from ESB_DATA_PLANE_HOST
         assert env["AWS_ENDPOINT_URL_S3"] == "http://10.99.99.99:9000"
-        assert env["AWS_ENDPOINT_URL_DYNAMODB"] == "http://10.99.99.99:8001"
+        assert env["AWS_ENDPOINT_URL_DYNAMODB"] == "http://10.99.99.99:8000"
         assert env["AWS_ENDPOINT_URL_CLOUDWATCH_LOGS"] == "http://10.99.99.99:9428"
 
 @pytest.mark.asyncio
