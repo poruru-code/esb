@@ -125,25 +125,15 @@ def get_port_mapping(env_name: str = None) -> dict[str, str]:
 
 def get_generator_parameters(env_name: str = None) -> dict[str, str]:
     """Calculate parameters for the SAM template generator based on current mode."""
-    from tools.cli import runtime_mode
-
-    current_mode = runtime_mode.get_mode()
 
     # Common parameters (like ports) are already handled by environment variables
     # but we can explicitly pass hosts here.
-    if current_mode == ESB_MODE_DOCKER:
-        # In Docker mode, use service names as hostnames
-        return {
-            "S3_ENDPOINT_HOST": "s3-storage",
-            "DYNAMODB_ENDPOINT_HOST": "database",
-        }
-    else:
-        # In Firecracker/Containerd mode, use host IP (bridge address)
-        # 10.88.0.1 is the gateway IP in the VM network
-        return {
-            "S3_ENDPOINT_HOST": "10.88.0.1",
-            "DYNAMODB_ENDPOINT_HOST": "10.88.0.1",
-        }
+    # Use standard service names for resolution.
+    # CoreDNS handles this mapping in containerd/firecracker modes.
+    return {
+        "S3_ENDPOINT_HOST": "s3-storage",
+        "DYNAMODB_ENDPOINT_HOST": "database",
+    }
 
 
 def get_registry_config(env_name: str = None) -> dict[str, str | None]:

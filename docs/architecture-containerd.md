@@ -90,10 +90,6 @@ sequenceDiagram
 
 ---
 
-## 2. Containerd ランタイム (Containerd モード)
-
-Docker デーモンを介さず、低レベルランタイムである `containerd` を直接操作します。Firecracker モードへの布石であり、より厳密なリソース制御が可能です。
-
 ### 構成図 (Containerd)
 
 ```mermaid
@@ -107,11 +103,11 @@ flowchart TD
             direction TB
             Agent["Go Agent<br/>(containerd runtime)"]
             Gateway["Gateway API"]
-            Proxy["local-proxy<br/>(HAProxy)"]
+            CoreDNS["CoreDNS<br/>(10.88.0.1:53)"]
             
             %% Vertical Stack
             Agent --- Gateway
-            Gateway --- Proxy
+            Gateway --- CoreDNS
         end
 
         Containerd[["containerd.sock"]]
@@ -146,10 +142,10 @@ flowchart TD
     
     %% Networking
     Gateway -->|"Invoke (L3 Direct)"| WorkerA
-    WorkerA -->|"AWS API via 10.88.0.1"| Proxy
-    Proxy -->|"DNAT/Forward"| RustFS
-    Proxy -->|"DNAT/Forward"| ScyllaDB
-    Proxy -->|"DNAT/Forward"| VL
+    WorkerA -->|"DNS Query (10.88.0.1)"| CoreDNS
+    CoreDNS -->|"Resolve"| DS
+    WorkerA -->|"AWS API (Direct IP)"| DS
+    %% CNI MASQUERADE handles the routing
 ```
 
 ### 実行シーケンス (Containerd)
@@ -160,43 +156,47 @@ sequenceDiagram
     participant User as User / SDK
     participant GW as API Gateway (localhost)
     participant AG as Go Agent (localhost)
-    participant CNI as CNI Bridge (10.88.0.1)
+    participant DNS as CoreDNS (10.88.0.1)
+    participant CNI as CNI Bridge (NAT/MASQ)
     participant WA as Worker A
 
     User->>GW: HTTP Request
     GW->>AG: gRPC: acquire_worker
     Note over AG: containerd API: start container
-    Note over AG: CNI: setup network
+    Note over AG: CNI: setup network (nameserver: 10.88.0.1)
     AG-->>GW: Return Worker IP
     
     GW->>CNI: Forward packet
     CNI->>WA: HTTP POST: Invoke (Worker A)
     
+    WA->>DNS: Resolve "s3-storage"
+    DNS-->>WA: Return Container IP
+    
     WA->>CNI: AWS API Call (S3/Dynamo)
-    Note over CNI: Gateway for Workers
-    CNI->>GW: DNAT to local-proxy
-    Note over GW: Proxy forward to services
-    GW-->>WA: API Response
+    Note over CNI: MASQUERADE (SNAT)
+    CNI->>DS: Forward to Data Services
+    DS-->>WA: API Response
     
     WA-->>GW: Final Response A
     GW-->>User: HTTP Response
 ```
 
 ### ステップ解説 (Containerd)
-- **1-4. 準備**: Agent は containerd API を直接操作してコンテナを起動し、CNI を通じて独立した IP を割り当てます。
+- **1-4. 準備**: Agent は containerd API を直接操作してコンテナを起動し、CNI を通じて独立した IP を割り当てます。この際、DNS サーバーとして `10.88.0.1` (CoreDNS) が設定されます。
 - **5-7. 実行**: Gateway は CNI ブリッジを介して、ワーカーのプライベート IP に対して直接パケットを送信します。
-- **8-12. 通信**: ワーカーからのアクセスはゲートウェイ IP (`10.88.0.1`) 経由で `local-proxy` に届き、データサービスへ転送されます。
+- **8-13. 通信**: ワーカーは `CoreDNS` を介してサービス名（`s3-storage` 等）を解決します。実際の通信は CNI ブリッジの `MASQUERADE` ルールによって透過的に外部ネットワークへルーティングされます。
 
 ---
 
 ## スペック比較
 
-| 項目                 | Docker ランタイム              | Containerd ランタイム             |
-| :------------------- | :----------------------------- | :-------------------------------- |
-| **Agent ランタイム** | `docker`                       | `containerd`                      |
-| **接続方法**         | `/var/run/docker.sock`         | `/run/containerd/containerd.sock` |
-| **ワーカーの隔離**   | 名前空間 (Docker ネットワーク) | 名前空間 (CNI ブリッジ)           |
-| **ネットワーク構成** | Docker ブリッジ (L3 接点あり)  | CNI ブリッジ (完全隔離 + Proxy)   |
-| **オーバーヘッド**   | 最小                           | 低 (containerd 直操作)            |
-| **内蔵レジストリ**   | 不要 (ローカルイメージを使用)  | 必要 (イメージ配布に利用)         |
-| **適した用途**       | 開発・デバッグ                 | 本番環境、高性能・高密度環境      |
+| 項目                 | Docker ランタイム              | Containerd ランタイム               |
+| :------------------- | :----------------------------- | :---------------------------------- |
+| **Agent ランタイム** | `docker`                       | `containerd`                        |
+| **接続方法**         | `/var/run/docker.sock`         | `/run/containerd/containerd.sock`   |
+| **ワーカーの隔離**   | 名前空間 (Docker ネットワーク) | 名前空間 (CNI ブリッジ)             |
+| **ネットワーク構成** | Docker ブリッジ (L3 接点あり)  | CNI ブリッジ (完全隔離 + CoreDNS)   |
+| **サービス解決**     | Docker DNS (名前で直接)        | CoreDNS (論理名から IP 解決)        |
+| **オーバーヘッド**   | 最小                           | 低 (containerd 直操作)              |
+| **内蔵レジストリ**   | 不要 (ローカルイメージを使用)  | 必要 (イメージ配布に利用)           |
+| **適した用途**       | 開発・デバッグ                 | 本番環境、高性能・高密度環境        |

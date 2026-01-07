@@ -25,15 +25,26 @@ services:
       retries: 10
     restart: unless-stopped
 
-  local-proxy:
-    image: haproxy:2.8-alpine
-    container_name: ${ESB_PROJECT_NAME:-esb}-local-proxy
+  # ------------------------------------------
+  # 1.5. coredns (Local DNS for Lambda VMs)
+  # ------------------------------------------
+  coredns:
+    image: coredns/coredns:1.11.1
+    container_name: ${ESB_PROJECT_NAME:-esb}-coredns
     network_mode: "service:runtime-node"
     volumes:
-      - ./config/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+      - ./config/Corefile:/Corefile:ro
+    extra_hosts:
+      - "gateway:${ESB_CONTROL_HOST:-10.99.0.1}"
+      - "s3-storage:${ESB_CONTROL_HOST:-10.99.0.1}"
+      - "database:${ESB_CONTROL_HOST:-10.99.0.1}"
+      - "victorialogs:${ESB_CONTROL_HOST:-10.99.0.1}"
+      - "registry:${ESB_CONTROL_HOST:-10.99.0.1}"
+    command: -conf /Corefile
     depends_on:
       runtime-node: { condition: service_started }
     restart: unless-stopped
+
 
   # ------------------------------------------
   # 2. Agent Wiring (Child Container)

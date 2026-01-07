@@ -97,6 +97,12 @@ func applyCNISubnet(config []byte, subnet string) ([]byte, error) {
 		delete(ipam, "rangeStart")
 		delete(ipam, "rangeEnd")
 		pluginMap["ipam"] = ipam
+
+		// Inject DNS settings
+		pluginMap["dns"] = map[string]any{
+			"nameservers": []string{"10.88.0.1"},
+		}
+
 		plugins[i] = pluginMap
 		updated = true
 		break

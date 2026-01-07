@@ -9,7 +9,7 @@ Edge Serverless Box を企業プロキシ環境で利用する際の設定と挙
 - CLI は `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY`（大小文字を含む）を検出し、
   `NO_PROXY` に以下の内部宛先を追加して Docker Compose / docker build に伝搬します。
   - `localhost`, `127.0.0.1`, `::1`, `registry`, `esb-registry`, `gateway`, `esb-gateway`,
-    `runtime-node`, `esb-runtime-node`, `agent`, `esb-agent`, `local-proxy`, `esb-local-proxy`,
+    `runtime-node`, `esb-runtime-node`, `agent`, `esb-agent`, `coredns`, `esb-coredns`,
     `s3-storage`, `database`, `victorialogs`, `10.88.0.0/16`, `10.99.0.1`, `172.20.0.0/16`
 - `esb up` / `esb down` / `esb stop` などの Docker Compose 実行時に `NO_PROXY` を注入し、
   ローカル宛先へのアクセスがプロキシ経由にならないようにします。

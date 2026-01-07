@@ -15,12 +15,7 @@ class ServiceDefaults:
 
     PROTOCOL = "http"
     S3_PORT = 9000
-    DYNAMODB_PORT = 8000  # Gateway view (Container is 8000, Host is 8001? Check compose)
-    # Compose: "8001:8000". Container sees 8000. Host sees 8001.
-    # Gateway (Containerd) uses 10.88.0.1:8001 (Host Port) via NAT?
-    # Wait, "DYNAMODB_ENDPOINT=http://10.88.0.1:8001" was the old value.
-    # So we should use 8001 for DYNAMODB_PORT if accessing via Data Plane Host.
-    DYNAMODB_PORT = 8001
+    DYNAMODB_PORT = 8000  # Alternator internal port (now standard for all modes)
     VICTORIALOGS_PORT = 9428
 
 

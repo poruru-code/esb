@@ -30,45 +30,41 @@ ESB の設定は以下の3段階で伝播します：
 
 ### 1. Gateway (`services/gateway`)
 
-Gateway は Lambda 環境の "Master Config" として機能し、多くの変数をワーカーへの注入元として利用します。
+Gateway は Lambda 環境の "Master Config" として機能し、サービスエンドポイントをワーカーに注入します。
 
 | 変数名 | Source (`.env` / Default) | Gatewayでの用途 |
 |--------|---------------------------|-----------------|
 | `JWT_SECRET_KEY` | **必須** | `config.py`: 認証トークンの署名・検証に使用。 |
-| `S3_ENDPOINT` | (Dockerモードのみ) | **Injection Source**: ワーカーに `AWS_ENDPOINT_URL_S3` として渡す値を決定。Containerdモードでは自動生成されるため不要。 |
-| `DYNAMODB_ENDPOINT` | (Dockerモードのみ) | **Injection Source**: ワーカーに `AWS_ENDPOINT_URL_DYNAMODB` として渡す値を決定。 |
-| `VICTORIALOGS_URL` | `http://esb-victorialogs:9428` | 自身のログ送信先。 |
-| `GATEWAY_VICTORIALOGS_URL` | (Dockerモードのみ) | ワーカー注入専用。Containerdモードでは自動生成されるため不要。 |
+| `S3_ENDPOINT` | (任意) | 明示的に上書きする場合に使用。未設定時は `http://s3-storage:9000` が注入される。 |
+| `DYNAMODB_ENDPOINT` | (任意) | 明示的に上書きする場合に使用。未設定時は `http://database:8000` が注入される。 |
+| `VICTORIALOGS_URL` | `http://victorialogs:9428` | 自身のログ送信先。 |
 | `CONTAINERS_NETWORK` | `ESB_NETWORK_EXTERNAL` | 自身の所属チェックおよびワーカーの状態監視に使用。 |
-| `ESB_DATA_PLANE_HOST` | `10.88.0.1` | **Containerd Mode**: 注入用エンドポイントURLを動的に生成するためのホストIP。 |
+| `ESB_DATA_PLANE_HOST` | `10.88.0.1` | **Containerd/FC Mode**: ネットワークゲートウェイ兼 DNS サーバーの IP。 |
 
-### 2. Agent & Runtime Node (`docker-compose.containerd.yml`)
+### 2. Agent & Runtime Node
 
 | 変数名 | Source (`.env` / Default) | Agent/Runtimeでの用途 |
 |--------|---------------------------|-----------------------|
 | `CNI_GW_IP` | `ESB_DATA_PLANE_HOST` | **Networking**: `runtime-node` 内でブリッジインターフェース (`esb-cni0`) に設定されるゲートウェイ IP。 |
-| `DNAT_*_IP` | `127.0.0.1` | **Networking**: `iptables` ルールを生成し、`ESB_DATA_PLANE_HOST` (:9000等) へのアクセスをこの IP へ DNAT 転送。 |
+| `CONTAINER_REGISTRY`| (任意) | **Distribution**: Containerd/FC モードでイメージをプルするレジストリのアドレス。 |
 
 ---
 
 ## Level 3: Worker Injection (Gateway -> Lambda)
 
-### Hybrid Variable Resolution (ハイブリッド変数解決)
+### Consolidated Service Discovery (サービス解決の統合)
 
-Gateway は、Lambdaワーカーに注入するエンドポイント (`AWS_ENDPOINT_URL_S3` 等) を以下の優先順位で決定します。これにより、Dockerモード（DNS名依存）とContainerdモード（固定IP依存）の両方をシームレスにサポートします。
+CoreDNS の導入により、すべての実行モード（Docker, Containerd, Firecracker）において、Lambda ワーカーは**論理サービス名**を使用して各サービスにアクセスできるようになりました。
 
-1.  **明示的な環境変数 (Docker Mode Priority)**
-    *   Gateway コンテナに `S3_ENDPOINT` 等が設定されていれば、それをそのまま使用します。
-    *   例: `S3_ENDPOINT=http://esb-s3-storage:9000`
-2.  **動的生成 (Containerd Mode Fallback)**
-    *   変数が空の場合、`ESB_DATA_PLANE_HOST` (`10.88.0.1`) と標準ポート、標準プロトコル (`http`) を組み合わせて URL を生成します。
-    *   生成ロジック: `http://{ESB_DATA_PLANE_HOST}:{DEFAULT_PORT}`
-    *   デフォルトポート:
-        *   S3: `9000`
-        *   DynamoDB: `8001`
-        *   VictoriaLogs: `9428`
-
-この仕組みにより、`docker-compose.containerd.yml` の記述量が大幅に削減されています。
+1.  **デフォルトの解決プロセス**
+    *   Gateway は以下のエンドポイントをデフォルトとしてワーカーに注入します：
+        *   S3: `http://s3-storage:9000`
+        *   DynamoDB: `http://database:8000`
+        *   VictoriaLogs: `http://victorialogs:9428`
+2.  **実行モードごとの解決方法**
+    *   **Docker モード**: Docker 内部 DNS がサービス名をコンテナ IP に解決します。
+    *   **Containerd モード**: `runtime-node` 上の **CoreDNS サイドカー** が、Docker 内部 DNS へリクエストをフォワードします。
+    *   **Firecracker モード**: **CoreDNS サイドカー** が、`extra_hosts` 設定に基づき WireGuard ゲートウェイ (`10.99.0.1`) へ解決します。
 
 ---
 
@@ -83,20 +79,15 @@ environment:
   - CONTAINERS_NETWORK=${ESB_NETWORK_EXTERNAL}
   - ESB_DATA_PLANE_HOST=${ESB_DATA_PLANE_HOST:-10.88.0.1}
 
-  # Docker Mode (docker-compose.docker.yml で追加)
-  - S3_ENDPOINT=http://${ESB_PROJECT_NAME}-s3-storage:9000
-  - DYNAMODB_ENDPOINT=http://${ESB_PROJECT_NAME}-database:8000
-  - GATEWAY_VICTORIALOGS_URL=http://${ESB_PROJECT_NAME}-victorialogs:9428
-
-  # Containerd Mode (docker-compose.containerd.yml で追加)
-  # (なし - ESB_DATA_PLANE_HOST から自動生成)
+  # サービスエンドポイント (上書きが必要な場合のみ設定)
+  - S3_ENDPOINT=${S3_ENDPOINT}
+  - DYNAMODB_ENDPOINT=${DYNAMODB_ENDPOINT}
 ```
 
-### Runtime Node (`docker-compose.containerd.yml`)
+### Runtime Node (`docker-compose.fc.yml` 等)
 
 ```yaml
 environment:
   - CNI_GW_IP=${ESB_DATA_PLANE_HOST:-10.88.0.1}
-  - DNAT_S3_IP=127.0.0.1 (固定)
-  - DNAT_DB_IP=127.0.0.1 (固定)
+  # 注意: 以前の DNAT_S3_IP, DNAT_DB_IP 等は CoreDNS 移行に伴い廃止されました。
 ```

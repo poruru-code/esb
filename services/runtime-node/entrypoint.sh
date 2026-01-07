@@ -1,6 +1,6 @@
 #!/bin/sh
 # Where: services/runtime-node/entrypoint.sh
-# What: Initialize runtime-node networking, DNAT, and containerd startup.
+# What: Initialize runtime-node networking (CoreDNS/MASQUERADE) and containerd startup.
 # Why: Keep firecracker/containerd runtime wiring consistent on compute hosts.
 set -eu
 
@@ -43,14 +43,6 @@ setup_cgroupv2_delegation() {
 setup_cgroupv2_delegation
 
 CNI_GW_IP="${CNI_GW_IP:-10.88.0.1}"
-DNAT_APPLY_OUTPUT="${DNAT_APPLY_OUTPUT:-1}"
-
-DNAT_S3_IP="${DNAT_S3_IP:-}"
-DNAT_DB_IP="${DNAT_DB_IP:-}"
-DNAT_VL_IP="${DNAT_VL_IP:-}"
-
-DNAT_DB_DPORT="${DNAT_DB_DPORT:-8001}"
-DNAT_DB_PORT="${DNAT_DB_PORT:-8000}"
 
 CONTAINERD_BIN="${CONTAINERD_BIN:-containerd}"
 CONTAINERD_CONFIG="${CONTAINERD_CONFIG:-}"
@@ -199,53 +191,6 @@ start_firecracker_fifo_reader() {
   ) &
 }
 
-add_dnat_rule() {
-  chain="$1"
-  dport="$2"
-  dest="$3"
-  if ! iptables -t nat -C "$chain" -d "${CNI_GW_IP}/32" -p tcp --dport "$dport" \
-    -j DNAT --to-destination "$dest" 2>/dev/null; then
-    iptables -t nat -A "$chain" -d "${CNI_GW_IP}/32" -p tcp --dport "$dport" \
-      -j DNAT --to-destination "$dest"
-  fi
-}
-
-add_snat_rule() {
-  dest_ip="$1"
-  if [ "$dest_ip" = "127.0.0.1" ]; then
-    return
-  fi
-  if ! iptables -t nat -C POSTROUTING -s "${CNI_GW_IP}/32" -d "${dest_ip}/32" \
-    -j MASQUERADE 2>/dev/null; then
-    iptables -t nat -A POSTROUTING -s "${CNI_GW_IP}/32" -d "${dest_ip}/32" \
-      -j MASQUERADE
-  fi
-}
-
-apply_dnat() {
-  chain="$1"
-  if [ -n "$DNAT_S3_IP" ]; then
-    add_dnat_rule "$chain" 9000 "${DNAT_S3_IP}:9000"
-  fi
-  if [ -n "$DNAT_DB_IP" ]; then
-    add_dnat_rule "$chain" "$DNAT_DB_DPORT" "${DNAT_DB_IP}:${DNAT_DB_PORT}"
-  fi
-  if [ -n "$DNAT_VL_IP" ]; then
-    add_dnat_rule "$chain" 9428 "${DNAT_VL_IP}:9428"
-  fi
-}
-
-apply_snat() {
-  if [ -n "$DNAT_S3_IP" ]; then
-    add_snat_rule "$DNAT_S3_IP"
-  fi
-  if [ -n "$DNAT_DB_IP" ]; then
-    add_snat_rule "$DNAT_DB_IP"
-  fi
-  if [ -n "$DNAT_VL_IP" ]; then
-    add_snat_rule "$DNAT_VL_IP"
-  fi
-}
 
 ensure_ip_forward
 ensure_route_localnet
@@ -317,11 +262,8 @@ start_devmapper_watcher() {
   ) &
 }
 
-apply_dnat PREROUTING
-if [ "$DNAT_APPLY_OUTPUT" = "1" ]; then
-  apply_dnat OUTPUT
-  apply_snat
-fi
+# Ensure SNAT/MASQUERADE for CNI subnet traffic exiting to external networks
+iptables -t nat -A POSTROUTING -s 10.88.0.0/16 ! -d 10.88.0.0/16 -j MASQUERADE
 
 ensure_devmapper_ready
 start_devmapper_watcher
