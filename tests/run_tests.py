@@ -9,6 +9,7 @@ import subprocess
 from pathlib import Path
 from dotenv import load_dotenv
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from typing import Any
 
 # Project root
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
@@ -137,13 +138,16 @@ def main():
 
     # Load Base Environment is now skipped to ensure profile isolation
 
-    print("\nStarting Full E2E Test Suite (Matrix-Based)\n")
+    # Only print for sequential mode (subprocess of parallel will print its own)
+    if not args.parallel:
+        print("\nStarting Full E2E Test Suite (Matrix-Based)\n")
+    
     failed_entries = []
 
     initialized_profiles = set()
 
     # Build list of all scenarios to run, grouped by profile
-    profile_scenarios: dict[str, list[dict]] = {}
+    profile_scenarios: dict[str, dict[str, Any]] = {}
 
     for entry in matrix:
         # Determine structure type: Profile-First (New) or Suite-First (Legacy)
@@ -265,6 +269,8 @@ def main():
 
         try:
             run_scenario(args, scenario)
+            # Success - no exception raised
+            print(f"\n[PASSED] Profile '{profile_name}' PASSED.")
             initialized_profiles.add(profile_name)
         except SystemExit as e:
             if e.code != 0:
@@ -275,6 +281,7 @@ def main():
                     sys.exit(1)
             else:
                 print(f"\n[PASSED] Profile '{profile_name}' PASSED.")
+                initialized_profiles.add(profile_name)
         except Exception as e:
             print(f"\n[FAILED] Profile '{profile_name}' FAILED with exception: {e}")
             failed_entries.append(profile_name)
@@ -291,7 +298,7 @@ def main():
 
 
 def run_profiles_parallel(
-    profile_scenarios: dict[str, list[dict]],
+    profile_scenarios: dict[str, dict[str, Any]],
     reset: bool,
     build: bool,
     cleanup: bool,
@@ -311,6 +318,7 @@ def run_profiles_parallel(
             # Build command for subprocess
             cmd = [
                 sys.executable,
+                "-u",  # Unbuffered output to match parent processing
                 "-m",
                 "tests.run_tests",
                 "--profile",
@@ -494,7 +502,8 @@ def run_scenario(args, scenario):
         ports = load_ports(env_name)
         if ports:
             apply_ports_to_env(ports)
-            log_ports(env_name, ports)
+            # log_ports is redundant as 'esb up' already logs it
+            # log_ports(env_name, ports)
             
             # Update env dict for pytest subprocess
             env["GATEWAY_PORT"] = str(ports.get("ESB_PORT_GATEWAY_HTTPS", env.get("GATEWAY_PORT", "443")))
