@@ -43,6 +43,13 @@ func main() {
 	}
 	log.Printf("Target Network: %s", networkID)
 
+	// Phase 7: Environment Isolation
+	esbEnv := os.Getenv("ESB_ENV")
+	if esbEnv == "" {
+		esbEnv = "default"
+	}
+	log.Printf("ESB Environment: %s", esbEnv)
+
 	// Initialize Runtime
 	var rt runtime.ContainerRuntime
 
@@ -104,8 +111,11 @@ func main() {
 		}
 
 		// 2. Create Runtime with CNI networking
-		rt = agentContainerd.NewRuntime(wrappedClient, cniPlugin, "esb-runtime")
-		log.Println("Runtime: containerd (initialized with CNI)")
+		// 2. Create Runtime with CNI networking
+		// Phase 7: Use dedicated namespace esb-{env}
+		namespace := fmt.Sprintf("esb-%s", esbEnv)
+		rt = agentContainerd.NewRuntime(wrappedClient, cniPlugin, namespace, esbEnv)
+		log.Printf("Runtime: containerd (initialized with CNI, namespace=%s)", namespace)
 
 	} else {
 		log.Println("Initializing Docker Runtime...")
@@ -128,7 +138,8 @@ func main() {
 		// But rt is interface.
 
 		// To be cleaner:
-		rt = docker.NewRuntime(dockerCli, networkID)
+		// To be cleaner:
+		rt = docker.NewRuntime(dockerCli, networkID, esbEnv)
 		log.Println("Runtime: docker (initialized)")
 
 		// Note: previous code verified docker connection here.

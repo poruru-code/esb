@@ -21,7 +21,7 @@ profiles:
   e2e-firecracker:
     description: "Firecracker Mode with Auto-Scaling"
     mode: firecracker
-    env_file: "tests/environments/.env.autoscaling"
+    env_file: "tests/environments/.env.firecracker"
 
   # Profile B: Pure Containerd Mode (with local-proxy)
   e2e-containerd:

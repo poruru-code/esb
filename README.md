@@ -12,7 +12,7 @@ Why: Provide a single entry point for developers and operators.
 - **True AWS Compatibility**: 実行エンジンに **AWS Lambda Runtime Interface Emulator (RIE)** を採用。クラウド上の Lambda と完全に一致する挙動をローカル環境で保証します。
 - **Integrated Developer Experience (CLI)**: 専用 CLI ツール `esb` を提供。環境構築からホットリロード開発まで、コマンド一つでシームレスな開発体験を提供します。
 - **Production-Ready Architecture**: 外部公開用の `Gateway` と特権を持つ `Go Agent` を分離したマイクロサービス構成により、セキュリティと耐障害性を実現しています。
-- **Docker-Contained Runtime**: `runtime-node` に `containerd + CNI` を集約し、ホストのネットワーク改変を最小化しつつ将来の Firecracker へ繋げます。
+- **Docker-Contained Runtime**: `runtime-node` に `containerd + CNI + CoreDNS` を集約し、ホストのネットワーク改変を最小化しつつ Firecracker/Remote Node での透明なサービス解決を実現します。
 - **Full Stack in a Box**: S3互換ストレージ (RustFS)、DynamoDB互換DB (ScyllaDB)、ログ基盤を同梱しており、`esb up` だけで完全なクラウドネイティブ環境が手に入ります。
 - **Efficient Orchestration**: コンテナオーケストレーション技術により、Lambda関数コンテナをオンデマンドで起動・プーリング。`ReservedConcurrentExecutions` に基づくオートスケーリングと、**Scale-to-Zero (アイドル時自動停止)** によりリソースを最適化します。Gateway 側の Janitor がアイドルコンテナと孤児コンテナを定期的に整理します。
 
@@ -97,19 +97,20 @@ flowchart TD
     end
 
     subgraph Compute ["Compute Plane (docker-compose.node.yml)"]
-        RuntimeNode["runtime-node (containerd + CNI + DNAT)"]
+        RuntimeNode["runtime-node (containerd + CNI)"]
         Agent["Go Agent (gRPC)"]
-        LocalProxy["local-proxy (HAProxy)"]
+        CoreDNS["CoreDNS (Sidecar)"]
         LambdaRIE["Lambda RIE Containers"]
     end
 
     Gateway -->|gRPC| Agent
     Agent -->|containerd API| RuntimeNode
     RuntimeNode -->|CNI bridge| LambdaRIE
-    LambdaRIE -->|AWS SDK / Logs| LocalProxy
-    LocalProxy -->|TCP| RustFS
-    LocalProxy -->|TCP| ScyllaDB
-    LocalProxy -->|TCP| VictoriaLogs
+    LambdaRIE -->|AWS SDK / Logs| CoreDNS
+    CoreDNS -->|Forward| Gateway
+    CoreDNS -->|Forward| RustFS
+    CoreDNS -->|Forward| ScyllaDB
+    CoreDNS -->|Forward| VictoriaLogs
     Agent -.->|"Pull images (Containerd/FC only)"| Registry
     
     subgraph Toolchain ["CLI Toolchain"]
@@ -127,8 +128,8 @@ flowchart TD
 ### システムコンポーネント
 - **`Gateway`**: API Gateway 互換プロキシ。`routing.yml` に基づき認証・ルーティングを行い、Go Agent を介して Lambda コンテナをオンデマンドで呼び出します。
 - **`Go Agent`**: コンテナのライフサイクル管理を担当。`containerd` を直接操作する高性能エージェントで、gRPC 通信により Gateway と高速かつ堅牢に連携します。
-- **`runtime-node`**: `containerd + CNI` と DNAT ルールを持つ実行基盤コンテナ。Agent と local-proxy が NetNS を共有します。
-- **`local-proxy`**: `10.88.0.1:*` の DNAT 先として TCP 転送を担い、Docker DNS で `s3-storage` / `database` / `victorialogs` を解決します。
+- **`runtime-node`**: `containerd + CNI` と DNSベースのサービスディスカバリを持つ実行基盤コンテナ。
+- **`CoreDNS`**: `runtime-node` のサイドカーとして動作。Lambda VM からの DNS クエリを解決し、`s3-storage` / `database` などの論理名を適切な IP (Docker DNS または WireGuard Gateway) へマッピングします。
 - **`esb CLI`**: SAM テンプレート (`template.yaml`) を **Single Source of Truth** とし、開発を自動化する統合コマンドラインツールです。
 
 ### ファイル構成
@@ -159,8 +160,8 @@ flowchart TD
 | ファイル                        | 役割                                      | 主な用途                                   |
 | ------------------------------- | ----------------------------------------- | ------------------------------------------ |
 | `docker-compose.yml`            | Control/Core（Gateway + 依存サービス）    | Control Plane（単一ノード/分離構成の共通） |
-| `docker-compose.node.yml`       | Compute（runtime-node/agent/local-proxy） | Compute Node（Firecracker/remote）         |
-| `docker-compose.containerd.yml` | Adapter（単一ノード結合）                 | Core + Compute を同一ホストで統合          |
+| `docker-compose.node.yml`       | Compute（runtime-node/agent/coredns）     | Compute Node（Firecracker/remote）         |
+| `docker-compose.containerd.yml` | Adapter（単一ノード結合 / coredns）       | Core + Compute を同一ホストで統合          |
 
 #### 起動パターン（docker compose）
 

@@ -9,6 +9,7 @@ import subprocess
 from pathlib import Path
 from dotenv import load_dotenv
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from typing import Any
 
 # Project root
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
@@ -135,19 +136,18 @@ def main():
         if args.unit_only:
             sys.exit(0)
 
-    # Load Base Environment (Global)
-    base_env_path = PROJECT_ROOT / "tests" / ".env.test"
-    if base_env_path.exists():
-        load_dotenv(base_env_path, override=False)
-        print(f"Loaded base environment from: {base_env_path}")
+    # Load Base Environment is now skipped to ensure profile isolation
 
-    print("\nStarting Full E2E Test Suite (Matrix-Based)\n")
+    # Only print for sequential mode (subprocess of parallel will print its own)
+    if not args.parallel:
+        print("\nStarting Full E2E Test Suite (Matrix-Based)\n")
+    
     failed_entries = []
 
     initialized_profiles = set()
 
     # Build list of all scenarios to run, grouped by profile
-    profile_scenarios: dict[str, list[dict]] = {}
+    profile_scenarios: dict[str, dict[str, Any]] = {}
 
     for entry in matrix:
         # Determine structure type: Profile-First (New) or Suite-First (Legacy)
@@ -213,7 +213,7 @@ def main():
                     "targets": [],
                     "exclude": [],
                 }
-            
+
             # Merge targets and exclusions
             profile_scenarios[profile_name]["targets"].extend(suite_def.get("targets", []))
             profile_scenarios[profile_name]["exclude"].extend(suite_def.get("exclude", []))
@@ -222,6 +222,7 @@ def main():
     if args.reset:
         print("\n[RESET] Fully cleaning all test artifact directories in tests/fixtures/.esb/")
         import shutil
+
         for p_name in profiles.keys():
             esb_dir = PROJECT_ROOT / "tests" / "fixtures" / ".esb" / p_name
             if esb_dir.exists():
@@ -230,8 +231,12 @@ def main():
 
     # --- Parallel Execution Mode ---
     if args.parallel and len(profile_scenarios) > 1:
-        print(f"\n[PARALLEL] Starting parallel execution for {len(profile_scenarios)} profiles: {', '.join(profile_scenarios.keys())}")
-        print("[PARALLEL] Build, infrastructure setup, and tests will run simultaneously across profiles.\n")
+        print(
+            f"\n[PARALLEL] Starting parallel execution for {len(profile_scenarios)} profiles: {', '.join(profile_scenarios.keys())}"
+        )
+        print(
+            "[PARALLEL] Build, infrastructure setup, and tests will run simultaneously across profiles.\n"
+        )
 
         results = run_profiles_parallel(
             profile_scenarios,
@@ -264,6 +269,8 @@ def main():
 
         try:
             run_scenario(args, scenario)
+            # Success - no exception raised
+            print(f"\n[PASSED] Profile '{profile_name}' PASSED.")
             initialized_profiles.add(profile_name)
         except SystemExit as e:
             if e.code != 0:
@@ -274,6 +281,7 @@ def main():
                     sys.exit(1)
             else:
                 print(f"\n[PASSED] Profile '{profile_name}' PASSED.")
+                initialized_profiles.add(profile_name)
         except Exception as e:
             print(f"\n[FAILED] Profile '{profile_name}' FAILED with exception: {e}")
             failed_entries.append(profile_name)
@@ -290,7 +298,7 @@ def main():
 
 
 def run_profiles_parallel(
-    profile_scenarios: dict[str, list[dict]],
+    profile_scenarios: dict[str, dict[str, Any]],
     reset: bool,
     build: bool,
     cleanup: bool,
@@ -310,6 +318,7 @@ def run_profiles_parallel(
             # Build command for subprocess
             cmd = [
                 sys.executable,
+                "-u",  # Unbuffered output to match parent processing
                 "-m",
                 "tests.run_tests",
                 "--profile",
@@ -328,7 +337,7 @@ def run_profiles_parallel(
             # Assign a color based on the profile's index
             profile_index = list(profile_scenarios.keys()).index(profile_name)
             color_code = COLORS[profile_index % len(COLORS)]
-            
+
             future = executor.submit(run_profile_subprocess, profile_name, cmd, color_code)
             future_to_profile[future] = profile_name
 
@@ -352,10 +361,12 @@ def run_profiles_parallel(
     return results
 
 
-def run_profile_subprocess(profile_name: str, cmd: list[str], color_code: str = "") -> tuple[int, str]:
+def run_profile_subprocess(
+    profile_name: str, cmd: list[str], color_code: str = ""
+) -> tuple[int, str]:
     """Run a profile in a subprocess and stream output with prefix."""
     prefix = f"{color_code}[{profile_name}]{COLOR_RESET}"
-    
+
     process = subprocess.Popen(
         cmd,
         cwd=PROJECT_ROOT,
@@ -366,7 +377,7 @@ def run_profile_subprocess(profile_name: str, cmd: list[str], color_code: str = 
     )
 
     output_lines = []
-    
+
     # Read output line by line as it becomes available
     try:
         if process.stdout:
@@ -394,25 +405,20 @@ def run_scenario(args, scenario):
     # Determine actions based on scenario overrides or global args
     do_reset = scenario.get("perform_reset", args.reset)
     do_build = scenario.get("perform_build", args.build)
-    
+
     # 0. Set ESB_ENV first (needed for mode config path)
     env_name = scenario.get("esb_env", os.environ.get("ESB_ENV", "default"))
     os.environ["ESB_ENV"] = env_name
+
+    # 0.5 Clear previous image tag to avoid leaks between scenarios in the same process
+    os.environ.pop("ESB_IMAGE_TAG", None)
 
     # 1. Runtime Mode Setup (Optional)
     if "runtime_mode" in scenario:
         print(f"Switching runtime mode to: {scenario['runtime_mode']} (env: {env_name})")
         run_esb(["mode", "set", scenario["runtime_mode"]])
 
-    # 1. Environment Setup
-    base_env_path = PROJECT_ROOT / "tests" / ".env.test"
-    if base_env_path.exists():
-        load_dotenv(base_env_path, override=True)
-        print(f"Loaded base environment from: {base_env_path}")
-    else:
-        print(f"Warning: Base environment file not found: {base_env_path}")
-
-    # Load Scenario-Specific Env File
+    # Load Scenario-Specific Env File (Required for isolation)
     if scenario.get("env_file"):
         env_file_path = PROJECT_ROOT / scenario["env_file"]
         if env_file_path.exists():
@@ -420,17 +426,20 @@ def run_scenario(args, scenario):
             print(f"Loaded scenario environment from: {env_file_path}")
         else:
             print(f"Warning: Scenario environment file not found: {env_file_path}")
+    else:
+        print("Warning: No env_file specified for this scenario. Operating with system env only.")
 
     # Environment Isolation & Ports Logic
     from tools.cli import config as cli_config
-    
+
     # 2. Setup the global context (os.environ) for this environment
     cli_config.setup_environment(env_name)
 
     # 2.5 Inject Proxy Settings (Ensure NO_PROXY includes all internal services)
     from tools.cli.core import proxy
+
     proxy.apply_proxy_env()
-    
+
     # 3. Reload env vars into a dict for passing to subprocess (pytest)
     env = os.environ.copy()
 
@@ -441,10 +450,10 @@ def run_scenario(args, scenario):
     env["VICTORIALOGS_URL"] = f"http://localhost:{env['VICTORIALOGS_PORT']}"
     env["VICTORIALOGS_QUERY_URL"] = env["VICTORIALOGS_URL"]
     env["AGENT_GRPC_ADDRESS"] = f"localhost:{env.get('ESB_PORT_AGENT_GRPC', '50051')}"
-    
+
     # Merge scenario-specific environment variables
     env.update(scenario.get("env_vars", {}))
-    
+
     # Explicitly set template path
     esb_template = os.getenv("ESB_TEMPLATE", "tests/fixtures/template.yaml")
     env["ESB_TEMPLATE"] = str(PROJECT_ROOT / esb_template)
@@ -486,6 +495,24 @@ def run_scenario(args, scenario):
             up_args.append("--build")
 
         run_esb(up_args)
+
+        # 3.5 Load dynamic ports from ports.json (created by esb up)
+        from tools.cli.core.port_discovery import load_ports, apply_ports_to_env, log_ports
+        
+        ports = load_ports(env_name)
+        if ports:
+            apply_ports_to_env(ports)
+            # log_ports is redundant as 'esb up' already logs it
+            # log_ports(env_name, ports)
+            
+            # Update env dict for pytest subprocess
+            env["GATEWAY_PORT"] = str(ports.get("ESB_PORT_GATEWAY_HTTPS", env.get("GATEWAY_PORT", "443")))
+            env["VICTORIALOGS_PORT"] = str(ports.get("ESB_PORT_VICTORIALOGS", env.get("VICTORIALOGS_PORT", "9428")))
+            env["GATEWAY_URL"] = f"https://localhost:{env['GATEWAY_PORT']}"
+            env["VICTORIALOGS_URL"] = f"http://localhost:{env['VICTORIALOGS_PORT']}"
+            env["VICTORIALOGS_QUERY_URL"] = env["VICTORIALOGS_URL"]
+            if "ESB_PORT_AGENT_GRPC" in ports:
+                env["AGENT_GRPC_ADDRESS"] = f"localhost:{ports['ESB_PORT_AGENT_GRPC']}"
 
         # 4. Run Tests
         if not scenario["targets"]:

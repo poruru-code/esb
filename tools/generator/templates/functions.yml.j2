@@ -15,6 +15,11 @@ defaults:
 functions:
 {% for func in functions %}
   {{ func.name }}:
+    {% if registry %}
+    image: "{{ registry }}/{{ func.name }}:{{ tag }}"
+    {% else %}
+    image: "{{ func.name }}:{{ tag }}"
+    {% endif %}
     {% if func.timeout is not none %}
     timeout: {{ func.timeout }}
     {% endif %}

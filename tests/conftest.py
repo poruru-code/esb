@@ -6,21 +6,14 @@ Each test file uses fixtures and constants from this conftest.py.
 """
 
 import os
-from pathlib import Path
 import time
 import json
 
 import pytest
 import requests
-from dotenv import load_dotenv
 
-# Load .env.test (enable tests even without run_tests.py).
-env_file = Path(__file__).parent / ".env.test"
-if env_file.exists():
-    print(f"Loading .env.test from {env_file} (base/defaults only)")
-    load_dotenv(env_file, override=False)
-else:
-    print(f".env.test not found at {env_file}")
+# Environment variables are expected to be injected by run_tests.py or system.
+# Shared fixture loading continues as normal.
 
 from services.common.core.http_client import HttpClientFactory  # noqa: E402
 from services.gateway.config import config  # noqa: E402

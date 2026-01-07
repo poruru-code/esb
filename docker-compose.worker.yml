@@ -1,6 +1,6 @@
 services:
   agent:
-    image: esb-agent:latest
+    image: esb-agent:${ESB_IMAGE_TAG:-latest}
     build:
       context: services/agent
       dockerfile: Dockerfile

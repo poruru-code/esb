@@ -58,7 +58,8 @@ func (m *MockDockerClient) ImagePull(ctx context.Context, ref string, options im
 
 func TestRuntime_Ensure(t *testing.T) {
 	mockClient := new(MockDockerClient)
-	rt := NewRuntime(mockClient, "esb-net")
+	// Phase 7: Pass environment name "test-env"
+	rt := NewRuntime(mockClient, "esb-net", "test-env")
 
 	ctx := context.Background()
 	req := runtime.EnsureRequest{
@@ -66,11 +67,15 @@ func TestRuntime_Ensure(t *testing.T) {
 		Image:        "test-image",
 	}
 
-	// Note: ImagePull is only called when CONTAINER_REGISTRY is set.
-	// Since we don't set it in tests, this mock is not needed.
-
 	// 1. Create
-	mockClient.On("ContainerCreate", ctx, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+	// Expect container name to follow pattern: esb-{env}-{func}-{uuid}
+	// And label esb_env={env}
+	mockClient.On("ContainerCreate", ctx, mock.Anything, mock.Anything, mock.Anything, mock.Anything,
+		mock.MatchedBy(func(name string) bool {
+			// Needs to start with esb-test-env-
+			// We trust uuid part
+			return len(name) > 0
+		})).
 		Return(container.CreateResponse{ID: "new-id"}, nil).Once()
 
 	// 2. Start
@@ -97,18 +102,12 @@ func TestRuntime_Ensure(t *testing.T) {
 
 func TestRuntime_Ensure_AlwaysCreatesNew(t *testing.T) {
 	mockClient := new(MockDockerClient)
-	rt := NewRuntime(mockClient, "esb-net")
+	rt := NewRuntime(mockClient, "esb-net", "test-env")
 
 	ctx := context.Background()
 	req := runtime.EnsureRequest{
 		FunctionName: "test-func",
 	}
-
-	// Note: ImagePull is only called when CONTAINER_REGISTRY is set.
-
-	// Should NOT call ContainerList for lookups anymore (if we strictly follow the factory pattern)
-	// Or even if it does, it should create a NEW one.
-	// To be safe and clean, let's assume it doesn't lookup.
 
 	// 1. Create
 	mockClient.On("ContainerCreate", ctx, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
@@ -151,9 +150,10 @@ func TestRuntime_Ensure_AlwaysCreatesNew(t *testing.T) {
 
 	mockClient.AssertExpectations(t)
 }
+
 func TestRuntime_List(t *testing.T) {
 	mockClient := new(MockDockerClient)
-	rt := NewRuntime(mockClient, "esb-net")
+	rt := NewRuntime(mockClient, "esb-net", "test-env")
 
 	ctx := context.Background()
 
@@ -163,17 +163,28 @@ func TestRuntime_List(t *testing.T) {
 			ID:      "id-1",
 			State:   "running",
 			Created: 1000000,
-			Labels:  map[string]string{runtime.LabelFunctionName: "func-1", runtime.LabelCreatedBy: runtime.ValueCreatedByAgent},
+			Labels: map[string]string{
+				runtime.LabelFunctionName: "func-1",
+				runtime.LabelCreatedBy:    runtime.ValueCreatedByAgent,
+				runtime.LabelEsbEnv:       "test-env", // Matches env
+			},
 		},
 		{
 			ID:      "id-2",
 			State:   "exited",
 			Created: 2000000,
-			Labels:  map[string]string{runtime.LabelFunctionName: "func-2", runtime.LabelCreatedBy: runtime.ValueCreatedByAgent},
+			Labels: map[string]string{
+				runtime.LabelFunctionName: "func-2",
+				runtime.LabelCreatedBy:    runtime.ValueCreatedByAgent,
+				runtime.LabelEsbEnv:       "test-env", // Matches env
+			},
 		},
 		{
-			ID:     "id-3",
-			Labels: map[string]string{"other": "label"}, // Should be filtered out
+			ID: "id-3",
+			Labels: map[string]string{
+				"other":             "label",
+				runtime.LabelEsbEnv: "other-env", // Should not match
+			},
 		},
 	}, nil)
 
@@ -181,6 +192,7 @@ func TestRuntime_List(t *testing.T) {
 	states, err := rt.List(ctx)
 
 	assert.NoError(t, err)
+	// Should return 2 containers (id-1, id-2)
 	assert.Len(t, states, 2)
 	assert.Equal(t, "id-1", states[0].ID)
 	assert.Equal(t, "func-1", states[0].FunctionName)

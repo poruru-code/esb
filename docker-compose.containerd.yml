@@ -9,17 +9,12 @@ services:
     container_name: ${ESB_PROJECT_NAME:-esb}-runtime-node
     privileged: true
     ports:
-      - "${ESB_PORT_AGENT_GRPC:-50051}:50051"
-      - "${ESB_PORT_GATEWAY_HTTPS:-443}:443"  # Gateway port (shared network)
+      - "${ESB_PORT_AGENT_GRPC:-0}:50051"
+      - "${ESB_PORT_GATEWAY_HTTPS:-0}:443"  # Gateway port (shared network)
     networks:
       - external_network
     environment:
       - CNI_GW_IP=${ESB_DATA_PLANE_HOST:-10.88.0.1}
-      # Local-proxy mode: DNAT 10.88.0.1:port -> 127.0.0.1:port (local-proxy -> Docker services)
-      - DNAT_APPLY_OUTPUT=1
-      - DNAT_S3_IP=127.0.0.1
-      - DNAT_DB_IP=127.0.0.1
-      - DNAT_VL_IP=127.0.0.1
       - VHOST_VSOCK_REQUIRED=0
     volumes:
       # Share containerd socket and state with Agent
@@ -32,17 +27,19 @@ services:
     restart: unless-stopped
 
   # ------------------------------------------
-  # 2. local-proxy (HAProxy for DNS resolution)
+  # 2. coredns (Local DNS for Lambda VMs)
   # ------------------------------------------
-  local-proxy:
-    image: haproxy:2.8-alpine
-    container_name: ${ESB_PROJECT_NAME:-esb}-local-proxy
+  coredns:
+    image: coredns/coredns:1.11.1
+    container_name: ${ESB_PROJECT_NAME:-esb}-coredns
     network_mode: "service:runtime-node"
     volumes:
-      - ./config/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+      - ./config/Corefile:/Corefile:ro
+    command: -conf /Corefile
     depends_on:
       runtime-node: { condition: service_started }
     restart: unless-stopped
+
 
   # ------------------------------------------
   # 3. Agent Wiring (Shares network with runtime-node)
@@ -63,6 +60,7 @@ services:
       # No Firecracker shim - use default containerd runtime
       - CONTAINER_REGISTRY=registry:5010
       - CONTAINERS_NETWORK=${ESB_NETWORK_EXTERNAL:-test-external}
+      - ESB_ENV=${ESB_ENV:-default}
 
   registry:
     healthcheck:
@@ -79,11 +77,10 @@ services:
       # Connect to Agent (same network namespace)
       - AGENT_GRPC_ADDRESS=localhost:50051
       # Gateway URL accessible from CNI subnet
-      # Gateway URL accessible from CNI subnet
       - GATEWAY_INTERNAL_URL=https://${ESB_DATA_PLANE_HOST:-10.88.0.1}:443
       # Data Plane Host (for constructing S3/DB endpoints in code)
       - ESB_DATA_PLANE_HOST=${ESB_DATA_PLANE_HOST:-10.88.0.1}
-      # Log Shipping: Use local-proxy (HAProxy) to reach VictoriaLogs
+      # Log Shipping: Reach VictoriaLogs via DNS
       - GATEWAY_VICTORIALOGS_URL=http://10.88.0.1:9428
 
 volumes:

@@ -67,12 +67,14 @@ class SmartReloader(FileSystemEventHandler):
         if "paths" not in config:
             config["paths"] = {}
         config["paths"]["sam_template"] = str(TEMPLATE_YAML)
-        
+
         # Set output directory based on environment name
         env_name = cli_config.get_env_name()
         config["paths"]["output_dir"] = f".esb/{env_name}/"
 
-        generator.generate_files(config=config, project_root=PROJECT_ROOT)
+        generator.generate_files(
+            config=config, project_root=PROJECT_ROOT, tag=cli_config.get_image_tag(env_name)
+        )
 
         # 2. Restart Gateway (to apply routing changes).
         logging.info("Restarting Gateway...")
@@ -97,8 +99,11 @@ class SmartReloader(FileSystemEventHandler):
             if "functions" in parts:
                 idx = parts.index("functions")
                 if len(parts) > idx + 1:
+                    from tools.cli import config as cli_config
+
                     func_dir_name = parts[idx + 1]
-                    image_tag = f"lambda-{func_dir_name}:latest"
+                    env_tag = cli_config.get_image_tag()
+                    image_tag = f"lambda-{func_dir_name}:{env_tag}"
 
                     from tools.cli.config import E2E_DIR
 

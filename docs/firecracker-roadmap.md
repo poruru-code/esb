@@ -18,16 +18,16 @@ Why: Keep Phase C scope and sequencing aligned across the team.
 
 ### 構成の要点
 - **runtime-node 内で containerd + runc + CNI** を実行（CNI bridge `10.88.0.0/16`）。
-- **agent/local-proxy は runtime-node の NetNS を共有**し、gateway は Control 側の独立コンテナで起動する。
+- **agent/coredns は runtime-node の NetNS を共有**し、gateway は Control 側の独立コンテナで起動する。
 - **agent は PIDNS を共有**し、`/proc/<pid>/ns/net` を使って CNI add/del を行う。
   - 参照する PID は **containerd task/shim の実行 PID**。
 - **gateway が 443 を外部公開**し、runtime-node が 50051 を公開する。
 - **registry / s3-storage / database / victorialogs** は external_network 上で稼働。
-- **DNAT により `10.88.0.1` 互換を維持**（S3/Dynamo/VictoriaLogs）。
-  - PREROUTING を基本、runtime-node 内から叩く場合のみ OUTPUT を併用。
-  - OUTPUT の場合は **SNAT(MASQUERADE) を必須**。
-  - registry は TLS/SAN の都合で **DNAT 対象外**（`esb-registry:5010` を直接使用）。
-  - Compute からは WG 経由で `10.99.0.1:5010` に集約し、gateway 内 HAProxy で `esb-registry:5010` へ転送する。
+- **CoreDNS により `10.88.0.1` での名前解決を提供**（S3/Dynamo/VictoriaLogs）。
+  - Lambda VM の nameserver として `10.88.0.1` を設定。
+  - CNI bridge から外部への通信は **MASQUERADE (SNAT)** を利用。
+  - registry は TLS/SAN の都合で **論理名解決**（`esb-registry:5010` を直接使用）。
+  - Compute からは WG 経由で `10.99.0.1:5010` に集約し、gateway 内 HAProxy で各サービスへ転送する。
 - **sitecustomize による boto3 hook / trace 伝播 / logs** は現状維持。
 - **Gateway は gRPC Agent を常時利用**（切替フラグは廃止）。
 
@@ -47,7 +47,7 @@ flowchart LR
 
       TaskNS["task netns\n/proc/<pid>/ns/net"]
       Worker["Lambda worker(s)\nRIE container\nCNI IP 10.88.x.x\n:8080"]
-      LocalProxy["local-proxy (HAProxy)\n:9000/:8001/:9428"]
+      CoreDNS["CoreDNS\n:53"]
 
       Gateway <-->|gRPC localhost:50051| Agent
 
@@ -71,7 +71,7 @@ flowchart LR
 
       Gateway -->|Invoke\nworker.ip:8080| Worker
       Worker -->|Lambda->Gateway\nGATEWAY_INTERNAL_URL\nhttps://10.99.0.1:443| Gateway
-      Worker -->|SDK calls / Logs\nDNAT 10.88.0.1:*| LocalProxy
+      Worker -->|DNS Query\n10.88.0.1:53| CoreDNS
     end
 
     ExternalNet(("external_network (bridge)\nrequired"))
@@ -104,18 +104,16 @@ flowchart LR
   end
 ```
 
-### DNAT 前提（Phase B 確定）
-- `10.88.0.1` は **host ではなく runtime-node の CNI bridge gateway**。
-- DNAT 先は **runtime-node 内プロキシ**のみ（service 名への DNAT は不可）。
-- 固定 IP 依存は廃止し、**プロキシが service 名を解決**する。
-- DNAT は PREROUTING を基本とし、runtime-node 内から叩く場合のみ OUTPUT を併用。
-- OUTPUT で DNAT する場合は **SNAT(MASQUERADE) を必須**。
-- registry は **DNAT 対象外**（`esb-registry:5010` を直接使用）。
-- DNAT 対象は **S3/Dynamo/Logs のみに限定**し、その他は service 名直アクセスに統一する。
-- 具体的な転送先:
-  - `10.88.0.1:9000` -> `127.0.0.1:9000` (local proxy) -> `s3-storage:9000`
-  - `10.88.0.1:8001` -> `127.0.0.1:8001` (local proxy) -> `database:8000`
-  - `10.88.0.1:9428` -> `127.0.0.1:9428` (local proxy) -> `victorialogs:9428`
+### DNS 前提（Phase B 確定）
+- `10.88.0.1` は **host ではなく runtime-node の CNI bridge gateway 兼 DNS サーバ**。
+- CNI bridge から外部（external_network）への通信は **iptables MASQUERADE** で処理。
+- 固定 IP 依存は廃止し、**各コンポーネントが論理名を使用して解決**する。
+- CoreDNS は `runtime-node` のサイドカーとして動作し、Docker 内部 DNS へフォワードする。
+- registry は **DNS 解決**（`esb-registry:5010` を直接使用）。
+- 具体的な解決先（Containerd モード）:
+  - `s3-storage` -> `esb-s3-storage:9000` (Docker DNS)
+  - `database` -> `esb-database:8000` (Docker DNS)
+  - `victorialogs` -> `esb-victorialogs:9428` (Docker DNS)
 
 ---
 
@@ -135,9 +133,9 @@ flowchart LR
 ### Phase C 構成図（Control/Compute 分離・L7 先行）
 
 #### Compute VM に入るもの（想定）
-- **runtime-node**: firecracker-containerd / shim / jailer / devmapper / CNI / iptables
+- **runtime-node**: firecracker-containerd / shim / jailer / devmapper / CNI / iptables (MASQUERADE)
 - **agent**: gRPC API、CNI add/del、runtime 切替 (`CONTAINERD_RUNTIME`)、L7 代理（暫定）
-- **local-proxy (HAProxy)**: DNAT 先の TCP プロキシ
+- **coredns**: Lambda VM からの問い合わせに対し `10.99.0.1` へ解決するサイドカー
 - **FC assets**: kernel/rootfs/snapshots（`/var/lib/firecracker-containerd/runtime`）
 
 #### 通信方針（L7 → L3 移行）
@@ -151,7 +149,6 @@ flowchart LR
 
   subgraph ControlPlane["Control Plane (WSL/Docker)"]
     Gateway["gateway<br>:443<br>wg0 (tunnel)<br>10.99.0.1"]
-    LocalProxy["local-proxy (HAProxy)<br>:9000/:8001/:9428<br>(listen on 10.99.0.1)"]
     Registry["esb-registry:5010"]
     S3["s3-storage:9000/9001"]
     DB["database:8001"]
@@ -187,14 +184,10 @@ flowchart LR
   %% Invoke path (control-plane correct)
   Gateway -->|"Invoke API<br>(L7)"| Agent
 
-  %% Return + control-plane access via WG (DNAT-less)
-  Function -->|"Lambda->Gateway<br>GATEWAY_INTERNAL_URL<br>https://10.99.0.1:443"| Gateway
-  Function -->|"SDK calls / Logs<br>10.99.0.1:9000/8001/9428"| LocalProxy
-
-  %% Proxy to services by name (no DNAT)
-  LocalProxy -->|TCP| S3
-  LocalProxy -->|TCP| DB
-  LocalProxy -->|TCP| Victoria
+  %% Return + control-plane access via WG
+  Function -->|"Lambda->Gateway<br>DNS Query (10.88.0.1:53)"| CoreDNS
+  CoreDNS -->|"Resolve to 10.99.0.1"| Gateway
+  Function -->|"AWS API / Logs / Invoke<br>10.99.0.1:*"| Gateway
 
   %% Images
   Agent -->|Pull images / rootfs| Registry
@@ -213,7 +206,7 @@ flowchart LR
 | CNI/IP | 10.88.x.x (CNI bridge) | 10.88.x.x (維持) |
 | sitecustomize | あり | あり（VM 内へ配置） |
 | registry | `esb-registry:5010` 直指定 | 同じ |
-| 10.88.0.1 DNAT | runtime-node 内 | 同じ |
+| 10.88.0.1 DNS | runtime-node 内 | 同じ |
 | agent の CNI 付与 | `/proc/<pid>/ns/net` | **同様の PID が参照可能であることが前提** |
 
 ---
@@ -239,7 +232,7 @@ flowchart LR
 
 ### C-0: 前提固定
 - Phase B の E2E を合格基準として固定。
-- `worker.ip:8080` / `sitecustomize` / `10.88.0.1` 互換は **維持前提**。
+- `worker.ip:8080` / `sitecustomize` / `10.88.0.1` (DNS) 互換は **維持前提**。
 
 ### C-1: runtime-node 内で firecracker runtime を動作確認
 - containerd の runtime 設定に firecracker を追加。

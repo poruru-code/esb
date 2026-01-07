@@ -19,6 +19,7 @@ flowchart TD
     subgraph Host ["Host OS"]
         Gateway["Gateway API<br>(:443)"]
         Agent["Go Agent (gRPC)<br>(:50051)"]
+        CoreDNS["CoreDNS (Sidecar)<br>(:53)"]
         RustFS["RustFS S3<br>(:9000)"]
         Console["RustFS Console<br>(:9001)"]
         DB["ScyllaDB<br>(:8001)"]
@@ -28,7 +29,7 @@ flowchart TD
         PoolManager -->|Capacity Control| ContainerPool["ContainerPool"]
         PoolManager -->|Prune/Reconcile| HeartbeatJanitor["HeartbeatJanitor"]
         
-        Lambda["Lambda Function<br>(Ephemeral Containers)"]
+        Lambda["Lambda microVM/Container<br>(Ephemeral)"]
     end
 
     User -->|HTTP| Gateway
@@ -45,6 +46,10 @@ flowchart TD
     Agent -->|containerd/CNI| Lambda
     Agent -.-|Pull (Containerd/FC only)| Registry["Registry"]
     
+    Lambda -->|DNS Query| CoreDNS
+    CoreDNS -->|Resolve| RustFS
+    CoreDNS -->|Resolve| DB
+    CoreDNS -->|Resolve| Logs
     Lambda -->|AWS SDK| RustFS
     Lambda -->|AWS SDK| DB
     Lambda -->|HTTP| Logs
@@ -92,18 +97,22 @@ services/gateway/
     - `ListContainers`: 稼働中コンテナの状態取得（Janitor が利用）
     - `PauseContainer` / `ResumeContainer`: 将来的なウォームスタート向けの操作（未使用）
 
-### 2.3 RustFS (Storage)
+### 2.3 CoreDNS (Sidecar)
+- **役割**: Lambda microVM/コンテナからの DNS クエリを解決し、論理名（`s3-storage`, `database` 等）を適切な IP へマッピングします。
+- **ポート**: `53` (UDP/TCP, `10.88.0.1` で待ち受け)
+
+### 2.4 RustFS (Storage)
 - **役割**: AWS S3互換のオブジェクトストレージ。Lambdaコードやデータの保存に使用。
 - **構成**:
     - **API**: ポート `9000` (S3互換)
     - **Console**: ポート `9001` (管理Web UI)
 - **認証**: 環境変数でAccessKey/SecretKeyを設定。
 
-### 2.4 ScyllaDB (Database)
+### 2.5 ScyllaDB (Database)
 - **役割**: Dockerコンテナ向けの高性能NoSQLデータベース。AWS DynamoDB互換API (Alternator) を提供。
-- **ポート**: `8001` (Alternator API)
+- **ポート**: `8001` (Alternator API 外部公開用), `8000` (内部通信用)
 
-### 2.5 VictoriaLogs
+### 2.6 VictoriaLogs
 - **役割**: ログ収集・管理基盤。LambdaやGatewayのログを集約可。
 - **ポート**: `9428` (Web UI/API)
 
@@ -116,6 +125,7 @@ Gateway は external_network 上で起動し、443 をホストに公開しま�
 | -------------- | ---------------- | ---------------- | ----------------------------- | ------------------- |
 | Gateway API    | 443              | 443              | `https://localhost:443`       | HTTPS               |
 | Agent gRPC     | 50051            | 50051            | `grpc://<compute-host>:50051` | gRPC                |
+| CoreDNS        | 53               | なし             | `10.88.0.1:53`                | DNS (UDP/TCP)       |
 | RustFS API     | 9000             | 9000             | `http://localhost:9000`       | HTTP                |
 | RustFS Console | 9001             | 9001             | `http://localhost:9001`       | HTTP                |
 | ScyllaDB       | 8000             | 8001             | `http://localhost:8001`       | HTTP (DynamoDB API) |
@@ -143,8 +153,8 @@ Gateway は external_network 上で起動し、443 をホストに公開しま�
 | --------------------------------- | ----------------------------------------- | ------------------------------------------ |
 | `docker-compose.yml`              | Control/Core（Gateway + 依存サービス）    | Control Plane（単一ノード/分離構成の共通） |
 | **`docker-compose.registry.yml`** | **Registry**                              | Containerd/Firecracker モードで自動追加    |
-| `docker-compose.node.yml`         | Compute（runtime-node/agent/local-proxy） | Compute Node（Firecracker/remote）         |
-| `docker-compose.containerd.yml`   | Adapter（単一ノード結合）                 | Core + Compute を同一ホストで統合          |
+| `docker-compose.node.yml`         | Compute（runtime-node/agent/coredns）     | Compute Node（Firecracker/remote）         |
+| `docker-compose.containerd.yml`   | Adapter（単一ノード結合 / coredns）       | Core + Compute を同一ホストで統合          |
 
 ### 5.2 起動パターン（docker compose）
 

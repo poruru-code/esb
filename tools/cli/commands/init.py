@@ -1,4 +1,3 @@
-
 import os
 import sys
 import yaml
@@ -7,6 +6,7 @@ import questionary
 from tools.cli import config as cli_config
 from tools.cli.core.cert import ensure_certs
 from tools.cli.core.trust_store import install_root_ca
+
 
 def run(args):
     """
@@ -19,7 +19,7 @@ def run(args):
     #           2) subparser --template (args.template)
     #           3) current directory search
     template_path = None
-    
+
     # Use cli_config.TEMPLATE_YAML if set (via main parser).
     if cli_config.TEMPLATE_YAML and cli_config.TEMPLATE_YAML.exists():
         template_path = cli_config.TEMPLATE_YAML.resolve()
@@ -35,7 +35,7 @@ def run(args):
             if c and c.exists():
                 template_path = c.resolve()
                 break
-    
+
     if not template_path or not template_path.exists():
         # Prompt for input if not found.
         path_input = questionary.path("Path to SAM template.yaml:").ask()
@@ -49,8 +49,9 @@ def run(args):
 
     # 2. Load the template and extract parameters.
     from tools.generator.parser import CfnLoader
+
     try:
-        with open(template_path, 'r', encoding='utf-8') as f:
+        with open(template_path, "r", encoding="utf-8") as f:
             template_data = yaml.load(f, Loader=CfnLoader)
     except Exception as e:
         print(f"❌ Failed to load template: {e}")
@@ -68,7 +69,7 @@ def run(args):
             prompt_text = f"Value for '{key}'"
             if description:
                 prompt_text += f" ({description})"
-            
+
             user_val = questionary.text(prompt_text, default=str(default_val)).ask()
             if user_val is None:
                 print("❌ Input cancelled. Aborting.")
@@ -78,17 +79,19 @@ def run(args):
     # 3. Additional settings.
     print("\n⚙ Additional Configuration:")
     sys.stdout.flush()
-    
+
     # Image Tag
-    image_tag = questionary.text("Docker Image Tag:", default="latest").ask()
+    image_tag = questionary.text("Docker Image Tag:", default=cli_config.get_env_name()).ask()
     if image_tag is None:
         print("❌ Input cancelled. Aborting.")
         sys.exit(1)
-    
+
     # Output Directory
     # Default is .esb under the template directory.
     default_output_dir = template_path.parent / ".esb"
-    output_dir_input = questionary.path("Output Directory for artifacts:", default=str(default_output_dir)).ask()
+    output_dir_input = questionary.path(
+        "Output Directory for artifacts:", default=str(default_output_dir)
+    ).ask()
     if output_dir_input is None:
         print("❌ Input cancelled. Aborting.")
         sys.exit(1)
@@ -97,7 +100,7 @@ def run(args):
     # 4. Generate generator.yml.
     # Convert paths to be relative to the template for portability.
     base_dir = template_path.parent
-    
+
     def to_rel(p: Path) -> str:
         try:
             return os.path.relpath(p, base_dir)
@@ -106,21 +109,18 @@ def run(args):
 
     generator_config = {
         "app": {
-            "name": "", # Keep empty for now; could add a prefix later.
-            "tag": image_tag
+            "name": "",  # Keep empty for now; could add a prefix later.
+            "tag": image_tag,
         },
-        "paths": {
-            "sam_template": to_rel(template_path),
-            "output_dir": to_rel(output_dir) + "/"
-        }
+        "paths": {"sam_template": to_rel(template_path), "output_dir": to_rel(output_dir) + "/"},
     }
-    
+
     if param_values:
         generator_config["parameters"] = param_values
 
     # Save location: create generator.yml in the same directory as the template.
     save_path = template_path.parent / "generator.yml"
-    
+
     # Check for existing file.
     if save_path.exists():
         overwrite = questionary.confirm(f"File {save_path} already exists. Overwrite?").ask()
@@ -129,8 +129,10 @@ def run(args):
             sys.exit(0)
 
     try:
-        with open(save_path, 'w', encoding='utf-8') as f:
-            yaml.dump(generator_config, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+        with open(save_path, "w", encoding="utf-8") as f:
+            yaml.dump(
+                generator_config, f, default_flow_style=False, sort_keys=False, allow_unicode=True
+            )
         print(f"\n✅ Configuration saved to: {save_path}")
         print("You can now run 'esb build' to generate Dockerfiles.")
     except Exception as e:
@@ -141,9 +143,12 @@ def run(args):
     print("\n🔐 Preparing SSL certificates and trust store...")
     try:
         from tools.cli.config import DEFAULT_CERT_DIR
+
         ensure_certs(DEFAULT_CERT_DIR)
         install_root_ca(DEFAULT_CERT_DIR / "rootCA.crt")
         print("✅ Root CA installed successfully.")
     except Exception as e:
         print(f"⚠️ Failed to prepare certificates/trust store: {e}")
-        print("You may need to run this command with administrative privileges or manually install the CA cert.")
+        print(
+            "You may need to run this command with administrative privileges or manually install the CA cert."
+        )

@@ -9,31 +9,42 @@ services:
     container_name: ${ESB_PROJECT_NAME:-esb}-runtime-node
     privileged: true
     ports:
-      - "50051:50051"
+      - "${ESB_PORT_AGENT_GRPC:-0}:50051"
     networks:
       - external_network
     environment:
       - CNI_GW_IP=10.88.0.1
       - DNAT_APPLY_OUTPUT=1
       # Local Integration
-      - DNAT_S3_IP=esb-storage
-      - DNAT_DB_IP=esb-database
-      - DNAT_VL_IP=victorialogs
+      - DNAT_S3_IP=127.0.0.1
+      - DNAT_DB_IP=127.0.0.1
+      - DNAT_VL_IP=127.0.0.1
     healthcheck:
       test: ["CMD", "ctr", "-a", "/run/containerd/containerd.sock", "version"]
       interval: 5s
       retries: 10
     restart: unless-stopped
 
-  local-proxy:
-    image: haproxy:2.8-alpine
-    container_name: ${ESB_PROJECT_NAME:-esb}-local-proxy
+  # ------------------------------------------
+  # 1.5. coredns (Local DNS for Lambda VMs)
+  # ------------------------------------------
+  coredns:
+    image: coredns/coredns:1.11.1
+    container_name: ${ESB_PROJECT_NAME:-esb}-coredns
     network_mode: "service:runtime-node"
     volumes:
-      - ./config/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+      - ./config/Corefile:/Corefile:ro
+    extra_hosts:
+      - "gateway:${ESB_CONTROL_HOST:-10.99.0.1}"
+      - "s3-storage:${ESB_CONTROL_HOST:-10.99.0.1}"
+      - "database:${ESB_CONTROL_HOST:-10.99.0.1}"
+      - "victorialogs:${ESB_CONTROL_HOST:-10.99.0.1}"
+      - "registry:${ESB_CONTROL_HOST:-10.99.0.1}"
+    command: -conf /Corefile
     depends_on:
       runtime-node: { condition: service_started }
     restart: unless-stopped
+
 
   # ------------------------------------------
   # 2. Agent Wiring (Child Container)
@@ -58,7 +69,7 @@ services:
   # ------------------------------------------
   gateway:
     ports:
-      - "${ESB_PORT_GATEWAY_HTTPS:-443}:443"
+      - "${ESB_PORT_GATEWAY_HTTPS:-0}:443"
     networks:
       - external_network
     cap_add:
