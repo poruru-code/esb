@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+
 	cgroup1stats "github.com/containerd/cgroups/v3/cgroup1/stats"
 	cgroup2stats "github.com/containerd/cgroups/v3/cgroup2/stats"
 	"github.com/containerd/containerd"
@@ -179,7 +181,7 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 		}
 	}
 
-	containerID := fmt.Sprintf("%s%s-%d", runtime.ContainerNamePrefix, req.FunctionName, time.Now().UnixNano())
+	containerID := fmt.Sprintf("%s%s-%s", runtime.ContainerNamePrefix, req.FunctionName, uuid.New().String())
 
 	// 1. Ensure image (only for Cold Start)
 	imgObj, err := r.ensureImage(ctx, image)

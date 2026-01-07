@@ -7,6 +7,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
@@ -56,7 +58,7 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 		}
 	}
 
-	containerName := fmt.Sprintf("%s%s-%d", runtime.ContainerNamePrefix, req.FunctionName, time.Now().UnixNano())
+	containerName := fmt.Sprintf("%s%s-%s", runtime.ContainerNamePrefix, req.FunctionName, uuid.New().String())
 
 	// Phase 5 Step 0: Pull image from registry if set
 	registry := os.Getenv("CONTAINER_REGISTRY")
