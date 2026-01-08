@@ -194,19 +194,26 @@ docker compose -f docker-compose.node.yml up -d
 
 ### 開発環境セットアップ
 
-本プロジェクトは Python 製の CLI ツール `esb` を使用して操作します。
+詳細なセットアップ手順や開発ガイドライン（Lint, Type Check, VS Code設定など）については、[CONTRIBUTING.md](CONTRIBUTING.md) を参照してください。
 
 ```bash
 # 1. 仮想環境作成と依存関係インストール
 uv sync --all-extras
 
-# 仮想環境の有効化
-.venv\Scripts\activate  # Windows
-# source .venv/bin/activate  # macOS/Linux
-
 # 2. Git hooks のセットアップ
 lefthook install
+
+# 3. 仮想環境の有効化
+source .venv/bin/activate  # macOS/Linux
+# .venv\Scripts\activate   # Windows
 ```
+
+#### 開発ツールチェーン
+本プロジェクトでは品質維持のために以下の最新ツールを採用しています：
+*   **uv**: 高速なパッケージ管理
+*   **Ruff**: 高速な Lint / Formatting
+*   **Ty**: 統合型チェック
+
 
 ### プロジェクトの初期化 (`esb init`)
 
