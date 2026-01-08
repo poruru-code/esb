@@ -45,6 +45,8 @@ class GatewayConfig(BaseAppConfig):
     GATEWAY_VICTORIALOGS_URL: str = Field(
         default="", description="VictoriaLogs ingestion URL (Lambda Injection)"
     )
+    # Payload logging
+    LOG_PAYLOADS: bool = Field(default=False, description="Log request/response payloads (verbose)")
 
     # Authentication/security (required from env)
     JWT_SECRET_KEY: str = Field(..., min_length=32, description="JWT signing secret key")

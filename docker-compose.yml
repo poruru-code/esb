@@ -147,6 +147,7 @@ services:
       # AGENT_GRPC_ADDRESS is injected by adapter files (fc.yml / containerd.yml)
       - AGENT_INVOKE_PROXY=${AGENT_INVOKE_PROXY:-false}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_PAYLOADS=${LOG_PAYLOADS:-false}
       - RUSTFS_ACCESS_KEY=${RUSTFS_ACCESS_KEY?RUSTFS_ACCESS_KEY is required}
       - RUSTFS_SECRET_KEY=${RUSTFS_SECRET_KEY?RUSTFS_SECRET_KEY is required}
       - LAMBDA_INVOKE_TIMEOUT=${LAMBDA_INVOKE_TIMEOUT:-30.0}
