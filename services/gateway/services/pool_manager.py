@@ -270,7 +270,8 @@ class PoolManager:
 
     async def reconcile_orphans(self) -> int:
         """
-        Detect containers not managed by the Gateway (orphans) and delete via Agent (full reconciliation).
+        Detect containers not managed by the Gateway (orphans) and delete via Agent
+        (full reconciliation).
 
         Grace period: containers created within ORPHAN_GRACE_PERIOD_SECONDS are excluded.
         This prevents deleting containers during creation/readiness checks.

@@ -32,6 +32,7 @@ def _env_int(name: str, default: int) -> int:
         logging.warning(f"Invalid {name}={value}; using {default}.")
         return default
 
+
 NODE_CONFIG_PATH = Path.home() / ".esb" / "nodes.yaml"
 KNOWN_HOSTS_PATH = Path.home() / ".esb" / "known_hosts"
 PYINFRA_DEPLOY_PATH = Path(__file__).resolve().parents[2] / "pyinfra" / "esb_node_provision.py"
@@ -142,12 +143,24 @@ result = {
     "cmd_wg_quick": _cmd_exists("wg-quick"),
     "wg_conf": _exists(f"/etc/wireguard/{wg_iface}.conf"),
     "wg_up": _link_exists(wg_iface),
-    "fc_kernel": _exists(os.environ.get("ESB_FC_KERNEL_PATH", "/var/lib/firecracker-containerd/runtime/default-vmlinux.bin")),
-    "fc_rootfs": _exists(os.environ.get("ESB_FC_ROOTFS_PATH", "/var/lib/firecracker-containerd/runtime/default-rootfs.img")),
-    "fc_containerd_config": _exists(os.environ.get("ESB_FC_CONTAINERD_CONFIG", "/etc/firecracker-containerd/config.toml")),
-    "fc_runtime_config": _exists(os.environ.get("ESB_FC_RUNTIME_CONFIG", "/etc/containerd/firecracker-runtime.json")),
-    "fc_runc_config": _exists(os.environ.get("ESB_FC_RUNC_CONFIG", "/etc/containerd/firecracker-runc-config.json")),
-    "devmapper_pool": _exists("/dev/mapper/" + os.environ.get("ESB_DEVMAPPER_POOL", "fc-dev-pool2")),
+    "fc_kernel": _exists(os.environ.get(
+        "ESB_FC_KERNEL_PATH", "/var/lib/firecracker-containerd/runtime/default-vmlinux.bin"
+    )),
+    "fc_rootfs": _exists(os.environ.get(
+        "ESB_FC_ROOTFS_PATH", "/var/lib/firecracker-containerd/runtime/default-rootfs.img"
+    )),
+    "fc_containerd_config": _exists(os.environ.get(
+        "ESB_FC_CONTAINERD_CONFIG", "/etc/firecracker-containerd/config.toml"
+    )),
+    "fc_runtime_config": _exists(os.environ.get(
+        "ESB_FC_RUNTIME_CONFIG", "/etc/containerd/firecracker-runtime.json"
+    )),
+    "fc_runc_config": _exists(os.environ.get(
+        "ESB_FC_RUNC_CONFIG", "/etc/containerd/firecracker-runc-config.json"
+    )),
+    "devmapper_pool": _exists(
+        "/dev/mapper/" + os.environ.get("ESB_DEVMAPPER_POOL", "fc-dev-pool2")
+    ),
     "cmd_dmsetup": _cmd_exists("dmsetup"),
     "cmd_docker": _cmd_exists("docker"),
     "cmd_containerd": _cmd_exists("containerd"),
@@ -426,9 +439,11 @@ def _write_compute_conf(
             f"PrivateKey = {compute_priv}",
             f"MTU = {DEFAULT_WG_MTU}",
             "PostUp = sysctl -w net.ipv4.ip_forward=1",
-            "PostUp = iptables -t mangle -A FORWARD -o %i -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu || true",
+            "PostUp = iptables -t mangle -A FORWARD -o %i -p tcp --tcp-flags SYN,RST SYN "
+            "-j TCPMSS --clamp-mss-to-pmtu || true",
             f"PostUp = ip route replace {subnet} via {runtime_ip} || true",
-            "PostDown = iptables -t mangle -D FORWARD -o %i -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu || true",
+            "PostDown = iptables -t mangle -D FORWARD -o %i -p tcp --tcp-flags SYN,RST SYN "
+            "-j TCPMSS --clamp-mss-to-pmtu || true",
             f"PostDown = ip route del {subnet} via {runtime_ip} || true",
             "",
             "[Peer]",
@@ -502,9 +517,7 @@ def _resolve_identity_keypair(args, node: dict[str, Any]) -> tuple[Path, Path]:
         key_path = Path(identity_file).expanduser()
         pub_path = Path(str(key_path) + ".pub")
         if not key_path.exists() or not pub_path.exists():
-            raise FileNotFoundError(
-                f"SSH identity files not found: {key_path} / {pub_path}"
-            )
+            raise FileNotFoundError(f"SSH identity files not found: {key_path} / {pub_path}")
         return key_path, pub_path
     return _ensure_local_keypair()
 
@@ -685,7 +698,9 @@ def _fetch_payload_via_ssh(args) -> str | None:
     if not host:
         return None
     password = _normalize_secret(getattr(args, "password", None))
-    identity_file = _normalize_path(getattr(args, "identity_file", None)) or _default_identity_file()
+    identity_file = (
+        _normalize_path(getattr(args, "identity_file", None)) or _default_identity_file()
+    )
     if identity_file:
         args.identity_file = identity_file
 
@@ -1164,12 +1179,18 @@ def _ensure_wireguard_configs(args, nodes: list[dict[str, Any]]) -> None:
 
     for index, node in enumerate(nodes):
         node_id = node.get("id") or node.get("host")
-        node_name = node.get("name") or node.get("host") or f"node-{index+1}"
+        node_name = node.get("name") or node.get("host") or f"node-{index + 1}"
         safe_name = _sanitize_name(node_name)
-        wg_subnet = node.get("wg_subnet") or getattr(args, "wg_subnet", None) or f"10.88.{index+1}.0/24"
-        runtime_ip = node.get("wg_runtime_ip") or getattr(args, "wg_runtime_ip", None) or "172.20.0.10"
-        endpoint_port = int(getattr(args, "wg_endpoint_port", None) or node.get("wg_endpoint_port") or 51820)
-        compute_addr = node.get("wg_compute_addr") or f"10.99.0.{index+2}/32"
+        wg_subnet = (
+            node.get("wg_subnet") or getattr(args, "wg_subnet", None) or f"10.88.{index + 1}.0/24"
+        )
+        runtime_ip = (
+            node.get("wg_runtime_ip") or getattr(args, "wg_runtime_ip", None) or "172.20.0.10"
+        )
+        endpoint_port = int(
+            getattr(args, "wg_endpoint_port", None) or node.get("wg_endpoint_port") or 51820
+        )
+        compute_addr = node.get("wg_compute_addr") or f"10.99.0.{index + 2}/32"
         endpoint_host = node.get("host")
 
         compute_dir = ESB_WG_DIR / "compute" / safe_name
@@ -1352,13 +1373,15 @@ def _run_up(args) -> None:
     control_host = _resolve_control_host()
     if not control_host:
         logging.error(
-            "ESB_CONTROL_HOST is required. Set ESB_CONTROL_HOST or GATEWAY_INTERNAL_URL before `esb node up`."
+            "ESB_CONTROL_HOST is required. "
+            "Set ESB_CONTROL_HOST or GATEWAY_INTERNAL_URL before `esb node up`."
         )
         sys.exit(1)
     control_registry = _resolve_control_registry(control_host)
     if not control_registry:
         logging.error(
-            "CONTAINER_REGISTRY is required. Set CONTAINER_REGISTRY or REGISTRY_PORT before `esb node up`."
+            "CONTAINER_REGISTRY is required. "
+            "Set CONTAINER_REGISTRY or REGISTRY_PORT before `esb node up`."
         )
         sys.exit(1)
 
@@ -1378,7 +1401,9 @@ def _run_up(args) -> None:
             f"CONTAINER_REGISTRY={shlex.quote(control_registry)}"  # ty: ignore[invalid-argument-type]  # CLI validated
         )
         logging.step(f"Stopping compute services on {node.get('host')}")
-        _run_remote_command(node, args, f"{control_env} docker compose {compose_args} down --remove-orphans")
+        _run_remote_command(
+            node, args, f"{control_env} docker compose {compose_args} down --remove-orphans"
+        )
         logging.step(f"Cleaning stale compute containers on {node.get('host')}")
         _run_remote_command(
             node,

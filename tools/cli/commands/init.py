@@ -20,9 +20,8 @@ def run(args):
     # Check for silent mode (--env specified)
     if getattr(args, "env", None):
         return run_silent(args)
-    
-    print("🚀 Initializing Edge Serverless Box configuration...")
 
+    print("🚀 Initializing Edge Serverless Box configuration...")
 
     # 1. Find the template file.
     # Priority: 1) main parser --template (cli_config.TEMPLATE_YAML)
@@ -61,7 +60,7 @@ def run(args):
     save_path = template_path.parent / "generator.yml"
     existing_config = {}
     is_overwrite = True
-    
+
     if save_path.exists():
         choice = questionary.select(
             f"File {save_path} already exists. What would you like to do?",
@@ -69,13 +68,13 @@ def run(args):
                 {"name": "Add/Update current environment only", "value": "add"},
                 {"name": "Overwrite everything (Start fresh)", "value": "overwrite"},
                 {"name": "Cancel", "value": "cancel"},
-            ]
+            ],
         ).ask()
-        
+
         if choice == "cancel" or choice is None:
             print("Aborted.")
             sys.exit(0)
-            
+
         if choice == "add":
             is_overwrite = False
             try:
@@ -171,10 +170,11 @@ def run(args):
                 generator_config, f, default_flow_style=False, sort_keys=False, allow_unicode=True
             )
         logging.success(f"Configuration saved to: {save_path}")
-        
+
         # 5. Consistency Cleanup: Delete environment directories not in the list
         if output_dir.exists():
-            logging.info(f"Cleaning up unused environment directories in {logging.highlight(to_rel(output_dir))} ...")
+            rel_path = logging.highlight(to_rel(output_dir))
+            logging.info(f"Cleaning up unused environment directories in {rel_path} ...")
             for item in output_dir.iterdir():
                 if item.is_dir() and item.name not in environments:
                     logging.info(f"  🗑  Removing orphaned environment: {item.name}")
@@ -196,7 +196,8 @@ def run(args):
     except Exception as e:
         print(f"⚠️ Failed to prepare certificates/trust store: {e}")
         print(
-            "You may need to run this command with administrative privileges or manually install the CA cert."
+            "You may need to run this command with administrative privileges "
+            "or manually install the CA cert."
         )
 
 
@@ -205,23 +206,23 @@ def run_silent(args):
     Run silent initialization for E2E testing.
     Creates generator.yml with the specified environments using defaults.
     Always overwrites (creates new file).
-    
+
     Args:
         args: Must have 'env' attribute with comma-separated environment names.
     """
     # Parse environments from comma-separated string
     env_str = args.env
     environments = [e.strip() for e in env_str.split(",") if e.strip()]
-    
+
     if not environments:
         logging.error("No environments specified in --env argument.")
         sys.exit(1)
-    
+
     print(f"🔧 Silent initialization for environments: {', '.join(environments)}")
-    
+
     # 1. Find the template file (same logic as interactive mode)
     template_path = None
-    
+
     if cli_config.TEMPLATE_YAML and cli_config.TEMPLATE_YAML.exists():
         template_path = cli_config.TEMPLATE_YAML.resolve()
     elif getattr(args, "template", None):
@@ -233,25 +234,27 @@ def run_silent(args):
             if c.exists():
                 template_path = c.resolve()
                 break
-    
+
     if not template_path or not template_path.exists():
-        logging.error("No template found. Specify --template or place template.yaml in current directory.")
+        logging.error(
+            "No template found. Specify --template or place template.yaml in current directory."
+        )
         sys.exit(1)
-    
+
     print(f"ℹ Using template: {template_path}")
-    
+
     # 2. Set up paths with defaults
     assert template_path is not None  # Type narrowing for ty
     base_dir = template_path.parent
     save_path = base_dir / "generator.yml"
     default_output_dir = base_dir / ".esb"
-    
+
     def to_rel(p: Path) -> str:
         try:
             return os.path.relpath(p, base_dir)
         except ValueError:
             return str(p)
-    
+
     # 3. Create generator.yml with defaults (always overwrite)
     # Use first environment as the default tag
     generator_config = {
@@ -265,7 +268,7 @@ def run_silent(args):
             "output_dir": to_rel(default_output_dir) + "/",
         },
     }
-    
+
     try:
         with open(save_path, "w", encoding="utf-8") as f:
             yaml.dump(
@@ -275,6 +278,6 @@ def run_silent(args):
     except Exception as e:
         logging.error(f"Failed to save config: {e}")
         sys.exit(1)
-    
+
     # 4. Skip SSL certificates for silent mode (to avoid sudo prompt)
     print("\n🔐 Skipping SSL certificates setup in silent mode.")

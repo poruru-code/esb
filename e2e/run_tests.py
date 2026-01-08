@@ -146,8 +146,6 @@ def main():
 
     failed_entries = []
 
-    initialized_profiles = set()
-
     # Build list of all scenarios to run, grouped by profile
     profile_scenarios: dict[str, dict[str, Any]] = {}
 

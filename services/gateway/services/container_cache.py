@@ -46,7 +46,8 @@ class ContainerHostCache:
         self._cache = TTLCache(maxsize=self.max_size, ttl=self.ttl_seconds)
 
         logger.debug(
-            f"ContainerHostCache initialized (cachetools): max_size={max_size}, ttl={self.ttl_seconds}s"
+            f"ContainerHostCache initialized (cachetools): "
+            f"max_size={max_size}, ttl={self.ttl_seconds}s"
         )
 
     def get(self, function_name: str) -> Optional[str]:

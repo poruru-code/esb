@@ -5,6 +5,21 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+_POWERSHELL_ELEVATION_SCRIPT = (
+    "Start-Process -FilePath 'certutil.exe' "
+    "-ArgumentList '-addstore', '-f', 'Root', '`\"{ca_cert_path}`\"' "
+    "-Verb RunAs -Wait"
+)
+
+_PERMISSION_DENIED_MSG = (
+    "Permission denied while installing Root CA. Please run the terminal as Administrator."
+)
+
+_PERMISSION_DENIED_HINT = (
+    "\n⚠️  Permission denied while installing Root CA. "
+    "Please run the terminal as Administrator to trust the ESB Private CA."
+)
+
 
 def install_root_ca(ca_cert_path: Path):
     """Install the Root CA into the OS trust store."""
@@ -38,7 +53,7 @@ def install_root_ca(ca_cert_path: Path):
                     logger.info("Access denied. Attempting to elevate privileges via PowerShell...")
                     # Use PowerShell to run certutil as administrator.
                     # Use a script block to avoid quoting issues.
-                    ps_script = f"Start-Process -FilePath 'certutil.exe' -ArgumentList '-addstore', '-f', 'Root', '`\"{ca_cert_path}`\"' -Verb RunAs -Wait"
+                    ps_script = _POWERSHELL_ELEVATION_SCRIPT.format(ca_cert_path=ca_cert_path)
                     ps_cmd = ["powershell", "-Command", ps_script]
                     subprocess.run(ps_cmd, check=True)
                 else:
@@ -90,12 +105,8 @@ def install_root_ca(ca_cert_path: Path):
 
     except subprocess.CalledProcessError as e:
         if "2147942405" in str(e) or "Access is denied" in (e.stderr.decode() if e.stderr else ""):
-            logger.warning(
-                "Permission denied while installing Root CA. Please run the terminal as Administrator."
-            )
-            print(
-                "\n⚠️  Permission denied while installing Root CA. Please run the terminal as Administrator to trust the ESB Private CA."
-            )
+            logger.warning(_PERMISSION_DENIED_MSG)
+            print(_PERMISSION_DENIED_HINT)
         else:
             logger.error(f"Failed to install Root CA: {e.stderr.decode() if e.stderr else str(e)}")
             raise

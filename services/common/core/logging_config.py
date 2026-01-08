@@ -21,6 +21,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
+from typing import Optional
 
 import yaml
 
@@ -137,7 +138,7 @@ class VictoriaLogsHandler(logging.Handler):
     On failure, fall back to stderr and rely on Docker's json-file driver.
     """
 
-    def __init__(self, url: str, stream_fields: dict = None, timeout: float = 0.5):
+    def __init__(self, url: str, stream_fields: Optional[dict] = None, timeout: float = 0.5):
         super().__init__()
         self.url = url
         self.stream_fields = stream_fields or {}
@@ -213,7 +214,7 @@ class VictoriaLogsHandler(logging.Handler):
         pass
 
 
-def configure_queue_logging(service_name: str, vl_url: str = None):
+def configure_queue_logging(service_name: str, vl_url: Optional[str] = None):
     """
     Configure async QueueLogging.
     Used for long-running processes like Gateway/Manager.

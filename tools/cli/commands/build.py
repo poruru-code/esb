@@ -34,10 +34,11 @@ def ensure_registry_running(registry=None, extra_files=None, project_name=None):
 
     try:
         import requests
+        import urllib3
         from urllib3.exceptions import InsecureRequestWarning
 
         # Suppress insecure request warnings for local registry checks
-        requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
+        urllib3.disable_warnings(category=InsecureRequestWarning)
 
         # Try HTTPS first, then fallback to HTTP for health check.
         urls = [f"https://{registry}/v2/", f"http://{registry}/v2/"]
@@ -299,7 +300,8 @@ def run(args):
 
     # --- Configuration Staging ---
     # We ALWAYS stage configuration files into services/gateway/.esb-staging/{env}/config
-    # to maintain a consistent build context and enable image baking regardless of template location.
+    # to maintain a consistent build context and enable image baking regardless of
+    # template location.
     # Using env-specific directory to support parallel builds.
     config_dir_abs = output_dir_path / "config"
     gateway_staging_dir = (

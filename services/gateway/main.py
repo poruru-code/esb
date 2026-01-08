@@ -360,7 +360,9 @@ async def list_container_metrics(user_id: UserIdDep, pool_manager: PoolManagerDe
         if not_implemented_errors > 0:
             raise HTTPException(
                 status_code=501,
-                detail="Container metrics are not implemented for the current runtime (e.g. Docker)",
+                detail=(
+                    "Container metrics are not implemented for the current runtime (e.g. Docker)"
+                ),
             )
 
         raise HTTPException(

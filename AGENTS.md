@@ -26,6 +26,14 @@ Use `uv run esb ...` if the venv is not activated.
 - Keep files <= 300 LOC and single-purpose; avoid new deps unless required.
 - Centralize runtime tunables in `*/config.py`; avoid magic numbers in code/tests.
 
+## Strict Code Quality Standards
+- **Linting (Ruff)**: No global ignores for standard rules (e.g., `E501` line length, `F841` unused variables) in `pyproject.toml`.
+  - **Resolution Policy**: Fix long lines by refactoring (e.g., defining constants, splitting functions) rather than suppressing errors.
+- **Type Checking (Ty/Pyright)**: Strict compliance required.
+  - **No Global Ignores**: Do not ignore entire error categories globally.
+  - **Targeted Ignores**: Use scoped `# type: ignore[error-code]` only when absolutely necessary (e.g., for generated Protobuf code or dynamic legacy imports).
+- **Generated Code**: Generated files (e.g., `pb/*`) may have file-level exemptions, but consumer code must handle them explicitly.
+
 ## Testing Guidelines
 - Unit tests live in `services/*/tests` and `tools/*/tests`. E2E scenarios are in `tests/scenarios/*`.
 - Prefer running unit tests during development; run E2E with a running ESB stack (`esb up`).

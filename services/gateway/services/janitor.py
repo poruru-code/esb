@@ -40,7 +40,8 @@ class HeartbeatJanitor:
         """Start the heartbeat loop."""
         self._task = asyncio.create_task(self._loop())
         logger.info(
-            f"Heartbeat Janitor started (interval: {self.interval}s, idle_timeout: {self.idle_timeout}s)"
+            f"Heartbeat Janitor started (interval: {self.interval}s, "
+            f"idle_timeout: {self.idle_timeout}s)"
         )
 
     async def stop(self) -> None:
@@ -149,7 +150,8 @@ class ResourceJanitor:
         """Start the periodic cleanup loop."""
         self._task = asyncio.create_task(self._run_loop())
         logger.info(
-            f"Resource Janitor started (interval: {self.cleanup_interval}s, idle_timeout: {self.idle_timeout}s)"
+            f"Resource Janitor started (interval: {self.cleanup_interval}s, "
+            f"idle_timeout: {self.idle_timeout}s)"
         )
 
     async def stop(self) -> None:

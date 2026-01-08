@@ -88,7 +88,7 @@ class GrpcBackend:
                 env = func_config.get("environment", {})
                 image = func_config.get("image", "")
 
-        req = agent_pb2.EnsureContainerRequest(
+        req = agent_pb2.EnsureContainerRequest(  # type: ignore[attr-defined]
             function_name=function_name,
             image=image,
             env=env,
@@ -115,7 +115,7 @@ class GrpcBackend:
         """
         Explicitly evict a worker.
         """
-        req = agent_pb2.DestroyContainerRequest(function_name=function_name, container_id=worker.id)
+        req = agent_pb2.DestroyContainerRequest(function_name=function_name, container_id=worker.id)  # type: ignore[attr-defined]
         try:
             await self.stub.DestroyContainer(req)
         except grpc.RpcError as e:
@@ -126,7 +126,7 @@ class GrpcBackend:
         """
         Get the state of all workers from Agent (for Janitor).
         """
-        req = agent_pb2.ListContainersRequest()
+        req = agent_pb2.ListContainersRequest()  # type: ignore[attr-defined]
         try:
             resp = await self.stub.ListContainers(req)
             return [
@@ -143,7 +143,7 @@ class GrpcBackend:
             return []
 
     def _handle_grpc_error(self, e: grpc.RpcError, function_name: str):
-        code = e.code()
+        code = e.code()  # type: ignore[attr-defined]
         # gRPC aio errors often have a .details() method
         details = getattr(e, "details", lambda: str(e))()
 

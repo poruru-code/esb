@@ -3,13 +3,16 @@ import os
 from typing import Any, List
 
 from services.common.models.internal import ContainerMetrics, WorkerInfo
-from services.gateway.pb import agent_pb2
+from services.gateway.pb import agent_pb2  # type: ignore
 
 logger = logging.getLogger("gateway.grpc_provision")
 
 
 class GrpcProvisionClient:
-    """gRPC implementation for Agent provisioning, compatible with PoolManager's ProvisionClient interface."""
+    """
+    gRPC implementation for Agent provisioning.
+    Compatible with PoolManager's ProvisionClient interface.
+    """
 
     def __init__(
         self,
@@ -38,16 +41,16 @@ class GrpcProvisionClient:
         env["AWS_LAMBDA_FUNCTION_NAME"] = function_name
         env["AWS_LAMBDA_FUNCTION_VERSION"] = "$LATEST"
         env["AWS_REGION"] = env.get("AWS_REGION", "ap-northeast-1")
-        
+
         # Data Plane Host (fallback for Containerd mode)
         data_plane_host = getattr(config, "ESB_DATA_PLANE_HOST", "10.88.0.1")
 
         # 1. VictoriaLogs (CloudWatch Logs)
         vl_url = getattr(config, "GATEWAY_VICTORIALOGS_URL", "")
-        
+
         if not vl_url:
             vl_url = f"{ServiceDefaults.PROTOCOL}://{data_plane_host}:{ServiceDefaults.VICTORIALOGS_PORT}"
-        
+
         if vl_url:
             env["VICTORIALOGS_URL"] = vl_url
             env["AWS_ENDPOINT_URL_CLOUDWATCH_LOGS"] = vl_url
@@ -64,8 +67,10 @@ class GrpcProvisionClient:
         # 2. DynamoDB
         ddb_url = getattr(config, "DYNAMODB_ENDPOINT", "")
         if not ddb_url:
-            ddb_url = f"{ServiceDefaults.PROTOCOL}://{data_plane_host}:{ServiceDefaults.DYNAMODB_PORT}"
-        
+            ddb_url = (
+                f"{ServiceDefaults.PROTOCOL}://{data_plane_host}:{ServiceDefaults.DYNAMODB_PORT}"
+            )
+
         env["AWS_ENDPOINT_URL_DYNAMODB"] = ddb_url
         env["AWS_ENDPOINT_URL_DYNAMO"] = ddb_url
         env["DYNAMODB_ENDPOINT"] = ddb_url
@@ -74,7 +79,7 @@ class GrpcProvisionClient:
         s3_url = getattr(config, "S3_ENDPOINT", "")
         if not s3_url:
             s3_url = f"{ServiceDefaults.PROTOCOL}://{data_plane_host}:{ServiceDefaults.S3_PORT}"
-            
+
         env["AWS_ENDPOINT_URL_S3"] = s3_url
         env["S3_ENDPOINT"] = s3_url
 
@@ -87,7 +92,7 @@ class GrpcProvisionClient:
 
         logger.warning(f"DEBUG Provisioning Env: {env}")
 
-        req = agent_pb2.EnsureContainerRequest(
+        req = agent_pb2.EnsureContainerRequest(  # type: ignore[attr-defined]
             function_name=function_name,
             image=image or "",
             env=env,
@@ -150,7 +155,7 @@ class GrpcProvisionClient:
 
     async def delete_container(self, container_id: str):
         """Delete a container via gRPC Agent"""
-        req = agent_pb2.DestroyContainerRequest(container_id=container_id)
+        req = agent_pb2.DestroyContainerRequest(container_id=container_id)  # type: ignore[attr-defined]
         try:
             await self.stub.DestroyContainer(req)
         except Exception as e:
@@ -159,7 +164,7 @@ class GrpcProvisionClient:
 
     async def pause_container(self, function_name: str, worker: WorkerInfo) -> None:
         """Pause a container via gRPC Agent"""
-        req = agent_pb2.PauseContainerRequest(container_id=worker.id)
+        req = agent_pb2.PauseContainerRequest(container_id=worker.id)  # type: ignore[attr-defined]
         try:
             await self.stub.PauseContainer(req)
             logger.info(f"Paused container {worker.id} for {function_name}")
@@ -169,11 +174,13 @@ class GrpcProvisionClient:
 
     async def resume_container(self, function_name: str, worker: WorkerInfo) -> None:
         """Resume a paused container via gRPC Agent"""
-        req = agent_pb2.ResumeContainerRequest(container_id=worker.id)
+        req = agent_pb2.ResumeContainerRequest(container_id=worker.id)  # type: ignore[attr-defined]
         try:
             await self.stub.ResumeContainer(req)
             if not self.skip_readiness_check:
-                await self._wait_for_readiness(function_name, worker.ip_address, worker.port or 8080)
+                await self._wait_for_readiness(
+                    function_name, worker.ip_address, worker.port or 8080
+                )
             logger.info(f"Resumed container {worker.id} for {function_name}")
         except Exception as e:
             logger.error(f"Failed to resume container {worker.id} via Agent: {e}")
@@ -181,7 +188,7 @@ class GrpcProvisionClient:
 
     async def list_containers(self) -> List[WorkerInfo]:
         """List all containers via gRPC Agent"""
-        req = agent_pb2.ListContainersRequest()
+        req = agent_pb2.ListContainersRequest()  # type: ignore[attr-defined]
         try:
             resp = await self.stub.ListContainers(req)
             return [
@@ -201,7 +208,7 @@ class GrpcProvisionClient:
 
     async def get_container_metrics(self, container_id: str) -> ContainerMetrics:
         """Get container metrics via gRPC Agent"""
-        req = agent_pb2.GetContainerMetricsRequest(container_id=container_id)
+        req = agent_pb2.GetContainerMetricsRequest(container_id=container_id)  # type: ignore[attr-defined]
         try:
             resp = await self.stub.GetContainerMetrics(req)
             metrics = resp.metrics
