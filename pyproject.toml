@@ -44,6 +44,7 @@ dev = [
     "lefthook",  # Git hooks manager
     "cryptography>=41.0.0",  # For SSL certificate generation
     "requests>=2.31.0",      # For tests
+    "ty>=0.0.1a0",           # Type checker
 ]
 
 [build-system]
@@ -60,6 +61,24 @@ target-version = ["py312"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B"]
+
+[tool.ty.src]
+exclude = [
+    "e2e/",
+    "**/pb/",
+    "**/tests/",
+]
+
+[tool.ty.environment]
+python-version = "3.12"
+
+[tool.ty.rules]
+# Ignore protobuf generated files and test-specific imports
+unresolved-import = "ignore"
+unresolved-attribute = "ignore"
 
 [project.scripts]
 esb = "tools.cli.main:main"
