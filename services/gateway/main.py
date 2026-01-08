@@ -240,6 +240,7 @@ async def trace_propagation_middleware(request: Request, call_next):
                 "aws_request_id": req_id,
                 "method": request.method,
                 "path": request.url.path,
+                "query_params": str(request.query_params),
                 "status": response.status_code,
                 "latency_ms": process_time_ms,
                 "user_agent": request.headers.get("user-agent"),
@@ -473,6 +474,23 @@ async def gateway_handler(
                 status_code=result["status_code"],
                 headers=result["headers"],
             )
+        if config.LOG_PAYLOADS:
+            try:
+                # Limit body log size (e.g. 1KB) to avoid flooding
+                req_body_str = body.decode("utf-8", errors="replace")[:2048]
+                logger.info(
+                    f"Payload Log: {target.container_name}",
+                    extra={
+                        "request_body": req_body_str,
+                        # Response is already parsed in 'result' (dict or bytes)
+                        "response_body": str(result.get("content", result.get("raw_content", "")))[
+                            :2048
+                        ],
+                    },
+                )
+            except Exception as e:
+                logger.warning(f"Failed to log payloads: {e}")
+
         return JSONResponse(
             status_code=result["status_code"], content=result["content"], headers=result["headers"]
         )
