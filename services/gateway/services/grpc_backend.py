@@ -23,7 +23,7 @@ class GrpcBackend:
         function_registry: Optional[FunctionRegistry] = None,
         concurrency_manager: Optional[ConcurrencyManager] = None,
     ):
-        self.channel = grpc.aio.insecure_channel(agent_address)
+        self.channel = grpc.aio.insecure_channel(agent_address)  # type: ignore[possibly-missing-attribute]
         self.stub = agent_pb2_grpc.AgentServiceStub(self.channel)
         self.function_registry = function_registry
         self.concurrency_manager = concurrency_manager

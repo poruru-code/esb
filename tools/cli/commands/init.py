@@ -239,6 +239,7 @@ def run_silent(args):
     print(f"ℹ Using template: {template_path}")
     
     # 2. Set up paths with defaults
+    assert template_path is not None  # Type narrowing for ty
     base_dir = template_path.parent
     save_path = base_dir / "generator.yml"
     default_output_dir = base_dir / ".esb"

@@ -96,7 +96,7 @@ class V1ProxyEventBuilder(EventBuilder):
                 ),
                 authorizer=ApiGatewayAuthorizer(
                     claims={"cognito:username": user_id, "username": user_id},
-                    cognito_username=user_id,
+                    cognito_username=user_id,  # type: ignore[unknown-argument]  # pydantic Field alias
                 ),
                 requestId=aws_request_id,
                 path=str(request.url.path),

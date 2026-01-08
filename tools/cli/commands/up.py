@@ -175,18 +175,20 @@ def run(args):
     compose_files = [str(p) for p in cli_compose.resolve_compose_files(mode)] + (extra_files or [])
     
     logging.step("Discovering assigned ports...")
-    ports = discover_ports(project_name, compose_files, mode)
+    ports: dict | None = None
+    if project_name:
+        ports = discover_ports(project_name, compose_files, mode)
     
-    if ports:
-        # Apply to environment variables
-        apply_ports_to_env(ports)
-        
-        # Persist to file
-        port_file = save_ports(env_name, ports)
-        logging.info(f"Port mapping saved to {logging.highlight(str(port_file))}")
-        
-        # Log port assignments
-        log_ports(env_name, ports)
+        if ports:
+            # Apply to environment variables
+            apply_ports_to_env(ports)
+            
+            # Persist to file
+            port_file = save_ports(env_name, ports)
+            logging.info(f"Port mapping saved to {logging.highlight(str(port_file))}")
+            
+            # Log port assignments
+            log_ports(env_name, ports)
 
     # 3. Infrastructure provisioning.
     logging.step("Preparing infrastructure...")
