@@ -411,3 +411,77 @@ def test_build_function_images_without_registry(mock_docker, monkeypatch, tmp_pa
     assert mock_client.images.build.called
     # Ensure push was NOT called
     mock_client.images.push.assert_not_called()
+
+
+@patch("tools.cli.commands.build.ensure_registry_running")
+@patch("tools.cli.commands.build.build_function_images")
+@patch("tools.cli.commands.build.build_base_image", return_value=True)
+@patch("tools.cli.commands.build.generator.generate_files")
+@patch("tools.cli.commands.build.generator.load_config")
+@patch("tools.cli.commands.build.shutil.copy2")
+@patch("tools.cli.commands.build.shutil.rmtree")
+@patch("tools.cli.commands.build.cli_config.get_build_output_dir")
+@patch("tools.cli.commands.build.cli_config.get_env_name", return_value="testenv")
+def test_build_staging_happens_after_generation(
+    mock_get_env_name,
+    mock_get_output_dir,
+    mock_rmtree,
+    mock_copy2,
+    mock_load_config,
+    mock_generate_files,
+    mock_build_base,
+    mock_build_funcs,
+    mock_ensure_registry,
+    tmp_path,
+    monkeypatch,
+):
+    """Ensure that configuration staging (copying files) happens AFTER file generation."""
+    # Setup paths
+    build_dir = tmp_path / "build"
+    config_dir = build_dir / "config"
+    config_dir.mkdir(parents=True)
+
+    # Create dummy config files so copy logic triggers
+    (config_dir / "functions.yml").touch()
+    (config_dir / "routing.yml").touch()
+
+    mock_get_output_dir.return_value = build_dir
+
+    # Track order
+    manager = MagicMock()
+    manager.attach_mock(mock_generate_files, "generate_files")
+    manager.attach_mock(mock_copy2, "copy2")
+
+    mock_load_config.return_value = {"app": {}, "paths": {}}
+    mock_generate_files.return_value = []
+
+    # Run
+    args = MagicMock()
+    args.dry_run = False
+    args.verbose = False
+    args.no_cache = False
+
+    run(args)
+
+    # Verify order
+    # generate_files must be called
+    assert mock_generate_files.called
+    # copy2 must be called (for functions.yml and routing.yml)
+    assert mock_copy2.called
+
+    # Check that the FIRST copy2 call happened AFTER generate_files
+    generate_idx = -1
+    first_copy_idx = -1
+
+    for i, call in enumerate(manager.mock_calls):
+        name = call[0]
+        if name == "generate_files":
+            generate_idx = i
+        elif name == "copy2" and first_copy_idx == -1:
+            first_copy_idx = i
+
+    assert generate_idx != -1
+    assert first_copy_idx != -1
+    assert generate_idx < first_copy_idx, (
+        f"generate_files ({generate_idx}) should be called before copy2 ({first_copy_idx})"
+    )
