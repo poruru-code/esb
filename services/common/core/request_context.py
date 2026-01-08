@@ -5,8 +5,8 @@ Use ContextVar to share TraceId across async execution.
 
 from contextvars import ContextVar
 from typing import Optional
-from .trace import TraceId
 
+from .trace import TraceId
 
 # Context variable for Trace ID (full header format).
 _trace_id_var: ContextVar[Optional[str]] = ContextVar("trace_id", default=None)

@@ -1,21 +1,18 @@
 # Where: tools/cli/commands/watch.py
 # What: Watch for file changes and reload services.
 # Why: Provide a lightweight hot-reload workflow for CLI users.
-import time
 import subprocess
+import time
 from pathlib import Path
-from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler
+
 import docker
+from watchdog.events import FileSystemEventHandler
+from watchdog.observers import Observer
 
-from tools.provisioner import main as provisioner
-from tools.cli.config import PROJECT_ROOT
 from tools.cli import compose as cli_compose
-
-
-
-from tools.cli.core import logging
-from tools.cli.core import proxy
+from tools.cli.config import PROJECT_ROOT
+from tools.cli.core import logging, proxy
+from tools.provisioner import main as provisioner
 
 
 class SmartReloader(FileSystemEventHandler):
@@ -54,9 +51,9 @@ class SmartReloader(FileSystemEventHandler):
 
         # 1. Regenerate config.
         logging.info("Regenerating configs...")
-        from tools.cli.commands.build import generator
-        from tools.cli.config import PROJECT_ROOT, E2E_DIR, TEMPLATE_YAML
         from tools.cli import config as cli_config
+        from tools.cli.commands.build import generator
+        from tools.cli.config import E2E_DIR, PROJECT_ROOT, TEMPLATE_YAML
 
         config_path = E2E_DIR / "generator.yml"
         if not config_path.exists():

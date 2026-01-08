@@ -2,12 +2,11 @@
 # What: Tests for the CLI logs command behavior.
 # Why: Ensure compose invocation stays consistent across options.
 """Unit tests for esb logs command"""
-import pytest
-from unittest.mock import patch, MagicMock
 from argparse import Namespace
+from unittest.mock import patch
 
-from tools.cli.commands import logs
 from tools.cli import config as cli_config
+from tools.cli.commands import logs
 
 
 @patch("tools.cli.compose.runtime_mode.get_mode", return_value=cli_config.ESB_MODE_CONTAINERD)

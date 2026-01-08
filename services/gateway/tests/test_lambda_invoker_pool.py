@@ -4,9 +4,10 @@ Tests for LambdaInvoker Pool Mode (Auto-Scaling)
 TDD: Tests for pool-based invocation with self-healing.
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
 import httpx
+import pytest
 
 
 class TestLambdaInvokerPoolMode:
@@ -92,8 +93,8 @@ class TestLambdaInvokerPoolMode:
         mock_pool_manager,
     ):
         """After successful invoke, worker should be released to pool"""
-        from services.gateway.services.lambda_invoker import LambdaInvoker
         from services.common.models.internal import WorkerInfo
+        from services.gateway.services.lambda_invoker import LambdaInvoker
 
         worker = WorkerInfo(id="c1", name="w1", ip_address="10.0.0.1")
         mock_pool_manager.acquire_worker = AsyncMock(return_value=worker)
@@ -118,8 +119,8 @@ class TestLambdaInvokerPoolMode:
         mock_pool_manager,
     ):
         """On connection error, worker should be evicted (self-healing)."""
-        from services.gateway.services.lambda_invoker import LambdaInvoker
         from services.common.models.internal import WorkerInfo
+        from services.gateway.services.lambda_invoker import LambdaInvoker
 
         worker = WorkerInfo(id="c_dead", name="dead-worker", ip_address="10.0.0.99")
         mock_pool_manager.acquire_worker = AsyncMock(return_value=worker)

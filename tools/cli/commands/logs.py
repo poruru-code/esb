@@ -15,11 +15,9 @@ Examples:
 """
 import subprocess
 import sys
-from tools.cli.config import PROJECT_ROOT
-from tools.cli import compose as cli_compose
 
-from tools.cli.core import logging
-from tools.cli.core import context
+from tools.cli import compose as cli_compose
+from tools.cli.core import context, logging
 
 
 def run(args):

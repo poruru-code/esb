@@ -1,8 +1,10 @@
-import pytest
 from unittest.mock import Mock
+
+import pytest
 from fastapi import Request, Response
+
+from services.common.core.request_context import clear_trace_id, get_trace_id
 from services.gateway.main import trace_propagation_middleware
-from services.common.core.request_context import get_trace_id, clear_trace_id
 
 
 @pytest.mark.asyncio
@@ -60,8 +62,9 @@ async def test_trace_propagation_middleware_generates_id_if_missing():
 async def test_trace_propagation_middleware_generates_request_id():
     """Ensure middleware generates Request ID independently of Trace ID and sets response header."""
     import uuid
-    from services.common.core import request_context
     from unittest.mock import MagicMock
+
+    from services.common.core import request_context
 
     # Arrange
     request = MagicMock(spec=Request)

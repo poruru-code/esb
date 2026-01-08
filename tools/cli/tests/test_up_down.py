@@ -1,6 +1,7 @@
-from unittest.mock import patch, MagicMock
-from tools.cli.commands.up import run as run_up
+from unittest.mock import MagicMock, patch
+
 from tools.cli.commands.down import run as run_down
+from tools.cli.commands.up import run as run_up
 
 
 @patch("tools.cli.commands.up.context.enforce_env_arg")

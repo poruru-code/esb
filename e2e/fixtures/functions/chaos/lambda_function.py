@@ -1,7 +1,8 @@
-import time
-import sys
 import os
-from common.utils import handle_ping, parse_event_body, create_response
+import sys
+import time
+
+from common.utils import create_response, handle_ping, parse_event_body
 
 
 def lambda_handler(event, context):

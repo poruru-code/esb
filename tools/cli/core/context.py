@@ -2,12 +2,11 @@
 # What: Centralized context management and validation for CLI commands.
 # Why: Ensure consistent environment argument handling and pre-execution validation.
 
+import argparse
 import os
 import sys
-import argparse
-from typing import Any
-from pathlib import Path
-import questionary # Added for interactive selection
+
+import questionary  # Added for interactive selection
 
 from tools.cli import config as cli_config
 from tools.cli.core import logging
@@ -126,7 +125,7 @@ def _validate_environment_initialized() -> None:
             if env_name not in initialized_envs:
                 logging.error(f"Environment '{env_name}' is not initialized in {config_path.name}.")
                 print(f"\nInitialized environments: {', '.join(initialized_envs) if initialized_envs else 'None'}")
-                print(f"Please run the init command for this environment:")
+                print("Please run the init command for this environment:")
                 print(f"  esb init --env={env_name}")
                 sys.exit(1)
     except Exception as e:
@@ -150,6 +149,6 @@ def _validate_environment_exists() -> None:
     if not config_dir.exists():
         logging.error(f"Environment '{env_name}' is not built.")
         print(f"\nSaved configuration not found at: {config_dir}")
-        print(f"Please run the build command first:")
+        print("Please run the build command first:")
         print(f"  esb build --env={env_name}")
         sys.exit(1)

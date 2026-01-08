@@ -8,16 +8,18 @@ os.environ["AUTH_PASS"] = "test-pass"
 os.environ["CONTAINERS_NETWORK"] = "test-net"
 os.environ["AGENT_GRPC_ADDRESS"] = "localhost:50051"
 
-import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import grpc
-from unittest.mock import AsyncMock, patch, MagicMock
-from services.gateway.services.grpc_backend import GrpcBackend
+import pytest
+
 from services.gateway.core.exceptions import (
-    OrchestratorUnreachableError,
-    OrchestratorTimeoutError,
     ContainerStartError,
+    OrchestratorTimeoutError,
+    OrchestratorUnreachableError,
 )
 from services.gateway.pb import agent_pb2
+from services.gateway.services.grpc_backend import GrpcBackend
 
 
 class MockRpcError(grpc.RpcError, grpc.Call):

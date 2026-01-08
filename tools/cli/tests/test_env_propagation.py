@@ -1,7 +1,8 @@
 import os
 import sys
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 # Mock data
 TEST_ENV = "test_env_arg"
@@ -105,9 +106,10 @@ def test_reset_propagates_env_to_subcommands(mock_env_vars):
 def test_main_arg_parsing_sets_env_and_calls_setup(mock_env_vars):
     """Test that main.py strictly prioritizes --env arg and calls setup_environment."""
     # Import inside test
-    from tools.cli import main
     # We also need to reload main or ensure it's fresh if it was imported before
     import importlib
+
+    from tools.cli import main
     importlib.reload(main)
     
     test_args = ["esb", "up", "--env", TEST_ENV]

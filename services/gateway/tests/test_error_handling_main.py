@@ -1,7 +1,9 @@
-from fastapi.testclient import TestClient
-from services.gateway.main import app
-from services.gateway.core.exceptions import ResourceExhaustedError
 from unittest.mock import patch
+
+from fastapi.testclient import TestClient
+
+from services.gateway.core.exceptions import ResourceExhaustedError
+from services.gateway.main import app
 
 
 def test_resource_exhausted_error_returns_429():

@@ -5,8 +5,9 @@ Parse SAM template (YAML) and extract Lambda function information.
 Safely handle CloudFormation intrinsic functions (!Sub, !Ref, etc.).
 """
 
-import yaml
 from typing import Any
+
+import yaml
 
 
 class CfnLoader(yaml.SafeLoader):
@@ -104,7 +105,7 @@ def parse_sam_template(content: str, parameters: dict | None = None) -> dict:
         # --- Phase 1: Events (API Gateway) parsing ---
         events = props.get("Events", {})
         api_routes = []
-        for event_name, event_props in events.items():
+        for _, event_props in events.items():
             # Only handle Type: Api (API Gateway).
             if event_props.get("Type") == "Api":
                 evt_properties = event_props.get("Properties", {})

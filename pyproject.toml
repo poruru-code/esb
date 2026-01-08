@@ -65,6 +65,28 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "B"]
 
+[tool.ruff.lint.per-file-ignores]
+"tools/pyinfra/esb_node_provision.py" = ["E501"]
+"tools/cli/commands/node_payload.py" = ["E501"]
+"tools/cli/core/context.py" = ["E501"]
+"tools/cli/core/trust_store.py" = ["E501"]
+"tools/cli/main.py" = ["E501"]
+"tools/cli/commands/node.py" = ["E501"]
+"tools/cli/commands/reset.py" = ["E501"]
+"tools/cli/commands/build.py" = ["E501"]
+"tools/cli/commands/init.py" = ["E501"]
+"services/gateway/main.py" = ["E501"]
+"services/gateway/services/pool_manager.py" = ["E501"]
+"services/gateway/services/container_cache.py" = ["E501"]
+"services/gateway/services/grpc_provision.py" = ["E501"]
+"services/gateway/services/janitor.py" = ["E501"]
+"**/pb/*" = ["E501"]
+"e2e/**" = ["E501", "B017", "F841"]
+"e2e/run_tests.py" = ["E501"]
+"**/tests/*" = ["E501", "F841", "B017"]
+"**/tests/**" = ["E501", "F841", "B017"]
+
+
 [tool.ty.src]
 exclude = [
     "e2e/",

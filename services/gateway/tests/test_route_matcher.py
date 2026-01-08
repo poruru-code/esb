@@ -1,7 +1,9 @@
+from unittest.mock import Mock, mock_open, patch
+
 import pytest
-from unittest.mock import Mock, patch, mock_open
-from services.gateway.services.route_matcher import RouteMatcher
+
 from services.gateway.services.function_registry import FunctionRegistry
+from services.gateway.services.route_matcher import RouteMatcher
 
 
 @pytest.fixture

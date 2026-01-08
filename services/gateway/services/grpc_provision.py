@@ -1,7 +1,8 @@
 import logging
 import os
-from typing import List, Any
-from services.common.models.internal import WorkerInfo, ContainerMetrics
+from typing import Any, List
+
+from services.common.models.internal import ContainerMetrics, WorkerInfo
 from services.gateway.pb import agent_pb2
 
 logger = logging.getLogger("gateway.grpc_provision")
@@ -28,7 +29,7 @@ class GrpcProvisionClient:
 
         logger.info(f"Provisioning via gRPC Agent: {function_name}")
 
-        from services.gateway.config import config, ServiceDefaults
+        from services.gateway.config import ServiceDefaults, config
 
         # Base env from function config
         env = dict(func_config.get("environment", {})) if func_config else {}
@@ -126,6 +127,7 @@ class GrpcProvisionClient:
         """Confirm readiness by attempting to establish a TCP connection."""
         import asyncio
         import time
+
         from services.gateway.core.exceptions import ContainerStartError
 
         start_time = time.time()

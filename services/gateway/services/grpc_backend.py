@@ -1,17 +1,18 @@
-import grpc
 import logging
-from typing import List, Optional, Dict
+from typing import List, Optional
+
+import grpc
 
 from services.common.models.internal import WorkerInfo
-from services.gateway.pb import agent_pb2, agent_pb2_grpc
-from services.gateway.core.exceptions import (
-    OrchestratorUnreachableError,
-    OrchestratorTimeoutError,
-    ContainerStartError,
-)
-from services.gateway.services.lambda_invoker import WorkerState
-from services.gateway.services.function_registry import FunctionRegistry
 from services.gateway.core.concurrency import ConcurrencyManager
+from services.gateway.core.exceptions import (
+    ContainerStartError,
+    OrchestratorTimeoutError,
+    OrchestratorUnreachableError,
+)
+from services.gateway.pb import agent_pb2, agent_pb2_grpc
+from services.gateway.services.function_registry import FunctionRegistry
+from services.gateway.services.lambda_invoker import WorkerState
 
 logger = logging.getLogger(__name__)
 

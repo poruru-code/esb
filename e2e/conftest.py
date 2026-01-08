@@ -5,9 +5,9 @@ Common settings for split test files.
 Each test file uses fixtures and constants from this conftest.py.
 """
 
+import json
 import os
 import time
-import json
 
 import pytest
 import requests

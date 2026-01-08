@@ -1,9 +1,10 @@
-from unittest.mock import patch, MagicMock
 from pathlib import Path
+from unittest.mock import MagicMock, patch
+
 import pytest
 
-from tools.cli.commands.build import run, build_base_image, build_function_images
 from tools.cli import config as cli_config
+from tools.cli.commands.build import build_base_image, build_function_images, run
 from tools.cli.core import proxy
 
 
@@ -275,8 +276,9 @@ def test_build_base_image_failure_exits(
 @pytest.mark.no_mock_enforce
 def test_build_redirects_to_init_when_config_missing_and_confirmed(tmp_path):
     """Call init when generator.yml is missing and the user selects Yes."""
-    from tools.cli.commands import build, init
     from argparse import Namespace
+
+    from tools.cli.commands import build
 
     args = Namespace(dry_run=False, verbose=False, no_cache=False)
     
@@ -311,8 +313,9 @@ def test_build_redirects_to_init_when_config_missing_and_confirmed(tmp_path):
 @pytest.mark.no_mock_enforce
 def test_build_aborts_when_config_missing_and_cancelled(tmp_path):
     """Exit when generator.yml is missing and the user selects No."""
-    from tools.cli.commands import build
     from argparse import Namespace
+
+    from tools.cli.commands import build
 
     args = Namespace(dry_run=False, verbose=False, no_cache=False)
     

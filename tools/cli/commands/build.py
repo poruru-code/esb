@@ -1,16 +1,16 @@
-import docker
 import os
-import sys
-import subprocess
 import shutil
+import subprocess
+import sys
 from pathlib import Path
-from tools.generator import main as generator
-from tools.cli import config as cli_config
+
+import docker
+
+from tools.cli import build_service_images, runtime_mode
 from tools.cli import compose as cli_compose
-from tools.cli import runtime_mode
-from tools.cli import build_service_images
-from tools.cli.core import logging
-from tools.cli.core import proxy
+from tools.cli import config as cli_config
+from tools.cli.core import logging, proxy
+from tools.generator import main as generator
 
 # Directory for the ESB Lambda base image.
 RUNTIME_DIR = cli_config.PROJECT_ROOT / "tools" / "generator" / "runtime"
@@ -251,7 +251,8 @@ def build_function_images(
             sys.exit(1)
 
 
-from tools.cli.core import context
+from tools.cli.core import context  # noqa: E402
+
 
 def run(args):
     dry_run = getattr(args, "dry_run", False)
@@ -301,27 +302,29 @@ def run(args):
     # to maintain a consistent build context and enable image baking regardless of template location.
     # Using env-specific directory to support parallel builds.
     config_dir_abs = output_dir_path / "config"
-    gateway_staging_dir = cli_config.PROJECT_ROOT / "services" / "gateway" / ".esb-staging" / env_name / "config"
+    gateway_staging_dir = (
+        cli_config.PROJECT_ROOT / "services" / "gateway" / ".esb-staging" / env_name / "config"
+    )
     staging_relative_path = f"services/gateway/.esb-staging/{env_name}/config"
-    
+
     logging.info(f"Staging configuration to {logging.highlight(staging_relative_path)} ...")
-    
+
     try:
         # Clean and recreate staging directory
         if gateway_staging_dir.exists():
             shutil.rmtree(gateway_staging_dir)
         gateway_staging_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Copy configuration files
         for cfg_file in ["functions.yml", "routing.yml"]:
             src = config_dir_abs / cfg_file
             if src.exists():
                 shutil.copy2(src, gateway_staging_dir / cfg_file)
-        
+
         # Set ESB_CONFIG_DIR to the staged path relative to project root
         os.environ["ESB_CONFIG_DIR"] = staging_relative_path
         logging.success("Staging complete. Configuration will be baked into the image.")
-        
+
     except Exception as e:
         logging.error(f"Failed to stage configuration: {e}")
         logging.warning("Falling back to runtime (empty) configuration.")

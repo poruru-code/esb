@@ -5,9 +5,10 @@ Reduces latency by caching container host information from Manager,
 avoiding redundant HTTP calls on warm starts.
 """
 
-import os
 import logging
+import os
 from typing import Optional
+
 from cachetools import TTLCache
 
 logger = logging.getLogger("gateway.container_cache")

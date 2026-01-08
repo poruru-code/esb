@@ -17,8 +17,8 @@ if str(project_root) not in sys.path:
 
 def main():
     from tools.cli import config as cli_config
+    from tools.cli.commands import build, down, init, logs, node, reset, stop, up, watch
     from tools.cli.core import context
-    from tools.cli.commands import build, up, watch, down, stop, reset, init, logs, node
 
     parser = argparse.ArgumentParser(
         description="Edge Serverless Box CLI", formatter_class=argparse.RawDescriptionHelpFormatter
@@ -333,7 +333,6 @@ def main():
         set_template_yaml(args.template)
     
     # Ensure template is available (required for most commands)
-    from tools.cli import config as cli_config
     if cli_config.TEMPLATE_YAML is None:
         print("❌ No template specified.")
         print("\nPlease specify a template using --template or set ESB_TEMPLATE environment variable:")

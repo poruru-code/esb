@@ -1,6 +1,8 @@
-from unittest.mock import patch, MagicMock
 from pathlib import Path
+from unittest.mock import MagicMock, patch
+
 from tools.cli.commands.reset import run as run_reset
+
 
 # Common patches
 @patch("builtins.input")

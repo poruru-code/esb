@@ -1,11 +1,12 @@
-from unittest.mock import MagicMock, patch
 import os
-import yaml
-import pytest
-from tools.cli.commands import up
+from unittest.mock import MagicMock, patch
 
+import pytest
+import yaml
 
 from tools.cli import config as cli_config
+from tools.cli.commands import up
+
 
 class TestUpCommand:
     @pytest.fixture(autouse=True)

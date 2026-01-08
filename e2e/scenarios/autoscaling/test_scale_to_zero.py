@@ -14,9 +14,10 @@ import os
 import subprocess
 import time
 
-import pytest
-from e2e.conftest import call_api
 import grpc
+import pytest
+
+from e2e.conftest import call_api
 from services.gateway.pb import agent_pb2, agent_pb2_grpc
 
 GRPC_TIMEOUT_SECONDS = float(os.environ.get("GRPC_TIMEOUT_SECONDS", "1.0"))

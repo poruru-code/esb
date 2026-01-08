@@ -1,10 +1,9 @@
 """Unit tests for esb init command"""
-import sys
-import yaml
-import pytest
-from pathlib import Path
-from unittest.mock import patch, MagicMock, PropertyMock
 from argparse import Namespace
+from unittest.mock import patch
+
+import pytest
+import yaml
 
 from tools.cli.commands import init
 

@@ -1,6 +1,7 @@
-import requests
 import json
 from datetime import datetime, timedelta
+
+import requests
 
 VICTORIALOGS_URL = "http://localhost:9428"
 

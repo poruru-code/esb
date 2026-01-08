@@ -2,9 +2,10 @@
 # What: CLI entrypoint tests for command dispatch.
 # Why: Validate argument parsing and routing behavior.
 import sys
-import pytest
 from unittest.mock import patch
-from tools.cli import config as cli_config
+
+import pytest
+
 from tools.cli.main import main
 
 

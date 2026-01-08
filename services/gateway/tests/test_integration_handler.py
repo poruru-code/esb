@@ -1,15 +1,17 @@
-import pytest
 import json
 from unittest.mock import AsyncMock
+
+import pytest
 from fastapi.testclient import TestClient
-from services.gateway.main import app
-from services.gateway.core.exceptions import FunctionNotFoundError
+
 from services.gateway.api.deps import (
-    verify_authorization,
-    resolve_lambda_target,
     get_lambda_invoker,
     get_orchestrator_client,
+    resolve_lambda_target,
+    verify_authorization,
 )
+from services.gateway.core.exceptions import FunctionNotFoundError
+from services.gateway.main import app
 from services.gateway.models import TargetFunction
 
 

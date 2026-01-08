@@ -1,6 +1,8 @@
 import asyncio
+
 import pytest
-from services.gateway.core.concurrency import FunctionThrottle, ConcurrencyManager
+
+from services.gateway.core.concurrency import ConcurrencyManager, FunctionThrottle
 from services.gateway.core.exceptions import ResourceExhaustedError
 
 

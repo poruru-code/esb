@@ -5,22 +5,20 @@ Manage request handler dependencies using FastAPI Depends.
 """
 
 from typing import Annotated, Optional
+
 from fastapi import Depends, Header, HTTPException, Request
 from httpx import AsyncClient
 
+from ..client import OrchestratorClient
 from ..config import config
+from ..core.event_builder import EventBuilder
 from ..core.security import verify_token
 from ..models import TargetFunction
-from ..core.event_builder import EventBuilder
-
-
+from ..services.container_cache import ContainerHostCache
 from ..services.function_registry import FunctionRegistry
-from ..services.route_matcher import RouteMatcher
 from ..services.lambda_invoker import LambdaInvoker
 from ..services.pool_manager import PoolManager
-from ..client import OrchestratorClient
-from ..services.container_cache import ContainerHostCache
-
+from ..services.route_matcher import RouteMatcher
 
 # ==========================================
 # 1. Service Accessors

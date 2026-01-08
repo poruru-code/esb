@@ -1,6 +1,6 @@
-from . import down, up, build
-from tools.cli.core import logging
-from tools.cli.core import context
+from tools.cli.core import context, logging
+
+from . import build, down, up
 
 
 def run(args):

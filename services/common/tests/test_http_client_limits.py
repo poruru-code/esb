@@ -1,5 +1,7 @@
-import httpx
 from unittest.mock import patch
+
+import httpx
+
 from services.common.core.config import BaseAppConfig
 from services.common.core.http_client import HttpClientFactory
 

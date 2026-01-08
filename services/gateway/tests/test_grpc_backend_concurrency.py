@@ -8,12 +8,14 @@ os.environ["AUTH_PASS"] = "test-pass"
 os.environ["CONTAINERS_NETWORK"] = "test-net"
 os.environ["AGENT_GRPC_ADDRESS"] = "localhost:50051"
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
-from services.gateway.services.grpc_backend import GrpcBackend
+
 from services.gateway.core.concurrency import ConcurrencyManager
 from services.gateway.core.exceptions import ResourceExhaustedError
 from services.gateway.pb import agent_pb2
+from services.gateway.services.grpc_backend import GrpcBackend
 
 
 @pytest.fixture

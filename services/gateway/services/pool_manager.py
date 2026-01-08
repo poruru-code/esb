@@ -8,10 +8,11 @@ capacity management.
 
 import asyncio
 import logging
-from typing import Callable, Dict, List, Any, Optional, Set
+from typing import Any, Callable, Dict, List, Optional, Set
+
+from services.common.models.internal import WorkerInfo
 
 from .container_pool import ContainerPool
-from services.common.models.internal import WorkerInfo
 
 logger = logging.getLogger("gateway.pool_manager")
 
@@ -111,9 +112,7 @@ class PoolManager:
             except asyncio.CancelledError:
                 return
             except Exception as e:
-                logger.error(
-                    f"Failed to pause container {worker.id} for {function_name}: {e}"
-                )
+                logger.error(f"Failed to pause container {worker.id} for {function_name}: {e}")
             finally:
                 if task_ref and self._pause_tasks.get(worker.id) is task_ref:
                     self._pause_tasks.pop(worker.id, None)
@@ -236,7 +235,7 @@ class PoolManager:
         logger.info("Shutting down all pools...")
         await self._cancel_all_pause_tasks()
         self._paused_ids.clear()
-        for fname, pool in self._pools.items():
+        for _, pool in self._pools.items():
             workers = await pool.drain()
             for w in workers:
                 self._deleting_ids.add(w.id)
@@ -277,6 +276,7 @@ class PoolManager:
         This prevents deleting containers during creation/readiness checks.
         """
         import time
+
         from services.gateway.config import config as gateway_config
 
         grace_period = gateway_config.ORPHAN_GRACE_PERIOD_SECONDS
@@ -297,7 +297,8 @@ class PoolManager:
 
             # 3. Detect orphans (present in actual but not known and not already being deleted).
             orphans = [
-                c for c in actual_containers 
+                c
+                for c in actual_containers
                 if c.id not in known_ids and c.id not in self._deleting_ids
             ]
 

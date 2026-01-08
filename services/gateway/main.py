@@ -5,50 +5,52 @@ Replicates AWS API Gateway and Lambda Authorizer behavior and forwards
 requests to Lambda RIE containers based on routing.yml.
 """
 
+import asyncio
+import json
+import logging
 from contextlib import asynccontextmanager
 from dataclasses import asdict
-from fastapi import FastAPI, Request, HTTPException, Header, BackgroundTasks
-from fastapi.responses import JSONResponse, Response
-from fastapi.exceptions import RequestValidationError
-from starlette.exceptions import HTTPException as StarletteHTTPException
-from typing import Optional
 from datetime import datetime, timezone
-import asyncio
-import httpx
-import logging
-import json
-from .config import config
-from .core.security import create_access_token
-from .core.utils import parse_lambda_response
-from .models import AuthRequest, AuthResponse, AuthenticationResult
-from .core.event_builder import V1ProxyEventBuilder
+from typing import Optional
 
-# Services Imports
-from .services.function_registry import FunctionRegistry
-from .services.route_matcher import RouteMatcher
-from .services.lambda_invoker import LambdaInvoker
-from .services.pool_manager import PoolManager
-from .services.janitor import HeartbeatJanitor
+import httpx
+from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse, Response
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from services.common.core.http_client import HttpClientFactory
 
 from .api.deps import (
-    UserIdDep,
-    LambdaTargetDep,
-    LambdaInvokerDep,
-    FunctionRegistryDep,
     EventBuilderDep,
+    FunctionRegistryDep,
+    LambdaInvokerDep,
+    LambdaTargetDep,
     PoolManagerDep,
+    UserIdDep,
 )
-from .core.logging_config import setup_logging
-from services.common.core.http_client import HttpClientFactory
+from .config import config
+from .core.event_builder import V1ProxyEventBuilder
 from .core.exceptions import (
+    ContainerStartError,
+    FunctionNotFoundError,
+    LambdaExecutionError,
+    ResourceExhaustedError,
     global_exception_handler,
     http_exception_handler,
     validation_exception_handler,
-    ContainerStartError,
-    LambdaExecutionError,
-    FunctionNotFoundError,
-    ResourceExhaustedError,
 )
+from .core.logging_config import setup_logging
+from .core.security import create_access_token
+from .core.utils import parse_lambda_response
+from .models import AuthenticationResult, AuthRequest, AuthResponse
+
+# Services Imports
+from .services.function_registry import FunctionRegistry
+from .services.janitor import HeartbeatJanitor
+from .services.lambda_invoker import LambdaInvoker
+from .services.pool_manager import PoolManager
+from .services.route_matcher import RouteMatcher
 
 # Logger setup
 setup_logging()
@@ -98,10 +100,11 @@ async def lifespan(app: FastAPI):
     logger.info(f"Initializing Gateway with Go Agent gRPC Backend: {config.AGENT_GRPC_ADDRESS}")
 
     # New ARCH: PoolManager -> GrpcProvisionClient -> Agent
-    from .services.grpc_provision import GrpcProvisionClient
-    from .services.agent_invoke import AgentInvokeClient
     import grpc
+
     from .pb import agent_pb2_grpc
+    from .services.agent_invoke import AgentInvokeClient
+    from .services.grpc_provision import GrpcProvisionClient
 
     # shared channel for lifecycle and info
     channel = grpc.aio.insecure_channel(config.AGENT_GRPC_ADDRESS)  # ty: ignore[possibly-missing-attribute]  # grpc.aio not in stubs
@@ -120,9 +123,7 @@ async def lifespan(app: FastAPI):
         pause_idle_seconds=config.PAUSE_IDLE_SECONDS,
     )
     if config.ENABLE_CONTAINER_PAUSE:
-        logger.info(
-            "Container pause enabled (idle_delay=%ss)", config.PAUSE_IDLE_SECONDS
-        )
+        logger.info("Container pause enabled (idle_delay=%ss)", config.PAUSE_IDLE_SECONDS)
 
     # Cleanup orphan containers from previous runs
     await pool_manager.cleanup_all_containers()
@@ -186,12 +187,13 @@ async def trace_propagation_middleware(request: Request, call_next):
     Middleware for Trace ID propagation and structured access logging.
     """
     import time
-    from services.common.core.trace import TraceId
+
     from services.common.core.request_context import (
-        set_trace_id,
         clear_trace_id,
         generate_request_id,
+        set_trace_id,
     )
+    from services.common.core.trace import TraceId
 
     start_time = time.perf_counter()
 
@@ -332,15 +334,15 @@ async def list_container_metrics(user_id: UserIdDep, pool_manager: PoolManagerDe
     failures = 0
     not_implemented_errors = 0
 
-    for container, result in zip(containers, results):
+    for container, result in zip(containers, results, strict=True):
         if isinstance(result, Exception):
             err_msg = str(result)
             logger.error(f"Failed to fetch metrics for container {container.id}: {err_msg}")
-            
+
             # Check for "not implemented" error from Agent (Docker runtime)
             if "metrics not implemented" in err_msg.lower():
                 not_implemented_errors += 1
-            
+
             failures += 1
             metrics_list.append(
                 {
@@ -356,11 +358,11 @@ async def list_container_metrics(user_id: UserIdDep, pool_manager: PoolManagerDe
         # If all failed and at least one was "not implemented", return 501
         # (Assuming consistent runtime across containers)
         if not_implemented_errors > 0:
-             raise HTTPException(
+            raise HTTPException(
                 status_code=501,
                 detail="Container metrics are not implemented for the current runtime (e.g. Docker)",
             )
-        
+
         raise HTTPException(
             status_code=503,
             detail="Container metrics are unavailable from Agent runtime",

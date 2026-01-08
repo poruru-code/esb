@@ -6,8 +6,8 @@ but RIE (Runtime Interface Emulator) lacks this, so we pass the Trace ID via Cli
 """
 
 import asyncio
-import os
 import logging
+import os
 from functools import wraps
 
 logger = logging.getLogger(__name__)

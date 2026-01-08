@@ -13,13 +13,13 @@ import time
 import requests
 
 from e2e.conftest import (
-    GATEWAY_URL,
-    VERIFY_SSL,
     DEFAULT_REQUEST_TIMEOUT,
+    GATEWAY_URL,
     ORCHESTRATOR_RESTART_WAIT,
     STABILIZATION_WAIT,
-    request_with_retry,
+    VERIFY_SSL,
     call_api,
+    request_with_retry,
 )
 
 

@@ -1,18 +1,16 @@
 # Where: tools/cli/commands/stop.py
 # What: Stop ESB services without removing them.
 # Why: Preserve container state/logs/volumes between runs.
-import subprocess
 import os
-from tools.cli.config import PROJECT_ROOT
-from tools.cli import compose as cli_compose
+import subprocess
 
-from tools.cli.core import logging
-from tools.cli.core import proxy
+from tools.cli import compose as cli_compose
+from tools.cli.core import logging, proxy
+
 
 def run(args):
 
 
-    from tools.cli import config as cli_config
 
     logging.step("Stopping services (preserving state)...")
     compose_args = ["stop"]

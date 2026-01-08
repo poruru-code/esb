@@ -4,7 +4,7 @@ Gateway Utility Module
 
 import json
 import logging
-from typing import Dict, Any
+from typing import Any, Dict
 
 import httpx
 

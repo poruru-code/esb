@@ -1,5 +1,6 @@
 import os
-from tools.cli.config import find_project_root, PROJECT_ROOT, get_image_tag
+
+from tools.cli.config import PROJECT_ROOT, find_project_root, get_image_tag
 
 
 def test_find_project_root():

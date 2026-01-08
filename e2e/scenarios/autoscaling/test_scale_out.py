@@ -13,9 +13,10 @@ import os
 import subprocess
 import time
 
-import pytest
-from e2e.conftest import call_api
 import grpc
+import pytest
+
+from e2e.conftest import call_api
 from services.gateway.pb import agent_pb2, agent_pb2_grpc
 
 # Scale-out tests run against the gRPC Agent path.

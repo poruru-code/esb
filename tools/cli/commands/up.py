@@ -2,28 +2,23 @@
 # What: Start ESB services via docker compose.
 # Why: Boot the local stack with consistent CLI behavior.
 import os
-import sys
-import yaml
 import subprocess
-import shutil
+import sys
+import time
 from pathlib import Path
+
+import requests
+import yaml
+
+from tools.cli import compose as cli_compose
+from tools.cli import config as cli_config
+from tools.cli import runtime_mode
 
 # from . import build
 from tools.cli.commands import build
-from tools.provisioner import main as provisioner
-from tools.cli import config as cli_config
-from tools.cli import compose as cli_compose
-from tools.cli import runtime_mode
-from tools.cli.config import PROJECT_ROOT
-
-
-
-from tools.cli.core import logging
+from tools.cli.core import context, logging, proxy
 from tools.cli.core.cert import ensure_certs
-from tools.cli.core import proxy
-from tools.cli.core import context
-import time
-import requests
+from tools.provisioner import main as provisioner
 
 
 def wait_for_gateway(timeout=60):
@@ -168,7 +163,12 @@ def run(args):
         sys.exit(1)
 
     # 2.5 Discover and persist dynamic ports
-    from tools.cli.core.port_discovery import discover_ports, save_ports, apply_ports_to_env, log_ports
+    from tools.cli.core.port_discovery import (
+        apply_ports_to_env,
+        discover_ports,
+        log_ports,
+        save_ports,
+    )
     
     env_name = cli_config.get_env_name()
     mode = runtime_mode.get_mode()

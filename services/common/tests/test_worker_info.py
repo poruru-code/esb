@@ -1,5 +1,7 @@
-import pytest
 import time
+
+import pytest
+
 from services.common.models.internal import WorkerInfo
 
 

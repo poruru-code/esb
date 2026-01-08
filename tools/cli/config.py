@@ -1,12 +1,9 @@
 # Where: tools/cli/config.py
 # What: CLI configuration constants and path helpers.
 # Why: Centralize CLI defaults and filesystem locations.
-from pathlib import Path
-
 import os
-
-
-from typing import Any, Optional
+from pathlib import Path
+from typing import Optional
 
 
 def find_project_root(current_path: Optional[Path] = None) -> Path:

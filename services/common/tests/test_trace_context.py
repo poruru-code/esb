@@ -3,10 +3,11 @@ TraceContext tests (unified Trace ID)
 """
 
 import pytest
+
 from services.common.core.request_context import (
+    clear_trace_id,
     get_trace_id,
     set_trace_id,
-    clear_trace_id,
 )
 
 

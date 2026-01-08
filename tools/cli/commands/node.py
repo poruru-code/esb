@@ -5,8 +5,8 @@ import getpass
 import json
 import os
 import re
-import shutil
 import shlex
+import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -16,11 +16,10 @@ from urllib.parse import urlparse
 
 import yaml
 
-from tools.cli.core import logging
-from tools.cli.core import proxy
-from tools.cli import config as cli_config
 from tools.cli import compose as cli_compose
+from tools.cli import config as cli_config
 from tools.cli import runtime_mode
+from tools.cli.core import logging, proxy
 
 
 def _env_int(name: str, default: int) -> int:
@@ -688,11 +687,11 @@ def _fetch_payload_via_ssh(args) -> str | None:
     password = _normalize_secret(getattr(args, "password", None))
     identity_file = _normalize_path(getattr(args, "identity_file", None)) or _default_identity_file()
     if identity_file:
-        setattr(args, "identity_file", identity_file)
+        args.identity_file = identity_file
 
     if not password and not identity_file:
         password = _prompt_secret(f"{user}@{host} password")
-        setattr(args, "password", password)
+        args.password = password
 
     if password:
         logging.step(f"Fetching node payload via SSH ({user}@{host}:{port})")

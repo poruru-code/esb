@@ -15,12 +15,12 @@ Options:
 """
 
 import argparse
-import sys
 import shutil
+import sys
 import zipfile
-import yaml
 from pathlib import Path
 
+import yaml
 
 from .parser import parse_sam_template
 from .renderer import render_dockerfile, render_functions_yml, render_routing_yml

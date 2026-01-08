@@ -1,10 +1,11 @@
 import pytest
 from pydantic import ValidationError
+
 from services.gateway.models.aws_v1 import (
+    ApiGatewayAuthorizer,
+    ApiGatewayIdentity,
     APIGatewayProxyEvent,
     ApiGatewayRequestContext,
-    ApiGatewayIdentity,
-    ApiGatewayAuthorizer,
 )
 
 

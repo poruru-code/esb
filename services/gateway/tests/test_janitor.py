@@ -4,9 +4,10 @@ Tests for HeartbeatJanitor
 TDD: RED phase - write tests first, then implement.
 """
 
-import pytest
 import asyncio
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 
 class TestHeartbeatJanitor:

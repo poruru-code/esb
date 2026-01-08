@@ -3,14 +3,13 @@
 # Why: Provide registry images for firecracker-mode node compose.
 from __future__ import annotations
 
-from pathlib import Path
 import os
+from pathlib import Path
 
 import docker
 
 from tools.cli import config as cli_config
-from tools.cli.core import logging
-from tools.cli.core import proxy
+from tools.cli.core import logging, proxy
 
 SERVICE_IMAGES: dict[str, Path] = {
     "esb-runtime-node": cli_config.PROJECT_ROOT / "services" / "runtime-node",

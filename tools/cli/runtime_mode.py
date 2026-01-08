@@ -1,5 +1,4 @@
 import os
-from pathlib import Path
 
 from tools.cli import config as cli_config
 

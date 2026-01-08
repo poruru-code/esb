@@ -1,8 +1,10 @@
 import asyncio
 import logging
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 import httpx
+
+from services.common.core.request_context import get_trace_id
 
 from .core.exceptions import (
     FunctionNotFoundError,
@@ -11,7 +13,6 @@ from .core.exceptions import (
     OrchestratorUnreachableError,
 )
 from .services.container_cache import ContainerHostCache
-from services.common.core.request_context import get_trace_id
 
 logger = logging.getLogger("gateway.client")
 

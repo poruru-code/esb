@@ -1,10 +1,12 @@
-import pytest
-import respx
-import httpx
 import re
 from unittest.mock import AsyncMock, MagicMock
-from services.gateway.services.lambda_invoker import LambdaInvoker
+
+import httpx
+import pytest
+import respx
+
 from services.gateway.config import GatewayConfig
+from services.gateway.services.lambda_invoker import LambdaInvoker
 
 
 @pytest.mark.asyncio

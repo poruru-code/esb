@@ -4,7 +4,8 @@ TargetFunction model.
 Data class representing the result of routing resolution.
 """
 
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
 from pydantic import BaseModel
 
 

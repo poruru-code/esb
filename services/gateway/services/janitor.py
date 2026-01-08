@@ -10,8 +10,8 @@ import time
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .pool_manager import PoolManager
     from .grpc_backend import GrpcBackend
+    from .pool_manager import PoolManager
 
 logger = logging.getLogger("gateway.janitor")
 

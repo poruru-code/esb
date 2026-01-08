@@ -5,23 +5,25 @@ Acquires workers via the InvocationBackend strategy and sends invoke requests to
 Business logic layer for boto3.client('lambda').invoke()-compatible endpoints.
 """
 
-import logging
-import json
 import base64
+import json
+import logging
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Protocol
+
 import grpc
 import httpx
-from typing import Dict, Optional, Protocol, List
-from dataclasses import dataclass
+
 from services.common.core.request_context import get_trace_id
-from services.gateway.services.function_registry import FunctionRegistry
+from services.common.models.internal import WorkerInfo
 from services.gateway.config import GatewayConfig
 from services.gateway.core.circuit_breaker import CircuitBreaker, CircuitBreakerOpenError
 from services.gateway.core.exceptions import (
     ContainerStartError,
     LambdaExecutionError,
 )
-from services.common.models.internal import WorkerInfo
 from services.gateway.services.agent_invoke import AgentInvokeClient
+from services.gateway.services.function_registry import FunctionRegistry
 
 logger = logging.getLogger("gateway.lambda_invoker")
 
