@@ -611,7 +611,7 @@ def _node_ssh_target(node: dict[str, Any], args) -> tuple[str, str, int]:
     host = node.get("host")
     user = args.user or node.get("user") or "root"
     port = int(args.port or node.get("port") or 22)
-    return host, user, port
+    return host, user, port  # ty: ignore[invalid-return-type]  # CLI dict access returns Any
 
 
 def _remote_compose_dir() -> str:
@@ -696,7 +696,7 @@ def _fetch_payload_via_ssh(args) -> str | None:
 
     if password:
         logging.step(f"Fetching node payload via SSH ({user}@{host}:{port})")
-        result = _run_remote_python(host, user, port, password, REMOTE_PAYLOAD_PY)
+        result = _run_remote_python(host, user, port, password, REMOTE_PAYLOAD_PY)  # ty: ignore[invalid-argument-type]  # CLI validated
         if result is None:
             return None
         stdout, stderr = result
@@ -1375,8 +1375,8 @@ def _run_up(args) -> None:
         _upload_support_files(node, args)
         compose_args = " ".join([f"-f {path}" for path in remote_paths])
         control_env = (
-            f"ESB_CONTROL_HOST={shlex.quote(control_host)} "
-            f"CONTAINER_REGISTRY={shlex.quote(control_registry)}"
+            f"ESB_CONTROL_HOST={shlex.quote(control_host)} "  # ty: ignore[invalid-argument-type]  # CLI validated
+            f"CONTAINER_REGISTRY={shlex.quote(control_registry)}"  # ty: ignore[invalid-argument-type]  # CLI validated
         )
         logging.step(f"Stopping compute services on {node.get('host')}")
         _run_remote_command(node, args, f"{control_env} docker compose {compose_args} down --remove-orphans")

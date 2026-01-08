@@ -114,7 +114,7 @@ class GrpcProvisionClient:
         except Exception as e:
             # gRPC RpcError details extraction
             if hasattr(e, "details"):
-                details = e.details()
+                details = e.details()  # ty: ignore[call-non-callable]  # grpc RpcError dynamic method
                 logger.error(f"Failed to provision via Agent: {e} (Details: {details})")
             else:
                 logger.error(f"Failed to provision via Agent: {e}")

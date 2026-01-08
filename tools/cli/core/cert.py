@@ -204,7 +204,7 @@ def generate_server_cert(cert_dir: Path, ca_key_path: Path, ca_cert_path: Path):
         )
     )
 
-    cert = builder.sign(ca_key, hashes.SHA256())
+    cert = builder.sign(ca_key, hashes.SHA256())  # ty: ignore[invalid-argument-type]  # cryptography type stubs incomplete
 
     with open(server_key_file, "wb") as f:
         f.write(

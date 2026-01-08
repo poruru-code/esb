@@ -104,7 +104,7 @@ async def lifespan(app: FastAPI):
     from .pb import agent_pb2_grpc
 
     # shared channel for lifecycle and info
-    channel = grpc.aio.insecure_channel(config.AGENT_GRPC_ADDRESS)
+    channel = grpc.aio.insecure_channel(config.AGENT_GRPC_ADDRESS)  # ty: ignore[possibly-missing-attribute]  # grpc.aio not in stubs
     agent_stub = agent_pb2_grpc.AgentServiceStub(channel)
 
     grpc_provision_client = GrpcProvisionClient(
@@ -147,7 +147,7 @@ async def lifespan(app: FastAPI):
         client=client,
         registry=function_registry,
         config=config,
-        backend=invocation_backend,
+        backend=invocation_backend,  # ty: ignore[invalid-argument-type]  # PoolManager implements InvocationBackend protocol
         agent_invoker=agent_invoker,
     )
 
@@ -252,9 +252,9 @@ async def trace_propagation_middleware(request: Request, call_next):
 
 
 # Register exception handlers.
-app.add_exception_handler(Exception, global_exception_handler)
-app.add_exception_handler(StarletteHTTPException, http_exception_handler)
-app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(Exception, global_exception_handler)  # ty: ignore[invalid-argument-type]  # Starlette type stubs incomplete
+app.add_exception_handler(StarletteHTTPException, http_exception_handler)  # ty: ignore[invalid-argument-type]  # Starlette type stubs incomplete
+app.add_exception_handler(RequestValidationError, validation_exception_handler)  # ty: ignore[invalid-argument-type]  # Starlette type stubs incomplete
 
 
 @app.exception_handler(FunctionNotFoundError)
@@ -405,7 +405,7 @@ async def invoke_lambda_api(
     try:
         if invocation_type == "Event":
             # Async invoke: run in background, return 202 immediately.
-            background_tasks.add_task(
+            background_tasks.add_task(  # ty: ignore[invalid-argument-type]  # FastAPI BackgroundTasks type stubs
                 invoker.invoke_function,
                 function_name,
                 body,
