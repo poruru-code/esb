@@ -1,8 +1,24 @@
 {
-  "python.analysis.typeCheckingMode": "off",
+  // Python: Use 'ty' extension for LSP features, disable default language server (Pylance/Jedi)
+  "python.languageServer": "None",
   "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+
+  // Python: Ruff for formatting and linting (aligned with lefthook)
   "[python]": {
-    "editor.defaultFormatter": "ms-python.black-formatter",
-    "editor.formatOnSave": true
-  }
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll.ruff": "explicit",
+      "source.organizeImports.ruff": "explicit"
+    }
+  },
+
+  // Ty Type Checker Configuration
+  "ty.enable": true,
+  "ty.args": [
+    "check",
+    // Target directories aligned with CLI/CI command
+    "tools/",
+    "services/gateway/"
+  ]
 }
