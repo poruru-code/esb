@@ -11,7 +11,7 @@ COPY sitecustomize.py /opt/python/sitecustomize.py
 
 {% for layer in layers %}
 # Layer: {{ layer.name }}
-COPY {{ layer.content_uri }} /opt/
+COPY {{ layer.content_uri }}/ /opt/
 {% endfor %}
 {% if has_requirements %}
 

@@ -14,8 +14,18 @@ def mock_template(monkeypatch):
     """Mock TEMPLATE_YAML to avoid early exit in main()."""
     monkeypatch.setattr("tools.cli.config.TEMPLATE_YAML", "fake-template.yaml")
     # Also skip context validation in main tests as they are dispatch tests
-    monkeypatch.setattr("tools.cli.core.context._validate_environment_initialized", lambda *args, **kwargs: None)
-    monkeypatch.setattr("tools.cli.core.context._validate_environment_exists", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        "tools.cli.core.context._validate_environment_initialized",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "tools.cli.core.context._validate_environment_exists",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "tools.cli.core.context._prompt_environment_selection",
+        lambda: "default",
+    )
     yield
 
 
@@ -30,7 +40,6 @@ def test_cli_help(capsys):
     assert "Edge Serverless Box CLI" in captured.out
     assert "build" in captured.out
     assert "up" in captured.out
-    assert "watch" in captured.out
     assert "down" in captured.out
     assert "init" in captured.out
     assert "node" in captured.out

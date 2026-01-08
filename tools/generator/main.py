@@ -15,6 +15,7 @@ Options:
 """
 
 import argparse
+import re
 import shutil
 import sys
 import zipfile
@@ -110,11 +111,16 @@ def generate_files(
         output_dir = output_dir_raw
 
     functions_staging_dir = output_dir / "functions"
+    layers_staging_dir = output_dir / "layers"
 
     if not dry_run and functions_staging_dir.exists():
         if verbose:
             print(f"Cleaning up staging directory: {functions_staging_dir}")
         shutil.rmtree(functions_staging_dir)
+    if not dry_run and layers_staging_dir.exists():
+        if verbose:
+            print(f"Cleaning up layer staging directory: {layers_staging_dir}")
+        shutil.rmtree(layers_staging_dir)
 
     def _resolve_resource_path(p: str) -> Path:
         """Resolve a relative path from the template file."""
@@ -125,6 +131,18 @@ def generate_files(
             if verbose:
                 print(f"WARNING: Resource not found at: {target}")
         return target
+
+    def _layer_staging_name(layer_src: Path) -> str:
+        """Generate a stable layer staging name from its resolved path."""
+        try:
+            rel = layer_src.resolve().relative_to(base_dir.resolve())
+            rel_str = rel.as_posix().strip("/")
+        except ValueError:
+            rel_str = layer_src.name
+        safe = re.sub(r"[^A-Za-z0-9._-]+", "_", rel_str)
+        return safe or layer_src.name
+
+    staged_layers: dict[Path, str] = {}
 
     # Generate Dockerfiles for each function.
     for func in functions:
@@ -142,9 +160,9 @@ def generate_files(
             shutil.copytree(func_src_dir, staging_src_dir, dirs_exist_ok=True)
 
         # Pass relative staging paths to the renderer.
-        func["code_uri"] = "src/"
+        func["code_uri"] = f"functions/{func_name}/src/"
         func["dockerfile_path"] = str(dockerfile_dir / "Dockerfile")
-        func["context_path"] = str(dockerfile_dir)
+        func["context_path"] = str(output_dir)
 
         # 3. Copy layers (within staging).
         new_layers = []
@@ -156,45 +174,47 @@ def generate_files(
                 continue
 
             layer_src = _resolve_resource_path(content_uri)
+            if not layer_src.exists():
+                continue
 
-            if layer_src.exists():
-                target_name = layer_src.name
-                layers_dir = dockerfile_dir / "layers"
-                layers_dir.mkdir(parents=True, exist_ok=True)
-
-                # Per-layer directory: layers/<layer_name>/
-                # Whether unzipped or copied, place everything under this directory.
-                staging_layer_root = layers_dir / target_name
-                # Clean up once (just in case).
-                if staging_layer_root.exists():
-                    shutil.rmtree(staging_layer_root)
-                staging_layer_root.mkdir(parents=True, exist_ok=True)
-
-                if layer_src.is_file() and layer_src.suffix == ".zip":
-                    # Unzip files when the layer is a zip file.
-                    if verbose:
-                        print(f"Unzipping layer: {layer_src} -> {staging_layer_root}")
-                    with zipfile.ZipFile(layer_src, "r") as zip_ref:
-                        zip_ref.extractall(staging_layer_root)
-
-                    # Pass as a directory to the Dockerfile.
-                    layer_copy["content_uri"] = f"layers/{target_name}"
-
-                elif layer_src.is_dir():
-                    # Copy directories as-is.
-                    if verbose:
-                        print(f"Copying layer directory: {layer_src} -> {staging_layer_root}")
-                    # staging_layer_root already exists; copy content using dirs_exist_ok=True.
-                    shutil.copytree(layer_src, staging_layer_root, dirs_exist_ok=True)
-
-                    layer_copy["content_uri"] = f"layers/{target_name}"
-
-                else:
-                    if verbose:
-                        print(f"WARNING: Skipping unsupported layer type: {layer_src}")
-                    continue
-
+            layer_key = layer_src.resolve()
+            if layer_key in staged_layers:
+                layer_copy["content_uri"] = staged_layers[layer_key]
                 new_layers.append(layer_copy)
+                continue
+
+            target_name = _layer_staging_name(layer_src)
+            layers_staging_dir.mkdir(parents=True, exist_ok=True)
+
+            # Per-layer directory: layers/<layer_name>/
+            # Whether unzipped or copied, place everything under this directory.
+            staging_layer_root = layers_staging_dir / target_name
+            # Clean up once (just in case).
+            if staging_layer_root.exists():
+                shutil.rmtree(staging_layer_root)
+            staging_layer_root.mkdir(parents=True, exist_ok=True)
+
+            if layer_src.is_file() and layer_src.suffix.lower() == ".zip":
+                # Unzip files when the layer is a zip file.
+                if verbose:
+                    print(f"Unzipping layer: {layer_src} -> {staging_layer_root}")
+                with zipfile.ZipFile(layer_src, "r") as zip_ref:
+                    zip_ref.extractall(staging_layer_root)
+            elif layer_src.is_dir():
+                # Copy directories as-is.
+                if verbose:
+                    print(f"Copying layer directory: {layer_src} -> {staging_layer_root}")
+                # staging_layer_root already exists; copy content using dirs_exist_ok=True.
+                shutil.copytree(layer_src, staging_layer_root, dirs_exist_ok=True)
+            else:
+                if verbose:
+                    print(f"WARNING: Skipping unsupported layer type: {layer_src}")
+                continue
+
+            layer_rel = f"layers/{target_name}"
+            staged_layers[layer_key] = layer_rel
+            layer_copy["content_uri"] = layer_rel
+            new_layers.append(layer_copy)
 
         # Layer list rewritten to local paths for this function.
         func["layers"] = new_layers
@@ -217,9 +237,9 @@ def generate_files(
         else:
             if verbose:
                 print(f"WARNING: sitecustomize.py not found at {site_src}")
-        # Override to reference from Dockerfile root.
+        # Override to reference from the build context root.
         docker_config_copy = docker_config.copy()
-        docker_config_copy["sitecustomize_source"] = "sitecustomize.py"
+        docker_config_copy["sitecustomize_source"] = f"functions/{func_name}/sitecustomize.py"
 
         # Check for requirements.txt (within context).
         func["has_requirements"] = (staging_src_dir / "requirements.txt").exists()

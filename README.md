@@ -10,7 +10,7 @@ Why: Provide a single entry point for developers and operators.
 
 ### 特徴
 - **True AWS Compatibility**: 実行エンジンに **AWS Lambda Runtime Interface Emulator (RIE)** を採用。クラウド上の Lambda と完全に一致する挙動をローカル環境で保証します。
-- **Integrated Developer Experience (CLI)**: 専用 CLI ツール `esb` を提供。環境構築からホットリロード開発まで、コマンド一つでシームレスな開発体験を提供します。
+- **Integrated Developer Experience (CLI)**: 専用 CLI ツール `esb` を提供。環境構築からビルド・起動まで、コマンド一つでシームレスな開発体験を提供します。
 - **Production-Ready Architecture**: 外部公開用の `Gateway` と特権を持つ `Go Agent` を分離したマイクロサービス構成により、セキュリティと耐障害性を実現しています。
 - **Docker-Contained Runtime**: `runtime-node` に `containerd + CNI + CoreDNS` を集約し、ホストのネットワーク改変を最小化しつつ Firecracker/Remote Node での透明なサービス解決を実現します。
 - **Full Stack in a Box**: S3互換ストレージ (RustFS)、DynamoDB互換DB (ScyllaDB)、ログ基盤を同梱しており、`esb up` だけで完全なクラウドネイティブ環境が手に入ります。
@@ -23,7 +23,6 @@ Why: Provide a single entry point for developers and operators.
 | `esb init`           | `generator.yml` を対話的に生成します。新規プロジェクト開始時に実行します。         | `--template (-t)`                                                                            |
 | `esb build`          | `template.yaml` から設定を生成し、Docker イメージをビルドします。                  | `--no-cache`, `--dry-run`, `--verbose (-v)`                                                  |
 | `esb up`             | サービスの起動とインフラのプロビジョニングを一括で行います（デフォルトでdetach）。 | `--build`, `--wait`                                                                          |
-| `esb watch`          | ファイル変更を監視し、自動的にリロード・リビルドを実行します。                     | -                                                                                            |
 | `esb down`           | サービスを停止し、コンテナを削除します。                                           | `--volumes (-v)`                                                                             |
 | `esb reset`          | 環境を完全に初期化し、DB等のデータも全て削除して再構築します。                     | `--yes (-y)`, `--rmi`                                                                        |
 | `esb logs`           | サービスログを表示します。                                                         | `--follow (-f)`, `--tail`, `--timestamps`                                                    |
@@ -116,12 +115,10 @@ flowchart TD
         esb[esb CLI] -->|build| Generator[SAM Generator]
         esb -->|up| DockerCompose[Docker Compose]
         esb -->|up| Provisioner[Provisioner]
-        esb -->|watch| Watcher[File Watcher]
     end
     
     Generator -->|Automate| Routing[routing.yml]
     Generator -->|Automate| Dockerfiles[Dockerfiles]
-    Watcher -->|Trigger| esb
 ```
 
 ### システムコンポーネント
@@ -275,28 +272,6 @@ esb up --build
 * **Gateway API**: `https://localhost:443`
 * **VictoriaLogs**: `http://localhost:9428`
 
-### 開発モード / ホットリロード (`esb watch`)
-
-ファイルの変更を検知して、自動的にビルドや再設定を行う「監視モード」です。
-開発中は別のターミナルでこのコマンドを実行したままにすることを推奨します。
-
-```bash
-esb watch
-
-```
-
-* **`template.yaml` を変更した場合**:
-* 設定ファイルの再生成
-* Gateway のルーティング更新（再起動）
-* 新規リソース（DynamoDBテーブル等）の自動作成
-
-
-* **Lambda関数コード (`.py`) を変更した場合**:
-* 対象関数の Docker イメージのみ高速リビルド
-* 実行中のコンテナを停止（次回リクエスト時に新コードで起動）
-
-
-
 ### 環境の停止 (`esb down`)
 
 コンテナおよびネットワークリソースをクリーンに削除します。
@@ -407,8 +382,7 @@ MyFunction:
 2. **コードの配置**:
 `functions/my-func/lambda_function.py` を作成します。
 3. **反映**:
-`esb watch` が起動していれば、保存した瞬間に自動的に環境に反映されます。
-手動で反映する場合は `esb build && esb up` を実行してください。
+`esb build && esb up` を実行してください。
 
 ### Infrastructure as Code (IaC)
 

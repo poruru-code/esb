@@ -12,7 +12,6 @@ uv sync --all-extras        # install dev deps
 lefthook install            # git hooks (ruff/go lint)
 esb build                   # generate config + build images
 esb up --build              # start services (Docker Compose)
-esb watch                   # hot reload on file changes
 python e2e/run_tests.py   # full E2E suite
 python e2e/run_tests.py --profile e2e-containerd  # specific profile
 python e2e/run_tests.py --unit-only
