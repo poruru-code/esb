@@ -9,7 +9,7 @@ import asyncio
 import logging
 import time
 from collections import deque
-from typing import Callable, Awaitable, List, Set, Deque
+from typing import Callable, Awaitable, List, Set, Deque, Dict
 
 from services.common.models.internal import WorkerInfo
 

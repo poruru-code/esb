@@ -80,7 +80,7 @@ DEFAULT_ESB_MODE = ESB_MODE_DOCKER
 DEFAULT_AGENT_GRPC_PORT = 50051
 
 
-def get_port_mapping(env_name: str = None) -> dict[str, str]:
+def get_port_mapping(env_name: str | None = None) -> dict[str, str]:
     """Calculate port mappings based on environment name."""
     if env_name is None:
         env_name = get_env_name()
@@ -117,7 +117,7 @@ def get_port_mapping(env_name: str = None) -> dict[str, str]:
     return mapping
 
 
-def get_generator_parameters(env_name: str = None) -> dict[str, str]:
+def get_generator_parameters(env_name: str | None = None) -> dict[str, str]:
     """Calculate parameters for the SAM template generator based on current mode."""
 
     # Common parameters (like ports) are already handled by environment variables
@@ -130,7 +130,7 @@ def get_generator_parameters(env_name: str = None) -> dict[str, str]:
     }
 
 
-def get_registry_config(env_name: str = None) -> dict[str, str | None]:
+def get_registry_config(env_name: str | None = None) -> dict[str, str | None]:
     """Calculate external and internal registry addresses."""
     from tools.cli import runtime_mode
 
@@ -144,7 +144,7 @@ def get_registry_config(env_name: str = None) -> dict[str, str | None]:
     return {"external": f"localhost:{registry_port}", "internal": "registry:5010"}
 
 
-def get_image_tag(env_name: str = None) -> str:
+def get_image_tag(env_name: str | None = None) -> str:
     """Resolve the image tag for the current environment."""
     if env_name is None:
         env_name = get_env_name()
@@ -153,7 +153,7 @@ def get_image_tag(env_name: str = None) -> str:
     return os.getenv("ESB_IMAGE_TAG", env_name)
 
 
-def get_subnet_config(env_name: str = None) -> dict[str, str]:
+def get_subnet_config(env_name: str | None = None) -> dict[str, str]:
     """Calculate subnet configuration (simple offset strategy)."""
     if env_name is None:
         env_name = get_env_name()

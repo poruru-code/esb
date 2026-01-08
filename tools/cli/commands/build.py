@@ -16,7 +16,7 @@ from tools.cli.core import proxy
 RUNTIME_DIR = cli_config.PROJECT_ROOT / "tools" / "generator" / "runtime"
 
 
-def get_base_image_tag(tag: str = None) -> str:
+def get_base_image_tag(tag: str | None = None) -> str:
     """Evaluate base image tag dynamically."""
     if tag is None:
         tag = cli_config.get_image_tag()

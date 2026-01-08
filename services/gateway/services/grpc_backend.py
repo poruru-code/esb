@@ -1,6 +1,6 @@
 import grpc
 import logging
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 from services.common.models.internal import WorkerInfo
 from services.gateway.pb import agent_pb2, agent_pb2_grpc
@@ -100,6 +100,7 @@ class GrpcBackend:
             )
         except grpc.RpcError as e:
             self._handle_grpc_error(e, function_name)
+            raise  # Unreachable, but satisfies type checker
 
     async def release_worker(self, function_name: str, worker: WorkerInfo) -> None:
         """
