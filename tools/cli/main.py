@@ -18,7 +18,7 @@ if str(project_root) not in sys.path:
 def main():
     from tools.cli import config as cli_config
     from tools.cli.core import context
-    from tools.cli.commands import build, up, watch, down, stop, reset, init, logs, node, mode
+    from tools.cli.commands import build, up, watch, down, stop, reset, init, logs, node
 
     parser = argparse.ArgumentParser(
         description="Edge Serverless Box CLI", formatter_class=argparse.RawDescriptionHelpFormatter
@@ -116,15 +116,6 @@ def main():
     logs_parser.add_argument(
         "--env", type=str, help="Environment name"
     )
-
-    # --- mode command ---
-    mode_parser = subparsers.add_parser("mode", help="Manage runtime mode")
-    mode_subparsers = mode_parser.add_subparsers(
-        dest="mode_command", required=True, help="Mode subcommand"
-    )
-    mode_subparsers.add_parser("get", help="Show current runtime mode")
-    mode_set_parser = mode_subparsers.add_parser("set", help="Set runtime mode")
-    mode_set_parser.add_argument("mode", choices=cli_config.VALID_ESB_MODES)
 
     # --- node command ---
     node_parser = subparsers.add_parser("node", help="Manage compute nodes")
@@ -343,7 +334,7 @@ def main():
     
     # Ensure template is available (required for most commands)
     from tools.cli import config as cli_config
-    if cli_config.TEMPLATE_YAML is None and args.command != "mode":
+    if cli_config.TEMPLATE_YAML is None:
         print("❌ No template specified.")
         print("\nPlease specify a template using --template or set ESB_TEMPLATE environment variable:")
         print("  esb --template=<path/to/template.yaml> <command>")
@@ -372,8 +363,6 @@ def main():
             reset.run(args)
         elif args.command == "logs":
             logs.run(args)
-        elif args.command == "mode":
-            mode.run(args)
         elif args.command == "node":
             node.run(args)
     except KeyboardInterrupt:

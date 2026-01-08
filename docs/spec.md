@@ -149,12 +149,12 @@ Gateway は external_network 上で起動し、443 をホストに公開しま�
 
 ### 5.1 Compose ファイル構成
 
-| ファイル                          | 役割                                      | 主な用途                                   |
-| --------------------------------- | ----------------------------------------- | ------------------------------------------ |
-| `docker-compose.yml`              | Control/Core（Gateway + 依存サービス）    | Control Plane（単一ノード/分離構成の共通） |
-| **`docker-compose.registry.yml`** | **Registry**                              | Containerd/Firecracker モードで自動追加    |
-| `docker-compose.node.yml`         | Compute（runtime-node/agent/coredns）     | Compute Node（Firecracker/remote）         |
-| `docker-compose.containerd.yml`   | Adapter（単一ノード結合 / coredns）       | Core + Compute を同一ホストで統合          |
+| ファイル                          | 役割                                   | 主な用途                                   |
+| --------------------------------- | -------------------------------------- | ------------------------------------------ |
+| `docker-compose.yml`              | Control/Core（Gateway + 依存サービス） | Control Plane（単一ノード/分離構成の共通） |
+| **`docker-compose.registry.yml`** | **Registry**                           | Containerd/Firecracker モードで自動追加    |
+| `docker-compose.node.yml`         | Compute（runtime-node/agent/coredns）  | Compute Node（Firecracker/remote）         |
+| `docker-compose.containerd.yml`   | Adapter（単一ノード結合 / coredns）    | Core + Compute を同一ホストで統合          |
 
 ### 5.2 起動パターン（docker compose）
 
@@ -178,4 +178,4 @@ docker compose -f docker-compose.node.yml up -d
 注意:
 - `docker compose -f` は指定順に合成され、後のファイルが前の内容を上書きします。
 - パスは最初の `-f` のディレクトリ基準で解決されます（必要なら `--project-directory` を使用）。
-- `esb up` は `esb mode` に応じて同じ組み合わせを自動選択します。
+- `esb up` は環境変数 `ESB_MODE` に応じて同じ組み合わせを自動選択します。

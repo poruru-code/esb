@@ -1342,7 +1342,7 @@ def _run_up(args) -> None:
     current_mode = runtime_mode.get_mode()
     if current_mode != cli_config.ESB_MODE_FIRECRACKER:
         logging.error("`esb node up` is only supported when mode=firecracker.")
-        logging.info("Run `esb mode set firecracker` and retry.")
+        logging.info("Set `ESB_MODE=firecracker` and retry.")
         sys.exit(1)
 
     nodes = _select_nodes(args)

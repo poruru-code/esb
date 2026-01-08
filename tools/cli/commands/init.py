@@ -186,10 +186,10 @@ def run(args):
     # 5. Prepare SSL certificates and install OS trust.
     print("\n🔐 Preparing SSL certificates and trust store...")
     try:
-        from tools.cli.config import DEFAULT_CERT_DIR
+        from tools.cli.config import get_cert_dir
 
-        ensure_certs(DEFAULT_CERT_DIR)
-        install_root_ca(DEFAULT_CERT_DIR / "rootCA.crt")
+        ensure_certs(get_cert_dir())
+        install_root_ca(get_cert_dir() / "rootCA.crt")
         print("✅ Root CA installed successfully.")
     except Exception as e:
         print(f"⚠️ Failed to prepare certificates/trust store: {e}")

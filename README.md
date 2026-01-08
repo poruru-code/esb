@@ -27,14 +27,13 @@ Why: Provide a single entry point for developers and operators.
 | `esb down`           | サービスを停止し、コンテナを削除します。                                           | `--volumes (-v)`                                                                             |
 | `esb reset`          | 環境を完全に初期化し、DB等のデータも全て削除して再構築します。                     | `--yes (-y)`, `--rmi`                                                                        |
 | `esb logs`           | サービスログを表示します。                                                         | `--follow (-f)`, `--tail`, `--timestamps`                                                    |
-| `esb mode`           | 実行モードを取得/設定します。                                                      | `get`, `set <containerd                                                                      | firecracker>` |
 | `esb node add`       | Compute Node を登録します。                                                        | `--host`, `--password`, `--skip-key-setup`                                                   |
 | `esb node doctor`    | Compute Node の前提チェックを行います。                                            | `--name`, `--host`, `--strict`                                                               |
 | `esb node up`        | Compute Node 上で compose を起動します（Firecracker モードのみ）。                 | `--name`, `--host`                                                                           |
 | `esb node provision` | Compute Node に必要な依存をプロビジョニングします。                                | `--name`, `--host`, `--sudo-password`, `--sudo-nopasswd`, `--firecracker-*`, `--devmapper-*` |
 
 補足:
-- 実行モードは `~/.esb/mode.yaml` に保存されます。
+- 実行モードは環境変数 `ESB_MODE` で切り替えます（`docker` (デフォルト), `containerd`, `firecracker`）。
 
 ### Compute Node 管理（Phase C）
 
@@ -182,7 +181,7 @@ docker compose -f docker-compose.node.yml up -d
 
 #### CLI と compose の対応
 
-- `esb up` は `esb mode` の値で compose の組み合わせを切り替えます。
+- `esb up` は環境変数 `ESB_MODE` の値で compose の組み合わせを切り替えます。
   - `containerd`: `docker-compose.yml` + `docker-compose.node.yml` + `docker-compose.containerd.yml`
   - `firecracker`: `docker-compose.yml`
 - Compute Node は `esb node up` が `docker-compose.node.yml` を転送して起動します。

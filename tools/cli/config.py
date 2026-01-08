@@ -6,7 +6,10 @@ from pathlib import Path
 import os
 
 
-def find_project_root(current_path: Path = None) -> Path:
+from typing import Any, Optional
+
+
+def find_project_root(current_path: Optional[Path] = None) -> Path:
     """Find the project root by searching for pyproject.toml."""
     if current_path is None:
         current_path = Path.cwd()
@@ -41,11 +44,7 @@ def get_cert_dir() -> Path:
     return get_esb_home() / "certs"
 
 
-def get_mode_config_path() -> Path:
-    return get_esb_home() / "mode.yaml"
-
-
-def setup_environment(env_name: str = None) -> None:
+def setup_environment(env_name: Optional[str] = None) -> None:
     """Inject all environment-specific variables into os.environ."""
     if env_name is None:
         env_name = get_env_name()
@@ -68,16 +67,6 @@ def setup_environment(env_name: str = None) -> None:
 
     # 5. Image Tag
     os.environ["ESB_IMAGE_TAG"] = get_image_tag(env_name)
-
-
-# Backward compatibility constants (Try to use functions instead where possible)
-ESB_HOME = (
-    Path.home() / ".esb"
-)  # Warning: This is static, might not match current env if used directly.
-DEFAULT_CERT_DIR = ESB_HOME / "certs"  # Deprecated use get_cert_dir()
-MODE_CONFIG_PATH = ESB_HOME / "mode.yaml"  # Deprecated use get_mode_config_path()
-
-MODE_CONFIG_VERSION = 1
 ESB_MODE_CONTAINERD = "containerd"
 ESB_MODE_DOCKER = "docker"
 ESB_MODE_FIRECRACKER = "firecracker"
@@ -239,6 +228,7 @@ def set_template_yaml(template_path: str) -> None:
     TEMPLATE_YAML = Path(template_path).expanduser().resolve()
     E2E_DIR = TEMPLATE_YAML.parent
     DEFAULT_ROUTING_YML = E2E_DIR / "config" / "routing.yml"
+    DEFAULT_FUNCTIONS_YML = E2E_DIR / "config" / "functions.yml"
     DEFAULT_FUNCTIONS_YML = E2E_DIR / "config" / "functions.yml"
 
 

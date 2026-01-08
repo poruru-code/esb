@@ -450,10 +450,10 @@ def run_scenario(args, scenario):
     # 0.5 Clear previous image tag to avoid leaks between scenarios in the same process
     os.environ.pop("ESB_IMAGE_TAG", None)
 
-    # 1. Runtime Mode Setup (Optional)
+    # 1. Runtime Mode Setup (via environment variable)
     if "runtime_mode" in scenario:
-        print(f"Switching runtime mode to: {scenario['runtime_mode']} (env: {env_name})")
-        run_esb(["mode", "set", scenario["runtime_mode"]])
+        print(f"Setting runtime mode to: {scenario['runtime_mode']} (env: {env_name}) via ESB_MODE")
+        os.environ["ESB_MODE"] = scenario["runtime_mode"]
 
     # Load Scenario-Specific Env File (Required for isolation)
     if scenario.get("env_file"):

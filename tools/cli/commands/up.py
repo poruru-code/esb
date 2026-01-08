@@ -64,7 +64,7 @@ def _should_override_agent_address(current: str | None) -> bool:
 
 
 def _resolve_firecracker_agent_address() -> str | None:
-    nodes_path = cli_config.ESB_HOME / "nodes.yaml"
+    nodes_path = cli_config.get_esb_home() / "nodes.yaml"
     if not nodes_path.exists():
         return None
     try:
@@ -98,7 +98,7 @@ def run(args):
     context.enforce_env_arg(args, require_initialized=True, require_built=not will_build)
 
     # 0. Prepare SSL certificates.
-    cert_dir = Path(os.environ.get("ESB_CERT_DIR", str(cli_config.DEFAULT_CERT_DIR))).expanduser()
+    cert_dir = Path(os.environ.get("ESB_CERT_DIR", str(cli_config.get_cert_dir()))).expanduser()
     ensure_certs(cert_dir)
     proxy.apply_proxy_env()
 
