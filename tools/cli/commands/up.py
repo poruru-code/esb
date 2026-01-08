@@ -135,15 +135,27 @@ def run(args):
                     "Set it manually or run `esb node add` to populate nodes.yaml."
                 )
 
+    # Ensure correct configuration is used for Gateway build/run
+    env_name = cli_config.get_env_name()
+    staging_relative_path = f"services/gateway/.esb-staging/{env_name}/config"
+    gateway_staging_dir = cli_config.PROJECT_ROOT / staging_relative_path
+
+    if gateway_staging_dir.exists():
+        os.environ["ESB_CONFIG_DIR"] = staging_relative_path
+        logging.info(f"Using staged configuration from: {logging.highlight(staging_relative_path)}")
+    else:
+        logging.warning(
+            f"Staged configuration not found at {staging_relative_path}.\n"
+            "If the Gateway image needs to be built, please run 'esb build' first."
+        )
+
     # 2. Start services.
-    logging.step(
-        f"Starting services for environment: {logging.highlight(cli_config.get_env_name())}..."
-    )
+    logging.step(f"Starting services for environment: {logging.highlight(env_name)}...")
     compose_args = ["up"]
     if getattr(args, "detach", True):
         compose_args.append("-d")
 
-    # Rebuild services themselves (Note: build.run already did major work, 
+    # Rebuild services themselves (Note: build.run already did major work,
     # but docker compose --build ensures specific wiring is correct)
     if getattr(args, "build", False):
         compose_args.append("--build")
@@ -169,24 +181,24 @@ def run(args):
         log_ports,
         save_ports,
     )
-    
+
     env_name = cli_config.get_env_name()
     mode = runtime_mode.get_mode()
     compose_files = [str(p) for p in cli_compose.resolve_compose_files(mode)] + (extra_files or [])
-    
+
     logging.step("Discovering assigned ports...")
     ports: dict | None = None
     if project_name:
         ports = discover_ports(project_name, compose_files, mode)
-    
+
         if ports:
             # Apply to environment variables
             apply_ports_to_env(ports)
-            
+
             # Persist to file
             port_file = save_ports(env_name, ports)
             logging.info(f"Port mapping saved to {logging.highlight(str(port_file))}")
-            
+
             # Log port assignments
             log_ports(env_name, ports)
 
@@ -204,4 +216,3 @@ def run(args):
     if getattr(args, "wait", False):
         if not wait_for_gateway():
             sys.exit(1)
-

@@ -298,6 +298,20 @@ def run(args):
     output_dir = str(output_dir_path)
     config["paths"]["output_dir"] = output_dir
 
+    # Get dynamic parameters based on current mode (e.g., endpoint hosts)
+    parameters = cli_config.get_generator_parameters(env_name)
+
+    functions = generator.generate_files(
+        config=config,
+        project_root=cli_config.PROJECT_ROOT,
+        dry_run=dry_run,
+        verbose=verbose,
+        registry_external=external_registry,
+        registry_internal=internal_registry,
+        parameters=parameters,
+        tag=cli_config.get_image_tag(env_name),
+    )
+
     # --- Configuration Staging ---
     # We ALWAYS stage configuration files into services/gateway/.esb-staging/{env}/config
     # to maintain a consistent build context and enable image baking regardless of
@@ -331,20 +345,6 @@ def run(args):
         logging.error(f"Failed to stage configuration: {e}")
         logging.warning("Falling back to runtime (empty) configuration.")
         os.environ["ESB_CONFIG_DIR"] = ""
-
-    # Get dynamic parameters based on current mode (e.g., endpoint hosts)
-    parameters = cli_config.get_generator_parameters(env_name)
-
-    functions = generator.generate_files(
-        config=config,
-        project_root=cli_config.PROJECT_ROOT,
-        dry_run=dry_run,
-        verbose=verbose,
-        registry_external=external_registry,
-        registry_internal=internal_registry,
-        parameters=parameters,
-        tag=cli_config.get_image_tag(env_name),
-    )
 
     if dry_run:
         logging.success("Dry-run complete. Exiting.")
