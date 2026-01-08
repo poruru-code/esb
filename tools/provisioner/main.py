@@ -147,7 +147,7 @@ def provision_s3(buckets):
 def main(template_path=None):
     # Load template.
     if template_path is None:
-        template_path = project_root / "tests/fixtures/template.yaml"
+        template_path = project_root / "e2e/fixtures/template.yaml"
     else:
         template_path = Path(template_path)
 

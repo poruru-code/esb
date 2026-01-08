@@ -11,7 +11,7 @@ import docker
 from tools.provisioner import main as provisioner
 from tools.cli.config import PROJECT_ROOT
 from tools.cli import compose as cli_compose
-from dotenv import load_dotenv
+
 
 
 from tools.cli.core import logging
@@ -147,11 +147,7 @@ class SmartReloader(FileSystemEventHandler):
 
 
 def run(args):
-    # Load .env.test.
-    env_file = PROJECT_ROOT / "tests" / ".env.test"
-    if env_file.exists():
-        logging.info(f"Loading environment variables from {logging.highlight(env_file)}")
-        load_dotenv(env_file, verbose=False, override=False)
+
 
     proxy.apply_proxy_env()
 

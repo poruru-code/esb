@@ -1,10 +1,8 @@
-# Where: tools/cli/commands/build.py
-# What: Build ESB images and generated configs.
-# Why: Provide a single CLI entry for build workflows.
 import docker
 import os
 import sys
 import subprocess
+import shutil
 from pathlib import Path
 from tools.generator import main as generator
 from tools.cli import config as cli_config
@@ -253,6 +251,8 @@ def build_function_images(
             sys.exit(1)
 
 
+from tools.cli.core import context
+
 def run(args):
     dry_run = getattr(args, "dry_run", False)
     verbose = getattr(args, "verbose", False)
@@ -263,7 +263,7 @@ def run(args):
     if dry_run:
         logging.info("Running in DRY-RUN mode. No files will be written, no images built.")
 
-    # Environment is already setup by main.py (setup_environment)
+    context.enforce_env_arg(args, require_initialized=True)
     env_name = cli_config.get_env_name()
     project_name = os.environ.get("ESB_PROJECT_NAME")
 
@@ -273,27 +273,10 @@ def run(args):
 
     # 1. Generate configuration files (Phase 1 Generator).
     logging.step("Generating configurations...")
-    logging.info(f"Using template: {logging.highlight(cli_config.TEMPLATE_YAML)}")
+    logging.info(f"Using template: {logging.highlight(str(cli_config.TEMPLATE_YAML))}")
 
     # Load generator config.
-    # Prefer generator.yml in the same directory as the template.
-    config_path = cli_config.E2E_DIR / "generator.yml"
-
-    if not config_path.exists():
-        import questionary
-        from tools.cli.commands import init
-
-        print(f"ℹ Configuration file not found at: {config_path}")
-        if questionary.confirm("Do you want to initialize configuration now?").ask():
-            # Call init (reuse current args, but only pass template).
-            init_args = type("Args", (), {"template": str(cli_config.TEMPLATE_YAML)})
-            init.run(init_args)
-            # After init, we could ask to continue build, but exit for now.
-            logging.info("Configuration initialized. Please run build command again.")
-            return
-        else:
-            logging.error("Configuration file missing. Cannot proceed.")
-            return
+    config = generator.load_config(cli_config.E2E_DIR / "generator.yml")
 
     # 0. Ensure registry is running (when required).
     if not dry_run:
@@ -302,16 +285,47 @@ def run(args):
             registry=external_registry, extra_files=extra_files, project_name=project_name
         )
 
-    config = generator.load_config(config_path)
-
     # Resolve template path.
     if "paths" not in config:
         config["paths"] = {}
     config["paths"]["sam_template"] = str(cli_config.TEMPLATE_YAML)
 
-    # Set output directory based on environment name
+    # Set output directory based on environment name (honoring generator.yml)
     # This allows parallel builds for different environments
-    config["paths"]["output_dir"] = f".esb/{env_name}/"
+    output_dir_path = cli_config.get_build_output_dir(env_name)
+    output_dir = str(output_dir_path)
+    config["paths"]["output_dir"] = output_dir
+
+    # --- Configuration Staging ---
+    # We ALWAYS stage configuration files into services/gateway/.esb-staging/{env}/config
+    # to maintain a consistent build context and enable image baking regardless of template location.
+    # Using env-specific directory to support parallel builds.
+    config_dir_abs = output_dir_path / "config"
+    gateway_staging_dir = cli_config.PROJECT_ROOT / "services" / "gateway" / ".esb-staging" / env_name / "config"
+    staging_relative_path = f"services/gateway/.esb-staging/{env_name}/config"
+    
+    logging.info(f"Staging configuration to {logging.highlight(staging_relative_path)} ...")
+    
+    try:
+        # Clean and recreate staging directory
+        if gateway_staging_dir.exists():
+            shutil.rmtree(gateway_staging_dir)
+        gateway_staging_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Copy configuration files
+        for cfg_file in ["functions.yml", "routing.yml"]:
+            src = config_dir_abs / cfg_file
+            if src.exists():
+                shutil.copy2(src, gateway_staging_dir / cfg_file)
+        
+        # Set ESB_CONFIG_DIR to the staged path relative to project root
+        os.environ["ESB_CONFIG_DIR"] = staging_relative_path
+        logging.success("Staging complete. Configuration will be baked into the image.")
+        
+    except Exception as e:
+        logging.error(f"Failed to stage configuration: {e}")
+        logging.warning("Falling back to runtime (empty) configuration.")
+        os.environ["ESB_CONFIG_DIR"] = ""
 
     # Get dynamic parameters based on current mode (e.g., endpoint hosts)
     parameters = cli_config.get_generator_parameters(env_name)

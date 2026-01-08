@@ -61,9 +61,9 @@ def test_init_uses_cli_config_template(mock_template_yaml, tmp_path):
         mock_config.TEMPLATE_YAML = template_file
         
         # questionary mocks.
-        mock_text.return_value.ask.side_effect = ["prod", "/aws/logs", "latest"]
-        mock_path.return_value.ask.return_value = str(tmp_path / ".esb")
-        mock_confirm.return_value.ask.return_value = True  # Overwrite.
+        mock_text.return_value.ask.side_effect = ["prod", "/aws/logs", "latest", "prod"] # Param1, Param2, Param3, EnvName
+        mock_path.return_value.ask.side_effect = [str(tmp_path / ".esb")]
+        mock_confirm.return_value.ask.return_value = True  # Overwrite (fallback)
         
         args = Namespace(template=None)
         init.run(args)
@@ -90,7 +90,7 @@ def test_init_generates_portable_paths(mock_template_yaml, tmp_path):
          patch("tools.cli.commands.init.questionary.path") as mock_path:
         
         mock_config.TEMPLATE_YAML = template_file
-        mock_text.return_value.ask.side_effect = ["dev", "/aws/logs", "v1.0"]
+        mock_text.return_value.ask.side_effect = ["dev", "/aws/logs", "v1.0", "dev"]
         mock_path.return_value.ask.return_value = str(tmp_path / ".esb")
         
         args = Namespace(template=None)
@@ -125,7 +125,7 @@ Resources:
          patch("tools.cli.commands.init.questionary.path") as mock_path:
         
         mock_config.TEMPLATE_YAML = template_file
-        mock_text.return_value.ask.return_value = "latest"
+        mock_text.return_value.ask.side_effect = ["latest", "demo"]
         mock_path.return_value.ask.return_value = str(tmp_path / ".esb")
         
         args = Namespace(template=None)
@@ -150,12 +150,12 @@ def test_init_respects_overwrite_cancel(mock_template_yaml, tmp_path):
     with patch("tools.cli.commands.init.cli_config") as mock_config, \
          patch("tools.cli.commands.init.questionary.text") as mock_text, \
          patch("tools.cli.commands.init.questionary.path") as mock_path, \
-         patch("tools.cli.commands.init.questionary.confirm") as mock_confirm:
+         patch("tools.cli.commands.init.questionary.select") as mock_select:
         
         mock_config.TEMPLATE_YAML = template_file
-        mock_text.return_value.ask.side_effect = ["dev", "/aws/logs", "latest"]
+        mock_text.return_value.ask.side_effect = ["dev", "/aws/logs", "latest", "dev"]
         mock_path.return_value.ask.return_value = str(tmp_path / ".esb")
-        mock_confirm.return_value.ask.return_value = False  # Do not overwrite.
+        mock_select.return_value.ask.return_value = "cancel"
         
         args = Namespace(template=None)
         with pytest.raises(SystemExit) as exc:

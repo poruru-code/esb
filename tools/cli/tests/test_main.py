@@ -8,6 +8,16 @@ from tools.cli import config as cli_config
 from tools.cli.main import main
 
 
+@pytest.fixture(autouse=True)
+def mock_template(monkeypatch):
+    """Mock TEMPLATE_YAML to avoid early exit in main()."""
+    monkeypatch.setattr("tools.cli.config.TEMPLATE_YAML", "fake-template.yaml")
+    # Also skip context validation in main tests as they are dispatch tests
+    monkeypatch.setattr("tools.cli.core.context._validate_environment_initialized", lambda *args, **kwargs: None)
+    monkeypatch.setattr("tools.cli.core.context._validate_environment_exists", lambda *args, **kwargs: None)
+    yield
+
+
 def test_cli_help(capsys):
     """Ensure --help works correctly."""
     with patch.object(sys, "argv", ["esb", "--help"]):
@@ -23,7 +33,6 @@ def test_cli_help(capsys):
     assert "down" in captured.out
     assert "init" in captured.out
     assert "node" in captured.out
-    assert "mode" in captured.out
 
 
 @patch("tools.cli.commands.build.run")
@@ -121,20 +130,6 @@ def test_cli_node_up_dispatch(mock_node_run):
     mock_node_run.assert_called_once()
 
 
-@patch("tools.cli.commands.mode.run")
-def test_cli_mode_get_dispatch(mock_mode_run):
-    """Ensure the mode get subcommand is dispatched correctly."""
-    with patch.object(sys, "argv", ["esb", "mode", "get"]):
-        main()
-    mock_mode_run.assert_called_once()
-
-
-@patch("tools.cli.commands.mode.run")
-def test_cli_mode_set_dispatch(mock_mode_run):
-    """Ensure the mode set subcommand is dispatched correctly."""
-    with patch.object(sys, "argv", ["esb", "mode", "set", cli_config.ESB_MODE_CONTAINERD]):
-        main()
-    mock_mode_run.assert_called_once()
 
 
 

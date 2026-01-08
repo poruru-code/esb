@@ -65,7 +65,7 @@ target-version = "py312"
 esb = "tools.cli.main:main"
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "tools", "services/common/tests", "services/gateway/tests", "services/orchestrator/tests"]
+testpaths = ["e2e", "tools", "services/common/tests", "services/gateway/tests", "services/orchestrator/tests"]
 asyncio_mode = "auto"
 filterwarnings = [
     "ignore::urllib3.exceptions.InsecureRequestWarning",

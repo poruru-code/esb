@@ -6,7 +6,10 @@ from pathlib import Path
 import os
 
 
-def find_project_root(current_path: Path = None) -> Path:
+from typing import Any, Optional
+
+
+def find_project_root(current_path: Optional[Path] = None) -> Path:
     """Find the project root by searching for pyproject.toml."""
     if current_path is None:
         current_path = Path.cwd()
@@ -33,6 +36,11 @@ def get_env_name() -> str:
 
 def get_esb_home() -> Path:
     """Resolve the ESB home directory based on environment."""
+    # Priority: 1. ESB_HOME env var, 2. ~/.esb/<env_name>
+    esb_home = os.getenv("ESB_HOME")
+    if esb_home:
+        return Path(esb_home).expanduser()
+
     env_name = get_env_name()
     return Path.home() / ".esb" / env_name
 
@@ -41,11 +49,7 @@ def get_cert_dir() -> Path:
     return get_esb_home() / "certs"
 
 
-def get_mode_config_path() -> Path:
-    return get_esb_home() / "mode.yaml"
-
-
-def setup_environment(env_name: str = None) -> None:
+def setup_environment(env_name: Optional[str] = None) -> None:
     """Inject all environment-specific variables into os.environ."""
     if env_name is None:
         env_name = get_env_name()
@@ -68,16 +72,6 @@ def setup_environment(env_name: str = None) -> None:
 
     # 5. Image Tag
     os.environ["ESB_IMAGE_TAG"] = get_image_tag(env_name)
-
-
-# Backward compatibility constants (Try to use functions instead where possible)
-ESB_HOME = (
-    Path.home() / ".esb"
-)  # Warning: This is static, might not match current env if used directly.
-DEFAULT_CERT_DIR = ESB_HOME / "certs"  # Deprecated use get_cert_dir()
-MODE_CONFIG_PATH = ESB_HOME / "mode.yaml"  # Deprecated use get_mode_config_path()
-
-MODE_CONFIG_VERSION = 1
 ESB_MODE_CONTAINERD = "containerd"
 ESB_MODE_DOCKER = "docker"
 ESB_MODE_FIRECRACKER = "firecracker"
@@ -197,27 +191,31 @@ COMPOSE_ADAPTER_FILE = PROJECT_ROOT / "docker-compose.containerd.yml"
 REMOTE_COMPOSE_DIR = ".esb/compose"
 
 
-def _resolve_template_yaml() -> Path:
-    """Resolve the template path (default search order)."""
+def _resolve_template_yaml() -> Path | None:
+    """Resolve the template path (default search order).
+    
+    Returns None if no template is found - callers must handle this.
+    """
     # Path priority:
     # 1. ESB_TEMPLATE environment variable
     # 2. template.yaml in the current directory
     # 3. template.yaml in the project root
-    # 4. tests/fixtures/template.yaml (default)
+    # 4. None (no default fallback - must be explicitly specified)
     env_template = os.environ.get("ESB_TEMPLATE")
     if env_template:
-        return Path(env_template).resolve()
+        return Path(env_template).expanduser().resolve()
     elif (Path.cwd() / "template.yaml").exists():
         return Path.cwd() / "template.yaml"
     elif (PROJECT_ROOT / "template.yaml").exists():
         return PROJECT_ROOT / "template.yaml"
     else:
-        return PROJECT_ROOT / "tests" / "fixtures" / "template.yaml"
+        return None  # No fallback - template must be explicitly specified
 
 
 # Initialize with default values.
-TEMPLATE_YAML = _resolve_template_yaml()
-E2E_DIR = TEMPLATE_YAML.parent
+# TEMPLATE_YAML may be None if no template is found - this is handled at runtime
+TEMPLATE_YAML: Path | None = _resolve_template_yaml()
+E2E_DIR: Path = TEMPLATE_YAML.parent if TEMPLATE_YAML else PROJECT_ROOT
 DEFAULT_ROUTING_YML = E2E_DIR / "config" / "routing.yml"
 DEFAULT_FUNCTIONS_YML = E2E_DIR / "config" / "functions.yml"
 
@@ -232,7 +230,39 @@ def set_template_yaml(template_path: str) -> None:
         parts[2] = parts[2].lower()
         template_path = "/".join(parts)
 
-    TEMPLATE_YAML = Path(template_path).resolve()
+    TEMPLATE_YAML = Path(template_path).expanduser().resolve()
     E2E_DIR = TEMPLATE_YAML.parent
     DEFAULT_ROUTING_YML = E2E_DIR / "config" / "routing.yml"
     DEFAULT_FUNCTIONS_YML = E2E_DIR / "config" / "functions.yml"
+    DEFAULT_FUNCTIONS_YML = E2E_DIR / "config" / "functions.yml"
+
+
+def get_build_output_dir(env_name: str | None = None) -> Path:
+    """
+    Resolve the build output directory for the given environment.
+    Respects 'output_dir' defined in generator.yml alongside the template.
+    Structure: <E2E_DIR>/<output_dir>/<env_name>
+    """
+    if env_name is None:
+        env_name = get_env_name()
+
+    # Default base
+    base_output = ".esb"
+
+    # Try to load generator.yml to find custom output_dir
+    gen_config_path = E2E_DIR / "generator.yml"
+    if gen_config_path.exists():
+        try:
+            import yaml
+            with open(gen_config_path, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f) or {}
+                # paths: output_dir: ...
+                base_output = data.get("paths", {}).get("output_dir", base_output)
+        except Exception:
+            # Fallback to default if unreadable
+            pass
+            
+    # Clean up path (remove trailing slash, etc)
+    base_output = str(base_output).strip().rstrip("/")
+    
+    return E2E_DIR / base_output / env_name

@@ -1,6 +1,0 @@
-app:
-  name: ""
-  tag: latest
-paths:
-  sam_template: template.yaml
-  output_dir: .esb/

@@ -81,7 +81,7 @@ def get_env_name():
 ### C. リソースプロビジョナー (`tools/provisioner/main.py`)
 （変更なし：注入された環境変数を使用）
 
-### D. テストランナー (`tests/run_tests.py`)
+### D. テストランナー (`e2e/run_tests.py`)
 **アクション**:
 1. テスト実行時に使用する環境名（例: `e2e-ci`, `e2e-dev`）を決定。
 2. `esb up --env <name>` を呼び出す。
@@ -117,13 +117,13 @@ def get_env_name():
 # 環境名 "E2E-containerd" でテストを実行
 # 内部的に `esb up --env E2E-containerd` が呼び出されます
 # コンテナ名は esb-E2E-containerd-gateway-1 のようになります
-ESB_ENV=E2E-containerd uv run tests/run_tests.py
+ESB_ENV=E2E-containerd uv run e2e/run_tests.py
 ```
 
 **Terminal B:**
 ```bash
 # 環境名 "E2E-firecracker" でテストを実行
-ESB_ENV=E2E-firecracker uv run tests/run_tests.py
+ESB_ENV=E2E-firecracker uv run e2e/run_tests.py
 ```
 
 ### 特定環境での手動デバッグ (Manual Debugging)
@@ -164,7 +164,7 @@ uv run esb down --env dev-feature-x
 ### 4. `tools/provisioner/main.py`
 - **実装**: 環境変数から動的エンドポイントを構築。
 
-### 5. `tests/run_tests.py`
+### 5. `e2e/run_tests.py`
 - **変更内容**:
     - `esb up --env <name>` を使用するように変更。
 

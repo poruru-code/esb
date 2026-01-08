@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from typing import Optional
 import socket
 from datetime import datetime, timedelta, timezone
 
@@ -221,12 +222,12 @@ def generate_server_cert(cert_dir: Path, ca_key_path: Path, ca_cert_path: Path):
     return server_cert_file, server_key_file
 
 
-def ensure_certs(cert_dir: Path = None):
+def ensure_certs(cert_dir: Optional[Path] = None):
     """Prepare the full certificate set."""
-    from tools.cli.config import DEFAULT_CERT_DIR
+    from tools.cli.config import get_cert_dir
 
     if cert_dir is None:
-        cert_dir = DEFAULT_CERT_DIR
+        cert_dir = get_cert_dir()
 
     ca_cert, ca_key = generate_root_ca(cert_dir)
     generate_server_cert(cert_dir, ca_key, ca_cert)

@@ -24,29 +24,32 @@ ESB の設定は以下の3段階で伝播します：
 
 ---
 
-## Level 1 & 2: Host -> Services (docker-compose & サービス内部)
+### 0. グローバル設定
 
-各コンポーネントが `docker-compose` から受け取り、自身の内部ロジックで使用する主要な変数です。
+| 変数名     | 初期値    | 用途                                                       |
+| ---------- | --------- | ---------------------------------------------------------- |
+| `ESB_MODE` | `docker`  | 実行モードの選択 (`docker`, `containerd`, `firecracker`)。 |
+| `ESB_ENV`  | `default` | 環境名の識別子。設定の分離に使用。                         |
 
 ### 1. Gateway (`services/gateway`)
 
 Gateway は Lambda 環境の "Master Config" として機能し、サービスエンドポイントをワーカーに注入します。
 
-| 変数名 | Source (`.env` / Default) | Gatewayでの用途 |
-|--------|---------------------------|-----------------|
-| `JWT_SECRET_KEY` | **必須** | `config.py`: 認証トークンの署名・検証に使用。 |
-| `S3_ENDPOINT` | (任意) | 明示的に上書きする場合に使用。未設定時は `http://s3-storage:9000` が注入される。 |
-| `DYNAMODB_ENDPOINT` | (任意) | 明示的に上書きする場合に使用。未設定時は `http://database:8000` が注入される。 |
-| `VICTORIALOGS_URL` | `http://victorialogs:9428` | 自身のログ送信先。 |
-| `CONTAINERS_NETWORK` | `ESB_NETWORK_EXTERNAL` | 自身の所属チェックおよびワーカーの状態監視に使用。 |
-| `ESB_DATA_PLANE_HOST` | `10.88.0.1` | **Containerd/FC Mode**: ネットワークゲートウェイ兼 DNS サーバーの IP。 |
+| 変数名                | Source (`.env` / Default)  | Gatewayでの用途                                                                  |
+| --------------------- | -------------------------- | -------------------------------------------------------------------------------- |
+| `JWT_SECRET_KEY`      | **必須**                   | `config.py`: 認証トークンの署名・検証に使用。                                    |
+| `S3_ENDPOINT`         | (任意)                     | 明示的に上書きする場合に使用。未設定時は `http://s3-storage:9000` が注入される。 |
+| `DYNAMODB_ENDPOINT`   | (任意)                     | 明示的に上書きする場合に使用。未設定時は `http://database:8000` が注入される。   |
+| `VICTORIALOGS_URL`    | `http://victorialogs:9428` | 自身のログ送信先。                                                               |
+| `CONTAINERS_NETWORK`  | `ESB_NETWORK_EXTERNAL`     | 自身の所属チェックおよびワーカーの状態監視に使用。                               |
+| `ESB_DATA_PLANE_HOST` | `10.88.0.1`                | **Containerd/FC Mode**: ネットワークゲートウェイ兼 DNS サーバーの IP。           |
 
 ### 2. Agent & Runtime Node
 
-| 変数名 | Source (`.env` / Default) | Agent/Runtimeでの用途 |
-|--------|---------------------------|-----------------------|
-| `CNI_GW_IP` | `ESB_DATA_PLANE_HOST` | **Networking**: `runtime-node` 内でブリッジインターフェース (`esb-cni0`) に設定されるゲートウェイ IP。 |
-| `CONTAINER_REGISTRY`| (任意) | **Distribution**: Containerd/FC モードでイメージをプルするレジストリのアドレス。 |
+| 変数名               | Source (`.env` / Default) | Agent/Runtimeでの用途                                                                                  |
+| -------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `CNI_GW_IP`          | `ESB_DATA_PLANE_HOST`     | **Networking**: `runtime-node` 内でブリッジインターフェース (`esb-cni0`) に設定されるゲートウェイ IP。 |
+| `CONTAINER_REGISTRY` | (任意)                    | **Distribution**: Containerd/FC モードでイメージをプルするレジストリのアドレス。                       |
 
 ---
 

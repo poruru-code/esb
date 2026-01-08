@@ -3,7 +3,7 @@
 ## Project Structure & Module Organization
 - `services/gateway/` (FastAPI gateway), `services/agent/` (Go agent), `services/runtime-node/` (container runtime), `services/common/` (shared Python).
 - `tools/cli/`, `tools/generator/`, `tools/provisioner/` for the ESB CLI and generators.
-- `tests/` for E2E scenarios and runner (`tests/run_tests.py`), plus unit tests in `services/*/tests` and `tools/*/tests`.
+- `e2e/` for E2E scenarios and runner (`e2e/run_tests.py`), plus unit tests in `services/*/tests` and `tools/*/tests`.
 - `docs/` for architecture/specs, `config/` for configs, `proto/` for gRPC definitions.
 
 ## Build, Test, and Development Commands
@@ -13,9 +13,9 @@ lefthook install            # git hooks (ruff/go lint)
 esb build                   # generate config + build images
 esb up --build              # start services (Docker Compose)
 esb watch                   # hot reload on file changes
-python tests/run_tests.py   # full E2E suite
-python tests/run_tests.py --profile e2e-containerd  # specific profile
-python tests/run_tests.py --unit-only
+python e2e/run_tests.py   # full E2E suite
+python e2e/run_tests.py --profile e2e-containerd  # specific profile
+python e2e/run_tests.py --unit-only
 ```
 Use `uv run esb ...` if the venv is not activated.
 

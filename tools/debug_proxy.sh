@@ -21,11 +21,8 @@ log "=========================================="
 log " 1. Host Environment Variables"
 log "=========================================="
 
-# Load test env if available
-if [ -f "tests/.env.test" ]; then
-  log "Loading tests/.env.test..."
-  export $(grep -v '^#' tests/.env.test | xargs)
-fi
+
+
 
 # Load e2e-docker profile env
 if [ -f "tests/environments/.env.docker" ]; then

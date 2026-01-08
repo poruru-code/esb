@@ -15,6 +15,20 @@ def _force_containerd_mode(monkeypatch):
     )
 
 
+@pytest.fixture(autouse=True)
+def _mock_context_validation(monkeypatch, request):
+    """Mock environment validation and staging side effects to avoid sys.exit and FileNotFoundError."""
+    # We want to keep enforce_env_arg mostly working but avoid its exit behavior in most tests
+    if "no_mock_enforce" not in request.keywords:
+        monkeypatch.setattr("tools.cli.commands.build.context.enforce_env_arg", lambda *a, **kw: None)
+    
+    # Mock staging to avoid side effects on disk during unit tests
+    monkeypatch.setattr("tools.cli.commands.build.shutil.rmtree", lambda *a, **kw: None)
+    monkeypatch.setattr("tools.cli.commands.build.shutil.copy2", lambda *a, **kw: None)
+    # DO NOT mock Path.mkdir globally as it breaks pytest/tmp_path
+    yield
+
+
 # ============================================================
 # build_base_image tests
 # ============================================================
@@ -255,10 +269,11 @@ def test_build_base_image_failure_exits(
     assert exc.value.code == 1
     mock_build_funcs.assert_not_called()  # Function builds should not be called.
 # ============================================================
-# Redirection to init tests (Merged from tests/unit)
+# Redirection to init tests (Merged from unit tests)
 # ============================================================
 
-def test_build_redirects_to_init_when_config_missing_and_confirmed():
+@pytest.mark.no_mock_enforce
+def test_build_redirects_to_init_when_config_missing_and_confirmed(tmp_path):
     """Call init when generator.yml is missing and the user selects Yes."""
     from tools.cli.commands import build, init
     from argparse import Namespace
@@ -271,9 +286,11 @@ def test_build_redirects_to_init_when_config_missing_and_confirmed():
         mock_config_path.exists.return_value = False
         
         # Mock E2E_DIR so that E2E_DIR / "generator.yml" returns our mock_config_path
-        mock_cli_config.E2E_DIR = MagicMock()
-        mock_cli_config.E2E_DIR.__truediv__.return_value = mock_config_path
-        mock_cli_config.TEMPLATE_YAML = "/tmp/template.yaml"
+        mock_cli_config.PROJECT_ROOT = tmp_path
+        mock_cli_config.E2E_DIR = mock_cli_config.PROJECT_ROOT / ".esb"
+        mock_cli_config.TEMPLATE_YAML = Path("/tmp/template.yaml")
+        mock_cli_config.get_generator_config_path.return_value = mock_config_path
+        mock_cli_config.get_esb_home.return_value = mock_cli_config.PROJECT_ROOT / ".esb"
         mock_cli_config.get_env_name.return_value = "default"
         mock_cli_config.get_port_mapping.return_value = {}
         mock_cli_config.get_registry_config.return_value = {"external": "localhost:5010", "internal": "registry:5010"}
@@ -285,14 +302,14 @@ def test_build_redirects_to_init_when_config_missing_and_confirmed():
              patch("tools.cli.commands.build.build_base_image", return_value=True):
 
             mock_confirm.return_value.ask.return_value = True
-            build.run(args)
-            
-            mock_init_run.assert_called_once()
-            call_args = mock_init_run.call_args[0][0]
-            assert call_args.template == "/tmp/template.yaml"
+            # Now it should exit via enforce_env_arg(require_initialized=True)
+            with pytest.raises(SystemExit) as exc:
+                build.run(args)
+            assert exc.value.code == 1
 
 
-def test_build_aborts_when_config_missing_and_cancelled():
+@pytest.mark.no_mock_enforce
+def test_build_aborts_when_config_missing_and_cancelled(tmp_path):
     """Exit when generator.yml is missing and the user selects No."""
     from tools.cli.commands import build
     from argparse import Namespace
@@ -305,8 +322,10 @@ def test_build_aborts_when_config_missing_and_cancelled():
         mock_config_path.exists.return_value = False
         
         # Mock E2E_DIR so that E2E_DIR / "generator.yml" returns our mock_config_path
-        mock_cli_config.E2E_DIR = MagicMock()
-        mock_cli_config.E2E_DIR.__truediv__.return_value = mock_config_path
+        mock_cli_config.PROJECT_ROOT = tmp_path
+        mock_cli_config.E2E_DIR = mock_cli_config.PROJECT_ROOT / ".esb"
+        mock_cli_config.get_generator_config_path.return_value = mock_config_path
+        mock_cli_config.get_esb_home.return_value = mock_cli_config.PROJECT_ROOT / ".esb"
         mock_cli_config.get_env_name.return_value = "default"
         mock_cli_config.get_port_mapping.return_value = {}
         mock_cli_config.get_registry_config.return_value = {"external": "localhost:5010", "internal": "registry:5010"}
@@ -318,7 +337,10 @@ def test_build_aborts_when_config_missing_and_cancelled():
              patch("tools.cli.commands.build.build_base_image", return_value=True):
             
             mock_confirm.return_value.ask.return_value = False
-            build.run(args)
+            # Should exit via enforce_env_arg
+            with pytest.raises(SystemExit) as exc:
+                build.run(args)
+            assert exc.value.code == 1
             
             mock_init_run.assert_not_called()
 

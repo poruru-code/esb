@@ -27,14 +27,13 @@ Why: Provide a single entry point for developers and operators.
 | `esb down`           | サービスを停止し、コンテナを削除します。                                           | `--volumes (-v)`                                                                             |
 | `esb reset`          | 環境を完全に初期化し、DB等のデータも全て削除して再構築します。                     | `--yes (-y)`, `--rmi`                                                                        |
 | `esb logs`           | サービスログを表示します。                                                         | `--follow (-f)`, `--tail`, `--timestamps`                                                    |
-| `esb mode`           | 実行モードを取得/設定します。                                                      | `get`, `set <containerd                                                                      | firecracker>` |
 | `esb node add`       | Compute Node を登録します。                                                        | `--host`, `--password`, `--skip-key-setup`                                                   |
 | `esb node doctor`    | Compute Node の前提チェックを行います。                                            | `--name`, `--host`, `--strict`                                                               |
 | `esb node up`        | Compute Node 上で compose を起動します（Firecracker モードのみ）。                 | `--name`, `--host`                                                                           |
 | `esb node provision` | Compute Node に必要な依存をプロビジョニングします。                                | `--name`, `--host`, `--sudo-password`, `--sudo-nopasswd`, `--firecracker-*`, `--devmapper-*` |
 
 補足:
-- 実行モードは `~/.esb/mode.yaml` に保存されます。
+- 実行モードは環境変数 `ESB_MODE` で切り替えます（`docker` (デフォルト), `containerd`, `firecracker`）。
 
 ### Compute Node 管理（Phase C）
 
@@ -148,20 +147,19 @@ flowchart TD
 │   ├── cli/                 # ★ ESB CLI ツール (New)
 │   ├── generator/           # SAM Template Generator
 │   └── provisioner/         # Infrastructure Provisioner
-├── tests/
-│   ├── e2e/                 # E2Eテスト用Lambda関数
-│   │   ├── template.yaml    # SAM Source of Truth
-│   │   └── functions/       # Lambda関数コード
+├── e2e/                 # E2Eテスト用Lambda関数
+│   ├── template.yaml    # SAM Source of Truth
+│   └── functions/       # Lambda関数コード
 
 ```
 
 ### Compose ファイル構成と起動パターン
 
-| ファイル                        | 役割                                      | 主な用途                                   |
-| ------------------------------- | ----------------------------------------- | ------------------------------------------ |
-| `docker-compose.yml`            | Control/Core（Gateway + 依存サービス）    | Control Plane（単一ノード/分離構成の共通） |
-| `docker-compose.node.yml`       | Compute（runtime-node/agent/coredns）     | Compute Node（Firecracker/remote）         |
-| `docker-compose.containerd.yml` | Adapter（単一ノード結合 / coredns）       | Core + Compute を同一ホストで統合          |
+| ファイル                        | 役割                                   | 主な用途                                   |
+| ------------------------------- | -------------------------------------- | ------------------------------------------ |
+| `docker-compose.yml`            | Control/Core（Gateway + 依存サービス） | Control Plane（単一ノード/分離構成の共通） |
+| `docker-compose.node.yml`       | Compute（runtime-node/agent/coredns）  | Compute Node（Firecracker/remote）         |
+| `docker-compose.containerd.yml` | Adapter（単一ノード結合 / coredns）    | Core + Compute を同一ホストで統合          |
 
 #### 起動パターン（docker compose）
 
@@ -183,7 +181,7 @@ docker compose -f docker-compose.node.yml up -d
 
 #### CLI と compose の対応
 
-- `esb up` は `esb mode` の値で compose の組み合わせを切り替えます。
+- `esb up` は環境変数 `ESB_MODE` の値で compose の組み合わせを切り替えます。
   - `containerd`: `docker-compose.yml` + `docker-compose.node.yml` + `docker-compose.containerd.yml`
   - `firecracker`: `docker-compose.yml`
 - Compute Node は `esb node up` が `docker-compose.node.yml` を転送して起動します。
@@ -250,7 +248,7 @@ esb --template /path/to/template.yaml init
 1. 環境変数 `ESB_TEMPLATE` で指定されたパス
 2. カレントディレクトリ直下の `template.yaml`
 3. プロジェクトルート直下の `template.yaml`
-4. `tests/fixtures/template.yaml` (デフォルトのサンプル)
+4. `e2e/fixtures/template.yaml` (デフォルトのサンプル)
 
 ### サービスの起動 (`esb up`)
 
@@ -440,13 +438,13 @@ esb node doctor --require-up
 
 ```bash
 # Matrix定義に従い、全スイート（Containerd, Firecracker）を実行
-python tests/run_tests.py
+python e2e/run_tests.py
 
 # 特定のプロファイルのみ実行（例: Containerdモードのみ）
-python tests/run_tests.py --profile e2e-containerd
+python e2e/run_tests.py --profile e2e-containerd
 
 # 特定のテストファイルのみ実行（プロファイル指定が必須）
-python tests/run_tests.py --test-target tests/scenarios/standard/test_lambda.py --profile e2e-containerd
+python e2e/run_tests.py --test-target e2e/scenarios/standard/test_lambda.py --profile e2e-containerd
 ```
 
 #### Unit Tests
@@ -454,7 +452,7 @@ python tests/run_tests.py --test-target tests/scenarios/standard/test_lambda.py 
 
 ```bash
 # ユニットテストのみ実行
-python tests/run_tests.py --unit-only
+python e2e/run_tests.py --unit-only
 ```
 
 ## トラブルシューティング
