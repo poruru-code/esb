@@ -172,6 +172,7 @@ services:
       - http_proxy
       - https_proxy
       - no_proxy
+      - GRPC_VERBOSITY=ERROR
     depends_on:
       database:
         condition: service_healthy
