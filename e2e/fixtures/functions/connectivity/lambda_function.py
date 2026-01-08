@@ -5,10 +5,11 @@ Responds with the username from requestContext.
 Includes CloudWatch Logs test functionality.
 """
 
-import time
-import boto3
 import logging
-from common.utils import handle_ping, parse_event_body, create_response
+import time
+
+import boto3
+from common.utils import create_response, handle_ping, parse_event_body
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)

@@ -6,7 +6,9 @@ Uses pydantic-settings for type safety and defaults.
 """
 
 import sys
+
 from pydantic import Field
+
 from services.common.core.config import BaseAppConfig
 
 

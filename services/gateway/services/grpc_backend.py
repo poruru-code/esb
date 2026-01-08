@@ -1,17 +1,18 @@
-import grpc
 import logging
 from typing import List, Optional
 
+import grpc
+
 from services.common.models.internal import WorkerInfo
-from services.gateway.pb import agent_pb2, agent_pb2_grpc
-from services.gateway.core.exceptions import (
-    OrchestratorUnreachableError,
-    OrchestratorTimeoutError,
-    ContainerStartError,
-)
-from services.gateway.services.lambda_invoker import WorkerState
-from services.gateway.services.function_registry import FunctionRegistry
 from services.gateway.core.concurrency import ConcurrencyManager
+from services.gateway.core.exceptions import (
+    ContainerStartError,
+    OrchestratorTimeoutError,
+    OrchestratorUnreachableError,
+)
+from services.gateway.pb import agent_pb2, agent_pb2_grpc
+from services.gateway.services.function_registry import FunctionRegistry
+from services.gateway.services.lambda_invoker import WorkerState
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ class GrpcBackend:
         function_registry: Optional[FunctionRegistry] = None,
         concurrency_manager: Optional[ConcurrencyManager] = None,
     ):
-        self.channel = grpc.aio.insecure_channel(agent_address)
+        self.channel = grpc.aio.insecure_channel(agent_address)  # type: ignore[possibly-missing-attribute]
         self.stub = agent_pb2_grpc.AgentServiceStub(self.channel)
         self.function_registry = function_registry
         self.concurrency_manager = concurrency_manager
@@ -87,7 +88,7 @@ class GrpcBackend:
                 env = func_config.get("environment", {})
                 image = func_config.get("image", "")
 
-        req = agent_pb2.EnsureContainerRequest(
+        req = agent_pb2.EnsureContainerRequest(  # type: ignore[attr-defined]
             function_name=function_name,
             image=image,
             env=env,
@@ -100,6 +101,7 @@ class GrpcBackend:
             )
         except grpc.RpcError as e:
             self._handle_grpc_error(e, function_name)
+            raise  # Unreachable, but satisfies type checker
 
     async def release_worker(self, function_name: str, worker: WorkerInfo) -> None:
         """
@@ -113,7 +115,7 @@ class GrpcBackend:
         """
         Explicitly evict a worker.
         """
-        req = agent_pb2.DestroyContainerRequest(function_name=function_name, container_id=worker.id)
+        req = agent_pb2.DestroyContainerRequest(function_name=function_name, container_id=worker.id)  # type: ignore[attr-defined]
         try:
             await self.stub.DestroyContainer(req)
         except grpc.RpcError as e:
@@ -124,7 +126,7 @@ class GrpcBackend:
         """
         Get the state of all workers from Agent (for Janitor).
         """
-        req = agent_pb2.ListContainersRequest()
+        req = agent_pb2.ListContainersRequest()  # type: ignore[attr-defined]
         try:
             resp = await self.stub.ListContainers(req)
             return [
@@ -141,7 +143,7 @@ class GrpcBackend:
             return []
 
     def _handle_grpc_error(self, e: grpc.RpcError, function_name: str):
-        code = e.code()
+        code = e.code()  # type: ignore[attr-defined]
         # gRPC aio errors often have a .details() method
         details = getattr(e, "details", lambda: str(e))()
 

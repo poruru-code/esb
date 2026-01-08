@@ -4,8 +4,9 @@ Tests for PoolManager class
 TDD: RED phase - write tests first, then implement.
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 
 class TestPoolManagerBasics:

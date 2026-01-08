@@ -1,6 +1,8 @@
-import httpx
 import logging
-from typing import List, Any
+from typing import Any, List
+
+import httpx
+
 from services.common.models.internal import WorkerInfo
 
 logger = logging.getLogger("gateway.clients")

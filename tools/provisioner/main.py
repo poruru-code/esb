@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
+import os
 import sys
 import time
+from pathlib import Path
+
 import boto3
 from botocore.exceptions import ClientError, EndpointConnectionError
-from pathlib import Path
 
 # Resolve the project root path.
 project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
-from tools.generator.parser import parse_sam_template  # noqa: E402
 
 # Default settings.
-import os
+from tools.generator.parser import parse_sam_template  # noqa: E402
 
 # Default settings (read from environment or default to single-host ports).
 db_port = os.environ.get("ESB_PORT_DATABASE", "8001")

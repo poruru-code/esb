@@ -1,17 +1,19 @@
-from abc import ABC, abstractmethod
-from typing import Dict, Any
-from fastapi import Request
 import base64
 import logging
 import uuid
-from ..models.aws_v1 import (
-    APIGatewayProxyEvent,
-    ApiGatewayRequestContext,
-    ApiGatewayIdentity,
-    ApiGatewayAuthorizer,
-)
+from abc import ABC, abstractmethod
+from typing import Any, Dict
+
+from fastapi import Request
 
 from services.common.core.request_context import get_request_id
+
+from ..models.aws_v1 import (
+    ApiGatewayAuthorizer,
+    ApiGatewayIdentity,
+    APIGatewayProxyEvent,
+    ApiGatewayRequestContext,
+)
 
 logger = logging.getLogger("gateway.event_builder")
 
@@ -96,7 +98,7 @@ class V1ProxyEventBuilder(EventBuilder):
                 ),
                 authorizer=ApiGatewayAuthorizer(
                     claims={"cognito:username": user_id, "username": user_id},
-                    cognito_username=user_id,
+                    cognito_username=user_id,  # type: ignore[unknown-argument]  # pydantic Field alias
                 ),
                 requestId=aws_request_id,
                 path=str(request.url.path),

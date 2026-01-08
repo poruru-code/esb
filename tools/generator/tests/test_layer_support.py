@@ -1,4 +1,5 @@
 import unittest
+
 from tools.generator.parser import parse_sam_template
 from tools.generator.renderer import render_dockerfile
 

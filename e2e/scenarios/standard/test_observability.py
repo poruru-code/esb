@@ -13,11 +13,11 @@ import requests
 
 from e2e.conftest import (
     GATEWAY_URL,
-    VERIFY_SSL,
     LOG_WAIT_TIMEOUT,
+    VERIFY_SSL,
+    call_api,
     query_victorialogs,
     query_victorialogs_by_filter,
-    call_api,
 )
 
 

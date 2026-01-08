@@ -1,5 +1,6 @@
 import pytest
 from cryptography import x509
+
 from tools.cli.core import cert
 
 

@@ -1,6 +1,6 @@
-from . import down, up, build
-from tools.cli.core import logging
-from tools.cli.core import context
+from tools.cli.core import context, logging
+
+from . import build, down, up
 
 
 def run(args):
@@ -16,9 +16,11 @@ def run(args):
         logging.info("Skipping confirmation (--yes).")
     else:
         try:
-            confirm = input(
-                f"{logging.Color.YELLOW}Are you sure you want to proceed? [y/N]: {logging.Color.END}"
+            prompt = (
+                f"{logging.Color.YELLOW}Are you sure you want to proceed? [y/N]: "
+                f"{logging.Color.END}"
             )
+            confirm = input(prompt)
         except (EOFError, KeyboardInterrupt):
             print()  # Newline.
             logging.info("Reset cancelled.")
@@ -43,24 +45,31 @@ def run(args):
         logging.info("Deleting all containers, volumes, and images...")
     else:
         logging.info("Deleting all containers and volumes...")
-    
+
     down_args = ResetArgs(volumes=True, rmi=rmi, env=env)
     down.run(down_args)
 
     # 2. Restart (forced build).
     logging.info("Rebuilding and starting services...")
-    
+
     # Explicitly run function build (since 'up' doesn't do it anymore)
-    # We pass the same args, assuming 'build' flag is acceptable or we pass build-specific args if needed.
+    # We pass the same args, assuming 'build' flag is acceptable or we pass
+    # build-specific args if needed.
     # build.run() expects args to have build-related attributes.
     # Creating a BuildArgs shim or reusing args?
     # args in 'reset' might not have 'no_cache' etc unless we add them to reset parser.
     # For now, we perform a standard build.
     class BuildArgs(ResetArgs):
         pass
-    
+
     # Default to standard build
-    build_args = BuildArgs(no_cache=False, dry_run=False, verbose=getattr(args, "verbose", False), file=getattr(args, "file", []), env=env)
+    build_args = BuildArgs(
+        no_cache=False,
+        dry_run=False,
+        verbose=getattr(args, "verbose", False),
+        file=getattr(args, "file", []),
+        env=env,
+    )
     build.run(build_args)
 
     up_args = ResetArgs(build=True, detach=True, env=env)

@@ -1,6 +1,8 @@
 
 import pytest
+
 from tools.generator import parser
+
 
 @pytest.fixture
 def sample_template():

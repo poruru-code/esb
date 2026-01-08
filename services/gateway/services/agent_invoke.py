@@ -30,7 +30,7 @@ class AgentInvokeClient:
         port = worker.port or 8080
         timeout_ms = int(timeout * 1000) if timeout and timeout > 0 else 0
 
-        req = agent_pb2.InvokeWorkerRequest(
+        req = agent_pb2.InvokeWorkerRequest(  # type: ignore[attr-defined]
             ip_address=worker.ip_address,
             port=port,
             path=self.path,

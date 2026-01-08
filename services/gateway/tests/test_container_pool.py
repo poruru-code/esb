@@ -4,9 +4,10 @@ Tests for ContainerPool class
 TDD: RED phase - write tests first, then implement.
 """
 
-import pytest
 import asyncio
 from unittest.mock import AsyncMock
+
+import pytest
 
 
 class TestContainerPoolBasics:

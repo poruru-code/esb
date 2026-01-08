@@ -1,15 +1,14 @@
+import ipaddress
 import logging
-from pathlib import Path
-from typing import Optional
 import socket
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Optional
 
 from cryptography import x509
-from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-import ipaddress
-
+from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
 logger = logging.getLogger(__name__)
 
@@ -204,7 +203,7 @@ def generate_server_cert(cert_dir: Path, ca_key_path: Path, ca_cert_path: Path):
         )
     )
 
-    cert = builder.sign(ca_key, hashes.SHA256())
+    cert = builder.sign(ca_key, hashes.SHA256())  # ty: ignore[invalid-argument-type]  # cryptography type stubs incomplete
 
     with open(server_key_file, "wb") as f:
         f.write(

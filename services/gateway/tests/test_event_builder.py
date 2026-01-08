@@ -1,6 +1,8 @@
-import pytest
 from unittest.mock import patch
+
+import pytest
 from fastapi import Request
+
 from services.gateway.core.event_builder import V1ProxyEventBuilder
 
 
@@ -66,6 +68,7 @@ async def test_v1_event_builder_build():
 async def test_event_builder_uses_generated_request_id():
     """Ensure the Event Builder uses the Request ID from context."""
     from unittest.mock import MagicMock
+
     from services.common.core import request_context
 
     # Arrange

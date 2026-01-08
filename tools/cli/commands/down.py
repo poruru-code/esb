@@ -2,18 +2,14 @@
 # What: Stop ESB services and clean up resources.
 # Why: Provide a consistent shutdown path for the CLI.
 import subprocess
-from tools.cli.config import PROJECT_ROOT
-from tools.cli import compose as cli_compose
 
-from tools.cli.core import logging
-from importlib.metadata import metadata
-from tools.cli.core import proxy
+from tools.cli import compose as cli_compose
+from tools.cli.core import logging, proxy
 
 
 def run(args):
 
 
-    from tools.cli import config as cli_config
     import os
 
     logging.step("Stopping services...")

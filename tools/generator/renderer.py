@@ -5,6 +5,7 @@ Generate Dockerfile and functions.yml from function info extracted from a SAM te
 """
 
 from pathlib import Path
+
 from jinja2 import Environment, FileSystemLoader
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"

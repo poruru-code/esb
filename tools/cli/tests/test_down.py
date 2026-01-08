@@ -1,7 +1,6 @@
 """Unit tests for esb down command"""
-import pytest
-from unittest.mock import patch, MagicMock
 from argparse import Namespace
+from unittest.mock import MagicMock, patch
 
 from tools.cli.commands import down
 

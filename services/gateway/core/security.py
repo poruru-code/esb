@@ -6,6 +6,7 @@ Generates and verifies JWT tokens.
 
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+
 import jwt
 
 # JWT algorithm.

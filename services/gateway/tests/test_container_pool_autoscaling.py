@@ -1,7 +1,9 @@
-import pytest
 import time
-from services.gateway.services.container_pool import ContainerPool
+
+import pytest
+
 from services.common.models.internal import WorkerInfo
+from services.gateway.services.container_pool import ContainerPool
 
 
 @pytest.mark.asyncio

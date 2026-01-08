@@ -12,7 +12,6 @@ from services.gateway.core.wg_routes import (
     parse_allowed_ips,
 )
 
-
 RFC1918_SAMPLE = "10.88.1.0/24"
 WG_HOST_SAMPLE = "10.99.0.2/32"
 PUBLIC_HOST_SAMPLE = "203.0.113.10/32"

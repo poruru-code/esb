@@ -13,9 +13,9 @@ import time
 import requests
 
 from e2e.conftest import (
+    DEFAULT_REQUEST_TIMEOUT,
     GATEWAY_URL,
     VERIFY_SSL,
-    DEFAULT_REQUEST_TIMEOUT,
     call_api,
 )
 

@@ -1,5 +1,7 @@
-import pytest
 from unittest.mock import patch
+
+import pytest
+
 from services.common.core.config import BaseAppConfig
 
 try:

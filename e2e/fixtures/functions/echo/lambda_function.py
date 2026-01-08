@@ -7,7 +7,8 @@ Allows testing Lambda invocations without external dependencies like S3/DynamoDB
 import json
 import os
 from datetime import datetime, timezone
-from common.utils import handle_ping, create_response, parse_event_body
+
+from common.utils import create_response, handle_ping, parse_event_body
 
 
 def lambda_handler(event, context):

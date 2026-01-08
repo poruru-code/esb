@@ -9,8 +9,9 @@ This module provides Pydantic models to build API Gateway Lambda Proxy Integrati
 event structures in a type-safe manner.
 """
 
-from typing import Dict, Any, Optional, List
-from pydantic import BaseModel, Field, ConfigDict
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ApiGatewayIdentity(BaseModel):

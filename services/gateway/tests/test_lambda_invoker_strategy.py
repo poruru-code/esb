@@ -1,9 +1,11 @@
-import pytest
-from unittest.mock import MagicMock, AsyncMock
-from services.gateway.services.lambda_invoker import LambdaInvoker
-from services.gateway.services.function_registry import FunctionRegistry
-from services.gateway.config import GatewayConfig
 from typing import Any, Protocol
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
+from services.gateway.config import GatewayConfig
+from services.gateway.services.function_registry import FunctionRegistry
+from services.gateway.services.lambda_invoker import LambdaInvoker
 
 
 class InvocationBackend(Protocol):

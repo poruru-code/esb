@@ -5,11 +5,12 @@ Loads functions.yml and provides name-to-config mapping.
 Merges default environment variables into function-specific settings.
 """
 
-from typing import Dict, Any, Optional
-import yaml
 import logging
 import os
 import string
+from typing import Any, Dict, Optional
+
+import yaml
 
 from ..config import config
 

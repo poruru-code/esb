@@ -1,11 +1,11 @@
 import os
-import sys
+from unittest.mock import MagicMock, patch
+
 import pytest
-from pathlib import Path
-from unittest.mock import patch, MagicMock
 
 from tools.cli import config as cli_config
 from tools.cli.core import context
+
 
 def test_context_validation_checks_project_local_path(tmp_path):
     """
@@ -104,8 +104,8 @@ def test_set_template_yaml_expands_user():
     """
     Verify that set_template_yaml expands ~ using expanduser().
     """
-    from tools.cli.config import set_template_yaml
     import tools.cli.config as cli_config
+    from tools.cli.config import set_template_yaml
     
     with patch("os.path.expanduser", return_value="/home/fakeuser/template.yaml"):
         set_template_yaml("~/template.yaml")

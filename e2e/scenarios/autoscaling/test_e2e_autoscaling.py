@@ -7,9 +7,10 @@ import concurrent.futures
 import os
 import subprocess
 
-import pytest
-from e2e.conftest import call_api
 import grpc
+import pytest
+
+from e2e.conftest import call_api
 from services.gateway.pb import agent_pb2, agent_pb2_grpc
 
 # Auto-Scaling tests run against the gRPC Agent path.

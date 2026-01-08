@@ -4,12 +4,13 @@
 # Why: Provide a single entry point for scenario setup, execution, and teardown.
 import argparse
 import os
-import sys
 import subprocess
-from pathlib import Path
-from dotenv import load_dotenv
+import sys
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from pathlib import Path
 from typing import Any
+
+from dotenv import load_dotenv
 
 # Project root
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
@@ -50,6 +51,7 @@ def ensure_firecracker_node_up() -> None:
 def main():
     # Suppress warnings.
     import warnings
+
     import urllib3
 
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -141,10 +143,8 @@ def main():
     # Only print for sequential mode (subprocess of parallel will print its own)
     if not args.parallel:
         print("\nStarting Full E2E Test Suite (Matrix-Based)\n")
-    
-    failed_entries = []
 
-    initialized_profiles = set()
+    failed_entries = []
 
     # Build list of all scenarios to run, grouped by profile
     profile_scenarios: dict[str, dict[str, Any]] = {}
@@ -224,14 +224,14 @@ def main():
         warmup_environment(profile_scenarios, profiles, args)
 
     # --- Unified Execution Mode ---
-    
+
     # If we are a child process (worker), execute the scenario directly.
     if os.environ.get("ESB_TEST_CHILD_PROCESS"):
-        for profile_name, scenario in profile_scenarios.items():
+        for _, scenario in profile_scenarios.items():
             # Inject initialization flags into the scenario
             scenario["perform_reset"] = args.reset
             scenario["perform_build"] = args.build
-            
+
             # Run in-process
             try:
                 run_scenario(args, scenario)
@@ -245,10 +245,10 @@ def main():
 
     # Dispatcher Mode: Use executor for both parallel and sequential (max_workers=1) execution.
     # This ensures consistent environment isolation via subprocesses.
-    
+
     parallel_mode = args.parallel and len(profile_scenarios) > 1
     max_workers = len(profile_scenarios) if parallel_mode else 1
-    
+
     if parallel_mode:
         print(
             f"\n[PARALLEL] Starting parallel execution for {len(profile_scenarios)} profiles: {', '.join(profile_scenarios.keys())}"
@@ -265,10 +265,10 @@ def main():
         build=args.build,
         cleanup=args.cleanup,
         fail_fast=args.fail_fast,
-        max_workers=max_workers
+        max_workers=max_workers,
     )
 
-    for profile_name, (success, profile_failed) in results.items():
+    for _, (success, profile_failed) in results.items():
         if not success:
             failed_entries.extend(profile_failed)
 
@@ -296,7 +296,7 @@ def warmup_environment(profile_scenarios: dict, profiles: dict, args):
             if esb_dir.exists():
                 print(f"  • Removing {esb_dir}")
                 shutil.rmtree(esb_dir)
-    
+
     # 2. One-time Silent Init for All Profiles (Warm-up)
     # To prevent race conditions in parallel execution, we initialize generator.yml once here.
     active_profiles = list(profile_scenarios.keys())
@@ -306,8 +306,7 @@ def warmup_environment(profile_scenarios: dict, profiles: dict, args):
         # Use default template path for tests
         esb_template = os.getenv("ESB_TEMPLATE", "e2e/fixtures/template.yaml")
         run_esb(
-            ["--template", str(PROJECT_ROOT / esb_template), "init", "--env", env_list],
-            check=True
+            ["--template", str(PROJECT_ROOT / esb_template), "init", "--env", env_list], check=True
         )
 
 
@@ -331,7 +330,7 @@ def run_profiles_with_executor(
         future_to_profile = {}
 
         # Submit all tasks
-        for profile_name, scenario in profile_scenarios.items():
+        for profile_name, _ in profile_scenarios.items():
             # Build command for subprocess
             cmd = [
                 sys.executable,
@@ -355,14 +354,14 @@ def run_profiles_with_executor(
             # If sequential (max_workers=1), we don't strictly need colors, but it doesn't hurt.
             # However, if running sequentially, we might want to announce "Starting..." immediately before submission?
             # With Executor, submission happens first.
-            
+
             if max_workers > 1:
                 print(f"[PARALLEL] Scheduling profile: {profile_name}")
                 color_code = COLORS[profile_index % len(COLORS)]
             else:
-                # Sequential mode logging is handled more by the subprocess stream, 
+                # Sequential mode logging is handled more by the subprocess stream,
                 # but we can log here too.
-                color_code = "" 
+                color_code = ""
 
             future = executor.submit(run_profile_subprocess, profile_name, cmd, color_code)
             future_to_profile[future] = profile_name
@@ -376,7 +375,7 @@ def run_profiles_with_executor(
                 failed_list = [] if success else [f"Profile {profile_name}"]
 
                 prefix = "[PARALLEL]" if max_workers > 1 else "[MATRIX]"
-                
+
                 if success:
                     print(f"{prefix} Profile {profile_name} PASSED")
                 else:
@@ -388,7 +387,6 @@ def run_profiles_with_executor(
                 results[profile_name] = (False, [f"Profile {profile_name} (exception)"])
 
     return results
-
 
 
 def run_profile_subprocess(
@@ -534,17 +532,21 @@ def run_scenario(args, scenario):
         run_esb(up_args)
 
         # 3.5 Load dynamic ports from ports.json (created by esb up)
-        from tools.cli.core.port_discovery import load_ports, apply_ports_to_env, log_ports
-        
+        from tools.cli.core.port_discovery import apply_ports_to_env, load_ports
+
         ports = load_ports(env_name)
         if ports:
             apply_ports_to_env(ports)
             # log_ports is redundant as 'esb up' already logs it
             # log_ports(env_name, ports)
-            
+
             # Update env dict for pytest subprocess
-            env["GATEWAY_PORT"] = str(ports.get("ESB_PORT_GATEWAY_HTTPS", env.get("GATEWAY_PORT", "443")))
-            env["VICTORIALOGS_PORT"] = str(ports.get("ESB_PORT_VICTORIALOGS", env.get("VICTORIALOGS_PORT", "9428")))
+            env["GATEWAY_PORT"] = str(
+                ports.get("ESB_PORT_GATEWAY_HTTPS", env.get("GATEWAY_PORT", "443"))
+            )
+            env["VICTORIALOGS_PORT"] = str(
+                ports.get("ESB_PORT_VICTORIALOGS", env.get("VICTORIALOGS_PORT", "9428"))
+            )
             env["GATEWAY_URL"] = f"https://localhost:{env['GATEWAY_PORT']}"
             env["VICTORIALOGS_URL"] = f"http://localhost:{env['VICTORIALOGS_PORT']}"
             env["VICTORIALOGS_QUERY_URL"] = env["VICTORIALOGS_URL"]

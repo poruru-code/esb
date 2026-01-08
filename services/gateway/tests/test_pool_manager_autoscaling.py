@@ -1,7 +1,9 @@
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
-from services.gateway.services.pool_manager import PoolManager
+
 from services.common.models.internal import WorkerInfo
+from services.gateway.services.pool_manager import PoolManager
 
 
 @pytest.mark.asyncio

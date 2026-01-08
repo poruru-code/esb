@@ -1,6 +1,8 @@
+import logging
+
 import httpx
 import urllib3
-import logging
+
 from .config import BaseAppConfig
 
 logger = logging.getLogger(__name__)

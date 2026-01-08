@@ -1,6 +1,7 @@
 import asyncio
 from collections import deque
-from typing import Dict, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict, Optional
+
 from services.gateway.core.exceptions import ResourceExhaustedError
 
 if TYPE_CHECKING:
@@ -38,7 +39,7 @@ class FunctionThrottle:
             async with self.condition:
                 if waiter in self.waiters:
                     self.waiters.remove(waiter)
-            raise ResourceExhaustedError("Request timed out in queue")
+            raise ResourceExhaustedError("Request timed out in queue") from None
         except BaseException:
             async with self.condition:
                 if waiter in self.waiters:

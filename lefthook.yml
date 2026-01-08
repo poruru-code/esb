@@ -4,6 +4,7 @@
 pre-commit:
   parallel: true
   commands:
+    # --- Python Lint & Format ---
     ruff-check:
       glob: "*.py"
       run: ruff check --fix {staged_files}
@@ -12,6 +13,11 @@ pre-commit:
       glob: "*.py"
       run: ruff format {staged_files}
       stage_fixed: true
+
+    # --- Ty Type Check ---
+    ty-check:
+      glob: "*.py"
+      run: uv run ty check tools/ services/gateway/
 
     # --- Go Formatting ---
     go-fmt:

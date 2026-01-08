@@ -5,23 +5,25 @@ Acquires workers via the InvocationBackend strategy and sends invoke requests to
 Business logic layer for boto3.client('lambda').invoke()-compatible endpoints.
 """
 
-import logging
-import json
 import base64
+import json
+import logging
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Protocol
+
 import grpc
 import httpx
-from typing import Dict, Optional, Protocol, List
-from dataclasses import dataclass
+
 from services.common.core.request_context import get_trace_id
-from services.gateway.services.function_registry import FunctionRegistry
+from services.common.models.internal import WorkerInfo
 from services.gateway.config import GatewayConfig
 from services.gateway.core.circuit_breaker import CircuitBreaker, CircuitBreakerOpenError
 from services.gateway.core.exceptions import (
     ContainerStartError,
     LambdaExecutionError,
 )
-from services.common.models.internal import WorkerInfo
 from services.gateway.services.agent_invoke import AgentInvokeClient
+from services.gateway.services.function_registry import FunctionRegistry
 
 logger = logging.getLogger("gateway.lambda_invoker")
 
@@ -84,7 +86,7 @@ class LambdaInvoker:
         self.breakers: Dict[str, CircuitBreaker] = {}
 
     async def invoke_function(
-        self, function_name: str, payload: bytes, timeout: int = 300
+        self, function_name: str, payload: bytes, timeout: int | float = 300
     ) -> httpx.Response:
         """Invoke the specified Lambda."""
         func_config = self.registry.get_function_config(function_name)
@@ -109,7 +111,7 @@ class LambdaInvoker:
                 raise ContainerStartError(function_name, e) from e
 
             if self.agent_invoker and breaker.state == "OPEN":
-                if isinstance(breaker.last_error, (grpc.aio.AioRpcError, httpx.ConnectError)):
+                if isinstance(breaker.last_error, (grpc.aio.AioRpcError, httpx.ConnectError)):  # ty: ignore[possibly-missing-attribute]  # grpc.aio not in stubs
                     breaker.state = "HALF_OPEN"
                     logger.info(
                         "Circuit breaker forced to HALF_OPEN after worker acquisition",
@@ -135,7 +137,7 @@ class LambdaInvoker:
 
                 if self.agent_invoker:
                     response = await self.agent_invoker.invoke(
-                        worker=worker,
+                        worker=worker,  # ty: ignore[invalid-argument-type]  # worker narrowed in try block
                         payload=payload,
                         headers=headers,
                         timeout=timeout,
@@ -183,7 +185,7 @@ class LambdaInvoker:
         except CircuitBreakerOpenError as e:
             logger.error(f"Circuit breaker open for {function_name}: {e}")
             raise LambdaExecutionError(function_name, "Circuit Breaker Open") from e
-        except grpc.aio.AioRpcError as e:
+        except grpc.aio.AioRpcError as e:  # ty: ignore[possibly-missing-attribute]  # grpc.aio not in stubs
             # Observability: Capture details for debugging
             logger.error(
                 f"Lambda invocation failed for function '{function_name}': {e}",

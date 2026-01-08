@@ -5,9 +5,11 @@ Test error mapping and RequestId propagation.
 These tests are expected to fail until implementation is complete.
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
 import httpx
+import pytest
+
 from services.gateway.client import OrchestratorClient as ManagerClient
 
 
@@ -105,7 +107,7 @@ async def test_ensure_container_400_docker_error(mock_client):
 @pytest.mark.asyncio
 async def test_trace_id_propagation(mock_client):
     """TraceId propagates via X-Amzn-Trace-Id header."""
-    from services.common.core.request_context import set_trace_id, clear_trace_id
+    from services.common.core.request_context import clear_trace_id, set_trace_id
 
     # Set TraceId.
     test_trace_id = "Root=1-abcdef01-1234567890abcdef12345678;Sampled=1"
@@ -230,6 +232,7 @@ async def test_cache_miss_retry_after_invalidation(mock_client):
 async def test_singleflight_coalesces_concurrent_requests(mock_client):
     """Coalesce concurrent requests into a single Manager call (thundering herd)."""
     import asyncio
+
     from services.gateway.services.container_cache import ContainerHostCache
 
     cache = ContainerHostCache()
@@ -267,8 +270,9 @@ async def test_singleflight_coalesces_concurrent_requests(mock_client):
 async def test_singleflight_propagates_error_to_all_waiters(mock_client):
     """Errors propagate to all waiters."""
     import asyncio
-    from services.gateway.services.container_cache import ContainerHostCache
+
     from services.gateway.core.exceptions import OrchestratorUnreachableError
+    from services.gateway.services.container_cache import ContainerHostCache
 
     cache = ContainerHostCache()
 

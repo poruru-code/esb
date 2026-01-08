@@ -1,8 +1,10 @@
-from unittest.mock import MagicMock, patch
-import pytest
 import os
-from pathlib import Path
-from tools.cli.commands import up, build
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from tools.cli.commands import build, up
+
 
 class TestBuildUpIntegration:
     @pytest.fixture

@@ -1,8 +1,9 @@
-import os
 import json
-import boto3
 import logging
-from common.utils import handle_ping, parse_event_body, create_response
+import os
+
+import boto3
+from common.utils import create_response, handle_ping, parse_event_body
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)

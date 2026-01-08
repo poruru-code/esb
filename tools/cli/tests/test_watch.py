@@ -1,6 +1,8 @@
-import pytest
-from unittest.mock import patch, MagicMock
 from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
 from tools.cli.commands.watch import SmartReloader
 
 

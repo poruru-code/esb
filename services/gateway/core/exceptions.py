@@ -5,9 +5,11 @@ Represent errors related to Lambda invocation.
 """
 
 import logging
+from typing import Union
+
 from fastapi import Request, status
-from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 logger = logging.getLogger(__name__)
@@ -30,7 +32,7 @@ class FunctionNotFoundError(LambdaInvokeError):
 class ContainerStartError(LambdaInvokeError):
     """Raised when container startup fails."""
 
-    def __init__(self, function_name: str, cause: Exception):
+    def __init__(self, function_name: str, cause: Union[Exception, str]):
         self.function_name = function_name
         self.cause = cause
         super().__init__(f"Failed to start container {function_name}: {cause}")
@@ -39,7 +41,7 @@ class ContainerStartError(LambdaInvokeError):
 class LambdaExecutionError(LambdaInvokeError):
     """Raised when Lambda execution fails."""
 
-    def __init__(self, function_name: str, cause: Exception):
+    def __init__(self, function_name: str, cause: Union[Exception, str]):
         self.function_name = function_name
         self.cause = cause
 
@@ -65,7 +67,7 @@ class OrchestratorTimeoutError(OrchestratorError):
 class OrchestratorUnreachableError(LambdaInvokeError):
     """Failed to connect to the orchestrator service."""
 
-    def __init__(self, cause: Exception):
+    def __init__(self, cause: Union[Exception, str]):
         self.cause = cause
         super().__init__(f"Orchestrator unreachable: {cause}")
 

@@ -6,10 +6,7 @@ Why: TDD - Tests first for port discovery functionality
 import json
 import os
 import subprocess
-from pathlib import Path
-from unittest.mock import patch, MagicMock
-
-import pytest
+from unittest.mock import patch
 
 
 class TestDiscoverPorts:

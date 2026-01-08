@@ -1,13 +1,13 @@
 
-import unittest
-import sys
-import os
-import json
-import io
-from unittest.mock import MagicMock, patch, ANY
-
 # Helper to import the target file since it's not in standard path
 import importlib.util
+import io
+import json
+import os
+import sys
+import unittest
+from unittest.mock import MagicMock, patch
+
 spec = importlib.util.spec_from_file_location("sitecustomize", "tools/generator/runtime/site-packages/sitecustomize.py")
 sitecustomize = importlib.util.module_from_spec(spec)
 sys.modules["sitecustomize"] = sitecustomize

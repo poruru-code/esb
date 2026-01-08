@@ -1,7 +1,8 @@
 import os
 import sys
-import pytest
 from pathlib import Path
+
+import pytest
 from starlette.testclient import TestClient
 
 # Add project root to sys.path to allow imports like 'services.gateway...'

@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from tools.cli.commands import node as node_cmd
 from tools.cli import config as cli_config
+from tools.cli.commands import node as node_cmd
 
 
 def _args(**overrides):

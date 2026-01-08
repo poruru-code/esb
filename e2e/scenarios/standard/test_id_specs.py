@@ -8,10 +8,11 @@ Verify that:
 
 import time
 import uuid
+
 from e2e.conftest import (
-    query_victorialogs_by_filter,
-    call_api,
     LOG_WAIT_TIMEOUT,
+    call_api,
+    query_victorialogs_by_filter,
 )
 
 

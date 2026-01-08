@@ -4,8 +4,8 @@ Tests for Auto-Scaling Data Structures
 TDD: RED phase - write tests first, then implement.
 """
 
+
 import pytest
-from dataclasses import FrozenInstanceError
 
 
 class TestWorkerInfo:
@@ -115,8 +115,9 @@ class TestContainerProvisionRequest:
 
     def test_provision_request_count_validation(self):
         """ContainerProvisionRequest count should be between 1 and 10"""
-        from services.common.models.internal import ContainerProvisionRequest
         from pydantic import ValidationError
+
+        from services.common.models.internal import ContainerProvisionRequest
 
         # Valid counts
         for count in [1, 5, 10]:

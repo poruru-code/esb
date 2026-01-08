@@ -31,7 +31,7 @@ env/
 docker-images/
 
 # IDE
-.vscode/
+.vscode/settings.json
 .idea/
 *.swp
 *.swo

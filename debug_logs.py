@@ -1,6 +1,7 @@
-import requests
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+import requests
 
 VICTORIALOGS_URL = "http://localhost:9428"
 
@@ -8,7 +9,7 @@ VICTORIALOGS_URL = "http://localhost:9428"
 def query_logs(query, limit=50):
     try:
         # Fetch logs from the last 10 minutes.
-        start = (datetime.utcnow() - timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        start = (datetime.now(timezone.utc) - timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%SZ")
         url = f"{VICTORIALOGS_URL}/select/logsql/query"
         params = {"query": query, "limit": limit, "start": start}
         response = requests.get(url, params=params)

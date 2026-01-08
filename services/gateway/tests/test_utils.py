@@ -1,5 +1,7 @@
 from unittest.mock import patch
+
 import httpx
+
 from services.gateway.core.utils import parse_lambda_response
 
 

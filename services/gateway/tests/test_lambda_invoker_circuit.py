@@ -1,12 +1,14 @@
-import pytest
+from unittest.mock import AsyncMock, MagicMock
+
 import httpx
+import pytest
 import respx
-from unittest.mock import MagicMock, AsyncMock
-from services.gateway.services.lambda_invoker import LambdaInvoker
-from services.gateway.services.function_registry import FunctionRegistry
+
+from services.common.models.internal import WorkerInfo
 from services.gateway.config import GatewayConfig
 from services.gateway.core.exceptions import LambdaExecutionError
-from services.common.models.internal import WorkerInfo
+from services.gateway.services.function_registry import FunctionRegistry
+from services.gateway.services.lambda_invoker import LambdaInvoker
 
 
 @pytest.fixture

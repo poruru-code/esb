@@ -9,7 +9,7 @@ import asyncio
 import logging
 import time
 from collections import deque
-from typing import Callable, Awaitable, List, Set, Deque
+from typing import Awaitable, Callable, Deque, Dict, List
 
 from services.common.models.internal import WorkerInfo
 
@@ -79,7 +79,9 @@ class ContainerPool:
                     # wait() releases the lock and re-acquires on notify.
                     await asyncio.wait_for(self._cv.wait(), timeout=remaining)
                 except asyncio.TimeoutError:
-                    raise asyncio.TimeoutError(f"Pool acquire timeout for {self.function_name}")
+                    raise asyncio.TimeoutError(
+                        f"Pool acquire timeout for {self.function_name}"
+                    ) from None
 
         # --- Provisioning (I/O, so do it outside the CV lock) ---
         try:
@@ -120,9 +122,7 @@ class ContainerPool:
             if worker.id in self._all_workers:
                 del self._all_workers[worker.id]
             if self._idle_workers:
-                self._idle_workers = deque(
-                    w for w in self._idle_workers if w.id != worker.id
-                )
+                self._idle_workers = deque(w for w in self._idle_workers if w.id != worker.id)
             # Notify because capacity is freed.
             self._cv.notify_all()
 

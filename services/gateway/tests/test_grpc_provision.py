@@ -1,6 +1,8 @@
-import pytest
 import os
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
 from services.gateway.pb import agent_pb2
 
 # Mock environment

@@ -1,13 +1,14 @@
-import pytest
-import os
 import json
+import os
+
+import pytest
 import requests
 
 from e2e.conftest import (
-    GATEWAY_URL,
-    VICTORIALOGS_URL,
-    VERIFY_SSL,
     DEFAULT_REQUEST_TIMEOUT,
+    GATEWAY_URL,
+    VERIFY_SSL,
+    VICTORIALOGS_URL,
 )
 
 

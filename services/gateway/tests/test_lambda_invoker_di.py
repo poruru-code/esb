@@ -1,8 +1,10 @@
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
-from services.gateway.services.lambda_invoker import LambdaInvoker
-from services.gateway.services.function_registry import FunctionRegistry
+
 from services.gateway.config import GatewayConfig
+from services.gateway.services.function_registry import FunctionRegistry
+from services.gateway.services.lambda_invoker import LambdaInvoker
 
 
 @pytest.mark.asyncio
@@ -76,8 +78,9 @@ async def test_lambda_invoker_invoke_flow():
 @pytest.mark.asyncio
 async def test_lambda_invoker_logging_on_error():
     """Test LambdaInvoker logs errors with extra context"""
-    from services.gateway.core.exceptions import LambdaExecutionError
     import httpx
+
+    from services.gateway.core.exceptions import LambdaExecutionError
 
     client = AsyncMock()
     registry = MagicMock(spec=FunctionRegistry)
@@ -109,9 +112,10 @@ async def test_lambda_invoker_always_uses_pool_backend():
     """
     Step 2: ensure PoolManager is injected even when ENABLE_CONTAINER_POOLING is False.
     """
+    from fastapi.testclient import TestClient
+
     from services.gateway.main import app
     from services.gateway.services.pool_manager import PoolManager
-    from fastapi.testclient import TestClient
 
     # Patch to suppress external calls during lifespan.
     with (

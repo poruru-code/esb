@@ -1,8 +1,10 @@
-import requests
-import uuid
-import time
 import json
+import time
+import uuid
 from datetime import datetime, timezone
+
+import requests
+
 from e2e.conftest import GATEWAY_URL, VERIFY_SSL, query_victorialogs
 
 

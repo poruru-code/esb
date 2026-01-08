@@ -5,9 +5,9 @@ Aggregates Pydantic models for use in other modules.
 """
 
 from .auth import (
+    AuthenticationResult,
     AuthParameters,
     AuthRequest,
-    AuthenticationResult,
     AuthResponse,
 )
 from .aws_v1 import APIGatewayProxyEvent

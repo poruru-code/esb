@@ -14,11 +14,10 @@ if str(project_root) not in sys.path:
 # Commands will be imported inside main() to ensure env vars are set first.
 
 
-
 def main():
     from tools.cli import config as cli_config
-    from tools.cli.core import context
-    from tools.cli.commands import build, up, watch, down, stop, reset, init, logs, node
+    from tools.cli.commands import build, down, init, logs, node, reset, stop, up, watch
+    from tools.cli.core import context, help_text
 
     parser = argparse.ArgumentParser(
         description="Edge Serverless Box CLI", formatter_class=argparse.RawDescriptionHelpFormatter
@@ -29,14 +28,12 @@ def main():
     subparsers = parser.add_subparsers(dest="command", required=True, help="Command to execute")
 
     # --- init command ---
-    init_parser = subparsers.add_parser("init", help="Initialize generator configuration interactively")
-    init_parser.add_argument(
-        "--env", 
-        type=str, 
-        default=None,
-        help="Environment name(s) for silent initialization (comma-separated, e.g., 'e2e-docker,e2e-containerd'). When specified, runs non-interactively with defaults."
+    init_parser = subparsers.add_parser(
+        "init", help="Initialize generator configuration interactively"
     )
-    # Note: --template is handled by main parser, not subparser. Environment is prompted in the wizard (unless --env is given).
+    init_parser.add_argument("--env", type=str, default=None, help=help_text.INIT_ENV)
+    # Note: --template is handled by main parser, not subparser.
+    # Environment is prompted in the wizard (unless --env is given).
 
     # --- build command ---
     build_parser = subparsers.add_parser("build", help="Generate config and build function images")
@@ -52,9 +49,7 @@ def main():
     build_parser.add_argument(
         "-f", "--file", action="append", help="Specify an additional compose file"
     )
-    build_parser.add_argument(
-        "--env", type=str, help="Environment name"
-    )
+    build_parser.add_argument("--env", type=str, help="Environment name")
 
     # --- up command ---
     up_parser = subparsers.add_parser("up", help="Start the environment")
@@ -66,9 +61,7 @@ def main():
     up_parser.add_argument(
         "-f", "--file", action="append", help="Specify an additional compose file"
     )
-    up_parser.add_argument(
-        "--env", type=str, help="Environment name"
-    )
+    up_parser.add_argument("--env", type=str, help="Environment name")
 
     # --- watch command ---
     subparsers.add_parser("watch", help="Watch for changes and hot-reload")
@@ -84,18 +77,14 @@ def main():
     down_parser.add_argument(
         "-f", "--file", action="append", help="Specify an additional compose file"
     )
-    down_parser.add_argument(
-        "--env", type=str, help="Environment name"
-    )
+    down_parser.add_argument("--env", type=str, help="Environment name")
 
     # --- stop command ---
     stop_parser = subparsers.add_parser("stop", help="Stop the environment (preserve state)")
     stop_parser.add_argument(
         "-f", "--file", action="append", help="Specify an additional compose file"
     )
-    stop_parser.add_argument(
-        "--env", type=str, help="Environment name"
-    )
+    stop_parser.add_argument("--env", type=str, help="Environment name")
 
     # --- reset command ---
     reset_parser = subparsers.add_parser(
@@ -103,9 +92,7 @@ def main():
     )
     reset_parser.add_argument("--yes", "-y", action="store_true", help="Skip confirmation prompt")
     reset_parser.add_argument("--rmi", action="store_true", help="Remove images as well")
-    reset_parser.add_argument(
-        "--env", type=str, help="Environment name"
-    )
+    reset_parser.add_argument("--env", type=str, help="Environment name")
 
     # --- logs command ---
     logs_parser = subparsers.add_parser("logs", help="View service logs")
@@ -113,9 +100,7 @@ def main():
     logs_parser.add_argument("--follow", "-f", action="store_true", help="Follow log output")
     logs_parser.add_argument("--tail", type=int, default=None, help="Number of lines to show")
     logs_parser.add_argument("--timestamps", "-t", action="store_true", help="Show timestamps")
-    logs_parser.add_argument(
-        "--env", type=str, help="Environment name"
-    )
+    logs_parser.add_argument("--env", type=str, help="Environment name")
 
     # --- node command ---
     node_parser = subparsers.add_parser("node", help="Manage compute nodes")
@@ -330,20 +315,18 @@ def main():
     # Template override handled FIRST so that E2E_DIR is correctly set for generator.yml lookup
     if args.template:
         from tools.cli.config import set_template_yaml
+
         set_template_yaml(args.template)
-    
+
     # Ensure template is available (required for most commands)
-    from tools.cli import config as cli_config
     if cli_config.TEMPLATE_YAML is None:
         print("❌ No template specified.")
-        print("\nPlease specify a template using --template or set ESB_TEMPLATE environment variable:")
-        print("  esb --template=<path/to/template.yaml> <command>")
-        print("  ESB_TEMPLATE=<path/to/template.yaml> esb <command>")
+        print(help_text.NO_TEMPLATE_ERROR)
         sys.exit(1)
 
     # Enforce environment argument if present (main entrypoint is lenient on existence)
     # Skip interactive selection for init command - it prompts for environment name in its wizard
-    skip_interactive = (args.command == "init")
+    skip_interactive = args.command == "init"
     context.enforce_env_arg(args, require_built=False, skip_interactive=skip_interactive)
 
     try:

@@ -6,9 +6,10 @@ A simple Lambda function providing S3 API operations.
 
 import json
 import os
-import boto3
 from datetime import datetime, timezone
-from common.utils import handle_ping, parse_event_body, create_response
+
+import boto3
+from common.utils import create_response, handle_ping, parse_event_body
 
 
 def lambda_handler(event, context):

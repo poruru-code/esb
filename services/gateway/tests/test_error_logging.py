@@ -4,21 +4,23 @@ Gateway error handling log detail tests.
 Verify detailed info is logged at error level on Lambda connection failures.
 """
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock
-import httpx
 import logging
+from unittest.mock import AsyncMock, MagicMock
+
+import httpx
+import pytest
+
 from services.gateway.api.deps import (
     get_http_client,
-    get_orchestrator_client,
     get_lambda_invoker,
-    verify_authorization,
+    get_orchestrator_client,
     resolve_lambda_target,
+    verify_authorization,
 )
-from services.gateway.models import TargetFunction
-from services.gateway.services.lambda_invoker import LambdaInvoker
-from services.gateway.services.function_registry import FunctionRegistry
 from services.gateway.config import GatewayConfig
+from services.gateway.models import TargetFunction
+from services.gateway.services.function_registry import FunctionRegistry
+from services.gateway.services.lambda_invoker import LambdaInvoker
 
 
 @pytest.fixture
@@ -141,8 +143,8 @@ async def test_lambda_connection_error_includes_detailed_info(caplog):
     """
     Verify logs include detailed info (host, port, timeout, error_detail) on connection failure.
     """
-    from services.gateway.main import app
     from services.gateway.config import config
+    from services.gateway.main import app
 
     caplog.set_level(logging.ERROR, logger="gateway.lambda_invoker")
 

@@ -5,11 +5,12 @@ A simple Lambda function providing DynamoDB API operations.
 """
 
 import json
-import uuid
-import time
 import logging
+import time
+import uuid
+
 import boto3
-from common.utils import handle_ping, parse_event_body, create_response
+from common.utils import create_response, handle_ping, parse_event_body
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)

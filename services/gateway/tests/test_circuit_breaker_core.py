@@ -1,5 +1,7 @@
 import asyncio
+
 import pytest
+
 from services.gateway.core.circuit_breaker import CircuitBreaker, CircuitBreakerOpenError
 
 
