@@ -36,6 +36,11 @@ def get_env_name() -> str:
 
 def get_esb_home() -> Path:
     """Resolve the ESB home directory based on environment."""
+    # Priority: 1. ESB_HOME env var, 2. ~/.esb/<env_name>
+    esb_home = os.getenv("ESB_HOME")
+    if esb_home:
+        return Path(esb_home).expanduser()
+
     env_name = get_env_name()
     return Path.home() / ".esb" / env_name
 

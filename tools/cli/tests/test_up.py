@@ -85,7 +85,7 @@ class TestUpCommand:
         nodes_path = tmp_path / "nodes.yaml"
         nodes_path.write_text(yaml.safe_dump(nodes))
 
-        monkeypatch.setattr(up.cli_config, "ESB_HOME", tmp_path)
+        monkeypatch.setenv("ESB_HOME", str(tmp_path))
         monkeypatch.setenv("AGENT_GRPC_ADDRESS", "localhost:50051")
         monkeypatch.setenv("PORT", "50051")
         monkeypatch.setattr(up.runtime_mode, "get_mode", lambda: up.cli_config.ESB_MODE_FIRECRACKER)

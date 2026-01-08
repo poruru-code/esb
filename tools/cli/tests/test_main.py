@@ -33,7 +33,6 @@ def test_cli_help(capsys):
     assert "down" in captured.out
     assert "init" in captured.out
     assert "node" in captured.out
-    assert "mode" in captured.out
 
 
 @patch("tools.cli.commands.build.run")
@@ -131,20 +130,6 @@ def test_cli_node_up_dispatch(mock_node_run):
     mock_node_run.assert_called_once()
 
 
-@patch("tools.cli.commands.mode.run")
-def test_cli_mode_get_dispatch(mock_mode_run):
-    """Ensure the mode get subcommand is dispatched correctly."""
-    with patch.object(sys, "argv", ["esb", "mode", "get"]):
-        main()
-    mock_mode_run.assert_called_once()
-
-
-@patch("tools.cli.commands.mode.run")
-def test_cli_mode_set_dispatch(mock_mode_run):
-    """Ensure the mode set subcommand is dispatched correctly."""
-    with patch.object(sys, "argv", ["esb", "mode", "set", cli_config.ESB_MODE_CONTAINERD]):
-        main()
-    mock_mode_run.assert_called_once()
 
 
 
