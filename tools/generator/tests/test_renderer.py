@@ -25,7 +25,7 @@ class TestDockerfileRenderer:
         result = render_dockerfile(func_config, docker_config)
 
         assert "FROM esb-lambda-base:latest" in result
-        # assert "COPY tools/generator/runtime/sitecustomize.py" in result # Moved to base image
+        assert "COPY tools/generator/runtime/sitecustomize.py" in result
         assert "COPY functions/hello/" in result
         assert 'CMD [ "lambda_function.lambda_handler" ]' in result
 
@@ -88,7 +88,7 @@ class TestFunctionsYmlRenderer:
                 "scaling": {
                     "max_capacity": 5,
                     "min_capacity": 1,
-                }
+                },
             },
         ]
 

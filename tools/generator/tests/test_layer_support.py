@@ -85,9 +85,11 @@ class TestLayerSupport(unittest.TestCase):
         self.assertIn("layers", func)
         self.assertEqual(len(func["layers"]), 1)
         self.assertEqual(func["layers"][0]["name"], "common-layer")
+
     def test_render_dockerfile_with_zip_layer(self):
         """Ensure staged zip layers generate the expected Dockerfile output."""
         from tools.generator import renderer
+
         func = {
             "name": "test-func",
             "code_uri": "./app/",
@@ -95,13 +97,13 @@ class TestLayerSupport(unittest.TestCase):
             "runtime": "python3.12",
             "layers": [
                 {"name": "lib-layer", "content_uri": "layers/lib"},
-                {"name": "common-layer", "content_uri": "layers/common"}
-            ]
+                {"name": "common-layer", "content_uri": "layers/common"},
+            ],
         }
         docker_config = {}
-        
+
         output = renderer.render_dockerfile(func, docker_config)
-        
+
         # Renderer now just iterates and copies the staged layer directories.
         self.assertIn("COPY layers/lib/ /opt/", output)
         self.assertIn("COPY layers/common/ /opt/", output)
@@ -178,27 +180,27 @@ class TestLayerSupport(unittest.TestCase):
             generate_files(config, project_root=tmpdir, dry_run=False, verbose=False)
 
             out_dir = tmpdir / "out"
-            layers_dir = out_dir / "layers"
-            self.assertTrue(layers_dir.exists())
 
-            layer_dirs = [p for p in layers_dir.iterdir() if p.is_dir()]
-            self.assertEqual(len(layer_dirs), 2)
-
-            zip_unpacked = any(
-                (layer_dir / "python" / "zip_layer" / "__init__.py").exists()
-                for layer_dir in layer_dirs
-            )
-            self.assertTrue(zip_unpacked)
-
+            # Use separate checks for each function's layer directory
             for func_name in ["lambda-one", "lambda-two"]:
                 func_layers_dir = out_dir / "functions" / func_name / "layers"
-                self.assertFalse(func_layers_dir.exists())
+                self.assertTrue(func_layers_dir.exists())
+
+                # Check common layer
+                self.assertTrue((func_layers_dir / "common").exists())
+                self.assertTrue(
+                    (func_layers_dir / "common" / "python" / "common" / "__init__.py").exists()
+                )
+
+                # Check zip layer (unzipped)
+                zip_layer_dir = func_layers_dir / "zip-layer"
+                self.assertTrue(zip_layer_dir.exists())
+                self.assertTrue((zip_layer_dir / "python" / "zip_layer" / "__init__.py").exists())
 
                 dockerfile = (out_dir / "functions" / func_name / "Dockerfile").read_text(
                     encoding="utf-8"
                 )
-                for layer_dir in layer_dirs:
-                    self.assertIn(
-                        f"COPY layers/{layer_dir.name}/ /opt/",
-                        dockerfile,
-                    )
+
+                # Check COPY instructions with trailing slash
+                self.assertIn("COPY layers/common/ /opt/", dockerfile)
+                self.assertIn("COPY layers/zip-layer/ /opt/", dockerfile)

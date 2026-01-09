@@ -7,7 +7,7 @@
 FROM {{ base_image }}
 
 # ESB Runtime
-COPY sitecustomize.py /opt/python/sitecustomize.py
+COPY {{ sitecustomize_source }} /opt/python/sitecustomize.py
 
 {% for layer in layers %}
 # Layer: {{ layer.name }}
