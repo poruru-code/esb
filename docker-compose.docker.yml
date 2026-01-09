@@ -9,7 +9,7 @@ services:
     environment:
       - AGENT_RUNTIME=docker
       - CONTAINERS_NETWORK=${ESB_NETWORK_EXTERNAL:-test-external}
-      - ESB_ENV=${ESB_ENV:-default}
+      - ESB_ENV
       - HTTP_PROXY
       - HTTPS_PROXY
       - NO_PROXY
