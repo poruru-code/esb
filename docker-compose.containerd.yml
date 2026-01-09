@@ -60,7 +60,7 @@ services:
       # No Firecracker shim - use default containerd runtime
       - CONTAINER_REGISTRY=registry:5010
       - CONTAINERS_NETWORK=${ESB_NETWORK_EXTERNAL:-test-external}
-      - ESB_ENV=${ESB_ENV:-default}
+      - ESB_ENV
 
   registry:
     healthcheck:
