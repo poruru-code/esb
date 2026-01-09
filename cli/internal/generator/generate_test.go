@@ -199,7 +199,7 @@ func TestGenerateFilesStagesLayersAndZip(t *testing.T) {
 		}
 	}
 
-	commonLayerPath := filepath.Join(root, "out", "functions", "lambda-one", "layers", "common", "python", "common", "__init__.py")
+	commonLayerPath := filepath.Join(root, "out", "functions", "lambda-one", "layers", "common-layer", "python", "common", "__init__.py")
 	if _, err := os.Stat(commonLayerPath); err != nil {
 		t.Fatalf("expected common layer to be staged: %v", err)
 	}
@@ -210,6 +210,83 @@ func TestGenerateFilesStagesLayersAndZip(t *testing.T) {
 
 	if _, err := os.Stat(filepath.Join(root, "out", "layers")); err == nil {
 		t.Fatalf("did not expect shared layers dir")
+	}
+}
+
+func TestGenerateFilesLayerNesting(t *testing.T) {
+	root := t.TempDir()
+	templatePath := filepath.Join(root, "template.yaml")
+	writeTestFile(t, templatePath, "Resources: {}")
+
+	funcDir := filepath.Join(root, "functions", "my-func")
+	mustMkdirAll(t, funcDir)
+	writeTestFile(t, filepath.Join(funcDir, "app.py"), "print('caret')")
+
+	flatDir := filepath.Join(root, "layers", "flat_dir")
+	mustMkdirAll(t, flatDir)
+	writeTestFile(t, filepath.Join(flatDir, "lib_flat.py"), "# flat")
+
+	nestedDir := filepath.Join(root, "layers", "nested_dir", "python")
+	mustMkdirAll(t, nestedDir)
+	writeTestFile(t, filepath.Join(nestedDir, "lib_nested.py"), "# nested")
+
+	flatZip := filepath.Join(root, "layers", "flat.zip")
+	writeZip(t, flatZip, map[string]string{
+		"lib_zip_flat.py": "print('zip flat')",
+	})
+
+	nestedZip := filepath.Join(root, "layers", "nested.zip")
+	writeZip(t, nestedZip, map[string]string{
+		"python/lib_zip_nested.py": "print('zip nested')",
+	})
+
+	parser := &stubParser{
+		result: ParseResult{
+			Functions: []FunctionSpec{
+				{
+					Name:    "lambda-nesting-test",
+					Runtime: "python3.12",
+					CodeURI: "functions/my-func/",
+					Layers: []LayerSpec{
+						{Name: "layer-flat-dir", ContentURI: "layers/flat_dir/"},
+						{Name: "layer-nested-dir", ContentURI: "layers/nested_dir/"},
+						{Name: "layer-flat-zip", ContentURI: "layers/flat.zip"},
+						{Name: "layer-nested-zip", ContentURI: "layers/nested.zip"},
+					},
+				},
+			},
+		},
+	}
+
+	cfg := config.GeneratorConfig{
+		Paths: config.PathsConfig{
+			SamTemplate: "template.yaml",
+			OutputDir:   "out/",
+		},
+	}
+	opts := GenerateOptions{ProjectRoot: root, Parser: parser}
+
+	if _, err := GenerateFiles(cfg, opts); err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+
+	staged := filepath.Join(root, "out", "functions", "lambda-nesting-test", "layers")
+
+	check := func(path string) {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("expected path %s to exist: %v", path, err)
+		}
+	}
+
+	check(filepath.Join(staged, "layer-flat-dir", "python", "lib_flat.py"))
+	check(filepath.Join(staged, "layer-nested-dir", "python", "lib_nested.py"))
+	if _, err := os.Stat(filepath.Join(staged, "layer-nested-dir", "python", "python")); err == nil {
+		t.Fatalf("nested dir should not double nest")
+	}
+	check(filepath.Join(staged, "layer-flat-zip", "python", "lib_zip_flat.py"))
+	check(filepath.Join(staged, "layer-nested-zip", "python", "lib_zip_nested.py"))
+	if _, err := os.Stat(filepath.Join(staged, "layer-nested-zip", "python", "python")); err == nil {
+		t.Fatalf("nested zip should not double nest")
 	}
 }
 

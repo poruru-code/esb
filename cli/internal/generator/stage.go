@@ -9,6 +9,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"unicode"
 )
 
 type stageContext struct {
@@ -51,7 +52,7 @@ func stageFunction(fn FunctionSpec, ctx stageContext) (stagedFunction, error) {
 	fn.CodeURI = ensureSlash(path.Join("functions", fn.Name, "src"))
 	fn.HasRequirements = fileExists(filepath.Join(stagingSrc, "requirements.txt"))
 
-	stagedLayers, err := stageLayers(fn.Layers, ctx, fn.Name, functionDir)
+	stagedLayers, err := stageLayers(fn.Layers, ctx, fn.Name, functionDir, fn.Runtime)
 	if err != nil {
 		return stagedFunction{}, err
 	}
@@ -77,7 +78,7 @@ func stageFunction(fn FunctionSpec, ctx stageContext) (stagedFunction, error) {
 	}, nil
 }
 
-func stageLayers(layers []LayerSpec, ctx stageContext, functionName, functionDir string) ([]LayerSpec, error) {
+func stageLayers(layers []LayerSpec, ctx stageContext, functionName, functionDir, runtime string) ([]LayerSpec, error) {
 	if len(layers) == 0 {
 		return nil, nil
 	}
@@ -90,7 +91,7 @@ func stageLayers(layers []LayerSpec, ctx stageContext, functionName, functionDir
 			continue
 		}
 
-		targetName := layerTargetName(source)
+		targetName := layerTargetName(layer, source)
 		if targetName == "" {
 			continue
 		}
@@ -116,7 +117,7 @@ func stageLayers(layers []LayerSpec, ctx stageContext, functionName, functionDir
 			}
 
 			finalDest := targetDir
-			if dirExists(source) && filepath.Base(source) == "python" {
+			if shouldNestPython(runtime, finalSrc) {
 				finalDest = filepath.Join(targetDir, "python")
 			}
 
@@ -165,12 +166,47 @@ func resolveSitecustomizeSource(ctx stageContext) string {
 	return ""
 }
 
-func layerTargetName(source string) string {
+func layerTargetName(layer LayerSpec, source string) string {
+	if sanitized := sanitizeLayerName(layer.Name); sanitized != "" {
+		return sanitized
+	}
 	base := filepath.Base(source)
 	if strings.HasSuffix(strings.ToLower(base), ".zip") {
-		return strings.TrimSuffix(base, filepath.Ext(base))
+		base = strings.TrimSuffix(base, filepath.Ext(base))
 	}
-	return base
+	if sanitized := sanitizeLayerName(base); sanitized != "" {
+		return sanitized
+	}
+	return "layer"
+}
+
+func sanitizeLayerName(value string) string {
+	value = strings.TrimSpace(value)
+	var b strings.Builder
+	for _, r := range value {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '.' || r == '_' || r == '-' {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+func shouldNestPython(runtime, sourceDir string) bool {
+	if !isPythonRuntime(runtime) {
+		return false
+	}
+	if sourceDir == "" {
+		return false
+	}
+	return !containsPythonLayout(sourceDir)
+}
+
+func isPythonRuntime(runtime string) bool {
+	return strings.Contains(strings.ToLower(runtime), "python")
+}
+
+func containsPythonLayout(dir string) bool {
+	return dirExists(filepath.Join(dir, "python")) || dirExists(filepath.Join(dir, "site-packages"))
 }
 
 func ensureSlash(value string) string {
