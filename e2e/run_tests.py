@@ -223,19 +223,26 @@ def main():
     # --- Unit Tests ---
     if args.unit or args.unit_only:
         os.environ["DISABLE_VICTORIALOGS"] = "1"
-        print("\n=== Running Unit Tests ===\n")
-        cmd = [
+        print("\n=== Running Python Unit Tests ===\n")
+        python_cmd = [
             sys.executable,
             "-m",
             "pytest",
             "services/gateway/tests",
-            "tools/python_cli/tests",
             "-v",
         ]
-        res = subprocess.run(cmd, cwd=PROJECT_ROOT, check=False)
+        res = subprocess.run(python_cmd, cwd=PROJECT_ROOT, check=False)
         if res.returncode != 0:
-            print("\n[FAILED] Unit Tests failed.")
+            print("\n[FAILED] Python unit tests failed.")
             sys.exit(res.returncode)
+
+        print("\n=== Running Go Unit Tests ===\n")
+        go_cmd = ["go", "test", "./..."]
+        go_res = subprocess.run(go_cmd, cwd=GO_CLI_ROOT, check=False)
+        if go_res.returncode != 0:
+            print("\n[FAILED] Go unit tests failed.")
+            sys.exit(go_res.returncode)
+
         print("\n[PASSED] Unit Tests passed!")
 
         if args.unit_only:
