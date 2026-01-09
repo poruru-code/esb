@@ -190,6 +190,8 @@ docker compose -f docker-compose.node.yml up -d
 
 ## クイックスタート
 
+詳細な開発環境セットアップ（`mise` / `lefthook` を使った依存インストールや Git フック設定）は [CONTRIBUTING.md#1開発環境セットアップ](CONTRIBUTING.md#1開発環境セットアップ) に詳述しています。
+
 ### 開発環境セットアップ
 
 詳細なセットアップ手順や開発ガイドライン（Lint, Type Check, VS Code設定など）については、[CONTRIBUTING.md](CONTRIBUTING.md) を参照してください。
