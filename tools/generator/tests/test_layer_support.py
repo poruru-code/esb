@@ -202,5 +202,5 @@ class TestLayerSupport(unittest.TestCase):
                 )
 
                 # Check COPY instructions with trailing slash
-                self.assertIn("COPY layers/common/ /opt/", dockerfile)
-                self.assertIn("COPY layers/zip-layer/ /opt/", dockerfile)
+                self.assertIn(f"COPY functions/{func_name}/layers/common/ /opt/", dockerfile)
+                self.assertIn(f"COPY functions/{func_name}/layers/zip-layer/ /opt/", dockerfile)

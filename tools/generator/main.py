@@ -209,9 +209,9 @@ def generate_files(
                     )
 
                     # Update ContentUri for template (relative to build context root)
-                    # We use 'layers/<name>' which is a directory.
+                    # We use 'functions/<func>/layers/<name>' which is a directory.
                     # Template will append '/' to copy contents.
-                    layer_copy["content_uri"] = f"layers/{target_name}"
+                    layer_copy["content_uri"] = f"functions/{func_name}/layers/{target_name}"
                     new_layers.append(layer_copy)
 
         # Layer list rewritten to local paths for this function.
