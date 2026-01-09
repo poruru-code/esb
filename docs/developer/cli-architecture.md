@@ -15,25 +15,26 @@
 ```mermaid
 classDiagram
     class CLI {
-        +Run(argv []string)
+        +Run
     }
     class App {
-        +runBuild(...)
-        +runUp(...)
-        +runDown(...)
+        +runBuild
+        +runUp
+        +runDown
     }
     class Generator {
-        +GenerateFiles(cfg, opts)
+        +GenerateFiles
     }
     class Compose {
-        +Build(...)
-        +Up(...)
-        +Logs(...)
+        +Build
+        +Up
+        +Logs
     }
+    class State
     CLI --> App
     App --> Generator
     App --> Compose
-    Generator --> cli/internal/state.State
+    Generator --> State
 ```
 
 ## ビルド・起動フロー
@@ -43,8 +44,8 @@ flowchart TD
     A[esb build --env <env>] --> B[resolve generator.yml & template]
     B --> C[cli/internal/generator/parser]
     C --> D[staging .esb/functions/<fn>]
-    D --> E[docker compose build (esb-lambda-base + functions)]
-    E --> F[esb up --env <env>] --> G[docker compose up control (gateway/agent/runtime)]
+    D --> E["docker compose build (esb-lambda-base + functions)"]
+    E --> F[esb up --env <env>] --> G["docker compose up control (gateway/agent/runtime)"]
     G --> H[esb logs / stop / prune] --> I[docker compose logs/stop/down]
 ```
 
@@ -70,5 +71,28 @@ flowchart TD
 - `cd cli && go test ./...` でユニットを通す。`cli/internal/generator` への `validator_test` を含める。  
 - `uv run python e2e/run_tests.py --parallel --reset` で `e2e-docker`/`e2e-containerd` 両プロファイルの 39 テストが通るかを確認。  
 - `esb build --env <env>` → `esb up --env <env>` → `esb logs/stop/prune` の組み合わせで `docker compose` の状態遷移が正しいか確認。
+
+## ステートマシン
+
+以下は CLI の内部状態遷移を示す図です。`resolveCommandContext` で取得した `Context` が `State` を基にしており、`generator.yml`/`.esb` の状態とコマンドが同期します。
+
+```mermaid
+stateDiagram
+    [*] --> Uninitialized
+    Uninitialized --> Initialized : esb init
+    Initialized --> Building : esb build
+    Building --> Up : build success
+    Up --> Up : esb up --build
+    Up --> Stopped : esb stop/prune
+    Stopped --> Building : esb build
+    Stopped --> Up : esb up
+    Up --> Resetting : esb reset
+    Resetting --> Initialized : reset complete
+    Building --> Failed : build error
+    Failed --> Stopped : esb stop
+    Failed --> Resetting : esb reset
+```
+
+この図はエラーや再実行時の遷移も含み、`esb reset`/`esb prune` のような「完全リセット」操作も明示しています。変更時は `cli/internal/state/context.go` と `app` パッケージ内でこのステートを追跡しているか確認してください。
 
 このドキュメントは `esb` CLI の開発者向けに、クラス図・処理フロー・スキーマ更新手順をまとめたものです。常に `cli/internal/generator`、`cli/internal/compose`、`cli/internal/state` が同期していることを意識して変更を加えてください。
