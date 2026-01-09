@@ -66,6 +66,7 @@ def parse_sam_template(content: str, parameters: dict | None = None) -> dict:
     default_timeout = globals_config.get("Timeout", 30)
     default_memory = globals_config.get("MemorySize", 128)
     default_layers = globals_config.get("Layers", [])
+    default_env = globals_config.get("Environment", {}).get("Variables", {})
 
     functions = []
     resources = data.get("Resources", {})
@@ -96,10 +97,14 @@ def parse_sam_template(content: str, parameters: dict | None = None) -> dict:
         runtime = props.get("Runtime", default_runtime)
 
         # Environment variables.
-        env_vars = props.get("Environment", {}).get("Variables", {})
+        # Merge Globals env with Function env (Function overrides Globals).
+        function_env = props.get("Environment", {}).get("Variables", {})
+        merged_env = default_env.copy()
+        merged_env.update(function_env)
+
         # Resolve environment variable values as well.
         resolved_env = {}
-        for key, value in env_vars.items():
+        for key, value in merged_env.items():
             resolved_env[key] = _resolve_intrinsic(value, parameters)
 
         # --- Phase 1: Events (API Gateway) parsing ---
