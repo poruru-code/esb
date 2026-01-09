@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 - `services/gateway/` (FastAPI gateway), `services/agent/` (Go agent), `services/runtime-node/` (container runtime), `services/common/` (shared Python).
-- `tools/python_cli/` (legacy Python CLI), `tools/generator/`, `tools/provisioner/` for the ESB CLI and generators.
+- `cli/` (Go CLI), `tools/python_cli/` (legacy Python CLI/node helpers), `tools/generator/`, `tools/provisioner/` for the ESB CLI and generators.
 - `e2e/` for E2E scenarios and runner (`e2e/run_tests.py`), plus unit tests in `services/*/tests` and `tools/*/tests`.
 - `docs/` for architecture/specs, `config/` for configs, `proto/` for gRPC definitions.
 

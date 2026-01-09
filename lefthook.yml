@@ -25,9 +25,9 @@ pre-commit:
       glob: "**/*.go"
       run: goimports -w {staged_files} && gofumpt -w {staged_files} && git add {staged_files}
 
-    # --- Go Formatting (tools-go) ---
-    tools-go-fmt:
-      root: tools-go
+    # --- Go Formatting (cli) ---
+    cli-fmt:
+      root: cli
       glob: "**/*.go"
       run: goimports -w {staged_files} && gofumpt -w {staged_files} && git add {staged_files}
 
@@ -37,8 +37,8 @@ pre-commit:
       glob: "**/*.go"
       run: golangci-lint run ./...
 
-    # --- Go Linting (tools-go) ---
-    tools-go-lint:
-      root: tools-go
+    # --- Go Linting (cli) ---
+    cli-lint:
+      root: cli
       glob: "**/*.go"
       run: golangci-lint run ./...

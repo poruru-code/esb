@@ -92,7 +92,7 @@ python-version = "3.12"
 
 
 [project.scripts]
-esb = "tools.go_cli:main"
+esb = "cli.go_cli:main"
 
 [tool.pytest.ini_options]
 testpaths = ["e2e", "tools", "services/common/tests", "services/gateway/tests", "services/orchestrator/tests"]

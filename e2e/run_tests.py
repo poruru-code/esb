@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 
 # Project root
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
-GO_CLI_ROOT = PROJECT_ROOT / "tools-go"
+GO_CLI_ROOT = PROJECT_ROOT / "cli"
 E2E_STATE_ROOT = PROJECT_ROOT / "e2e" / "fixtures" / ".esb"
 
 # Terminal colors for parallel output

@@ -1,0 +1,20 @@
+# Lint/format configuration for tools/cli.
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  enable:
+    - gofumpt
+    - revive
+    - errcheck
+    - staticcheck
+    - unused
+    - gosimple
+    - ineffassign
+    - typecheck
+    - bodyclose
+
+linters-settings:
+  gofumpt:
+    extra-rules: true

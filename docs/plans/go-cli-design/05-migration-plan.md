@@ -3,13 +3,13 @@
 ## 現在のステータス (2026/01/10)
 
 - Phase 1 のコアコマンドと `internal/*` の実装は既に Go 側に移行済み (`cmd/esb`, state/compose/config/provisioner/generator コンポーネントを含む)。
-- `esb build`, `up`（`--build`含む）, `down`, `reset`, `prune`, `status`, `info`, `logs`, `stop` は Go CLI で動作し、`tools-go` に対して `go test ./...` + `uv run python e2e/run_tests.py --reset --parallel`（docker/containerd）を実行済み。
+- `esb build`, `up`（`--build`含む）, `down`, `reset`, `prune`, `status`, `info`, `logs`, `stop` は Go CLI で動作し、`cli` に対して `go test ./...` + `uv run python e2e/run_tests.py --reset --parallel`（docker/containerd）を実行済み。
 - `internal/provisioner` による DynamoDB/S3 連携や `state` の検出も Go 側で完了。E2E 操作の確認（`logs`, `stop`, `up`/`down`）も行い、`go run ./cmd/esb --env e2e-docker e2e-containerd ...` でも利用できることを確かめた。
 
 ## Phase 1: Skeleton + Core Commands (完了)
 
 - [x] `cmd/esb/` 基本構造
-- [x] Kong CLI セットアップ (Kong で `tools-go/cmd/esb` を構成)
+- [x] Kong CLI セットアップ (Kong で `cli/cmd/esb` を構成)
 - [x] `internal/state/` (状態検出)
 - [x] `esb --help`, `esb status` 動作確認
 - [x] `init`, `build`, `up`, `down`, `prune`
@@ -31,7 +31,7 @@
 
 > Firecracker モードの仕様確定次第着手
 
-- [x] Go CLI 移行中は `esb node` を無効化（`tools-go/cmd/esb` で `node` を拒否）
+- [x] Go CLI 移行中は `esb node` を無効化（`cli/cmd/esb` で `node` を拒否）
 - [ ] `esb node` サブコマンド群（Go で再実装）
 - [ ] `internal/node/` (SSH, WireGuard) — 現状未実装
 - [ ] pyinfra 相当の Go 実装（Compute Node のセットアップ/構成管理）
