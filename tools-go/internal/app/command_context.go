@@ -4,10 +4,24 @@
 package app
 
 import (
+	"fmt"
+	"io"
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/tools-go/internal/state"
 )
+
+func exitWithError(out io.Writer, err error) int {
+	fmt.Fprintln(out, err)
+	return 1
+}
+
+func resolvedTemplatePath(ctxInfo commandContext) string {
+	if override := strings.TrimSpace(ctxInfo.Selection.TemplateOverride); override != "" {
+		return override
+	}
+	return ctxInfo.Context.TemplatePath
+}
 
 type commandContext struct {
 	Selection projectSelection

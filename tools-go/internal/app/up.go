@@ -37,8 +37,7 @@ func runUp(cli CLI, deps Dependencies, out io.Writer) int {
 
 	ctxInfo, err := resolveCommandContext(cli, deps)
 	if err != nil {
-		fmt.Fprintln(out, err)
-		return 1
+		return exitWithError(out, err)
 	}
 	ctx := ctxInfo.Context
 	applyModeEnv(ctx.Mode)
@@ -48,10 +47,7 @@ func runUp(cli CLI, deps Dependencies, out io.Writer) int {
 	}
 	applyUpEnv(ctx)
 
-	templatePath := ctx.TemplatePath
-	if ctxInfo.Selection.TemplateOverride != "" {
-		templatePath = ctxInfo.Selection.TemplateOverride
-	}
+	templatePath := resolvedTemplatePath(ctxInfo)
 
 	if cli.Up.Build {
 		if deps.Builder == nil {
@@ -65,8 +61,7 @@ func runUp(cli CLI, deps Dependencies, out io.Writer) int {
 			Env:          ctxInfo.Env,
 		}
 		if err := deps.Builder.Build(request); err != nil {
-			fmt.Fprintln(out, err)
-			return 1
+			return exitWithError(out, err)
 		}
 	}
 
@@ -76,8 +71,7 @@ func runUp(cli CLI, deps Dependencies, out io.Writer) int {
 		Wait:    cli.Up.Wait,
 	}
 	if err := deps.Upper.Up(request); err != nil {
-		fmt.Fprintln(out, err)
-		return 1
+		return exitWithError(out, err)
 	}
 
 	discoverAndPersistPorts(ctx, deps.PortDiscoverer, out)
@@ -89,8 +83,7 @@ func runUp(cli CLI, deps Dependencies, out io.Writer) int {
 		ComposeProject: ctx.ComposeProject,
 		Mode:           ctx.Mode,
 	}); err != nil {
-		fmt.Fprintln(out, err)
-		return 1
+		return exitWithError(out, err)
 	}
 
 	if cli.Up.Wait {
@@ -99,8 +92,7 @@ func runUp(cli CLI, deps Dependencies, out io.Writer) int {
 			return 1
 		}
 		if err := deps.Waiter.Wait(ctx); err != nil {
-			fmt.Fprintln(out, err)
-			return 1
+			return exitWithError(out, err)
 		}
 	}
 

@@ -27,17 +27,13 @@ func runBuild(cli CLI, deps Dependencies, out io.Writer) int {
 
 	ctxInfo, err := resolveCommandContext(cli, deps)
 	if err != nil {
-		fmt.Fprintln(out, err)
-		return 1
+		return exitWithError(out, err)
 	}
 	ctx := ctxInfo.Context
 	applyModeEnv(ctx.Mode)
 	applyEnvironmentDefaults(ctx.Env, ctx.Mode)
 
-	templatePath := ctx.TemplatePath
-	if ctxInfo.Selection.TemplateOverride != "" {
-		templatePath = ctxInfo.Selection.TemplateOverride
-	}
+	templatePath := resolvedTemplatePath(ctxInfo)
 
 	request := BuildRequest{
 		ProjectDir:   ctx.ProjectDir,
@@ -47,8 +43,7 @@ func runBuild(cli CLI, deps Dependencies, out io.Writer) int {
 	}
 
 	if err := deps.Builder.Build(request); err != nil {
-		fmt.Fprintln(out, err)
-		return 1
+		return exitWithError(out, err)
 	}
 
 	fmt.Fprintln(out, "build complete")
