@@ -134,33 +134,35 @@ services:
       - ${ESB_CERT_DIR:-~/.esb/certs}/server.crt:/app/config/ssl/server.crt:ro
       - ${ESB_CERT_DIR:-~/.esb/certs}/server.key:/app/config/ssl/server.key:ro
     environment:
-      - UVICORN_BIND_ADDR=0.0.0.0:443
-      - ENABLE_SSL=true
-      - SSL_CERT_PATH=/app/config/ssl/server.crt
-      - SSL_KEY_PATH=/app/config/ssl/server.key
+      # --- Required / Core Authentication ---
       - JWT_SECRET_KEY=${JWT_SECRET_KEY?JWT_SECRET_KEY is required}
       - X_API_KEY=${X_API_KEY?X_API_KEY is required}
       - AUTH_USER=${AUTH_USER?AUTH_USER is required}
       - AUTH_PASS=${AUTH_PASS?AUTH_PASS is required}
-      - AUTH_ENDPOINT_PATH=${AUTH_ENDPOINT_PATH:-/user/auth/v1}
-      - CONTAINERS_NETWORK=${ESB_NETWORK_EXTERNAL:-test-external}
-      # GATEWAY_INTERNAL_URL is injected by adapter files (fc.yml / containerd.yml)
-      # AGENT_GRPC_ADDRESS is injected by adapter files (fc.yml / containerd.yml)
-      - AGENT_INVOKE_PROXY=${AGENT_INVOKE_PROXY:-false}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - LOG_PAYLOADS=${LOG_PAYLOADS:-false}
       - RUSTFS_ACCESS_KEY=${RUSTFS_ACCESS_KEY?RUSTFS_ACCESS_KEY is required}
       - RUSTFS_SECRET_KEY=${RUSTFS_SECRET_KEY?RUSTFS_SECRET_KEY is required}
-      - LAMBDA_INVOKE_TIMEOUT=${LAMBDA_INVOKE_TIMEOUT:-30.0}
-      - CIRCUIT_BREAKER_THRESHOLD=${CIRCUIT_BREAKER_THRESHOLD:-5}
-      - CIRCUIT_BREAKER_RECOVERY_TIMEOUT=${CIRCUIT_BREAKER_RECOVERY_TIMEOUT:-30.0}
+
+      # --- Server & Network Configuration ---
+      - UVICORN_BIND_ADDR=0.0.0.0:443
+      - ENABLE_SSL=true
+      - SSL_CERT_PATH=/app/config/ssl/server.crt
+      - SSL_KEY_PATH=/app/config/ssl/server.key
+      - CONTAINERS_NETWORK=${ESB_NETWORK_EXTERNAL:-test-external}
+      - AUTH_ENDPOINT_PATH
+
+      # --- Tuning & Resilience (Pass-through) ---
+      - AGENT_INVOKE_PROXY
+      - LAMBDA_INVOKE_TIMEOUT
+      - CIRCUIT_BREAKER_THRESHOLD
+      - CIRCUIT_BREAKER_RECOVERY_TIMEOUT
+
+      # --- Observability ---
+      - LOG_LEVEL
+      - LOG_PAYLOADS
       - PYTHONUNBUFFERED=1
-      # VictoriaLogs direct-send configuration (Lambda via grpc_provision.py)
       - VICTORIALOGS_URL=${VICTORIALOGS_URL:-http://victorialogs:9428}  # Gateway -> VictoriaLogs
-      # GATEWAY_VICTORIALOGS_URL moved to docker.yml
-      # DYNAMODB_ENDPOINT moved to docker.yml
-      # S3_ENDPOINT moved to docker.yml
-      # Auto-Scaling Configuration
+
+      # --- Auto-Scaling ---
       - DEFAULT_MAX_CAPACITY=${DEFAULT_MAX_CAPACITY:-1}
       - DEFAULT_MIN_CAPACITY=${DEFAULT_MIN_CAPACITY:-0}
       - POOL_ACQUIRE_TIMEOUT=${POOL_ACQUIRE_TIMEOUT:-5.0}
@@ -168,6 +170,8 @@ services:
       - GATEWAY_IDLE_TIMEOUT_SECONDS=${GATEWAY_IDLE_TIMEOUT_SECONDS:-300}
       - ENABLE_CONTAINER_PAUSE=${ENABLE_CONTAINER_PAUSE:-false}
       - PAUSE_IDLE_SECONDS=${PAUSE_IDLE_SECONDS:-30}
+
+      # --- System / Proxy ---
       - HTTP_PROXY
       - HTTPS_PROXY
       - NO_PROXY
