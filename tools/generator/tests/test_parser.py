@@ -204,3 +204,70 @@ Resources:
         # Verify the case where the logical ID becomes the bucket name.
         bucket2 = next(b for b in resources["s3"] if b["BucketName"] == "logicalbucket")
         assert bucket2 is not None
+
+    def test_parse_globals_environment(self):
+        """Ensure Environment Variables from Globals are merged with Function Environment."""
+        sam_content = """
+        AWSTemplateFormatVersion: '2010-09-09'
+        Transform: AWS::Serverless-2016-10-31
+        
+        Globals:
+          Function:
+            Environment:
+              Variables:
+                GLOBAL_VAR: "global_value"
+                OVERRIDE_VAR: "default_value"
+        
+        Resources:
+          TestFunction:
+            Type: AWS::Serverless::Function
+            Properties:
+              FunctionName: lambda-test
+              CodeUri: functions/test/
+              Environment:
+                Variables:
+                  LOCAL_VAR: "local_value"
+                  OVERRIDE_VAR: "overridden_value"
+        """
+        result = parse_sam_template(sam_content)
+
+        assert len(result["functions"]) == 1
+        func = result["functions"][0]
+        env = func["environment"]
+
+        # Check global variable exists
+        assert "GLOBAL_VAR" in env
+        assert env["GLOBAL_VAR"] == "global_value"
+
+        # Check local variable exists
+        assert "LOCAL_VAR" in env
+        assert env["LOCAL_VAR"] == "local_value"
+
+    def test_parse_globals_environment_with_params(self):
+        """Ensure Globals Environment variables support parameter substitution."""
+        sam_content = """
+        AWSTemplateFormatVersion: '2010-09-09'
+        Transform: AWS::Serverless-2016-10-31
+        
+        Globals:
+          Function:
+            Environment:
+              Variables:
+                VERSION: !Sub "${ServiceVersion}"
+                PREFIXED: !Sub "${Prefix}-app"
+        
+        Resources:
+          TestFunction:
+            Type: AWS::Serverless::Function
+            Properties:
+              FunctionName: lambda-test
+              CodeUri: functions/test/
+        """
+        params = {"ServiceVersion": "v1.0.0", "Prefix": "dev"}
+        result = parse_sam_template(sam_content, parameters=params)
+
+        func = result["functions"][0]
+        env = func["environment"]
+
+        assert env["VERSION"] == "v1.0.0"
+        assert env["PREFIXED"] == "dev-app"
