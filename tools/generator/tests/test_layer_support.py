@@ -187,12 +187,15 @@ class TestLayerSupport(unittest.TestCase):
                 self.assertTrue(func_layers_dir.exists())
 
                 # Check common layer
-                self.assertTrue((func_layers_dir / "common").exists())
+                self.assertTrue((func_layers_dir / "common-layer").exists())
                 self.assertTrue(
-                    (func_layers_dir / "common" / "python" / "common" / "__init__.py").exists()
+                    (
+                        func_layers_dir / "common-layer" / "python" / "common" / "__init__.py"
+                    ).exists()
                 )
 
                 # Check zip layer (unzipped)
+                # LayerName is zip-layer
                 zip_layer_dir = func_layers_dir / "zip-layer"
                 self.assertTrue(zip_layer_dir.exists())
                 self.assertTrue((zip_layer_dir / "python" / "zip_layer" / "__init__.py").exists())
@@ -202,7 +205,7 @@ class TestLayerSupport(unittest.TestCase):
                 )
 
                 # Check COPY instructions with trailing slash
-                self.assertIn(f"COPY functions/{func_name}/layers/common/ /opt/", dockerfile)
+                self.assertIn(f"COPY functions/{func_name}/layers/common-layer/ /opt/", dockerfile)
                 self.assertIn(f"COPY functions/{func_name}/layers/zip-layer/ /opt/", dockerfile)
 
     def test_directory_layer_named_python_is_nested(self):
@@ -255,11 +258,11 @@ class TestLayerSupport(unittest.TestCase):
             out_dir = tmpdir / "out"
             func_layers_dir = out_dir / "functions" / "lambda-nested" / "layers"
 
-            # The layer name derived from ContentUri "layers/python/" is "python"
-            # We expect the content to be staged as: .../layers/python/python/lib.py
-            # So that COPY .../layers/python/ /opt/ results in /opt/python/lib.py
+            # The layer name is "python-layer" (derived from LayerName property)
+            # We expect the content to be staging into that directory.
+            # Since content is "lib.py", it should be nested into python/
 
-            staged_layer_root = func_layers_dir / "python"
+            staged_layer_root = func_layers_dir / "python-layer"
             self.assertTrue(staged_layer_root.exists())
             self.assertTrue((staged_layer_root / "python").exists(), "Should have 'python' subdir")
             self.assertTrue((staged_layer_root / "python" / "lib.py").exists())
