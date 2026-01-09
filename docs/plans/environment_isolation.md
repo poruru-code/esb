@@ -65,14 +65,14 @@ services:
 ...
 ```
 
-### B. CLIツール (`tools/cli/`)
+### B. CLIツール (`tools/python_cli/`)
 **アクション**: 
 1. `config.py`: `ESB_ENV` 環境変数に基づいてポートやパスを解決。
 2. `up.py` / `down.py`: `esb up --env <name>` を受け取り、Docker Compose にプロジェクト名を渡す。
 3. `compose.py`: 必要な環境変数を注入。
 
 ```python
-# tools/cli/context.py
+# tools/python_cli/context.py
 
 def get_env_name():
     return os.getenv("ESB_ENV", "default")
@@ -140,7 +140,7 @@ uv run esb down --env dev-feature-x
 
 ## コードレベルの変更仕様 (File & Function Level Changes)
 
-### 1. `tools/cli/config.py`
+### 1. `tools/python_cli/config.py`
 - **変更点**: 環境名(`ESB_ENV`)とポートマッピングの管理ロジックを追加。
 - **追加関数**:
   ```python
@@ -153,10 +153,10 @@ uv run esb down --env dev-feature-x
       pass
   ```
 
-### 2. `tools/cli/compose.py`
+### 2. `tools/python_cli/compose.py`
 - **変更内容**: `config.get_port_mapping()` の結果を `os.environ` にマージ。
 
-### 3. `tools/cli/commands/up.py` / `down.py`
+### 3. `tools/python_cli/commands/up.py` / `down.py`
 - **変更内容**:
     - `--env` 引数の追加。
     - Docker Compose 呼び出し時のプロジェクト名 (`-p esb-<env_name>`) を明示的に指定。

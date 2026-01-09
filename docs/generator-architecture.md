@@ -32,7 +32,7 @@ flowchart TD
 
 ### コンポーネント
 
-1.  **CLI Wrapper (`tools/cli`)**
+1.  **CLI Wrapper (`tools/python_cli`)**
     ユーザーインターフェースを提供し、生成プロセスをオーケストレーションします。
 
 2.  **Parser (`tools/generator/parser.py`)** -> **Phase 1**
