@@ -83,7 +83,15 @@ routes:
     # ...
     ```
 
-2. **Runtime Hooks の配置**
+2. **Layer のステージング**
+    `AWS::Serverless::LayerVersion` で定義されたレイヤーは `output_dir/layers/` に一度だけ展開され、
+    各関数の Dockerfile から共有参照されます。ZIP 形式のレイヤーは展開して `/opt/` に配置されます。
+
+3. **ビルドコンテキストの最小化**
+    `esb build` は `output_dir` を Docker ビルドコンテキストとして使い、
+    対象関数と共有レイヤーだけを含める `.dockerignore` を生成します。
+
+4. **Runtime Hooks の配置**
     `tools/generator/runtime/site-packages/` 配下のファイルが、各関数のビルドコンテキストにコピーされます。
     これにより、以下の機能が全 Lambda 関数に自動的に組み込まれます：
     - Trace ID の自動伝播 (`sitecustomize.py`)

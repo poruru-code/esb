@@ -16,7 +16,7 @@ if str(project_root) not in sys.path:
 
 def main():
     from tools.cli import config as cli_config
-    from tools.cli.commands import build, down, init, logs, node, reset, stop, up, watch
+    from tools.cli.commands import build, down, init, logs, node, reset, stop, up
     from tools.cli.core import context, help_text
 
     parser = argparse.ArgumentParser(
@@ -62,9 +62,6 @@ def main():
         "-f", "--file", action="append", help="Specify an additional compose file"
     )
     up_parser.add_argument("--env", type=str, help="Environment name")
-
-    # --- watch command ---
-    subparsers.add_parser("watch", help="Watch for changes and hot-reload")
 
     # --- down command ---
     down_parser = subparsers.add_parser("down", help="Stop the environment")
@@ -336,8 +333,6 @@ def main():
             build.run(args)
         elif args.command == "up":
             up.run(args)
-        elif args.command == "watch":
-            watch.run(args)
         elif args.command == "down":
             down.run(args)
         elif args.command == "stop":

@@ -104,15 +104,19 @@ def test_build_function_images_success(mock_docker, tmp_path):
     mock_client = MagicMock()
     mock_docker.return_value = mock_client
 
+    context_dir = tmp_path / "out"
+    dockerfile_dir = context_dir / "functions" / "test-func"
+    dockerfile_dir.mkdir(parents=True, exist_ok=True)
+
     # Create a dummy Dockerfile.
-    dockerfile = tmp_path / "Dockerfile"
+    dockerfile = dockerfile_dir / "Dockerfile"
     dockerfile.write_text("FROM python:3.12")
 
     functions = [
         {
             "name": "test-func",
             "dockerfile_path": str(dockerfile),
-            "context_path": str(tmp_path),
+            "context_path": str(context_dir),
         }
     ]
 
@@ -120,7 +124,15 @@ def test_build_function_images_success(mock_docker, tmp_path):
 
     mock_client.images.build.assert_called_once()
     expected_args = proxy.docker_build_args()
-    assert mock_client.images.build.call_args.kwargs.get("buildargs") == expected_args
+    build_kwargs = mock_client.images.build.call_args.kwargs
+    assert build_kwargs.get("buildargs") == expected_args
+    assert build_kwargs.get("dockerfile") == "functions/test-func/Dockerfile"
+
+    dockerignore_path = context_dir / ".dockerignore"
+    assert dockerignore_path.exists()
+    dockerignore = dockerignore_path.read_text(encoding="utf-8")
+    assert "!functions/test-func/" in dockerignore
+    assert "!layers/" in dockerignore
 
 
 @patch("tools.cli.commands.build.docker.from_env")
@@ -151,14 +163,18 @@ def test_build_function_images_build_failure_exits(mock_docker, tmp_path):
     mock_client.images.build.side_effect = RuntimeError("Build failed")
     mock_docker.return_value = mock_client
 
-    dockerfile = tmp_path / "Dockerfile"
+    context_dir = tmp_path / "out"
+    dockerfile_dir = context_dir / "functions" / "failing-func"
+    dockerfile_dir.mkdir(parents=True, exist_ok=True)
+
+    dockerfile = dockerfile_dir / "Dockerfile"
     dockerfile.write_text("FROM python:3.12")
 
     functions = [
         {
             "name": "failing-func",
             "dockerfile_path": str(dockerfile),
-            "context_path": str(tmp_path),
+            "context_path": str(context_dir),
         }
     ]
 
@@ -395,14 +411,18 @@ def test_build_function_images_without_registry(mock_docker, monkeypatch, tmp_pa
     mock_docker.return_value = mock_client
 
     # Create a dummy Dockerfile.
-    dockerfile = tmp_path / "Dockerfile"
+    context_dir = tmp_path / "out"
+    dockerfile_dir = context_dir / "functions" / "test-func"
+    dockerfile_dir.mkdir(parents=True, exist_ok=True)
+
+    dockerfile = dockerfile_dir / "Dockerfile"
     dockerfile.write_text("FROM python:3.12")
 
     functions = [
         {
             "name": "test-func",
             "dockerfile_path": str(dockerfile),
-            "context_path": str(tmp_path),
+            "context_path": str(context_dir),
         }
     ]
 
