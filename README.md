@@ -33,7 +33,7 @@ Why: Provide a single entry point for developers and operators.
 
 補足:
 - 実行モードは環境変数 `ESB_MODE` で切り替えます（`docker` (デフォルト), `containerd`, `firecracker`）。
-- Go CLI 移行中のため、`esb node` 系コマンドは現在無効です。
+旧 Python CLI から `esb` CLI への移行を進めており、`esb node` 系コマンドは現在利用できません。
 
 ### Compute Node 管理（Phase C / 現在は無効）
 
@@ -317,6 +317,16 @@ esb reset
 | [client-auth-spec.md](docs/client-auth-spec.md)                               | クライアント認証仕様                 |
 | [autoscaling.md](docs/autoscaling.md)                                         | オートスケーリングとプーリング       |
 | [spec.md](docs/spec.md)                                                       | システム仕様                         |
+| [developer/cli-architecture.md](docs/developer/cli-architecture.md)         | `esb` CLI + Generator の設計         |
+
+## `esb` CLI 利用ガイド
+
+`esb` は CLI とジェネレータを組み合わせた統合ツールとして設計されており、テンプレート・環境・Compose をコマンドで制御できます。
+
+1. `esb init -t template.yaml` で `generator.yml` を作成し、`app.tag`, `paths.output_dir`, `environments` を指定します。`esb env add <name> --mode docker|containerd|firecracker` で環境を登録し、`esb project` でテンプレート配置ディレクトリ（`generator.yml` のルート）を切り替えます。
+2. `esb build --env <name>` は `cli/internal/generator/parser.go` によって SAM を検証し、`functions.yml`/`routing.yml` を `output_dir/config/` に生成したあと `docker compose` で `esb-lambda-base` と各関数イメージをビルドします。
+3. `esb up --env <name>` → `esb logs`/`esb stop`/`esb prune` は `cli/internal/compose` の Compose 実行を経て、生成済 `.esb` の設定で gateway/agent/runtime を起動・監視・削除します。`prune --yes` でネットワーク/ボリュームも含めてクリーンします。
+4. 状態遷移（Initialized → Up → Down など）や `esb env`/`esb project` の UX、`generator.yml` の参照フローは `docs/developer/cli-architecture.md` に詳述しています。
 
 ## 開発ガイド
 
@@ -418,7 +428,7 @@ esb node up
 esb node doctor --require-up
 ```
 
-この E2E スクリプトは Go CLI (`esb build`/`esb up`) を内部から呼び出すため、生成・起動のパスはすべて Go に統一されています。
+この E2E スクリプトは `esb build`/`esb up` などの `esb` CLI を内部から呼び出すため、生成・起動のパスはすべて `esb` CLI で統一されています。
 
 ```bash
 # Matrix定義に従い、全スイート（Containerd, Firecracker）を実行

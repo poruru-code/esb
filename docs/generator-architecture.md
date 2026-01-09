@@ -2,8 +2,8 @@
 
 ## 概要
 
-`cli/internal/generator` は、AWS SAM テンプレート (`template.yaml`) を解析し、ESB (Edge Serverless Box) 上で実行可能な設定ファイルと Docker アーティファクトを生成する Go ネイティブな中核コンポーネントです。  
-Go CLI (`cli/cmd/esb`) がこのジェネレータを呼び出すことで、SAM テンプレートを "Single Source of Truth" として扱えるワークフローを提供します。
+`cli/internal/generator` は、AWS SAM テンプレート (`template.yaml`) を解析し、ESB (Edge Serverless Box) 上で実行可能な設定ファイルと Docker アーティファクトを生成する中核コンポーネントです。  
+`esb` CLI (`cli/cmd/esb`) がこのジェネレータを呼び出すことで、SAM テンプレートを "Single Source of Truth" として扱えるワークフローを提供します。
 
 ## アーキテクチャ構成
 
@@ -32,7 +32,7 @@ flowchart TD
 ### コンポーネント
 
 1.  **CLI (`cli/cmd/esb`)**  
-    Go CLI がユーザーインターフェースを提供し、`esb init`, `esb build`, `esb up` などのコマンドを通じて `cli/internal/generator` や Compose 制御をオーケストレートします。
+    `esb` CLI がユーザーインターフェースを提供し、`esb init`, `esb build`, `esb up` などのコマンドを通じて `cli/internal/generator` や Compose 制御をオーケストレートします。
 
 2.  **Parser (`cli/internal/generator/parser.go`) → Phase 1**  
     SAM テンプレートを解析し、中間設定ファイル（`routing.yml`, `functions.yml`）を組み立てます。主な役割は以下です：  
