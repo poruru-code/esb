@@ -22,6 +22,8 @@ def mock_env_vars():
     # Clear critical variables to ensure test isolation
     os.environ.pop("ESB_ENV", None)
     os.environ.pop("ESB_PROJECT_NAME", None)
+    os.environ.pop("ESB_MODE", None)
+    os.environ.pop("ESB_ENV_SET", None)
 
     yield
     os.environ.clear()
@@ -140,3 +142,19 @@ def test_main_arg_parsing_sets_env_and_calls_setup(mock_env_vars):
 
         assert os.environ.get("ESB_ENV") == TEST_ENV
         assert mock_setup.called
+
+
+def test_enforce_env_arg_sets_mode_from_generator(mock_env_vars, tmp_path):
+    """Ensure generator.yml mode is applied when ESB_MODE is unset."""
+    from tools.cli import config as cli_config
+    from tools.cli.core import context
+
+    (tmp_path / "generator.yml").write_text("environments:\n  test_env: containerd\n")
+    args = Args(env="test_env")
+
+    with patch.object(cli_config, "E2E_DIR", tmp_path), patch(
+        "tools.cli.config.setup_environment"
+    ):
+        context.enforce_env_arg(args, skip_interactive=True)
+
+    assert os.environ.get("ESB_MODE") == "containerd"

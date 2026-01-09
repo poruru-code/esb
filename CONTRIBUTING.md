@@ -11,6 +11,7 @@ Edge Serverless Box (ESB) の開発へようこそ！
 *   Python 3.12+
 *   [uv](https://github.com/astral-sh/uv) (高速なPythonパッケージマネージャ)
 *   Docker & Docker Compose
+*   [mise](https://mise.jdx.dev/) (任意: 依存ツールの一括管理)
 
 ### 初期セットアップ手順
 
@@ -25,6 +26,18 @@ lefthook install
 ```
 
 これにより、`.venv` ディレクトリに仮想環境が作成され、コミット時に自動的に Lint と型チェックが実行されるようになります。
+
+### mise を使う場合 (推奨)
+
+`.mise.toml` を使ってツール類をまとめて導入できます。
+
+```bash
+mise trust
+mise install
+mise run setup
+```
+
+`mise run setup` は `uv sync --all-extras` と `lefthook install` を実行します。
 
 ## 2. コーディング規約とツール
 

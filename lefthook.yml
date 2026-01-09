@@ -7,11 +7,11 @@ pre-commit:
     # --- Python Lint & Format ---
     ruff-check:
       glob: "*.py"
-      run: ruff check --fix {staged_files}
+      run: uv run ruff check --fix {staged_files}
       stage_fixed: true
     ruff-format:
       glob: "*.py"
-      run: ruff format {staged_files}
+      run: uv run ruff format {staged_files}
       stage_fixed: true
 
     # --- Ty Type Check ---
@@ -22,11 +22,23 @@ pre-commit:
     # --- Go Formatting ---
     go-fmt:
       root: services/agent
-      glob: "*.go"
-      run: goimports -w .
+      glob: "**/*.go"
+      run: goimports -w {staged_files} && gofumpt -w {staged_files} && git add {staged_files}
+
+    # --- Go Formatting (tools-go) ---
+    tools-go-fmt:
+      root: tools-go
+      glob: "**/*.go"
+      run: goimports -w {staged_files} && gofumpt -w {staged_files} && git add {staged_files}
 
     # --- Go Linting ---
     go-lint:
       root: services/agent
-      glob: "*.go"
+      glob: "**/*.go"
+      run: golangci-lint run ./...
+
+    # --- Go Linting (tools-go) ---
+    tools-go-lint:
+      root: tools-go
+      glob: "**/*.go"
       run: golangci-lint run ./...

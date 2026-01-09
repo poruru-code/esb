@@ -45,6 +45,10 @@ def enforce_env_arg(
         target_env = _prompt_environment_selection()
 
     if target_env:
+        mode = _resolve_env_mode(target_env)
+        if mode and not os.environ.get("ESB_MODE"):
+            os.environ["ESB_MODE"] = mode
+
         # Override the process environment variable.
         # This is critical for commands that rely on os.getenv("ESB_ENV") directly or
         # via config.get_env_name().
@@ -82,7 +86,8 @@ def _prompt_environment_selection() -> str | None:
     try:
         with open(config_path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
-            environments = data.get("environments", [])
+            env_modes = _normalize_env_modes(data.get("environments", []))
+            environments = list(env_modes.keys())
     except Exception as e:
         logging.error(f"Failed to read generator.yml: {e}")
         sys.exit(1)
@@ -125,9 +130,10 @@ def _validate_environment_initialized() -> None:
 
         with open(config_path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
-            initialized_envs = data.get("environments", [])
+            env_modes = _normalize_env_modes(data.get("environments", []))
+            initialized_envs = list(env_modes.keys())
 
-            if env_name not in initialized_envs:
+            if env_name not in env_modes:
                 logging.error(f"Environment '{env_name}' is not initialized in {config_path.name}.")
                 env_str = ", ".join(initialized_envs) if initialized_envs else "None"
                 print(f"\nInitialized environments: {env_str}")
@@ -158,3 +164,48 @@ def _validate_environment_exists() -> None:
         print("Please run the build command first:")
         print(f"  esb build --env={env_name}")
         sys.exit(1)
+
+
+def _resolve_env_mode(env_name: str) -> str | None:
+    """
+    Resolve the mode for an environment from generator.yml.
+    Returns None if missing or not configured.
+    """
+    try:
+        config_path = cli_config.E2E_DIR / "generator.yml"
+        if not config_path.exists():
+            return None
+        import yaml
+
+        with open(config_path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+            env_modes = _normalize_env_modes(data.get("environments", []))
+            return env_modes.get(env_name)
+    except Exception:
+        return None
+
+
+def _normalize_env_modes(raw: object) -> dict[str, str | None]:
+    modes: dict[str, str | None] = {}
+    if isinstance(raw, dict):
+        for name, value in raw.items():
+            if not isinstance(name, str):
+                continue
+            mode = None
+            if isinstance(value, dict):
+                mode = value.get("mode") if isinstance(value.get("mode"), str) else None
+            elif isinstance(value, str):
+                mode = value
+            modes[name] = mode
+        return modes
+    if isinstance(raw, list):
+        for item in raw:
+            if isinstance(item, str):
+                modes[item] = None
+            elif isinstance(item, dict):
+                name = item.get("name")
+                mode = item.get("mode")
+                if isinstance(name, str):
+                    modes[name] = mode if isinstance(mode, str) else None
+        return modes
+    return modes

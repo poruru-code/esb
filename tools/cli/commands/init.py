@@ -144,13 +144,14 @@ def run(args):
         except ValueError:
             return str(p)
 
-    # Build the list of initialized environments
+    # Build the list of initialized environments (with mode)
+    current_mode = _default_mode()
     if is_overwrite:
-        environments = [env_name]
+        environments = {env_name: current_mode}
     else:
-        environments = existing_config.get("environments", [])
+        environments = _normalize_env_modes(existing_config.get("environments", []))
         if env_name not in environments:
-            environments.append(env_name)
+            environments[env_name] = current_mode
 
     generator_config = {
         "app": {
@@ -176,7 +177,7 @@ def run(args):
             rel_path = logging.highlight(to_rel(output_dir))
             logging.info(f"Cleaning up unused environment directories in {rel_path} ...")
             for item in output_dir.iterdir():
-                if item.is_dir() and item.name not in environments:
+                if item.is_dir() and item.name not in environments.keys():
                     logging.info(f"  🗑  Removing orphaned environment: {item.name}")
                     shutil.rmtree(item)
 
@@ -212,13 +213,13 @@ def run_silent(args):
     """
     # Parse environments from comma-separated string
     env_str = args.env
-    environments = [e.strip() for e in env_str.split(",") if e.strip()]
+    environments = _parse_env_entries(env_str)
 
     if not environments:
         logging.error("No environments specified in --env argument.")
         sys.exit(1)
 
-    print(f"🔧 Silent initialization for environments: {', '.join(environments)}")
+    print(f"🔧 Silent initialization for environments: {', '.join(environments.keys())}")
 
     # 1. Find the template file (same logic as interactive mode)
     template_path = None
@@ -260,7 +261,7 @@ def run_silent(args):
     generator_config = {
         "app": {
             "name": "",
-            "tag": environments[0],
+            "tag": next(iter(environments.keys())),
         },
         "environments": environments,
         "paths": {
@@ -281,3 +282,63 @@ def run_silent(args):
 
     # 4. Skip SSL certificates for silent mode (to avoid sudo prompt)
     print("\n🔐 Skipping SSL certificates setup in silent mode.")
+
+
+def _default_mode() -> str:
+    mode = os.environ.get("ESB_MODE", "").strip().lower()
+    if not mode:
+        return "docker"
+    return mode
+
+
+def _parse_env_entries(env_str: str) -> dict[str, str]:
+    mode_default = _default_mode()
+    entries: dict[str, str] = {}
+    for raw in env_str.split(","):
+        raw = raw.strip()
+        if not raw:
+            continue
+        if ":" in raw:
+            name, mode = raw.split(":", 1)
+            name = name.strip()
+            mode = mode.strip().lower() or mode_default
+        else:
+            name = raw
+            mode = mode_default
+        if not name:
+            continue
+        entries[name] = mode
+    return entries
+
+
+def _normalize_env_modes(raw: object) -> dict[str, str]:
+    modes: dict[str, str] = {}
+    if isinstance(raw, dict):
+        for name, value in raw.items():
+            if not isinstance(name, str):
+                continue
+            if isinstance(value, dict):
+                mode = value.get("mode")
+                if isinstance(mode, str):
+                    modes[name] = mode
+                else:
+                    modes[name] = _default_mode()
+            elif isinstance(value, str):
+                modes[name] = value
+            else:
+                modes[name] = _default_mode()
+        return modes
+    if isinstance(raw, list):
+        for item in raw:
+            if isinstance(item, str):
+                modes[item] = _default_mode()
+            elif isinstance(item, dict):
+                name = item.get("name")
+                mode = item.get("mode")
+                if isinstance(name, str):
+                    if isinstance(mode, str):
+                        modes[name] = mode
+                    else:
+                        modes[name] = _default_mode()
+        return modes
+    return modes

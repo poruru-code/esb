@@ -301,7 +301,14 @@ def warmup_environment(profile_scenarios: dict, profiles: dict, args):
     # To prevent race conditions in parallel execution, we initialize generator.yml once here.
     active_profiles = list(profile_scenarios.keys())
     if active_profiles:
-        env_list = ",".join(active_profiles)
+        env_entries = []
+        for profile_name in active_profiles:
+            mode = profiles.get(profile_name, {}).get("mode")
+            if mode:
+                env_entries.append(f"{profile_name}:{mode}")
+            else:
+                env_entries.append(profile_name)
+        env_list = ",".join(env_entries)
         print(f"\n[INIT] Initializing environments (WARM-UP): {env_list}")
         # Use default template path for tests
         esb_template = os.getenv("ESB_TEMPLATE", "e2e/fixtures/template.yaml")
