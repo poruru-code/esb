@@ -204,3 +204,62 @@ class TestLayerSupport(unittest.TestCase):
                 # Check COPY instructions with trailing slash
                 self.assertIn(f"COPY functions/{func_name}/layers/common/ /opt/", dockerfile)
                 self.assertIn(f"COPY functions/{func_name}/layers/zip-layer/ /opt/", dockerfile)
+
+    def test_directory_layer_named_python_is_nested(self):
+        """Ensure that if a layer source is a directory named 'python', it is nested so it copies to /opt/python."""
+        from tools.generator.main import generate_files
+
+        template = """
+        AWSTemplateFormatVersion: "2010-09-09"
+        Transform: AWS::Serverless-2016-10-31
+        Resources:
+          PythonLayer:
+            Type: AWS::Serverless::LayerVersion
+            Properties:
+              LayerName: python-layer
+              ContentUri: layers/python/
+          MyFunction:
+            Type: AWS::Serverless::Function
+            Properties:
+              FunctionName: lambda-nested
+              CodeUri: functions/my-func/
+              Layers:
+                - !Ref PythonLayer
+        """
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+
+            # Create layer content: layers/python/lib.py
+            layer_dir = tmpdir / "layers" / "python"
+            layer_dir.mkdir(parents=True, exist_ok=True)
+            (layer_dir / "lib.py").write_text("# lib", encoding="utf-8")
+
+            # Create function
+            func_dir = tmpdir / "functions" / "my-func"
+            func_dir.mkdir(parents=True, exist_ok=True)
+            (func_dir / "lambda_function.py").write_text("def handler(e,c): pass")
+
+            template_path = tmpdir / "template.yaml"
+            template_path.write_text(template, encoding="utf-8")
+
+            config = {
+                "paths": {
+                    "sam_template": str(template_path),
+                    "output_dir": str(tmpdir / "out"),
+                }
+            }
+
+            generate_files(config, project_root=tmpdir, dry_run=False, verbose=False)
+
+            out_dir = tmpdir / "out"
+            func_layers_dir = out_dir / "functions" / "lambda-nested" / "layers"
+
+            # The layer name derived from ContentUri "layers/python/" is "python"
+            # We expect the content to be staged as: .../layers/python/python/lib.py
+            # So that COPY .../layers/python/ /opt/ results in /opt/python/lib.py
+
+            staged_layer_root = func_layers_dir / "python"
+            self.assertTrue(staged_layer_root.exists())
+            self.assertTrue((staged_layer_root / "python").exists(), "Should have 'python' subdir")
+            self.assertTrue((staged_layer_root / "python" / "lib.py").exists())

@@ -200,10 +200,16 @@ def generate_files(
 
                 if final_src_dir:
                     # Link/Copy contents to staging
-                    dest_layer_root.mkdir(parents=True, exist_ok=True)
+                    # Special handling: If source directory is named 'python', nest it
+                    # so that it copies as /opt/python/...
+                    final_dest = dest_layer_root
+                    if layer_src.is_dir() and layer_src.name == "python":
+                        final_dest = dest_layer_root / "python"
+
+                    final_dest.mkdir(parents=True, exist_ok=True)
                     shutil.copytree(
                         final_src_dir,
-                        dest_layer_root,
+                        final_dest,
                         dirs_exist_ok=True,
                         copy_function=link_or_copy,
                     )
