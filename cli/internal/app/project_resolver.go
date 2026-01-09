@@ -11,11 +11,15 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 )
 
+// projectSelection holds the resolved project directory and optional
+// template override from CLI flags.
 type projectSelection struct {
 	Dir              string
 	TemplateOverride string
 }
 
+// resolveProjectSelection determines the project directory based on CLI flags,
+// current directory, or global config's active project.
 func resolveProjectSelection(cli CLI, deps Dependencies) (projectSelection, error) {
 	if strings.TrimSpace(cli.Template) != "" {
 		absTemplate, err := filepath.Abs(cli.Template)
@@ -64,6 +68,8 @@ func resolveProjectSelection(cli CLI, deps Dependencies) (projectSelection, erro
 	return projectSelection{Dir: abs}, nil
 }
 
+// findProjectDir searches upward from the given start directory to find
+// a parent containing generator.yml. Returns the directory and success flag.
 func findProjectDir(start string) (string, bool) {
 	abs, err := filepath.Abs(start)
 	if err != nil {

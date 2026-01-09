@@ -17,18 +17,25 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
+// PortDiscoverer defines the interface for discovering dynamically assigned ports
+// from running Docker Compose services.
 type PortDiscoverer interface {
 	Discover(ctx state.Context) (map[string]int, error)
 }
 
+// composePortDiscoverer implements PortDiscoverer using Docker Compose port command.
 type composePortDiscoverer struct {
 	runner compose.CommandOutputer
 }
 
+// NewPortDiscoverer creates a PortDiscoverer that uses Docker Compose
+// to discover dynamically assigned host ports for services.
 func NewPortDiscoverer() PortDiscoverer {
 	return composePortDiscoverer{runner: compose.ExecRunner{}}
 }
 
+// Discover queries Docker Compose for the host ports of running services
+// and returns a map of environment variable names to port numbers.
 func (d composePortDiscoverer) Discover(ctx state.Context) (map[string]int, error) {
 	if d.runner == nil {
 		return nil, fmt.Errorf("port discovery runner not configured")
@@ -46,6 +53,8 @@ func (d composePortDiscoverer) Discover(ctx state.Context) (map[string]int, erro
 	return compose.DiscoverPorts(context.Background(), d.runner, opts)
 }
 
+// discoverAndPersistPorts discovers running service ports and persists them
+// to a JSON file for use by provisioning and E2E tests.
 func discoverAndPersistPorts(ctx state.Context, discoverer PortDiscoverer, out io.Writer) {
 	if discoverer == nil {
 		return
@@ -65,6 +74,8 @@ func discoverAndPersistPorts(ctx state.Context, discoverer PortDiscoverer, out i
 	applyPortsToEnv(ports)
 }
 
+// savePorts writes the discovered ports to a JSON file in the ESB home directory.
+// Returns the path to the saved file.
 func savePorts(env string, ports map[string]int) (string, error) {
 	home, err := resolveESBHome(env)
 	if err != nil {
@@ -84,6 +95,8 @@ func savePorts(env string, ports map[string]int) (string, error) {
 	return path, nil
 }
 
+// resolveESBHome returns the ESB home directory for the given environment.
+// Uses ESB_HOME environment variable if set, otherwise ~/.esb/<env>.
 func resolveESBHome(env string) (string, error) {
 	override := strings.TrimSpace(os.Getenv("ESB_HOME"))
 	if override != "" {
@@ -100,6 +113,8 @@ func resolveESBHome(env string) (string, error) {
 	return filepath.Join(home, ".esb", name), nil
 }
 
+// applyPortsToEnv sets environment variables for discovered ports,
+// including convenience variables like GATEWAY_URL and VICTORIALOGS_URL.
 func applyPortsToEnv(ports map[string]int) {
 	for key, value := range ports {
 		_ = os.Setenv(key, strconv.Itoa(value))

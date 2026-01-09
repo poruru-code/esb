@@ -18,6 +18,8 @@ const (
 	ModeFirecracker = "firecracker"
 )
 
+// UpOptions contains configuration for starting Docker Compose services.
+// It specifies the project, mode, detach settings, and optional build flag.
 type UpOptions struct {
 	RootDir    string
 	Project    string
@@ -28,12 +30,16 @@ type UpOptions struct {
 	ExtraFiles []string
 }
 
+// CommandRunner defines the interface for executing shell commands.
+// Implementations run docker compose commands in the specified directory.
 type CommandRunner interface {
 	Run(ctx context.Context, dir, name string, args ...string) error
 }
 
+// ExecRunner implements CommandRunner using os/exec.
 type ExecRunner struct{}
 
+// Run executes a command with inherited stdout/stderr.
 func (ExecRunner) Run(ctx context.Context, dir, name string, args ...string) error {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
@@ -42,6 +48,8 @@ func (ExecRunner) Run(ctx context.Context, dir, name string, args ...string) err
 	return cmd.Run()
 }
 
+// UpProject runs docker compose up with the appropriate configuration
+// files for the specified mode and target.
 func UpProject(ctx context.Context, runner CommandRunner, opts UpOptions) error {
 	if runner == nil {
 		return fmt.Errorf("command runner is nil")
@@ -81,6 +89,8 @@ func UpProject(ctx context.Context, runner CommandRunner, opts UpOptions) error 
 	return runner.Run(ctx, opts.RootDir, "docker", args...)
 }
 
+// ResolveComposeFiles returns the list of docker-compose files to use
+// based on the mode (docker/containerd/firecracker) and target.
 func ResolveComposeFiles(rootDir, mode, target string) ([]string, error) {
 	base := []string{
 		filepath.Join(rootDir, "docker-compose.yml"),
@@ -119,6 +129,8 @@ func ResolveComposeFiles(rootDir, mode, target string) ([]string, error) {
 	return files, nil
 }
 
+// resolveMode normalizes the mode string, falling back to ESB_MODE env
+// variable or "docker" default.
 func resolveMode(mode string) string {
 	normalized := strings.ToLower(strings.TrimSpace(mode))
 	switch normalized {
@@ -134,6 +146,8 @@ func resolveMode(mode string) string {
 	}
 }
 
+// FindRepoRoot searches upward from start directory to find the root
+// containing docker-compose.yml.
 func FindRepoRoot(start string) (string, error) {
 	dir := filepath.Clean(start)
 	for {

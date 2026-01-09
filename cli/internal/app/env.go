@@ -12,6 +12,8 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 )
 
+// EnvCmd groups all environment management subcommands including
+// list, create, use, and remove operations.
 type EnvCmd struct {
 	List   EnvListCmd   `cmd:"" help:"List environments"`
 	Create EnvCreateCmd `cmd:"" help:"Create environment"`
@@ -32,12 +34,16 @@ type (
 	}
 )
 
+// envContext holds the resolved project and global configuration
+// needed for environment operations.
 type envContext struct {
 	Project    projectConfig
 	Config     config.GlobalConfig
 	ConfigPath string
 }
 
+// runEnvList executes the 'env list' command which displays all environments
+// defined in generator.yml, marking the active one with an asterisk.
 func runEnvList(_ CLI, deps Dependencies, out io.Writer) int {
 	ctx, err := resolveEnvContext(deps)
 	if err != nil {
@@ -60,6 +66,8 @@ func runEnvList(_ CLI, deps Dependencies, out io.Writer) int {
 	return 0
 }
 
+// runEnvCreate executes the 'env create' command which adds a new environment
+// to the generator.yml configuration with an optional mode specifier.
 func runEnvCreate(cli CLI, deps Dependencies, out io.Writer) int {
 	rawName := strings.TrimSpace(cli.Env.Create.Name)
 	if rawName == "" {
@@ -99,6 +107,8 @@ func runEnvCreate(cli CLI, deps Dependencies, out io.Writer) int {
 	return 0
 }
 
+// runEnvUse executes the 'env use' command which switches the active environment
+// and updates the global configuration.
 func runEnvUse(cli CLI, deps Dependencies, out io.Writer) int {
 	name := strings.TrimSpace(cli.Env.Use.Name)
 	if name == "" {
@@ -136,6 +146,8 @@ func runEnvUse(cli CLI, deps Dependencies, out io.Writer) int {
 	return 0
 }
 
+// runEnvRemove executes the 'env remove' command which deletes an environment
+// from generator.yml and updates the global configuration if necessary.
 func runEnvRemove(cli CLI, deps Dependencies, out io.Writer) int {
 	name := strings.TrimSpace(cli.Env.Remove.Name)
 	if name == "" {
@@ -183,6 +195,8 @@ func runEnvRemove(cli CLI, deps Dependencies, out io.Writer) int {
 	return 0
 }
 
+// resolveEnvContext loads the global and project configuration needed
+// for environment management operations.
 func resolveEnvContext(deps Dependencies) (envContext, error) {
 	cfg := defaultGlobalConfig()
 	path, err := config.GlobalConfigPath()

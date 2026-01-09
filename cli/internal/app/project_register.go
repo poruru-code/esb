@@ -11,6 +11,8 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 )
 
+// registerProject adds a project to the global configuration after init.
+// It sets the project as active and persists its path and first environment.
 func registerProject(generatorPath string, deps Dependencies) error {
 	projectDir := filepath.Dir(generatorPath)
 	project, err := loadProjectConfig(projectDir)

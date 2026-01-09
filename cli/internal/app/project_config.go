@@ -11,6 +11,8 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 )
 
+// projectConfig holds metadata about a project loaded from generator.yml.
+// It includes the project name, directory path, and parsed configuration.
 type projectConfig struct {
 	Name          string
 	Dir           string
@@ -18,6 +20,8 @@ type projectConfig struct {
 	Generator     config.GeneratorConfig
 }
 
+// loadProjectConfig loads a project's configuration from the generator.yml
+// file in the specified directory.
 func loadProjectConfig(projectDir string) (projectConfig, error) {
 	if strings.TrimSpace(projectDir) == "" {
 		return projectConfig{}, fmt.Errorf("project dir is required")

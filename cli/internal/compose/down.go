@@ -11,6 +11,8 @@ import (
 	"github.com/docker/docker/api/types/filters"
 )
 
+// DownProject stops and removes all containers belonging to the specified
+// Docker Compose project. Optionally removes volumes if removeVolumes is true.
 func DownProject(ctx context.Context, client DockerClient, project string, removeVolumes bool) error {
 	labelFilter := filters.NewArgs()
 	labelFilter.Add("label", fmt.Sprintf("%s=%s", composeProjectLabel, project))

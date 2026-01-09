@@ -8,6 +8,8 @@ import (
 	"io"
 )
 
+// runReset executes the 'reset' command which performs a destructive reset
+// by stopping containers, removing volumes, rebuilding images, and restarting.
 func runReset(cli CLI, deps Dependencies, out io.Writer) int {
 	if !cli.Reset.Yes {
 		fmt.Fprintln(out, "reset requires confirmation (--yes)")

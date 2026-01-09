@@ -15,16 +15,22 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
+// UpRequest contains parameters for starting the environment.
+// It includes the context information and flags for detached/wait modes.
 type UpRequest struct {
 	Context state.Context
 	Detach  bool
 	Wait    bool
 }
 
+// Upper defines the interface for starting the environment.
+// Implementations use Docker Compose to bring up the services.
 type Upper interface {
 	Up(request UpRequest) error
 }
 
+// runUp executes the 'up' command which starts all services,
+// optionally rebuilds images, provisions Lambda functions, and waits for readiness.
 func runUp(cli CLI, deps Dependencies, out io.Writer) int {
 	if deps.Upper == nil {
 		fmt.Fprintln(out, "up: not implemented")
@@ -100,6 +106,8 @@ func runUp(cli CLI, deps Dependencies, out io.Writer) int {
 	return 0
 }
 
+// applyGeneratorConfigEnv reads the generator.yml configuration and sets
+// environment variables for function/routing paths and custom parameters.
 func applyGeneratorConfigEnv(generatorPath string) error {
 	cfg, err := config.LoadGeneratorConfig(generatorPath)
 	if err != nil {
@@ -125,6 +133,8 @@ func applyGeneratorConfigEnv(generatorPath string) error {
 	return nil
 }
 
+// applyUpEnv sets environment variables required for the 'up' command,
+// including ESB_ENV, ESB_PROJECT_NAME, ESB_IMAGE_TAG, and ESB_CONFIG_DIR.
 func applyUpEnv(ctx state.Context) {
 	env := strings.TrimSpace(ctx.Env)
 	if env == "" {

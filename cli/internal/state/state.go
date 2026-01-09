@@ -3,6 +3,7 @@
 // Why: Centralize state transitions for the CLI detector.
 package state
 
+// State represents the current CLI environment state.
 type State string
 
 const (
@@ -13,10 +14,13 @@ const (
 	StateStopped       State = "stopped"
 )
 
+// ContainerInfo holds minimal information about a Docker container.
 type ContainerInfo struct {
 	State string
 }
 
+// DeriveState determines the environment state based on context validity,
+// container presence, and build artifacts.
 func DeriveState(contextValid bool, containers []ContainerInfo, hasArtifacts bool) State {
 	if !contextValid {
 		return StateUninitialized
@@ -34,6 +38,7 @@ func DeriveState(contextValid bool, containers []ContainerInfo, hasArtifacts boo
 	return StateInitialized
 }
 
+// countRunning counts how many containers are in the "running" state.
 func countRunning(containers []ContainerInfo) int {
 	count := 0
 	for _, container := range containers {

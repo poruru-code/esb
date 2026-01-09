@@ -14,6 +14,8 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 )
 
+// ProjectCmd groups all project management subcommands including
+// list, use, and recent operations.
 type ProjectCmd struct {
 	List   ProjectListCmd   `cmd:"" help:"List projects"`
 	Use    ProjectUseCmd    `cmd:"" help:"Switch project"`
@@ -28,12 +30,15 @@ type (
 	}
 )
 
+// recentProject holds project metadata for sorting by recent usage.
 type recentProject struct {
 	Name   string
 	Entry  config.ProjectEntry
 	UsedAt time.Time
 }
 
+// runProjectList executes the 'project list' command which displays
+// all registered projects, marking the active one with an asterisk.
 func runProjectList(_ CLI, _ Dependencies, out io.Writer) int {
 	cfg, err := loadGlobalConfigOrDefault()
 	if err != nil {
@@ -62,6 +67,8 @@ func runProjectList(_ CLI, _ Dependencies, out io.Writer) int {
 	return 0
 }
 
+// runProjectRecent executes the 'project recent' command which displays
+// projects sorted by most recent usage with numbered indices.
 func runProjectRecent(_ CLI, _ Dependencies, out io.Writer) int {
 	cfg, err := loadGlobalConfigOrDefault()
 	if err != nil {
@@ -81,6 +88,8 @@ func runProjectRecent(_ CLI, _ Dependencies, out io.Writer) int {
 	return 0
 }
 
+// runProjectUse executes the 'project use' command which switches
+// the active project by name or recent index number.
 func runProjectUse(cli CLI, deps Dependencies, out io.Writer) int {
 	selector := strings.TrimSpace(cli.Project.Use.Name)
 	if selector == "" {
@@ -115,6 +124,8 @@ func runProjectUse(cli CLI, deps Dependencies, out io.Writer) int {
 	return 0
 }
 
+// loadGlobalConfigOrDefault loads the global configuration or returns
+// an empty config if not found.
 func loadGlobalConfigOrDefault() (config.GlobalConfig, error) {
 	path, err := config.GlobalConfigPath()
 	if err != nil {
@@ -123,6 +134,8 @@ func loadGlobalConfigOrDefault() (config.GlobalConfig, error) {
 	return loadGlobalConfig(path)
 }
 
+// loadGlobalConfigWithPath loads the global configuration and returns
+// both the config path and the loaded configuration.
 func loadGlobalConfigWithPath() (string, config.GlobalConfig, error) {
 	path, err := config.GlobalConfigPath()
 	if err != nil {
@@ -135,6 +148,8 @@ func loadGlobalConfigWithPath() (string, config.GlobalConfig, error) {
 	return path, cfg, nil
 }
 
+// selectProject resolves a project selector (name or index) to a project name.
+// Numeric selectors are 1-indexed and reference recent projects list.
 func selectProject(cfg config.GlobalConfig, selector string) (string, error) {
 	if len(cfg.Projects) == 0 {
 		return "", fmt.Errorf("no projects registered")
@@ -157,6 +172,8 @@ func selectProject(cfg config.GlobalConfig, selector string) (string, error) {
 	return selector, nil
 }
 
+// sortProjectsByRecent returns projects sorted by last-used timestamp,
+// with most recently used first. Ties are broken alphabetically.
 func sortProjectsByRecent(cfg config.GlobalConfig) []recentProject {
 	projects := make([]recentProject, 0, len(cfg.Projects))
 	for name, entry := range cfg.Projects {
@@ -176,6 +193,8 @@ func sortProjectsByRecent(cfg config.GlobalConfig) []recentProject {
 	return projects
 }
 
+// parseLastUsed parses an RFC3339 timestamp string into a time.Time.
+// Returns zero time if the string is empty or invalid.
 func parseLastUsed(value string) time.Time {
 	value = strings.TrimSpace(value)
 	if value == "" {

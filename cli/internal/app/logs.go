@@ -11,6 +11,8 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
+// LogsRequest contains parameters for viewing container logs.
+// It specifies follow mode, tail count, timestamps, and optional service filter.
 type LogsRequest struct {
 	Context    state.Context
 	Follow     bool
@@ -19,10 +21,14 @@ type LogsRequest struct {
 	Service    string
 }
 
+// Logger defines the interface for streaming container logs.
+// Implementations use Docker Compose to retrieve log output.
 type Logger interface {
 	Logs(request LogsRequest) error
 }
 
+// runLogs executes the 'logs' command which streams container logs
+// with optional follow, tail, and timestamp options.
 func runLogs(cli CLI, deps Dependencies, out io.Writer) int {
 	if deps.Logger == nil {
 		fmt.Fprintln(out, "logs: not implemented")

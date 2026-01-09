@@ -8,6 +8,8 @@ import (
 	"strings"
 )
 
+// applyModeEnv sets the ESB_MODE environment variable if not already set.
+// This ensures consistent mode propagation across all CLI commands.
 func applyModeEnv(mode string) {
 	trimmed := strings.TrimSpace(mode)
 	if trimmed == "" {

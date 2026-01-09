@@ -12,6 +12,8 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
+// runInfo executes the 'info' command which displays configuration details
+// and current environment state for debugging and troubleshooting.
 func runInfo(cli CLI, deps Dependencies, out io.Writer) int {
 	configPath, err := config.GlobalConfigPath()
 	if err != nil {

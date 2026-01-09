@@ -14,12 +14,20 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
+// StateDetector defines the interface for detecting the current environment state.
+// Implementations query Docker and file system to determine if the environment
+// is running, stopped, or not initialized.
 type StateDetector interface {
 	Detect() (state.State, error)
 }
 
+// DetectorFactory is a function type that creates a StateDetector for a given
+// project directory and environment name.
 type DetectorFactory func(projectDir, env string) (StateDetector, error)
 
+// Dependencies holds all injected dependencies required for CLI command execution.
+// This structure enables dependency injection for testing and allows swapping
+// implementations of various subsystems.
 type Dependencies struct {
 	ProjectDir      string
 	Out             io.Writer
@@ -36,6 +44,8 @@ type Dependencies struct {
 	Now             func() time.Time
 }
 
+// CLI defines the command-line interface structure parsed by Kong.
+// It contains global flags and all subcommand definitions.
 type CLI struct {
 	Template string     `short:"t" help:"Path to SAM template"`
 	EnvFlag  string     `short:"e" name:"env" help:"Environment (default: active)"`
@@ -87,6 +97,9 @@ type PruneCmd struct {
 	Hard bool `help:"Also remove generator.yml"`
 }
 
+// Run is the main entry point for CLI command execution.
+// It parses the command-line arguments, identifies the requested command,
+// and dispatches to the appropriate handler. Returns 0 on success, 1 on error.
 func Run(args []string, deps Dependencies) int {
 	out := deps.Out
 	if out == nil {
@@ -153,6 +166,8 @@ func Run(args []string, deps Dependencies) int {
 	}
 }
 
+// runStatus executes the 'status' command which displays the current
+// environment state (running, stopped, or not initialized).
 func runStatus(cli CLI, deps Dependencies, out io.Writer) int {
 	factory := deps.DetectorFactory
 	if factory == nil {
@@ -190,6 +205,8 @@ func runStatus(cli CLI, deps Dependencies, out io.Writer) int {
 	return 0
 }
 
+// runInitCommand executes the 'init' command which initializes a new project
+// by creating a generator.yml configuration file from the specified SAM template.
 func runInitCommand(cli CLI, deps Dependencies, out io.Writer) int {
 	if cli.Template == "" {
 		fmt.Fprintln(out, "template is required")
@@ -212,6 +229,8 @@ func runInitCommand(cli CLI, deps Dependencies, out io.Writer) int {
 	return 0
 }
 
+// splitEnvList splits a comma-separated string of environment names
+// into a slice. Returns nil if the input is empty.
 func splitEnvList(value string) []string {
 	if value == "" {
 		return nil
@@ -220,6 +239,8 @@ func splitEnvList(value string) []string {
 	return parts
 }
 
+// commandName extracts the first non-flag argument from the command line,
+// which represents the command name. Recognizes and skips known flag pairs.
 func commandName(args []string) string {
 	skipNext := false
 	for _, arg := range args {

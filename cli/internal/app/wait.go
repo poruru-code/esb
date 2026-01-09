@@ -15,16 +15,21 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
+// GatewayWaiter defines the interface for waiting until the gateway is ready.
+// This prevents flaky E2E tests by ensuring the gateway is healthy before proceeding.
 type GatewayWaiter interface {
 	Wait(ctx state.Context) error
 }
 
+// gatewayWaiter implements GatewayWaiter using HTTP health checks.
 type gatewayWaiter struct {
 	client   *http.Client
 	timeout  time.Duration
 	interval time.Duration
 }
 
+// NewGatewayWaiter creates a GatewayWaiter that polls the gateway's health
+// endpoint with TLS certificate verification disabled for local development.
 func NewGatewayWaiter() GatewayWaiter {
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
@@ -39,6 +44,8 @@ func NewGatewayWaiter() GatewayWaiter {
 	}
 }
 
+// Wait polls the gateway's health endpoint until it returns 200 OK
+// or the timeout is reached. Uses ESB_PORT_GATEWAY_HTTPS for the port.
 func (w gatewayWaiter) Wait(_ state.Context) error {
 	if w.client == nil {
 		return fmt.Errorf("gateway waiter client not configured")

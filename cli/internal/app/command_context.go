@@ -11,11 +11,15 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
+// exitWithError prints an error message to the output writer and returns
+// exit code 1 for CLI error handling.
 func exitWithError(out io.Writer, err error) int {
 	fmt.Fprintln(out, err)
 	return 1
 }
 
+// resolvedTemplatePath returns the template path from the command context,
+// preferring the CLI override if specified, otherwise using the context path.
 func resolvedTemplatePath(ctxInfo commandContext) string {
 	if override := strings.TrimSpace(ctxInfo.Selection.TemplateOverride); override != "" {
 		return override
@@ -23,12 +27,16 @@ func resolvedTemplatePath(ctxInfo commandContext) string {
 	return ctxInfo.Context.TemplatePath
 }
 
+// commandContext holds the resolved project selection, environment, and state
+// context needed for executing CLI commands.
 type commandContext struct {
 	Selection projectSelection
 	Env       string
 	Context   state.Context
 }
 
+// resolveCommandContext resolves the project selection, environment,
+// and state context from CLI flags and dependencies.
 func resolveCommandContext(cli CLI, deps Dependencies) (commandContext, error) {
 	selection, err := resolveProjectSelection(cli, deps)
 	if err != nil {

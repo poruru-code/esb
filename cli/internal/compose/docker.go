@@ -16,6 +16,8 @@ import (
 
 const composeProjectLabel = "com.docker.compose.project"
 
+// DockerClient defines the subset of Docker SDK methods used by this package.
+// This interface enables mocking the Docker client in tests.
 type DockerClient interface {
 	ContainerList(ctx context.Context, options container.ListOptions) ([]container.Summary, error)
 	ImageList(ctx context.Context, options image.ListOptions) ([]image.Summary, error)
@@ -23,6 +25,8 @@ type DockerClient interface {
 	ContainerRemove(ctx context.Context, containerID string, options container.RemoveOptions) error
 }
 
+// ListContainersByProject returns container information for all containers
+// belonging to the specified Docker Compose project.
 func ListContainersByProject(
 	ctx context.Context,
 	client DockerClient,
@@ -49,6 +53,8 @@ func ListContainersByProject(
 	return result, nil
 }
 
+// HasImagesForEnv checks if any Docker images exist with a tag suffix
+// matching the specified environment name (e.g., ":prod").
 func HasImagesForEnv(ctx context.Context, client DockerClient, env string) (bool, error) {
 	images, err := client.ImageList(ctx, image.ListOptions{All: true})
 	if err != nil {

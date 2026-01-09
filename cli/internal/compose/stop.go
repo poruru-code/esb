@@ -9,6 +9,7 @@ import (
 	"strings"
 )
 
+// StopOptions contains configuration for stopping Docker Compose services.
 type StopOptions struct {
 	RootDir    string
 	Project    string
@@ -18,6 +19,7 @@ type StopOptions struct {
 	ExtraFiles []string
 }
 
+// LogsOptions contains configuration for viewing Docker Compose logs.
 type LogsOptions struct {
 	RootDir    string
 	Project    string
@@ -30,6 +32,7 @@ type LogsOptions struct {
 	ExtraFiles []string
 }
 
+// StopProject runs docker compose stop for the specified project and services.
 func StopProject(ctx context.Context, runner CommandRunner, opts StopOptions) error {
 	if runner == nil {
 		return fmt.Errorf("command runner is nil")
@@ -66,6 +69,7 @@ func StopProject(ctx context.Context, runner CommandRunner, opts StopOptions) er
 	return runner.Run(ctx, opts.RootDir, "docker", args...)
 }
 
+// LogsProject runs docker compose logs with specified follow/tail options.
 func LogsProject(ctx context.Context, runner CommandRunner, opts LogsOptions) error {
 	if runner == nil {
 		return fmt.Errorf("command runner is nil")

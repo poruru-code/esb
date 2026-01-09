@@ -11,6 +11,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// GlobalConfig represents the ~/.esb/config.yaml global configuration.
+// It tracks active project, environments, and registered project paths.
 type GlobalConfig struct {
 	Version            int                     `yaml:"version"`
 	ActiveProject      string                  `yaml:"active_project"`
@@ -18,11 +20,14 @@ type GlobalConfig struct {
 	Projects           map[string]ProjectEntry `yaml:"projects,omitempty"`
 }
 
+// ProjectEntry stores a project's directory path and last-used timestamp.
 type ProjectEntry struct {
 	Path     string `yaml:"path"`
 	LastUsed string `yaml:"last_used"`
 }
 
+// GlobalConfigPath returns the path to the global config file.
+// Respects ESB_CONFIG_PATH and ESB_CONFIG_HOME environment variables.
 func GlobalConfigPath() (string, error) {
 	if override := strings.TrimSpace(os.Getenv("ESB_CONFIG_PATH")); override != "" {
 		path := override
@@ -43,6 +48,7 @@ func GlobalConfigPath() (string, error) {
 	return filepath.Join(home, ".esb", "config.yaml"), nil
 }
 
+// LoadGlobalConfig reads and parses the global configuration file.
 func LoadGlobalConfig(path string) (GlobalConfig, error) {
 	payload, err := os.ReadFile(path)
 	if err != nil {
@@ -56,6 +62,7 @@ func LoadGlobalConfig(path string) (GlobalConfig, error) {
 	return cfg, nil
 }
 
+// SaveGlobalConfig writes a GlobalConfig to the specified path.
 func SaveGlobalConfig(path string, cfg GlobalConfig) error {
 	payload, err := yaml.Marshal(&cfg)
 	if err != nil {

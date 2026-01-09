@@ -9,6 +9,8 @@ import (
 	"strings"
 )
 
+// BuildOptions contains configuration for building Docker Compose services.
+// It specifies the project, mode, services to build, and cache settings.
 type BuildOptions struct {
 	RootDir    string
 	Project    string
@@ -19,6 +21,9 @@ type BuildOptions struct {
 	NoCache    bool
 }
 
+// BuildProject runs docker compose build with the appropriate configuration
+// files for the specified mode and target. Automatically includes runtime-node
+// for containerd/firecracker modes.
 func BuildProject(ctx context.Context, runner CommandRunner, opts BuildOptions) error {
 	if runner == nil {
 		return fmt.Errorf("command runner is nil")
@@ -62,6 +67,7 @@ func BuildProject(ctx context.Context, runner CommandRunner, opts BuildOptions) 
 	return runner.Run(ctx, opts.RootDir, "docker", args...)
 }
 
+// ensureService adds a service to the list if not already present.
 func ensureService(services []string, name string) []string {
 	for _, service := range services {
 		if service == name {

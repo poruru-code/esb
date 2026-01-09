@@ -8,10 +8,14 @@ import (
 	"io"
 )
 
+// Downer defines the interface for stopping and removing environment resources.
+// Implementations use Docker Compose to bring down the services.
 type Downer interface {
 	Down(project string, removeVolumes bool) error
 }
 
+// runDown executes the 'down' command which stops all containers
+// and optionally removes volumes for the current environment.
 func runDown(cli CLI, deps Dependencies, out io.Writer) int {
 	if deps.Downer == nil {
 		fmt.Fprintln(out, "down: not implemented")

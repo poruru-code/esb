@@ -12,6 +12,8 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 )
 
+// runInit creates a new generator.yml configuration file for a SAM template.
+// Returns the path to the generated configuration file.
 func runInit(templatePath string, envs []string, projectName string) (string, error) {
 	cleaned := normalizeEnvs(envs)
 	if len(cleaned) == 0 {
@@ -35,6 +37,8 @@ func runInit(templatePath string, envs []string, projectName string) (string, er
 	return generatorPath, nil
 }
 
+// buildGeneratorConfig constructs the generator.yml configuration structure
+// from the provided template path, environments, and project name.
 func buildGeneratorConfig(templatePath string, envs config.Environments, projectName string) (config.GeneratorConfig, string, error) {
 	if templatePath == "" {
 		return config.GeneratorConfig{}, "", fmt.Errorf("template path is required")
@@ -74,6 +78,8 @@ func buildGeneratorConfig(templatePath string, envs config.Environments, project
 	return cfg, generatorPath, nil
 }
 
+// normalizeProjectName returns the provided name if non-empty,
+// otherwise derives the project name from the directory basename.
 func normalizeProjectName(value, projectDir string) string {
 	name := strings.TrimSpace(value)
 	if name != "" {
@@ -82,6 +88,7 @@ func normalizeProjectName(value, projectDir string) string {
 	return filepath.Base(projectDir)
 }
 
+// normalizeEnvs removes empty strings and whitespace from the environment list.
 func normalizeEnvs(envs []string) []string {
 	cleaned := make([]string, 0, len(envs))
 	for _, env := range envs {
@@ -94,6 +101,8 @@ func normalizeEnvs(envs []string) []string {
 	return cleaned
 }
 
+// parseEnvSpecs converts environment strings (with optional mode suffix)
+// into structured EnvironmentSpec objects.
 func parseEnvSpecs(envs []string) (config.Environments, error) {
 	defaultMode := defaultMode()
 	specs := make(config.Environments, 0, len(envs))
@@ -113,6 +122,8 @@ func parseEnvSpecs(envs []string) (config.Environments, error) {
 	return specs, nil
 }
 
+// splitEnvMode splits an environment specifier like "prod:containerd"
+// into its name and mode components.
 func splitEnvMode(value string) (string, string) {
 	parts := strings.SplitN(value, ":", 2)
 	name := strings.TrimSpace(parts[0])
@@ -122,6 +133,8 @@ func splitEnvMode(value string) (string, string) {
 	return name, strings.TrimSpace(parts[1])
 }
 
+// defaultMode returns the default container runtime mode from ESB_MODE
+// environment variable, falling back to "docker" if not set.
 func defaultMode() string {
 	mode := strings.TrimSpace(strings.ToLower(os.Getenv("ESB_MODE")))
 	if mode == "" {

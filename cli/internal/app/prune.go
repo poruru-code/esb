@@ -11,15 +11,21 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
+// PruneRequest contains parameters for removing generated artifacts.
+// The Hard flag also removes the generator.yml configuration file.
 type PruneRequest struct {
 	Context state.Context
 	Hard    bool
 }
 
+// Pruner defines the interface for removing generated artifacts.
+// Implementations clean up the output directory and optionally configuration.
 type Pruner interface {
 	Prune(request PruneRequest) error
 }
 
+// runPrune executes the 'prune' command which stops containers,
+// removes volumes, and deletes generated artifacts from the output directory.
 func runPrune(cli CLI, deps Dependencies, out io.Writer) int {
 	if !cli.Prune.Yes {
 		fmt.Fprintln(out, "prune requires confirmation (--yes)")

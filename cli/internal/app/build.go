@@ -8,6 +8,8 @@ import (
 	"io"
 )
 
+// BuildRequest contains parameters for a build operation.
+// It specifies the project location, SAM template, environment, and cache options.
 type BuildRequest struct {
 	ProjectDir   string
 	TemplatePath string
@@ -15,10 +17,14 @@ type BuildRequest struct {
 	NoCache      bool
 }
 
+// Builder defines the interface for building Lambda function images.
+// Implementations generate Dockerfiles and build container images.
 type Builder interface {
 	Build(request BuildRequest) error
 }
 
+// runBuild executes the 'build' command which generates Dockerfiles
+// and builds container images for all Lambda functions in the SAM template.
 func runBuild(cli CLI, deps Dependencies, out io.Writer) int {
 	if deps.Builder == nil {
 		fmt.Fprintln(out, "build: not implemented")

@@ -12,6 +12,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// GeneratorConfig represents the generator.yml configuration file.
+// It contains app metadata, environments, paths, and custom parameters.
 type GeneratorConfig struct {
 	App          AppConfig      `yaml:"app"`
 	Environments Environments   `yaml:"environments"`
@@ -19,11 +21,13 @@ type GeneratorConfig struct {
 	Parameters   map[string]any `yaml:"parameters,omitempty"`
 }
 
+// AppConfig contains the application name and default tag.
 type AppConfig struct {
 	Name string `yaml:"name"`
 	Tag  string `yaml:"tag"`
 }
 
+// PathsConfig specifies paths for SAM template and output directories.
 type PathsConfig struct {
 	SamTemplate  string `yaml:"sam_template"`
 	OutputDir    string `yaml:"output_dir"`
@@ -31,6 +35,7 @@ type PathsConfig struct {
 	RoutingYml   string `yaml:"routing_yml,omitempty"`
 }
 
+// EnvironmentSpec defines an environment with its name and runtime mode.
 type EnvironmentSpec struct {
 	Name string
 	Mode string
@@ -38,6 +43,8 @@ type EnvironmentSpec struct {
 
 type Environments []EnvironmentSpec
 
+// UnmarshalYAML parses environments from YAML, supporting both sequence
+// and mapping formats for backward compatibility.
 func (e *Environments) UnmarshalYAML(node *yaml.Node) error {
 	if node == nil {
 		*e = nil
@@ -96,6 +103,7 @@ func (e *Environments) UnmarshalYAML(node *yaml.Node) error {
 	}
 }
 
+// MarshalYAML serializes environments as a map of name to mode.
 func (e Environments) MarshalYAML() (any, error) {
 	out := map[string]string{}
 	for _, spec := range e {
@@ -108,11 +116,13 @@ func (e Environments) MarshalYAML() (any, error) {
 	return out, nil
 }
 
+// Has returns true if an environment with the given name exists.
 func (e Environments) Has(name string) bool {
 	_, ok := e.Mode(name)
 	return ok
 }
 
+// Mode returns the runtime mode for the named environment.
 func (e Environments) Mode(name string) (string, bool) {
 	for _, spec := range e {
 		if spec.Name == name {
@@ -122,6 +132,7 @@ func (e Environments) Mode(name string) (string, bool) {
 	return "", false
 }
 
+// Names returns a slice of all environment names.
 func (e Environments) Names() []string {
 	names := make([]string, 0, len(e))
 	for _, spec := range e {
@@ -133,6 +144,7 @@ func (e Environments) Names() []string {
 	return names
 }
 
+// parseEnvironmentMapping extracts name and mode from a mapping node.
 func parseEnvironmentMapping(node *yaml.Node) (EnvironmentSpec, error) {
 	spec := EnvironmentSpec{}
 	for i := 0; i+1 < len(node.Content); i += 2 {
@@ -147,6 +159,7 @@ func parseEnvironmentMapping(node *yaml.Node) (EnvironmentSpec, error) {
 	return spec, nil
 }
 
+// LoadGeneratorConfig reads and parses a generator.yml file.
 func LoadGeneratorConfig(path string) (GeneratorConfig, error) {
 	payload, err := os.ReadFile(path)
 	if err != nil {
@@ -160,6 +173,7 @@ func LoadGeneratorConfig(path string) (GeneratorConfig, error) {
 	return cfg, nil
 }
 
+// SaveGeneratorConfig writes a GeneratorConfig to a YAML file.
 func SaveGeneratorConfig(path string, cfg GeneratorConfig) error {
 	payload, err := yaml.Marshal(&cfg)
 	if err != nil {
