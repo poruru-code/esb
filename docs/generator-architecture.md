@@ -92,7 +92,7 @@ routes:
     対象関数と共有レイヤーだけを含める `.dockerignore` を生成します。
 
 4. **Runtime Hooks の配置**
-    `tools/generator/runtime/site-packages/` 配下のファイルが、各関数のビルドコンテキストにコピーされます。
+    `cli/internal/generator/assets/site-packages/` 配下のファイルが、各関数のビルドコンテキストにコピーされます。
     これにより、以下の機能が全 Lambda 関数に自動的に組み込まれます：
     - Trace ID の自動伝播 (`sitecustomize.py`)
     - ログの自動送信 (VictoriaLogs)

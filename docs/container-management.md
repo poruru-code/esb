@@ -44,10 +44,10 @@ flowchart LR
 
 ### ベースイメージ (`esb-lambda-base`)
 
-**ソース**: `tools/generator/runtime/`
+**ソース**: `cli/internal/generator/assets/`
 
 ```
-tools/generator/runtime/
+cli/internal/generator/assets/
 ├── Dockerfile.base
 └── site-packages/
     └── sitecustomize.py    # AWS SDK パッチ & Direct Logging

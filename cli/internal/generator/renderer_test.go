@@ -18,7 +18,7 @@ func TestRenderDockerfileSimple(t *testing.T) {
 		Runtime: "python3.12",
 	}
 	dockerConfig := DockerConfig{
-		SitecustomizeSource: "tools/generator/runtime/site-packages/sitecustomize.py",
+		SitecustomizeSource: "cli/internal/generator/assets/site-packages/sitecustomize.py",
 	}
 
 	content, err := RenderDockerfile(fn, dockerConfig, "", "latest")
@@ -28,7 +28,7 @@ func TestRenderDockerfileSimple(t *testing.T) {
 	if !strings.Contains(content, "FROM esb-lambda-base:latest") {
 		t.Fatalf("unexpected base image: %s", content)
 	}
-	if !strings.Contains(content, "COPY tools/generator/runtime/site-packages/sitecustomize.py") {
+	if !strings.Contains(content, "COPY cli/internal/generator/assets/site-packages/sitecustomize.py") {
 		t.Fatalf("expected sitecustomize copy")
 	}
 	if !strings.Contains(content, "COPY functions/hello/") {

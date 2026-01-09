@@ -19,13 +19,13 @@ class TestDockerfileRenderer:
         }
 
         docker_config = {
-            "sitecustomize_source": "tools/generator/runtime/sitecustomize.py",
+            "sitecustomize_source": "cli/internal/generator/assets/site-packages/sitecustomize.py",
         }
 
         result = render_dockerfile(func_config, docker_config)
 
         assert "FROM esb-lambda-base:latest" in result
-        assert "COPY tools/generator/runtime/sitecustomize.py" in result
+        assert "COPY cli/internal/generator/assets/site-packages/sitecustomize.py" in result
         assert "COPY functions/hello/" in result
         assert 'CMD [ "lambda_function.lambda_handler" ]' in result
 
@@ -41,7 +41,7 @@ class TestDockerfileRenderer:
         }
 
         docker_config = {
-            "sitecustomize_source": "tools/generator/runtime/sitecustomize.py",
+            "sitecustomize_source": "cli/internal/generator/assets/site-packages/sitecustomize.py",
         }
 
         result = render_dockerfile(func_config, docker_config)

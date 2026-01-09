@@ -12,7 +12,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const defaultSitecustomizeSource = "tools/generator/runtime/site-packages/sitecustomize.py"
+const defaultSitecustomizeSource = "cli/internal/generator/assets/site-packages/sitecustomize.py"
 
 type DockerConfig struct {
 	SitecustomizeSource string

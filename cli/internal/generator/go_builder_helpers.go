@@ -106,8 +106,8 @@ func buildBaseImage(
 	tag string,
 	noCache bool,
 ) error {
-	runtimeDir := filepath.Join(repoRoot, "tools", "generator", "runtime")
-	dockerfile := filepath.Join(runtimeDir, "Dockerfile.base")
+	assetsDir := filepath.Join(repoRoot, "cli", "internal", "generator", "assets")
+	dockerfile := filepath.Join(assetsDir, "Dockerfile.base")
 	if _, err := os.Stat(dockerfile); err != nil {
 		return fmt.Errorf("base dockerfile not found: %w", err)
 	}
@@ -117,11 +117,11 @@ func buildBaseImage(
 		imageTag = fmt.Sprintf("%s/%s", registry, imageTag)
 	}
 
-	if err := buildDockerImage(ctx, runner, runtimeDir, "Dockerfile.base", imageTag, noCache); err != nil {
+	if err := buildDockerImage(ctx, runner, assetsDir, "Dockerfile.base", imageTag, noCache); err != nil {
 		return err
 	}
 	if registry != "" {
-		return pushDockerImage(ctx, runner, runtimeDir, imageTag)
+		return pushDockerImage(ctx, runner, assetsDir, imageTag)
 	}
 	return nil
 }

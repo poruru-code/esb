@@ -67,7 +67,7 @@ def generate_files(
     # Set default sitecustomize_source if not configured
     if "sitecustomize_source" not in docker_config:
         docker_config["sitecustomize_source"] = (
-            "tools/generator/runtime/site-packages/sitecustomize.py"
+            "cli/internal/generator/assets/site-packages/sitecustomize.py"
         )
 
     # Load the SAM template.
