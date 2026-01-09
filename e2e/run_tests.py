@@ -3,6 +3,7 @@
 # What: E2E test runner for ESB CLI scenarios.
 # Why: Provide a single entry point for scenario setup, execution, and teardown.
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -14,6 +15,8 @@ from dotenv import load_dotenv
 
 # Project root
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
+GO_CLI_ROOT = PROJECT_ROOT / "cli"
+E2E_STATE_ROOT = PROJECT_ROOT / "e2e" / "fixtures" / ".esb"
 
 # Terminal colors for parallel output
 COLORS = [
@@ -28,24 +31,117 @@ COLOR_RESET = "\033[0m"
 
 def run_esb(args: list[str], check: bool = True):
     """Helper to run the esb CLI."""
-    # Use current source code instead of installed command.
-    cmd = [sys.executable, "-m", "tools.cli.main"] + args
+    cmd = ["go", "run", "./cmd/esb"] + args
     print(f"Running: {' '.join(cmd)}")
-    return subprocess.run(cmd, cwd=PROJECT_ROOT, check=check)
+    return subprocess.run(cmd, cwd=GO_CLI_ROOT, check=check)
+
+
+DEFAULT_NO_PROXY_TARGETS = [
+    "agent",
+    "database",
+    "gateway",
+    "local-proxy",
+    "localhost",
+    "registry",
+    "runtime-node",
+    "s3-storage",
+    "victorialogs",
+    "::1",
+    "10.88.0.0/16",
+    "10.99.0.1",
+    "127.0.0.1",
+    "172.20.0.0/16",
+]
+
+
+def apply_proxy_env() -> None:
+    proxy_keys = ("HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy")
+    extra_key = "ESB_NO_PROXY_EXTRA"
+
+    has_proxy = any(os.environ.get(key) for key in proxy_keys)
+    existing_no_proxy = os.environ.get("NO_PROXY") or os.environ.get("no_proxy")
+    extra_no_proxy = os.environ.get(extra_key)
+    if not (has_proxy or existing_no_proxy or extra_no_proxy):
+        return
+
+    def split_no_proxy(value: str | None) -> list[str]:
+        if not value:
+            return []
+        parts = value.replace(";", ",").split(",")
+        return [item.strip() for item in parts if item.strip()]
+
+    merged: list[str] = []
+    seen: set[str] = set()
+
+    for item in split_no_proxy(existing_no_proxy):
+        if item not in seen:
+            merged.append(item)
+            seen.add(item)
+
+    for item in DEFAULT_NO_PROXY_TARGETS:
+        if item and item not in seen:
+            merged.append(item)
+            seen.add(item)
+
+    for item in split_no_proxy(extra_no_proxy):
+        if item and item not in seen:
+            merged.append(item)
+            seen.add(item)
+
+    if merged:
+        merged_value = ",".join(merged)
+        os.environ["NO_PROXY"] = merged_value
+        os.environ["no_proxy"] = merged_value
+
+    if os.environ.get("HTTP_PROXY") and "http_proxy" not in os.environ:
+        os.environ["http_proxy"] = os.environ["HTTP_PROXY"]
+    if os.environ.get("http_proxy") and "HTTP_PROXY" not in os.environ:
+        os.environ["HTTP_PROXY"] = os.environ["http_proxy"]
+    if os.environ.get("HTTPS_PROXY") and "https_proxy" not in os.environ:
+        os.environ["https_proxy"] = os.environ["HTTPS_PROXY"]
+    if os.environ.get("https_proxy") and "HTTPS_PROXY" not in os.environ:
+        os.environ["HTTPS_PROXY"] = os.environ["https_proxy"]
+
+
+def resolve_esb_home(env_name: str) -> Path:
+    esb_home = os.environ.get("ESB_HOME")
+    if esb_home:
+        return Path(esb_home).expanduser()
+    return Path.home() / ".esb" / env_name
+
+
+def load_ports(env_name: str) -> dict[str, int]:
+    port_file = resolve_esb_home(env_name) / "ports.json"
+    if port_file.exists():
+        return json.loads(port_file.read_text())
+    return {}
+
+
+def apply_ports_to_env(ports: dict[str, int]) -> None:
+    for env_var, port in ports.items():
+        os.environ[env_var] = str(port)
+
+    if "ESB_PORT_GATEWAY_HTTPS" in ports:
+        gateway_port = ports["ESB_PORT_GATEWAY_HTTPS"]
+        os.environ["GATEWAY_PORT"] = str(gateway_port)
+        os.environ["GATEWAY_URL"] = f"https://localhost:{gateway_port}"
+
+    if "ESB_PORT_VICTORIALOGS" in ports:
+        vl_port = ports["ESB_PORT_VICTORIALOGS"]
+        os.environ["VICTORIALOGS_PORT"] = str(vl_port)
+        os.environ["VICTORIALOGS_URL"] = f"http://localhost:{vl_port}"
+        os.environ["VICTORIALOGS_QUERY_URL"] = os.environ["VICTORIALOGS_URL"]
+
+    if "ESB_PORT_AGENT_GRPC" in ports:
+        agent_port = ports["ESB_PORT_AGENT_GRPC"]
+        os.environ["AGENT_GRPC_ADDRESS"] = f"localhost:{agent_port}"
 
 
 def ensure_firecracker_node_up() -> None:
     """Fail fast if compute services are not running in firecracker mode."""
-    from tools.cli import config as cli_config
-    from tools.cli import runtime_mode
-
-    if runtime_mode.get_mode() != cli_config.ESB_MODE_FIRECRACKER:
+    if os.environ.get("ESB_MODE") != "firecracker":
         return
-
-    result = run_esb(["node", "doctor", "--strict", "--require-up"], check=False)
-    if result.returncode != 0:
-        print("\n[FAILED] Compute node is not up. Run `esb node up` and retry.")
-        sys.exit(result.returncode)
+    print("[WARN] firecracker node check is not implemented for Go CLI")
 
 
 def main():
@@ -127,12 +223,26 @@ def main():
     # --- Unit Tests ---
     if args.unit or args.unit_only:
         os.environ["DISABLE_VICTORIALOGS"] = "1"
-        print("\n=== Running Unit Tests ===\n")
-        cmd = [sys.executable, "-m", "pytest", "services/gateway/tests", "tools/cli/tests", "-v"]
-        res = subprocess.run(cmd, cwd=PROJECT_ROOT, check=False)
+        print("\n=== Running Python Unit Tests ===\n")
+        python_cmd = [
+            sys.executable,
+            "-m",
+            "pytest",
+            "services/gateway/tests",
+            "-v",
+        ]
+        res = subprocess.run(python_cmd, cwd=PROJECT_ROOT, check=False)
         if res.returncode != 0:
-            print("\n[FAILED] Unit Tests failed.")
+            print("\n[FAILED] Python unit tests failed.")
             sys.exit(res.returncode)
+
+        print("\n=== Running Go Unit Tests ===\n")
+        go_cmd = ["go", "test", "./..."]
+        go_res = subprocess.run(go_cmd, cwd=GO_CLI_ROOT, check=False)
+        if go_res.returncode != 0:
+            print("\n[FAILED] Go unit tests failed.")
+            sys.exit(go_res.returncode)
+
         print("\n[PASSED] Unit Tests passed!")
 
         if args.unit_only:
@@ -292,7 +402,7 @@ def warmup_environment(profile_scenarios: dict, profiles: dict, args):
         import shutil
 
         for p_name in profiles.keys():
-            esb_dir = PROJECT_ROOT / "e2e" / "fixtures" / ".esb" / p_name
+            esb_dir = E2E_STATE_ROOT / p_name
             if esb_dir.exists():
                 print(f"  • Removing {esb_dir}")
                 shutil.rmtree(esb_dir)
@@ -301,12 +411,34 @@ def warmup_environment(profile_scenarios: dict, profiles: dict, args):
     # To prevent race conditions in parallel execution, we initialize generator.yml once here.
     active_profiles = list(profile_scenarios.keys())
     if active_profiles:
-        env_list = ",".join(active_profiles)
+        env_entries = []
+        for profile_name in active_profiles:
+            mode = profiles.get(profile_name, {}).get("mode")
+            if mode:
+                env_entries.append(f"{profile_name}:{mode}")
+            else:
+                env_entries.append(profile_name)
+        env_list = ",".join(env_entries)
         print(f"\n[INIT] Initializing environments (WARM-UP): {env_list}")
         # Use default template path for tests
         esb_template = os.getenv("ESB_TEMPLATE", "e2e/fixtures/template.yaml")
-        run_esb(
-            ["--template", str(PROJECT_ROOT / esb_template), "init", "--env", env_list], check=True
+        warmup_env = os.environ.copy()
+        warmup_env["ESB_HOME"] = str(E2E_STATE_ROOT / "warmup")
+        warmup_env["ESB_CONFIG_PATH"] = str(E2E_STATE_ROOT / "warmup" / "config.yaml")
+        subprocess.run(
+            [
+                "go",
+                "run",
+                "./cmd/esb",
+                "--template",
+                str(PROJECT_ROOT / esb_template),
+                "init",
+                "--env",
+                env_list,
+            ],
+            cwd=GO_CLI_ROOT,
+            check=True,
+            env=warmup_env,
         )
 
 
@@ -444,9 +576,15 @@ def run_scenario(args, scenario):
     env_name = scenario.get("esb_env", os.environ.get("ESB_ENV", "default"))
     os.environ["ESB_ENV"] = env_name
     os.environ["ESB_ENV_SET"] = "1"  # Mark as explicitly set to bypass interactive prompt logic
+    os.environ["ESB_HOME"] = str(E2E_STATE_ROOT / env_name)
+    os.environ["ESB_CONFIG_PATH"] = str(E2E_STATE_ROOT / env_name / "config.yaml")
 
     # 0.5 Clear previous image tag to avoid leaks between scenarios in the same process
     os.environ.pop("ESB_IMAGE_TAG", None)
+    if not os.environ.get("ESB_PROJECT_NAME"):
+        os.environ["ESB_PROJECT_NAME"] = f"esb-{env_name}".lower()
+    if not os.environ.get("ESB_IMAGE_TAG"):
+        os.environ["ESB_IMAGE_TAG"] = env_name
 
     # 1. Runtime Mode Setup (via environment variable)
     if "runtime_mode" in scenario:
@@ -464,16 +602,8 @@ def run_scenario(args, scenario):
     else:
         print("Warning: No env_file specified for this scenario. Operating with system env only.")
 
-    # Environment Isolation & Ports Logic
-    from tools.cli import config as cli_config
-
-    # 2. Setup the global context (os.environ) for this environment
-    cli_config.setup_environment(env_name)
-
     # 2.5 Inject Proxy Settings (Ensure NO_PROXY includes all internal services)
-    from tools.cli.core import proxy
-
-    proxy.apply_proxy_env()
+    apply_proxy_env()
 
     # 3. Reload env vars into a dict for passing to subprocess (pytest)
     env = os.environ.copy()
@@ -532,8 +662,6 @@ def run_scenario(args, scenario):
         run_esb(up_args)
 
         # 3.5 Load dynamic ports from ports.json (created by esb up)
-        from tools.cli.core.port_discovery import apply_ports_to_env, load_ports
-
         ports = load_ports(env_name)
         if ports:
             apply_ports_to_env(ports)

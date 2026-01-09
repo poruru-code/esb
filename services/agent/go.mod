@@ -1,6 +1,6 @@
 module github.com/poruru/edge-serverless-box/services/agent
 
-go 1.24.11
+go 1.25.1
 
 require (
 	github.com/containerd/cgroups/v3 v3.0.2

@@ -24,7 +24,7 @@ Why: Provide a single entry point for developers and operators.
 | `esb build`          | `template.yaml` から設定を生成し、Docker イメージをビルドします。                  | `--no-cache`, `--dry-run`, `--verbose (-v)`                                                  |
 | `esb up`             | サービスの起動とインフラのプロビジョニングを一括で行います（デフォルトでdetach）。 | `--build`, `--wait`                                                                          |
 | `esb down`           | サービスを停止し、コンテナを削除します。                                           | `--volumes (-v)`                                                                             |
-| `esb reset`          | 環境を完全に初期化し、DB等のデータも全て削除して再構築します。                     | `--yes (-y)`, `--rmi`                                                                        |
+| `esb reset`          | 環境を完全に初期化し、DB等のデータも全て削除して再構築します。                     | `--yes (-y)`                                                                                 |
 | `esb logs`           | サービスログを表示します。                                                         | `--follow (-f)`, `--tail`, `--timestamps`                                                    |
 | `esb node add`       | Compute Node を登録します。                                                        | `--host`, `--password`, `--skip-key-setup`                                                   |
 | `esb node doctor`    | Compute Node の前提チェックを行います。                                            | `--name`, `--host`, `--strict`                                                               |
@@ -33,8 +33,9 @@ Why: Provide a single entry point for developers and operators.
 
 補足:
 - 実行モードは環境変数 `ESB_MODE` で切り替えます（`docker` (デフォルト), `containerd`, `firecracker`）。
+旧 Python CLI から `esb` CLI への移行を進めており、`esb node` 系コマンドは現在利用できません。
 
-### Compute Node 管理（Phase C）
+### Compute Node 管理（Phase C / 現在は無効）
 
 Firecracker 用の Compute Node を **SSH 経由で登録・検査・準備** します。
 初回登録時に `~/.esb/id_ed25519` を生成し、リモートの `authorized_keys` に登録します。
@@ -189,6 +190,8 @@ docker compose -f docker-compose.node.yml up -d
 
 ## クイックスタート
 
+詳細な開発環境セットアップ（`mise` / `lefthook` を使った依存インストールや Git フック設定）は [CONTRIBUTING.md#1開発環境セットアップ](CONTRIBUTING.md#1開発環境セットアップ) に詳述しています。
+
 ### 開発環境セットアップ
 
 詳細なセットアップ手順や開発ガイドライン（Lint, Type Check, VS Code設定など）については、[CONTRIBUTING.md](CONTRIBUTING.md) を参照してください。
@@ -316,6 +319,16 @@ esb reset
 | [client-auth-spec.md](docs/client-auth-spec.md)                               | クライアント認証仕様                 |
 | [autoscaling.md](docs/autoscaling.md)                                         | オートスケーリングとプーリング       |
 | [spec.md](docs/spec.md)                                                       | システム仕様                         |
+| [developer/cli-architecture.md](docs/developer/cli-architecture.md)         | `esb` CLI + Generator の設計         |
+
+## `esb` CLI 利用ガイド
+
+`esb` は CLI とジェネレータを組み合わせた統合ツールとして設計されており、テンプレート・環境・Compose をコマンドで制御できます。
+
+1. `esb init -t template.yaml` で `generator.yml` を作成し、`app.tag`, `paths.output_dir`, `environments` を指定します。`esb env add <name> --mode docker|containerd|firecracker` で環境を登録し、`esb project` でテンプレート配置ディレクトリ（`generator.yml` のルート）を切り替えます。
+2. `esb build --env <name>` は `cli/internal/generator/parser.go` によって SAM を検証し、`functions.yml`/`routing.yml` を `output_dir/config/` に生成したあと `docker compose` で `esb-lambda-base` と各関数イメージをビルドします。
+3. `esb up --env <name>` → `esb logs`/`esb stop`/`esb prune` は `cli/internal/compose` の Compose 実行を経て、生成済 `.esb` の設定で gateway/agent/runtime を起動・監視・削除します。`prune --yes` でネットワーク/ボリュームも含めてクリーンします。
+4. 状態遷移（Initialized → Up → Down など）や `esb env`/`esb project` の UX、`generator.yml` の参照フローは `docs/developer/cli-architecture.md` に詳述しています。
 
 ## 開発ガイド
 
@@ -417,15 +430,17 @@ esb node up
 esb node doctor --require-up
 ```
 
+この E2E スクリプトは `esb build`/`esb up` などの `esb` CLI を内部から呼び出すため、生成・起動のパスはすべて `esb` CLI で統一されています。
+
 ```bash
 # Matrix定義に従い、全スイート（Containerd, Firecracker）を実行
-python e2e/run_tests.py
+uv run python e2e/run_tests.py
 
 # 特定のプロファイルのみ実行（例: Containerdモードのみ）
-python e2e/run_tests.py --profile e2e-containerd
+uv run python e2e/run_tests.py --profile e2e-containerd
 
 # 特定のテストファイルのみ実行（プロファイル指定が必須）
-python e2e/run_tests.py --test-target e2e/scenarios/standard/test_lambda.py --profile e2e-containerd
+uv run python e2e/run_tests.py --test-target e2e/scenarios/standard/test_lambda.py --profile e2e-containerd
 ```
 
 #### Unit Tests
@@ -433,7 +448,7 @@ python e2e/run_tests.py --test-target e2e/scenarios/standard/test_lambda.py --pr
 
 ```bash
 # ユニットテストのみ実行
-python e2e/run_tests.py --unit-only
+uv run python e2e/run_tests.py --unit-only
 ```
 
 ## トラブルシューティング

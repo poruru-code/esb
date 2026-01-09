@@ -156,7 +156,7 @@ async def do_post():
 
 ### 4. sitecustomize.py (自動注入・自動復元)
 
-**ファイル**: `tools/generator/runtime/site-packages/sitecustomize.py`
+**ファイル**: `cli/internal/generator/assets/site-packages/sitecustomize.py`
 
 ESB環境では、Pythonプロセス起動時に `sitecustomize.py` が自動的にロードされ、以下のパッチを適用します。これにより**アプリケーションコードへの変更は一切不要**です。
 

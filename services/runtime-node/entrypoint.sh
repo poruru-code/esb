@@ -15,29 +15,38 @@ setup_cgroupv2_delegation() {
     return 0
   fi
 
-  # Check if we're in a non-root cgroup (typical in Docker)
   current_cgroup=$(cat /proc/self/cgroup 2>/dev/null | grep "^0::" | cut -d: -f3)
-  if [ -z "$current_cgroup" ] || [ "$current_cgroup" = "/" ]; then
-    # We're at root or hybrid mode, apply delegation
-    echo "INFO: Applying cgroup v2 delegation fix..."
-    
-    # Create init cgroup for our processes
-    mkdir -p /sys/fs/cgroup/init
-    
-    # Move all current processes to the init cgroup
-    while read -r proc; do
-      echo "$proc" > /sys/fs/cgroup/init/cgroup.procs 2>/dev/null || true
-    done < /sys/fs/cgroup/cgroup.procs
-    
-    # Enable all available controllers for child cgroups
-    while read -r controller; do
-      echo "+$controller" > /sys/fs/cgroup/cgroup.subtree_control 2>/dev/null || true
-    done < /sys/fs/cgroup/cgroup.controllers
-    
-    echo "INFO: Cgroup v2 delegation configured successfully"
-  else
-    echo "INFO: Running in nested cgroup ($current_cgroup), skipping root delegation"
+  if [ -z "$current_cgroup" ]; then
+    current_cgroup="/"
   fi
+
+  parent_dir="/sys/fs/cgroup"
+  if [ "$current_cgroup" != "/" ]; then
+    parent_dir="/sys/fs/cgroup${current_cgroup}"
+  fi
+  if [ ! -d "$parent_dir" ]; then
+    echo "INFO: Cgroup parent not found ($parent_dir), skipping delegation"
+    return 0
+  fi
+
+  echo "INFO: Applying cgroup v2 delegation fix (parent: $parent_dir)..."
+
+  child_dir="${parent_dir}/esb"
+  mkdir -p "$child_dir"
+
+  if [ -f "${parent_dir}/cgroup.procs" ]; then
+    while read -r proc; do
+      echo "$proc" > "${child_dir}/cgroup.procs" 2>/dev/null || true
+    done < "${parent_dir}/cgroup.procs"
+  fi
+
+  if [ -f "${parent_dir}/cgroup.controllers" ]; then
+    while read -r controller; do
+      echo "+$controller" > "${parent_dir}/cgroup.subtree_control" 2>/dev/null || true
+    done < "${parent_dir}/cgroup.controllers"
+  fi
+
+  echo "INFO: Cgroup v2 delegation configured successfully"
 }
 
 setup_cgroupv2_delegation
