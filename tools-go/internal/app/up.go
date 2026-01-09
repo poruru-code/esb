@@ -35,25 +35,12 @@ func runUp(cli CLI, deps Dependencies, out io.Writer) int {
 		return 1
 	}
 
-	selection, err := resolveProjectSelection(cli, deps)
+	ctxInfo, err := resolveCommandContext(cli, deps)
 	if err != nil {
 		fmt.Fprintln(out, err)
 		return 1
 	}
-	projectDir := selection.Dir
-	if projectDir == "" {
-		projectDir = "."
-	}
-
-	envDeps := deps
-	envDeps.ProjectDir = projectDir
-	env := resolveEnv(cli, envDeps)
-
-	ctx, err := state.ResolveContext(projectDir, env)
-	if err != nil {
-		fmt.Fprintln(out, err)
-		return 1
-	}
+	ctx := ctxInfo.Context
 	applyModeEnv(ctx.Mode)
 	applyEnvironmentDefaults(ctx.Env, ctx.Mode)
 	if err := applyGeneratorConfigEnv(ctx.GeneratorPath); err != nil {
@@ -62,8 +49,8 @@ func runUp(cli CLI, deps Dependencies, out io.Writer) int {
 	applyUpEnv(ctx)
 
 	templatePath := ctx.TemplatePath
-	if selection.TemplateOverride != "" {
-		templatePath = selection.TemplateOverride
+	if ctxInfo.Selection.TemplateOverride != "" {
+		templatePath = ctxInfo.Selection.TemplateOverride
 	}
 
 	if cli.Up.Build {
@@ -75,7 +62,7 @@ func runUp(cli CLI, deps Dependencies, out io.Writer) int {
 		request := BuildRequest{
 			ProjectDir:   ctx.ProjectDir,
 			TemplatePath: templatePath,
-			Env:          env,
+			Env:          ctxInfo.Env,
 		}
 		if err := deps.Builder.Build(request); err != nil {
 			fmt.Fprintln(out, err)
@@ -98,7 +85,7 @@ func runUp(cli CLI, deps Dependencies, out io.Writer) int {
 	if err := deps.Provisioner.Provision(ProvisionRequest{
 		TemplatePath:   templatePath,
 		ProjectDir:     ctx.ProjectDir,
-		Env:            env,
+		Env:            ctxInfo.Env,
 		ComposeProject: ctx.ComposeProject,
 		Mode:           ctx.Mode,
 	}); err != nil {
