@@ -18,6 +18,7 @@ import argparse
 import os
 import shutil
 import sys
+import zipfile
 from pathlib import Path
 
 import yaml
@@ -167,11 +168,13 @@ def generate_files(
             layer_src = _resolve_resource_path(content_uri)
 
             if layer_src.exists():
-                # Target dir name in Docker build context
-                # Use stem if zip (remove .zip extension)
-                target_name = layer_src.stem if layer_src.suffix == ".zip" else layer_src.name
+                # 1. Target Name (Use Layer Name Logic)
+                target_name = layer.get(
+                    "name", layer_src.stem if layer_src.suffix == ".zip" else layer_src.name
+                )
+                # Sanitize target_name if needed
+                target_name = "".join(c for c in target_name if c.isalnum() or c in "._-")
 
-                # Function-specific layer directory
                 layers_dir = dockerfile_dir / "layers"
                 dest_layer_root = layers_dir / target_name
 
@@ -182,31 +185,42 @@ def generate_files(
                     else:
                         os.unlink(dest_layer_root)
 
+                # 2. Source Resolution (Cache Strategy)
                 final_src_dir = None
-
                 if layer_src.is_file() and layer_src.suffix == ".zip":
-                    # Extract to cache
                     if verbose:
-                        print(f"Processing Zip layer: {layer_src}")
+                        print(f"Processing Zip layer (Cache): {layer_src}")
                     final_src_dir = extract_zip_layer(layer_src, layers_cache_dir)
-
                 elif layer_src.is_dir():
                     final_src_dir = layer_src
-
                 else:
                     if verbose:
                         print(f"WARNING: Skipping unsupported layer type: {layer_src}")
                     continue
 
                 if final_src_dir:
-                    # Link/Copy contents to staging
-                    # Special handling: If source directory is named 'python', nest it
-                    # so that it copies as /opt/python/...
+                    # 3. Smart Nesting Logic
+                    is_python = "python" in func.get("runtime", "").lower()
+                    needs_nesting = False
+
+                    if is_python:
+                        # final_src_dir is always a directory here
+                        has_python_dir = (final_src_dir / "python").exists() or (
+                            final_src_dir / "site-packages"
+                        ).exists()
+                        if not has_python_dir:
+                            needs_nesting = True
+
                     final_dest = dest_layer_root
-                    if layer_src.is_dir() and layer_src.name == "python":
+                    if needs_nesting:
                         final_dest = dest_layer_root / "python"
 
                     final_dest.mkdir(parents=True, exist_ok=True)
+
+                    if verbose:
+                        print(f"Linking layer content: {final_src_dir} -> {final_dest}")
+
+                    # 4. Copy/Link (Hard Link Strategy)
                     shutil.copytree(
                         final_src_dir,
                         final_dest,
@@ -214,9 +228,7 @@ def generate_files(
                         copy_function=link_or_copy,
                     )
 
-                    # Update ContentUri for template (relative to build context root)
-                    # We use 'functions/<func>/layers/<name>' which is a directory.
-                    # Template will append '/' to copy contents.
+                    # 5. ContentUri (Context Aware)
                     layer_copy["content_uri"] = f"functions/{func_name}/layers/{target_name}"
                     new_layers.append(layer_copy)
 
