@@ -104,11 +104,19 @@ def run(args):
             with open(config_path, "r") as f:
                 config = yaml.safe_load(f)
 
+            # Export paths
             paths = config.get("paths", {})
             if "functions_yml" in paths:
                 os.environ["GATEWAY_FUNCTIONS_YML"] = str(paths["functions_yml"])
             if "routing_yml" in paths:
                 os.environ["GATEWAY_ROUTING_YML"] = str(paths["routing_yml"])
+
+            # Export parameters
+            params = config.get("parameters", {})
+            for key, value in params.items():
+                if isinstance(value, (str, int, float, bool)):
+                    os.environ[str(key)] = str(value)
+
         except Exception as e:
             logging.warning(f"Failed to load generator.yml for environment injection: {e}")
 

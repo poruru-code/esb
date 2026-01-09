@@ -142,6 +142,7 @@ services:
       - X_API_KEY=${X_API_KEY?X_API_KEY is required}
       - AUTH_USER=${AUTH_USER?AUTH_USER is required}
       - AUTH_PASS=${AUTH_PASS?AUTH_PASS is required}
+      - AUTH_ENDPOINT_PATH=${AUTH_ENDPOINT_PATH:-}
       - CONTAINERS_NETWORK=${ESB_NETWORK_EXTERNAL:-test-external}
       # GATEWAY_INTERNAL_URL is injected by adapter files (fc.yml / containerd.yml)
       # AGENT_GRPC_ADDRESS is injected by adapter files (fc.yml / containerd.yml)
