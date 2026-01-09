@@ -20,19 +20,21 @@ type ProjectCmd struct {
 	Recent ProjectRecentCmd `cmd:"" help:"Show recent projects"`
 }
 
-type ProjectListCmd struct{}
-type ProjectRecentCmd struct{}
-type ProjectUseCmd struct {
-	Name string `arg:"" help:"Project name or index"`
-}
+type (
+	ProjectListCmd   struct{}
+	ProjectRecentCmd struct{}
+	ProjectUseCmd    struct {
+		Name string `arg:"" help:"Project name or index"`
+	}
+)
 
 type recentProject struct {
-	Name string
-	Entry config.ProjectEntry
+	Name   string
+	Entry  config.ProjectEntry
 	UsedAt time.Time
 }
 
-func runProjectList(cli CLI, deps Dependencies, out io.Writer) int {
+func runProjectList(_ CLI, _ Dependencies, out io.Writer) int {
 	cfg, err := loadGlobalConfigOrDefault()
 	if err != nil {
 		fmt.Fprintln(out, err)
@@ -60,7 +62,7 @@ func runProjectList(cli CLI, deps Dependencies, out io.Writer) int {
 	return 0
 }
 
-func runProjectRecent(cli CLI, deps Dependencies, out io.Writer) int {
+func runProjectRecent(_ CLI, _ Dependencies, out io.Writer) int {
 	cfg, err := loadGlobalConfigOrDefault()
 	if err != nil {
 		fmt.Fprintln(out, err)
@@ -134,7 +136,7 @@ func loadGlobalConfigWithPath() (string, config.GlobalConfig, error) {
 }
 
 func selectProject(cfg config.GlobalConfig, selector string) (string, error) {
-	if cfg.Projects == nil || len(cfg.Projects) == 0 {
+	if len(cfg.Projects) == 0 {
 		return "", fmt.Errorf("no projects registered")
 	}
 
@@ -159,8 +161,8 @@ func sortProjectsByRecent(cfg config.GlobalConfig) []recentProject {
 	projects := make([]recentProject, 0, len(cfg.Projects))
 	for name, entry := range cfg.Projects {
 		projects = append(projects, recentProject{
-			Name:  name,
-			Entry: entry,
+			Name:   name,
+			Entry:  entry,
 			UsedAt: parseLastUsed(entry.LastUsed),
 		})
 	}

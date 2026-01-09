@@ -18,7 +18,7 @@ type fakeRunner struct {
 	err  error
 }
 
-func (f *fakeRunner) Run(_ context.Context, dir string, name string, args ...string) error {
+func (f *fakeRunner) Run(_ context.Context, dir, name string, args ...string) error {
 	f.dir = dir
 	f.name = name
 	f.args = append([]string{}, args...)

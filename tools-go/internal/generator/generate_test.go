@@ -161,23 +161,17 @@ func TestGenerateFilesStagesLayersAndZip(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	layersDir := filepath.Join(root, "out", "layers")
-	entries, err := os.ReadDir(layersDir)
+	cacheDir := filepath.Join(root, "out", ".layers_cache")
+	entries, err := os.ReadDir(cacheDir)
 	if err != nil {
-		t.Fatalf("expected layers directory: %v", err)
+		t.Fatalf("expected layer cache directory: %v", err)
 	}
-	layerDirs := 0
-	for _, entry := range entries {
-		if entry.IsDir() {
-			layerDirs++
-		}
-	}
-	if layerDirs != 2 {
-		t.Fatalf("expected 2 staged layer dirs, got %d", layerDirs)
+	if len(entries) == 0 {
+		t.Fatalf("expected layer cache entries")
 	}
 
 	foundZip := false
-	err = filepath.WalkDir(layersDir, func(path string, entry os.DirEntry, err error) error {
+	err = filepath.WalkDir(cacheDir, func(path string, entry os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -187,7 +181,7 @@ func TestGenerateFilesStagesLayersAndZip(t *testing.T) {
 		return nil
 	})
 	if err != nil {
-		t.Fatalf("walk layers: %v", err)
+		t.Fatalf("walk cache: %v", err)
 	}
 	if !foundZip {
 		t.Fatalf("expected zip layer to be unpacked")
@@ -196,16 +190,30 @@ func TestGenerateFilesStagesLayersAndZip(t *testing.T) {
 	for _, fn := range []string{"lambda-one", "lambda-two"} {
 		dockerfilePath := filepath.Join(root, "out", "functions", fn, "Dockerfile")
 		content := readFile(t, dockerfilePath)
-		if !strings.Contains(content, "COPY layers/") {
+		if !strings.Contains(content, "COPY functions/"+fn+"/layers/") {
 			t.Fatalf("expected dockerfile to include layers for %s", fn)
 		}
-		if _, err := os.Stat(filepath.Join(root, "out", "functions", fn, "layers")); err == nil {
-			t.Fatalf("did not expect per-function layers dir for %s", fn)
+		layerRoot := filepath.Join(root, "out", "functions", fn, "layers")
+		if _, err := os.Stat(layerRoot); err != nil {
+			t.Fatalf("expected per-function layers dir for %s: %v", fn, err)
 		}
+	}
+
+	commonLayerPath := filepath.Join(root, "out", "functions", "lambda-one", "layers", "common", "python", "common", "__init__.py")
+	if _, err := os.Stat(commonLayerPath); err != nil {
+		t.Fatalf("expected common layer to be staged: %v", err)
+	}
+	zipLayerPath := filepath.Join(root, "out", "functions", "lambda-one", "layers", "zip-layer", "python", "zip_layer", "__init__.py")
+	if _, err := os.Stat(zipLayerPath); err != nil {
+		t.Fatalf("expected zip layer to be staged: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(root, "out", "layers")); err == nil {
+		t.Fatalf("did not expect shared layers dir")
 	}
 }
 
-func writeTestFile(t *testing.T, path string, content string) {
+func writeTestFile(t *testing.T, path, content string) {
 	t.Helper()
 	mustMkdirAll(t, filepath.Dir(path))
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {

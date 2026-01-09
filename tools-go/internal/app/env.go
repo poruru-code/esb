@@ -19,24 +19,26 @@ type EnvCmd struct {
 	Remove EnvRemoveCmd `cmd:"" help:"Remove environment"`
 }
 
-type EnvListCmd struct{}
-type EnvCreateCmd struct {
-	Name string `arg:"" help:"Environment name"`
-}
-type EnvUseCmd struct {
-	Name string `arg:"" help:"Environment name"`
-}
-type EnvRemoveCmd struct {
-	Name string `arg:"" help:"Environment name"`
-}
+type (
+	EnvListCmd   struct{}
+	EnvCreateCmd struct {
+		Name string `arg:"" help:"Environment name"`
+	}
+	EnvUseCmd struct {
+		Name string `arg:"" help:"Environment name"`
+	}
+	EnvRemoveCmd struct {
+		Name string `arg:"" help:"Environment name"`
+	}
+)
 
 type envContext struct {
-	Project   projectConfig
-	Config    config.GlobalConfig
+	Project    projectConfig
+	Config     config.GlobalConfig
 	ConfigPath string
 }
 
-func runEnvList(cli CLI, deps Dependencies, out io.Writer) int {
+func runEnvList(_ CLI, deps Dependencies, out io.Writer) int {
 	ctx, err := resolveEnvContext(deps)
 	if err != nil {
 		fmt.Fprintln(out, err)
@@ -204,8 +206,8 @@ func resolveEnvContext(deps Dependencies) (envContext, error) {
 	}
 
 	return envContext{
-		Project:   project,
-		Config:    cfg,
+		Project:    project,
+		Config:     cfg,
 		ConfigPath: path,
 	}, nil
 }

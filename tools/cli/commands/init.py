@@ -2,6 +2,7 @@ import os
 import shutil
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 import questionary
 import yaml
@@ -318,7 +319,8 @@ def _normalize_env_modes(raw: object) -> dict[str, str]:
             if not isinstance(name, str):
                 continue
             if isinstance(value, dict):
-                mode = value.get("mode")
+                value_dict = cast(dict[str, Any], value)
+                mode = value_dict.get("mode")
                 if isinstance(mode, str):
                     modes[name] = mode
                 else:
@@ -333,8 +335,9 @@ def _normalize_env_modes(raw: object) -> dict[str, str]:
             if isinstance(item, str):
                 modes[item] = _default_mode()
             elif isinstance(item, dict):
-                name = item.get("name")
-                mode = item.get("mode")
+                item_dict = cast(dict[str, Any], item)
+                name = item_dict.get("name")
+                mode = item_dict.get("mode")
                 if isinstance(name, str):
                     if isinstance(mode, str):
                         modes[name] = mode

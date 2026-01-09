@@ -14,8 +14,10 @@ import (
 	"github.com/poruru/edge-serverless-box/tools-go/internal/provisioner"
 )
 
-var getwd = os.Getwd
-var newDockerClient = compose.NewDockerClient
+var (
+	getwd           = os.Getwd
+	newDockerClient = compose.NewDockerClient
+)
 
 func buildDependencies() (app.Dependencies, io.Closer, error) {
 	projectDir, err := getwd()
@@ -37,6 +39,8 @@ func buildDependencies() (app.Dependencies, io.Closer, error) {
 		Upper:           app.NewUpper(),
 		Stopper:         app.NewStopper(),
 		Logger:          app.NewLogger(),
+		PortDiscoverer:  app.NewPortDiscoverer(),
+		Waiter:          app.NewGatewayWaiter(),
 		Provisioner:     provisionerAdapter{runner: provisioner.New(client)},
 		Pruner:          app.NewPruner(),
 	}

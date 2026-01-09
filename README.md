@@ -24,7 +24,7 @@ Why: Provide a single entry point for developers and operators.
 | `esb build`          | `template.yaml` から設定を生成し、Docker イメージをビルドします。                  | `--no-cache`, `--dry-run`, `--verbose (-v)`                                                  |
 | `esb up`             | サービスの起動とインフラのプロビジョニングを一括で行います（デフォルトでdetach）。 | `--build`, `--wait`                                                                          |
 | `esb down`           | サービスを停止し、コンテナを削除します。                                           | `--volumes (-v)`                                                                             |
-| `esb reset`          | 環境を完全に初期化し、DB等のデータも全て削除して再構築します。                     | `--yes (-y)`, `--rmi`                                                                        |
+| `esb reset`          | 環境を完全に初期化し、DB等のデータも全て削除して再構築します。                     | `--yes (-y)`                                                                                 |
 | `esb logs`           | サービスログを表示します。                                                         | `--follow (-f)`, `--tail`, `--timestamps`                                                    |
 | `esb node add`       | Compute Node を登録します。                                                        | `--host`, `--password`, `--skip-key-setup`                                                   |
 | `esb node doctor`    | Compute Node の前提チェックを行います。                                            | `--name`, `--host`, `--strict`                                                               |
@@ -33,8 +33,9 @@ Why: Provide a single entry point for developers and operators.
 
 補足:
 - 実行モードは環境変数 `ESB_MODE` で切り替えます（`docker` (デフォルト), `containerd`, `firecracker`）。
+- Go CLI 移行中のため、`esb node` 系コマンドは現在無効です。
 
-### Compute Node 管理（Phase C）
+### Compute Node 管理（Phase C / 現在は無効）
 
 Firecracker 用の Compute Node を **SSH 経由で登録・検査・準備** します。
 初回登録時に `~/.esb/id_ed25519` を生成し、リモートの `authorized_keys` に登録します。

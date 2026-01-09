@@ -240,7 +240,7 @@ type commandCall struct {
 	args []string
 }
 
-func (r *recordRunner) Run(_ context.Context, dir string, name string, args ...string) error {
+func (r *recordRunner) Run(_ context.Context, dir, name string, args ...string) error {
 	r.calls = append(r.calls, commandCall{
 		dir:  dir,
 		name: name,

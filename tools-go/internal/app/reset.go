@@ -6,8 +6,6 @@ package app
 import (
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 
 	"github.com/poruru/edge-serverless-box/tools-go/internal/state"
 )
@@ -22,12 +20,19 @@ func runReset(cli CLI, deps Dependencies, out io.Writer) int {
 		return 1
 	}
 
-	projectDir := deps.ProjectDir
+	selection, err := resolveProjectSelection(cli, deps)
+	if err != nil {
+		fmt.Fprintln(out, err)
+		return 1
+	}
+	projectDir := selection.Dir
 	if projectDir == "" {
 		projectDir = "."
 	}
 
-	env := resolveEnv(cli, deps)
+	envDeps := deps
+	envDeps.ProjectDir = projectDir
+	env := resolveEnv(cli, envDeps)
 
 	ctx, err := state.ResolveContext(projectDir, env)
 	if err != nil {
@@ -35,19 +40,12 @@ func runReset(cli CLI, deps Dependencies, out io.Writer) int {
 		return 1
 	}
 	applyModeEnv(ctx.Mode)
+	applyEnvironmentDefaults(ctx.Env, ctx.Mode)
+	applyUpEnv(ctx)
 
 	templatePath := ctx.TemplatePath
-	if cli.Template != "" {
-		absTemplate, err := filepath.Abs(cli.Template)
-		if err != nil {
-			fmt.Fprintln(out, err)
-			return 1
-		}
-		if _, err := os.Stat(absTemplate); err != nil {
-			fmt.Fprintln(out, err)
-			return 1
-		}
-		templatePath = absTemplate
+	if selection.TemplateOverride != "" {
+		templatePath = selection.TemplateOverride
 	}
 
 	if err := deps.Downer.Down(ctx.ComposeProject, true); err != nil {
@@ -69,6 +67,7 @@ func runReset(cli CLI, deps Dependencies, out io.Writer) int {
 		fmt.Fprintln(out, err)
 		return 1
 	}
+	discoverAndPersistPorts(ctx, deps.PortDiscoverer, out)
 
 	fmt.Fprintln(out, "reset complete")
 	return 0

@@ -5,9 +5,9 @@ package generator
 
 import (
 	"fmt"
+	"os"
 	"path"
 	"path/filepath"
-	"regexp"
 	"strings"
 )
 
@@ -15,17 +15,16 @@ type stageContext struct {
 	BaseDir           string
 	OutputDir         string
 	FunctionsDir      string
-	LayersDir         string
 	ProjectRoot       string
 	SitecustomizePath string
-	LayerCache        map[string]string
+	LayerCacheDir     string
 	DryRun            bool
 	Verbose           bool
 }
 
 type stagedFunction struct {
-	Function        FunctionSpec
-	FunctionDir     string
+	Function         FunctionSpec
+	FunctionDir      string
 	SitecustomizeRef string
 }
 
@@ -52,7 +51,7 @@ func stageFunction(fn FunctionSpec, ctx stageContext) (stagedFunction, error) {
 	fn.CodeURI = ensureSlash(path.Join("functions", fn.Name, "src"))
 	fn.HasRequirements = fileExists(filepath.Join(stagingSrc, "requirements.txt"))
 
-	stagedLayers, err := stageLayers(fn.Layers, ctx)
+	stagedLayers, err := stageLayers(fn.Layers, ctx, fn.Name, functionDir)
 	if err != nil {
 		return stagedFunction{}, err
 	}
@@ -63,70 +62,77 @@ func stageFunction(fn FunctionSpec, ctx stageContext) (stagedFunction, error) {
 	if !ctx.DryRun {
 		siteSrc := resolveSitecustomizeSource(ctx)
 		if siteSrc != "" {
-			if err := copyFile(siteSrc, filepath.Join(functionDir, "sitecustomize.py")); err != nil {
-				return stagedFunction{}, err
+			if info, err := os.Stat(siteSrc); err == nil {
+				if err := linkOrCopyFile(siteSrc, filepath.Join(functionDir, "sitecustomize.py"), info.Mode()); err != nil {
+					return stagedFunction{}, err
+				}
 			}
 		}
 	}
 
 	return stagedFunction{
-		Function:        fn,
-		FunctionDir:     functionDir,
+		Function:         fn,
+		FunctionDir:      functionDir,
 		SitecustomizeRef: siteRef,
 	}, nil
 }
 
-func stageLayers(layers []LayerSpec, ctx stageContext) ([]LayerSpec, error) {
+func stageLayers(layers []LayerSpec, ctx stageContext, functionName, functionDir string) ([]LayerSpec, error) {
 	if len(layers) == 0 {
 		return nil, nil
 	}
 
 	staged := make([]LayerSpec, 0, len(layers))
+	layersDir := filepath.Join(functionDir, "layers")
 	for _, layer := range layers {
 		source := resolveResourcePath(ctx.BaseDir, layer.ContentURI)
 		if !fileOrDirExists(source) {
 			continue
 		}
 
-		cacheKey := filepath.Clean(source)
-		if cached, ok := ctx.LayerCache[cacheKey]; ok {
-			layer.ContentURI = cached
-			staged = append(staged, layer)
+		targetName := layerTargetName(source)
+		if targetName == "" {
 			continue
 		}
 
-		targetName := layerStagingName(source, ctx.BaseDir)
-		targetDir := filepath.Join(ctx.LayersDir, targetName)
+		layerRef := filepath.ToSlash(filepath.Join("functions", functionName, "layers", targetName))
 		if !ctx.DryRun {
+			targetDir := filepath.Join(layersDir, targetName)
 			if err := removeDir(targetDir); err != nil {
 				return nil, err
 			}
-			if err := ensureDir(targetDir); err != nil {
-				return nil, err
-			}
+
+			var finalSrc string
 			if fileExists(source) && strings.HasSuffix(strings.ToLower(source), ".zip") {
-				if err := unzipFile(source, targetDir); err != nil {
+				extracted, err := extractZipLayer(source, ctx.LayerCacheDir)
+				if err != nil {
 					return nil, err
 				}
+				finalSrc = extracted
 			} else if dirExists(source) {
-				if err := copyDir(source, targetDir); err != nil {
-					return nil, err
-				}
+				finalSrc = source
 			} else {
 				continue
 			}
+
+			finalDest := targetDir
+			if dirExists(source) && filepath.Base(source) == "python" {
+				finalDest = filepath.Join(targetDir, "python")
+			}
+
+			if err := copyDirLinkOrCopy(finalSrc, finalDest); err != nil {
+				return nil, err
+			}
 		}
 
-		layerRef := filepath.ToSlash(filepath.Join("layers", targetName))
 		layer.ContentURI = layerRef
-		ctx.LayerCache[cacheKey] = layerRef
 		staged = append(staged, layer)
 	}
 
 	return staged, nil
 }
 
-func resolveResourcePath(baseDir string, raw string) string {
+func resolveResourcePath(baseDir, raw string) string {
 	trimmed := strings.TrimLeft(raw, "/\\")
 	if trimmed == "" {
 		trimmed = raw
@@ -159,22 +165,12 @@ func resolveSitecustomizeSource(ctx stageContext) string {
 	return ""
 }
 
-var layerNamePattern = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
-
-func layerStagingName(source string, baseDir string) string {
-	rel, err := filepath.Rel(baseDir, source)
-	name := ""
-	if err == nil {
-		name = filepath.ToSlash(strings.Trim(rel, "/"))
+func layerTargetName(source string) string {
+	base := filepath.Base(source)
+	if strings.HasSuffix(strings.ToLower(base), ".zip") {
+		return strings.TrimSuffix(base, filepath.Ext(base))
 	}
-	if name == "" || strings.HasPrefix(name, "..") {
-		name = filepath.Base(source)
-	}
-	safe := layerNamePattern.ReplaceAllString(name, "_")
-	if safe == "" {
-		return filepath.Base(source)
-	}
-	return safe
+	return base
 }
 
 func ensureSlash(value string) string {

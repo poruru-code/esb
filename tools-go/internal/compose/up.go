@@ -29,12 +29,12 @@ type UpOptions struct {
 }
 
 type CommandRunner interface {
-	Run(ctx context.Context, dir string, name string, args ...string) error
+	Run(ctx context.Context, dir, name string, args ...string) error
 }
 
 type ExecRunner struct{}
 
-func (ExecRunner) Run(ctx context.Context, dir string, name string, args ...string) error {
+func (ExecRunner) Run(ctx context.Context, dir, name string, args ...string) error {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
 	cmd.Stdout = os.Stdout
@@ -81,7 +81,7 @@ func UpProject(ctx context.Context, runner CommandRunner, opts UpOptions) error 
 	return runner.Run(ctx, opts.RootDir, "docker", args...)
 }
 
-func ResolveComposeFiles(rootDir string, mode string, target string) ([]string, error) {
+func ResolveComposeFiles(rootDir, mode, target string) ([]string, error) {
 	base := []string{
 		filepath.Join(rootDir, "docker-compose.yml"),
 		filepath.Join(rootDir, "docker-compose.worker.yml"),

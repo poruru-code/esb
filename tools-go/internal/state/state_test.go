@@ -34,7 +34,7 @@ func TestDeriveState(t *testing.T) {
 	})
 }
 
-func assertState(t *testing.T, expected State, actual State) {
+func assertState(t *testing.T, expected, actual State) {
 	t.Helper()
 	if expected != actual {
 		t.Fatalf("expected state %s, got %s", expected, actual)

@@ -23,7 +23,7 @@ type Context struct {
 	ComposeProject string
 }
 
-func ResolveContext(projectDir string, env string) (Context, error) {
+func ResolveContext(projectDir, env string) (Context, error) {
 	absProjectDir, err := filepath.Abs(projectDir)
 	if err != nil {
 		return Context{}, fmt.Errorf("resolve project dir: %w", err)

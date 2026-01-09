@@ -124,6 +124,42 @@ func TestBuildProjectAddsRuntimeNodeForFirecracker(t *testing.T) {
 	}
 }
 
+func TestBuildProjectUsesNoCacheFlag(t *testing.T) {
+	root := t.TempDir()
+	writeComposeFiles(t, root,
+		"docker-compose.yml",
+		"docker-compose.worker.yml",
+		"docker-compose.docker.yml",
+	)
+
+	runner := &fakeRunner{}
+	opts := BuildOptions{
+		RootDir:  root,
+		Project:  "esb-default",
+		Mode:     ModeDocker,
+		Services: []string{"gateway"},
+		NoCache:  true,
+	}
+
+	if err := BuildProject(context.Background(), runner, opts); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	expected := []string{
+		"compose",
+		"-p", "esb-default",
+		"-f", filepath.Join(root, "docker-compose.yml"),
+		"-f", filepath.Join(root, "docker-compose.worker.yml"),
+		"-f", filepath.Join(root, "docker-compose.docker.yml"),
+		"build",
+		"--no-cache",
+		"gateway",
+	}
+	if !reflect.DeepEqual(runner.args, expected) {
+		t.Fatalf("unexpected args: %v", runner.args)
+	}
+}
+
 func writeComposeFiles(t *testing.T, root string, names ...string) {
 	t.Helper()
 	for _, name := range names {

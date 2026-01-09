@@ -125,7 +125,7 @@ func (b *GoBuilder) Build(request app.BuildRequest) error {
 		}
 	}
 
-	if err := buildBaseImage(context.Background(), b.Runner, repoRoot, registry.External, imageTag); err != nil {
+	if err := buildBaseImage(context.Background(), b.Runner, repoRoot, registry.External, imageTag, request.NoCache); err != nil {
 		return err
 	}
 	if err := buildFunctionImages(
@@ -135,11 +135,12 @@ func (b *GoBuilder) Build(request app.BuildRequest) error {
 		functions,
 		registry.External,
 		imageTag,
+		request.NoCache,
 	); err != nil {
 		return err
 	}
 	if strings.EqualFold(mode, compose.ModeFirecracker) {
-		if err := buildServiceImages(context.Background(), b.Runner, repoRoot, registry.External, imageTag); err != nil {
+		if err := buildServiceImages(context.Background(), b.Runner, repoRoot, registry.External, imageTag, request.NoCache); err != nil {
 			return err
 		}
 	}
@@ -150,6 +151,7 @@ func (b *GoBuilder) Build(request app.BuildRequest) error {
 		Mode:     mode,
 		Target:   "control",
 		Services: []string{"gateway", "agent"},
+		NoCache:  request.NoCache,
 	}
 	return b.BuildCompose(context.Background(), b.ComposeRunner, opts)
 }

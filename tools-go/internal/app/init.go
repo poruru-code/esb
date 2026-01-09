@@ -74,7 +74,7 @@ func buildGeneratorConfig(templatePath string, envs config.Environments, project
 	return cfg, generatorPath, nil
 }
 
-func normalizeProjectName(value string, projectDir string) string {
+func normalizeProjectName(value, projectDir string) string {
 	name := strings.TrimSpace(value)
 	if name != "" {
 		return name

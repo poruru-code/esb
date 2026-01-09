@@ -139,7 +139,7 @@ func (r *Runner) Provision(request Request) error {
 	return nil
 }
 
-func normalizeComposeProject(explicit string, env string) string {
+func normalizeComposeProject(explicit, env string) string {
 	if strings.TrimSpace(explicit) != "" {
 		return explicit
 	}

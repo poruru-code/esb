@@ -79,7 +79,7 @@ func TestResolveContext_ModeFromMap(t *testing.T) {
 	}
 }
 
-func writeGeneratorYml(projectDir string, envs []string, template string, outputDir string) error {
+func writeGeneratorYml(projectDir string, envs []string, template, outputDir string) error {
 	content := "environments:\n"
 	for _, env := range envs {
 		content += "  - " + env + "\n"
@@ -92,7 +92,7 @@ func writeGeneratorYml(projectDir string, envs []string, template string, output
 	return os.WriteFile(path, []byte(content), 0o644)
 }
 
-func writeGeneratorYmlMap(projectDir string, envs map[string]string, template string, outputDir string) error {
+func writeGeneratorYmlMap(projectDir string, envs map[string]string, template, outputDir string) error {
 	content := "environments:\n"
 	for env, mode := range envs {
 		content += "  " + env + ": " + mode + "\n"

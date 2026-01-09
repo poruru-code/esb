@@ -5,6 +5,7 @@
 import argparse
 import os
 import sys
+from typing import Any, cast
 
 import questionary  # Added for interactive selection
 
@@ -193,7 +194,8 @@ def _normalize_env_modes(raw: object) -> dict[str, str | None]:
                 continue
             mode = None
             if isinstance(value, dict):
-                mode = value.get("mode") if isinstance(value.get("mode"), str) else None
+                value_dict = cast(dict[str, Any], value)
+                mode = value_dict.get("mode") if isinstance(value_dict.get("mode"), str) else None
             elif isinstance(value, str):
                 mode = value
             modes[name] = mode
@@ -203,8 +205,9 @@ def _normalize_env_modes(raw: object) -> dict[str, str | None]:
             if isinstance(item, str):
                 modes[item] = None
             elif isinstance(item, dict):
-                name = item.get("name")
-                mode = item.get("mode")
+                item_dict = cast(dict[str, Any], item)
+                name = item_dict.get("name")
+                mode = item_dict.get("mode")
                 if isinstance(name, str):
                     modes[name] = mode if isinstance(mode, str) else None
         return modes

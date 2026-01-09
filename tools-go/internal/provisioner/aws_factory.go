@@ -25,19 +25,29 @@ type ClientFactory interface {
 type awsClientFactory struct{}
 
 func (awsClientFactory) DynamoDB(ctx context.Context, endpoint string) (DynamoDBAPI, error) {
-	cfg, err := loadAWSConfig(ctx, dynamodb.ServiceID, endpoint, dynamoAccessKey(), dynamoSecretKey())
+	if endpoint == "" {
+		return nil, fmt.Errorf("endpoint is required")
+	}
+	cfg, err := loadAWSConfig(ctx, dynamoAccessKey(), dynamoSecretKey())
 	if err != nil {
 		return nil, err
 	}
-	return awsDynamoClient{client: dynamodb.NewFromConfig(cfg)}, nil
+	client := dynamodb.NewFromConfig(cfg, func(options *dynamodb.Options) {
+		options.BaseEndpoint = aws.String(endpoint)
+	})
+	return awsDynamoClient{client: client}, nil
 }
 
 func (awsClientFactory) S3(ctx context.Context, endpoint string) (S3API, error) {
-	cfg, err := loadAWSConfig(ctx, s3.ServiceID, endpoint, s3AccessKey(), s3SecretKey())
+	if endpoint == "" {
+		return nil, fmt.Errorf("endpoint is required")
+	}
+	cfg, err := loadAWSConfig(ctx, s3AccessKey(), s3SecretKey())
 	if err != nil {
 		return nil, err
 	}
 	client := s3.NewFromConfig(cfg, func(options *s3.Options) {
+		options.BaseEndpoint = aws.String(endpoint)
 		options.UsePathStyle = true
 	})
 	return awsS3Client{client: client}, nil
@@ -45,37 +55,19 @@ func (awsClientFactory) S3(ctx context.Context, endpoint string) (S3API, error) 
 
 func loadAWSConfig(
 	ctx context.Context,
-	serviceID string,
-	endpoint string,
 	accessKey string,
 	secretKey string,
 ) (aws.Config, error) {
-	if endpoint == "" {
-		return aws.Config{}, fmt.Errorf("endpoint is required")
-	}
 	region := os.Getenv("AWS_REGION")
 	if region == "" {
 		region = defaultAWSRegion
 	}
-
-	resolver := aws.EndpointResolverWithOptionsFunc(
-		func(service, region string, _ ...any) (aws.Endpoint, error) {
-			if service != serviceID {
-				return aws.Endpoint{}, &aws.EndpointNotFoundError{}
-			}
-			return aws.Endpoint{
-				URL:               endpoint,
-				HostnameImmutable: true,
-			}, nil
-		},
-	)
 
 	creds := credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")
 	cfg, err := config.LoadDefaultConfig(
 		ctx,
 		config.WithRegion(region),
 		config.WithCredentialsProvider(creds),
-		config.WithEndpointResolverWithOptions(resolver),
 	)
 	if err != nil {
 		return aws.Config{}, err

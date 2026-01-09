@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/tools-go/internal/compose"
+	"github.com/poruru/edge-serverless-box/tools-go/internal/config"
 	"github.com/poruru/edge-serverless-box/tools-go/internal/state"
 )
 
@@ -34,12 +35,19 @@ func runUp(cli CLI, deps Dependencies, out io.Writer) int {
 		return 1
 	}
 
-	projectDir := deps.ProjectDir
+	selection, err := resolveProjectSelection(cli, deps)
+	if err != nil {
+		fmt.Fprintln(out, err)
+		return 1
+	}
+	projectDir := selection.Dir
 	if projectDir == "" {
 		projectDir = "."
 	}
 
-	env := resolveEnv(cli, deps)
+	envDeps := deps
+	envDeps.ProjectDir = projectDir
+	env := resolveEnv(cli, envDeps)
 
 	ctx, err := state.ResolveContext(projectDir, env)
 	if err != nil {
@@ -47,20 +55,15 @@ func runUp(cli CLI, deps Dependencies, out io.Writer) int {
 		return 1
 	}
 	applyModeEnv(ctx.Mode)
+	applyEnvironmentDefaults(ctx.Env, ctx.Mode)
+	if err := applyGeneratorConfigEnv(ctx.GeneratorPath); err != nil {
+		fmt.Fprintln(out, err)
+	}
 	applyUpEnv(ctx)
 
 	templatePath := ctx.TemplatePath
-	if cli.Template != "" {
-		absTemplate, err := filepath.Abs(cli.Template)
-		if err != nil {
-			fmt.Fprintln(out, err)
-			return 1
-		}
-		if _, err := os.Stat(absTemplate); err != nil {
-			fmt.Fprintln(out, err)
-			return 1
-		}
-		templatePath = absTemplate
+	if selection.TemplateOverride != "" {
+		templatePath = selection.TemplateOverride
 	}
 
 	if cli.Up.Build {
@@ -90,6 +93,8 @@ func runUp(cli CLI, deps Dependencies, out io.Writer) int {
 		return 1
 	}
 
+	discoverAndPersistPorts(ctx, deps.PortDiscoverer, out)
+
 	if err := deps.Provisioner.Provision(ProvisionRequest{
 		TemplatePath:   templatePath,
 		ProjectDir:     ctx.ProjectDir,
@@ -101,8 +106,44 @@ func runUp(cli CLI, deps Dependencies, out io.Writer) int {
 		return 1
 	}
 
+	if cli.Up.Wait {
+		if deps.Waiter == nil {
+			fmt.Fprintln(out, "up: waiter not configured")
+			return 1
+		}
+		if err := deps.Waiter.Wait(ctx); err != nil {
+			fmt.Fprintln(out, err)
+			return 1
+		}
+	}
+
 	fmt.Fprintln(out, "up complete")
 	return 0
+}
+
+func applyGeneratorConfigEnv(generatorPath string) error {
+	cfg, err := config.LoadGeneratorConfig(generatorPath)
+	if err != nil {
+		return err
+	}
+
+	if strings.TrimSpace(cfg.Paths.FunctionsYml) != "" {
+		_ = os.Setenv("GATEWAY_FUNCTIONS_YML", cfg.Paths.FunctionsYml)
+	}
+	if strings.TrimSpace(cfg.Paths.RoutingYml) != "" {
+		_ = os.Setenv("GATEWAY_ROUTING_YML", cfg.Paths.RoutingYml)
+	}
+
+	for key, value := range cfg.Parameters {
+		if strings.TrimSpace(key) == "" || value == nil {
+			continue
+		}
+		switch value.(type) {
+		case string, bool, int, int64, int32, float64, float32, uint, uint64, uint32:
+			_ = os.Setenv(key, fmt.Sprint(value))
+		}
+	}
+	return nil
 }
 
 func applyUpEnv(ctx state.Context) {

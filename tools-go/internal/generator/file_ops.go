@@ -27,14 +27,14 @@ func removeDir(path string) error {
 	return nil
 }
 
-func writeFile(path string, content string) error {
+func writeFile(path, content string) error {
 	if err := ensureDir(filepath.Dir(path)); err != nil {
 		return err
 	}
 	return os.WriteFile(path, []byte(content), 0o644)
 }
 
-func writeConfigFile(path string, content string) error {
+func writeConfigFile(path, content string) error {
 	if err := ensureDir(filepath.Dir(path)); err != nil {
 		return err
 	}
@@ -46,7 +46,7 @@ func writeConfigFile(path string, content string) error {
 	return os.WriteFile(path, []byte(content), 0o644)
 }
 
-func copyDir(src string, dst string) error {
+func copyDir(src, dst string) error {
 	if err := ensureDir(dst); err != nil {
 		return err
 	}
@@ -70,7 +70,7 @@ func copyDir(src string, dst string) error {
 	})
 }
 
-func copyFile(src string, dst string) error {
+func copyFile(src, dst string) error {
 	info, err := os.Stat(src)
 	if err != nil {
 		return err
@@ -78,7 +78,7 @@ func copyFile(src string, dst string) error {
 	return copyFileWithMode(src, dst, info.Mode())
 }
 
-func copyFileWithMode(src string, dst string, mode fs.FileMode) error {
+func copyFileWithMode(src, dst string, mode fs.FileMode) error {
 	if err := ensureDir(filepath.Dir(dst)); err != nil {
 		return err
 	}
@@ -102,7 +102,77 @@ func copyFileWithMode(src string, dst string, mode fs.FileMode) error {
 	return os.Chmod(dst, mode)
 }
 
-func unzipFile(src string, dst string) error {
+func linkOrCopyFile(src, dst string, mode fs.FileMode) error {
+	if err := ensureDir(filepath.Dir(dst)); err != nil {
+		return err
+	}
+	if err := removePathIfExists(dst); err != nil {
+		return err
+	}
+	if err := os.Link(src, dst); err == nil {
+		return nil
+	}
+	return copyFileWithMode(src, dst, mode)
+}
+
+func copyDirLinkOrCopy(src, dst string) error {
+	if err := ensureDir(dst); err != nil {
+		return err
+	}
+	return filepath.WalkDir(src, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(dst, rel)
+		if entry.IsDir() {
+			return ensureDir(target)
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		return linkOrCopyFile(path, target, info.Mode())
+	})
+}
+
+func extractZipLayer(src, cacheDir string) (string, error) {
+	if strings.TrimSpace(cacheDir) == "" {
+		return "", fmt.Errorf("layer cache dir is required")
+	}
+	info, err := os.Stat(src)
+	if err != nil {
+		return "", err
+	}
+
+	base := strings.TrimSuffix(filepath.Base(src), filepath.Ext(src))
+	identifier := fmt.Sprintf("%s_%d_%d", base, info.ModTime().Unix(), info.Size())
+	dest := filepath.Join(cacheDir, identifier)
+	if dirExists(dest) {
+		return dest, nil
+	}
+
+	tmp := dest + ".tmp"
+	if err := removeDir(tmp); err != nil {
+		return "", err
+	}
+	if err := ensureDir(tmp); err != nil {
+		return "", err
+	}
+	if err := unzipFile(src, tmp); err != nil {
+		_ = removeDir(tmp)
+		return "", err
+	}
+	if err := os.Rename(tmp, dest); err != nil {
+		return "", err
+	}
+	return dest, nil
+}
+
+func unzipFile(src, dst string) error {
 	reader, err := zip.OpenReader(src)
 	if err != nil {
 		return err
@@ -146,6 +216,20 @@ func unzipFile(src string, dst string) error {
 		}
 	}
 	return nil
+}
+
+func removePathIfExists(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	if info.IsDir() {
+		return os.RemoveAll(path)
+	}
+	return os.Remove(path)
 }
 
 func fileExists(path string) bool {

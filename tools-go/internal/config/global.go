@@ -6,6 +6,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -23,6 +24,18 @@ type ProjectEntry struct {
 }
 
 func GlobalConfigPath() (string, error) {
+	if override := strings.TrimSpace(os.Getenv("ESB_CONFIG_PATH")); override != "" {
+		path := override
+		if !filepath.IsAbs(path) {
+			if abs, err := filepath.Abs(path); err == nil {
+				path = abs
+			}
+		}
+		return path, nil
+	}
+	if override := strings.TrimSpace(os.Getenv("ESB_CONFIG_HOME")); override != "" {
+		return filepath.Join(override, "config.yaml"), nil
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err

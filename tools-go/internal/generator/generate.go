@@ -66,20 +66,19 @@ func GenerateFiles(cfg config.GeneratorConfig, opts GenerateOptions) ([]Function
 	}
 
 	functionsDir := filepath.Join(outputDir, "functions")
-	layersDir := filepath.Join(outputDir, "layers")
+	layerCacheDir := filepath.Join(outputDir, ".layers_cache")
 
 	if !opts.DryRun {
 		if err := removeDir(functionsDir); err != nil {
 			return nil, err
 		}
-		if err := removeDir(layersDir); err != nil {
+		if err := ensureDir(layerCacheDir); err != nil {
 			return nil, err
 		}
 	}
 
 	resolvedTag := resolveTag(opts.Tag, cfg.App.Tag)
 	functions := make([]FunctionSpec, 0, len(parsed.Functions))
-	layerCache := map[string]string{}
 
 	for _, fn := range parsed.Functions {
 		staged, err := stageFunction(
@@ -88,8 +87,7 @@ func GenerateFiles(cfg config.GeneratorConfig, opts GenerateOptions) ([]Function
 				BaseDir:           baseDir,
 				OutputDir:         outputDir,
 				FunctionsDir:      functionsDir,
-				LayersDir:         layersDir,
-				LayerCache:        layerCache,
+				LayerCacheDir:     layerCacheDir,
 				DryRun:            opts.DryRun,
 				Verbose:           opts.Verbose,
 				ProjectRoot:       projectRoot,
@@ -141,7 +139,7 @@ func GenerateFiles(cfg config.GeneratorConfig, opts GenerateOptions) ([]Function
 	return functions, nil
 }
 
-func resolveTemplatePath(samTemplate string, projectRoot string) (string, error) {
+func resolveTemplatePath(samTemplate, projectRoot string) (string, error) {
 	if strings.TrimSpace(samTemplate) == "" {
 		return "", fmt.Errorf("sam_template is required")
 	}
@@ -156,7 +154,7 @@ func resolveTemplatePath(samTemplate string, projectRoot string) (string, error)
 	return path, nil
 }
 
-func resolveOutputDir(outputDir string, baseDir string) (string, error) {
+func resolveOutputDir(outputDir, baseDir string) (string, error) {
 	normalized := normalizeOutputDir(outputDir)
 	path := normalized
 	if !filepath.IsAbs(path) {
@@ -165,7 +163,7 @@ func resolveOutputDir(outputDir string, baseDir string) (string, error) {
 	return filepath.Clean(path), nil
 }
 
-func resolveTag(tag string, fallback string) string {
+func resolveTag(tag, fallback string) string {
 	if strings.TrimSpace(tag) != "" {
 		return tag
 	}
@@ -192,7 +190,7 @@ func mergeParameters(cfgParams map[string]any, overrides map[string]string) map[
 	return out
 }
 
-func resolveConfigPath(explicit string, baseDir string, outputDir string, name string) string {
+func resolveConfigPath(explicit, baseDir, outputDir, name string) string {
 	if strings.TrimSpace(explicit) == "" {
 		return filepath.Join(outputDir, "config", name)
 	}

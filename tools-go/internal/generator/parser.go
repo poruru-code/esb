@@ -83,6 +83,14 @@ func ParseSAMTemplate(content string, parameters map[string]string) (ParseResult
 	defaultTimeout := asIntDefault(functionGlobals["Timeout"], 30)
 	defaultMemory := asIntDefault(functionGlobals["MemorySize"], 128)
 	defaultLayers := asSlice(functionGlobals["Layers"])
+	defaultEnv := map[string]string{}
+	if env := asMap(functionGlobals["Environment"]); env != nil {
+		if vars := asMap(env["Variables"]); vars != nil {
+			for key, raw := range vars {
+				defaultEnv[key] = resolveIntrinsic(asString(raw), parameters)
+			}
+		}
+	}
 
 	resources := asMap(data["Resources"])
 	if resources == nil {
@@ -173,6 +181,9 @@ func ParseSAMTemplate(content string, parameters map[string]string) (ParseResult
 		}
 
 		envVars := map[string]string{}
+		for key, value := range defaultEnv {
+			envVars[key] = value
+		}
 		if env := asMap(props["Environment"]); env != nil {
 			if vars := asMap(env["Variables"]); vars != nil {
 				for key, raw := range vars {

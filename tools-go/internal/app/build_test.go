@@ -25,10 +25,10 @@ func (f *fakeBuilder) Build(req BuildRequest) error {
 
 func TestRunBuildCallsBuilder(t *testing.T) {
 	projectDir := t.TempDir()
-	templatePath := filepath.Join(projectDir, "template.yaml")
-	if err := os.WriteFile(templatePath, []byte("test"), 0o644); err != nil {
-		t.Fatalf("write template: %v", err)
+	if err := writeGeneratorFixture(projectDir, "staging"); err != nil {
+		t.Fatalf("write generator fixture: %v", err)
 	}
+	templatePath := filepath.Join(projectDir, "template.yaml")
 
 	builder := &fakeBuilder{}
 	var out bytes.Buffer
@@ -54,8 +54,11 @@ func TestRunBuildCallsBuilder(t *testing.T) {
 }
 
 func TestRunBuildMissingTemplate(t *testing.T) {
+	projectDir := t.TempDir()
+	t.Setenv("HOME", t.TempDir())
+
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, Builder: &fakeBuilder{}}
+	deps := Dependencies{Out: &out, Builder: &fakeBuilder{}, ProjectDir: projectDir}
 
 	exitCode := Run([]string{"build"}, deps)
 	if exitCode == 0 {
@@ -65,10 +68,10 @@ func TestRunBuildMissingTemplate(t *testing.T) {
 
 func TestRunBuildBuilderError(t *testing.T) {
 	projectDir := t.TempDir()
-	templatePath := filepath.Join(projectDir, "template.yaml")
-	if err := os.WriteFile(templatePath, []byte("test"), 0o644); err != nil {
-		t.Fatalf("write template: %v", err)
+	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
+		t.Fatalf("write generator fixture: %v", err)
 	}
+	templatePath := filepath.Join(projectDir, "template.yaml")
 
 	builder := &fakeBuilder{err: errors.New("boom")}
 	var out bytes.Buffer
@@ -141,5 +144,51 @@ func TestRunBuildUsesActiveEnvFromGlobalConfig(t *testing.T) {
 	}
 	if builder.requests[0].Env != "staging" {
 		t.Fatalf("unexpected env: %s", builder.requests[0].Env)
+	}
+}
+
+func TestRunBuildUsesGeneratorTemplateWhenTemplateFlagMissing(t *testing.T) {
+	projectDir := t.TempDir()
+	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
+		t.Fatalf("write generator fixture: %v", err)
+	}
+
+	builder := &fakeBuilder{}
+	var out bytes.Buffer
+	deps := Dependencies{Out: &out, Builder: builder, ProjectDir: projectDir}
+
+	exitCode := Run([]string{"build"}, deps)
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d", exitCode)
+	}
+	if len(builder.requests) != 1 {
+		t.Fatalf("expected 1 build request, got %d", len(builder.requests))
+	}
+	expectedTemplate := filepath.Join(projectDir, "template.yaml")
+	if builder.requests[0].TemplatePath != expectedTemplate {
+		t.Fatalf("unexpected template path: %s", builder.requests[0].TemplatePath)
+	}
+}
+
+func TestRunBuildPassesNoCacheFlag(t *testing.T) {
+	projectDir := t.TempDir()
+	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
+		t.Fatalf("write generator fixture: %v", err)
+	}
+	templatePath := filepath.Join(projectDir, "template.yaml")
+
+	builder := &fakeBuilder{}
+	var out bytes.Buffer
+	deps := Dependencies{Out: &out, Builder: builder, ProjectDir: projectDir}
+
+	exitCode := Run([]string{"--template", templatePath, "build", "--no-cache"}, deps)
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d", exitCode)
+	}
+	if len(builder.requests) != 1 {
+		t.Fatalf("expected 1 build request, got %d", len(builder.requests))
+	}
+	if !builder.requests[0].NoCache {
+		t.Fatalf("expected no-cache to be true")
 	}
 }

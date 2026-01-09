@@ -55,7 +55,7 @@ func TestRunInfoOutputsConfigAndState(t *testing.T) {
 	var capturedEnv string
 	deps := Dependencies{
 		ProjectDir: projectDir,
-		DetectorFactory: func(_ string, env string) (StateDetector, error) {
+		DetectorFactory: func(_, env string) (StateDetector, error) {
 			capturedEnv = env
 			return fakeInfoDetector{state: state.StateRunning}, nil
 		},

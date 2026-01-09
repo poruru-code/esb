@@ -46,7 +46,7 @@ func hasDockerfile(root string) (bool, error) {
 	}
 
 	found := false
-	err = filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+	err = filepath.WalkDir(root, func(_ string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}

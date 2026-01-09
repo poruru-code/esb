@@ -29,41 +29,48 @@ type Dependencies struct {
 	Upper           Upper
 	Stopper         Stopper
 	Logger          Logger
+	PortDiscoverer  PortDiscoverer
+	Waiter          GatewayWaiter
 	Provisioner     Provisioner
 	Pruner          Pruner
 	Now             func() time.Time
 }
 
 type CLI struct {
-	Template string    `short:"t" help:"Path to SAM template"`
-	EnvFlag  string    `short:"e" name:"env" help:"Environment (default: active)"`
-	Init     InitCmd   `cmd:"" help:"Initialize project"`
-	Build    BuildCmd  `cmd:"" help:"Build images"`
-	Up       UpCmd     `cmd:"" help:"Start environment"`
-	Down     DownCmd   `cmd:"" help:"Stop environment"`
-	Stop     StopCmd   `cmd:"" help:"Stop environment (preserve state)"`
-	Logs     LogsCmd   `cmd:"" help:"View logs"`
-	Reset    ResetCmd  `cmd:"" help:"Reset environment"`
-	Prune    PruneCmd  `cmd:"" help:"Remove resources"`
-	Status   StatusCmd `cmd:"" help:"Show state"`
-	Info     InfoCmd   `cmd:"" help:"Show configuration and state"`
-	Env      EnvCmd    `cmd:"" name:"env" help:"Manage environments"`
+	Template string     `short:"t" help:"Path to SAM template"`
+	EnvFlag  string     `short:"e" name:"env" help:"Environment (default: active)"`
+	Init     InitCmd    `cmd:"" help:"Initialize project"`
+	Build    BuildCmd   `cmd:"" help:"Build images"`
+	Up       UpCmd      `cmd:"" help:"Start environment"`
+	Down     DownCmd    `cmd:"" help:"Stop environment"`
+	Stop     StopCmd    `cmd:"" help:"Stop environment (preserve state)"`
+	Logs     LogsCmd    `cmd:"" help:"View logs"`
+	Reset    ResetCmd   `cmd:"" help:"Reset environment"`
+	Prune    PruneCmd   `cmd:"" help:"Remove resources"`
+	Status   StatusCmd  `cmd:"" help:"Show state"`
+	Info     InfoCmd    `cmd:"" help:"Show configuration and state"`
+	Env      EnvCmd     `cmd:"" name:"env" help:"Manage environments"`
 	Project  ProjectCmd `cmd:"" help:"Manage projects"`
 }
 
-type StatusCmd struct{}
-type InfoCmd struct{}
-type StopCmd struct{}
-type LogsCmd struct {
-	Service    string `arg:"" optional:"" help:"Service name (default: all)"`
-	Follow     bool   `short:"f" help:"Follow logs"`
-	Tail       int    `help:"Tail the latest N lines"`
-	Timestamps bool   `help:"Show timestamps"`
-}
+type (
+	StatusCmd struct{}
+	InfoCmd   struct{}
+	StopCmd   struct{}
+	LogsCmd   struct {
+		Service    string `arg:"" optional:"" help:"Service name (default: all)"`
+		Follow     bool   `short:"f" help:"Follow logs"`
+		Tail       int    `help:"Tail the latest N lines"`
+		Timestamps bool   `help:"Show timestamps"`
+	}
+)
+
 type InitCmd struct {
 	Name string `short:"n" help:"Project name (default: directory)"`
 }
-type BuildCmd struct{}
+type BuildCmd struct {
+	NoCache bool `name:"no-cache" help:"Do not use cache when building images"`
+}
 type UpCmd struct {
 	Build  bool `help:"Rebuild before starting"`
 	Detach bool `short:"d" default:"true" help:"Run in background"`
@@ -84,6 +91,11 @@ func Run(args []string, deps Dependencies) int {
 	out := deps.Out
 	if out == nil {
 		out = os.Stdout
+	}
+
+	if commandName(args) == "node" {
+		fmt.Fprintln(out, "node command is disabled in Go CLI")
+		return 1
 	}
 
 	cli := CLI{}
@@ -148,12 +160,19 @@ func runStatus(cli CLI, deps Dependencies, out io.Writer) int {
 		return 1
 	}
 
-	projectDir := deps.ProjectDir
+	selection, err := resolveProjectSelection(cli, deps)
+	if err != nil {
+		fmt.Fprintln(out, err)
+		return 1
+	}
+	projectDir := selection.Dir
 	if projectDir == "" {
 		projectDir = "."
 	}
 
-	env := resolveEnv(cli, deps)
+	envDeps := deps
+	envDeps.ProjectDir = projectDir
+	env := resolveEnv(cli, envDeps)
 
 	detector, err := factory(projectDir, env)
 	if err != nil {
@@ -201,7 +220,21 @@ func splitEnvList(value string) []string {
 	return parts
 }
 
-func runNotImplemented(out io.Writer, name string) int {
-	fmt.Fprintf(out, "%s: not implemented\n", name)
-	return 1
+func commandName(args []string) string {
+	skipNext := false
+	for _, arg := range args {
+		if skipNext {
+			skipNext = false
+			continue
+		}
+		if strings.HasPrefix(arg, "-") {
+			switch arg {
+			case "-e", "--env", "-t", "--template":
+				skipNext = true
+			}
+			continue
+		}
+		return arg
+	}
+	return ""
 }

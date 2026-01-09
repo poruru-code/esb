@@ -25,6 +25,7 @@
 
 > Firecracker モードの仕様確定次第着手
 
+- [ ] Go CLI 移行中は `esb node` を無効化（移植後に復帰）
 - [ ] `esb node` サブコマンド群
 - [ ] `internal/node/` (SSH, WireGuard)
 - [ ] pyinfra 相当の Go 実装

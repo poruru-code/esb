@@ -30,12 +30,19 @@ func runPrune(cli CLI, deps Dependencies, out io.Writer) int {
 		return 1
 	}
 
-	projectDir := deps.ProjectDir
+	selection, err := resolveProjectSelection(cli, deps)
+	if err != nil {
+		fmt.Fprintln(out, err)
+		return 1
+	}
+	projectDir := selection.Dir
 	if projectDir == "" {
 		projectDir = "."
 	}
 
-	env := resolveEnv(cli, deps)
+	envDeps := deps
+	envDeps.ProjectDir = projectDir
+	env := resolveEnv(cli, envDeps)
 
 	fmt.Fprintln(out, "prune warning: containers and volumes will be removed")
 

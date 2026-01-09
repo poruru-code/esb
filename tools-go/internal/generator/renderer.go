@@ -69,7 +69,7 @@ func RenderDockerfile(
 	return buf.String(), nil
 }
 
-func RenderFunctionsYml(functions []FunctionSpec, registry string, tag string) (string, error) {
+func RenderFunctionsYml(functions []FunctionSpec, registry, tag string) (string, error) {
 	if tag == "" {
 		tag = "latest"
 	}

@@ -16,6 +16,7 @@ type BuildOptions struct {
 	Target     string
 	Services   []string
 	ExtraFiles []string
+	NoCache    bool
 }
 
 func BuildProject(ctx context.Context, runner CommandRunner, opts BuildOptions) error {
@@ -51,6 +52,9 @@ func BuildProject(ctx context.Context, runner CommandRunner, opts BuildOptions) 
 	}
 
 	args = append(args, "build")
+	if opts.NoCache {
+		args = append(args, "--no-cache")
+	}
 	if len(services) > 0 {
 		args = append(args, services...)
 	}

@@ -8,12 +8,16 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
+
+	"github.com/poruru/edge-serverless-box/tools-go/internal/config"
 )
 
 type BuildRequest struct {
 	ProjectDir   string
 	TemplatePath string
 	Env          string
+	NoCache      bool
 }
 
 type Builder interface {
@@ -25,29 +29,53 @@ func runBuild(cli CLI, deps Dependencies, out io.Writer) int {
 		fmt.Fprintln(out, "build: not implemented")
 		return 1
 	}
-	if cli.Template == "" {
-		fmt.Fprintln(out, "template is required")
-		return 1
-	}
-
-	absTemplate, err := filepath.Abs(cli.Template)
+	selection, err := resolveProjectSelection(cli, deps)
 	if err != nil {
 		fmt.Fprintln(out, err)
 		return 1
 	}
-	if _, err := os.Stat(absTemplate); err != nil {
+	projectDir := selection.Dir
+	if strings.TrimSpace(projectDir) == "" {
+		projectDir = "."
+	}
+	generatorPath := filepath.Join(projectDir, "generator.yml")
+	cfg, err := config.LoadGeneratorConfig(generatorPath)
+	if err != nil {
 		fmt.Fprintln(out, err)
 		return 1
 	}
 
-	projectDir := filepath.Dir(absTemplate)
 	envDeps := deps
 	envDeps.ProjectDir = projectDir
 	env := resolveEnv(cli, envDeps)
+	if !cfg.Environments.Has(env) {
+		fmt.Fprintf(out, "environment not registered: %s\n", env)
+		return 1
+	}
+	mode, _ := cfg.Environments.Mode(env)
+	applyModeEnv(mode)
+	applyEnvironmentDefaults(env, mode)
+	templatePath := cfg.Paths.SamTemplate
+	if selection.TemplateOverride != "" {
+		templatePath = selection.TemplateOverride
+	}
+	if strings.TrimSpace(templatePath) == "" {
+		fmt.Fprintln(out, "template is required")
+		return 1
+	}
+	if !filepath.IsAbs(templatePath) {
+		templatePath = filepath.Join(projectDir, templatePath)
+	}
+	templatePath = filepath.Clean(templatePath)
+	if _, err := os.Stat(templatePath); err != nil {
+		fmt.Fprintln(out, err)
+		return 1
+	}
 	request := BuildRequest{
 		ProjectDir:   projectDir,
-		TemplatePath: absTemplate,
+		TemplatePath: templatePath,
 		Env:          env,
+		NoCache:      cli.Build.NoCache,
 	}
 
 	if err := deps.Builder.Build(request); err != nil {

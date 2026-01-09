@@ -38,3 +38,17 @@ func TestGlobalConfigRoundTrip(t *testing.T) {
 		t.Fatalf("config mismatch: expected %#v, got %#v", cfg, loaded)
 	}
 }
+
+func TestGlobalConfigPathHonorsOverride(t *testing.T) {
+	baseDir := t.TempDir()
+	overridePath := filepath.Join(baseDir, "custom", "config.yaml")
+	t.Setenv("ESB_CONFIG_PATH", overridePath)
+
+	got, err := GlobalConfigPath()
+	if err != nil {
+		t.Fatalf("global config path: %v", err)
+	}
+	if got != overridePath {
+		t.Fatalf("unexpected config path: %s", got)
+	}
+}

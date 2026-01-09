@@ -78,6 +78,44 @@ Resources:
 	}
 }
 
+func TestParseSAMTemplateGlobalsEnvironment(t *testing.T) {
+	content := `
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Globals:
+  Function:
+    Environment:
+      Variables:
+        GLOBAL_ONLY: global
+        SHARED: global
+Resources:
+  HelloFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lambda-hello
+      CodeUri: functions/hello/
+      Environment:
+        Variables:
+          SHARED: local
+          LOCAL_ONLY: local
+`
+
+	result, err := ParseSAMTemplate(content, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	fn := result.Functions[0]
+	if fn.Environment["GLOBAL_ONLY"] != "global" {
+		t.Fatalf("expected global env to be applied")
+	}
+	if fn.Environment["LOCAL_ONLY"] != "local" {
+		t.Fatalf("expected local env to be applied")
+	}
+	if fn.Environment["SHARED"] != "local" {
+		t.Fatalf("expected local env to override global")
+	}
+}
+
 func TestParseSAMTemplateEventsAndScaling(t *testing.T) {
 	content := `
 AWSTemplateFormatVersion: '2010-09-09'

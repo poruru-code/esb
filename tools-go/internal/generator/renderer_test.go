@@ -47,7 +47,7 @@ func TestRenderDockerfileWithRequirementsAndLayers(t *testing.T) {
 		Runtime:         "python3.12",
 		HasRequirements: true,
 		Layers: []LayerSpec{
-			{Name: "common-layer", ContentURI: "layers/common"},
+			{Name: "common-layer", ContentURI: "functions/lambda-hello/layers/common"},
 		},
 	}
 
@@ -58,7 +58,7 @@ func TestRenderDockerfileWithRequirementsAndLayers(t *testing.T) {
 	if !strings.Contains(content, "pip install -r") {
 		t.Fatalf("expected requirements install")
 	}
-	if !strings.Contains(content, "COPY layers/common/ /opt/") {
+	if !strings.Contains(content, "COPY functions/lambda-hello/layers/common/ /opt/") {
 		t.Fatalf("expected layer copy")
 	}
 }
