@@ -29,6 +29,8 @@ type stagedFunction struct {
 	SitecustomizeRef string
 }
 
+// stageFunction prepares the function source, layers, and sitecustomize file
+// under the output directory so downstream steps can render Dockerfiles.
 func stageFunction(fn FunctionSpec, ctx stageContext) (stagedFunction, error) {
 	if fn.Name == "" {
 		return stagedFunction{}, fmt.Errorf("function name is required")
@@ -78,6 +80,8 @@ func stageFunction(fn FunctionSpec, ctx stageContext) (stagedFunction, error) {
 	}, nil
 }
 
+// stageLayers stages each referenced layer inside the function directory,
+// applying smart nesting for Python runtimes and sanitizing names.
 func stageLayers(layers []LayerSpec, ctx stageContext, functionName, functionDir, runtime string) ([]LayerSpec, error) {
 	if len(layers) == 0 {
 		return nil, nil
@@ -166,6 +170,7 @@ func resolveSitecustomizeSource(ctx stageContext) string {
 	return ""
 }
 
+// layerTargetName derives a filesystem-safe directory name for a layer.
 func layerTargetName(layer LayerSpec, source string) string {
 	if sanitized := sanitizeLayerName(layer.Name); sanitized != "" {
 		return sanitized
@@ -180,6 +185,7 @@ func layerTargetName(layer LayerSpec, source string) string {
 	return "layer"
 }
 
+// sanitizeLayerName keeps only alphanumeric, dot, underscore, and dash characters.
 func sanitizeLayerName(value string) string {
 	value = strings.TrimSpace(value)
 	var b strings.Builder
@@ -191,6 +197,8 @@ func sanitizeLayerName(value string) string {
 	return b.String()
 }
 
+// shouldNestPython returns true when a Python layer lacks an explicit python/
+// layout and therefore must be nested to satisfy the runtime expectation.
 func shouldNestPython(runtime, sourceDir string) bool {
 	if !isPythonRuntime(runtime) {
 		return false
@@ -201,10 +209,12 @@ func shouldNestPython(runtime, sourceDir string) bool {
 	return !containsPythonLayout(sourceDir)
 }
 
+// isPythonRuntime detects if the runtime string references Python.
 func isPythonRuntime(runtime string) bool {
 	return strings.Contains(strings.ToLower(runtime), "python")
 }
 
+// containsPythonLayout checks for python/ or site-packages/ at the root level.
 func containsPythonLayout(dir string) bool {
 	return dirExists(filepath.Join(dir, "python")) || dirExists(filepath.Join(dir, "site-packages"))
 }

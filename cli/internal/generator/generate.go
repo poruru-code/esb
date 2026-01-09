@@ -12,6 +12,7 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 )
 
+// GenerateOptions configures Generator.GenerateFiles behavior.
 type GenerateOptions struct {
 	ProjectRoot         string
 	DryRun              bool
@@ -24,6 +25,7 @@ type GenerateOptions struct {
 	Parser              Parser
 }
 
+// GenerateFiles runs the generator pipeline: parse, stage assets, and render configs.
 func GenerateFiles(cfg config.GeneratorConfig, opts GenerateOptions) ([]FunctionSpec, error) {
 	projectRoot := opts.ProjectRoot
 	if projectRoot == "" {
@@ -139,6 +141,7 @@ func GenerateFiles(cfg config.GeneratorConfig, opts GenerateOptions) ([]Function
 	return functions, nil
 }
 
+// resolveTemplatePath determines the absolute path to the SAM template.
 func resolveTemplatePath(samTemplate, projectRoot string) (string, error) {
 	if strings.TrimSpace(samTemplate) == "" {
 		return "", fmt.Errorf("sam_template is required")
@@ -154,6 +157,7 @@ func resolveTemplatePath(samTemplate, projectRoot string) (string, error) {
 	return path, nil
 }
 
+// resolveOutputDir returns the absolute output directory where artifacts will be staged.
 func resolveOutputDir(outputDir, baseDir string) (string, error) {
 	normalized := normalizeOutputDir(outputDir)
 	path := normalized
@@ -163,6 +167,7 @@ func resolveOutputDir(outputDir, baseDir string) (string, error) {
 	return filepath.Clean(path), nil
 }
 
+// resolveTag picks the Docker image tag from opts first, then generator config, then "latest".
 func resolveTag(tag, fallback string) string {
 	if strings.TrimSpace(tag) != "" {
 		return tag
@@ -173,6 +178,7 @@ func resolveTag(tag, fallback string) string {
 	return "latest"
 }
 
+// mergeParameters merges generator config parameters with runtime overrides.
 func mergeParameters(cfgParams map[string]any, overrides map[string]string) map[string]string {
 	out := map[string]string{}
 	for key, value := range cfgParams {
@@ -190,6 +196,7 @@ func mergeParameters(cfgParams map[string]any, overrides map[string]string) map[
 	return out
 }
 
+// resolveConfigPath chooses where to write config files (functions/routing).
 func resolveConfigPath(explicit, baseDir, outputDir, name string) string {
 	if strings.TrimSpace(explicit) == "" {
 		return filepath.Join(outputDir, "config", name)
