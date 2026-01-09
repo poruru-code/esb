@@ -77,3 +77,4 @@ services/agent/agent*
 # ESB Staging for external templates
 services/gateway/.esb-staging/
 e2e/fixtures/generator.yml
+.tmp/

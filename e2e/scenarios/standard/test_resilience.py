@@ -9,6 +9,7 @@ Resilience and performance tests.
 import os
 import subprocess
 import time
+from pathlib import Path
 
 import requests
 
@@ -21,6 +22,43 @@ from e2e.conftest import (
     call_api,
     request_with_retry,
 )
+
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+
+
+def build_control_compose_command(
+    args: list[str], mode: str | None = None, project_name: str | None = None
+) -> list[str]:
+    """Construct the `docker compose` command used for control-plane actions."""
+    if project_name:
+        cmd = ["docker", "compose", "-p", project_name]
+    else:
+        cmd = ["docker", "compose"]
+
+    base_files = [
+        PROJECT_ROOT / "docker-compose.yml",
+        PROJECT_ROOT / "docker-compose.worker.yml",
+    ]
+
+    mode = (mode or os.getenv("ESB_MODE") or "docker").lower()
+    if mode == "firecracker":
+        mode_files = [
+            PROJECT_ROOT / "docker-compose.registry.yml",
+            PROJECT_ROOT / "docker-compose.fc.yml",
+        ]
+    elif mode == "containerd":
+        mode_files = [
+            PROJECT_ROOT / "docker-compose.registry.yml",
+            PROJECT_ROOT / "docker-compose.containerd.yml",
+        ]
+    else:
+        mode_files = [PROJECT_ROOT / "docker-compose.docker.yml"]
+
+    for path in base_files + mode_files:
+        cmd.extend(["-f", str(path)])
+
+    cmd.extend(args)
+    return cmd
 
 
 class TestResilience:
@@ -47,17 +85,13 @@ class TestResilience:
         time.sleep(3)
 
         # 2. Restart Manager/Agent container.
-        from tools.python_cli import compose
-
-        # 2. Restart Manager/Agent container.
         print(f"Step 2: Restarting {service_to_restart} container...")
 
-        # Determine project name to ensure we target the running stack
-        # (run_tests.py usually sets this effectively via env or directory context)
         project_name = os.getenv("ESB_PROJECT_NAME")
-
-        cmd = compose.build_compose_command(
-            ["restart", service_to_restart], target="control", project_name=project_name
+        cmd = build_control_compose_command(
+            ["restart", service_to_restart],
+            mode=os.getenv("ESB_MODE"),
+            project_name=project_name,
         )
 
         restart_result = subprocess.run(

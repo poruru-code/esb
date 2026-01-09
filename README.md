@@ -418,15 +418,17 @@ esb node up
 esb node doctor --require-up
 ```
 
+この E2E スクリプトは Go CLI (`esb build`/`esb up`) を内部から呼び出すため、生成・起動のパスはすべて Go に統一されています。
+
 ```bash
 # Matrix定義に従い、全スイート（Containerd, Firecracker）を実行
-python e2e/run_tests.py
+uv run python e2e/run_tests.py
 
 # 特定のプロファイルのみ実行（例: Containerdモードのみ）
-python e2e/run_tests.py --profile e2e-containerd
+uv run python e2e/run_tests.py --profile e2e-containerd
 
 # 特定のテストファイルのみ実行（プロファイル指定が必須）
-python e2e/run_tests.py --test-target e2e/scenarios/standard/test_lambda.py --profile e2e-containerd
+uv run python e2e/run_tests.py --test-target e2e/scenarios/standard/test_lambda.py --profile e2e-containerd
 ```
 
 #### Unit Tests
@@ -434,7 +436,7 @@ python e2e/run_tests.py --test-target e2e/scenarios/standard/test_lambda.py --pr
 
 ```bash
 # ユニットテストのみ実行
-python e2e/run_tests.py --unit-only
+uv run python e2e/run_tests.py --unit-only
 ```
 
 ## トラブルシューティング

@@ -2,21 +2,20 @@
 
 ## 概要
 
-`tools/generator` は、AWS SAM テンプレート (`template.yaml`) を解析し、ESB (Edge Serverless Box) 上で実行可能な設定ファイルと Docker アーティファクトを生成する中核コンポーネントです。
-
-このプロセスにより、開発者は `Dockerfile` や `docker-compose.yml` を手動でメンテナンスする必要がなく、SAM テンプレートを "Single Source of Truth" として開発を進めることができます。
+`cli/internal/generator` は、AWS SAM テンプレート (`template.yaml`) を解析し、ESB (Edge Serverless Box) 上で実行可能な設定ファイルと Docker アーティファクトを生成する Go ネイティブな中核コンポーネントです。  
+Go CLI (`cli/cmd/esb`) がこのジェネレータを呼び出すことで、SAM テンプレートを "Single Source of Truth" として扱えるワークフローを提供します。
 
 ## アーキテクチャ構成
 
 ```mermaid
 flowchart TD
-    User["Developer"] -->|"esb init / build"| CLI["CLI Wrapper"]
+    User["Developer"] -->|"esb init / build"| CLI["CLI (`cli/cmd/esb`)"]
     
-    CLI --> Parser["Parser (Phase 1)"]
+    CLI --> Parser["Parser (`cli/internal/generator/parser.go`)"]
     
-    subgraph GeneratorCore ["Generator Core"]
+    subgraph GeneratorCore ["Generator Core (`cli/internal/generator`)"]
         Parser
-        Renderer["Renderer (Phase 2)"]
+        Renderer["Renderer (`cli/internal/generator/renderer.go`)"]
     end
     
     SAM["template.yaml"] -.->|Read| Parser
@@ -26,42 +25,41 @@ flowchart TD
     
     Functions --> Renderer
     
-    Renderer --> Dockerfiles["Dockerfiles"]
-    Renderer --> RuntimeHooks["Runtime Hooks<br>(sitecustomize.py)"]
+    Renderer --> Dockerfiles["Dockerfiles (`assets/Dockerfile.base` → `Dockerfile`/`Dockerfile.layer` )"]
+    Renderer --> RuntimeHooks["Runtime Hooks (`assets/site-packages/` + viewer hooks)"]
 ```
 
 ### コンポーネント
 
-1.  **CLI Wrapper (`tools/python_cli`)**
-    ユーザーインターフェースを提供し、生成プロセスをオーケストレーションします。
+1.  **CLI (`cli/cmd/esb`)**  
+    Go CLI がユーザーインターフェースを提供し、`esb init`, `esb build`, `esb up` などのコマンドを通じて `cli/internal/generator` や Compose 制御をオーケストレートします。
 
-2.  **Parser (`tools/generator/parser.py`)** -> **Phase 1**
-    SAM テンプレートを解析し、中間設定ファイル（`routing.yml`, `functions.yml`）を生成します。
-    - `AWS::Serverless::Function` リソースの抽出
-    - `Events` プロパティからの API ルーティング情報の抽出
-    - `ReservedConcurrentExecutions` からの最大同時実行数 (`max_capacity`) の抽出
+2.  **Parser (`cli/internal/generator/parser.go`) → Phase 1**  
+    SAM テンプレートを解析し、中間設定ファイル（`routing.yml`, `functions.yml`）を組み立てます。主な役割は以下です：  
+    - `AWS::Serverless::Function` リソースの抽出  
+    - `Events` プロパティから API ルーティング情報の抽出  
+    - `ReservedConcurrentExecutions` や `ProvisionedConcurrencyConfig` などからスケーリング設定の取り出し  
+    - `Globals.Function` の環境変数/ランタイム/アーキテクチャの適用
 
-3.  **Renderer (`tools/generator/renderer.py`)** -> **Phase 2**
-    抽出された関数メタデータに基づき、Jinja2 テンプレートを使用して具体的なランタイムアーティファクトを生成します。
-    - `Dockerfile` の生成（ランタイムバージョンに応じたベースイメージ選択）
-    - `sitecustomize.py` などのフックファイルの注入
+3.  **Renderer (`cli/internal/generator/renderer.go`) → Phase 2**  
+    抽出された関数メタデータを元に、Go テンプレートで Dockerfile や補助ファイルを生成し、`output_dir` 以下のビルドコンテキストを整備します。
 
 ## 生成プロセス詳細
 
 ### 1. 初期化 (`esb init`)
 
-プロジェクト開始時に実行され、生成設定ファイル `generator.yml` を作成します。
+プロジェクト開始時に `esb init` を実行すると、SAM テンプレートのパラメータ/出力先などを記した `generator.yml` が生成されます。
 
-- **入力**: ユーザー入力（対話形式）、`template.yaml` のパラメータ定義
-- **出力**: `generator.yml`
-    - SAM パラメータの値
-    - Docker イメージのタグ
-    - 出力ディレクトリパス（デフォルト: `.esb/`）
+- **入力**: ユーザー指定（対話または CLI 引数）、`template.yaml` のパラメータ  
+- **出力**: `generator.yml`  
+  - SAM パラメータ値（例: `Prefix`, `ServiceVersion`）  
+  - Docker イメージタグ（`app.tag`）  
+  - 出力ディレクトリパス（デフォルト `.esb/`。`paths.output_dir` で調整可能）
 
 ### 2. ビルドフェーズ (`esb build`)
 
-#### Phase 1: 設定生成
-`template.yaml` を読み込み、ESB が理解できる形式の中間ファイルを作成します。
+#### Phase 1: 設定生成  
+`parser.go` が `template.yaml` と `generator.yml` を読み、最終的な `functions.yml`, `routing.yml` を `output_dir/config/` に書き出します。
 
 **出力例 (`routing.yml`)**:
 ```yaml
@@ -71,40 +69,24 @@ routes:
     function: lambda-hello
 ```
 
-#### Phase 2: アーティファクト生成
-`functions.yml` に列挙された各関数について、Docker ビルドコンテキストを用意します。
+#### Phase 2: アーティファクト生成  
+`functions.yml` にリストアップされた関数ごとに Build Context を作成、`renderer.go` がファイルを生成します。
 
-1. **Dockerfile の生成**
-    テンプレート (`tools/generator/templates/Dockerfile.j2`) から生成されます。
-    ```dockerfile
-    FROM porurucode/esb-lambda-base:python3.12
-    # ...
-    COPY . .
-    # ...
-    ```
-
-2. **Layer のステージング**
-    `AWS::Serverless::LayerVersion` で定義されたレイヤーは `output_dir/layers/` に一度だけ展開され、
-    各関数の Dockerfile から共有参照されます。ZIP 形式のレイヤーは展開して `/opt/` に配置されます。
-
-3. **ビルドコンテキストの最小化**
-    `esb build` は `output_dir` を Docker ビルドコンテキストとして使い、
-    対象関数と共有レイヤーだけを含める `.dockerignore` を生成します。
-
-4. **Runtime Hooks の配置**
-    `cli/internal/generator/assets/site-packages/` 配下のファイルが、各関数のビルドコンテキストにコピーされます。
-    これにより、以下の機能が全 Lambda 関数に自動的に組み込まれます：
-    - Trace ID の自動伝播 (`sitecustomize.py`)
-    - ログの自動送信 (VictoriaLogs)
-    - 標準出力のキャプチャ
+1. **Dockerfile の生成**  
+   `cli/internal/generator/assets/Dockerfile.base` をベースに、関数/ランタイム特有のステップ（`COPY functions/...` や `ENV` 設定）を動的に組み立てます。  
+2. **Layer のステージング**  
+   `AWS::Serverless::LayerVersion` から抽出したレイヤーは `output_dir/layers/` に展開し、各関数の Dockerfile から共有参照されます。ZIP 形式のレイヤーは展開済みバージョンを `/opt/` にコピー。  
+3. **ビルドコンテキストの最小化**  
+   `renderer.go` は `.dockerignore` 相当の構成を `output_dir/` に書き、関数やレイヤー以外のファイルがビルドコンテキストに入らないようにします。  
+4. **Runtime Hooks の配置**  
+   `cli/internal/generator/assets/site-packages/` 配下のファイル（`sitecustomize.py` など）を各関数のコンテキストにコピーし、Trace ID やログキャプチャの仕組みを Lambda 実行時に提供します。これには VictoriaLogs や X-Ray 互換のフックが含まれます。
 
 ## ランタイムフックの仕組み (`sitecustomize.py`)
 
-ESB は、Python の `sitecustomize` 機構を利用して、ユーザーコードを変更することなくランタイムの挙動を拡張しています。
+Go ジェネレータは、Python の `sitecustomize` を利用してユーザーコードを変更せずにランタイム挙動を拡張します。
 
-### Trace ID Hydration (復元)
-Lambda RIE は `X-Amzn-Trace-Id` ヘッダーを環境変通に変換しません。
-`sitecustomize.py` は、`awslambdaric` にパッチを適用し、**ClientContext** から Trace ID を取り出して `_X_AMZN_TRACE_ID` 環境変数にセットします。
+### Trace ID Hydration（復元）
+Lambda RIE は `X-Amzn-Trace-Id` ヘッダーを環境変数に変換しません。`sitecustomize.py` は `awslambdaric` にパッチを当て、**ClientContext** から Trace ID を抽出し `_X_AMZN_TRACE_ID` にセットします。
 
 ### Direct Logging
-`sys.stdout` と `sys.stderr` をフックし、ログ出力をキャプチャして VictoriaLogs に非同期で送信します。これにより、ローカル環境でも本番同様のログ集約が可能になります。
+`sys.stdout`/`sys.stderr` をフックし、ログを VictoriaLogs へ非同期送信します。ローカル実行でも本番と同じログ集約が可能になります。

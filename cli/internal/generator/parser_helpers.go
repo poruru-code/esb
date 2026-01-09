@@ -54,13 +54,6 @@ func asStringDefault(value any, fallback string) string {
 	return fallback
 }
 
-func asIntDefault(value any, fallback int) int {
-	if out, ok := asIntPointer(value); ok {
-		return *out
-	}
-	return fallback
-}
-
 func asIntPointer(value any) (*int, bool) {
 	switch typed := value.(type) {
 	case int:

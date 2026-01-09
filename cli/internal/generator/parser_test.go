@@ -208,3 +208,84 @@ func TestResolveIntrinsicSubstitution(t *testing.T) {
 		t.Fatalf("unexpected substitution: %s", value)
 	}
 }
+
+func TestParseSAMTemplateArchitecturesAndRuntimeManagementConfig(t *testing.T) {
+	content := `
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Globals:
+  Function:
+    Architectures:
+      - arm64
+    RuntimeManagementConfig:
+      UpdateRuntimeOn: Auto
+Resources:
+  SharedLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: shared
+      ContentUri: layers/shared/
+      CompatibleArchitectures:
+        - x86_64
+        - arm64
+  DefaultFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: default
+      CodeUri: functions/default/
+      Handler: handler.default
+      Runtime: python3.12
+  OverrideFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: override
+      CodeUri: functions/override/
+      Handler: handler.override
+      Runtime: python3.12
+      Architectures:
+        - x86_64
+      RuntimeManagementConfig:
+        UpdateRuntimeOn: Update
+`
+	result, err := ParseSAMTemplate(content, nil)
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+	if len(result.Functions) != 2 {
+		t.Fatalf("expected 2 functions, got %d", len(result.Functions))
+	}
+
+	find := func(name string) *FunctionSpec {
+		for i := range result.Functions {
+			if result.Functions[i].Name == name {
+				return &result.Functions[i]
+			}
+		}
+		return nil
+	}
+
+	defaultFn := find("default")
+	overrideFn := find("override")
+	if defaultFn == nil || overrideFn == nil {
+		t.Fatalf("functions missing: default=%v override=%v", defaultFn, overrideFn)
+	}
+	if len(defaultFn.Architectures) != 1 || defaultFn.Architectures[0] != "arm64" {
+		t.Fatalf("unexpected default architectures: %v", defaultFn.Architectures)
+	}
+	if defaultFn.RuntimeManagementConfig.UpdateRuntimeOn != "Auto" {
+		t.Fatalf("unexpected runtime management: %+v", defaultFn.RuntimeManagementConfig)
+	}
+	if len(overrideFn.Architectures) != 1 || overrideFn.Architectures[0] != "x86_64" {
+		t.Fatalf("unexpected override architectures: %v", overrideFn.Architectures)
+	}
+	if overrideFn.RuntimeManagementConfig.UpdateRuntimeOn != "Update" {
+		t.Fatalf("unexpected override runtime management: %+v", overrideFn.RuntimeManagementConfig)
+	}
+	if len(result.Resources.Layers) != 1 {
+		t.Fatalf("expected 1 layer, got %d", len(result.Resources.Layers))
+	}
+	layer := result.Resources.Layers[0]
+	if len(layer.CompatibleArchitectures) != 2 {
+		t.Fatalf("expected 2 compatible architectures, got %d", len(layer.CompatibleArchitectures))
+	}
+}

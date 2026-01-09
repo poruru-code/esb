@@ -3,7 +3,12 @@
 // Why: Replace Python parser with a typed, testable implementation.
 package generator
 
-import "strings"
+import (
+	"encoding/json"
+	"strings"
+
+	"github.com/poruru/edge-serverless-box/cli/internal/generator/schema"
+)
 
 type ParseResult struct {
 	Functions []FunctionSpec
@@ -11,18 +16,20 @@ type ParseResult struct {
 }
 
 type FunctionSpec struct {
-	LogicalID       string
-	Name            string
-	CodeURI         string
-	Handler         string
-	Runtime         string
-	Timeout         int
-	MemorySize      int
-	HasRequirements bool
-	Environment     map[string]string
-	Events          []EventSpec
-	Scaling         ScalingSpec
-	Layers          []LayerSpec
+	LogicalID               string
+	Name                    string
+	CodeURI                 string
+	Handler                 string
+	Runtime                 string
+	Timeout                 int
+	MemorySize              int
+	HasRequirements         bool
+	Environment             map[string]string
+	Events                  []EventSpec
+	Scaling                 ScalingSpec
+	Layers                  []LayerSpec
+	Architectures           []string
+	RuntimeManagementConfig RuntimeManagementConfig
 }
 
 type EventSpec struct {
@@ -36,8 +43,13 @@ type ScalingSpec struct {
 }
 
 type LayerSpec struct {
-	Name       string
-	ContentURI string
+	Name                    string
+	ContentURI              string
+	CompatibleArchitectures []string
+}
+
+type RuntimeManagementConfig struct {
+	UpdateRuntimeOn string
 }
 
 type DynamoDBSpec struct {
@@ -64,32 +76,19 @@ func ParseSAMTemplate(content string, parameters map[string]string) (ParseResult
 		parameters = map[string]string{}
 	}
 
-	data, err := decodeYAML(content)
+	jsonData, err := validateSAMTemplate([]byte(content))
 	if err != nil {
 		return ParseResult{}, err
 	}
 
-	globals := asMap(data["Globals"])
-	functionGlobals := asMap(globals["Function"])
+	var template schema.SamSchemaJson
+	if err := json.Unmarshal(jsonData, &template); err != nil {
+		return ParseResult{}, err
+	}
 
-	defaultRuntime := asString(functionGlobals["Runtime"])
-	if defaultRuntime == "" {
-		defaultRuntime = "python3.12"
-	}
-	defaultHandler := asString(functionGlobals["Handler"])
-	if defaultHandler == "" {
-		defaultHandler = "lambda_function.lambda_handler"
-	}
-	defaultTimeout := asIntDefault(functionGlobals["Timeout"], 30)
-	defaultMemory := asIntDefault(functionGlobals["MemorySize"], 128)
-	defaultLayers := asSlice(functionGlobals["Layers"])
-	defaultEnv := map[string]string{}
-	if env := asMap(functionGlobals["Environment"]); env != nil {
-		if vars := asMap(env["Variables"]); vars != nil {
-			for key, raw := range vars {
-				defaultEnv[key] = resolveIntrinsic(asString(raw), parameters)
-			}
-		}
+	data, err := decodeYAML(content)
+	if err != nil {
+		return ParseResult{}, err
 	}
 
 	resources := asMap(data["Resources"])
@@ -97,9 +96,49 @@ func ParseSAMTemplate(content string, parameters map[string]string) (ParseResult
 		return ParseResult{}, nil
 	}
 
-	layerMap := map[string]LayerSpec{}
+	globals := template.Globals
+	functionGlobals := &schema.SamSchemaJsonGlobalsFunction{}
+	if globals != nil && globals.Function != nil {
+		functionGlobals = globals.Function
+	}
+
+	defaultRuntime := derefString(functionGlobals.Runtime, "python3.12")
+	defaultHandler := derefString(functionGlobals.Handler, "lambda_function.lambda_handler")
+	defaultTimeout := derefInt(functionGlobals.Timeout, 30)
+	defaultMemory := derefInt(functionGlobals.MemorySize, 128)
+	defaultLayers := functionGlobals.Layers
+	defaultArchitectures := copyStringSlice(functionGlobals.Architectures)
+	defaultRuntimeManagement := runtimeManagementFromGlobals(functionGlobals.RuntimeManagementConfig)
+	defaultEnv := map[string]string{}
+	if functionGlobals.Environment != nil {
+		for key, value := range functionGlobals.Environment.Variables {
+			defaultEnv[key] = resolveIntrinsic(asString(value), parameters)
+		}
+	}
+
 	parsedResources := ResourcesSpec{}
-	functions := make([]FunctionSpec, 0)
+	layerMap := map[string]LayerSpec{}
+	for logicalID, resource := range template.Resources {
+		if resource.Type != "AWS::Serverless::LayerVersion" {
+			continue
+		}
+		props := resource.Properties
+		if props == nil {
+			continue
+		}
+		layerName := derefString(props.LayerName, logicalID)
+		layerName = resolveIntrinsic(layerName, parameters)
+		contentURI := derefString(props.ContentUri, "./")
+		contentURI = resolveIntrinsic(contentURI, parameters)
+		contentURI = ensureTrailingSlash(contentURI)
+		spec := LayerSpec{
+			Name:                    layerName,
+			ContentURI:              contentURI,
+			CompatibleArchitectures: copyStringSlice(props.CompatibleArchitectures),
+		}
+		layerMap[logicalID] = spec
+		parsedResources.Layers = append(parsedResources.Layers, spec)
+	}
 
 	for logicalID, value := range resources {
 		resource := asMap(value)
@@ -107,24 +146,12 @@ func ParseSAMTemplate(content string, parameters map[string]string) (ParseResult
 			continue
 		}
 		resourceType := asString(resource["Type"])
+		if resourceType == "AWS::Serverless::LayerVersion" || resourceType == "AWS::Serverless::Function" {
+			continue
+		}
 		props := asMap(resource["Properties"])
 
 		switch resourceType {
-		case "AWS::Serverless::LayerVersion":
-			layerName := asString(props["LayerName"])
-			if layerName == "" {
-				layerName = logicalID
-			}
-			layerName = resolveIntrinsic(layerName, parameters)
-			contentURI := asString(props["ContentUri"])
-			if contentURI == "" {
-				contentURI = "./"
-			}
-			contentURI = resolveIntrinsic(contentURI, parameters)
-			contentURI = ensureTrailingSlash(contentURI)
-			spec := LayerSpec{Name: layerName, ContentURI: contentURI}
-			layerMap[logicalID] = spec
-			parsedResources.Layers = append(parsedResources.Layers, spec)
 		case "AWS::DynamoDB::Table":
 			tableName := asString(props["TableName"])
 			if tableName == "" {
@@ -149,42 +176,32 @@ func ParseSAMTemplate(content string, parameters map[string]string) (ParseResult
 		}
 	}
 
-	for logicalID, value := range resources {
-		resource := asMap(value)
-		if resource == nil {
+	functions := make([]FunctionSpec, 0, len(template.Resources))
+	for logicalID, resource := range template.Resources {
+		if resource.Type != "AWS::Serverless::Function" {
 			continue
 		}
-		if asString(resource["Type"]) != "AWS::Serverless::Function" {
+		props := resource.Properties
+		if props == nil {
 			continue
 		}
-		props := asMap(resource["Properties"])
 
-		fnName := asString(props["FunctionName"])
-		if fnName == "" {
-			fnName = logicalID
-		}
+		fnName := derefString(props.FunctionName, logicalID)
 		fnName = resolveIntrinsic(fnName, parameters)
-		codeURI := asString(props["CodeUri"])
-		if codeURI == "" {
-			codeURI = "./"
-		}
+		codeURI := derefString(props.CodeUri, "./")
 		codeURI = resolveIntrinsic(codeURI, parameters)
 		codeURI = ensureTrailingSlash(codeURI)
 
-		handler := asString(props["Handler"])
-		if handler == "" {
-			handler = defaultHandler
-		}
-		runtime := asString(props["Runtime"])
-		if runtime == "" {
-			runtime = defaultRuntime
-		}
+		handler := derefString(props.Handler, defaultHandler)
+		runtime := derefString(props.Runtime, defaultRuntime)
+		timeout := derefInt(props.Timeout, defaultTimeout)
+		memory := derefInt(props.MemorySize, defaultMemory)
 
 		envVars := map[string]string{}
 		for key, value := range defaultEnv {
 			envVars[key] = value
 		}
-		if env := asMap(props["Environment"]); env != nil {
+		if env := asMap(props.Environment); env != nil {
 			if vars := asMap(env["Variables"]); vars != nil {
 				for key, raw := range vars {
 					envVars[key] = resolveIntrinsic(asString(raw), parameters)
@@ -192,27 +209,51 @@ func ParseSAMTemplate(content string, parameters map[string]string) (ParseResult
 			}
 		}
 
-		events := parseEvents(asMap(props["Events"]))
-		scaling := parseScaling(props)
+		events := parseEvents(props.Events)
 
-		layerRefs := props["Layers"]
-		if layerRefs == nil {
+		scalingInput := map[string]any{}
+		if props.ReservedConcurrentExecutions != nil {
+			scalingInput["ReservedConcurrentExecutions"] = *props.ReservedConcurrentExecutions
+		}
+		if props.ProvisionedConcurrencyConfig != nil {
+			pc := map[string]any{}
+			if props.ProvisionedConcurrencyConfig.ProvisionedConcurrentExecutions != nil {
+				pc["ProvisionedConcurrentExecutions"] = *props.ProvisionedConcurrencyConfig.ProvisionedConcurrentExecutions
+			}
+			scalingInput["ProvisionedConcurrencyConfig"] = pc
+		}
+		scaling := parseScaling(scalingInput)
+
+		layerRefs := props.Layers
+		if len(layerRefs) == 0 {
 			layerRefs = defaultLayers
 		}
 		layers := collectLayers(layerRefs, layerMap)
 
+		architectures := copyStringSlice(defaultArchitectures)
+		if len(props.Architectures) > 0 {
+			architectures = copyStringSlice(props.Architectures)
+		}
+
+		runtimeManagement := runtimeManagementFromProperties(props.RuntimeManagementConfig)
+		if runtimeManagement.UpdateRuntimeOn == "" {
+			runtimeManagement = defaultRuntimeManagement
+		}
+
 		functions = append(functions, FunctionSpec{
-			LogicalID:   logicalID,
-			Name:        fnName,
-			CodeURI:     codeURI,
-			Handler:     handler,
-			Runtime:     runtime,
-			Timeout:     asIntDefault(props["Timeout"], defaultTimeout),
-			MemorySize:  asIntDefault(props["MemorySize"], defaultMemory),
-			Environment: envVars,
-			Events:      events,
-			Scaling:     scaling,
-			Layers:      layers,
+			LogicalID:               logicalID,
+			Name:                    fnName,
+			CodeURI:                 codeURI,
+			Handler:                 handler,
+			Runtime:                 runtime,
+			Timeout:                 timeout,
+			MemorySize:              memory,
+			Environment:             envVars,
+			Events:                  events,
+			Scaling:                 scaling,
+			Layers:                  layers,
+			Architectures:           architectures,
+			RuntimeManagementConfig: runtimeManagement,
 		})
 	}
 
@@ -292,4 +333,41 @@ func extractLayerRefs(raw any) []string {
 		}
 	}
 	return refs
+}
+
+func runtimeManagementFromGlobals(config *schema.SamSchemaJsonGlobalsFunctionRuntimeManagementConfig) RuntimeManagementConfig {
+	if config == nil || config.UpdateRuntimeOn == nil {
+		return RuntimeManagementConfig{}
+	}
+	return RuntimeManagementConfig{UpdateRuntimeOn: *config.UpdateRuntimeOn}
+}
+
+func runtimeManagementFromProperties(config *schema.ResourcePropertiesRuntimeManagementConfig) RuntimeManagementConfig {
+	if config == nil || config.UpdateRuntimeOn == nil {
+		return RuntimeManagementConfig{}
+	}
+	return RuntimeManagementConfig{UpdateRuntimeOn: *config.UpdateRuntimeOn}
+}
+
+func copyStringSlice(input []string) []string {
+	if len(input) == 0 {
+		return nil
+	}
+	out := make([]string, len(input))
+	copy(out, input)
+	return out
+}
+
+func derefString(ptr *string, fallback string) string {
+	if ptr != nil && *ptr != "" {
+		return *ptr
+	}
+	return fallback
+}
+
+func derefInt(ptr *int, fallback int) int {
+	if ptr != nil {
+		return *ptr
+	}
+	return fallback
 }
