@@ -13,6 +13,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.1"
+          cache: true
+          cache-dependency-path: |
+            cli/go.sum
+            services/agent/go.sum
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -31,13 +40,6 @@ jobs:
           DISABLE_VICTORIALOGS: "1"
         run: uv run python e2e/run_tests.py --unit-only
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: services/agent/go.mod
-          cache: true
-          cache-dependency-path: services/agent/go.sum
-
-      - name: Run Go unit tests
+      - name: Run agent Go unit tests
         run: go test ./...
         working-directory: services/agent
