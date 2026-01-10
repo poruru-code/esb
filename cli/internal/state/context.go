@@ -58,7 +58,11 @@ func ResolveContext(projectDir, env string) (Context, error) {
 	}
 	outputDir = filepath.Clean(outputDir)
 
-	composeProject := fmt.Sprintf("esb-%s", strings.ToLower(env))
+	projectName := strings.ToLower(cfg.App.Name)
+	if projectName == "" {
+		projectName = "esb"
+	}
+	composeProject := fmt.Sprintf("%s-%s", projectName, strings.ToLower(env))
 	mode, _ := cfg.Environments.Mode(env)
 
 	return Context{

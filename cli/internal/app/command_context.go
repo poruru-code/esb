@@ -55,11 +55,11 @@ func exitWithError(out io.Writer, err error) int {
 
 // exitWithSuggestion prints an error with suggested next steps.
 func exitWithSuggestion(out io.Writer, message string, suggestions []string) int {
-	fmt.Fprintf(out, "✗ %s\n", message)
+	fmt.Fprintf(out, "⚠️  %s\n", message)
 	if len(suggestions) > 0 {
-		fmt.Fprintln(out, "\nNext steps:")
+		fmt.Fprintln(out, "\n💡 Next steps:")
 		for _, s := range suggestions {
-			fmt.Fprintf(out, "  %s\n", s)
+			fmt.Fprintf(out, "   - %s\n", s)
 		}
 	}
 	return 1
@@ -67,17 +67,17 @@ func exitWithSuggestion(out io.Writer, message string, suggestions []string) int
 
 // exitWithSuggestionAndAvailable prints an error with suggestions and available options.
 func exitWithSuggestionAndAvailable(out io.Writer, message string, suggestions, available []string) int {
-	fmt.Fprintf(out, "✗ %s\n", message)
+	fmt.Fprintf(out, "⚠️  %s\n", message)
 	if len(suggestions) > 0 {
-		fmt.Fprintln(out, "\nNext steps:")
+		fmt.Fprintln(out, "\n💡 Next steps:")
 		for _, s := range suggestions {
-			fmt.Fprintf(out, "  %s\n", s)
+			fmt.Fprintf(out, "   - %s\n", s)
 		}
 	}
 	if len(available) > 0 {
-		fmt.Fprintln(out, "\nAvailable:")
+		fmt.Fprintln(out, "\n🛠️  Available:")
 		for _, a := range available {
-			fmt.Fprintf(out, "  - %s\n", a)
+			fmt.Fprintf(out, "   - %s\n", a)
 		}
 	}
 	return 1

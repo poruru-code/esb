@@ -22,11 +22,11 @@ func runInfo(cli CLI, deps Dependencies, out io.Writer) int {
 		return 1
 	}
 
-	fmt.Fprintln(out, "Config")
-	fmt.Fprintf(out, "  path: %s\n", configPath)
+	fmt.Fprintln(out, "⚙️  Config")
+	fmt.Fprintf(out, "   path: %s\n", configPath)
 	if cli.Template == "" && len(cfg.Projects) == 0 {
-		fmt.Fprintln(out, "No projects registered.")
-		fmt.Fprintln(out, "Run 'esb project add . -t <template>' to get started.")
+		fmt.Fprintln(out, "\n📦 No projects registered.")
+		fmt.Fprintln(out, "   Run 'esb project add . -t <template>' to get started.")
 		return 1
 	}
 
@@ -45,11 +45,6 @@ func runInfo(cli CLI, deps Dependencies, out io.Writer) int {
 		fmt.Fprintln(out, err)
 		return 1
 	}
-
-	fmt.Fprintln(out, "Project")
-	fmt.Fprintf(out, "  name: %s\n", project.Name)
-	fmt.Fprintf(out, "  dir: %s\n", project.Dir)
-	fmt.Fprintf(out, "  generator: %s\n", project.GeneratorPath)
 
 	envState, err := state.ResolveProjectState(state.ProjectStateOptions{
 		EnvFlag:     cli.EnvFlag,
@@ -70,12 +65,17 @@ func runInfo(cli CLI, deps Dependencies, out io.Writer) int {
 		return 1
 	}
 
-	fmt.Fprintf(out, "  template: %s\n", ctx.TemplatePath)
-	fmt.Fprintf(out, "  output_dir: %s\n", ctx.OutputDir)
-	fmt.Fprintf(out, "  output_env_dir: %s\n", ctx.OutputEnvDir)
-	fmt.Fprintf(out, "  env: %s\n", ctx.Env)
-	fmt.Fprintf(out, "  mode: %s\n", ctx.Mode)
-	fmt.Fprintf(out, "  compose_project: %s\n", ctx.ComposeProject)
+	fmt.Fprintln(out, "\n📦 Project")
+	fmt.Fprintf(out, "   name: %s\n", project.Name)
+	fmt.Fprintf(out, "   dir:  %s\n", project.Dir)
+	fmt.Fprintf(out, "   gen:  %s\n", project.GeneratorPath)
+	fmt.Fprintf(out, "   tmpl: %s\n", ctx.TemplatePath)
+	fmt.Fprintf(out, "   out:  %s\n", ctx.OutputDir)
+
+	fmt.Fprintln(out, "\n🌐 Environment")
+	fmt.Fprintf(out, "   name: %s (%s)\n", ctx.Env, ctx.Mode)
+	fmt.Fprintf(out, "   env:  %s\n", ctx.OutputEnvDir)
+	fmt.Fprintf(out, "   proj: %s\n", ctx.ComposeProject)
 
 	stateValue := "unknown"
 	if deps.DetectorFactory != nil {
@@ -92,8 +92,8 @@ func runInfo(cli CLI, deps Dependencies, out io.Writer) int {
 		}
 	}
 
-	fmt.Fprintln(out, "State")
-	fmt.Fprintf(out, "  current: %s\n", stateValue)
+	fmt.Fprintln(out, "\n⚡ State")
+	fmt.Fprintf(out, "   curr: %s\n", stateValue)
 
 	return 0
 }
