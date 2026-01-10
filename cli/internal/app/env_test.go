@@ -14,6 +14,25 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 )
 
+type mockPrompter struct {
+	inputFn  func(title string, suggestions []string) (string, error)
+	selectFn func(title string, options []string) (string, error)
+}
+
+func (m mockPrompter) Input(title string, suggestions []string) (string, error) {
+	if m.inputFn != nil {
+		return m.inputFn(title, suggestions)
+	}
+	return "", nil
+}
+
+func (m mockPrompter) Select(title string, options []string) (string, error) {
+	if m.selectFn != nil {
+		return m.selectFn(title, options)
+	}
+	return "", nil
+}
+
 func TestRunEnvList(t *testing.T) {
 	projectDir := t.TempDir()
 	envs := config.Environments{
@@ -115,7 +134,7 @@ func TestRunEnvCreateAddsEnvironment(t *testing.T) {
 	var out bytes.Buffer
 	deps := Dependencies{Out: &out, ProjectDir: projectDir}
 
-	exitCode := Run([]string{"env", "create", "staging"}, deps)
+	exitCode := Run([]string{"env", "add", "staging"}, deps)
 	if exitCode != 0 {
 		t.Fatalf("expected exit code 0, got %d", exitCode)
 	}
@@ -161,6 +180,95 @@ func TestRunEnvRemoveDeletesEnvironment(t *testing.T) {
 	}
 	if !cfg.Environments.Has("default") {
 		t.Fatalf("expected default env to remain")
+	}
+}
+
+func TestRunEnvCreateInteractive(t *testing.T) {
+	projectDir := t.TempDir()
+	envs := config.Environments{
+		{Name: "default", Mode: "docker"},
+	}
+	if err := writeGeneratorFixtureWithEnvs(projectDir, envs, "demo"); err != nil {
+		t.Fatalf("write generator fixture: %v", err)
+	}
+	setupProjectConfig(t, projectDir, "demo")
+
+	// Mock isTerminal to return true for interactive tests
+	originalIsTerminal := isTerminal
+	isTerminal = func(file *os.File) bool { return true }
+	defer func() { isTerminal = originalIsTerminal }()
+
+	tests := []struct {
+		name         string
+		args         []string
+		input        string
+		selection    string
+		wantEnv      string
+		wantMode     string
+		wantExitCode int
+	}{
+		{
+			name:         "prompt for name and mode",
+			args:         []string{"env", "add"},
+			input:        "staging",
+			selection:    "containerd",
+			wantEnv:      "staging",
+			wantMode:     "containerd",
+			wantExitCode: 0,
+		},
+		{
+			name:         "prompt for mode only",
+			args:         []string{"env", "add", "prod"},
+			selection:    "firecracker",
+			wantEnv:      "prod",
+			wantMode:     "firecracker",
+			wantExitCode: 0,
+		},
+		{
+			name:         "no prompt when name and mode provided",
+			args:         []string{"env", "add", "dev:docker"},
+			wantEnv:      "dev",
+			wantMode:     "docker",
+			wantExitCode: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var out bytes.Buffer
+			prompter := mockPrompter{
+				inputFn: func(_ string, _ []string) (string, error) {
+					return tt.input, nil
+				},
+				selectFn: func(_ string, _ []string) (string, error) {
+					return tt.selection, nil
+				},
+			}
+			deps := Dependencies{
+				Out:        &out,
+				ProjectDir: projectDir,
+				Prompter:   prompter,
+			}
+
+			exitCode := Run(tt.args, deps)
+			if exitCode != tt.wantExitCode {
+				t.Fatalf("expected exit code %d, got %d; output: %s", tt.wantExitCode, exitCode, out.String())
+			}
+
+			if tt.wantExitCode == 0 {
+				cfg, err := config.LoadGeneratorConfig(filepath.Join(projectDir, "generator.yml"))
+				if err != nil {
+					t.Fatalf("load generator config: %v", err)
+				}
+				if !cfg.Environments.Has(tt.wantEnv) {
+					t.Fatalf("expected %s env to exist", tt.wantEnv)
+				}
+				mode, _ := cfg.Environments.Mode(tt.wantEnv)
+				if mode != tt.wantMode {
+					t.Fatalf("expected mode %s, got %s", tt.wantMode, mode)
+				}
+			}
+		})
 	}
 }
 

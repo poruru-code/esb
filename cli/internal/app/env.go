@@ -17,7 +17,7 @@ import (
 // list, create, use, and remove operations.
 type EnvCmd struct {
 	List   EnvListCmd   `cmd:"" help:"List environments"`
-	Create EnvCreateCmd `cmd:"" help:"Create environment"`
+	Add    EnvAddCmd    `cmd:"" help:"Add environment"`
 	Use    EnvUseCmd    `cmd:"" help:"Switch environment"`
 	Remove EnvRemoveCmd `cmd:"" help:"Remove environment"`
 }
@@ -26,8 +26,8 @@ type (
 	EnvListCmd struct {
 		Force bool `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
 	}
-	EnvCreateCmd struct {
-		Name  string `arg:"" help:"Environment name"`
+	EnvAddCmd struct {
+		Name  string `arg:"" optional:"" help:"Environment name (interactive if omitted)"`
 		Force bool   `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
 	}
 	EnvUseCmd struct {
@@ -104,33 +104,65 @@ func runEnvList(cli CLI, deps Dependencies, out io.Writer) int {
 	return 0
 }
 
-// runEnvCreate executes the 'env create' command which adds a new environment
+// runEnvAdd executes the 'env add' command which adds a new environment
 // to the generator.yml configuration with an optional mode specifier.
-func runEnvCreate(cli CLI, deps Dependencies, out io.Writer) int {
-	rawName := strings.TrimSpace(cli.Env.Create.Name)
-	if rawName == "" {
-		fmt.Fprintln(out, "environment name is required")
-		return 1
-	}
+func runEnvAdd(cli CLI, deps Dependencies, out io.Writer) int {
+	rawName := strings.TrimSpace(cli.Env.Add.Name)
 
-	opts := newResolveOptions(cli.Env.Create.Force)
+	opts := newResolveOptions(cli.Env.Add.Force)
 	ctx, err := resolveEnvContext(cli, deps, opts)
 	if err != nil {
-		fmt.Fprintln(out, err)
-		return 1
+		return exitWithError(out, err)
+	}
+
+	isTTY := isTerminal(os.Stdin)
+	if rawName == "" {
+		if !isTTY || deps.Prompter == nil {
+			var names []string
+			for _, env := range ctx.Project.Generator.Environments {
+				names = append(names, env.Name)
+			}
+			return exitWithSuggestionAndAvailable(out,
+				"Environment name required.",
+				[]string{"esb env create <name>"},
+				names,
+			)
+		}
+
+		// Prompt for name
+		var suggestions []string
+		for _, env := range ctx.Project.Generator.Environments {
+			suggestions = append(suggestions, env.Name)
+		}
+		name, err := deps.Prompter.Input("Environment name", suggestions)
+		if err != nil {
+			return exitWithError(out, err)
+		}
+		rawName = strings.TrimSpace(name)
+		if rawName == "" {
+			return exitWithError(out, fmt.Errorf("environment name is required"))
+		}
 	}
 
 	name, mode := splitEnvMode(rawName)
 	if name == "" {
-		fmt.Fprintln(out, "environment name is required")
-		return 1
+		return exitWithError(out, fmt.Errorf("invalid environment name"))
 	}
+
 	if mode == "" {
-		mode = defaultMode()
+		if isTTY && deps.Prompter != nil {
+			selected, err := deps.Prompter.Select("Select mode", []string{"docker", "containerd", "firecracker"})
+			if err != nil {
+				return exitWithError(out, err)
+			}
+			mode = selected
+		} else {
+			mode = defaultMode()
+		}
 	}
+
 	if ctx.Project.Generator.Environments.Has(name) {
-		fmt.Fprintln(out, "environment already exists")
-		return 1
+		return exitWithError(out, fmt.Errorf("environment %q already exists", name))
 	}
 
 	ctx.Project.Generator.Environments = append(ctx.Project.Generator.Environments, config.EnvironmentSpec{
@@ -138,11 +170,10 @@ func runEnvCreate(cli CLI, deps Dependencies, out io.Writer) int {
 		Mode: mode,
 	})
 	if err := config.SaveGeneratorConfig(ctx.Project.GeneratorPath, ctx.Project.Generator); err != nil {
-		fmt.Fprintln(out, err)
-		return 1
+		return exitWithError(out, err)
 	}
 
-	fmt.Fprintf(out, "Created environment '%s'\n", name)
+	fmt.Fprintf(out, "Added environment '%s'\n", name)
 	return 0
 }
 

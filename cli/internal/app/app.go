@@ -43,6 +43,7 @@ type Dependencies struct {
 	Provisioner     Provisioner
 	Pruner          Pruner
 	Now             func() time.Time
+	Prompter        Prompter
 }
 
 // CLI defines the command-line interface structure parsed by Kong.
@@ -162,8 +163,8 @@ func Run(args []string, deps Dependencies) int {
 		return runLogs(cli, deps, out)
 	case command == "env list":
 		return runEnvList(cli, deps, out)
-	case strings.HasPrefix(command, "env create"):
-		return runEnvCreate(cli, deps, out)
+	case strings.HasPrefix(command, "env add"):
+		return runEnvAdd(cli, deps, out)
 	case strings.HasPrefix(command, "env use"):
 		return runEnvUse(cli, deps, out)
 	case strings.HasPrefix(command, "env remove"):
