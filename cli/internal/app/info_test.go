@@ -62,9 +62,10 @@ func TestRunInfoOutputsConfigAndState(t *testing.T) {
 	var out bytes.Buffer
 	deps.Out = &out
 
-	exitCode := Run([]string{"info"}, deps)
+	// Call with no args (equivalent to old 'info' command)
+	exitCode := Run([]string{}, deps)
 	if exitCode != 0 {
-		t.Fatalf("expected exit code 0, got %d", exitCode)
+		t.Fatalf("expected exit code 0, got %d; output: %s", exitCode, out.String())
 	}
 
 	if capturedEnv != "staging" {
