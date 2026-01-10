@@ -53,6 +53,7 @@ func runBuild(cli CLI, deps Dependencies, out io.Writer) int {
 		return exitWithError(out, err)
 	}
 
-	fmt.Fprintln(out, "build complete")
+	fmt.Fprintln(out, "✓ Build complete")
+	fmt.Fprintln(out, "Next: esb up")
 	return 0
 }

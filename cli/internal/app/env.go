@@ -54,21 +54,52 @@ func runEnvList(cli CLI, deps Dependencies, out io.Writer) int {
 	opts := newResolveOptions(cli.Env.List.Force)
 	ctx, err := resolveEnvContext(cli, deps, opts)
 	if err != nil {
-		fmt.Fprintln(out, err)
-		return 1
+		return exitWithError(out, err)
+	}
+
+	// Pre-calculate status for all environments
+	type envInfo struct {
+		Name   string
+		Mode   string
+		Status string
+		Active bool
 	}
 
 	activeEnv := strings.TrimSpace(ctx.Project.Generator.App.LastEnv)
+	var infos []envInfo
+
 	for _, env := range ctx.Project.Generator.Environments {
 		name := strings.TrimSpace(env.Name)
 		if name == "" {
 			continue
 		}
-		if name == activeEnv {
-			fmt.Fprintf(out, "* %s\n", name)
-			continue
+
+		status := "unknown"
+		if deps.DetectorFactory != nil {
+			detector, err := deps.DetectorFactory(ctx.Project.Dir, name)
+			if err == nil && detector != nil {
+				if current, err := detector.Detect(); err == nil {
+					status = string(current)
+				}
+			}
 		}
-		fmt.Fprintln(out, name)
+
+		infos = append(infos, envInfo{
+			Name:   name,
+			Mode:   env.Mode,
+			Status: status,
+			Active: name == activeEnv,
+		})
+	}
+
+	for _, info := range infos {
+		marker := " "
+		if info.Active {
+			marker = "*"
+		}
+
+		color := "" // TODO: Add colors if terminal supports it
+		fmt.Fprintf(out, "%s %s (%s) - %s%s\n", marker, info.Name, info.Mode, color, info.Status)
 	}
 	return 0
 }

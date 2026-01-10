@@ -103,7 +103,10 @@ func runUp(cli CLI, deps Dependencies, out io.Writer) int {
 		}
 	}
 
-	fmt.Fprintln(out, "up complete")
+	fmt.Fprintln(out, "✓ Up complete")
+	fmt.Fprintln(out, "Next:")
+	fmt.Fprintln(out, "  esb logs <service>  # View logs")
+	fmt.Fprintln(out, "  esb down            # Stop environment")
 	return 0
 }
 

@@ -288,6 +288,7 @@ func runInitCommand(cli CLI, deps Dependencies, out io.Writer) int {
 	}
 
 	fmt.Fprintf(out, "Configuration saved to: %s\n", path)
+	fmt.Fprintln(out, "Next: esb build")
 	return 0
 }
 
