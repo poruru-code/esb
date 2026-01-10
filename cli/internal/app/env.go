@@ -93,13 +93,17 @@ func runEnvList(cli CLI, deps Dependencies, out io.Writer) int {
 	}
 
 	for _, info := range infos {
-		marker := " "
+		marker := "    "
 		if info.Active {
-			marker = "*"
+			marker = "🌐  "
 		}
 
-		color := "" // TODO: Add colors if terminal supports it
-		fmt.Fprintf(out, "%s %s (%s) - %s%s\n", marker, info.Name, info.Mode, color, info.Status)
+		statusIcon := "⚪"
+		if info.Status == "running" {
+			statusIcon = "🟢"
+		}
+
+		fmt.Fprintf(out, "%s %s (%s) - %s %s\n", marker, info.Name, info.Mode, statusIcon, info.Status)
 	}
 	return 0
 }

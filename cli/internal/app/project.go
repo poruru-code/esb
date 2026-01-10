@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
 // ProjectCmd groups all project management subcommands including
@@ -58,7 +59,7 @@ func runProjectList(_ CLI, _ Dependencies, out io.Writer) int {
 	}
 
 	if len(cfg.Projects) == 0 {
-		fmt.Fprintln(out, "No projects registered.")
+		fmt.Fprintln(out, "📦 No projects registered.")
 		return 0
 	}
 
@@ -68,14 +69,18 @@ func runProjectList(_ CLI, _ Dependencies, out io.Writer) int {
 	}
 	sort.Strings(names)
 
-	activeProject := os.Getenv("ESB_PROJECT")
+	appState, _ := state.ResolveAppState(state.AppStateOptions{
+		ProjectEnv: os.Getenv("ESB_PROJECT"),
+		Projects:   cfg.Projects,
+	})
+	activeProject := appState.ActiveProject
 
 	for _, name := range names {
 		if name == activeProject {
-			fmt.Fprintf(out, "* %s\n", name)
+			fmt.Fprintf(out, "📦  %s\n", name)
 			continue
 		}
-		fmt.Fprintln(out, name)
+		fmt.Fprintf(out, "    %s\n", name)
 	}
 	return 0
 }
@@ -96,7 +101,7 @@ func runProjectRecent(_ CLI, _ Dependencies, out io.Writer) int {
 	}
 
 	for i, project := range list {
-		fmt.Fprintf(out, "%d. %s\n", i+1, project.Name)
+		fmt.Fprintf(out, "%2d. 📦 %s\n", i+1, project.Name)
 	}
 	return 0
 }
