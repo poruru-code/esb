@@ -46,6 +46,7 @@ func buildDependencies() (app.Dependencies, io.Closer, error) {
 		Waiter:          app.NewGatewayWaiter(),
 		Provisioner:     provisionerAdapter{runner: provisioner.New(client)},
 		Pruner:          app.NewPruner(),
+		Prompter:        app.HuhPrompter{},
 	}
 
 	return deps, asCloser(client), nil

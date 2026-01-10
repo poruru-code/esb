@@ -34,7 +34,7 @@ func ResolveProjectState(opts ProjectStateOptions) (ProjectState, error) {
 	hasEnvs := len(envs) > 0
 	if !hasEnvs {
 		return ProjectState{HasEnvironments: false, GeneratorValid: true}, fmt.Errorf(
-			"No environments defined. Run 'esb env create <name>' first.",
+			"no environments defined; run 'esb env add <name>' first",
 		)
 	}
 
@@ -81,6 +81,6 @@ func ResolveProjectState(opts ProjectStateOptions) (ProjectState, error) {
 	}
 
 	return ProjectState{HasEnvironments: true, GeneratorValid: true}, fmt.Errorf(
-		"No active environment. Run 'esb env use <name>' first.",
+		"no active environment; run 'esb env use <name>' first",
 	)
 }

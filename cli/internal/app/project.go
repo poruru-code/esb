@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -18,15 +19,24 @@ import (
 // ProjectCmd groups all project management subcommands including
 // list, use, and recent operations.
 type ProjectCmd struct {
-	List   ProjectListCmd   `cmd:"" help:"List projects"`
+	List   ProjectListCmd   `cmd:"" help:"List projects" aliases:"ls"`
+	Add    ProjectAddCmd    `cmd:"" help:"Add project"`
 	Use    ProjectUseCmd    `cmd:"" help:"Switch project"`
+	Remove ProjectRemoveCmd `cmd:"" help:"Remove project"`
 	Recent ProjectRecentCmd `cmd:"" help:"Show recent projects"`
 }
 
 type (
-	ProjectListCmd   struct{}
+	ProjectListCmd struct{}
+	ProjectAddCmd  struct {
+		Path string `arg:"" optional:"" help:"Directory path to add (default: .)"`
+		Name string `help:"Project name" short:"n"`
+	}
 	ProjectRecentCmd struct{}
 	ProjectUseCmd    struct {
+		Name string `arg:"" optional:"" help:"Project name or index (interactive if omitted)"`
+	}
+	ProjectRemoveCmd struct {
 		Name string `arg:"" optional:"" help:"Project name or index (interactive if omitted)"`
 	}
 )
@@ -58,7 +68,13 @@ func runProjectList(_ CLI, _ Dependencies, out io.Writer) int {
 	}
 	sort.Strings(names)
 
+	activeProject := os.Getenv("ESB_PROJECT")
+
 	for _, name := range names {
+		if name == activeProject {
+			fmt.Fprintf(out, "* %s\n", name)
+			continue
+		}
 		fmt.Fprintln(out, name)
 	}
 	return 0
@@ -96,7 +112,7 @@ func runProjectUse(cli CLI, deps Dependencies, out io.Writer) int {
 
 	if len(cfg.Projects) == 0 {
 		return exitWithSuggestion(out, "No projects registered.",
-			[]string{"esb init -t <template>"})
+			[]string{"esb project add . -t <template>"})
 	}
 
 	selector := strings.TrimSpace(cli.Project.Use.Name)
@@ -154,6 +170,145 @@ func runProjectUse(cli CLI, deps Dependencies, out io.Writer) int {
 
 	fmt.Fprintf(os.Stderr, "Switched to project '%s'\n", projectName)
 	fmt.Fprintf(out, "export ESB_PROJECT=%s\n", projectName)
+	return 0
+}
+
+// runProjectRemove executes the 'project remove' command which deregisters
+// a project from the global configuration.
+func runProjectRemove(cli CLI, deps Dependencies, out io.Writer) int {
+	path, cfg, err := loadGlobalConfigWithPath()
+	if err != nil {
+		return exitWithError(out, err)
+	}
+
+	selector := cli.Project.Remove.Name
+	if selector == "" {
+		if deps.Prompter == nil {
+			return exitWithError(out, fmt.Errorf("project name or index is required"))
+		}
+
+		list := sortProjectsByRecent(cfg)
+		options := make([]string, len(list))
+		for i, p := range list {
+			options[i] = p.Name
+		}
+
+		selected, err := deps.Prompter.Select("Select project to remove", options)
+		if err != nil {
+			return exitWithError(out, err)
+		}
+		selector = selected
+	}
+
+	projectName, err := selectProject(cfg, selector)
+	if err != nil {
+		var names []string
+		for name := range cfg.Projects {
+			names = append(names, name)
+		}
+		return exitWithSuggestionAndAvailable(out,
+			fmt.Sprintf("Project '%s' not found.", selector),
+			[]string{"esb project remove <name>", "esb project list"},
+			names,
+		)
+	}
+
+	delete(cfg.Projects, projectName)
+	if err := saveGlobalConfig(path, cfg); err != nil {
+		return exitWithError(out, err)
+	}
+
+	fmt.Fprintf(out, "Removed project '%s' from registered projects.\n", projectName)
+	return 0
+}
+
+// runProjectAdd executes the 'project add' command which registers a project
+// directory. If generator.yml is missing, it initializes it from a SAM template.
+func runProjectAdd(cli CLI, deps Dependencies, out io.Writer) int {
+	dir := cli.Project.Add.Path
+	if dir == "" {
+		dir = "."
+	}
+
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return exitWithError(out, err)
+	}
+
+	generatorPath := filepath.Join(absDir, "generator.yml")
+	if _, err := os.Stat(generatorPath); os.IsNotExist(err) {
+		// New project initialization (old esb init behavior)
+		template := cli.Template
+		if template == "" {
+			// 1. Try to auto-detect standard template files
+			for _, name := range []string{"template.yaml", "template.yml"} {
+				p := filepath.Join(absDir, name)
+				if _, err := os.Stat(p); err == nil {
+					template = p
+					fmt.Fprintf(out, "Detected template: %s\n", name)
+					break
+				}
+			}
+
+			// 2. Prompt user if still not found
+			if template == "" {
+				var err error
+				if deps.Prompter != nil {
+					template, err = deps.Prompter.InputPath("Template path (e.g. template.yaml)")
+				} else if isTerminal(os.Stdin) {
+					template, err = promptLine("Template path (e.g. template.yaml)")
+				} else {
+					// Fallback for non-terminal environments
+					return exitWithSuggestion(out, "Template path is required to initialize a new project.",
+						[]string{"esb project add . --template <path>"})
+				}
+
+				if err != nil {
+					return exitWithError(out, err)
+				}
+			}
+		}
+
+		if template == "" {
+			return exitWithSuggestion(out, "Template path is required to initialize a new project.",
+				[]string{"esb project add . --template <path>"})
+		}
+
+		envs := splitEnvList(cli.EnvFlag)
+		if len(envs) == 0 {
+			// Use prompter if available
+			var input string
+			var err error
+			if deps.Prompter != nil {
+				input, err = deps.Prompter.Input("Environment name (e.g. dev:docker, prod:containerd)", nil)
+			} else if isTerminal(os.Stdin) {
+				input, err = promptLine("Environment name (e.g. dev:docker, prod:containerd)")
+			} else {
+				return exitWithError(out, fmt.Errorf("environment name is required"))
+			}
+
+			if err != nil {
+				return exitWithError(out, err)
+			}
+			envs = splitEnvList(input)
+		}
+
+		path, err := runInit(template, envs, cli.Project.Add.Name)
+		if err != nil {
+			return exitWithError(out, err)
+		}
+		generatorPath = path
+		fmt.Fprintf(out, "Configuration saved to: %s\n", generatorPath)
+	} else {
+		fmt.Fprintf(out, "Found existing generator.yml in %s\n", absDir)
+	}
+
+	if err := registerProject(generatorPath, deps); err != nil {
+		return exitWithError(out, err)
+	}
+
+	fmt.Fprintf(out, "Project registered successfully.\n")
+	fmt.Fprintln(out, "Next: esb build")
 	return 0
 }
 

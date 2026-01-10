@@ -51,7 +51,7 @@ func ResolveAppState(opts AppStateOptions) (AppState, error) {
 
 	if !hasProjects {
 		return AppState{HasProjects: false}, fmt.Errorf(
-			"No projects registered. Run 'esb init -t <template>' to get started.",
+			"no projects registered; run 'esb project add . --template <path>' to get started",
 		)
 	}
 	if len(opts.Projects) == 1 {
@@ -63,7 +63,7 @@ func ResolveAppState(opts AppStateOptions) (AppState, error) {
 	latest, ok := mostRecentProject(opts.Projects)
 	if !ok {
 		return AppState{HasProjects: true}, fmt.Errorf(
-			"No active project. Run 'esb project use <name>' first.",
+			"no active project; run 'esb project use <name>' first",
 		)
 	}
 	return AppState{HasProjects: true, ActiveProject: latest}, nil
@@ -77,7 +77,7 @@ func confirmUnset(envKey, value string, opts AppStateOptions) (bool, error) {
 	if opts.Force {
 		return true, nil
 	}
-	return false, fmt.Errorf("%s %q not found. Re-run with --force to auto-unset.", envKey, value)
+	return false, fmt.Errorf("%s %q not found; re-run with --force to auto-unset", envKey, value)
 }
 
 func mostRecentProject(projects map[string]config.ProjectEntry) (string, bool) {

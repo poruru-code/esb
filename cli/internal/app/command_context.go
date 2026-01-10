@@ -12,6 +12,40 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
+// Prompter defines the interface for interactive user input and selection.
+type Prompter interface {
+	Input(title string, suggestions []string) (string, error)
+	InputPath(title string) (string, error)
+	Select(title string, options []string) (string, error)
+}
+
+type mockPrompter struct {
+	inputFn     func(title string, suggestions []string) (string, error)
+	inputPathFn func(title string) (string, error)
+	selectFn    func(title string, options []string) (string, error)
+}
+
+func (m mockPrompter) Input(title string, suggestions []string) (string, error) {
+	if m.inputFn != nil {
+		return m.inputFn(title, suggestions)
+	}
+	return "", nil
+}
+
+func (m mockPrompter) InputPath(title string) (string, error) {
+	if m.inputPathFn != nil {
+		return m.inputPathFn(title)
+	}
+	return "", nil
+}
+
+func (m mockPrompter) Select(title string, options []string) (string, error) {
+	if m.selectFn != nil {
+		return m.selectFn(title, options)
+	}
+	return "", nil
+}
+
 // exitWithError prints an error message to the output writer and returns
 // exit code 1 for CLI error handling.
 func exitWithError(out io.Writer, err error) int {
@@ -95,7 +129,7 @@ func resolveCommandContext(cli CLI, deps Dependencies, opts resolveOptions) (com
 	}
 	env := strings.TrimSpace(envState.ActiveEnv)
 	if env == "" {
-		return commandContext{}, fmt.Errorf("No active environment. Run 'esb env use <name>' first.")
+		return commandContext{}, fmt.Errorf("no active environment; run 'esb env use <name>' first")
 	}
 
 	ctx, err := state.ResolveContext(projectDir, env)

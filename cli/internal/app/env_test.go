@@ -14,25 +14,6 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 )
 
-type mockPrompter struct {
-	inputFn  func(title string, suggestions []string) (string, error)
-	selectFn func(title string, options []string) (string, error)
-}
-
-func (m mockPrompter) Input(title string, suggestions []string) (string, error) {
-	if m.inputFn != nil {
-		return m.inputFn(title, suggestions)
-	}
-	return "", nil
-}
-
-func (m mockPrompter) Select(title string, options []string) (string, error) {
-	if m.selectFn != nil {
-		return m.selectFn(title, options)
-	}
-	return "", nil
-}
-
 func TestRunEnvList(t *testing.T) {
 	projectDir := t.TempDir()
 	envs := config.Environments{
@@ -195,7 +176,7 @@ func TestRunEnvCreateInteractive(t *testing.T) {
 
 	// Mock isTerminal to return true for interactive tests
 	originalIsTerminal := isTerminal
-	isTerminal = func(file *os.File) bool { return true }
+	isTerminal = func(_ *os.File) bool { return true }
 	defer func() { isTerminal = originalIsTerminal }()
 
 	tests := []struct {

@@ -26,7 +26,7 @@ func runInfo(cli CLI, deps Dependencies, out io.Writer) int {
 	fmt.Fprintf(out, "  path: %s\n", configPath)
 	if cli.Template == "" && len(cfg.Projects) == 0 {
 		fmt.Fprintln(out, "No projects registered.")
-		fmt.Fprintln(out, "Run 'esb init -t <template>' to get started.")
+		fmt.Fprintln(out, "Run 'esb project add . -t <template>' to get started.")
 		return 1
 	}
 

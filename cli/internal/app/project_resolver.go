@@ -21,7 +21,7 @@ type projectSelection struct {
 
 // resolveProjectSelection determines the project directory based on CLI flags,
 // ESB_PROJECT, or the most recently used project.
-func resolveProjectSelection(cli CLI, deps Dependencies, opts resolveOptions) (projectSelection, error) {
+func resolveProjectSelection(cli CLI, _ Dependencies, opts resolveOptions) (projectSelection, error) {
 	if strings.TrimSpace(cli.Template) != "" {
 		absTemplate, err := filepath.Abs(cli.Template)
 		if err != nil {
@@ -52,7 +52,7 @@ func resolveProjectSelection(cli CLI, deps Dependencies, opts resolveOptions) (p
 		return projectSelection{}, err
 	}
 	if strings.TrimSpace(appState.ActiveProject) == "" {
-		return projectSelection{}, fmt.Errorf("No active project. Run 'esb project use <name>' first.")
+		return projectSelection{}, fmt.Errorf("no active project; run 'esb project use <name>' first")
 	}
 
 	entry, ok := cfg.Projects[appState.ActiveProject]

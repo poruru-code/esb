@@ -68,7 +68,7 @@ func TestHandleParseError_EnvUse(t *testing.T) {
 	var buf bytes.Buffer
 	// Mock parse error for "env use" without name
 	err := errors.New(`expected "<name>"`)
-	code := handleParseError([]string{"env", "use"}, err, &buf)
+	code := handleParseError([]string{"env", "use"}, err, Dependencies{}, &buf)
 
 	if code != 1 {
 		t.Errorf("expected exit code 1, got %d", code)
@@ -82,7 +82,7 @@ func TestHandleParseError_EnvUse(t *testing.T) {
 func TestHandleParseError_ProjectUse(t *testing.T) {
 	var buf bytes.Buffer
 	err := errors.New(`expected "<name>"`)
-	code := handleParseError([]string{"project", "use"}, err, &buf)
+	code := handleParseError([]string{"project", "use"}, err, Dependencies{}, &buf)
 
 	if code != 1 {
 		t.Errorf("expected exit code 1, got %d", code)
@@ -96,7 +96,7 @@ func TestHandleParseError_ProjectUse(t *testing.T) {
 func TestHandleParseError_GenericError(t *testing.T) {
 	var buf bytes.Buffer
 	err := errors.New("some other error")
-	code := handleParseError([]string{"build"}, err, &buf)
+	code := handleParseError([]string{"build"}, err, Dependencies{}, &buf)
 
 	if code != 1 {
 		t.Errorf("expected exit code 1, got %d", code)

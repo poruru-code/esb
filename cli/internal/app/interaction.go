@@ -16,11 +16,14 @@ var isTerminal = func(file *os.File) bool {
 	if file == nil {
 		return false
 	}
+	fd := file.Fd()
 	info, err := file.Stat()
 	if err != nil {
 		return false
 	}
-	return (info.Mode() & os.ModeCharDevice) != 0
+	// Check for character device (standard terminal detection)
+	// and ensure it's not a pipe or redirect.
+	return (info.Mode()&os.ModeCharDevice) != 0 && (fd == 0 || fd == 1 || fd == 2)
 }
 
 func promptYesNo(message string) (bool, error) {

@@ -49,19 +49,19 @@ type Dependencies struct {
 // CLI defines the command-line interface structure parsed by Kong.
 // It contains global flags and all subcommand definitions.
 type CLI struct {
-	Template string     `short:"t" help:"Path to SAM template"`
-	EnvFlag  string     `short:"e" name:"env" help:"Environment (default: last used)"`
-	Init     InitCmd    `cmd:"" help:"Initialize project"`
-	Build    BuildCmd   `cmd:"" help:"Build images"`
-	Up       UpCmd      `cmd:"" help:"Start environment"`
-	Down     DownCmd    `cmd:"" help:"Stop environment"`
-	Stop     StopCmd    `cmd:"" help:"Stop environment (preserve state)"`
-	Logs     LogsCmd    `cmd:"" help:"View logs"`
-	Reset    ResetCmd   `cmd:"" help:"Reset environment"`
-	Prune    PruneCmd   `cmd:"" help:"Remove resources"`
-	Status   StatusCmd  `cmd:"" help:"Show state"`
-	Env      EnvCmd     `cmd:"" name:"env" help:"Manage environments"`
-	Project  ProjectCmd `cmd:"" help:"Manage projects"`
+	Template   string        `short:"t" help:"Path to SAM template"`
+	EnvFlag    string        `short:"e" name:"env" help:"Environment (default: last used)"`
+	Build      BuildCmd      `cmd:"" help:"Build images"`
+	Up         UpCmd         `cmd:"" help:"Start environment"`
+	Down       DownCmd       `cmd:"" help:"Stop environment"`
+	Stop       StopCmd       `cmd:"" help:"Stop environment (preserve state)"`
+	Logs       LogsCmd       `cmd:"" help:"View logs"`
+	Reset      ResetCmd      `cmd:"" help:"Reset environment"`
+	Prune      PruneCmd      `cmd:"" help:"Remove resources"`
+	Status     StatusCmd     `cmd:"" help:"Show state"`
+	Env        EnvCmd        `cmd:"" name:"env" help:"Manage environments"`
+	Project    ProjectCmd    `cmd:"" help:"Manage projects"`
+	Completion CompletionCmd `cmd:"" help:"Generate shell completion script"`
 }
 
 type (
@@ -80,9 +80,6 @@ type (
 	}
 )
 
-type InitCmd struct {
-	Name string `short:"n" help:"Project name (default: directory)"`
-}
 type BuildCmd struct {
 	NoCache bool `name:"no-cache" help:"Do not use cache when building images"`
 	Force   bool `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
@@ -138,13 +135,11 @@ func Run(args []string, deps Dependencies) int {
 
 	ctx, err := parser.Parse(args)
 	if err != nil {
-		return handleParseError(args, err, out)
+		return handleParseError(args, err, deps, out)
 	}
 
 	command := ctx.Command()
 	switch {
-	case command == "init":
-		return runInitCommand(cli, deps, out)
 	case command == "build":
 		return runBuild(cli, deps, out)
 	case command == "up":
@@ -161,7 +156,7 @@ func Run(args []string, deps Dependencies) int {
 		return runStatus(cli, deps, out)
 	case strings.HasPrefix(command, "logs"):
 		return runLogs(cli, deps, out)
-	case command == "env list":
+	case command == "env" || command == "env list":
 		return runEnvList(cli, deps, out)
 	case strings.HasPrefix(command, "env add"):
 		return runEnvAdd(cli, deps, out)
@@ -169,12 +164,22 @@ func Run(args []string, deps Dependencies) int {
 		return runEnvUse(cli, deps, out)
 	case strings.HasPrefix(command, "env remove"):
 		return runEnvRemove(cli, deps, out)
-	case command == "project list":
-		return runProjectList(cli, deps, out)
+	case strings.HasPrefix(command, "project add"):
+		return runProjectAdd(cli, deps, out)
 	case command == "project recent":
 		return runProjectRecent(cli, deps, out)
 	case strings.HasPrefix(command, "project use"):
 		return runProjectUse(cli, deps, out)
+	case strings.HasPrefix(command, "project remove"):
+		return runProjectRemove(cli, deps, out)
+	case command == "project" || command == "project list" || command == "project ls":
+		return runProjectList(cli, deps, out)
+	case command == "completion bash":
+		return runCompletionBash(cli, out)
+	case command == "completion zsh":
+		return runCompletionZsh(cli, out)
+	case command == "completion fish":
+		return runCompletionFish(cli, out)
 	default:
 		fmt.Fprintln(out, "unknown command")
 		return 1
@@ -198,7 +203,7 @@ func runStatus(cli CLI, deps Dependencies, out io.Writer) int {
 	}
 	if cli.Template == "" && len(cfg.Projects) == 0 {
 		fmt.Fprintln(out, "No projects registered.")
-		fmt.Fprintln(out, "Run 'esb init -t <template>' to get started.")
+		fmt.Fprintln(out, "Run 'esb project add . --template <path>' to get started.")
 		return 1
 	}
 
@@ -257,42 +262,6 @@ func runStatus(cli CLI, deps Dependencies, out io.Writer) int {
 }
 
 // runInitCommand executes the 'init' command which initializes a new project
-// by creating a generator.yml configuration file from the specified SAM template.
-func runInitCommand(cli CLI, deps Dependencies, out io.Writer) int {
-	if cli.Template == "" {
-		fmt.Fprintln(out, "template is required")
-		return 1
-	}
-
-	envs := splitEnvList(cli.EnvFlag)
-	if len(envs) == 0 {
-		if !isTerminal(os.Stdin) {
-			fmt.Fprintln(out, "environment name is required")
-			return 1
-		}
-		input, err := promptLine("Environment name (comma-separated)")
-		if err != nil {
-			fmt.Fprintln(out, err)
-			return 1
-		}
-		envs = splitEnvList(input)
-	}
-	path, err := runInit(cli.Template, envs, cli.Init.Name)
-	if err != nil {
-		fmt.Fprintln(out, err)
-		return 1
-	}
-
-	if err := registerProject(path, deps); err != nil {
-		fmt.Fprintln(out, err)
-		return 1
-	}
-
-	fmt.Fprintf(out, "Configuration saved to: %s\n", path)
-	fmt.Fprintln(out, "Next: esb build")
-	return 0
-}
-
 // splitEnvList splits a comma-separated string of environment names
 // into a slice. Returns nil if the input is empty.
 func splitEnvList(value string) []string {
@@ -331,7 +300,7 @@ func runNoArgs(deps Dependencies, out io.Writer) int {
 }
 
 // handleParseError provides user-friendly error messages for parse failures.
-func handleParseError(args []string, err error, out io.Writer) int {
+func handleParseError(args []string, err error, deps Dependencies, out io.Writer) int {
 	errStr := err.Error()
 
 	// Handle missing required argument
@@ -358,6 +327,9 @@ func handleParseError(args []string, err error, out io.Writer) int {
 			return exitWithSuggestion(out, "Environment name required.",
 				[]string{"esb env use <name>", "esb env list"})
 
+		case cmd == "env" && strings.Contains(errStr, "expected one of"):
+			return runEnvList(CLI{}, deps, out)
+
 		case strings.HasPrefix(cmd, "project") && strings.Contains(errStr, "<name>"):
 			cfg, _ := loadGlobalConfigOrDefault()
 			var projectNames []string
@@ -369,6 +341,9 @@ func handleParseError(args []string, err error, out io.Writer) int {
 				[]string{"esb project use <name>", "esb project list"},
 				projectNames,
 			)
+
+		case cmd == "project" && strings.Contains(errStr, "expected one of"):
+			return runProjectList(CLI{}, deps, out)
 		}
 	}
 
