@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
+	"github.com/poruru/edge-serverless-box/cli/internal/version"
 )
 
 // runInfo displays configuration details and current environment state.
@@ -23,7 +24,8 @@ func runInfo(cli CLI, deps Dependencies, out io.Writer) int {
 	}
 
 	fmt.Fprintln(out, "⚙️  Config")
-	fmt.Fprintf(out, "   path: %s\n", configPath)
+	fmt.Fprintf(out, "   version: %s\n", version.GetVersion())
+	fmt.Fprintf(out, "   path:    %s\n", configPath)
 	if cli.Template == "" && len(cfg.Projects) == 0 {
 		fmt.Fprintln(out, "\n📦 No projects registered.")
 		fmt.Fprintln(out, "   Run 'esb project add . -t <template>' to get started.")
