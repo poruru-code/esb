@@ -125,21 +125,23 @@ func Run(args []string, deps Dependencies) int {
 	}
 
 	if err := config.EnsureGlobalConfig(); err != nil {
-		fmt.Fprintln(out, err)
-		return 1
+		return exitWithError(out, err)
+	}
+
+	// Handle no arguments: show current location and help
+	if len(args) == 0 {
+		return runNoArgs(deps, out)
 	}
 
 	cli := CLI{}
 	parser, err := kong.New(&cli)
 	if err != nil {
-		fmt.Fprintln(out, err)
-		return 1
+		return exitWithError(out, err)
 	}
 
 	ctx, err := parser.Parse(args)
 	if err != nil {
-		fmt.Fprintln(out, err)
-		return 1
+		return handleParseError(args, err, out)
 	}
 
 	command := ctx.Command()
@@ -324,4 +326,117 @@ func commandName(args []string) string {
 		return arg
 	}
 	return ""
+}
+
+// runNoArgs handles the case when esb is invoked without arguments.
+// It displays the current project/environment context and quick actions.
+func runNoArgs(deps Dependencies, out io.Writer) int {
+	// Try to resolve current context
+	cfg, _ := loadGlobalConfigOrDefault()
+	opts := newResolveOptions(false)
+
+	projectName := ""
+	envName := ""
+	stateStr := ""
+
+	// Resolve project
+	appState, err := state.ResolveAppState(state.AppStateOptions{
+		ProjectEnv:  os.Getenv("ESB_PROJECT"),
+		Projects:    cfg.Projects,
+		Force:       opts.Force,
+		Interactive: false, // Don't prompt in no-args mode
+	})
+	if err == nil && appState.ActiveProject != "" {
+		projectName = appState.ActiveProject
+
+		// Resolve environment
+		entry, ok := cfg.Projects[projectName]
+		if ok {
+			project, loadErr := loadProjectConfig(entry.Path)
+			if loadErr == nil {
+				envState, envErr := state.ResolveProjectState(state.ProjectStateOptions{
+					EnvVar: os.Getenv("ESB_ENV"),
+					Config: project.Generator,
+					Force:  opts.Force,
+				})
+				if envErr == nil && envState.ActiveEnv != "" {
+					envName = envState.ActiveEnv
+
+					// Try to get running state
+					if deps.DetectorFactory != nil {
+						detector, detErr := deps.DetectorFactory(project.Dir, envName)
+						if detErr == nil && detector != nil {
+							current, _ := detector.Detect()
+							stateStr = string(current)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Display current context
+	if projectName != "" && envName != "" {
+		if stateStr != "" {
+			fmt.Fprintf(out, "esb: %s:%s (%s)\n\n", projectName, envName, stateStr)
+		} else {
+			fmt.Fprintf(out, "esb: %s:%s\n\n", projectName, envName)
+		}
+	} else if projectName != "" {
+		fmt.Fprintf(out, "esb: %s (no environment selected)\n\n", projectName)
+	} else {
+		fmt.Fprintf(out, "esb: (no project selected)\n\n")
+	}
+
+	// Show help
+	cli := CLI{}
+	parser, _ := kong.New(&cli)
+	_, _ = parser.Parse([]string{"--help"})
+
+	return 0
+}
+
+// handleParseError provides user-friendly error messages for parse failures.
+func handleParseError(args []string, err error, out io.Writer) int {
+	errStr := err.Error()
+
+	// Handle missing required argument
+	if strings.Contains(errStr, "expected") {
+		cmd := commandName(args)
+		switch {
+		case strings.HasPrefix(cmd, "env") && strings.Contains(errStr, "<name>"):
+			opts := newResolveOptions(false)
+			selection, _ := resolveProjectSelection(CLI{}, Dependencies{}, opts)
+			if selection.Dir != "" {
+				project, loadErr := loadProjectConfig(selection.Dir)
+				if loadErr == nil {
+					var envNames []string
+					for _, env := range project.Generator.Environments {
+						envNames = append(envNames, env.Name)
+					}
+					return exitWithSuggestionAndAvailable(out,
+						"Environment name required.",
+						[]string{"esb env use <name>", "esb env list"},
+						envNames,
+					)
+				}
+			}
+			return exitWithSuggestion(out, "Environment name required.",
+				[]string{"esb env use <name>", "esb env list"})
+
+		case strings.HasPrefix(cmd, "project") && strings.Contains(errStr, "<name>"):
+			cfg, _ := loadGlobalConfigOrDefault()
+			var projectNames []string
+			for name := range cfg.Projects {
+				projectNames = append(projectNames, name)
+			}
+			return exitWithSuggestionAndAvailable(out,
+				"Project name required.",
+				[]string{"esb project use <name>", "esb project list"},
+				projectNames,
+			)
+		}
+	}
+
+	return exitWithError(out, err)
 }

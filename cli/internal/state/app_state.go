@@ -47,7 +47,6 @@ func ResolveAppState(opts AppStateOptions) (AppState, error) {
 			return AppState{}, fmt.Errorf("ESB_PROJECT %q not found", projectEnv)
 		}
 		_ = os.Unsetenv("ESB_PROJECT")
-		projectEnv = ""
 	}
 
 	if !hasProjects {

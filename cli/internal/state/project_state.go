@@ -66,7 +66,6 @@ func ResolveProjectState(opts ProjectStateOptions) (ProjectState, error) {
 			return ProjectState{}, fmt.Errorf("ESB_ENV %q not found", envVar)
 		}
 		_ = os.Unsetenv("ESB_ENV")
-		envVar = ""
 	}
 
 	lastEnv := strings.TrimSpace(opts.Config.App.LastEnv)

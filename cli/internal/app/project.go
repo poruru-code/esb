@@ -27,7 +27,7 @@ type (
 	ProjectListCmd   struct{}
 	ProjectRecentCmd struct{}
 	ProjectUseCmd    struct {
-		Name string `arg:"" help:"Project name or index"`
+		Name string `arg:"" optional:"" help:"Project name or index (interactive if omitted)"`
 	}
 )
 
@@ -86,24 +86,61 @@ func runProjectRecent(_ CLI, _ Dependencies, out io.Writer) int {
 }
 
 // runProjectUse executes the 'project use' command which switches
-// the active project by name or recent index number.
+// the active project by name or recent index number. If no name is provided
+// and running in a TTY, prompts the user to select from registered projects.
 func runProjectUse(cli CLI, deps Dependencies, out io.Writer) int {
-	selector := strings.TrimSpace(cli.Project.Use.Name)
-	if selector == "" {
-		fmt.Fprintln(out, "project name is required")
-		return 1
-	}
-
 	path, cfg, err := loadGlobalConfigWithPath()
 	if err != nil {
-		fmt.Fprintln(out, err)
-		return 1
+		return exitWithError(out, err)
+	}
+
+	if len(cfg.Projects) == 0 {
+		return exitWithSuggestion(out, "No projects registered.",
+			[]string{"esb init -t <template>"})
+	}
+
+	selector := strings.TrimSpace(cli.Project.Use.Name)
+
+	// Interactive selection if no name provided
+	if selector == "" {
+		// Check if interactive mode is available
+		if !isTerminal(os.Stdin) {
+			var names []string
+			for name := range cfg.Projects {
+				names = append(names, name)
+			}
+			return exitWithSuggestionAndAvailable(out,
+				"Project name required (non-interactive mode).",
+				[]string{"esb project use <name>"},
+				names,
+			)
+		}
+
+		// Build options for huh selector
+		list := sortProjectsByRecent(cfg)
+		options := make([]selectOption, len(list))
+		for i, project := range list {
+			options[i] = selectOption{Label: project.Name, Value: project.Name}
+		}
+
+		selected, err := selectFromList("Select project", options)
+		if err != nil {
+			return exitWithError(out, err)
+		}
+		selector = selected
 	}
 
 	projectName, err := selectProject(cfg, selector)
 	if err != nil {
-		fmt.Fprintln(out, err)
-		return 1
+		var names []string
+		for name := range cfg.Projects {
+			names = append(names, name)
+		}
+		return exitWithSuggestionAndAvailable(out,
+			fmt.Sprintf("Project '%s' not found.", selector),
+			[]string{"esb project use <name>", "esb project list"},
+			names,
+		)
 	}
 
 	updated := normalizeGlobalConfig(cfg)
@@ -112,8 +149,7 @@ func runProjectUse(cli CLI, deps Dependencies, out io.Writer) int {
 	updated.Projects[projectName] = entry
 
 	if err := saveGlobalConfig(path, updated); err != nil {
-		fmt.Fprintln(out, err)
-		return 1
+		return exitWithError(out, err)
 	}
 
 	fmt.Fprintf(os.Stderr, "Switched to project '%s'\n", projectName)

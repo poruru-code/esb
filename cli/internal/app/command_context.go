@@ -15,7 +15,37 @@ import (
 // exitWithError prints an error message to the output writer and returns
 // exit code 1 for CLI error handling.
 func exitWithError(out io.Writer, err error) int {
-	fmt.Fprintln(out, err)
+	fmt.Fprintf(out, "✗ %v\n", err)
+	return 1
+}
+
+// exitWithSuggestion prints an error with suggested next steps.
+func exitWithSuggestion(out io.Writer, message string, suggestions []string) int {
+	fmt.Fprintf(out, "✗ %s\n", message)
+	if len(suggestions) > 0 {
+		fmt.Fprintln(out, "\nNext steps:")
+		for _, s := range suggestions {
+			fmt.Fprintf(out, "  %s\n", s)
+		}
+	}
+	return 1
+}
+
+// exitWithSuggestionAndAvailable prints an error with suggestions and available options.
+func exitWithSuggestionAndAvailable(out io.Writer, message string, suggestions, available []string) int {
+	fmt.Fprintf(out, "✗ %s\n", message)
+	if len(suggestions) > 0 {
+		fmt.Fprintln(out, "\nNext steps:")
+		for _, s := range suggestions {
+			fmt.Fprintf(out, "  %s\n", s)
+		}
+	}
+	if len(available) > 0 {
+		fmt.Fprintln(out, "\nAvailable:")
+		for _, a := range available {
+			fmt.Fprintf(out, "  - %s\n", a)
+		}
+	}
 	return 1
 }
 
