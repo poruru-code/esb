@@ -31,7 +31,8 @@ func runBuild(cli CLI, deps Dependencies, out io.Writer) int {
 		return 1
 	}
 
-	ctxInfo, err := resolveCommandContext(cli, deps)
+	opts := newResolveOptions(cli.Build.Force)
+	ctxInfo, err := resolveCommandContext(cli, deps, opts)
 	if err != nil {
 		return exitWithError(out, err)
 	}

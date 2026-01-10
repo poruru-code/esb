@@ -41,15 +41,20 @@ func TestRunInit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load global config: %v", err)
 	}
-	if cfg.ActiveProject != filepath.Base(projectDir) {
-		t.Fatalf("unexpected active project: %s", cfg.ActiveProject)
+	entry, ok := cfg.Projects[filepath.Base(projectDir)]
+	if !ok {
+		t.Fatalf("expected project entry for %s", filepath.Base(projectDir))
 	}
-	if cfg.ActiveEnvironments[cfg.ActiveProject] != "default" {
-		t.Fatalf("unexpected active env: %s", cfg.ActiveEnvironments[cfg.ActiveProject])
+	if entry.Path == "" {
+		t.Fatalf("expected project path to be set")
+	}
+	if entry.LastUsed == "" {
+		t.Fatalf("expected last_used to be set")
 	}
 }
 
 func TestRunInitMissingTemplate(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	var out bytes.Buffer
 	deps := Dependencies{Out: &out}
 
@@ -72,7 +77,7 @@ func TestRunInitWithName(t *testing.T) {
 	var out bytes.Buffer
 	deps := Dependencies{Out: &out}
 
-	exitCode := Run([]string{"--template", templatePath, "init", "--name", "myapp"}, deps)
+	exitCode := Run([]string{"--template", templatePath, "init", "--name", "myapp", "--env", "dev"}, deps)
 	if exitCode != 0 {
 		t.Fatalf("expected exit code 0, got %d", exitCode)
 	}
@@ -93,7 +98,14 @@ func TestRunInitWithName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load global config: %v", err)
 	}
-	if globalCfg.ActiveProject != "myapp" {
-		t.Fatalf("unexpected active project: %s", globalCfg.ActiveProject)
+	entry, ok := globalCfg.Projects["myapp"]
+	if !ok {
+		t.Fatalf("expected project entry for myapp")
+	}
+	if entry.Path == "" {
+		t.Fatalf("expected project path to be set")
+	}
+	if entry.LastUsed == "" {
+		t.Fatalf("expected last_used to be set")
 	}
 }

@@ -6,6 +6,7 @@ package app
 import (
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
@@ -37,8 +38,8 @@ type commandContext struct {
 
 // resolveCommandContext resolves the project selection, environment,
 // and state context from CLI flags and dependencies.
-func resolveCommandContext(cli CLI, deps Dependencies) (commandContext, error) {
-	selection, err := resolveProjectSelection(cli, deps)
+func resolveCommandContext(cli CLI, deps Dependencies, opts resolveOptions) (commandContext, error) {
+	selection, err := resolveProjectSelection(cli, deps, opts)
 	if err != nil {
 		return commandContext{}, err
 	}
@@ -47,9 +48,25 @@ func resolveCommandContext(cli CLI, deps Dependencies) (commandContext, error) {
 		projectDir = "."
 	}
 
-	envDeps := deps
-	envDeps.ProjectDir = projectDir
-	env := resolveEnv(cli, envDeps)
+	project, err := loadProjectConfig(projectDir)
+	if err != nil {
+		return commandContext{}, err
+	}
+	envState, err := state.ResolveProjectState(state.ProjectStateOptions{
+		EnvFlag:     cli.EnvFlag,
+		EnvVar:      os.Getenv("ESB_ENV"),
+		Config:      project.Generator,
+		Force:       opts.Force,
+		Interactive: opts.Interactive,
+		Prompt:      opts.Prompt,
+	})
+	if err != nil {
+		return commandContext{}, err
+	}
+	env := strings.TrimSpace(envState.ActiveEnv)
+	if env == "" {
+		return commandContext{}, fmt.Errorf("No active environment. Run 'esb env use <name>' first.")
+	}
 
 	ctx, err := state.ResolveContext(projectDir, env)
 	if err != nil {

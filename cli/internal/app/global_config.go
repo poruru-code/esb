@@ -5,43 +5,10 @@ package app
 
 import (
 	"os"
-	"strings"
 	"time"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 )
-
-// resolveEnv determines the active environment from CLI flags, global config,
-// or falls back to "default". Validates the environment exists in the project.
-func resolveEnv(cli CLI, deps Dependencies) string {
-	if strings.TrimSpace(cli.EnvFlag) != "" {
-		return strings.TrimSpace(cli.EnvFlag)
-	}
-
-	path, err := config.GlobalConfigPath()
-	if err != nil {
-		return "default"
-	}
-	cfg, err := loadGlobalConfig(path)
-	if err != nil {
-		return "default"
-	}
-	if cfg.ActiveProject != "" {
-		if env := strings.TrimSpace(cfg.ActiveEnvironments[cfg.ActiveProject]); env != "" {
-			if deps.ProjectDir != "" {
-				project, err := loadProjectConfig(deps.ProjectDir)
-				if err == nil {
-					if project.Generator.Environments.Has(env) {
-						return env
-					}
-					return "default"
-				}
-			}
-			return env
-		}
-	}
-	return "default"
-}
 
 // loadGlobalConfig loads the global configuration from the specified path.
 // Returns a default config if the file doesn't exist.
@@ -63,21 +30,15 @@ func saveGlobalConfig(path string, cfg config.GlobalConfig) error {
 
 // defaultGlobalConfig returns an empty but properly initialized GlobalConfig.
 func defaultGlobalConfig() config.GlobalConfig {
-	return config.GlobalConfig{
-		Version:            1,
-		ActiveEnvironments: map[string]string{},
-		Projects:           map[string]config.ProjectEntry{},
-	}
+	return config.DefaultGlobalConfig()
 }
 
 // normalizeGlobalConfig ensures all map fields are initialized and the
 // version field is set. Prevents nil pointer dereferences.
 func normalizeGlobalConfig(cfg config.GlobalConfig) config.GlobalConfig {
+	defaults := config.DefaultGlobalConfig()
 	if cfg.Version == 0 {
-		cfg.Version = 1
-	}
-	if cfg.ActiveEnvironments == nil {
-		cfg.ActiveEnvironments = map[string]string{}
+		cfg.Version = defaults.Version
 	}
 	if cfg.Projects == nil {
 		cfg.Projects = map[string]config.ProjectEntry{}

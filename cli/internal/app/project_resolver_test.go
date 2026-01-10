@@ -1,6 +1,6 @@
 // Where: cli/internal/app/project_resolver_test.go
 // What: Tests for project directory resolution.
-// Why: Ensure commands honor --template and active project selection.
+// Why: Ensure commands honor --template, ESB_PROJECT, and recent project selection.
 package app
 
 import (
@@ -21,7 +21,7 @@ func TestResolveProjectSelectionUsesTemplateDir(t *testing.T) {
 	cli := CLI{Template: templatePath}
 	deps := Dependencies{ProjectDir: t.TempDir()}
 
-	got, err := resolveProjectSelection(cli, deps)
+	got, err := resolveProjectSelection(cli, deps, resolveOptions{})
 	if err != nil {
 		t.Fatalf("resolve project selection: %v", err)
 	}
@@ -34,7 +34,7 @@ func TestResolveProjectSelectionUsesTemplateDir(t *testing.T) {
 	}
 }
 
-func TestResolveProjectSelectionUsesActiveProjectWhenMissingGenerator(t *testing.T) {
+func TestResolveProjectSelectionUsesESBProject(t *testing.T) {
 	projectDir := t.TempDir()
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
@@ -42,14 +42,14 @@ func TestResolveProjectSelectionUsesActiveProjectWhenMissingGenerator(t *testing
 
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
+	t.Setenv("ESB_PROJECT", "demo")
 
 	configPath, err := config.GlobalConfigPath()
 	if err != nil {
 		t.Fatalf("global config path: %v", err)
 	}
 	globalCfg := config.GlobalConfig{
-		Version:       1,
-		ActiveProject: "demo",
+		Version: 1,
 		Projects: map[string]config.ProjectEntry{
 			"demo": {Path: projectDir},
 		},
@@ -61,7 +61,7 @@ func TestResolveProjectSelectionUsesActiveProjectWhenMissingGenerator(t *testing
 	cli := CLI{}
 	deps := Dependencies{ProjectDir: t.TempDir()}
 
-	got, err := resolveProjectSelection(cli, deps)
+	got, err := resolveProjectSelection(cli, deps, resolveOptions{})
 	if err != nil {
 		t.Fatalf("resolve project selection: %v", err)
 	}
@@ -70,14 +70,14 @@ func TestResolveProjectSelectionUsesActiveProjectWhenMissingGenerator(t *testing
 	}
 }
 
-func TestResolveProjectSelectionPrefersCurrentProject(t *testing.T) {
-	projectDir := t.TempDir()
-	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
+func TestResolveProjectSelectionUsesMostRecentProject(t *testing.T) {
+	firstDir := t.TempDir()
+	if err := writeGeneratorFixture(firstDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
 	}
 
-	activeDir := t.TempDir()
-	if err := writeGeneratorFixture(activeDir, "default"); err != nil {
+	secondDir := t.TempDir()
+	if err := writeGeneratorFixture(secondDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
 	}
 
@@ -89,10 +89,10 @@ func TestResolveProjectSelectionPrefersCurrentProject(t *testing.T) {
 		t.Fatalf("global config path: %v", err)
 	}
 	globalCfg := config.GlobalConfig{
-		Version:       1,
-		ActiveProject: "demo",
+		Version: 1,
 		Projects: map[string]config.ProjectEntry{
-			"demo": {Path: activeDir},
+			"alpha": {Path: firstDir, LastUsed: "2026-01-01T00:00:00Z"},
+			"beta":  {Path: secondDir, LastUsed: "2026-01-02T00:00:00Z"},
 		},
 	}
 	if err := config.SaveGlobalConfig(configPath, globalCfg); err != nil {
@@ -100,13 +100,13 @@ func TestResolveProjectSelectionPrefersCurrentProject(t *testing.T) {
 	}
 
 	cli := CLI{}
-	deps := Dependencies{ProjectDir: projectDir}
+	deps := Dependencies{ProjectDir: t.TempDir()}
 
-	got, err := resolveProjectSelection(cli, deps)
+	got, err := resolveProjectSelection(cli, deps, resolveOptions{})
 	if err != nil {
 		t.Fatalf("resolve project selection: %v", err)
 	}
-	if got.Dir != projectDir {
+	if got.Dir != secondDir {
 		t.Fatalf("unexpected project dir: %s", got.Dir)
 	}
 }

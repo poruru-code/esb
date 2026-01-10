@@ -33,17 +33,15 @@ func TestRunInfoOutputsConfigAndState(t *testing.T) {
 
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
+	t.Setenv("ESB_PROJECT", "demo")
+	t.Setenv("ESB_ENV", "staging")
 
 	configPath, err := config.GlobalConfigPath()
 	if err != nil {
 		t.Fatalf("global config path: %v", err)
 	}
 	globalCfg := config.GlobalConfig{
-		Version:       1,
-		ActiveProject: "demo",
-		ActiveEnvironments: map[string]string{
-			"demo": "staging",
-		},
+		Version: 1,
 		Projects: map[string]config.ProjectEntry{
 			"demo": {Path: projectDir},
 		},

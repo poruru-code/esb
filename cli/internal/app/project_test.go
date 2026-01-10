@@ -54,8 +54,7 @@ func TestRunProjectUseUpdatesGlobalConfig(t *testing.T) {
 	t.Setenv("HOME", homeDir)
 
 	cfg := config.GlobalConfig{
-		Version:       1,
-		ActiveProject: "alpha",
+		Version: 1,
 		Projects: map[string]config.ProjectEntry{
 			"alpha": {Path: "/projects/alpha", LastUsed: "2026-01-01T00:00:00Z"},
 			"beta":  {Path: "/projects/beta", LastUsed: "2026-01-02T00:00:00Z"},
@@ -87,11 +86,11 @@ func TestRunProjectUseUpdatesGlobalConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load global config: %v", err)
 	}
-	if updated.ActiveProject != "beta" {
-		t.Fatalf("unexpected active project: %s", updated.ActiveProject)
-	}
 	if entry := updated.Projects["beta"]; entry.LastUsed != now.Format(time.RFC3339) {
 		t.Fatalf("unexpected last_used: %s", entry.LastUsed)
+	}
+	if !strings.Contains(out.String(), "export ESB_PROJECT=beta") {
+		t.Fatalf("unexpected output: %q", out.String())
 	}
 }
 
@@ -134,8 +133,8 @@ func TestRunProjectUseByIndex(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load global config: %v", err)
 	}
-	if updated.ActiveProject != "beta" {
-		t.Fatalf("unexpected active project: %s", updated.ActiveProject)
+	if entry := updated.Projects["beta"]; entry.LastUsed != now.Format(time.RFC3339) {
+		t.Fatalf("unexpected last_used: %s", entry.LastUsed)
 	}
 }
 

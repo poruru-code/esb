@@ -6,6 +6,7 @@ package app
 import (
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"time"
 
@@ -22,15 +23,20 @@ type EnvCmd struct {
 }
 
 type (
-	EnvListCmd   struct{}
+	EnvListCmd struct {
+		Force bool `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
+	}
 	EnvCreateCmd struct {
-		Name string `arg:"" help:"Environment name"`
+		Name  string `arg:"" help:"Environment name"`
+		Force bool   `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
 	}
 	EnvUseCmd struct {
-		Name string `arg:"" help:"Environment name"`
+		Name  string `arg:"" help:"Environment name"`
+		Force bool   `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
 	}
 	EnvRemoveCmd struct {
-		Name string `arg:"" help:"Environment name"`
+		Name  string `arg:"" help:"Environment name"`
+		Force bool   `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
 	}
 )
 
@@ -44,14 +50,15 @@ type envContext struct {
 
 // runEnvList executes the 'env list' command which displays all environments
 // defined in generator.yml, marking the active one with an asterisk.
-func runEnvList(_ CLI, deps Dependencies, out io.Writer) int {
-	ctx, err := resolveEnvContext(deps)
+func runEnvList(cli CLI, deps Dependencies, out io.Writer) int {
+	opts := newResolveOptions(cli.Env.List.Force)
+	ctx, err := resolveEnvContext(cli, deps, opts)
 	if err != nil {
 		fmt.Fprintln(out, err)
 		return 1
 	}
 
-	activeEnv := strings.TrimSpace(ctx.Config.ActiveEnvironments[ctx.Project.Name])
+	activeEnv := strings.TrimSpace(ctx.Project.Generator.App.LastEnv)
 	for _, env := range ctx.Project.Generator.Environments {
 		name := strings.TrimSpace(env.Name)
 		if name == "" {
@@ -75,7 +82,8 @@ func runEnvCreate(cli CLI, deps Dependencies, out io.Writer) int {
 		return 1
 	}
 
-	ctx, err := resolveEnvContext(deps)
+	opts := newResolveOptions(cli.Env.Create.Force)
+	ctx, err := resolveEnvContext(cli, deps, opts)
 	if err != nil {
 		fmt.Fprintln(out, err)
 		return 1
@@ -116,7 +124,8 @@ func runEnvUse(cli CLI, deps Dependencies, out io.Writer) int {
 		return 1
 	}
 
-	ctx, err := resolveEnvContext(deps)
+	opts := newResolveOptions(cli.Env.Use.Force)
+	ctx, err := resolveEnvContext(cli, deps, opts)
 	if err != nil {
 		fmt.Fprintln(out, err)
 		return 1
@@ -130,19 +139,24 @@ func runEnvUse(cli CLI, deps Dependencies, out io.Writer) int {
 		return 1
 	}
 
-	cfg := normalizeGlobalConfig(ctx.Config)
-	cfg.ActiveProject = ctx.Project.Name
-	cfg.ActiveEnvironments[ctx.Project.Name] = name
-	cfg.Projects[ctx.Project.Name] = config.ProjectEntry{
-		Path:     ctx.Project.Dir,
-		LastUsed: now(deps).Format(time.RFC3339),
+	ctx.Project.Generator.App.LastEnv = name
+	if err := config.SaveGeneratorConfig(ctx.Project.GeneratorPath, ctx.Project.Generator); err != nil {
+		fmt.Fprintln(out, err)
+		return 1
 	}
+
+	cfg := normalizeGlobalConfig(ctx.Config)
+	entry := cfg.Projects[ctx.Project.Name]
+	entry.Path = ctx.Project.Dir
+	entry.LastUsed = now(deps).Format(time.RFC3339)
+	cfg.Projects[ctx.Project.Name] = entry
 	if err := saveGlobalConfig(ctx.ConfigPath, cfg); err != nil {
 		fmt.Fprintln(out, err)
 		return 1
 	}
 
-	fmt.Fprintf(out, "Switched to '%s:%s'\n", ctx.Project.Name, name)
+	fmt.Fprintf(os.Stderr, "Switched to '%s:%s'\n", ctx.Project.Name, name)
+	fmt.Fprintf(out, "export ESB_ENV=%s\n", name)
 	return 0
 }
 
@@ -155,7 +169,8 @@ func runEnvRemove(cli CLI, deps Dependencies, out io.Writer) int {
 		return 1
 	}
 
-	ctx, err := resolveEnvContext(deps)
+	opts := newResolveOptions(cli.Env.Remove.Force)
+	ctx, err := resolveEnvContext(cli, deps, opts)
 	if err != nil {
 		fmt.Fprintln(out, err)
 		return 1
@@ -177,18 +192,12 @@ func runEnvRemove(cli CLI, deps Dependencies, out io.Writer) int {
 		filtered = append(filtered, env)
 	}
 	ctx.Project.Generator.Environments = filtered
+	if strings.TrimSpace(ctx.Project.Generator.App.LastEnv) == name {
+		ctx.Project.Generator.App.LastEnv = ""
+	}
 	if err := config.SaveGeneratorConfig(ctx.Project.GeneratorPath, ctx.Project.Generator); err != nil {
 		fmt.Fprintln(out, err)
 		return 1
-	}
-
-	if ctx.ConfigPath != "" && ctx.Config.ActiveEnvironments[ctx.Project.Name] == name {
-		cfg := normalizeGlobalConfig(ctx.Config)
-		delete(cfg.ActiveEnvironments, ctx.Project.Name)
-		if err := saveGlobalConfig(ctx.ConfigPath, cfg); err != nil {
-			fmt.Fprintln(out, err)
-			return 1
-		}
 	}
 
 	fmt.Fprintf(out, "Removed environment '%s'\n", name)
@@ -197,24 +206,21 @@ func runEnvRemove(cli CLI, deps Dependencies, out io.Writer) int {
 
 // resolveEnvContext loads the global and project configuration needed
 // for environment management operations.
-func resolveEnvContext(deps Dependencies) (envContext, error) {
-	cfg := defaultGlobalConfig()
-	path, err := config.GlobalConfigPath()
-	if err == nil {
-		loaded, err := loadGlobalConfig(path)
-		if err != nil {
-			return envContext{}, err
-		}
-		cfg = loaded
+func resolveEnvContext(cli CLI, deps Dependencies, opts resolveOptions) (envContext, error) {
+	selection, err := resolveProjectSelection(cli, deps, opts)
+	if err != nil {
+		return envContext{}, err
+	}
+	projectDir := selection.Dir
+	if strings.TrimSpace(projectDir) == "" {
+		projectDir = "."
 	}
 
-	projectDir := deps.ProjectDir
-	if cfg.ActiveProject != "" {
-		if entry, ok := cfg.Projects[cfg.ActiveProject]; ok && strings.TrimSpace(entry.Path) != "" {
-			projectDir = entry.Path
-		}
-	}
 	project, err := loadProjectConfig(projectDir)
+	if err != nil {
+		return envContext{}, err
+	}
+	path, cfg, err := loadGlobalConfigWithPath()
 	if err != nil {
 		return envContext{}, err
 	}

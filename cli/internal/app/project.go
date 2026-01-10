@@ -6,6 +6,7 @@ package app
 import (
 	"fmt"
 	"io"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -38,7 +39,7 @@ type recentProject struct {
 }
 
 // runProjectList executes the 'project list' command which displays
-// all registered projects, marking the active one with an asterisk.
+// all registered projects.
 func runProjectList(_ CLI, _ Dependencies, out io.Writer) int {
 	cfg, err := loadGlobalConfigOrDefault()
 	if err != nil {
@@ -47,7 +48,7 @@ func runProjectList(_ CLI, _ Dependencies, out io.Writer) int {
 	}
 
 	if len(cfg.Projects) == 0 {
-		fmt.Fprintln(out, "no projects registered")
+		fmt.Fprintln(out, "No projects registered.")
 		return 0
 	}
 
@@ -58,10 +59,6 @@ func runProjectList(_ CLI, _ Dependencies, out io.Writer) int {
 	sort.Strings(names)
 
 	for _, name := range names {
-		if name == cfg.ActiveProject {
-			fmt.Fprintf(out, "* %s\n", name)
-			continue
-		}
 		fmt.Fprintln(out, name)
 	}
 	return 0
@@ -110,7 +107,6 @@ func runProjectUse(cli CLI, deps Dependencies, out io.Writer) int {
 	}
 
 	updated := normalizeGlobalConfig(cfg)
-	updated.ActiveProject = projectName
 	entry := updated.Projects[projectName]
 	entry.LastUsed = now(deps).Format(time.RFC3339)
 	updated.Projects[projectName] = entry
@@ -120,7 +116,8 @@ func runProjectUse(cli CLI, deps Dependencies, out io.Writer) int {
 		return 1
 	}
 
-	fmt.Fprintf(out, "Switched to project '%s'\n", projectName)
+	fmt.Fprintf(os.Stderr, "Switched to project '%s'\n", projectName)
+	fmt.Fprintf(out, "export ESB_PROJECT=%s\n", projectName)
 	return 0
 }
 

@@ -50,6 +50,7 @@ func TestRunResetCallsDownBuildUp(t *testing.T) {
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
 	}
+	setupProjectConfig(t, projectDir, "demo")
 	t.Setenv("ESB_MODE", "")
 
 	downer := &fakeResetDowner{}
@@ -103,6 +104,7 @@ func TestRunResetCallsDownBuildUp(t *testing.T) {
 }
 
 func TestRunResetWithoutYes(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	projectDir := t.TempDir()
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
@@ -131,6 +133,7 @@ func TestRunResetWithoutYes(t *testing.T) {
 }
 
 func TestRunResetMissingDeps(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	projectDir := t.TempDir()
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
@@ -151,6 +154,7 @@ func TestRunResetSetsModeFromGenerator(t *testing.T) {
 	if err := writeGeneratorFixtureWithMode(projectDir, "default", "firecracker"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
 	}
+	setupProjectConfig(t, projectDir, "demo")
 
 	t.Setenv("ESB_MODE", "")
 
@@ -185,27 +189,8 @@ func TestRunResetUsesActiveEnvFromGlobalConfig(t *testing.T) {
 		t.Fatalf("write generator fixture: %v", err)
 	}
 	t.Setenv("ESB_MODE", "")
-
-	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
-
-	configPath, err := config.GlobalConfigPath()
-	if err != nil {
-		t.Fatalf("global config path: %v", err)
-	}
-	globalCfg := config.GlobalConfig{
-		Version:       1,
-		ActiveProject: "demo",
-		ActiveEnvironments: map[string]string{
-			"demo": "staging",
-		},
-		Projects: map[string]config.ProjectEntry{
-			"demo": {Path: projectDir},
-		},
-	}
-	if err := config.SaveGlobalConfig(configPath, globalCfg); err != nil {
-		t.Fatalf("save global config: %v", err)
-	}
+	setupProjectConfig(t, projectDir, "demo")
+	t.Setenv("ESB_ENV", "staging")
 
 	downer := &fakeResetDowner{}
 	builder := &fakeResetBuilder{}

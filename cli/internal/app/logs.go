@@ -35,7 +35,8 @@ func runLogs(cli CLI, deps Dependencies, out io.Writer) int {
 		return 1
 	}
 
-	ctxInfo, err := resolveCommandContext(cli, deps)
+	opts := newResolveOptions(cli.Logs.Force)
+	ctxInfo, err := resolveCommandContext(cli, deps, opts)
 	if err != nil {
 		fmt.Fprintln(out, err)
 		return 1

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kong"
+	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
@@ -48,7 +49,7 @@ type Dependencies struct {
 // It contains global flags and all subcommand definitions.
 type CLI struct {
 	Template string     `short:"t" help:"Path to SAM template"`
-	EnvFlag  string     `short:"e" name:"env" help:"Environment (default: active)"`
+	EnvFlag  string     `short:"e" name:"env" help:"Environment (default: last used)"`
 	Init     InitCmd    `cmd:"" help:"Initialize project"`
 	Build    BuildCmd   `cmd:"" help:"Build images"`
 	Up       UpCmd      `cmd:"" help:"Start environment"`
@@ -64,14 +65,21 @@ type CLI struct {
 }
 
 type (
-	StatusCmd struct{}
-	InfoCmd   struct{}
-	StopCmd   struct{}
-	LogsCmd   struct {
+	StatusCmd struct {
+		Force bool `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
+	}
+	InfoCmd struct {
+		Force bool `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
+	}
+	StopCmd struct {
+		Force bool `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
+	}
+	LogsCmd struct {
 		Service    string `arg:"" optional:"" help:"Service name (default: all)"`
 		Follow     bool   `short:"f" help:"Follow logs"`
 		Tail       int    `help:"Tail the latest N lines"`
 		Timestamps bool   `help:"Show timestamps"`
+		Force      bool   `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
 	}
 )
 
@@ -80,21 +88,26 @@ type InitCmd struct {
 }
 type BuildCmd struct {
 	NoCache bool `name:"no-cache" help:"Do not use cache when building images"`
+	Force   bool `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
 }
 type UpCmd struct {
 	Build  bool `help:"Rebuild before starting"`
 	Detach bool `short:"d" default:"true" help:"Run in background"`
 	Wait   bool `short:"w" help:"Wait for gateway ready"`
+	Force  bool `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
 }
 type DownCmd struct {
 	Volumes bool `short:"v" help:"Remove named volumes"`
+	Force   bool `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
 }
 type ResetCmd struct {
-	Yes bool `short:"y" help:"Skip confirmation"`
+	Yes   bool `short:"y" help:"Skip confirmation"`
+	Force bool `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
 }
 type PruneCmd struct {
-	Yes  bool `short:"y" help:"Skip confirmation"`
-	Hard bool `help:"Also remove generator.yml"`
+	Yes   bool `short:"y" help:"Skip confirmation"`
+	Hard  bool `help:"Also remove generator.yml"`
+	Force bool `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
 }
 
 // Run is the main entry point for CLI command execution.
@@ -108,6 +121,11 @@ func Run(args []string, deps Dependencies) int {
 
 	if commandName(args) == "node" {
 		fmt.Fprintln(out, "node command is disabled in Go CLI")
+		return 1
+	}
+
+	if err := config.EnsureGlobalConfig(); err != nil {
+		fmt.Fprintln(out, err)
 		return 1
 	}
 
@@ -175,21 +193,55 @@ func runStatus(cli CLI, deps Dependencies, out io.Writer) int {
 		return 1
 	}
 
-	selection, err := resolveProjectSelection(cli, deps)
+	opts := newResolveOptions(cli.Status.Force)
+	_, cfg, err := loadGlobalConfigWithPath()
 	if err != nil {
 		fmt.Fprintln(out, err)
 		return 1
 	}
-	projectDir := selection.Dir
-	if projectDir == "" {
-		projectDir = "."
+	if cli.Template == "" && len(cfg.Projects) == 0 {
+		fmt.Fprintln(out, "No projects registered.")
+		fmt.Fprintln(out, "Run 'esb init -t <template>' to get started.")
+		return 1
 	}
 
-	envDeps := deps
-	envDeps.ProjectDir = projectDir
-	env := resolveEnv(cli, envDeps)
+	selection, err := resolveProjectSelection(cli, deps, opts)
+	if err != nil {
+		fmt.Fprintln(out, err)
+		return 1
+	}
 
-	detector, err := factory(projectDir, env)
+	projectDir := selection.Dir
+	if strings.TrimSpace(projectDir) == "" {
+		projectDir = "."
+	}
+	project, err := loadProjectConfig(projectDir)
+	if err != nil {
+		fmt.Fprintln(out, err)
+		return 1
+	}
+
+	envState, err := state.ResolveProjectState(state.ProjectStateOptions{
+		EnvFlag:     cli.EnvFlag,
+		EnvVar:      os.Getenv("ESB_ENV"),
+		Config:      project.Generator,
+		Force:       opts.Force,
+		Interactive: opts.Interactive,
+		Prompt:      opts.Prompt,
+	})
+	if err != nil {
+		fmt.Fprintf(out, "Project: %s\n", project.Name)
+		fmt.Fprintln(out, err)
+		return 1
+	}
+
+	ctx, err := state.ResolveContext(project.Dir, envState.ActiveEnv)
+	if err != nil {
+		fmt.Fprintln(out, err)
+		return 1
+	}
+
+	detector, err := factory(ctx.ProjectDir, ctx.Env)
 	if err != nil {
 		fmt.Fprintln(out, err)
 		return 1
@@ -201,7 +253,9 @@ func runStatus(cli CLI, deps Dependencies, out io.Writer) int {
 		return 1
 	}
 
-	fmt.Fprintln(out, stateValue)
+	fmt.Fprintf(out, "Project: %s\n", project.Name)
+	fmt.Fprintf(out, "Environment: %s\n", ctx.Env)
+	fmt.Fprintf(out, "State: %s\n", stateValue)
 	return 0
 }
 
@@ -214,6 +268,18 @@ func runInitCommand(cli CLI, deps Dependencies, out io.Writer) int {
 	}
 
 	envs := splitEnvList(cli.EnvFlag)
+	if len(envs) == 0 {
+		if !isTerminal(os.Stdin) {
+			fmt.Fprintln(out, "environment name is required")
+			return 1
+		}
+		input, err := promptLine("Environment name (comma-separated)")
+		if err != nil {
+			fmt.Fprintln(out, err)
+			return 1
+		}
+		envs = splitEnvList(input)
+	}
 	path, err := runInit(cli.Template, envs, cli.Init.Name)
 	if err != nil {
 		fmt.Fprintln(out, err)

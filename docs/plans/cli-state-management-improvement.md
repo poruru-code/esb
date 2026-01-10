@@ -27,22 +27,24 @@ detector.go → DeriveState() → 5状態のみ
 ┌──────────────────────────────────────────────────────┐
 │ Bootstrap: グローバル設定 (~/.esb/config.yaml)        │
 │   - 存在しなければ自動作成                           │
-│   - プロジェクト登録 (projects) のみ永続化           │
-│   - active_project/active_env は保存しない          │
+│   - プロジェクト登録 (projects + last_used) のみ永続化│
+│   - active_project/active_env は保存しない           │
 └──────────────────────────────────────────────────────┘
         ↓ 常に保証される
 ┌──────────────────────────────────────────────────────┐
-│ Level 0: アプリケーション状態 (環境変数)              │
-│   - ESB_PROJECT: アクティブプロジェクト名            │
-│   - has_projects: config.yaml から判定              │
+│ Level 0: アプリケーション状態 (環境変数 + config)     │
+│   - ESB_PROJECT: プロジェクト名                      │
+│   - has_projects: config.yaml から判定               │
+│   - fallback: projects.last_used                     │
 └──────────────────────────────────────────────────────┘
-        ↓ ESB_PROJECT が設定されている場合のみ
+        ↓ project が解決できた場合のみ
 ┌──────────────────────────────────────────────────────┐
-│ Level 1: プロジェクト状態 (環境変数)                  │
-│   - ESB_ENV: アクティブ環境名                        │
-│   - has_environments: generator.yml から判定        │
+│ Level 1: プロジェクト状態 (環境変数 + generator)      │
+│   - ESB_ENV: 環境名                                  │
+│   - has_environments: generator.yml から判定         │
+│   - fallback: app.last_env / 単一環境の自動選択       │
 └──────────────────────────────────────────────────────┘
-        ↓ ESB_ENV が設定されている場合のみ
+        ↓ env が解決できた場合のみ
 ┌──────────────────────────────────────────────────────┐
 │ Level 2: 環境状態 (既存のステートマシン)              │
 │   - uninitialized / initialized / built /            │
@@ -56,19 +58,49 @@ detector.go → DeriveState() → 5状態のみ
 - **既存互換**: ESB_ENV は既に使用中
 - **シンプル**: config.yaml の書き込み競合を回避
 
+### 優先順位 (project/env の解決)
+
+1. `--env` / `--template` フラグ
+2. `ESB_ENV` / `ESB_PROJECT`
+3. `config.yaml` の `projects.last_used`
+
+### 自動選択ルール
+
+- **ESB_PROJECT 未設定**:
+  - `projects.last_used` が最新のプロジェクトを採用
+  - プロジェクトが1件のみなら自動選択
+  - それ以外はエラー
+- **ESB_ENV 未設定**:
+  - `generator.yml` の `app.last_env` を採用
+  - 環境が1件のみなら自動選択
+  - それ以外はエラー
+
+### `init` の入力ルール
+
+- 環境名は必須 (`--env` 未指定なら対話で入力)
+- 選択肢がある場合は選択式で提示
+- 既定の `default` は自動作成しない
+
 ### `esb project use` / `esb env use` の動作
 
 ```bash
 $ esb project use my-app
+Switched to project 'my-app'
 export ESB_PROJECT=my-app
 
 $ esb env use dev
+Switched to 'my-app:dev'
 export ESB_ENV=dev
 
 # ユーザーが eval で適用
 $ eval $(esb project use my-app)
 $ eval $(esb env use dev)
 ```
+
+補足:
+- `project use` は `config.yaml` の `projects[*].last_used` を更新
+- `env use` は `generator.yml` の `app.last_env` と `projects[*].last_used` を更新
+- メッセージは stderr、`export` 行は stdout に出力する
 
 ## 設計の重要ポイント
 
@@ -79,8 +111,8 @@ $ eval $(esb env use dev)
 
 ```
 [追加] Bootstrap チェック (~/.esb/config.yaml 保証)
-[追加] active_project チェック
-[追加] active_env チェック
+[追加] project 解決 (優先順位 + last_used + 自動選択 + 対話/--force)
+[追加] env 解決 (優先順位 + app.last_env + 自動選択 + 対話/--force)
     ↓ ここまでがゲート
 [既存] Detector (Level 2) ← 基本そのまま維持
 ```
@@ -159,18 +191,18 @@ stateDiagram-v2
 ### 前提条件の依存チェーン
 
 ```
-project use (プロジェクト選択)
+project 選択 (ESB_PROJECT / last_used)
     ↓ 必須
-env use (環境選択)
+env 選択 (ESB_ENV / app.last_env / 単一環境)
     ↓ 必須
 build / up / down / stop / reset / logs / prune (環境操作コマンド)
 ```
 
 ### コマンド別の前提条件
 
-| コマンド | Bootstrap | active_project | active_env | 備考 |
+| コマンド | Bootstrap | project 選択 | env 選択 | 備考 |
 |---------|:---------:|:--------------:|:----------:|------|
-| `esb init` | ✓ | - | - | 新規作成 |
+| `esb init` | ✓ | - | - | 環境名入力必須 (未指定は対話) |
 | `esb project list` | ✓ | - | - | 一覧表示のみ |
 | `esb project use` | ✓ | - | - | プロジェクトが1つ以上必要 |
 | `esb env list` | ✓ | ✓ 必須 | - | |
@@ -189,14 +221,26 @@ build / up / down / stop / reset / logs / prune (環境操作コマンド)
 ### エラーメッセージ例
 
 ```
-# active_project が未設定の場合
+# ESB_PROJECT が未設定の場合
 $ esb env list
 Error: No active project. Run 'esb project use <name>' first.
 
-# active_env が未設定の場合
+# ESB_ENV が未設定の場合
 $ esb build
 Error: No active environment. Run 'esb env use <name>' first.
+
+# ESB_PROJECT が不正な場合 (TTY)
+Error: ESB_PROJECT 'foo' not found. Unset ESB_PROJECT? [y/N]
+
+# ESB_ENV が不正な場合 (non-TTY)
+Error: ESB_ENV 'dev' not found. Re-run with --force to auto-unset.
 ```
+
+### 対話と `--force`
+
+- `ESB_PROJECT` / `ESB_ENV` が不正な場合は対話で `unset` を促す
+- TTY でない場合は `--force` 付きのみ自動 `unset`
+- `--force` は project/env 解決を行うコマンドに限定で追加
 
 ## 実装計画
 
@@ -205,7 +249,7 @@ Error: No active environment. Run 'esb env use <name>' first.
 **目的**: `~/.esb/config.yaml` の自動作成を保証
 
 **変更対象**:
-- `cli/internal/config/global.go`: `EnsureGlobalConfig()` 関数追加
+- `cli/internal/config/global.go`: `EnsureGlobalConfig()` 関数追加 + `GlobalConfig` の整理
 - `cli/cmd/esb/cli.go`: 初期化時に `EnsureGlobalConfig()` 呼び出し
 
 **動作**:
@@ -222,6 +266,10 @@ func EnsureGlobalConfig() error {
 }
 ```
 
+補足:
+- `GlobalConfig` から `active_project` / `active_environments` を削除
+- `projects[*].last_used` のみで履歴を保持
+
 ### Phase 2: Level 0 (アプリケーション状態) の実装
 
 **目的**: プロジェクトの有無とアクティブプロジェクトを明示的に管理
@@ -232,17 +280,18 @@ func EnsureGlobalConfig() error {
 ```go
 type AppState struct {
     HasProjects   bool
-    ActiveProject string
+    ActiveProject string // resolved by priority
 }
 
 func ResolveAppState() (AppState, error) {
-    cfg, err := config.LoadGlobalConfig(...)
-    return AppState{
-        HasProjects:   len(cfg.Projects) > 0,
-        ActiveProject: cfg.ActiveProject,
-    }, nil
+    // priority: --template > ESB_PROJECT > projects.last_used
 }
 ```
+
+補足:
+- `--template` 指定時は project dir が確定するため、`ESB_PROJECT` が未設定でも通す
+- `ESB_PROJECT` が不正な場合は対話で `unset` を促し、`--force` で自動 `unset`
+- project が解決できない場合はエラー
 
 ### Phase 3: Level 1 (プロジェクト状態) の実装
 
@@ -254,12 +303,18 @@ func ResolveAppState() (AppState, error) {
 ```go
 type ProjectState struct {
     HasEnvironments bool
-    ActiveEnv       string
+    ActiveEnv       string // resolved by priority
     GeneratorValid  bool
 }
 
 func ResolveProjectState(projectDir string) (ProjectState, error)
 ```
+
+補足:
+- `generator.yml` に `app.last_env` を追加し、`env use` 実行時のみ更新
+- `ActiveEnv` は `--env` > `ESB_ENV` > `app.last_env` > 単一環境の順に解決
+- `ESB_ENV` が不正な場合は対話で `unset` を促し、`--force` で自動 `unset`
+- env が解決できない場合はエラー
 
 ### Phase 4: コマンドハンドラの統一
 
@@ -267,6 +322,16 @@ func ResolveProjectState(projectDir string) (ProjectState, error)
 
 **変更対象**:
 - `cli/internal/app/app.go`: コマンド実行前のレベルチェック追加
+  - `--force` は project/env 解決が必要なコマンドに限定で追加
+  - TTY 判定が false の場合は `--force` がないと自動 unset しない
+  - `resolveProjectSelection` は CWD 走査を廃止し、優先順位で解決
+- `cli/internal/app/project.go` / `cli/internal/app/env.go`:
+  - メッセージ(stderr) + export(stdout) の出力に統一
+  - `projects[*].last_used` を更新
+  - `env use` は `app.last_env` を更新
+- `cli/internal/app/init.go`:
+  - `--env` 未指定時は対話で入力
+  - 既定の `default` は作成しない
 
 ```go
 func runBuild(cli CLI, deps Dependencies, out io.Writer) int {
@@ -315,6 +380,7 @@ State: running
 - `docs/developer/cli-architecture.md`: 状態図を実装に合わせて更新
 - 現在の stateDiagram (Building/Failed/Resetting) を削除
 - 4層モデルの説明を追加
+- `app.last_env` / `--force` / 優先順位ルールを明記
 
 ## 検証計画
 
@@ -435,6 +501,9 @@ run_esb(["up", "--wait"])
 run_esb(["down"])
 ```
 
+補足:
+- 優先順位により `--env`/`--template` を渡す場合は `ESB_ENV`/`ESB_PROJECT` を無視する
+
 #### generator.yml (環境定義の唯一の情報源)
 
 `e2e/fixtures/generator.yml`:
@@ -458,6 +527,3 @@ paths:
 - test_matrix.yaml は環境名を参照するだけ
 - mode 重複による不整合リスクなし
 - 並列実行安全 (環境変数ベース)
-
-
-

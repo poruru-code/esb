@@ -17,7 +17,7 @@ import (
 func runInit(templatePath string, envs []string, projectName string) (string, error) {
 	cleaned := normalizeEnvs(envs)
 	if len(cleaned) == 0 {
-		cleaned = []string{"default"}
+		return "", fmt.Errorf("environment name is required")
 	}
 
 	specs, err := parseEnvSpecs(cleaned)

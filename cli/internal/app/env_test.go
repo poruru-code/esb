@@ -23,6 +23,7 @@ func TestRunEnvList(t *testing.T) {
 	if err := writeGeneratorFixtureWithEnvs(projectDir, envs, "demo"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
 	}
+	setupProjectConfig(t, projectDir, "demo")
 
 	var out bytes.Buffer
 	deps := Dependencies{Out: &out, ProjectDir: projectDir}
@@ -48,8 +49,7 @@ func TestRunEnvUseUpdatesGlobalConfig(t *testing.T) {
 		t.Fatalf("write generator fixture: %v", err)
 	}
 
-	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+	setupProjectConfig(t, projectDir, "demo")
 
 	now := time.Date(2026, 1, 8, 12, 0, 0, 0, time.UTC)
 	var out bytes.Buffer
@@ -75,12 +75,6 @@ func TestRunEnvUseUpdatesGlobalConfig(t *testing.T) {
 		t.Fatalf("load global config: %v", err)
 	}
 
-	if cfg.ActiveProject != "demo" {
-		t.Fatalf("unexpected active project: %s", cfg.ActiveProject)
-	}
-	if cfg.ActiveEnvironments["demo"] != "staging" {
-		t.Fatalf("unexpected active env: %s", cfg.ActiveEnvironments["demo"])
-	}
 	absProjectDir, err := filepath.Abs(projectDir)
 	if err != nil {
 		t.Fatalf("abs project dir: %v", err)
@@ -95,6 +89,17 @@ func TestRunEnvUseUpdatesGlobalConfig(t *testing.T) {
 	if entry.LastUsed != now.Format(time.RFC3339) {
 		t.Fatalf("unexpected last_used: %s", entry.LastUsed)
 	}
+	if !strings.Contains(out.String(), "export ESB_ENV=staging") {
+		t.Fatalf("unexpected output: %q", out.String())
+	}
+
+	generatorCfg, err := config.LoadGeneratorConfig(filepath.Join(projectDir, "generator.yml"))
+	if err != nil {
+		t.Fatalf("load generator config: %v", err)
+	}
+	if generatorCfg.App.LastEnv != "staging" {
+		t.Fatalf("unexpected last_env: %s", generatorCfg.App.LastEnv)
+	}
 }
 
 func TestRunEnvCreateAddsEnvironment(t *testing.T) {
@@ -105,6 +110,7 @@ func TestRunEnvCreateAddsEnvironment(t *testing.T) {
 	if err := writeGeneratorFixtureWithEnvs(projectDir, envs, "demo"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
 	}
+	setupProjectConfig(t, projectDir, "demo")
 
 	var out bytes.Buffer
 	deps := Dependencies{Out: &out, ProjectDir: projectDir}
@@ -136,6 +142,7 @@ func TestRunEnvRemoveDeletesEnvironment(t *testing.T) {
 	if err := writeGeneratorFixtureWithEnvs(projectDir, envs, "demo"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
 	}
+	setupProjectConfig(t, projectDir, "demo")
 
 	var out bytes.Buffer
 	deps := Dependencies{Out: &out, ProjectDir: projectDir}
@@ -165,6 +172,7 @@ func TestRunEnvRemoveRejectsLastEnvironment(t *testing.T) {
 	if err := writeGeneratorFixtureWithEnvs(projectDir, envs, "demo"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
 	}
+	setupProjectConfig(t, projectDir, "demo")
 
 	var out bytes.Buffer
 	deps := Dependencies{Out: &out, ProjectDir: projectDir}
@@ -192,4 +200,26 @@ func writeGeneratorFixtureWithEnvs(projectDir string, envs config.Environments, 
 		},
 	}
 	return config.SaveGeneratorConfig(filepath.Join(projectDir, "generator.yml"), cfg)
+}
+
+func setupProjectConfig(t *testing.T, projectDir, name string) {
+	t.Helper()
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	t.Setenv("ESB_PROJECT", name)
+	t.Setenv("ESB_ENV", "")
+
+	configPath, err := config.GlobalConfigPath()
+	if err != nil {
+		t.Fatalf("global config path: %v", err)
+	}
+	cfg := config.GlobalConfig{
+		Version: 1,
+		Projects: map[string]config.ProjectEntry{
+			name: {Path: projectDir, LastUsed: "2026-01-01T00:00:00Z"},
+		},
+	}
+	if err := config.SaveGlobalConfig(configPath, cfg); err != nil {
+		t.Fatalf("save global config: %v", err)
+	}
 }

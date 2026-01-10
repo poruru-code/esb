@@ -23,6 +23,7 @@ func TestRunStopCallsStopper(t *testing.T) {
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
 	}
+	setupProjectConfig(t, projectDir, "demo")
 
 	stopper := &fakeStopper{}
 	var out bytes.Buffer
@@ -41,6 +42,7 @@ func TestRunStopCallsStopper(t *testing.T) {
 }
 
 func TestRunStopMissingStopper(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	projectDir := t.TempDir()
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
@@ -70,6 +72,7 @@ func TestRunLogsCallsLogger(t *testing.T) {
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
 	}
+	setupProjectConfig(t, projectDir, "demo")
 
 	logger := &fakeLogger{}
 	var out bytes.Buffer
@@ -92,6 +95,7 @@ func TestRunLogsCallsLogger(t *testing.T) {
 }
 
 func TestRunLogsMissingLogger(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	projectDir := t.TempDir()
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)

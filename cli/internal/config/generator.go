@@ -23,8 +23,9 @@ type GeneratorConfig struct {
 
 // AppConfig contains the application name and default tag.
 type AppConfig struct {
-	Name string `yaml:"name"`
-	Tag  string `yaml:"tag"`
+	Name    string `yaml:"name"`
+	Tag     string `yaml:"tag"`
+	LastEnv string `yaml:"last_env,omitempty"`
 }
 
 // PathsConfig specifies paths for SAM template and output directories.
