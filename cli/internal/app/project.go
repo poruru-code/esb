@@ -326,6 +326,13 @@ func selectProject(cfg config.GlobalConfig, selector string) (string, error) {
 		return "", fmt.Errorf("no projects registered")
 	}
 
+	// 1. Try exact name match first.
+	// This prevents collisions where a project name is numeric (e.g. "001").
+	if _, ok := cfg.Projects[selector]; ok {
+		return selector, nil
+	}
+
+	// 2. Try index interpretation for numeric selectors.
 	if index, err := strconv.Atoi(selector); err == nil {
 		if index <= 0 {
 			return "", fmt.Errorf("invalid project index")
@@ -337,10 +344,7 @@ func selectProject(cfg config.GlobalConfig, selector string) (string, error) {
 		return list[index-1].Name, nil
 	}
 
-	if _, ok := cfg.Projects[selector]; !ok {
-		return "", fmt.Errorf("project not found")
-	}
-	return selector, nil
+	return "", fmt.Errorf("project not found")
 }
 
 // sortProjectsByRecent returns projects sorted by last-used timestamp,
