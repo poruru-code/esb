@@ -409,6 +409,25 @@ def warmup_environment(env_scenarios: dict, matrix: list[dict], esb_project: str
     """
     # 1. Global Reset (if requested)
     if args.reset:
+        print("\n[RESET] Stopping Docker containers for all test environments...")
+        for entry in matrix:
+            env_name = entry.get("esb_env")
+            if not env_name:
+                continue
+            # Set environment variables for esb down
+            env = os.environ.copy()
+            env["ESB_PROJECT"] = esb_project
+            env["ESB_ENV"] = env_name
+            env["ESB_HOME"] = str(E2E_STATE_ROOT / env_name)
+            # Stop and remove containers (ignore errors if not running)
+            subprocess.run(
+                ["go", "run", "./cmd/esb", "down", "-v"],
+                cwd=GO_CLI_ROOT,
+                env=env,
+                check=False,
+                capture_output=True,
+            )
+
         print("\n[RESET] Fully cleaning all test artifact directories in e2e/fixtures/.esb/")
         import shutil
 
