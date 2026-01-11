@@ -191,6 +191,18 @@ func runProjectRemove(cli CLI, deps Dependencies, out io.Writer) int {
 
 	selector := cli.Project.Remove.Name
 	if selector == "" {
+		if !isTerminal(os.Stdin) {
+			var names []string
+			for name := range cfg.Projects {
+				names = append(names, name)
+			}
+			return exitWithSuggestionAndAvailable(out,
+				"Project name required (non-interactive mode).",
+				[]string{"esb project remove <name>"},
+				names,
+			)
+		}
+
 		if deps.Prompter == nil {
 			return exitWithError(out, fmt.Errorf("project name or index is required"))
 		}
