@@ -72,6 +72,7 @@ func NewUpper() Upper {
 			Project: request.Context.ComposeProject,
 			Target:  "control",
 			Detach:  request.Detach,
+			EnvFile: request.EnvFile,
 		}
 		return compose.UpProject(context.Background(), compose.ExecRunner{}, opts)
 	})

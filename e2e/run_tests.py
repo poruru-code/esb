@@ -752,8 +752,13 @@ def run_scenario(args, scenario):
         if scenario.get("build_only"):
             return
 
-        # 3. UP
-        run_esb(["up", "--detach", "--wait"])
+        # 3. UP - pass --env-file if specified
+        up_args = ["up", "--detach", "--wait"]
+        if scenario.get("env_file"):
+            env_file_path = PROJECT_ROOT / scenario["env_file"]
+            if env_file_path.exists():
+                up_args.extend(["--env-file", str(env_file_path)])
+        run_esb(up_args)
 
         # 3.5 Load dynamic ports from ports.json (created by esb up)
         ports = load_ports(env_name)

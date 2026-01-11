@@ -85,10 +85,11 @@ type BuildCmd struct {
 	Force   bool `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
 }
 type UpCmd struct {
-	Build  bool `help:"Rebuild before starting"`
-	Detach bool `short:"d" default:"true" help:"Run in background"`
-	Wait   bool `short:"w" help:"Wait for gateway ready"`
-	Force  bool `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
+	Build   bool   `help:"Rebuild before starting"`
+	Detach  bool   `short:"d" default:"true" help:"Run in background"`
+	Wait    bool   `short:"w" help:"Wait for gateway ready"`
+	Force   bool   `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
+	EnvFile string `name:"env-file" help:"Path to .env file for Docker Compose"`
 }
 type DownCmd struct {
 	Volumes bool `short:"v" help:"Remove named volumes"`

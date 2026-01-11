@@ -183,3 +183,44 @@ func TestUpProjectBuildsCommand(t *testing.T) {
 		t.Fatalf("unexpected working dir: %s", runner.dir)
 	}
 }
+
+func TestUpProjectPassesEnvFile(t *testing.T) {
+	root := t.TempDir()
+	files := []string{
+		"docker-compose.yml",
+		"docker-compose.worker.yml",
+		"docker-compose.docker.yml",
+	}
+	for _, name := range files {
+		path := filepath.Join(root, name)
+		if err := os.WriteFile(path, []byte("test"), 0o644); err != nil {
+			t.Fatalf("write compose file: %v", err)
+		}
+	}
+
+	runner := &fakeRunner{}
+	opts := UpOptions{
+		RootDir: root,
+		Project: "esb-test",
+		Detach:  true,
+		EnvFile: "/path/to/.env.docker",
+	}
+
+	if err := UpProject(context.Background(), runner, opts); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	expected := []string{
+		"compose",
+		"-p", "esb-test",
+		"-f", filepath.Join(root, "docker-compose.yml"),
+		"-f", filepath.Join(root, "docker-compose.worker.yml"),
+		"-f", filepath.Join(root, "docker-compose.docker.yml"),
+		"--env-file", "/path/to/.env.docker",
+		"up",
+		"-d",
+	}
+	if !reflect.DeepEqual(runner.args, expected) {
+		t.Fatalf("unexpected args:\ngot:  %v\nwant: %v", runner.args, expected)
+	}
+}

@@ -16,6 +16,7 @@ type UpRequest struct {
 	Context state.Context
 	Detach  bool
 	Wait    bool
+	EnvFile string
 }
 
 // Upper defines the interface for starting the environment.
@@ -72,6 +73,7 @@ func runUp(cli CLI, deps Dependencies, out io.Writer) int {
 		Context: ctx,
 		Detach:  cli.Up.Detach,
 		Wait:    cli.Up.Wait,
+		EnvFile: cli.Up.EnvFile,
 	}
 	if err := deps.Upper.Up(request); err != nil {
 		return exitWithError(out, err)
