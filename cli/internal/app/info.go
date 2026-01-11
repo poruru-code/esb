@@ -58,15 +58,33 @@ func runInfo(cli CLI, deps Dependencies, out io.Writer) int {
 		Interactive: opts.Interactive,
 		Prompt:      opts.Prompt,
 	})
+
+	// Proceed even if environment resolution fails (e.g. no active env),
+	// so we can still show project info.
+	var envError error
 	if err != nil {
-		fmt.Fprintln(out, err)
-		return 1
+		envError = err
+		envState = state.ProjectState{
+			HasEnvironments: false,
+			ActiveEnv:       "",
+			GeneratorValid:  true,
+		}
 	}
 
-	ctx, err := state.ResolveContext(project.Dir, envState.ActiveEnv)
-	if err != nil {
-		fmt.Fprintln(out, err)
-		return 1
+	var ctx state.Context
+	if envError == nil {
+		ctx, err = state.ResolveContext(project.Dir, envState.ActiveEnv)
+		if err != nil {
+			fmt.Fprintln(out, err)
+			return 1
+		}
+	} else {
+		ctx = state.Context{
+			Env:          "(none)",
+			Mode:         "unknown",
+			TemplatePath: "(pending)",
+			OutputDir:    project.Generator.Paths.OutputDir,
+		}
 	}
 
 	fmt.Fprintln(out, "\n📦 Project")
@@ -77,12 +95,15 @@ func runInfo(cli CLI, deps Dependencies, out io.Writer) int {
 	fmt.Fprintf(out, "   out:  %s\n", ctx.OutputDir)
 
 	fmt.Fprintln(out, "\n🌐 Environment")
+	if envError != nil {
+		fmt.Fprintf(out, "   status: %v\n", envError)
+	}
 	fmt.Fprintf(out, "   name: %s (%s)\n", ctx.Env, ctx.Mode)
 	fmt.Fprintf(out, "   env:  %s\n", ctx.OutputEnvDir)
 	fmt.Fprintf(out, "   proj: %s\n", ctx.ComposeProject)
 
 	stateValue := "unknown"
-	if deps.DetectorFactory != nil {
+	if envError == nil && deps.DetectorFactory != nil {
 		detector, err := deps.DetectorFactory(project.Dir, ctx.Env)
 		if err != nil {
 			stateValue = fmt.Sprintf("error: %v", err)
