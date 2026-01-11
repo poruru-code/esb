@@ -135,6 +135,7 @@ func runEnvVar(cli CLI, deps Dependencies, out io.Writer) int {
 			fmt.Fprintf(out, "export %s\n", env)
 		}
 	default: // plain
+		fmt.Fprintf(out, "--- Environment variables for service '%s' (container: %s) ---\n", service, containerName)
 		for _, env := range envVars {
 			fmt.Fprintln(out, env)
 		}
