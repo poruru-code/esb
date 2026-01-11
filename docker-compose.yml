@@ -35,8 +35,8 @@ services:
     environment:
       - RUSTFS_VOLUMES=/data/rustfs
       - RUSTFS_ADDRESS=0.0.0.0:9000
-      - RUSTFS_ACCESS_KEY=${RUSTFS_ACCESS_KEY?RUSTFS_ACCESS_KEY is required}
-      - RUSTFS_SECRET_KEY=${RUSTFS_SECRET_KEY?RUSTFS_SECRET_KEY is required}
+      - RUSTFS_ACCESS_KEY=${RUSTFS_ACCESS_KEY:-}
+      - RUSTFS_SECRET_KEY=${RUSTFS_SECRET_KEY:-}
       - RUSTFS_CONSOLE_ENABLE=true
       - RUSTFS_CONSOLE_ADDRESS=0.0.0.0:9001
       - RUSTFS_DEDUPLICATION=${RUSTFS_DEDUPLICATION:-true}
@@ -134,13 +134,13 @@ services:
       - ${ESB_CERT_DIR:-~/.esb/certs}/server.crt:/app/config/ssl/server.crt:ro
       - ${ESB_CERT_DIR:-~/.esb/certs}/server.key:/app/config/ssl/server.key:ro
     environment:
-      # --- Required / Core Authentication ---
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY?JWT_SECRET_KEY is required}
-      - X_API_KEY=${X_API_KEY?X_API_KEY is required}
-      - AUTH_USER=${AUTH_USER?AUTH_USER is required}
-      - AUTH_PASS=${AUTH_PASS?AUTH_PASS is required}
-      - RUSTFS_ACCESS_KEY=${RUSTFS_ACCESS_KEY?RUSTFS_ACCESS_KEY is required}
-      - RUSTFS_SECRET_KEY=${RUSTFS_SECRET_KEY?RUSTFS_SECRET_KEY is required}
+      # --- Required / Core Authentication (auto-generated if unset) ---
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-}
+      - X_API_KEY=${X_API_KEY:-}
+      - AUTH_USER=${AUTH_USER:-}
+      - AUTH_PASS=${AUTH_PASS:-}
+      - RUSTFS_ACCESS_KEY=${RUSTFS_ACCESS_KEY:-}
+      - RUSTFS_SECRET_KEY=${RUSTFS_SECRET_KEY:-}
 
       # --- Server & Network Configuration ---
       - UVICORN_BIND_ADDR=0.0.0.0:443

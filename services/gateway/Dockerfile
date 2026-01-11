@@ -1,9 +1,14 @@
-FROM python:3.12-slim AS builder
-
+# Builder Stage - Wolfi with Python 3.12
+FROM cgr.dev/chainguard/wolfi-base:latest AS builder
 WORKDIR /app
 
-# Install uv
-RUN pip install --no-cache-dir uv
+# Install build dependencies, Python 3.12 and uv
+RUN apk update && apk add --no-cache \
+    python-3.12 \
+    python-3.12-dev \
+    uv \
+    build-base \
+    ca-certificates
 
 # Create virtual environment
 ENV VIRTUAL_ENV=/app/.venv
@@ -12,31 +17,29 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 # Copy dependencies definition and source for package installation
 COPY pyproject.toml README.md /app/
-# tools package is required for "pip install ." as per pyproject.toml
 COPY tools /app/tools
 
 # Install dependencies (Cache layer)
-# Generate requirements.txt from pyproject.toml before installing.
-# This prevents missed dependency changes while maximizing cache use.
 RUN uv pip compile pyproject.toml -o requirements.txt && \
     uv pip install -r requirements.txt
 
-# Install the project itself to generate metadata (dist-info)
-# This fixes: PROJECT_NAME = metadata("edge-serverless-box")["Name"]
+# Install the project itself to generate metadata
 RUN uv pip install .
 
-# Final stage
-FROM python:3.12-slim
+# Final stage - Wolfi with Python 3.12
+FROM cgr.dev/chainguard/wolfi-base:latest
 
 WORKDIR /app
 
-# WireGuard (userspace) + routing tools for gateway-side tunnel
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Install Python 3.12 runtime and network tools
+RUN apk update && apk add --no-cache \
+    python-3.12 \
     haproxy \
     iproute2 \
     wireguard-go \
     wireguard-tools \
-  && rm -rf /var/lib/apt/lists/*
+    ca-certificates && \
+    ln -sf /usr/bin/python3 /usr/bin/python
 
 # Copy virtual environment from builder
 COPY --from=builder /app/.venv /app/.venv
@@ -50,11 +53,9 @@ COPY services/gateway /app/services/gateway
 COPY config /app/config
 
 # Environment-specific config (functions.yml, routing.yml)
-# Build arg: --build-arg ESB_CONFIG_DIR=e2e/fixtures/.esb/e2e-docker/config
-# Default to services/gateway/config if not set (keeps build valid, but no baked config)
 ARG ESB_CONFIG_DIR=""
 COPY ${ESB_CONFIG_DIR:-services/gateway/config}/ /tmp/esb_config/
-RUN if [ -n "$ESB_CONFIG_DIR" ] && [ -f /tmp/esb_config/functions.yml ]; then \
+RUN if [ -f /tmp/esb_config/functions.yml ]; then \
       cp /tmp/esb_config/functions.yml /app/config/functions.yml && \
       cp /tmp/esb_config/routing.yml /app/config/routing.yml; \
     else \

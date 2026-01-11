@@ -28,7 +28,6 @@ dependencies = [
     "jinja2>=3.1",
     "cachetools>=5.3.0",
     "grpcio>=1.59.0",
-    "grpcio-tools>=1.59.0",
     "protobuf>=4.25.0",
 ]
 
@@ -43,6 +42,7 @@ dev = [
     "cryptography>=41.0.0",  # For SSL certificate generation
     "requests>=2.31.0",      # For tests
     "ty>=0.0.1a0",           # Type checker
+    "grpcio-tools>=1.59.0",  # For proto code generation only
 ]
 
 [build-system]

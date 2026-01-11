@@ -1,0 +1,14 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+*.md
+
+# Development files
+.air.toml
+Dockerfile*
+.vscode
+
+# Test files
+**/*_test.go
