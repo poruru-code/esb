@@ -11,6 +11,7 @@ import (
 )
 
 func TestSavePortsWritesFile(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	esbHome := t.TempDir()
 	t.Setenv("ESB_HOME", esbHome)
 
@@ -41,6 +42,7 @@ func TestSavePortsWritesFile(t *testing.T) {
 }
 
 func TestApplyPortsToEnvSetsDerived(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	t.Setenv("ESB_PORT_GATEWAY_HTTPS", "")
 	t.Setenv("ESB_PORT_VICTORIALOGS", "")
 	t.Setenv("ESB_PORT_AGENT_GRPC", "")

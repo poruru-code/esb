@@ -9,6 +9,7 @@ import (
 )
 
 func TestRunEnvVarRequiresService(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	projectDir := t.TempDir()
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
@@ -27,6 +28,7 @@ func TestRunEnvVarRequiresService(t *testing.T) {
 }
 
 func TestRunEnvVarWithInteractiveSelection(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	projectDir := t.TempDir()
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)

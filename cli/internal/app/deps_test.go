@@ -32,6 +32,7 @@ func (fakeDockerClient) ContainerRemove(_ context.Context, _ string, _ container
 }
 
 func TestNewDetectorFactory(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	factory := NewDetectorFactory(fakeDockerClient{}, nil)
 	detector, err := factory("/project", "default")
 	if err != nil {
@@ -54,6 +55,7 @@ func TestNewDetectorFactory(t *testing.T) {
 }
 
 func TestNewDetectorFactory_NilClient(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	factory := NewDetectorFactory(nil, nil)
 	_, err := factory("/project", "default")
 	if err == nil {

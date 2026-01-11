@@ -13,6 +13,7 @@ import (
 )
 
 func TestRunEnvRoot(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	projectDir := t.TempDir()
 	envs := config.Environments{
 		{Name: "default", Mode: "docker"},
@@ -41,6 +42,7 @@ func TestRunEnvRoot(t *testing.T) {
 }
 
 func TestRunProjectRoot(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	projectDir := t.TempDir()
 	setupProjectConfig(t, projectDir, "demo")
 

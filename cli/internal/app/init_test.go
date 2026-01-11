@@ -12,6 +12,7 @@ import (
 )
 
 func TestBuildGeneratorConfig(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	projectDir := t.TempDir()
 	templatePath := filepath.Join(projectDir, "template.yaml")
 	if err := os.WriteFile(templatePath, []byte("test"), 0o644); err != nil {
@@ -44,6 +45,7 @@ func TestBuildGeneratorConfig(t *testing.T) {
 }
 
 func TestRunInitWritesGenerator(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	projectDir := t.TempDir()
 	templatePath := filepath.Join(projectDir, "template.yaml")
 	if err := os.WriteFile(templatePath, []byte("test"), 0o644); err != nil {
@@ -85,6 +87,7 @@ func TestParseEnvSpecs(t *testing.T) {
 }
 
 func TestBuildGeneratorConfigWithName(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	projectDir := t.TempDir()
 	templatePath := filepath.Join(projectDir, "template.yaml")
 	if err := os.WriteFile(templatePath, []byte("test"), 0o644); err != nil {

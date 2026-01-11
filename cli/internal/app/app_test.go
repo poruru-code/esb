@@ -23,6 +23,7 @@ func (f fakeDetector) Detect() (state.State, error) {
 }
 
 func TestRunStatus(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	projectDir := t.TempDir()
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
@@ -51,6 +52,7 @@ func TestRunStatus(t *testing.T) {
 }
 
 func TestRunStatusDetectError(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	projectDir := t.TempDir()
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
@@ -73,6 +75,7 @@ func TestRunStatusDetectError(t *testing.T) {
 }
 
 func TestRunStatusFactoryError(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	projectDir := t.TempDir()
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
@@ -93,6 +96,7 @@ func TestRunStatusFactoryError(t *testing.T) {
 }
 
 func TestRunStatusUsesActiveEnvFromGlobalConfig(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	projectDir := t.TempDir()
 	envs := config.Environments{
 		{Name: "default", Mode: "docker"},

@@ -9,6 +9,7 @@ import (
 )
 
 func TestApplyEnvironmentDefaultsSetsDefaults(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	t.Setenv("ESB_ENV", "")
 	t.Setenv("ESB_PROJECT_NAME", "")
 	t.Setenv("ESB_IMAGE_TAG", "")
@@ -64,6 +65,7 @@ func TestApplyEnvironmentDefaultsSetsDefaults(t *testing.T) {
 }
 
 func TestApplyEnvironmentDefaultsDoesNotOverrideExisting(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	t.Setenv("ESB_ENV", "")
 	t.Setenv("ESB_PROJECT_NAME", "custom-project")
 	t.Setenv("ESB_IMAGE_TAG", "custom-tag")
@@ -87,6 +89,7 @@ func TestApplyEnvironmentDefaultsDoesNotOverrideExisting(t *testing.T) {
 }
 
 func TestApplyEnvironmentDefaultsSetsRegistryForContainerd(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	t.Setenv("ESB_ENV", "")
 	t.Setenv("CONTAINER_REGISTRY", "")
 
@@ -98,6 +101,7 @@ func TestApplyEnvironmentDefaultsSetsRegistryForContainerd(t *testing.T) {
 }
 
 func TestApplyEnvironmentDefaultsReplacesZeroPorts(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	t.Setenv("ESB_ENV", "")
 	t.Setenv("ESB_PORT_GATEWAY_HTTPS", "0")
 	t.Setenv("ESB_PORT_DATABASE", "0")

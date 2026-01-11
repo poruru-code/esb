@@ -12,6 +12,7 @@ import (
 )
 
 func TestRunProjectAdd_New(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	projectDir := t.TempDir()
 	templatePath := filepath.Join(projectDir, "template.yaml")
 	if err := os.WriteFile(templatePath, []byte("Resources: {}"), 0o644); err != nil {
@@ -43,6 +44,7 @@ func TestRunProjectAdd_New(t *testing.T) {
 }
 
 func TestRunProjectAdd_Existing(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	projectDir := t.TempDir()
 	genPath := filepath.Join(projectDir, "generator.yml")
 	if err := os.WriteFile(genPath, []byte("app: {name: demo}\npaths: {samTemplate: template.yml}"), 0o644); err != nil {
@@ -68,6 +70,7 @@ func TestRunProjectAdd_Existing(t *testing.T) {
 }
 
 func TestRunProjectAdd_MissingEnv_Error(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	projectDir := t.TempDir()
 	templatePath := filepath.Join(projectDir, "template.yaml")
 	if err := os.WriteFile(templatePath, []byte("Resources: {}"), 0o644); err != nil {
@@ -93,6 +96,7 @@ func TestRunProjectAdd_MissingEnv_Error(t *testing.T) {
 }
 
 func TestRunProjectAdd_MissingTemplate_Error(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	projectDir := t.TempDir()
 	// No template file created
 
@@ -115,6 +119,7 @@ func TestRunProjectAdd_MissingTemplate_Error(t *testing.T) {
 }
 
 func TestRunProjectAdd_AutoDetectTemplate(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	projectDir := t.TempDir()
 	templatePath := filepath.Join(projectDir, "template.yaml") // standard name
 	if err := os.WriteFile(templatePath, []byte("Resources: {}"), 0o644); err != nil {
