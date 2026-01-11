@@ -66,3 +66,43 @@ func TestRunLogsMissingLogger(t *testing.T) {
 		t.Fatalf("expected non-zero exit code for missing logger")
 	}
 }
+
+func TestRunLogsInteractive(t *testing.T) {
+	projectDir := t.TempDir()
+	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
+		t.Fatalf("write generator fixture: %v", err)
+	}
+	setupProjectConfig(t, projectDir, "demo")
+
+	logger := &fakeLogger{
+		services: []string{"gateway", "agent"},
+	}
+	prompter := &mockPrompter{
+		selectedValue: "agent",
+	}
+	var out bytes.Buffer
+	deps := Dependencies{
+		Out:        &out,
+		ProjectDir: projectDir,
+		Logger:     logger,
+		Prompter:   prompter,
+	}
+
+	// Interactive execution (no service argument)
+	exitCode := Run([]string{"logs"}, deps)
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d", exitCode)
+	}
+
+	if prompter.lastTitle != "Select service to view logs" {
+		t.Fatalf("unexpected prompt title: %s", prompter.lastTitle)
+	}
+
+	if len(logger.requests) != 1 {
+		t.Fatalf("expected logs called once, got %d", len(logger.requests))
+	}
+	req := logger.requests[0]
+	if req.Service != "agent" {
+		t.Fatalf("expected service 'agent', got '%s'", req.Service)
+	}
+}

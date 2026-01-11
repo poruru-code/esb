@@ -29,27 +29,36 @@ type mockPrompter struct {
 	inputFn       func(title string, suggestions []string) (string, error)
 	selectFn      func(title string, options []string) (string, error)
 	selectValueFn func(title string, options []selectOption) (string, error)
+
+	// Convenience fields for recording/controlling selections
+	selectedValue string
+	lastTitle     string
+	lastOptions   []string
 }
 
-func (m mockPrompter) Input(title string, suggestions []string) (string, error) {
+func (m *mockPrompter) Input(title string, suggestions []string) (string, error) {
+	m.lastTitle = title
 	if m.inputFn != nil {
 		return m.inputFn(title, suggestions)
 	}
-	return "", nil
+	return m.selectedValue, nil
 }
 
-func (m mockPrompter) Select(title string, options []string) (string, error) {
+func (m *mockPrompter) Select(title string, options []string) (string, error) {
+	m.lastTitle = title
+	m.lastOptions = options
 	if m.selectFn != nil {
 		return m.selectFn(title, options)
 	}
-	return "", nil
+	return m.selectedValue, nil
 }
 
-func (m mockPrompter) SelectValue(title string, options []selectOption) (string, error) {
+func (m *mockPrompter) SelectValue(title string, options []selectOption) (string, error) {
+	m.lastTitle = title
 	if m.selectValueFn != nil {
 		return m.selectValueFn(title, options)
 	}
-	return "", nil
+	return m.selectedValue, nil
 }
 
 // exitWithError prints an error message to the output writer and returns

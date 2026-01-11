@@ -217,7 +217,7 @@ func TestRunEnvCreateInteractive(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var out bytes.Buffer
-			prompter := mockPrompter{
+			prompter := &mockPrompter{
 				inputFn: func(_ string, _ []string) (string, error) {
 					return tt.input, nil
 				},
@@ -310,5 +310,76 @@ func setupProjectConfig(t *testing.T, projectDir, name string) {
 	}
 	if err := config.SaveGlobalConfig(configPath, cfg); err != nil {
 		t.Fatalf("save global config: %v", err)
+	}
+}
+
+func TestRunEnvUseInteractive(t *testing.T) {
+	projectDir := t.TempDir()
+	envs := config.Environments{
+		{Name: "default", Mode: "docker"},
+		{Name: "staging", Mode: "containerd"},
+	}
+	if err := writeGeneratorFixtureWithEnvs(projectDir, envs, "demo"); err != nil {
+		t.Fatalf("write generator fixture: %v", err)
+	}
+	setupProjectConfig(t, projectDir, "demo")
+
+	prompter := &mockPrompter{
+		selectedValue: "staging",
+	}
+	var out bytes.Buffer
+	deps := Dependencies{
+		Out:        &out,
+		ProjectDir: projectDir,
+		Prompter:   prompter,
+	}
+
+	exitCode := Run([]string{"env", "use"}, deps)
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d", exitCode)
+	}
+
+	if prompter.lastTitle != "Select environment" {
+		t.Fatalf("unexpected prompt title: %s", prompter.lastTitle)
+	}
+
+	if !strings.Contains(out.String(), "export ESB_ENV=staging") {
+		t.Fatalf("unexpected output: %q", out.String())
+	}
+}
+
+func TestRunEnvRemoveInteractive(t *testing.T) {
+	projectDir := t.TempDir()
+	envs := config.Environments{
+		{Name: "default", Mode: "docker"},
+		{Name: "staging", Mode: "containerd"},
+	}
+	if err := writeGeneratorFixtureWithEnvs(projectDir, envs, "demo"); err != nil {
+		t.Fatalf("write generator fixture: %v", err)
+	}
+	setupProjectConfig(t, projectDir, "demo")
+
+	prompter := &mockPrompter{
+		selectedValue: "staging",
+	}
+	var out bytes.Buffer
+	deps := Dependencies{
+		Out:        &out,
+		ProjectDir: projectDir,
+		Prompter:   prompter,
+	}
+
+	exitCode := Run([]string{"env", "remove"}, deps)
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d", exitCode)
+	}
+
+	if prompter.lastTitle != "Select environment to remove" {
+		t.Fatalf("unexpected prompt title: %s", prompter.lastTitle)
+	}
+
+	cfg, _ := config.LoadGeneratorConfig(filepath.Join(projectDir, "generator.yml"))
+	if cfg.Environments.Has("staging") {
+		t.Fatalf("expected staging env to be removed")
 	}
 }

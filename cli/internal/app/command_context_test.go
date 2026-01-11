@@ -24,7 +24,7 @@ func TestResolveCommandContext_Interactive(t *testing.T) {
 	setupProjectConfig(t, projectDir, "demo")
 
 	// Mock prompter to select "prod"
-	prompter := mockPrompter{
+	prompter := &mockPrompter{
 		selectValueFn: func(title string, options []selectOption) (string, error) {
 			if title != "Select environment" {
 				t.Errorf("unexpected title: %s", title)
