@@ -44,6 +44,12 @@ func runUp(cli CLI, deps Dependencies, out io.Writer) int {
 	ctx := ctxInfo.Context
 	applyRuntimeEnv(ctx)
 
+	// Ensure authentication credentials are set (auto-generate if missing)
+	creds := EnsureAuthCredentials()
+	if creds.Generated {
+		PrintGeneratedCredentials(out, creds)
+	}
+
 	templatePath := resolvedTemplatePath(ctxInfo)
 
 	if cli.Up.Build {

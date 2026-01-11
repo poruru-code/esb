@@ -1,6 +1,7 @@
 
 # Version Control
 .git
+.github
 .gitignore
 
 # Python / Environment
@@ -10,6 +11,7 @@ __pycache__
 *.pyc
 .pytest_cache
 .ruff_cache
+.mypy_cache
 
 # Build Artifacts
 build/
@@ -28,6 +30,15 @@ plans/
 !README.md
 !walkthrough.md
 
+# E2E tests (not needed in container)
+e2e/
+
+# CLI (Go-based, separate build)
+cli/
+
+# IDE
+.vscode
+.idea
 
 # Local Debug Files
 *.txt
