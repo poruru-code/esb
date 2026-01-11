@@ -41,7 +41,7 @@ func buildDependencies() (app.Dependencies, io.Closer, error) {
 		Downer:          app.NewDowner(client),
 		Upper:           app.NewUpper(),
 		Stopper:         app.NewStopper(),
-		Logger:          app.NewLogger(),
+		Logger:          app.NewLogger(client),
 		PortDiscoverer:  app.NewPortDiscoverer(),
 		Waiter:          app.NewGatewayWaiter(),
 		Provisioner:     provisionerAdapter{runner: provisioner.New(client)},

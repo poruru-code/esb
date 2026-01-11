@@ -113,3 +113,32 @@ func ListServices(ctx context.Context, runner CommandRunner, opts LogsOptions) (
 	}
 	return services, scanner.Err()
 }
+
+// GetContainerEnv retrieves environment variables from a running container
+// using docker inspect.
+func GetContainerEnv(ctx context.Context, runner CommandRunner, containerName string) ([]string, error) {
+	if runner == nil {
+		return nil, fmt.Errorf("command runner is nil")
+	}
+
+	args := []string{
+		"inspect",
+		"--format", "{{range .Config.Env}}{{println .}}{{end}}",
+		containerName,
+	}
+
+	output, err := runner.RunOutput(ctx, "", "docker", args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to inspect container %s: %w", containerName, err)
+	}
+
+	var envVars []string
+	scanner := bufio.NewScanner(bytes.NewReader(output))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line != "" {
+			envVars = append(envVars, line)
+		}
+	}
+	return envVars, scanner.Err()
+}

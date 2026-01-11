@@ -165,6 +165,8 @@ func Run(args []string, deps Dependencies) int {
 		return runEnvUse(cli, deps, out)
 	case strings.HasPrefix(command, "env remove"):
 		return runEnvRemove(cli, deps, out)
+	case strings.HasPrefix(command, "env var"):
+		return runEnvVar(cli, deps, out)
 	case strings.HasPrefix(command, "project add"):
 		return runProjectAdd(cli, deps, out)
 	case command == "project recent":
