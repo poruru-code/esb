@@ -5,6 +5,7 @@ import (
 )
 
 func TestSelectOption(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	opt := selectOption{Label: "test label", Value: "test-value"}
 	if opt.Label != "test label" {
 		t.Errorf("Label = %q, want %q", opt.Label, "test label")
@@ -15,6 +16,7 @@ func TestSelectOption(t *testing.T) {
 }
 
 func TestParseIndex(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	tests := []struct {
 		input   string
 		max     int

@@ -317,3 +317,24 @@ func TestRunProjectUseInteractive(t *testing.T) {
 		t.Fatalf("unexpected output: %q", out.String())
 	}
 }
+
+func TestSelectProject_NumericNameCollision(t *testing.T) {
+	cfg := config.GlobalConfig{
+		Version: 1,
+		Projects: map[string]config.ProjectEntry{
+			"001":          {Path: "/projects/001", LastUsed: "2026-01-01T00:00:00Z"},
+			"e2e-fixtures": {Path: "/projects/e2e", LastUsed: "2026-01-02T00:00:00Z"},
+		},
+	}
+
+	// In this case, "e2e-fixtures" is index 1 (most recent), "001" is index 2.
+	// If we select "001" as a name, it should resolve to "001", not index 1 ("e2e-fixtures").
+
+	name, err := selectProject(cfg, "001")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if name != "001" {
+		t.Errorf("expected 001, got %s", name)
+	}
+}

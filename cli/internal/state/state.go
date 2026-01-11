@@ -14,9 +14,11 @@ const (
 	StateStopped       State = "stopped"
 )
 
-// ContainerInfo holds minimal information about a Docker container.
+// ContainerInfo holds information about a Docker container.
 type ContainerInfo struct {
-	State string
+	Name    string
+	Service string
+	State   string
 }
 
 // DeriveState determines the environment state based on context validity,

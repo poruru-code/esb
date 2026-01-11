@@ -28,6 +28,7 @@ type UpOptions struct {
 	Detach     bool
 	Build      bool
 	ExtraFiles []string
+	EnvFile    string
 }
 
 // CommandRunner defines the interface for executing shell commands.
@@ -85,6 +86,10 @@ func UpProject(ctx context.Context, runner CommandRunner, opts UpOptions) error 
 			continue
 		}
 		args = append(args, "-f", file)
+	}
+
+	if opts.EnvFile != "" {
+		args = append(args, "--env-file", opts.EnvFile)
 	}
 
 	args = append(args, "up")

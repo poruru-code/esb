@@ -14,7 +14,10 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
-const composeProjectLabel = "com.docker.compose.project"
+const (
+	composeProjectLabel = "com.docker.compose.project"
+	composeServiceLabel = "com.docker.compose.service"
+)
 
 // DockerClient defines the subset of Docker SDK methods used by this package.
 // This interface enables mocking the Docker client in tests.
@@ -48,7 +51,17 @@ func ListContainersByProject(
 		if ctr.Labels == nil || ctr.Labels[composeProjectLabel] != project {
 			continue
 		}
-		result = append(result, state.ContainerInfo{State: ctr.State})
+
+		name := ""
+		if len(ctr.Names) > 0 {
+			name = strings.TrimPrefix(ctr.Names[0], "/")
+		}
+
+		result = append(result, state.ContainerInfo{
+			Name:    name,
+			Service: ctr.Labels[composeServiceLabel],
+			State:   ctr.State,
+		})
 	}
 	return result, nil
 }

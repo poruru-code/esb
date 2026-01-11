@@ -72,6 +72,7 @@ func NewUpper() Upper {
 			Project: request.Context.ComposeProject,
 			Target:  "control",
 			Detach:  request.Detach,
+			EnvFile: request.EnvFile,
 		}
 		return compose.UpProject(context.Background(), compose.ExecRunner{}, opts)
 	})
@@ -117,11 +118,12 @@ func (fn stopperFunc) Stop(request StopRequest) error {
 type Logger interface {
 	Logs(request LogsRequest) error
 	ListServices(request LogsRequest) ([]string, error)
+	ListContainers(project string) ([]state.ContainerInfo, error)
 }
 
 // NewLogger creates a Logger implementation that streams container logs
 // via Docker Compose with follow/tail/timestamp options.
-func NewLogger() Logger {
+func NewLogger(client compose.DockerClient) Logger {
 	return loggerImpl{
 		logsFn: func(request LogsRequest) error {
 			rootDir, err := compose.FindRepoRoot(request.Context.ProjectDir)
@@ -155,13 +157,20 @@ func NewLogger() Logger {
 			}
 			return compose.ListServices(context.Background(), compose.ExecRunner{}, opts)
 		},
+		listContainersFn: func(project string) ([]state.ContainerInfo, error) {
+			if client == nil {
+				return nil, ErrDockerClientNil
+			}
+			return compose.ListContainersByProject(context.Background(), client, project)
+		},
 	}
 }
 
 // loggerImpl implements the Logger interface using function adapters.
 type loggerImpl struct {
-	logsFn         func(request LogsRequest) error
-	listServicesFn func(request LogsRequest) ([]string, error)
+	logsFn           func(request LogsRequest) error
+	listServicesFn   func(request LogsRequest) ([]string, error)
+	listContainersFn func(project string) ([]state.ContainerInfo, error)
 }
 
 // Logs implements the Logger interface by invoking the wrapped function.
@@ -172,6 +181,11 @@ func (l loggerImpl) Logs(request LogsRequest) error {
 // ListServices implements the Logger interface by invoking the wrapped function.
 func (l loggerImpl) ListServices(request LogsRequest) ([]string, error) {
 	return l.listServicesFn(request)
+}
+
+// ListContainers implements the Logger interface by invoking the wrapped function.
+func (l loggerImpl) ListContainers(project string) ([]state.ContainerInfo, error) {
+	return l.listContainersFn(project)
 }
 
 // NewPruner creates a Pruner implementation that removes generated artifacts

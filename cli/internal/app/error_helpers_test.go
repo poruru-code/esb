@@ -7,6 +7,7 @@ import (
 )
 
 func TestExitWithError(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	var buf bytes.Buffer
 	code := exitWithError(&buf, errors.New("test error"))
 
@@ -20,6 +21,7 @@ func TestExitWithError(t *testing.T) {
 }
 
 func TestExitWithSuggestion(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	var buf bytes.Buffer
 	code := exitWithSuggestion(&buf, "Something went wrong.", []string{"try this", "or that"})
 
@@ -39,6 +41,7 @@ func TestExitWithSuggestion(t *testing.T) {
 }
 
 func TestExitWithSuggestionAndAvailable(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	var buf bytes.Buffer
 	code := exitWithSuggestionAndAvailable(&buf,
 		"Environment not found.",
@@ -65,6 +68,7 @@ func TestExitWithSuggestionAndAvailable(t *testing.T) {
 }
 
 func TestHandleParseError_EnvUse(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	var buf bytes.Buffer
 	// Mock parse error for "env use" without name
 	err := errors.New(`expected "<name>"`)
@@ -80,6 +84,7 @@ func TestHandleParseError_EnvUse(t *testing.T) {
 }
 
 func TestHandleParseError_ProjectUse(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	var buf bytes.Buffer
 	err := errors.New(`expected "<name>"`)
 	code := handleParseError([]string{"project", "use"}, err, Dependencies{}, &buf)
@@ -94,6 +99,7 @@ func TestHandleParseError_ProjectUse(t *testing.T) {
 }
 
 func TestHandleParseError_GenericError(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	var buf bytes.Buffer
 	err := errors.New("some other error")
 	code := handleParseError([]string{"build"}, err, Dependencies{}, &buf)

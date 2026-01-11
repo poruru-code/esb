@@ -20,6 +20,7 @@ type EnvCmd struct {
 	Add    EnvAddCmd    `cmd:"" help:"Add environment"`
 	Use    EnvUseCmd    `cmd:"" help:"Switch environment"`
 	Remove EnvRemoveCmd `cmd:"" help:"Remove environment"`
+	Var    EnvVarCmd    `cmd:"" help:"Show container environment variables"`
 }
 
 type (
@@ -37,6 +38,11 @@ type (
 	EnvRemoveCmd struct {
 		Name  string `arg:"" optional:"" help:"Environment name"`
 		Force bool   `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
+	}
+	EnvVarCmd struct {
+		Service string `arg:"" optional:"" help:"Service name (interactive if omitted)"`
+		Format  string `name:"format" enum:"plain,json,export" default:"plain" help:"Output format"`
+		Force   bool   `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
 	}
 )
 

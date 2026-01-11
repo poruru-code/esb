@@ -3,6 +3,8 @@ package app
 import (
 	"bytes"
 	"testing"
+
+	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
 type fakeLogger struct {
@@ -21,6 +23,10 @@ func (f *fakeLogger) Logs(request LogsRequest) error {
 func (f *fakeLogger) ListServices(request LogsRequest) ([]string, error) {
 	f.listRequests = append(f.listRequests, request)
 	return f.services, f.listErr
+}
+
+func (f *fakeLogger) ListContainers(_ string) ([]state.ContainerInfo, error) {
+	return nil, nil
 }
 
 func TestRunLogsCallsLogger(t *testing.T) {
