@@ -113,7 +113,7 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	if buildOpts.RootDir != repoRoot {
 		t.Fatalf("unexpected compose root: %s", buildOpts.RootDir)
 	}
-	if buildOpts.Project != "esb-staging" {
+	if buildOpts.Project != "demo-staging" {
 		t.Fatalf("unexpected compose project: %s", buildOpts.Project)
 	}
 	if buildOpts.Mode != "containerd" {

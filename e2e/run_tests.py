@@ -414,19 +414,19 @@ def warmup_environment(env_scenarios: dict, matrix: list[dict], esb_project: str
             env_name = entry.get("esb_env")
             if not env_name:
                 continue
-            # Set environment variables for esb down
-            env = os.environ.copy()
-            env["ESB_PROJECT"] = esb_project
-            env["ESB_ENV"] = env_name
-            env["ESB_HOME"] = str(E2E_STATE_ROOT / env_name)
-            # Stop and remove containers (ignore errors if not running)
-            subprocess.run(
-                ["go", "run", "./cmd/esb", "down", "-v"],
-                cwd=GO_CLI_ROOT,
-                env=env,
-                check=False,
+            # Remove containers by name pattern (container names include env name)
+            # This is more reliable than esb down as it doesn't depend on project state
+            result = subprocess.run(
+                ["docker", "ps", "-aq", "--filter", f"name={env_name}"],
                 capture_output=True,
+                text=True,
             )
+            container_ids = result.stdout.strip().split()
+            if container_ids and container_ids[0]:
+                subprocess.run(
+                    ["docker", "rm", "-f"] + container_ids,
+                    capture_output=True,
+                )
 
         print("\n[RESET] Fully cleaning all test artifact directories in e2e/fixtures/.esb/")
         import shutil

@@ -113,12 +113,18 @@ func (b *GoBuilder) Build(request app.BuildRequest) error {
 	}
 	applyBuildEnv(request.Env)
 
+	projectName := strings.ToLower(cfg.App.Name)
+	if projectName == "" {
+		projectName = "esb"
+	}
+	composeProject := fmt.Sprintf("%s-%s", projectName, strings.ToLower(request.Env))
+
 	if registry.External != "" {
 		if err := ensureRegistryRunning(
 			context.Background(),
 			b.ComposeRunner,
 			repoRoot,
-			fmt.Sprintf("esb-%s", strings.ToLower(request.Env)),
+			composeProject,
 			mode,
 		); err != nil {
 			return err
@@ -147,7 +153,7 @@ func (b *GoBuilder) Build(request app.BuildRequest) error {
 
 	opts := compose.BuildOptions{
 		RootDir:  repoRoot,
-		Project:  fmt.Sprintf("esb-%s", strings.ToLower(request.Env)),
+		Project:  composeProject,
 		Mode:     mode,
 		Target:   "control",
 		Services: []string{"gateway", "agent"},
