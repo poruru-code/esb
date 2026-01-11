@@ -5,22 +5,18 @@ package app
 
 import (
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 )
 
+// registerProject adds a project to the global configuration after init.
+// It persists its path and last-used timestamp.
 func registerProject(generatorPath string, deps Dependencies) error {
 	projectDir := filepath.Dir(generatorPath)
 	project, err := loadProjectConfig(projectDir)
 	if err != nil {
 		return err
-	}
-
-	activeEnv := ""
-	if len(project.Generator.Environments) > 0 {
-		activeEnv = strings.TrimSpace(project.Generator.Environments[0].Name)
 	}
 
 	path, err := config.GlobalConfigPath()
@@ -33,14 +29,10 @@ func registerProject(generatorPath string, deps Dependencies) error {
 	}
 
 	updated := normalizeGlobalConfig(cfg)
-	updated.ActiveProject = project.Name
-	if activeEnv != "" {
-		updated.ActiveEnvironments[project.Name] = activeEnv
-	}
-	updated.Projects[project.Name] = config.ProjectEntry{
-		Path:     project.Dir,
-		LastUsed: now(deps).Format(time.RFC3339),
-	}
+	entry := updated.Projects[project.Name]
+	entry.Path = project.Dir
+	entry.LastUsed = now(deps).Format(time.RFC3339)
+	updated.Projects[project.Name] = entry
 
 	return saveGlobalConfig(path, updated)
 }

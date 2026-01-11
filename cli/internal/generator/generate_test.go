@@ -50,7 +50,7 @@ func TestGenerateFilesUsesParserOverride(t *testing.T) {
 	}
 
 	cfg := config.GeneratorConfig{
-		App: config.AppConfig{Tag: "v1"},
+		App: config.AppConfig{},
 		Paths: config.PathsConfig{
 			SamTemplate: "template.yaml",
 			OutputDir:   ".esb/",

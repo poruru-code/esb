@@ -20,7 +20,7 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	writeTestFile(t, templatePath, "Resources: {}")
 
 	cfg := config.GeneratorConfig{
-		App: config.AppConfig{Name: "demo", Tag: "default"},
+		App: config.AppConfig{Name: "demo"},
 		Environments: config.Environments{
 			{Name: "staging", Mode: "containerd"},
 		},
@@ -113,7 +113,7 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	if buildOpts.RootDir != repoRoot {
 		t.Fatalf("unexpected compose root: %s", buildOpts.RootDir)
 	}
-	if buildOpts.Project != "esb-staging" {
+	if buildOpts.Project != "demo-staging" {
 		t.Fatalf("unexpected compose project: %s", buildOpts.Project)
 	}
 	if buildOpts.Mode != "containerd" {
@@ -168,7 +168,7 @@ func TestGoBuilderBuildFirecrackerBuildsServiceImages(t *testing.T) {
 	writeTestFile(t, templatePath, "Resources: {}")
 
 	cfg := config.GeneratorConfig{
-		App: config.AppConfig{Name: "demo", Tag: "default"},
+		App: config.AppConfig{Name: "demo"},
 		Environments: config.Environments{
 			{Name: "prod", Mode: "firecracker"},
 		},
@@ -247,6 +247,15 @@ func (r *recordRunner) Run(_ context.Context, dir, name string, args ...string) 
 		args: append([]string{}, args...),
 	})
 	return r.err
+}
+
+func (r *recordRunner) RunOutput(_ context.Context, dir, name string, args ...string) ([]byte, error) {
+	r.calls = append(r.calls, commandCall{
+		dir:  dir,
+		name: name,
+		args: append([]string{}, args...),
+	})
+	return nil, r.err
 }
 
 func hasDockerBuildTag(calls []commandCall, tag string) bool {

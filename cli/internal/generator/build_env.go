@@ -38,23 +38,16 @@ func applyModeFromConfig(cfg config.GeneratorConfig, env string) {
 	_ = os.Setenv("ESB_MODE", strings.ToLower(mode))
 }
 
-func findRepoRoot(start string) (string, error) {
-	dir := filepath.Clean(start)
-	for {
-		if dir == "" || dir == string(filepath.Separator) {
-			break
-		}
-		if _, err := os.Stat(filepath.Join(dir, "tools", "cli", "main.py")); err == nil {
-			return dir, nil
-		}
-		if _, err := os.Stat(filepath.Join(dir, "pyproject.toml")); err == nil {
-			return dir, nil
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			break
-		}
-		dir = parent
+func findRepoRoot(_ string) (string, error) {
+	repo := os.Getenv("ESB_REPO")
+	if repo == "" {
+		return "", fmt.Errorf("ESB_REPO environment variable is not set")
 	}
-	return "", fmt.Errorf("repo root not found from %s", start)
+
+	info, err := os.Stat(repo)
+	if err != nil || !info.IsDir() {
+		return "", fmt.Errorf("ESB_REPO directory does not exist: %s", repo)
+	}
+
+	return repo, nil
 }

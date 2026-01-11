@@ -1,8 +1,7 @@
 # Test Execution Matrix
-# Defines which Test Suites run on which Profiles (Mode + Env).
+# Defines which Test Suites run on which ESB environments.
 
 suites:
-  # Quick connectivity checks - run first
   smoke:
     description: "Fast connectivity tests for all components"
     targets:
@@ -16,36 +15,24 @@ suites:
       - "e2e/scenarios/standard/"
     exclude: []
 
-profiles:
-  # Profile A: Firecracker Mode (using autoscaling config)
-  e2e-firecracker:
-    description: "Firecracker Mode with Auto-Scaling"
-    mode: firecracker
-    env_file: "e2e/environments/.env.firecracker"
-
-  # Profile B: Pure Containerd Mode (with local-proxy)
-  e2e-containerd:
-    description: "Pure Containerd Mode with Auto-Scaling"
-    mode: containerd
-    env_file: "e2e/environments/.env.containerd"
-
-  # Profile C: Docker Runtime Mode (AGENT_RUNTIME=docker)
-  e2e-docker:
-    description: "Docker Runtime Mode with Auto-Scaling"
-    mode: docker
-    env_file: "e2e/environments/.env.docker"
-
+# ESB-managed project name
+esb_project: "e2e-fixtures"
 
 matrix:
-  # Group 1: Docker
-  - profile: e2e-docker
+  - esb_env: e2e-docker
+    env_file: "e2e/environments/.env.docker"
     suites:
       - smoke
       - standard
-      
-  # Group 2: Containerd
-  - profile: e2e-containerd
+
+  - esb_env: e2e-containerd
+    env_file: "e2e/environments/.env.containerd"
     suites:
       - smoke
       - standard
-      # - e2e-firecracker  # TODO: Enable when Firecracker mode is stable
+
+  # - esb_env: firecracker
+  #   env_file: "e2e/environments/.env.firecracker"
+  #   suites:
+  #     - smoke
+  #     - standard

@@ -11,18 +11,29 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// GlobalConfig represents the ~/.esb/config.yaml global configuration.
+// It tracks registered project paths and last usage.
 type GlobalConfig struct {
-	Version            int                     `yaml:"version"`
-	ActiveProject      string                  `yaml:"active_project"`
-	ActiveEnvironments map[string]string       `yaml:"active_environments,omitempty"`
-	Projects           map[string]ProjectEntry `yaml:"projects,omitempty"`
+	Version  int                     `yaml:"version"`
+	Projects map[string]ProjectEntry `yaml:"projects,omitempty"`
 }
 
+// ProjectEntry stores a project's directory path and last-used timestamp.
 type ProjectEntry struct {
 	Path     string `yaml:"path"`
 	LastUsed string `yaml:"last_used"`
 }
 
+// DefaultGlobalConfig returns an initialized GlobalConfig with version set.
+func DefaultGlobalConfig() GlobalConfig {
+	return GlobalConfig{
+		Version:  1,
+		Projects: map[string]ProjectEntry{},
+	}
+}
+
+// GlobalConfigPath returns the path to the global config file.
+// Respects ESB_CONFIG_PATH and ESB_CONFIG_HOME environment variables.
 func GlobalConfigPath() (string, error) {
 	if override := strings.TrimSpace(os.Getenv("ESB_CONFIG_PATH")); override != "" {
 		path := override
@@ -43,6 +54,22 @@ func GlobalConfigPath() (string, error) {
 	return filepath.Join(home, ".esb", "config.yaml"), nil
 }
 
+// EnsureGlobalConfig creates the global config file if it doesn't exist.
+func EnsureGlobalConfig() error {
+	path, err := GlobalConfigPath()
+	if err != nil {
+		return err
+	}
+	if _, err := os.Stat(path); err != nil {
+		if os.IsNotExist(err) {
+			return SaveGlobalConfig(path, DefaultGlobalConfig())
+		}
+		return err
+	}
+	return nil
+}
+
+// LoadGlobalConfig reads and parses the global configuration file.
 func LoadGlobalConfig(path string) (GlobalConfig, error) {
 	payload, err := os.ReadFile(path)
 	if err != nil {
@@ -56,6 +83,7 @@ func LoadGlobalConfig(path string) (GlobalConfig, error) {
 	return cfg, nil
 }
 
+// SaveGlobalConfig writes a GlobalConfig to the specified path.
 func SaveGlobalConfig(path string, cfg GlobalConfig) error {
 	payload, err := yaml.Marshal(&cfg)
 	if err != nil {

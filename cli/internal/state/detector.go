@@ -5,6 +5,8 @@ package state
 
 import "fmt"
 
+// Detector orchestrates state detection by composing context resolution,
+// container checks, and artifact verification.
 type Detector struct {
 	ProjectDir string
 	Env        string
@@ -16,6 +18,9 @@ type Detector struct {
 	Warn              func(message string)
 }
 
+// Detect determines the current environment state by checking context,
+// containers, and build artifacts. Returns one of: uninitialized, initialized,
+// built, running, or stopped.
 func (d Detector) Detect() (State, error) {
 	resolver := d.ResolveContext
 	if resolver == nil {

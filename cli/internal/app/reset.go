@@ -8,6 +8,8 @@ import (
 	"io"
 )
 
+// runReset executes the 'reset' command which performs a destructive reset
+// by stopping containers, removing volumes, rebuilding images, and restarting.
 func runReset(cli CLI, deps Dependencies, out io.Writer) int {
 	if !cli.Reset.Yes {
 		fmt.Fprintln(out, "reset requires confirmation (--yes)")
@@ -18,14 +20,13 @@ func runReset(cli CLI, deps Dependencies, out io.Writer) int {
 		return 1
 	}
 
-	ctxInfo, err := resolveCommandContext(cli, deps)
+	opts := newResolveOptions(cli.Reset.Force)
+	ctxInfo, err := resolveCommandContext(cli, deps, opts)
 	if err != nil {
 		return exitWithError(out, err)
 	}
 	ctx := ctxInfo.Context
-	applyModeEnv(ctx.Mode)
-	applyEnvironmentDefaults(ctx.Env, ctx.Mode)
-	applyUpEnv(ctx)
+	applyRuntimeEnv(ctx)
 
 	templatePath := resolvedTemplatePath(ctxInfo)
 

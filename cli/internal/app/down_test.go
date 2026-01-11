@@ -5,6 +5,7 @@ package app
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -29,6 +30,7 @@ func TestRunDownCallsDowner(t *testing.T) {
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
 	}
+	setupProjectConfig(t, projectDir, "demo")
 
 	downer := &fakeDowner{}
 	var out bytes.Buffer
@@ -38,7 +40,7 @@ func TestRunDownCallsDowner(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("expected exit code 0, got %d", exitCode)
 	}
-	if len(downer.projects) != 1 || downer.projects[0] != "esb-default" {
+	if len(downer.projects) != 1 || downer.projects[0] != expectedComposeProject(defaultTestAppName, "default") {
 		t.Fatalf("unexpected project: %v", downer.projects)
 	}
 	if len(downer.removeVolumes) != 1 || downer.removeVolumes[0] {
@@ -51,6 +53,7 @@ func TestRunDownWithEnv(t *testing.T) {
 	if err := writeGeneratorFixture(projectDir, "staging"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
 	}
+	setupProjectConfig(t, projectDir, "demo")
 
 	downer := &fakeDowner{}
 	var out bytes.Buffer
@@ -60,12 +63,13 @@ func TestRunDownWithEnv(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("expected exit code 0, got %d", exitCode)
 	}
-	if len(downer.projects) != 1 || downer.projects[0] != "esb-staging" {
+	if len(downer.projects) != 1 || downer.projects[0] != expectedComposeProject("demo", "staging") {
 		t.Fatalf("unexpected project: %v", downer.projects)
 	}
 }
 
 func TestRunDownMissingDowner(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	projectDir := t.TempDir()
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
@@ -89,27 +93,8 @@ func TestRunDownUsesActiveEnvFromGlobalConfig(t *testing.T) {
 	if err := writeGeneratorFixtureWithEnvs(projectDir, envs, "demo"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
 	}
-
-	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
-
-	configPath, err := config.GlobalConfigPath()
-	if err != nil {
-		t.Fatalf("global config path: %v", err)
-	}
-	globalCfg := config.GlobalConfig{
-		Version:       1,
-		ActiveProject: "demo",
-		ActiveEnvironments: map[string]string{
-			"demo": "staging",
-		},
-		Projects: map[string]config.ProjectEntry{
-			"demo": {Path: projectDir},
-		},
-	}
-	if err := config.SaveGlobalConfig(configPath, globalCfg); err != nil {
-		t.Fatalf("save global config: %v", err)
-	}
+	setupProjectConfig(t, projectDir, "demo")
+	t.Setenv("ESB_ENV", "staging")
 
 	downer := &fakeDowner{}
 	var out bytes.Buffer
@@ -119,22 +104,35 @@ func TestRunDownUsesActiveEnvFromGlobalConfig(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("expected exit code 0, got %d", exitCode)
 	}
-	if len(downer.projects) != 1 || downer.projects[0] != "esb-staging" {
+	if len(downer.projects) != 1 || downer.projects[0] != expectedComposeProject("demo", "staging") {
 		t.Fatalf("unexpected project: %v", downer.projects)
 	}
 }
+
+func expectedComposeProject(appName, env string) string {
+	return fmt.Sprintf("%s-%s", appName, env)
+}
+
+const defaultTestAppName = "demo"
 
 func writeGeneratorFixture(projectDir, env string) error {
 	return writeGeneratorFixtureWithMode(projectDir, env, "docker")
 }
 
 func writeGeneratorFixtureWithMode(projectDir, env, mode string) error {
+	return writeGeneratorFixtureFull(projectDir, env, mode, defaultTestAppName)
+}
+
+func writeGeneratorFixtureFull(projectDir, env, mode, appName string) error {
 	templatePath := filepath.Join(projectDir, "template.yaml")
 	if err := os.WriteFile(templatePath, []byte("test"), 0o644); err != nil {
 		return err
 	}
 
 	cfg := config.GeneratorConfig{
+		App: config.AppConfig{
+			Name: appName,
+		},
 		Environments: config.Environments{{Name: env, Mode: mode}},
 		Paths: config.PathsConfig{
 			SamTemplate: "template.yaml",

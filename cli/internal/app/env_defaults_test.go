@@ -9,6 +9,7 @@ import (
 )
 
 func TestApplyEnvironmentDefaultsSetsDefaults(t *testing.T) {
+	t.Setenv("ESB_ENV", "")
 	t.Setenv("ESB_PROJECT_NAME", "")
 	t.Setenv("ESB_IMAGE_TAG", "")
 	t.Setenv("ESB_PORT_GATEWAY_HTTPS", "")
@@ -22,7 +23,7 @@ func TestApplyEnvironmentDefaultsSetsDefaults(t *testing.T) {
 	t.Setenv("LAMBDA_NETWORK", "")
 	t.Setenv("CONTAINER_REGISTRY", "")
 
-	applyEnvironmentDefaults("default", "docker")
+	applyEnvironmentDefaults("default", "docker", "esb-default")
 
 	if got := os.Getenv("ESB_PROJECT_NAME"); got != "esb-default" {
 		t.Fatalf("unexpected project name: %s", got)
@@ -63,12 +64,13 @@ func TestApplyEnvironmentDefaultsSetsDefaults(t *testing.T) {
 }
 
 func TestApplyEnvironmentDefaultsDoesNotOverrideExisting(t *testing.T) {
+	t.Setenv("ESB_ENV", "")
 	t.Setenv("ESB_PROJECT_NAME", "custom-project")
 	t.Setenv("ESB_IMAGE_TAG", "custom-tag")
 	t.Setenv("ESB_PORT_GATEWAY_HTTPS", "1234")
 	t.Setenv("ESB_SUBNET_EXTERNAL", "172.99.0.0/16")
 
-	applyEnvironmentDefaults("demo", "docker")
+	applyEnvironmentDefaults("demo", "docker", "esb-demo")
 
 	if got := os.Getenv("ESB_PROJECT_NAME"); got != "custom-project" {
 		t.Fatalf("unexpected project name: %s", got)
@@ -85,9 +87,10 @@ func TestApplyEnvironmentDefaultsDoesNotOverrideExisting(t *testing.T) {
 }
 
 func TestApplyEnvironmentDefaultsSetsRegistryForContainerd(t *testing.T) {
+	t.Setenv("ESB_ENV", "")
 	t.Setenv("CONTAINER_REGISTRY", "")
 
-	applyEnvironmentDefaults("staging", "containerd")
+	applyEnvironmentDefaults("staging", "containerd", "esb-staging")
 
 	if got := os.Getenv("CONTAINER_REGISTRY"); got != "registry:5010" {
 		t.Fatalf("unexpected container registry: %s", got)
@@ -95,10 +98,11 @@ func TestApplyEnvironmentDefaultsSetsRegistryForContainerd(t *testing.T) {
 }
 
 func TestApplyEnvironmentDefaultsReplacesZeroPorts(t *testing.T) {
+	t.Setenv("ESB_ENV", "")
 	t.Setenv("ESB_PORT_GATEWAY_HTTPS", "0")
 	t.Setenv("ESB_PORT_DATABASE", "0")
 
-	applyEnvironmentDefaults("default", "docker")
+	applyEnvironmentDefaults("default", "docker", "esb-default")
 
 	if got := os.Getenv("ESB_PORT_GATEWAY_HTTPS"); got != "443" {
 		t.Fatalf("unexpected gateway https port: %s", got)

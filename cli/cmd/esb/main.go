@@ -10,6 +10,8 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/app"
 )
 
+// main is the entry point for the ESB CLI. It builds the dependencies,
+// parses command-line arguments, and dispatches to the appropriate command handler.
 func main() {
 	deps, closer, err := buildDependencies()
 	if err != nil {

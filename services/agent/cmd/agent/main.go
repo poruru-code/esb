@@ -111,9 +111,8 @@ func main() {
 		}
 
 		// 2. Create Runtime with CNI networking
-		// 2. Create Runtime with CNI networking
-		// Phase 7: Use dedicated namespace esb-{env}
-		namespace := fmt.Sprintf("esb-%s", esbEnv)
+		// Phase 7: Use stable namespace to match cgroup delegation.
+		namespace := "esb"
 		rt = agentContainerd.NewRuntime(wrappedClient, cniPlugin, namespace, esbEnv)
 		log.Printf("Runtime: containerd (initialized with CNI, namespace=%s)", namespace)
 

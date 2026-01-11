@@ -11,12 +11,16 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
+import yaml
 from dotenv import load_dotenv
 
 # Project root
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 GO_CLI_ROOT = PROJECT_ROOT / "cli"
 E2E_STATE_ROOT = PROJECT_ROOT / "e2e" / "fixtures" / ".esb"
+
+# Set ESB_REPO for CLI to locate infrastructure repository
+os.environ["ESB_REPO"] = str(PROJECT_ROOT)
 
 # Terminal colors for parallel output
 COLORS = [
@@ -103,6 +107,49 @@ def apply_proxy_env() -> None:
         os.environ["HTTPS_PROXY"] = os.environ["https_proxy"]
 
 
+def load_generator_env_entries(generator_path: Path) -> list[tuple[str, str]]:
+    if not generator_path.exists():
+        return []
+
+    data = yaml.safe_load(generator_path.read_text()) or {}
+    envs = data.get("environments", {})
+    entries: list[tuple[str, str]] = []
+
+    if isinstance(envs, dict):
+        for name, mode in envs.items():
+            env_name = str(name).strip()
+            env_mode = str(mode).strip() if mode is not None else ""
+            if env_name:
+                entries.append((env_name, env_mode))
+        return entries
+
+    if isinstance(envs, list):
+        for item in envs:
+            if isinstance(item, str):
+                env_name = item.strip()
+                if env_name:
+                    entries.append((env_name, ""))
+                continue
+            if isinstance(item, dict):
+                env_name = str(item.get("name", "")).strip()
+                env_mode = str(item.get("mode", "")).strip()
+                if env_name:
+                    entries.append((env_name, env_mode))
+        return entries
+
+    return entries
+
+
+def build_env_list(entries: list[tuple[str, str]]) -> str:
+    parts = []
+    for name, mode in entries:
+        if mode:
+            parts.append(f"{name}:{mode}")
+        else:
+            parts.append(name)
+    return ",".join(parts)
+
+
 def resolve_esb_home(env_name: str) -> Path:
     esb_home = os.environ.get("ESB_HOME")
     if esb_home:
@@ -169,19 +216,17 @@ def main():
     parser.add_argument(
         "--profile",
         type=str,
-        help="Profile to use for single target run (e.g. e2e-containerd)",
+        help="Environment to use for single target run (e.g. containerd)",
     )
     parser.add_argument("--fail-fast", action="store_true", help="Stop on first suite failure")
     parser.add_argument(
         "--parallel",
         action="store_true",
-        help="Run profiles in parallel (e.g., e2e-docker and e2e-containerd simultaneously)",
+        help="Run environments in parallel (e.g., e2e-docker and e2e-containerd simultaneously)",
     )
     args = parser.parse_args()
 
-    # --- Load Test Matrix (Needed for Profile Info) ---
-    import yaml
-
+    # --- Load Test Matrix (Needed for Env Info) ---
     matrix_file = PROJECT_ROOT / "e2e" / "test_matrix.yaml"
     if not matrix_file.exists():
         print(f"[ERROR] Matrix file not found: {matrix_file}")
@@ -191,28 +236,34 @@ def main():
         config_matrix = yaml.safe_load(f)
 
     suites = config_matrix.get("suites", {})
-    profiles = config_matrix.get("profiles", {})
+    esb_project = config_matrix.get("esb_project")
     matrix = config_matrix.get("matrix", [])
 
-    # --- Single Target Mode (Legacy/Debug) ---
+    if not esb_project:
+        print("[ERROR] esb_project is required in test_matrix.yaml.")
+        sys.exit(1)
+
     # --- Single Target Mode (Legacy/Debug) ---
     if args.test_target:
         if not args.profile:
             print("[ERROR] --profile is required when using --test-target.")
-            print(f"Available profiles: {', '.join(profiles.keys())}")
+            env_names = [entry.get("esb_env") for entry in matrix if entry.get("esb_env")]
+            print(f"Available environments: {', '.join(env_names)}")
             sys.exit(1)
 
-        if args.profile not in profiles:
-            print(f"[ERROR] Profile '{args.profile}' not found in matrix.")
+        entry_by_env = {entry.get("esb_env"): entry for entry in matrix if entry.get("esb_env")}
+        if args.profile not in entry_by_env:
+            print(f"[ERROR] Environment '{args.profile}' not found in matrix.")
             sys.exit(1)
 
-        profile_def = profiles[args.profile]
+        env_entry = entry_by_env[args.profile]
 
         user_scenario = {
             "name": f"User-Specified on {args.profile}",
-            "env_file": profile_def.get("env_file"),
-            "runtime_mode": profile_def.get("mode"),
-            "esb_env": args.profile,  # Use profile name as environment name
+            "env_file": env_entry.get("env_file"),
+            "esb_env": args.profile,
+            "esb_project": esb_project,
+            "env_vars": env_entry.get("env_vars", {}),
             "targets": [args.test_target],
             "exclude": [],
         }
@@ -248,7 +299,7 @@ def main():
         if args.unit_only:
             sys.exit(0)
 
-    # Load Base Environment is now skipped to ensure profile isolation
+    # Load Base Environment is now skipped to ensure environment isolation
 
     # Only print for sequential mode (subprocess of parallel will print its own)
     if not args.parallel:
@@ -256,88 +307,48 @@ def main():
 
     failed_entries = []
 
-    # Build list of all scenarios to run, grouped by profile
-    profile_scenarios: dict[str, dict[str, Any]] = {}
+    # Build list of all scenarios to run, grouped by ESB environment
+    env_scenarios: dict[str, dict[str, Any]] = {}
 
     for entry in matrix:
-        # Determine structure type: Profile-First (New) or Suite-First (Legacy)
-        is_profile_first = "profile" in entry and "suites" in entry
-        is_suite_first = "suite" in entry and "profiles" in entry
-
-        if not is_profile_first and not is_suite_first:
+        env_name = entry.get("esb_env")
+        if not env_name:
             print(f"[ERROR] Invalid matrix entry format: {entry}")
             continue
 
-        # normalize to list of (suite, profile) tuples to execute for this entry
-        items_to_run = []
+        if args.profile and env_name != args.profile:
+            continue
 
-        if is_profile_first:
-            profile_name = entry["profile"]
-            target_suites = entry["suites"]
+        suite_names = entry.get("suites", [])
+        if env_name not in env_scenarios:
+            env_scenarios[env_name] = {
+                "name": f"Combined Scenarios for {env_name}",
+                "env_file": entry.get("env_file"),
+                "esb_env": env_name,
+                "esb_project": esb_project,
+                "env_vars": entry.get("env_vars", {}),
+                "targets": [],
+                "exclude": [],
+            }
 
-            if profile_name not in profiles:
-                print(f"[ERROR] Profile '{profile_name}' not defined in profiles.")
-                continue
-
-            # Filter global profile arg
-            if args.profile and profile_name != args.profile:
-                continue
-
-            for s_name in target_suites:
-                if s_name not in suites:
-                    print(f"[ERROR] Suite '{s_name}' not defined in suites.")
-                    continue
-                items_to_run.append((s_name, profile_name))
-
-        else:  # is_suite_first
-            suite_name = entry["suite"]
-            target_profiles = entry["profiles"]
-
-            if suite_name not in suites:
+        for suite_name in suite_names:
+            suite_def = suites.get(suite_name)
+            if not suite_def:
                 print(f"[ERROR] Suite '{suite_name}' not defined in suites.")
                 continue
-
-            for p_name in target_profiles:
-                if p_name not in profiles:
-                    print(f"[ERROR] Profile '{p_name}' not defined in profiles.")
-                    continue
-
-                if args.profile and p_name != args.profile:
-                    continue
-                items_to_run.append((suite_name, p_name))
-
-        # Build scenarios
-        for suite_name, profile_name in items_to_run:
-            profile_def = profiles[profile_name]
-            suite_def = suites[suite_name]
-
-            target_env = profile_name  # Use profile name as environment name
-
-            if profile_name not in profile_scenarios:
-                profile_scenarios[profile_name] = {
-                    "name": f"Combined Scenarios for {profile_name}",
-                    "env_file": profile_def.get("env_file"),
-                    "runtime_mode": profile_def.get("mode"),
-                    "esb_env": target_env,
-                    "env_vars": profile_def.get("env_vars", {}),
-                    "targets": [],
-                    "exclude": [],
-                }
-
-            # Merge targets and exclusions
-            profile_scenarios[profile_name]["targets"].extend(suite_def.get("targets", []))
-            profile_scenarios[profile_name]["exclude"].extend(suite_def.get("exclude", []))
+            env_scenarios[env_name]["targets"].extend(suite_def.get("targets", []))
+            env_scenarios[env_name]["exclude"].extend(suite_def.get("exclude", []))
 
     # --- Global Reset & Warm-up ---
-    # Perform this once before any profile execution (unless we are a child process)
+    # Perform this once before any environment execution (unless we are a child process)
     if not os.environ.get("ESB_TEST_CHILD_PROCESS"):
-        warmup_environment(profile_scenarios, profiles, args)
+        warmup_environment(env_scenarios, matrix, esb_project, args)
 
     # --- Unified Execution Mode ---
 
     # If we are a child process (worker), execute the scenario directly.
     if os.environ.get("ESB_TEST_CHILD_PROCESS"):
-        for _, scenario in profile_scenarios.items():
+        for _, scenario in env_scenarios.items():
             # Inject initialization flags into the scenario
             scenario["perform_reset"] = args.reset
             scenario["perform_build"] = args.build
@@ -356,21 +367,21 @@ def main():
     # Dispatcher Mode: Use executor for both parallel and sequential (max_workers=1) execution.
     # This ensures consistent environment isolation via subprocesses.
 
-    parallel_mode = args.parallel and len(profile_scenarios) > 1
-    max_workers = len(profile_scenarios) if parallel_mode else 1
+    parallel_mode = args.parallel and len(env_scenarios) > 1
+    max_workers = len(env_scenarios) if parallel_mode else 1
 
     if parallel_mode:
         print(
-            f"\n[PARALLEL] Starting parallel execution for {len(profile_scenarios)} profiles: {', '.join(profile_scenarios.keys())}"
+            f"\n[PARALLEL] Starting parallel execution for {len(env_scenarios)} environments: {', '.join(env_scenarios.keys())}"
         )
         print(
-            "[PARALLEL] Build, infrastructure setup, and tests will run simultaneously across profiles.\n"
+            "[PARALLEL] Build, infrastructure setup, and tests will run simultaneously across environments.\n"
         )
     else:
         print("\nStarting Full E2E Test Suite (Matrix-Based)\n")
 
     results = run_profiles_with_executor(
-        profile_scenarios,
+        env_scenarios,
         reset=args.reset,
         build=args.build,
         cleanup=args.cleanup,
@@ -383,67 +394,102 @@ def main():
             failed_entries.extend(profile_failed)
 
     if failed_entries:
-        print(f"\n[FAILED] The following profiles failed: {', '.join(failed_entries)}")
+        print(f"\n[FAILED] The following environments failed: {', '.join(failed_entries)}")
         sys.exit(1)
 
     print("\n[PASSED] ALL MATRIX ENTRIES PASSED!")
     sys.exit(0)
 
 
-def warmup_environment(profile_scenarios: dict, profiles: dict, args):
+def warmup_environment(env_scenarios: dict, matrix: list[dict], esb_project: str, args):
     """
     Perform global reset and warm-up actions.
-    This includes cleaning up old artifacts and creating the initial template
-    configuration to prevent race conditions during parallel `esb init`.
+    This includes cleaning up old artifacts and registering the ESB project
+    in the global config before parallel execution.
     """
     # 1. Global Reset (if requested)
     if args.reset:
-        print("\n[RESET] Fully cleaning all test artifact directories in tests/fixtures/.esb/")
+        print("\n[RESET] Stopping Docker containers for all test environments...")
+        for entry in matrix:
+            env_name = entry.get("esb_env")
+            if not env_name:
+                continue
+            # Remove containers by name pattern (container names include env name)
+            # This is more reliable than esb down as it doesn't depend on project state
+            result = subprocess.run(
+                ["docker", "ps", "-aq", "--filter", f"name={env_name}"],
+                capture_output=True,
+                text=True,
+            )
+            container_ids = result.stdout.strip().split()
+            if container_ids and container_ids[0]:
+                subprocess.run(
+                    ["docker", "rm", "-f"] + container_ids,
+                    capture_output=True,
+                )
+
+        print("\n[RESET] Fully cleaning all test artifact directories in e2e/fixtures/.esb/")
         import shutil
 
-        for p_name in profiles.keys():
-            esb_dir = E2E_STATE_ROOT / p_name
+        for entry in matrix:
+            env_name = entry.get("esb_env")
+            if not env_name:
+                continue
+            esb_dir = E2E_STATE_ROOT / env_name
             if esb_dir.exists():
                 print(f"  • Removing {esb_dir}")
                 shutil.rmtree(esb_dir)
 
-    # 2. One-time Silent Init for All Profiles (Warm-up)
-    # To prevent race conditions in parallel execution, we initialize generator.yml once here.
-    active_profiles = list(profile_scenarios.keys())
-    if active_profiles:
-        env_entries = []
-        for profile_name in active_profiles:
-            mode = profiles.get(profile_name, {}).get("mode")
-            if mode:
-                env_entries.append(f"{profile_name}:{mode}")
-            else:
-                env_entries.append(profile_name)
-        env_list = ",".join(env_entries)
-        print(f"\n[INIT] Initializing environments (WARM-UP): {env_list}")
-        # Use default template path for tests
-        esb_template = os.getenv("ESB_TEMPLATE", "e2e/fixtures/template.yaml")
-        warmup_env = os.environ.copy()
-        warmup_env["ESB_HOME"] = str(E2E_STATE_ROOT / "warmup")
-        warmup_env["ESB_CONFIG_PATH"] = str(E2E_STATE_ROOT / "warmup" / "config.yaml")
-        subprocess.run(
-            [
-                "go",
-                "run",
-                "./cmd/esb",
-                "--template",
-                str(PROJECT_ROOT / esb_template),
-                "init",
-                "--env",
-                env_list,
-            ],
-            cwd=GO_CLI_ROOT,
-            check=True,
-            env=warmup_env,
-        )
+    # 2. Build environment list from matrix (not generator.yml - that's generated by esb project add)
+    active_envs = list(env_scenarios.keys())
+    if not active_envs:
+        print("[ERROR] No active environments in matrix.")
+        sys.exit(1)
+
+    # Build env list with modes from .env files or defaults
+    env_list_parts = []
+    for entry in matrix:
+        env_name = entry.get("esb_env")
+        if env_name not in active_envs:
+            continue
+        # Derive mode from env_file name (e.g., .env.docker -> docker)
+        env_file = entry.get("env_file", "")
+        mode = ""
+        if "containerd" in env_file:
+            mode = "containerd"
+        elif "firecracker" in env_file:
+            mode = "firecracker"
+        else:
+            mode = "docker"
+        env_list_parts.append(f"{env_name}:{mode}")
+
+    env_list = ",".join(env_list_parts)
+
+    # 3. Register ESB project (this generates generator.yml)
+    print(f"\n[INIT] Registering ESB project for: {', '.join(active_envs)}")
+    esb_template = os.getenv("ESB_TEMPLATE", "e2e/fixtures/template.yaml")
+    subprocess.run(
+        [
+            "go",
+            "run",
+            "./cmd/esb",
+            "project",
+            "add",
+            ".",
+            "--template",
+            str(PROJECT_ROOT / esb_template),
+            "--env",
+            env_list,
+            "--name",
+            esb_project,
+        ],
+        cwd=GO_CLI_ROOT,
+        check=True,
+    )
 
 
 def run_profiles_with_executor(
-    profile_scenarios: dict[str, dict[str, Any]],
+    env_scenarios: dict[str, dict[str, Any]],
     reset: bool,
     build: bool,
     cleanup: bool,
@@ -451,9 +497,9 @@ def run_profiles_with_executor(
     max_workers: int,
 ) -> dict[str, tuple[bool, list[str]]]:
     """
-    Run profiles using a ProcessPoolExecutor.
+    Run environments using a ProcessPoolExecutor.
     If max_workers is 1, they run sequentially but still in subprocesses for isolation.
-    Returns: dict mapping profile_name to (success, failed_scenario_names)
+    Returns: dict mapping env_name to (success, failed_scenario_names)
     """
     results = {}
 
@@ -462,7 +508,7 @@ def run_profiles_with_executor(
         future_to_profile = {}
 
         # Submit all tasks
-        for profile_name, _ in profile_scenarios.items():
+        for profile_name, _ in env_scenarios.items():
             # Build command for subprocess
             cmd = [
                 sys.executable,
@@ -482,13 +528,13 @@ def run_profiles_with_executor(
                 cmd.append("--fail-fast")
 
             # Determine log prefix/color
-            profile_index = list(profile_scenarios.keys()).index(profile_name)
+            profile_index = list(env_scenarios.keys()).index(profile_name)
             # If sequential (max_workers=1), we don't strictly need colors, but it doesn't hurt.
             # However, if running sequentially, we might want to announce "Starting..." immediately before submission?
             # With Executor, submission happens first.
 
             if max_workers > 1:
-                print(f"[PARALLEL] Scheduling profile: {profile_name}")
+                print(f"[PARALLEL] Scheduling environment: {profile_name}")
                 color_code = COLORS[profile_index % len(COLORS)]
             else:
                 # Sequential mode logging is handled more by the subprocess stream,
@@ -504,19 +550,19 @@ def run_profiles_with_executor(
             try:
                 returncode, output = future.result()
                 success = returncode == 0
-                failed_list = [] if success else [f"Profile {profile_name}"]
+                failed_list = [] if success else [f"Environment {profile_name}"]
 
                 prefix = "[PARALLEL]" if max_workers > 1 else "[MATRIX]"
 
                 if success:
-                    print(f"{prefix} Profile {profile_name} PASSED")
+                    print(f"{prefix} Environment {profile_name} PASSED")
                 else:
-                    print(f"{prefix} Profile {profile_name} FAILED (exit code: {returncode})")
+                    print(f"{prefix} Environment {profile_name} FAILED (exit code: {returncode})")
 
                 results[profile_name] = (success, failed_list)
             except Exception as e:
-                print(f"[ERROR] Profile {profile_name} FAILED with exception: {e}")
-                results[profile_name] = (False, [f"Profile {profile_name} (exception)"])
+                print(f"[ERROR] Environment {profile_name} FAILED with exception: {e}")
+                results[profile_name] = (False, [f"Environment {profile_name} (exception)"])
 
     return results
 
@@ -572,12 +618,17 @@ def run_scenario(args, scenario):
     do_reset = scenario.get("perform_reset", args.reset)
     do_build = scenario.get("perform_build", args.build)
 
-    # 0. Set ESB_ENV first (needed for mode config path)
-    env_name = scenario.get("esb_env", os.environ.get("ESB_ENV", "default"))
+    # 0. Set ESB_PROJECT/ESB_ENV for CLI resolution
+    env_name = scenario.get("esb_env", os.environ.get("ESB_ENV", "e2e-docker"))
+    project_name = scenario.get("esb_project", os.environ.get("ESB_PROJECT", ""))
+    if not project_name:
+        print("[ERROR] ESB project name is missing.")
+        sys.exit(1)
+
+    os.environ["ESB_PROJECT"] = project_name
     os.environ["ESB_ENV"] = env_name
     os.environ["ESB_ENV_SET"] = "1"  # Mark as explicitly set to bypass interactive prompt logic
     os.environ["ESB_HOME"] = str(E2E_STATE_ROOT / env_name)
-    os.environ["ESB_CONFIG_PATH"] = str(E2E_STATE_ROOT / env_name / "config.yaml")
 
     # 0.5 Clear previous image tag to avoid leaks between scenarios in the same process
     os.environ.pop("ESB_IMAGE_TAG", None)
@@ -586,10 +637,18 @@ def run_scenario(args, scenario):
     if not os.environ.get("ESB_IMAGE_TAG"):
         os.environ["ESB_IMAGE_TAG"] = env_name
 
-    # 1. Runtime Mode Setup (via environment variable)
-    if "runtime_mode" in scenario:
-        print(f"Setting runtime mode to: {scenario['runtime_mode']} (env: {env_name}) via ESB_MODE")
-        os.environ["ESB_MODE"] = scenario["runtime_mode"]
+    # 1. Runtime Mode Setup (from generator.yml)
+    generator_path = PROJECT_ROOT / "e2e" / "fixtures" / "generator.yml"
+    env_entries = load_generator_env_entries(generator_path)
+    env_mode = ""
+    for name, mode in env_entries:
+        if name == env_name:
+            env_mode = mode
+            break
+    if env_mode:
+        os.environ["ESB_MODE"] = env_mode
+    else:
+        os.environ.pop("ESB_MODE", None)
 
     # Load Scenario-Specific Env File (Required for isolation)
     if scenario.get("env_file"):
@@ -630,36 +689,28 @@ def run_scenario(args, scenario):
 
     ensure_firecracker_node_up()
 
-    # Define common arguments (no override file needed - config is baked into image)
-    # Note: ESB_CONFIG_DIR is set by build.py after loading generator.yml
-    env_args = ["--env", env_name]
-    template_args = ["--template", env["ESB_TEMPLATE"]]
-
     try:
         # 2. Reset / Build
         if do_reset:
             print(f"➜ Resetting environment: {env_name}")
-            run_esb(template_args + ["down", "-v"] + env_args, check=True)
+            run_esb(["down", "-v"], check=True)
             # Re-generate configurations via build
-            run_esb(template_args + ["build", "--no-cache"] + env_args)
+            run_esb(["build", "--no-cache"])
         elif do_build:
             print(f"➜ Building environment: {env_name}")
-            run_esb(template_args + ["build", "--no-cache"] + env_args)
+            run_esb(["build", "--no-cache"])
         else:
-            print(f"➜ Using existing environment: {env_name}")
+            print(f"➜ Preparing environment: {env_name}")
             # Ensure services are stopped before starting (without destroying data)
-            run_esb(template_args + ["stop"] + env_args, check=True)
+            run_esb(["stop"], check=True)
+            run_esb(["build"])
 
         # If build_only, skip UP and tests
         if scenario.get("build_only"):
             return
 
         # 3. UP
-        up_args = template_args + ["up", "--detach", "--wait"] + env_args
-        if do_build or do_reset:
-            up_args.append("--build")
-
-        run_esb(up_args)
+        run_esb(["up", "--detach", "--wait"])
 
         # 3.5 Load dynamic ports from ports.json (created by esb up)
         ports = load_ports(env_name)
@@ -707,7 +758,7 @@ def run_scenario(args, scenario):
     finally:
         # 5. Cleanup (Conditional)
         if args.cleanup:
-            run_esb(template_args + ["down"] + env_args)
+            run_esb(["down"])
         # If not cleanup, we leave containers running for debugging last scenario
         # But next scenario execution will force down anyway.
 

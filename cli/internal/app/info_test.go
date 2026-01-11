@@ -33,17 +33,15 @@ func TestRunInfoOutputsConfigAndState(t *testing.T) {
 
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
+	t.Setenv("ESB_PROJECT", "demo")
+	t.Setenv("ESB_ENV", "staging")
 
 	configPath, err := config.GlobalConfigPath()
 	if err != nil {
 		t.Fatalf("global config path: %v", err)
 	}
 	globalCfg := config.GlobalConfig{
-		Version:       1,
-		ActiveProject: "demo",
-		ActiveEnvironments: map[string]string{
-			"demo": "staging",
-		},
+		Version: 1,
 		Projects: map[string]config.ProjectEntry{
 			"demo": {Path: projectDir},
 		},
@@ -64,9 +62,10 @@ func TestRunInfoOutputsConfigAndState(t *testing.T) {
 	var out bytes.Buffer
 	deps.Out = &out
 
-	exitCode := Run([]string{"info"}, deps)
+	// Call with no args (equivalent to old 'info' command)
+	exitCode := Run([]string{}, deps)
 	if exitCode != 0 {
-		t.Fatalf("expected exit code 0, got %d", exitCode)
+		t.Fatalf("expected exit code 0, got %d; output: %s", exitCode, out.String())
 	}
 
 	if capturedEnv != "staging" {
@@ -77,10 +76,10 @@ func TestRunInfoOutputsConfigAndState(t *testing.T) {
 	if !strings.Contains(output, "config.yaml") {
 		t.Fatalf("expected config path in output: %q", output)
 	}
-	if !strings.Contains(output, "env: staging") {
+	if !strings.Contains(output, "name:   staging (containerd)") {
 		t.Fatalf("expected env in output: %q", output)
 	}
-	if !strings.Contains(output, "current: running") {
+	if !strings.Contains(output, "state:  running") {
 		t.Fatalf("expected state in output: %q", output)
 	}
 }

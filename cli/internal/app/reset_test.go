@@ -50,6 +50,7 @@ func TestRunResetCallsDownBuildUp(t *testing.T) {
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
 	}
+	setupProjectConfig(t, projectDir, "demo")
 	t.Setenv("ESB_MODE", "")
 
 	downer := &fakeResetDowner{}
@@ -71,7 +72,7 @@ func TestRunResetCallsDownBuildUp(t *testing.T) {
 	if downer.calls != 1 {
 		t.Fatalf("expected downer called once, got %d", downer.calls)
 	}
-	if len(downer.projects) != 1 || downer.projects[0] != "esb-default" {
+	if len(downer.projects) != 1 || downer.projects[0] != expectedComposeProject("demo", "default") {
 		t.Fatalf("unexpected project: %v", downer.projects)
 	}
 	if len(downer.removeVolume) != 1 || !downer.removeVolume[0] {
@@ -94,7 +95,7 @@ func TestRunResetCallsDownBuildUp(t *testing.T) {
 	if upper.calls != 1 {
 		t.Fatalf("expected up called once, got %d", upper.calls)
 	}
-	if len(upper.requests) != 1 || upper.requests[0].Context.ComposeProject != "esb-default" {
+	if len(upper.requests) != 1 || upper.requests[0].Context.ComposeProject != expectedComposeProject("demo", "default") {
 		t.Fatalf("unexpected up context: %v", upper.requests)
 	}
 	if !upper.requests[0].Detach {
@@ -103,6 +104,7 @@ func TestRunResetCallsDownBuildUp(t *testing.T) {
 }
 
 func TestRunResetWithoutYes(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	projectDir := t.TempDir()
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
@@ -131,6 +133,7 @@ func TestRunResetWithoutYes(t *testing.T) {
 }
 
 func TestRunResetMissingDeps(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	projectDir := t.TempDir()
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
@@ -151,6 +154,7 @@ func TestRunResetSetsModeFromGenerator(t *testing.T) {
 	if err := writeGeneratorFixtureWithMode(projectDir, "default", "firecracker"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
 	}
+	setupProjectConfig(t, projectDir, "demo")
 
 	t.Setenv("ESB_MODE", "")
 
@@ -185,27 +189,8 @@ func TestRunResetUsesActiveEnvFromGlobalConfig(t *testing.T) {
 		t.Fatalf("write generator fixture: %v", err)
 	}
 	t.Setenv("ESB_MODE", "")
-
-	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
-
-	configPath, err := config.GlobalConfigPath()
-	if err != nil {
-		t.Fatalf("global config path: %v", err)
-	}
-	globalCfg := config.GlobalConfig{
-		Version:       1,
-		ActiveProject: "demo",
-		ActiveEnvironments: map[string]string{
-			"demo": "staging",
-		},
-		Projects: map[string]config.ProjectEntry{
-			"demo": {Path: projectDir},
-		},
-	}
-	if err := config.SaveGlobalConfig(configPath, globalCfg); err != nil {
-		t.Fatalf("save global config: %v", err)
-	}
+	setupProjectConfig(t, projectDir, "demo")
+	t.Setenv("ESB_ENV", "staging")
 
 	downer := &fakeResetDowner{}
 	builder := &fakeResetBuilder{}
@@ -223,7 +208,7 @@ func TestRunResetUsesActiveEnvFromGlobalConfig(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("expected exit code 0, got %d", exitCode)
 	}
-	if len(downer.projects) != 1 || downer.projects[0] != "esb-staging" {
+	if len(downer.projects) != 1 || downer.projects[0] != expectedComposeProject("demo", "staging") {
 		t.Fatalf("unexpected project: %v", downer.projects)
 	}
 	if len(builder.requests) != 1 || builder.requests[0].Env != "staging" {

@@ -38,6 +38,7 @@ func TestRunPruneCallsPruner(t *testing.T) {
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
 	}
+	setupProjectConfig(t, projectDir, "demo")
 
 	pruner := &fakePruner{}
 	downer := &fakePruneDowner{}
@@ -48,7 +49,7 @@ func TestRunPruneCallsPruner(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("expected exit code 0, got %d", exitCode)
 	}
-	if len(downer.projects) != 1 || downer.projects[0] != "esb-default" {
+	if len(downer.projects) != 1 || downer.projects[0] != expectedComposeProject("demo", "default") {
 		t.Fatalf("unexpected down project: %v", downer.projects)
 	}
 	if len(downer.removeVolumes) != 1 || !downer.removeVolumes[0] {
@@ -58,7 +59,7 @@ func TestRunPruneCallsPruner(t *testing.T) {
 		t.Fatalf("expected prune called once, got %d", len(pruner.requests))
 	}
 	req := pruner.requests[0]
-	if req.Context.ComposeProject != "esb-default" {
+	if req.Context.ComposeProject != expectedComposeProject("demo", "default") {
 		t.Fatalf("unexpected compose project: %s", req.Context.ComposeProject)
 	}
 	expectedTemplate := filepath.Join(projectDir, "template.yaml")
@@ -75,6 +76,7 @@ func TestRunPruneWithHard(t *testing.T) {
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
 	}
+	setupProjectConfig(t, projectDir, "demo")
 
 	pruner := &fakePruner{}
 	downer := &fakePruneDowner{}
@@ -94,6 +96,7 @@ func TestRunPruneWithHard(t *testing.T) {
 }
 
 func TestRunPruneRequiresYes(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	projectDir := t.TempDir()
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
@@ -118,6 +121,7 @@ func TestRunPruneMissingPruner(t *testing.T) {
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
 	}
+	setupProjectConfig(t, projectDir, "demo")
 
 	downer := &fakePruneDowner{}
 	var out bytes.Buffer
@@ -140,6 +144,7 @@ func TestRunPruneWithEnv(t *testing.T) {
 	if err := writeGeneratorFixture(projectDir, "staging"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
 	}
+	setupProjectConfig(t, projectDir, "demo")
 
 	pruner := &fakePruner{}
 	downer := &fakePruneDowner{}
@@ -153,7 +158,7 @@ func TestRunPruneWithEnv(t *testing.T) {
 	if len(downer.removeVolumes) != 1 || !downer.removeVolumes[0] {
 		t.Fatalf("expected volumes removed")
 	}
-	if len(pruner.requests) != 1 || pruner.requests[0].Context.ComposeProject != "esb-staging" {
+	if len(pruner.requests) != 1 || pruner.requests[0].Context.ComposeProject != expectedComposeProject("demo", "staging") {
 		t.Fatalf("unexpected context: %v", pruner.requests)
 	}
 }
@@ -163,6 +168,7 @@ func TestRunPrunePassesContext(t *testing.T) {
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
 	}
+	setupProjectConfig(t, projectDir, "demo")
 
 	pruner := &fakePruner{}
 	downer := &fakePruneDowner{}
@@ -199,27 +205,8 @@ func TestRunPruneUsesActiveEnvFromGlobalConfig(t *testing.T) {
 	if err := writeGeneratorFixtureWithEnvs(projectDir, envs, "demo"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
 	}
-
-	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
-
-	configPath, err := config.GlobalConfigPath()
-	if err != nil {
-		t.Fatalf("global config path: %v", err)
-	}
-	globalCfg := config.GlobalConfig{
-		Version:       1,
-		ActiveProject: "demo",
-		ActiveEnvironments: map[string]string{
-			"demo": "staging",
-		},
-		Projects: map[string]config.ProjectEntry{
-			"demo": {Path: projectDir},
-		},
-	}
-	if err := config.SaveGlobalConfig(configPath, globalCfg); err != nil {
-		t.Fatalf("save global config: %v", err)
-	}
+	setupProjectConfig(t, projectDir, "demo")
+	t.Setenv("ESB_ENV", "staging")
 
 	pruner := &fakePruner{}
 	downer := &fakePruneDowner{}
@@ -239,12 +226,13 @@ func TestRunPruneUsesActiveEnvFromGlobalConfig(t *testing.T) {
 	if pruner.requests[0].Context.Env != "staging" {
 		t.Fatalf("unexpected env: %s", pruner.requests[0].Context.Env)
 	}
-	if pruner.requests[0].Context.ComposeProject != "esb-staging" {
+	if pruner.requests[0].Context.ComposeProject != expectedComposeProject("demo", "staging") {
 		t.Fatalf("unexpected compose project: %s", pruner.requests[0].Context.ComposeProject)
 	}
 }
 
 func TestRunPruneWithoutGeneratorRemovesContainersOnly(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	projectDir := t.TempDir()
 
 	pruner := &fakePruner{}
@@ -253,14 +241,11 @@ func TestRunPruneWithoutGeneratorRemovesContainersOnly(t *testing.T) {
 	deps := Dependencies{Out: &out, ProjectDir: projectDir, Pruner: pruner, Downer: downer}
 
 	exitCode := Run([]string{"prune", "--yes"}, deps)
-	if exitCode != 0 {
-		t.Fatalf("expected exit code 0, got %d", exitCode)
+	if exitCode == 0 {
+		t.Fatalf("expected non-zero exit code without generator.yml")
 	}
-	if len(downer.projects) != 1 || downer.projects[0] != "esb-default" {
-		t.Fatalf("unexpected down project: %v", downer.projects)
-	}
-	if len(downer.removeVolumes) != 1 || !downer.removeVolumes[0] {
-		t.Fatalf("expected volumes removed")
+	if len(downer.projects) != 0 {
+		t.Fatalf("expected no down calls when generator.yml missing")
 	}
 	if len(pruner.requests) != 0 {
 		t.Fatalf("expected no prune calls when generator.yml missing")

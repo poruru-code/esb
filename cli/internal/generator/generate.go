@@ -79,7 +79,7 @@ func GenerateFiles(cfg config.GeneratorConfig, opts GenerateOptions) ([]Function
 		}
 	}
 
-	resolvedTag := resolveTag(opts.Tag, cfg.App.Tag)
+	resolvedTag := resolveTag(opts.Tag, "")
 	functions := make([]FunctionSpec, 0, len(parsed.Functions))
 
 	for _, fn := range parsed.Functions {

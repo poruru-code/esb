@@ -11,10 +11,12 @@ import (
 	"strings"
 )
 
+// CommandOutputer defines the interface for executing commands and capturing output.
 type CommandOutputer interface {
 	Output(ctx context.Context, dir, name string, args ...string) ([]byte, error)
 }
 
+// PortMapping defines a mapping from container port to environment variable name.
 type PortMapping struct {
 	EnvVar        string
 	Service       string
@@ -22,6 +24,7 @@ type PortMapping struct {
 	Modes         []string
 }
 
+// PortDiscoveryOptions contains configuration for discovering ports.
 type PortDiscoveryOptions struct {
 	RootDir    string
 	Project    string
@@ -62,12 +65,15 @@ var DefaultPortMappings = []PortMapping{
 	},
 }
 
+// Output executes a command and returns its combined stdout/stderr.
 func (ExecRunner) Output(ctx context.Context, dir, name string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
 	return cmd.CombinedOutput()
 }
 
+// DiscoverPorts queries docker compose port for each mapping and returns
+// the discovered host ports as a map of environment variable names to ports.
 func DiscoverPorts(ctx context.Context, runner CommandOutputer, opts PortDiscoveryOptions) (map[string]int, error) {
 	if runner == nil {
 		return nil, fmt.Errorf("command runner is nil")
@@ -126,6 +132,8 @@ func DiscoverPorts(ctx context.Context, runner CommandOutputer, opts PortDiscove
 	return ports, nil
 }
 
+// modeAllowed checks if the current mode is in the allowed list.
+// Returns true if allowed list is empty (applies to all modes).
 func modeAllowed(mode string, allowed []string) bool {
 	if len(allowed) == 0 {
 		return true

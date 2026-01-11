@@ -53,6 +53,7 @@ func TestRunUpCallsUpper(t *testing.T) {
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
 	}
+	setupProjectConfig(t, projectDir, "demo")
 	t.Setenv("ESB_MODE", "")
 
 	upper := &fakeUpper{}
@@ -67,8 +68,8 @@ func TestRunUpCallsUpper(t *testing.T) {
 	if upper.calls != 1 {
 		t.Fatalf("expected upper called once, got %d", upper.calls)
 	}
-	if len(upper.requests) != 1 || upper.requests[0].Context.ComposeProject != "esb-default" {
-		t.Fatalf("unexpected context: %v", upper.requests)
+	if len(upper.requests) != 1 || upper.requests[0].Context.ComposeProject != expectedComposeProject("demo", "default") {
+		t.Fatalf("unexpected project: %v", upper.requests)
 	}
 	expectedTemplate := filepath.Join(projectDir, "template.yaml")
 	if upper.requests[0].Context.TemplatePath != expectedTemplate {
@@ -87,6 +88,7 @@ func TestRunUpWithEnv(t *testing.T) {
 	if err := writeGeneratorFixture(projectDir, "staging"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
 	}
+	setupProjectConfig(t, projectDir, "demo")
 	t.Setenv("ESB_MODE", "")
 
 	upper := &fakeUpper{}
@@ -98,7 +100,7 @@ func TestRunUpWithEnv(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("expected exit code 0, got %d", exitCode)
 	}
-	if len(upper.requests) != 1 || upper.requests[0].Context.ComposeProject != "esb-staging" {
+	if len(upper.requests) != 1 || upper.requests[0].Context.ComposeProject != expectedComposeProject("demo", "staging") {
 		t.Fatalf("unexpected context: %v", upper.requests)
 	}
 }
@@ -111,6 +113,7 @@ func TestRunUpAppliesEnvDefaults(t *testing.T) {
 	if err := writeGeneratorFixture(repoRoot, "staging"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
 	}
+	setupProjectConfig(t, repoRoot, "demo")
 
 	stagingDir := filepath.Join(repoRoot, "services", "gateway", ".esb-staging", "staging", "config")
 	if err := os.MkdirAll(stagingDir, 0o755); err != nil {
@@ -136,7 +139,7 @@ func TestRunUpAppliesEnvDefaults(t *testing.T) {
 	if got := os.Getenv("ESB_ENV"); got != "staging" {
 		t.Fatalf("unexpected ESB_ENV: %s", got)
 	}
-	if got := os.Getenv("ESB_PROJECT_NAME"); got != "esb-staging" {
+	if got := os.Getenv("ESB_PROJECT_NAME"); got != expectedComposeProject("demo", "staging") {
 		t.Fatalf("unexpected ESB_PROJECT_NAME: %s", got)
 	}
 	if got := os.Getenv("ESB_IMAGE_TAG"); got != "staging" {
@@ -175,6 +178,7 @@ func TestRunUpAppliesGeneratorParameters(t *testing.T) {
 	if err := config.SaveGeneratorConfig(filepath.Join(projectDir, "generator.yml"), cfg); err != nil {
 		t.Fatalf("write generator config: %v", err)
 	}
+	setupProjectConfig(t, projectDir, "demo")
 
 	t.Setenv("GATEWAY_FUNCTIONS_YML", "")
 	t.Setenv("GATEWAY_ROUTING_YML", "")
@@ -218,6 +222,7 @@ func TestRunUpKeepsExplicitEnvOverrides(t *testing.T) {
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
 	}
+	setupProjectConfig(t, projectDir, "demo")
 
 	t.Setenv("ESB_ENV", "custom")
 	t.Setenv("ESB_PROJECT_NAME", "custom-project")
@@ -250,6 +255,7 @@ func TestRunUpKeepsExplicitEnvOverrides(t *testing.T) {
 }
 
 func TestRunUpMissingUpper(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	projectDir := t.TempDir()
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
@@ -266,6 +272,7 @@ func TestRunUpMissingUpper(t *testing.T) {
 }
 
 func TestRunUpMissingProvisioner(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	projectDir := t.TempDir()
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
@@ -297,6 +304,7 @@ func TestRunUpWithBuildRunsBuilder(t *testing.T) {
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
 	}
+	setupProjectConfig(t, projectDir, "demo")
 	t.Setenv("ESB_MODE", "")
 
 	upper := &fakeUpper{}
@@ -330,6 +338,7 @@ func TestRunUpWithBuildMissingBuilder(t *testing.T) {
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
 	}
+	setupProjectConfig(t, projectDir, "demo")
 	t.Setenv("ESB_MODE", "")
 
 	upper := &fakeUpper{}
@@ -351,6 +360,7 @@ func TestRunUpWithWaitCallsWaiter(t *testing.T) {
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
 	}
+	setupProjectConfig(t, projectDir, "demo")
 	t.Setenv("ESB_MODE", "")
 
 	upper := &fakeUpper{}
@@ -379,6 +389,7 @@ func TestRunUpWithWaiterError(t *testing.T) {
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
 	}
+	setupProjectConfig(t, projectDir, "demo")
 	t.Setenv("ESB_MODE", "")
 
 	upper := &fakeUpper{}
@@ -407,6 +418,7 @@ func TestRunUpSetsModeFromGenerator(t *testing.T) {
 	if err := writeGeneratorFixtureWithMode(projectDir, "default", "containerd"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
 	}
+	setupProjectConfig(t, projectDir, "demo")
 
 	t.Setenv("ESB_MODE", "")
 
@@ -434,27 +446,8 @@ func TestRunUpUsesActiveEnvFromGlobalConfig(t *testing.T) {
 		t.Fatalf("write generator fixture: %v", err)
 	}
 	t.Setenv("ESB_MODE", "")
-
-	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
-
-	configPath, err := config.GlobalConfigPath()
-	if err != nil {
-		t.Fatalf("global config path: %v", err)
-	}
-	globalCfg := config.GlobalConfig{
-		Version:       1,
-		ActiveProject: "demo",
-		ActiveEnvironments: map[string]string{
-			"demo": "staging",
-		},
-		Projects: map[string]config.ProjectEntry{
-			"demo": {Path: projectDir},
-		},
-	}
-	if err := config.SaveGlobalConfig(configPath, globalCfg); err != nil {
-		t.Fatalf("save global config: %v", err)
-	}
+	setupProjectConfig(t, projectDir, "demo")
+	t.Setenv("ESB_ENV", "staging")
 
 	upper := &fakeUpper{}
 	provisioner := &fakeProvisioner{}

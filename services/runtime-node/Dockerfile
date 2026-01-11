@@ -70,7 +70,10 @@ COPY firecracker-containerd.toml /etc/firecracker-containerd/config.toml
 COPY firecracker-runtime.json /etc/containerd/firecracker-runtime.json
 COPY firecracker-runc-config.json /etc/containerd/firecracker-runc-config.json
 
+COPY entrypoint.common.sh /entrypoint.common.sh
+COPY entrypoint.containerd.sh /entrypoint.containerd.sh
+COPY entrypoint.firecracker.sh /entrypoint.firecracker.sh
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+RUN chmod +x /entrypoint.sh /entrypoint.containerd.sh /entrypoint.firecracker.sh
 
 ENTRYPOINT ["/entrypoint.sh"]
