@@ -255,22 +255,10 @@ func runProjectAdd(cli CLI, deps Dependencies, out io.Writer) int {
 				}
 			}
 
-			// 2. Prompt user if still not found
+			// 2. Error if still not found
 			if template == "" {
-				var err error
-				if deps.Prompter != nil {
-					template, err = deps.Prompter.InputPath("Template path (e.g. template.yaml)")
-				} else if isTerminal(os.Stdin) {
-					template, err = promptLine("Template path (e.g. template.yaml)")
-				} else {
-					// Fallback for non-terminal environments
-					return exitWithSuggestion(out, "Template path is required to initialize a new project.",
-						[]string{"esb project add . --template <path>"})
-				}
-
-				if err != nil {
-					return exitWithError(out, err)
-				}
+				return exitWithSuggestion(out, "Template path is required to initialize a new project.",
+					[]string{"esb project add . --template <path>"})
 			}
 		}
 
@@ -281,21 +269,8 @@ func runProjectAdd(cli CLI, deps Dependencies, out io.Writer) int {
 
 		envs := splitEnvList(cli.EnvFlag)
 		if len(envs) == 0 {
-			// Use prompter if available
-			var input string
-			var err error
-			if deps.Prompter != nil {
-				input, err = deps.Prompter.Input("Environment name (e.g. dev:docker, prod:containerd)", nil)
-			} else if isTerminal(os.Stdin) {
-				input, err = promptLine("Environment name (e.g. dev:docker, prod:containerd)")
-			} else {
-				return exitWithError(out, fmt.Errorf("environment name is required"))
-			}
-
-			if err != nil {
-				return exitWithError(out, err)
-			}
-			envs = splitEnvList(input)
+			return exitWithSuggestion(out, "Environment name is required for new projects.",
+				[]string{"esb project add . -e dev:docker"})
 		}
 
 		path, err := runInit(template, envs, cli.Project.Add.Name)

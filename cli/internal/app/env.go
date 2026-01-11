@@ -35,7 +35,7 @@ type (
 		Force bool   `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
 	}
 	EnvRemoveCmd struct {
-		Name  string `arg:"" help:"Environment name"`
+		Name  string `arg:"" optional:"" help:"Environment name"`
 		Force bool   `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
 	}
 )
@@ -281,18 +281,43 @@ func parseIndex(input string, maxVal int) (int, error) {
 // runEnvRemove executes the 'env remove' command which deletes an environment
 // from generator.yml and updates the global configuration if necessary.
 func runEnvRemove(cli CLI, deps Dependencies, out io.Writer) int {
-	name := strings.TrimSpace(cli.Env.Remove.Name)
-	if name == "" {
-		fmt.Fprintln(out, "environment name is required")
-		return 1
-	}
-
 	opts := newResolveOptions(cli.Env.Remove.Force)
 	ctx, err := resolveEnvContext(cli, deps, opts)
 	if err != nil {
-		fmt.Fprintln(out, err)
-		return 1
+		return exitWithError(out, err)
 	}
+
+	name := strings.TrimSpace(cli.Env.Remove.Name)
+	if name == "" {
+		envs := ctx.Project.Generator.Environments
+		if len(envs) == 0 {
+			return exitWithError(out, fmt.Errorf("no environments defined"))
+		}
+
+		if !isTerminal(os.Stdin) {
+			var names []string
+			for _, env := range envs {
+				names = append(names, env.Name)
+			}
+			return exitWithSuggestionAndAvailable(out,
+				"Environment name required (non-interactive mode).",
+				[]string{"esb env remove <name>"},
+				names,
+			)
+		}
+
+		options := make([]selectOption, len(envs))
+		for i, env := range envs {
+			options[i] = selectOption{Label: fmt.Sprintf("%s (%s)", env.Name, env.Mode), Value: env.Name}
+		}
+
+		selected, err := selectFromList("Select environment to remove", options)
+		if err != nil {
+			return exitWithError(out, err)
+		}
+		name = selected
+	}
+
 	if !ctx.Project.Generator.Environments.Has(name) {
 		fmt.Fprintln(out, "environment not found")
 		return 1

@@ -4,10 +4,6 @@
 package app
 
 import (
-	"os"
-	"path/filepath"
-	"strings"
-
 	"github.com/charmbracelet/huh"
 )
 
@@ -48,95 +44,6 @@ func (p HuhPrompter) Input(title string, suggestions []string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return input, nil
-}
-
-func (p HuhPrompter) InputPath(title string) (string, error) {
-	var input string
-	err := huh.NewInput().
-		Title(title).
-		Description("(Tab, →, or Ctrl+E to complete path, Enter to confirm)").
-		SuggestionsFunc(func() []string {
-			expandTilde := func(path string) string {
-				if strings.HasPrefix(path, "~/") {
-					home, _ := os.UserHomeDir()
-					return filepath.Join(home, path[2:])
-				}
-				if path == "~" {
-					home, _ := os.UserHomeDir()
-					return home
-				}
-				return path
-			}
-
-			// Base directory and prefix for searching
-			dir := "."
-			prefix := ""
-			p := expandTilde(input)
-
-			if input != "" {
-				if strings.HasSuffix(input, "/") {
-					dir = p
-					prefix = ""
-				} else {
-					dir = filepath.Dir(p)
-					prefix = filepath.Base(p)
-					if dir == "" {
-						dir = "."
-					}
-				}
-			}
-
-			// List files in the resolved directory
-			entries, err := os.ReadDir(dir)
-			if err != nil {
-				return nil
-			}
-
-			// Track prefix of the original input to reconstruct suggestions
-			originalInputPrefix := ""
-			if input != "" {
-				if strings.HasSuffix(input, "/") {
-					originalInputPrefix = input
-				} else {
-					lastSlash := strings.LastIndex(input, "/")
-					if lastSlash >= 0 {
-						originalInputPrefix = input[:lastSlash+1]
-					}
-				}
-			}
-
-			var matches []string
-			for _, e := range entries {
-				name := e.Name()
-				// Case-insensitive filtering for better UX
-				if prefix != "" && !strings.HasPrefix(strings.ToLower(name), strings.ToLower(prefix)) {
-					continue
-				}
-
-				suggestion := originalInputPrefix + name
-				if e.IsDir() {
-					suggestion += "/"
-				}
-				matches = append(matches, suggestion)
-			}
-			return matches
-		}, &input).
-		Value(&input).
-		Run()
-	if err != nil {
-		return "", err
-	}
-
-	// Final expansion before returning
-	if strings.HasPrefix(input, "~/") {
-		home, _ := os.UserHomeDir()
-		input = filepath.Join(home, input[2:])
-	} else if input == "~" {
-		home, _ := os.UserHomeDir()
-		input = home
-	}
-
 	return input, nil
 }
 

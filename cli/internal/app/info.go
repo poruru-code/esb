@@ -94,14 +94,6 @@ func runInfo(cli CLI, deps Dependencies, out io.Writer) int {
 	fmt.Fprintf(out, "   tmpl: %s\n", ctx.TemplatePath)
 	fmt.Fprintf(out, "   out:  %s\n", ctx.OutputDir)
 
-	fmt.Fprintln(out, "\n🌐 Environment")
-	if envError != nil {
-		fmt.Fprintf(out, "   status: %v\n", envError)
-	}
-	fmt.Fprintf(out, "   name: %s (%s)\n", ctx.Env, ctx.Mode)
-	fmt.Fprintf(out, "   env:  %s\n", ctx.OutputEnvDir)
-	fmt.Fprintf(out, "   proj: %s\n", ctx.ComposeProject)
-
 	stateValue := "unknown"
 	if envError == nil && deps.DetectorFactory != nil {
 		detector, err := deps.DetectorFactory(project.Dir, ctx.Env)
@@ -117,8 +109,14 @@ func runInfo(cli CLI, deps Dependencies, out io.Writer) int {
 		}
 	}
 
-	fmt.Fprintln(out, "\n⚡ State")
-	fmt.Fprintf(out, "   curr: %s\n", stateValue)
+	fmt.Fprintln(out, "\n🌐 Environment")
+	if envError != nil {
+		fmt.Fprintf(out, "   status: %v\n", envError)
+	}
+	fmt.Fprintf(out, "   name:   %s (%s)\n", ctx.Env, ctx.Mode)
+	fmt.Fprintf(out, "   state:  %s\n", stateValue)
+	fmt.Fprintf(out, "   env:    %s\n", ctx.OutputEnvDir)
+	fmt.Fprintf(out, "   proj:   %s\n", ctx.ComposeProject)
 
 	return 0
 }

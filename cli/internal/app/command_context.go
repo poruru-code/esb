@@ -15,26 +15,17 @@ import (
 // Prompter defines the interface for interactive user input and selection.
 type Prompter interface {
 	Input(title string, suggestions []string) (string, error)
-	InputPath(title string) (string, error)
 	Select(title string, options []string) (string, error)
 }
 
 type mockPrompter struct {
-	inputFn     func(title string, suggestions []string) (string, error)
-	inputPathFn func(title string) (string, error)
-	selectFn    func(title string, options []string) (string, error)
+	inputFn  func(title string, suggestions []string) (string, error)
+	selectFn func(title string, options []string) (string, error)
 }
 
 func (m mockPrompter) Input(title string, suggestions []string) (string, error) {
 	if m.inputFn != nil {
 		return m.inputFn(title, suggestions)
-	}
-	return "", nil
-}
-
-func (m mockPrompter) InputPath(title string) (string, error) {
-	if m.inputPathFn != nil {
-		return m.inputPathFn(title)
 	}
 	return "", nil
 }

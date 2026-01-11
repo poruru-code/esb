@@ -67,12 +67,7 @@ func TestRunProjectAdd_Existing(t *testing.T) {
 	}
 }
 
-func TestRunProjectAdd_Interactive(t *testing.T) {
-	// Mock isTerminal to true
-	oldIsTerminal := isTerminal
-	isTerminal = func(_ *os.File) bool { return true }
-	defer func() { isTerminal = oldIsTerminal }()
-
+func TestRunProjectAdd_MissingEnv_Error(t *testing.T) {
 	projectDir := t.TempDir()
 	templatePath := filepath.Join(projectDir, "template.yaml")
 	if err := os.WriteFile(templatePath, []byte("Resources: {}"), 0o644); err != nil {
@@ -85,39 +80,21 @@ func TestRunProjectAdd_Interactive(t *testing.T) {
 		ProjectDir: projectDir,
 	}
 
-	// Provide prompter for interaction
-	mock := &mockPrompter{
-		inputFn: func(title string, _ []string) (string, error) {
-			if strings.Contains(title, "Environment name") {
-				return "dev:containerd", nil
-			}
-			return "", nil
-		},
-	}
-	deps.Prompter = mock
-
-	// Run without environment flag
+	// Run without environment flag -> expect error
 	exitCode := Run([]string{"--template", templatePath, "project", "add", projectDir}, deps)
-	if exitCode != 0 {
-		t.Fatalf("expected exit code 0, got %d; output: %s", exitCode, out.String())
+	if exitCode != 1 {
+		t.Fatalf("expected exit code 1, got %d; output: %s", exitCode, out.String())
 	}
 
-	if !strings.Contains(out.String(), "Configuration saved") {
-		t.Errorf("expected interactive flow to complete, got: %s", out.String())
+	output := out.String()
+	if !strings.Contains(output, "Environment name is required") {
+		t.Errorf("missing error message: %s", output)
 	}
 }
 
-func TestRunProjectAdd_InteractiveTemplate(t *testing.T) {
-	// Mock isTerminal to true
-	oldIsTerminal := isTerminal
-	isTerminal = func(_ *os.File) bool { return true }
-	defer func() { isTerminal = oldIsTerminal }()
-
+func TestRunProjectAdd_MissingTemplate_Error(t *testing.T) {
 	projectDir := t.TempDir()
-	templatePath := filepath.Join(projectDir, "sam.yaml") // intentionally not template.yaml
-	if err := os.WriteFile(templatePath, []byte("Resources: {}"), 0o644); err != nil {
-		t.Fatalf("failed to write template: %v", err)
-	}
+	// No template file created
 
 	var out bytes.Buffer
 	deps := Dependencies{
@@ -125,31 +102,15 @@ func TestRunProjectAdd_InteractiveTemplate(t *testing.T) {
 		ProjectDir: projectDir,
 	}
 
-	// Provide prompter for interaction
-	mock := &mockPrompter{
-		inputPathFn: func(title string) (string, error) {
-			if strings.Contains(title, "Template path") {
-				return templatePath, nil
-			}
-			return "", nil
-		},
-		inputFn: func(title string, _ []string) (string, error) {
-			if strings.Contains(title, "Environment name") {
-				return "dev:docker", nil
-			}
-			return "", nil
-		},
-	}
-	deps.Prompter = mock
-
-	// Run without template flag
+	// Run without template flag -> expect error
 	exitCode := Run([]string{"project", "add", projectDir}, deps)
-	if exitCode != 0 {
-		t.Fatalf("expected exit code 0, got %d; output: %s", exitCode, out.String())
+	if exitCode != 1 {
+		t.Fatalf("expected exit code 1, got %d; output: %s", exitCode, out.String())
 	}
 
-	if !strings.Contains(out.String(), "Configuration saved") {
-		t.Errorf("expected interactive flow for template to complete, got: %s", out.String())
+	output := out.String()
+	if !strings.Contains(output, "Template path is required") {
+		t.Errorf("missing error message: %s", output)
 	}
 }
 

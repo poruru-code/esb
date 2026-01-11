@@ -36,13 +36,3 @@ func promptYesNo(message string) (bool, error) {
 	trimmed := strings.TrimSpace(strings.ToLower(line))
 	return trimmed == "y" || trimmed == "yes", nil
 }
-
-func promptLine(message string) (string, error) {
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Fprintf(os.Stderr, "%s: ", message)
-	line, err := reader.ReadString('\n')
-	if err != nil && !errors.Is(err, io.EOF) {
-		return "", err
-	}
-	return strings.TrimSpace(line), nil
-}
