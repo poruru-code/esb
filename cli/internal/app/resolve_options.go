@@ -10,9 +10,10 @@ import (
 )
 
 type resolveOptions struct {
-	Force       bool
-	Interactive bool
-	Prompt      state.PromptFunc
+	Force           bool
+	Interactive     bool
+	Prompt          state.PromptFunc
+	AllowMissingEnv bool
 }
 
 func newResolveOptions(force bool) resolveOptions {

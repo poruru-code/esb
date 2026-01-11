@@ -112,6 +112,7 @@ func TestRunBuildUsesActiveEnvFromGlobalConfig(t *testing.T) {
 	if err := writeGeneratorFixtureWithEnvs(projectDir, envs, "demo"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
 	}
+	setupProjectConfig(t, projectDir, "demo")
 	templatePath := filepath.Join(projectDir, "template.yaml")
 	t.Setenv("ESB_ENV", "staging")
 
@@ -161,6 +162,7 @@ func TestRunBuildPassesNoCacheFlag(t *testing.T) {
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
 	}
+	setupProjectConfig(t, projectDir, "demo")
 	templatePath := filepath.Join(projectDir, "template.yaml")
 
 	builder := &fakeBuilder{}

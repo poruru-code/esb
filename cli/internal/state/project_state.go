@@ -20,12 +20,13 @@ type ProjectState struct {
 
 // ProjectStateOptions configures environment selection and interaction behavior.
 type ProjectStateOptions struct {
-	EnvFlag     string
-	EnvVar      string
-	Config      config.GeneratorConfig
-	Force       bool
-	Interactive bool
-	Prompt      PromptFunc
+	EnvFlag         string
+	EnvVar          string
+	Config          config.GeneratorConfig
+	Force           bool
+	Interactive     bool
+	Prompt          PromptFunc
+	AllowMissingEnv bool
 }
 
 // ResolveProjectState resolves the active environment for the project.
@@ -33,6 +34,9 @@ func ResolveProjectState(opts ProjectStateOptions) (ProjectState, error) {
 	envs := opts.Config.Environments
 	hasEnvs := len(envs) > 0
 	if !hasEnvs {
+		if opts.AllowMissingEnv {
+			return ProjectState{HasEnvironments: false, GeneratorValid: true}, nil
+		}
 		return ProjectState{HasEnvironments: false, GeneratorValid: true}, fmt.Errorf(
 			"no environments defined; run 'esb env add <name>' first",
 		)
@@ -78,6 +82,10 @@ func ResolveProjectState(opts ProjectStateOptions) (ProjectState, error) {
 		if name != "" {
 			return ProjectState{HasEnvironments: true, ActiveEnv: name, GeneratorValid: true}, nil
 		}
+	}
+
+	if opts.AllowMissingEnv {
+		return ProjectState{HasEnvironments: true, GeneratorValid: true}, nil
 	}
 
 	return ProjectState{HasEnvironments: true, GeneratorValid: true}, fmt.Errorf(

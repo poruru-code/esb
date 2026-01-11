@@ -60,7 +60,7 @@ func TestRunProjectRoot(t *testing.T) {
 	}
 
 	output := out.String()
-	if !strings.Contains(output, "* demo") {
-		t.Fatalf("expected output to contain '* demo', got: %s", output)
+	if !strings.Contains(output, "📦  demo") {
+		t.Fatalf("expected output to contain '📦  demo', got: %s", output)
 	}
 }

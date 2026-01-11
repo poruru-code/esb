@@ -26,9 +26,7 @@ func runReset(cli CLI, deps Dependencies, out io.Writer) int {
 		return exitWithError(out, err)
 	}
 	ctx := ctxInfo.Context
-	applyModeEnv(ctx.Mode)
-	applyEnvironmentDefaults(ctx.Env, ctx.Mode)
-	applyUpEnv(ctx)
+	applyRuntimeEnv(ctx)
 
 	templatePath := resolvedTemplatePath(ctxInfo)
 

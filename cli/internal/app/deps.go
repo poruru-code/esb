@@ -112,35 +112,66 @@ func (fn stopperFunc) Stop(request StopRequest) error {
 	return fn(request)
 }
 
+// Logger defines the interface for streaming container logs and listing services.
+// Implementations use Docker Compose to retrieve log output and configuration.
+type Logger interface {
+	Logs(request LogsRequest) error
+	ListServices(request LogsRequest) ([]string, error)
+}
+
 // NewLogger creates a Logger implementation that streams container logs
 // via Docker Compose with follow/tail/timestamp options.
 func NewLogger() Logger {
-	return loggerFunc(func(request LogsRequest) error {
-		rootDir, err := compose.FindRepoRoot(request.Context.ProjectDir)
-		if err != nil {
-			return err
-		}
+	return loggerImpl{
+		logsFn: func(request LogsRequest) error {
+			rootDir, err := compose.FindRepoRoot(request.Context.ProjectDir)
+			if err != nil {
+				return err
+			}
 
-		opts := compose.LogsOptions{
-			RootDir:    rootDir,
-			Project:    request.Context.ComposeProject,
-			Mode:       request.Context.Mode,
-			Target:     "control",
-			Follow:     request.Follow,
-			Tail:       request.Tail,
-			Timestamps: request.Timestamps,
-			Service:    request.Service,
-		}
-		return compose.LogsProject(context.Background(), compose.ExecRunner{}, opts)
-	})
+			opts := compose.LogsOptions{
+				RootDir:    rootDir,
+				Project:    request.Context.ComposeProject,
+				Mode:       request.Context.Mode,
+				Target:     "control",
+				Follow:     request.Follow,
+				Tail:       request.Tail,
+				Timestamps: request.Timestamps,
+				Service:    request.Service,
+			}
+			return compose.LogsProject(context.Background(), compose.ExecRunner{}, opts)
+		},
+		listServicesFn: func(request LogsRequest) ([]string, error) {
+			rootDir, err := compose.FindRepoRoot(request.Context.ProjectDir)
+			if err != nil {
+				return nil, err
+			}
+
+			opts := compose.LogsOptions{
+				RootDir: rootDir,
+				Project: request.Context.ComposeProject,
+				Mode:    request.Context.Mode,
+				Target:  "control",
+			}
+			return compose.ListServices(context.Background(), compose.ExecRunner{}, opts)
+		},
+	}
 }
 
-// loggerFunc is a function adapter that implements the Logger interface.
-type loggerFunc func(request LogsRequest) error
+// loggerImpl implements the Logger interface using function adapters.
+type loggerImpl struct {
+	logsFn         func(request LogsRequest) error
+	listServicesFn func(request LogsRequest) ([]string, error)
+}
 
 // Logs implements the Logger interface by invoking the wrapped function.
-func (fn loggerFunc) Logs(request LogsRequest) error {
-	return fn(request)
+func (l loggerImpl) Logs(request LogsRequest) error {
+	return l.logsFn(request)
+}
+
+// ListServices implements the Logger interface by invoking the wrapped function.
+func (l loggerImpl) ListServices(request LogsRequest) ([]string, error) {
+	return l.listServicesFn(request)
 }
 
 // NewPruner creates a Pruner implementation that removes generated artifacts

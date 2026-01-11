@@ -34,6 +34,7 @@ type UpOptions struct {
 // Implementations run docker compose commands in the specified directory.
 type CommandRunner interface {
 	Run(ctx context.Context, dir, name string, args ...string) error
+	RunOutput(ctx context.Context, dir, name string, args ...string) ([]byte, error)
 }
 
 // ExecRunner implements CommandRunner using os/exec.
@@ -46,6 +47,14 @@ func (ExecRunner) Run(ctx context.Context, dir, name string, args ...string) err
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+// RunOutput executes a command and returns its stdout. Stderr is inherited.
+func (ExecRunner) RunOutput(ctx context.Context, dir, name string, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Dir = dir
+	cmd.Stderr = os.Stderr
+	return cmd.Output()
 }
 
 // UpProject runs docker compose up with the appropriate configuration

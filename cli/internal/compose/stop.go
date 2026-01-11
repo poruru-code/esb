@@ -19,19 +19,6 @@ type StopOptions struct {
 	ExtraFiles []string
 }
 
-// LogsOptions contains configuration for viewing Docker Compose logs.
-type LogsOptions struct {
-	RootDir    string
-	Project    string
-	Mode       string
-	Target     string
-	Follow     bool
-	Tail       int
-	Timestamps bool
-	Service    string
-	ExtraFiles []string
-}
-
 // StopProject runs docker compose stop for the specified project and services.
 func StopProject(ctx context.Context, runner CommandRunner, opts StopOptions) error {
 	if runner == nil {
@@ -64,52 +51,6 @@ func StopProject(ctx context.Context, runner CommandRunner, opts StopOptions) er
 	args = append(args, "stop")
 	if len(opts.Services) > 0 {
 		args = append(args, opts.Services...)
-	}
-
-	return runner.Run(ctx, opts.RootDir, "docker", args...)
-}
-
-// LogsProject runs docker compose logs with specified follow/tail options.
-func LogsProject(ctx context.Context, runner CommandRunner, opts LogsOptions) error {
-	if runner == nil {
-		return fmt.Errorf("command runner is nil")
-	}
-	if opts.RootDir == "" {
-		return fmt.Errorf("root dir is required")
-	}
-
-	mode := resolveMode(opts.Mode)
-	files, err := ResolveComposeFiles(opts.RootDir, mode, opts.Target)
-	if err != nil {
-		return err
-	}
-
-	args := []string{"compose"}
-	if opts.Project != "" {
-		args = append(args, "-p", opts.Project)
-	}
-	for _, file := range files {
-		args = append(args, "-f", file)
-	}
-	for _, file := range opts.ExtraFiles {
-		if strings.TrimSpace(file) == "" {
-			continue
-		}
-		args = append(args, "-f", file)
-	}
-
-	args = append(args, "logs")
-	if opts.Follow {
-		args = append(args, "--follow")
-	}
-	if opts.Tail > 0 {
-		args = append(args, "--tail", fmt.Sprintf("%d", opts.Tail))
-	}
-	if opts.Timestamps {
-		args = append(args, "--timestamps")
-	}
-	if strings.TrimSpace(opts.Service) != "" {
-		args = append(args, opts.Service)
 	}
 
 	return runner.Run(ctx, opts.RootDir, "docker", args...)

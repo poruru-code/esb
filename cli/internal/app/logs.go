@@ -6,6 +6,7 @@ package app
 import (
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
@@ -19,12 +20,6 @@ type LogsRequest struct {
 	Tail       int
 	Timestamps bool
 	Service    string
-}
-
-// Logger defines the interface for streaming container logs.
-// Implementations use Docker Compose to retrieve log output.
-type Logger interface {
-	Logs(request LogsRequest) error
 }
 
 // runLogs executes the 'logs' command which streams container logs
@@ -43,8 +38,7 @@ func runLogs(cli CLI, deps Dependencies, out io.Writer) int {
 	}
 
 	ctx := ctxInfo.Context
-	applyModeEnv(ctx.Mode)
-	applyEnvironmentDefaults(ctx.Env, ctx.Mode)
+	applyRuntimeEnv(ctx)
 
 	req := LogsRequest{
 		Context:    ctx,
@@ -53,6 +47,32 @@ func runLogs(cli CLI, deps Dependencies, out io.Writer) int {
 		Timestamps: cli.Logs.Timestamps,
 		Service:    strings.TrimSpace(cli.Logs.Service),
 	}
+
+	if req.Service == "" && isTerminal(os.Stdin) {
+		services, err := deps.Logger.ListServices(req)
+		if err != nil {
+			// If listing services fails (e.g. interpolation error), logs will likely fail too.
+			// Exit early to avoid double error output.
+			return exitWithError(out, err)
+		}
+		if len(services) > 0 {
+			var options []selectOption
+			options = append(options, selectOption{Label: "All services", Value: ""})
+			for _, svc := range services {
+				options = append(options, selectOption{Label: svc, Value: svc})
+			}
+
+			if deps.Prompter == nil {
+				return exitWithError(out, fmt.Errorf("prompter not configured"))
+			}
+			selected, err := deps.Prompter.SelectValue("Select service to view logs", options)
+			if err != nil {
+				return exitWithError(out, err)
+			}
+			req.Service = selected
+		}
+	}
+
 	if err := deps.Logger.Logs(req); err != nil {
 		fmt.Fprintln(out, err)
 		return 1

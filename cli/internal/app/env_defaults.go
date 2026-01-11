@@ -8,8 +8,13 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/poruru/edge-serverless-box/cli/internal/compose"
+	"github.com/poruru/edge-serverless-box/cli/internal/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
 var defaultPorts = map[string]int{
@@ -23,20 +28,35 @@ var defaultPorts = map[string]int{
 	"ESB_PORT_VICTORIALOGS":  9428,
 }
 
-// applyEnvironmentDefaults sets default environment variables for ports,
-// networks, and registry based on the environment name and runtime mode.
-func applyEnvironmentDefaults(envName, mode string) {
-	env := strings.TrimSpace(envName)
+// applyRuntimeEnv sets all environment variables required for running commands,
+// including project metadata, ports, networks, and custom generator parameters.
+func applyRuntimeEnv(ctx state.Context) {
+	applyModeEnv(ctx.Mode)
+
+	env := strings.TrimSpace(ctx.Env)
 	if env == "" {
 		env = "default"
 	}
 
-	setEnvIfEmpty("ESB_PROJECT_NAME", fmt.Sprintf("esb-%s", strings.ToLower(env)))
+	_ = os.Setenv("ESB_ENV", env)
+	setEnvIfEmpty("ESB_PROJECT_NAME", ctx.ComposeProject)
 	setEnvIfEmpty("ESB_IMAGE_TAG", env)
 
 	applyPortDefaults(env)
 	applySubnetDefaults(env)
-	applyRegistryDefaults(mode)
+	applyRegistryDefaults(ctx.Mode)
+
+	_ = applyGeneratorConfigEnv(ctx.GeneratorPath)
+	applyConfigDirEnv(ctx)
+}
+
+// applyEnvironmentDefaults is a legacy helper. New code should use applyRuntimeEnv.
+func applyEnvironmentDefaults(envName, mode, composeProject string) {
+	applyRuntimeEnv(state.Context{
+		Env:            envName,
+		Mode:           mode,
+		ComposeProject: composeProject,
+	})
 }
 
 // applyPortDefaults sets default port environment variables with an offset
@@ -120,6 +140,52 @@ func hashMod(value string, mod int64) int {
 	sum := md5.Sum([]byte(value))
 	hash := new(big.Int).SetBytes(sum[:])
 	return int(new(big.Int).Mod(hash, big.NewInt(mod)).Int64())
+}
+
+// applyGeneratorConfigEnv reads the generator.yml configuration and sets
+// environment variables for function/routing paths and custom parameters.
+func applyGeneratorConfigEnv(generatorPath string) error {
+	cfg, err := config.LoadGeneratorConfig(generatorPath)
+	if err != nil {
+		return err
+	}
+
+	if strings.TrimSpace(cfg.Paths.FunctionsYml) != "" {
+		_ = os.Setenv("GATEWAY_FUNCTIONS_YML", cfg.Paths.FunctionsYml)
+	}
+	if strings.TrimSpace(cfg.Paths.RoutingYml) != "" {
+		_ = os.Setenv("GATEWAY_ROUTING_YML", cfg.Paths.RoutingYml)
+	}
+
+	for key, value := range cfg.Parameters {
+		if strings.TrimSpace(key) == "" || value == nil {
+			continue
+		}
+		switch v := value.(type) {
+		case string, bool, int, int64, int32, float64, float32, uint, uint64, uint32:
+			_ = os.Setenv(key, fmt.Sprint(v))
+		}
+	}
+	return nil
+}
+
+// applyConfigDirEnv sets the ESB_CONFIG_DIR environment variable
+// based on the discovered project structure.
+func applyConfigDirEnv(ctx state.Context) {
+	if strings.TrimSpace(os.Getenv("ESB_CONFIG_DIR")) != "" {
+		return
+	}
+
+	root, err := compose.FindRepoRoot(ctx.ProjectDir)
+	if err != nil {
+		return
+	}
+	stagingRel := filepath.Join("services", "gateway", ".esb-staging", ctx.Env, "config")
+	stagingAbs := filepath.Join(root, stagingRel)
+	if _, err := os.Stat(stagingAbs); err != nil {
+		return
+	}
+	_ = os.Setenv("ESB_CONFIG_DIR", filepath.ToSlash(stagingRel))
 }
 
 // setEnvIfEmpty sets an environment variable only if it's currently empty.

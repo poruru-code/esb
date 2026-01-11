@@ -27,7 +27,7 @@ func TestExitWithSuggestion(t *testing.T) {
 		t.Errorf("expected exit code 1, got %d", code)
 	}
 	output := buf.String()
-	if !contains(output, "✗ Something went wrong.") {
+	if !contains(output, "⚠️  Something went wrong.") {
 		t.Errorf("missing error message in output: %s", output)
 	}
 	if !contains(output, "Next steps:") {
@@ -50,7 +50,7 @@ func TestExitWithSuggestionAndAvailable(t *testing.T) {
 		t.Errorf("expected exit code 1, got %d", code)
 	}
 	output := buf.String()
-	if !contains(output, "✗ Environment not found.") {
+	if !contains(output, "⚠️  Environment not found.") {
 		t.Errorf("missing error message: %s", output)
 	}
 	if !contains(output, "Next steps:") {

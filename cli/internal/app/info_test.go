@@ -76,10 +76,10 @@ func TestRunInfoOutputsConfigAndState(t *testing.T) {
 	if !strings.Contains(output, "config.yaml") {
 		t.Fatalf("expected config path in output: %q", output)
 	}
-	if !strings.Contains(output, "env: staging") {
+	if !strings.Contains(output, "name:   staging (containerd)") {
 		t.Fatalf("expected env in output: %q", output)
 	}
-	if !strings.Contains(output, "current: running") {
+	if !strings.Contains(output, "state:  running") {
 		t.Fatalf("expected state in output: %q", output)
 	}
 }

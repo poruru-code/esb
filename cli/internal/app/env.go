@@ -224,7 +224,10 @@ func runEnvUse(cli CLI, deps Dependencies, out io.Writer) int {
 			options[i] = selectOption{Label: label, Value: env.Name}
 		}
 
-		selected, err := selectFromList("Select environment", options)
+		if deps.Prompter == nil {
+			return exitWithError(out, fmt.Errorf("prompter not configured"))
+		}
+		selected, err := deps.Prompter.SelectValue("Select environment", options)
 		if err != nil {
 			return exitWithError(out, err)
 		}
@@ -311,7 +314,10 @@ func runEnvRemove(cli CLI, deps Dependencies, out io.Writer) int {
 			options[i] = selectOption{Label: fmt.Sprintf("%s (%s)", env.Name, env.Mode), Value: env.Name}
 		}
 
-		selected, err := selectFromList("Select environment to remove", options)
+		if deps.Prompter == nil {
+			return exitWithError(out, fmt.Errorf("prompter not configured"))
+		}
+		selected, err := deps.Prompter.SelectValue("Select environment to remove", options)
 		if err != nil {
 			return exitWithError(out, err)
 		}

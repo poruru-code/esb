@@ -72,7 +72,7 @@ func TestRunResetCallsDownBuildUp(t *testing.T) {
 	if downer.calls != 1 {
 		t.Fatalf("expected downer called once, got %d", downer.calls)
 	}
-	if len(downer.projects) != 1 || downer.projects[0] != "esb-default" {
+	if len(downer.projects) != 1 || downer.projects[0] != expectedComposeProject("demo", "default") {
 		t.Fatalf("unexpected project: %v", downer.projects)
 	}
 	if len(downer.removeVolume) != 1 || !downer.removeVolume[0] {
@@ -95,7 +95,7 @@ func TestRunResetCallsDownBuildUp(t *testing.T) {
 	if upper.calls != 1 {
 		t.Fatalf("expected up called once, got %d", upper.calls)
 	}
-	if len(upper.requests) != 1 || upper.requests[0].Context.ComposeProject != "esb-default" {
+	if len(upper.requests) != 1 || upper.requests[0].Context.ComposeProject != expectedComposeProject("demo", "default") {
 		t.Fatalf("unexpected up context: %v", upper.requests)
 	}
 	if !upper.requests[0].Detach {
@@ -208,7 +208,7 @@ func TestRunResetUsesActiveEnvFromGlobalConfig(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("expected exit code 0, got %d", exitCode)
 	}
-	if len(downer.projects) != 1 || downer.projects[0] != "esb-staging" {
+	if len(downer.projects) != 1 || downer.projects[0] != expectedComposeProject("demo", "staging") {
 		t.Fatalf("unexpected project: %v", downer.projects)
 	}
 	if len(builder.requests) != 1 || builder.requests[0].Env != "staging" {

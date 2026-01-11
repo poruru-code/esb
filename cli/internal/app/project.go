@@ -144,7 +144,10 @@ func runProjectUse(cli CLI, deps Dependencies, out io.Writer) int {
 			options[i] = selectOption{Label: project.Name, Value: project.Name}
 		}
 
-		selected, err := selectFromList("Select project", options)
+		if deps.Prompter == nil {
+			return exitWithError(out, fmt.Errorf("prompter not configured"))
+		}
+		selected, err := deps.Prompter.SelectValue("Select project", options)
 		if err != nil {
 			return exitWithError(out, err)
 		}

@@ -6,12 +6,7 @@ package app
 import (
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
-	"strings"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/compose"
-	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
@@ -47,12 +42,7 @@ func runUp(cli CLI, deps Dependencies, out io.Writer) int {
 		return exitWithError(out, err)
 	}
 	ctx := ctxInfo.Context
-	applyModeEnv(ctx.Mode)
-	applyEnvironmentDefaults(ctx.Env, ctx.Mode)
-	if err := applyGeneratorConfigEnv(ctx.GeneratorPath); err != nil {
-		fmt.Fprintln(out, err)
-	}
-	applyUpEnv(ctx)
+	applyRuntimeEnv(ctx)
 
 	templatePath := resolvedTemplatePath(ctxInfo)
 
@@ -108,62 +98,4 @@ func runUp(cli CLI, deps Dependencies, out io.Writer) int {
 	fmt.Fprintln(out, "  esb logs <service>  # View logs")
 	fmt.Fprintln(out, "  esb down            # Stop environment")
 	return 0
-}
-
-// applyGeneratorConfigEnv reads the generator.yml configuration and sets
-// environment variables for function/routing paths and custom parameters.
-func applyGeneratorConfigEnv(generatorPath string) error {
-	cfg, err := config.LoadGeneratorConfig(generatorPath)
-	if err != nil {
-		return err
-	}
-
-	if strings.TrimSpace(cfg.Paths.FunctionsYml) != "" {
-		_ = os.Setenv("GATEWAY_FUNCTIONS_YML", cfg.Paths.FunctionsYml)
-	}
-	if strings.TrimSpace(cfg.Paths.RoutingYml) != "" {
-		_ = os.Setenv("GATEWAY_ROUTING_YML", cfg.Paths.RoutingYml)
-	}
-
-	for key, value := range cfg.Parameters {
-		if strings.TrimSpace(key) == "" || value == nil {
-			continue
-		}
-		switch value.(type) {
-		case string, bool, int, int64, int32, float64, float32, uint, uint64, uint32:
-			_ = os.Setenv(key, fmt.Sprint(value))
-		}
-	}
-	return nil
-}
-
-// applyUpEnv sets environment variables required for the 'up' command,
-// including ESB_ENV, ESB_PROJECT_NAME, ESB_IMAGE_TAG, and ESB_CONFIG_DIR.
-func applyUpEnv(ctx state.Context) {
-	env := strings.TrimSpace(ctx.Env)
-	if env == "" {
-		return
-	}
-	_ = os.Setenv("ESB_ENV", env)
-
-	if strings.TrimSpace(os.Getenv("ESB_PROJECT_NAME")) == "" {
-		_ = os.Setenv("ESB_PROJECT_NAME", fmt.Sprintf("esb-%s", strings.ToLower(env)))
-	}
-	if strings.TrimSpace(os.Getenv("ESB_IMAGE_TAG")) == "" {
-		_ = os.Setenv("ESB_IMAGE_TAG", env)
-	}
-	if strings.TrimSpace(os.Getenv("ESB_CONFIG_DIR")) != "" {
-		return
-	}
-
-	root, err := compose.FindRepoRoot(ctx.ProjectDir)
-	if err != nil {
-		return
-	}
-	stagingRel := filepath.Join("services", "gateway", ".esb-staging", env, "config")
-	stagingAbs := filepath.Join(root, stagingRel)
-	if _, err := os.Stat(stagingAbs); err != nil {
-		return
-	}
-	_ = os.Setenv("ESB_CONFIG_DIR", filepath.ToSlash(stagingRel))
 }

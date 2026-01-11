@@ -37,8 +37,7 @@ func runStop(cli CLI, deps Dependencies, out io.Writer) int {
 		return 1
 	}
 	ctx := ctxInfo.Context
-	applyModeEnv(ctx.Mode)
-	applyEnvironmentDefaults(ctx.Env, ctx.Mode)
+	applyRuntimeEnv(ctx)
 
 	if err := deps.Stopper.Stop(StopRequest{Context: ctx}); err != nil {
 		fmt.Fprintln(out, err)

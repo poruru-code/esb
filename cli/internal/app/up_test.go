@@ -68,8 +68,8 @@ func TestRunUpCallsUpper(t *testing.T) {
 	if upper.calls != 1 {
 		t.Fatalf("expected upper called once, got %d", upper.calls)
 	}
-	if len(upper.requests) != 1 || upper.requests[0].Context.ComposeProject != "esb-default" {
-		t.Fatalf("unexpected context: %v", upper.requests)
+	if len(upper.requests) != 1 || upper.requests[0].Context.ComposeProject != expectedComposeProject("demo", "default") {
+		t.Fatalf("unexpected project: %v", upper.requests)
 	}
 	expectedTemplate := filepath.Join(projectDir, "template.yaml")
 	if upper.requests[0].Context.TemplatePath != expectedTemplate {
@@ -100,7 +100,7 @@ func TestRunUpWithEnv(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("expected exit code 0, got %d", exitCode)
 	}
-	if len(upper.requests) != 1 || upper.requests[0].Context.ComposeProject != "esb-staging" {
+	if len(upper.requests) != 1 || upper.requests[0].Context.ComposeProject != expectedComposeProject("demo", "staging") {
 		t.Fatalf("unexpected context: %v", upper.requests)
 	}
 }
@@ -139,7 +139,7 @@ func TestRunUpAppliesEnvDefaults(t *testing.T) {
 	if got := os.Getenv("ESB_ENV"); got != "staging" {
 		t.Fatalf("unexpected ESB_ENV: %s", got)
 	}
-	if got := os.Getenv("ESB_PROJECT_NAME"); got != "esb-staging" {
+	if got := os.Getenv("ESB_PROJECT_NAME"); got != expectedComposeProject("demo", "staging") {
 		t.Fatalf("unexpected ESB_PROJECT_NAME: %s", got)
 	}
 	if got := os.Getenv("ESB_IMAGE_TAG"); got != "staging" {

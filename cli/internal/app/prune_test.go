@@ -49,7 +49,7 @@ func TestRunPruneCallsPruner(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("expected exit code 0, got %d", exitCode)
 	}
-	if len(downer.projects) != 1 || downer.projects[0] != "esb-default" {
+	if len(downer.projects) != 1 || downer.projects[0] != expectedComposeProject("demo", "default") {
 		t.Fatalf("unexpected down project: %v", downer.projects)
 	}
 	if len(downer.removeVolumes) != 1 || !downer.removeVolumes[0] {
@@ -59,7 +59,7 @@ func TestRunPruneCallsPruner(t *testing.T) {
 		t.Fatalf("expected prune called once, got %d", len(pruner.requests))
 	}
 	req := pruner.requests[0]
-	if req.Context.ComposeProject != "esb-default" {
+	if req.Context.ComposeProject != expectedComposeProject("demo", "default") {
 		t.Fatalf("unexpected compose project: %s", req.Context.ComposeProject)
 	}
 	expectedTemplate := filepath.Join(projectDir, "template.yaml")
@@ -158,7 +158,7 @@ func TestRunPruneWithEnv(t *testing.T) {
 	if len(downer.removeVolumes) != 1 || !downer.removeVolumes[0] {
 		t.Fatalf("expected volumes removed")
 	}
-	if len(pruner.requests) != 1 || pruner.requests[0].Context.ComposeProject != "esb-staging" {
+	if len(pruner.requests) != 1 || pruner.requests[0].Context.ComposeProject != expectedComposeProject("demo", "staging") {
 		t.Fatalf("unexpected context: %v", pruner.requests)
 	}
 }
@@ -226,7 +226,7 @@ func TestRunPruneUsesActiveEnvFromGlobalConfig(t *testing.T) {
 	if pruner.requests[0].Context.Env != "staging" {
 		t.Fatalf("unexpected env: %s", pruner.requests[0].Context.Env)
 	}
-	if pruner.requests[0].Context.ComposeProject != "esb-staging" {
+	if pruner.requests[0].Context.ComposeProject != expectedComposeProject("demo", "staging") {
 		t.Fatalf("unexpected compose project: %s", pruner.requests[0].Context.ComposeProject)
 	}
 }

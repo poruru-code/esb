@@ -249,6 +249,15 @@ func (r *recordRunner) Run(_ context.Context, dir, name string, args ...string) 
 	return r.err
 }
 
+func (r *recordRunner) RunOutput(_ context.Context, dir, name string, args ...string) ([]byte, error) {
+	r.calls = append(r.calls, commandCall{
+		dir:  dir,
+		name: name,
+		args: append([]string{}, args...),
+	})
+	return nil, r.err
+}
+
 func hasDockerBuildTag(calls []commandCall, tag string) bool {
 	for _, call := range calls {
 		if call.name != "docker" || len(call.args) < 3 {

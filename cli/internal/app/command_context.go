@@ -12,15 +12,23 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
+// selectOption represents a single option in a selection menu.
+type selectOption struct {
+	Label string // Display text
+	Value string // Return value
+}
+
 // Prompter defines the interface for interactive user input and selection.
 type Prompter interface {
 	Input(title string, suggestions []string) (string, error)
 	Select(title string, options []string) (string, error)
+	SelectValue(title string, options []selectOption) (string, error)
 }
 
 type mockPrompter struct {
-	inputFn  func(title string, suggestions []string) (string, error)
-	selectFn func(title string, options []string) (string, error)
+	inputFn       func(title string, suggestions []string) (string, error)
+	selectFn      func(title string, options []string) (string, error)
+	selectValueFn func(title string, options []selectOption) (string, error)
 }
 
 func (m mockPrompter) Input(title string, suggestions []string) (string, error) {
@@ -33,6 +41,13 @@ func (m mockPrompter) Input(title string, suggestions []string) (string, error) 
 func (m mockPrompter) Select(title string, options []string) (string, error) {
 	if m.selectFn != nil {
 		return m.selectFn(title, options)
+	}
+	return "", nil
+}
+
+func (m mockPrompter) SelectValue(title string, options []selectOption) (string, error) {
+	if m.selectValueFn != nil {
+		return m.selectValueFn(title, options)
 	}
 	return "", nil
 }
@@ -108,18 +123,44 @@ func resolveCommandContext(cli CLI, deps Dependencies, opts resolveOptions) (com
 		return commandContext{}, err
 	}
 	envState, err := state.ResolveProjectState(state.ProjectStateOptions{
-		EnvFlag:     cli.EnvFlag,
-		EnvVar:      os.Getenv("ESB_ENV"),
-		Config:      project.Generator,
-		Force:       opts.Force,
-		Interactive: opts.Interactive,
-		Prompt:      opts.Prompt,
+		EnvFlag:         cli.EnvFlag,
+		EnvVar:          os.Getenv("ESB_ENV"),
+		Config:          project.Generator,
+		Force:           opts.Force,
+		Interactive:     opts.Interactive,
+		Prompt:          opts.Prompt,
+		AllowMissingEnv: opts.AllowMissingEnv || opts.Interactive,
 	})
 	if err != nil {
 		return commandContext{}, err
 	}
+
 	env := strings.TrimSpace(envState.ActiveEnv)
+	if env == "" && opts.Interactive {
+		// Project config is already loaded, but we need to check environments.
+		// Re-loading or using existing project config if accessible.
+		// Current logic loaded 'project' but didn't pass it fully here.
+		// We can re-use 'project' variable loaded above.
+		var options []selectOption
+		for _, e := range project.Generator.Environments {
+			options = append(options, selectOption{Label: fmt.Sprintf("%s (%s)", e.Name, e.Mode), Value: e.Name})
+		}
+		if len(options) > 0 {
+			if deps.Prompter == nil {
+				return commandContext{}, fmt.Errorf("prompter not configured")
+			}
+			selectedEnv, err := deps.Prompter.SelectValue("Select environment", options)
+			if err != nil {
+				return commandContext{}, err
+			}
+			env = selectedEnv
+		}
+	}
+
 	if env == "" {
+		if opts.AllowMissingEnv {
+			return commandContext{Selection: selection, Env: "", Context: state.Context{ProjectDir: projectDir}}, nil
+		}
 		return commandContext{}, fmt.Errorf("no active environment; run 'esb env use <name>' first")
 	}
 
