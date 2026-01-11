@@ -11,7 +11,7 @@ import (
 
 func main() {
 	cfg := config.GeneratorConfig{
-		App: config.AppConfig{Tag: "preview"},
+		App: config.AppConfig{},
 		Paths: config.PathsConfig{
 			SamTemplate: ".tmp/template.yml",
 			OutputDir:   ".esb",

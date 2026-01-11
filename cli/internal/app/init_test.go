@@ -38,9 +38,6 @@ func TestBuildGeneratorConfig(t *testing.T) {
 	if !cfg.Environments.Has("default") || !cfg.Environments.Has("staging") {
 		t.Fatalf("unexpected environments: %#v", cfg.Environments)
 	}
-	if cfg.App.Tag != "default" {
-		t.Fatalf("expected tag default, got %s", cfg.App.Tag)
-	}
 	if cfg.App.Name != filepath.Base(projectDir) {
 		t.Fatalf("expected app name %s, got %s", filepath.Base(projectDir), cfg.App.Name)
 	}

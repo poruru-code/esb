@@ -21,10 +21,9 @@ type GeneratorConfig struct {
 	Parameters   map[string]any `yaml:"parameters,omitempty"`
 }
 
-// AppConfig contains the application name and default tag.
+// AppConfig contains the application name.
 type AppConfig struct {
 	Name    string `yaml:"name"`
-	Tag     string `yaml:"tag"`
 	LastEnv string `yaml:"last_env,omitempty"`
 }
 

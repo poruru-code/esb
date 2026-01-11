@@ -20,7 +20,7 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	writeTestFile(t, templatePath, "Resources: {}")
 
 	cfg := config.GeneratorConfig{
-		App: config.AppConfig{Name: "demo", Tag: "default"},
+		App: config.AppConfig{Name: "demo"},
 		Environments: config.Environments{
 			{Name: "staging", Mode: "containerd"},
 		},
@@ -168,7 +168,7 @@ func TestGoBuilderBuildFirecrackerBuildsServiceImages(t *testing.T) {
 	writeTestFile(t, templatePath, "Resources: {}")
 
 	cfg := config.GeneratorConfig{
-		App: config.AppConfig{Name: "demo", Tag: "default"},
+		App: config.AppConfig{Name: "demo"},
 		Environments: config.Environments{
 			{Name: "prod", Mode: "firecracker"},
 		},

@@ -65,7 +65,6 @@ func buildGeneratorConfig(templatePath string, envs config.Environments, project
 	cfg := config.GeneratorConfig{
 		App: config.AppConfig{
 			Name: projectName,
-			Tag:  envs[0].Name,
 		},
 		Environments: envs,
 		Paths: config.PathsConfig{

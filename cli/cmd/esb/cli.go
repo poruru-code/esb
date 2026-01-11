@@ -77,8 +77,9 @@ func (p provisionerAdapter) Provision(request app.ProvisionRequest) error {
 
 // warnf writes a warning message to stderr.
 // Used as a callback for the detector factory to report non-fatal issues.
-func warnf(message string) {
-	fmt.Fprintln(os.Stderr, message)
+func warnf(_ string) {
+	// Silenced to prevent stderr output from disrupting CLI layout.
+	// fmt.Fprintln(os.Stderr, message)
 }
 
 // asCloser attempts to cast the Docker client to an io.Closer.

@@ -15,7 +15,6 @@ func TestGeneratorConfigRoundTrip(t *testing.T) {
 	cfg := GeneratorConfig{
 		App: AppConfig{
 			Name: "my-app",
-			Tag:  "default",
 		},
 		Environments: Environments{
 			{Name: "default", Mode: "docker"},
