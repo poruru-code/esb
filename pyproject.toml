@@ -29,6 +29,7 @@ dependencies = [
     "cachetools>=5.3.0",
     "grpcio>=1.59.0",
     "protobuf>=4.25.0",
+    "aws-croniter>=1.0.5",
 ]
 
 [project.optional-dependencies]

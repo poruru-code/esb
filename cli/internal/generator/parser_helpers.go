@@ -99,3 +99,17 @@ func ensureTrailingSlash(value string) string {
 	}
 	return value + "/"
 }
+
+func asInt(value any) int {
+	if val, ok := asIntPointer(value); ok {
+		return *val
+	}
+	return 0
+}
+
+func asIntDefault(value any, fallback int) int {
+	if val, ok := asIntPointer(value); ok {
+		return *val
+	}
+	return fallback
+}
