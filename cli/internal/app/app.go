@@ -13,6 +13,7 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
+	"github.com/poruru/edge-serverless-box/cli/internal/version"
 )
 
 // StateDetector defines the interface for detecting the current environment state.
@@ -62,7 +63,10 @@ type CLI struct {
 	Env        EnvCmd        `cmd:"" name:"env" help:"Manage environments"`
 	Project    ProjectCmd    `cmd:"" help:"Manage projects"`
 	Completion CompletionCmd `cmd:"" help:"Generate shell completion script"`
+	Version    VersionCmd    `cmd:"" help:"Show version information"`
 }
+
+type VersionCmd struct{}
 
 type (
 	StatusCmd struct {
@@ -183,10 +187,18 @@ func Run(args []string, deps Dependencies) int {
 		return runCompletionZsh(cli, out)
 	case command == "completion fish":
 		return runCompletionFish(cli, out)
+	case command == "version":
+		return runVersion(cli, out)
 	default:
 		fmt.Fprintln(out, "unknown command")
 		return 1
 	}
+}
+
+// runVersion prints the version information of the CLI.
+func runVersion(_ CLI, out io.Writer) int {
+	fmt.Fprintln(out, version.GetVersion())
+	return 0
 }
 
 // runStatus executes the 'status' command which displays the current
