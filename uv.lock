@@ -46,6 +46,18 @@ wheels = [
 ]
 
 [[package]]
+name = "aws-croniter"
+version = "1.0.5"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "python-dateutil" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/6f/8c/3bfffb30651726746ad8f21402207fd97bb576651672b3766e958d1ea932/aws_croniter-1.0.5.tar.gz", hash = "sha256:e6a0741b6d4e1545704db10bc9a38ab64a9121ea3f12018bec3fa4d4acd9ac23", size = 12614, upload-time = "2025-11-03T17:00:29.581Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8b/02/082cd77cbc118eec5c8ded2b62df4bfd2c30b04af251873cffd99038b019/aws_croniter-1.0.5-py3-none-any.whl", hash = "sha256:44703f646f3ab19238ec48864b8577db768b6cba71a8e3c7a7eed5b353d8bcff", size = 11854, upload-time = "2025-11-03T17:00:28.059Z" },
+]
+
+[[package]]
 name = "black"
 version = "25.12.0"
 source = { registry = "https://pypi.org/simple" }
@@ -334,6 +346,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "apscheduler" },
+    { name = "aws-croniter" },
     { name = "boto3" },
     { name = "cachetools" },
     { name = "docker" },
@@ -369,6 +382,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "apscheduler", specifier = ">=3.10.4" },
+    { name = "aws-croniter", specifier = ">=1.0.5" },
     { name = "black", marker = "extra == 'dev'", specifier = ">=23.11.0" },
     { name = "boto3", specifier = ">=1.34.0" },
     { name = "cachetools", specifier = ">=5.3.0" },

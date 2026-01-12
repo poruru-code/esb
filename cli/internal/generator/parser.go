@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/generator/schema"
+	"sigs.k8s.io/yaml"
 )
 
 type ParseResult struct {
@@ -33,8 +34,11 @@ type FunctionSpec struct {
 }
 
 type EventSpec struct {
-	Path   string
-	Method string
+	Type               string
+	Path               string
+	Method             string
+	ScheduleExpression string
+	Input              string
 }
 
 type ScalingSpec struct {
@@ -76,12 +80,13 @@ func ParseSAMTemplate(content string, parameters map[string]string) (ParseResult
 		parameters = map[string]string{}
 	}
 
-	jsonData, err := validateSAMTemplate([]byte(content))
+	jsonData, err := yaml.YAMLToJSON([]byte(content))
 	if err != nil {
 		return ParseResult{}, err
 	}
 
-	var template schema.SamSchemaJson
+	// Decode into generated SAM model
+	var template schema.SamModel
 	if err := json.Unmarshal(jsonData, &template); err != nil {
 		return ParseResult{}, err
 	}
@@ -96,51 +101,95 @@ func ParseSAMTemplate(content string, parameters map[string]string) (ParseResult
 		return ParseResult{}, nil
 	}
 
-	globals := template.Globals
-	functionGlobals := &schema.SamSchemaJsonGlobalsFunction{}
-	if globals != nil && globals.Function != nil {
-		functionGlobals = globals.Function
+	// Parse Globals using raw map access for reliability
+	var functionGlobals map[string]any
+	if data["Globals"] != nil {
+		globals := asMap(data["Globals"])
+		if globals != nil {
+			functionGlobals = asMap(globals["Function"])
+		}
 	}
 
-	defaultRuntime := derefString(functionGlobals.Runtime, "python3.12")
-	defaultHandler := derefString(functionGlobals.Handler, "lambda_function.lambda_handler")
-	defaultTimeout := derefInt(functionGlobals.Timeout, 30)
-	defaultMemory := derefInt(functionGlobals.MemorySize, 128)
-	defaultLayers := functionGlobals.Layers
-	defaultArchitectures := copyStringSlice(functionGlobals.Architectures)
-	defaultRuntimeManagement := runtimeManagementFromGlobals(functionGlobals.RuntimeManagementConfig)
+	defaultRuntime := "python3.12"
+	defaultHandler := "lambda_function.lambda_handler"
+	defaultTimeout := 30
+	defaultMemory := 128
+	var defaultLayers []any
+	var defaultArchitectures []string
+	var defaultRuntimeManagement any
+
+	if functionGlobals != nil {
+		if val := functionGlobals["Runtime"]; val != nil {
+			defaultRuntime = asString(val)
+		}
+		if val := functionGlobals["Handler"]; val != nil {
+			defaultHandler = asString(val)
+		}
+		if val := functionGlobals["Timeout"]; val != nil {
+			defaultTimeout = asInt(val)
+		}
+		if val := functionGlobals["MemorySize"]; val != nil {
+			defaultMemory = asInt(val)
+		}
+		if layers := asSlice(functionGlobals["Layers"]); layers != nil {
+			defaultLayers = layers
+		}
+		if archs := asSlice(functionGlobals["Architectures"]); archs != nil {
+			for _, a := range archs {
+				defaultArchitectures = append(defaultArchitectures, asString(a))
+			}
+		}
+		defaultRuntimeManagement = functionGlobals["RuntimeManagementConfig"]
+	}
+
 	defaultEnv := map[string]string{}
-	if functionGlobals.Environment != nil {
-		for key, value := range functionGlobals.Environment.Variables {
-			defaultEnv[key] = resolveIntrinsic(asString(value), parameters)
+	if functionGlobals != nil {
+		if env := asMap(functionGlobals["Environment"]); env != nil {
+			if vars := asMap(env["Variables"]); vars != nil {
+				for key, value := range vars {
+					defaultEnv[key] = resolveIntrinsic(asString(value), parameters)
+				}
+			}
 		}
 	}
 
 	parsedResources := ResourcesSpec{}
 	layerMap := map[string]LayerSpec{}
+
+	// First pass: collect Layers
 	for logicalID, resource := range template.Resources {
-		if resource.Type != "AWS::Serverless::LayerVersion" {
+		m := asMap(resource)
+		if m == nil || asString(m["Type"]) != "AWS::Serverless::LayerVersion" {
 			continue
 		}
-		props := resource.Properties
+		props := asMap(m["Properties"])
 		if props == nil {
 			continue
 		}
-		layerName := derefString(props.LayerName, logicalID)
+		layerName := asStringDefault(props["LayerName"], logicalID)
 		layerName = resolveIntrinsic(layerName, parameters)
-		contentURI := derefString(props.ContentUri, "./")
+		contentURI := asStringDefault(props["ContentUri"], "./")
 		contentURI = resolveIntrinsic(contentURI, parameters)
 		contentURI = ensureTrailingSlash(contentURI)
+
+		var compatibleArchs []string
+		if archs := asSlice(props["CompatibleArchitectures"]); archs != nil {
+			for _, a := range archs {
+				compatibleArchs = append(compatibleArchs, asString(a))
+			}
+		}
+
 		spec := LayerSpec{
 			Name:                    layerName,
 			ContentURI:              contentURI,
-			CompatibleArchitectures: copyStringSlice(props.CompatibleArchitectures),
+			CompatibleArchitectures: compatibleArchs,
 		}
 		layerMap[logicalID] = spec
 		parsedResources.Layers = append(parsedResources.Layers, spec)
 	}
 
-	for logicalID, value := range resources {
+	// Second pass: collect other resources
+	for logicalID, value := range template.Resources {
 		resource := asMap(value)
 		if resource == nil {
 			continue
@@ -153,10 +202,7 @@ func ParseSAMTemplate(content string, parameters map[string]string) (ParseResult
 
 		switch resourceType {
 		case "AWS::DynamoDB::Table":
-			tableName := asString(props["TableName"])
-			if tableName == "" {
-				tableName = logicalID
-			}
+			tableName := asStringDefault(props["TableName"], logicalID)
 			tableName = resolveIntrinsic(tableName, parameters)
 			parsedResources.DynamoDB = append(parsedResources.DynamoDB, DynamoDBSpec{
 				TableName:              tableName,
@@ -167,77 +213,77 @@ func ParseSAMTemplate(content string, parameters map[string]string) (ParseResult
 				ProvisionedThroughput:  props["ProvisionedThroughput"],
 			})
 		case "AWS::S3::Bucket":
-			bucketName := asString(props["BucketName"])
-			if bucketName == "" {
-				bucketName = strings.ToLower(logicalID)
-			}
+			bucketName := asStringDefault(props["BucketName"], strings.ToLower(logicalID))
 			bucketName = resolveIntrinsic(bucketName, parameters)
 			parsedResources.S3 = append(parsedResources.S3, S3Spec{BucketName: bucketName})
 		}
 	}
 
-	functions := make([]FunctionSpec, 0, len(template.Resources))
-	for logicalID, resource := range template.Resources {
-		if resource.Type != "AWS::Serverless::Function" {
+	// Third pass: collect Functions
+	functions := make([]FunctionSpec, 0)
+	for logicalID, value := range template.Resources {
+		m := asMap(value)
+		if m == nil || asString(m["Type"]) != "AWS::Serverless::Function" {
 			continue
 		}
-		props := resource.Properties
+
+		props := asMap(m["Properties"])
 		if props == nil {
 			continue
 		}
 
-		fnName := derefString(props.FunctionName, logicalID)
+		fnName := asStringDefault(props["FunctionName"], logicalID)
 		fnName = resolveIntrinsic(fnName, parameters)
-		codeURI := derefString(props.CodeUri, "./")
+		codeURI := asStringDefault(props["CodeUri"], "./")
 		codeURI = resolveIntrinsic(codeURI, parameters)
 		codeURI = ensureTrailingSlash(codeURI)
 
-		handler := derefString(props.Handler, defaultHandler)
-		runtime := derefString(props.Runtime, defaultRuntime)
-		timeout := derefInt(props.Timeout, defaultTimeout)
-		memory := derefInt(props.MemorySize, defaultMemory)
+		handler := asStringDefault(props["Handler"], defaultHandler)
+		runtime := asStringDefault(props["Runtime"], defaultRuntime)
+		timeout := asIntDefault(props["Timeout"], defaultTimeout)
+		memory := asIntDefault(props["MemorySize"], defaultMemory)
 
 		envVars := map[string]string{}
 		for key, value := range defaultEnv {
 			envVars[key] = value
 		}
-		if env := asMap(props.Environment); env != nil {
+		if env := asMap(props["Environment"]); env != nil {
 			if vars := asMap(env["Variables"]); vars != nil {
-				for key, raw := range vars {
-					envVars[key] = resolveIntrinsic(asString(raw), parameters)
+				for key, val := range vars {
+					envVars[key] = resolveIntrinsic(asString(val), parameters)
 				}
 			}
 		}
 
-		events := parseEvents(props.Events)
+		events := parseEvents(asMap(props["Events"]))
 
 		scalingInput := map[string]any{}
-		if props.ReservedConcurrentExecutions != nil {
-			scalingInput["ReservedConcurrentExecutions"] = *props.ReservedConcurrentExecutions
+		if val := props["ReservedConcurrentExecutions"]; val != nil {
+			scalingInput["ReservedConcurrentExecutions"] = val
 		}
-		if props.ProvisionedConcurrencyConfig != nil {
-			pc := map[string]any{}
-			if props.ProvisionedConcurrencyConfig.ProvisionedConcurrentExecutions != nil {
-				pc["ProvisionedConcurrentExecutions"] = *props.ProvisionedConcurrencyConfig.ProvisionedConcurrentExecutions
-			}
-			scalingInput["ProvisionedConcurrencyConfig"] = pc
+		if provisioned := asMap(props["ProvisionedConcurrencyConfig"]); provisioned != nil {
+			scalingInput["ProvisionedConcurrencyConfig"] = provisioned
 		}
 		scaling := parseScaling(scalingInput)
 
-		layerRefs := props.Layers
-		if len(layerRefs) == 0 {
+		layerRefs := props["Layers"]
+		if layerRefs == nil {
 			layerRefs = defaultLayers
 		}
 		layers := collectLayers(layerRefs, layerMap)
 
-		architectures := copyStringSlice(defaultArchitectures)
-		if len(props.Architectures) > 0 {
-			architectures = copyStringSlice(props.Architectures)
+		var architectures []string
+		if archs := asSlice(props["Architectures"]); archs != nil {
+			for _, a := range archs {
+				architectures = append(architectures, asString(a))
+			}
+		} else {
+			architectures = copyStringSlice(defaultArchitectures)
 		}
 
-		runtimeManagement := runtimeManagementFromProperties(props.RuntimeManagementConfig)
-		if runtimeManagement.UpdateRuntimeOn == "" {
-			runtimeManagement = defaultRuntimeManagement
+		runtimeManagement := runtimeManagementFromProperties(props["RuntimeManagementConfig"])
+		if runtimeManagement.UpdateRuntimeOn == "" && defaultRuntimeManagement != nil {
+			runtimeManagement = runtimeManagementFromGlobals(defaultRuntimeManagement)
 		}
 
 		functions = append(functions, FunctionSpec{
@@ -270,19 +316,35 @@ func parseEvents(events map[string]any) []EventSpec {
 		if event == nil {
 			continue
 		}
-		if asString(event["Type"]) != "Api" {
-			continue
-		}
+		eventType := asString(event["Type"])
 		props := asMap(event["Properties"])
 		if props == nil {
 			continue
 		}
-		path := asString(props["Path"])
-		method := asString(props["Method"])
-		if path == "" || method == "" {
-			continue
+
+		if eventType == "Api" {
+			path := asString(props["Path"])
+			method := asString(props["Method"])
+			if path == "" || method == "" {
+				continue
+			}
+			result = append(result, EventSpec{
+				Type:   "Api",
+				Path:   path,
+				Method: strings.ToLower(method),
+			})
+		} else if eventType == "Schedule" {
+			schedule := asString(props["Schedule"])
+			if schedule == "" {
+				continue
+			}
+			input := asString(props["Input"])
+			result = append(result, EventSpec{
+				Type:               "Schedule",
+				ScheduleExpression: schedule,
+				Input:              input,
+			})
 		}
-		result = append(result, EventSpec{Path: path, Method: strings.ToLower(method)})
 	}
 	return result
 }
@@ -335,18 +397,20 @@ func extractLayerRefs(raw any) []string {
 	return refs
 }
 
-func runtimeManagementFromGlobals(config *schema.SamSchemaJsonGlobalsFunctionRuntimeManagementConfig) RuntimeManagementConfig {
-	if config == nil || config.UpdateRuntimeOn == nil {
+func runtimeManagementFromGlobals(config any) RuntimeManagementConfig {
+	m := asMap(config)
+	if m == nil || m["UpdateRuntimeOn"] == nil {
 		return RuntimeManagementConfig{}
 	}
-	return RuntimeManagementConfig{UpdateRuntimeOn: *config.UpdateRuntimeOn}
+	return RuntimeManagementConfig{UpdateRuntimeOn: asString(m["UpdateRuntimeOn"])}
 }
 
-func runtimeManagementFromProperties(config *schema.ResourcePropertiesRuntimeManagementConfig) RuntimeManagementConfig {
-	if config == nil || config.UpdateRuntimeOn == nil {
+func runtimeManagementFromProperties(config any) RuntimeManagementConfig {
+	m := asMap(config)
+	if m == nil || m["UpdateRuntimeOn"] == nil {
 		return RuntimeManagementConfig{}
 	}
-	return RuntimeManagementConfig{UpdateRuntimeOn: *config.UpdateRuntimeOn}
+	return RuntimeManagementConfig{UpdateRuntimeOn: asString(m["UpdateRuntimeOn"])}
 }
 
 func copyStringSlice(input []string) []string {
@@ -356,18 +420,4 @@ func copyStringSlice(input []string) []string {
 	out := make([]string, len(input))
 	copy(out, input)
 	return out
-}
-
-func derefString(ptr *string, fallback string) string {
-	if ptr != nil && *ptr != "" {
-		return *ptr
-	}
-	return fallback
-}
-
-func derefInt(ptr *int, fallback int) int {
-	if ptr != nil {
-		return *ptr
-	}
-	return fallback
 }

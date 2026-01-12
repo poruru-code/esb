@@ -132,3 +132,18 @@ Resources:
           Properties:
             Path: /api/scaling
             Method: post
+
+  ScheduledFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lambda-scheduled
+      CodeUri: functions/scheduled/
+      Events:
+        Timer:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 minute)
+            Input: '{"scheduled": true}'
+      Environment:
+        Variables:
+          DYNAMODB_ENDPOINT: "http://${DYNAMODB_ENDPOINT_HOST}:8000"

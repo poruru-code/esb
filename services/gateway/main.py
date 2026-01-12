@@ -51,6 +51,7 @@ from .services.janitor import HeartbeatJanitor
 from .services.lambda_invoker import LambdaInvoker
 from .services.pool_manager import PoolManager
 from .services.route_matcher import RouteMatcher
+from .services.scheduler import SchedulerService
 
 # Logger setup
 setup_logging()
@@ -152,6 +153,14 @@ async def lifespan(app: FastAPI):
         agent_invoker=agent_invoker,
     )
 
+    # Initialize Scheduler
+    scheduler = SchedulerService(lambda_invoker)
+    await scheduler.start()
+
+    # Load schedules from registry
+    # Note: function_registry.load_functions_config() was already called above
+    scheduler.load_schedules(function_registry._registry)
+
     # Store in app.state for DI
     app.state.http_client = client
     app.state.function_registry = function_registry
@@ -159,6 +168,7 @@ async def lifespan(app: FastAPI):
     app.state.lambda_invoker = lambda_invoker
     app.state.event_builder = V1ProxyEventBuilder()
     app.state.pool_manager = pool_manager
+    app.state.scheduler = scheduler
 
     logger.info("Gateway initialized with shared resources.")
 
@@ -167,6 +177,9 @@ async def lifespan(app: FastAPI):
     # Cleanup
     if janitor:
         await janitor.stop()
+
+    if scheduler:
+        await scheduler.stop()
 
     if pool_manager:
         await pool_manager.shutdown_all()

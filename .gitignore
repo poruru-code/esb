@@ -78,4 +78,4 @@ services/agent/agent*
 # ESB Staging for external templates
 services/gateway/.esb-staging/
 .tmp/
-cli/esb
+cli/bin/

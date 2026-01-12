@@ -148,12 +148,92 @@ Resources:
 	if fn.Events[0].Path != "/api/hello" || fn.Events[0].Method != "post" {
 		t.Fatalf("unexpected event: %+v", fn.Events[0])
 	}
+	if fn.Events[0].Type != "Api" {
+		t.Fatalf("unexpected event type: %s", fn.Events[0].Type)
+	}
 	if fn.Scaling.MaxCapacity == nil || *fn.Scaling.MaxCapacity != 5 {
 		t.Fatalf("unexpected max capacity: %+v", fn.Scaling.MaxCapacity)
 	}
 	if fn.Scaling.MinCapacity == nil || *fn.Scaling.MinCapacity != 2 {
 		t.Fatalf("unexpected min capacity: %+v", fn.Scaling.MinCapacity)
 	}
+}
+
+func TestParseSAMTemplateScheduleEvent(t *testing.T) {
+	content := `
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Resources:
+  CronFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lambda-cron
+      CodeUri: functions/cron/
+      Events:
+        Timer:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 * * * * *)
+            Input: '{"foo": "bar"}'
+  RateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lambda-rate
+      CodeUri: functions/rate/
+      Events:
+        Timer:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 minute)
+`
+
+	result, err := ParseSAMTemplate(content, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(result.Functions) != 2 {
+		t.Fatalf("expected 2 functions, got %d", len(result.Functions))
+	}
+
+	// Test Cron Function
+	cronFn := findFunction(result.Functions, "lambda-cron")
+	if cronFn == nil {
+		t.Fatal("lambda-cron not found")
+	}
+	if len(cronFn.Events) != 1 {
+		t.Fatalf("expected 1 event for cron, got %d", len(cronFn.Events))
+	}
+	if cronFn.Events[0].Type != "Schedule" {
+		t.Errorf("expected Schedule type, got %s", cronFn.Events[0].Type)
+	}
+	if cronFn.Events[0].ScheduleExpression != "cron(0 * * * * *)" {
+		t.Errorf("unexpected schedule: %s", cronFn.Events[0].ScheduleExpression)
+	}
+	if cronFn.Events[0].Input != `{"foo": "bar"}` {
+		t.Errorf("unexpected input: %s", cronFn.Events[0].Input)
+	}
+
+	// Test Rate Function
+	rateFn := findFunction(result.Functions, "lambda-rate")
+	if rateFn == nil {
+		t.Fatal("lambda-rate not found")
+	}
+	if len(rateFn.Events) != 1 {
+		t.Fatalf("expected 1 event for rate, got %d", len(rateFn.Events))
+	}
+	if rateFn.Events[0].ScheduleExpression != "rate(1 minute)" {
+		t.Errorf("unexpected schedule: %s", rateFn.Events[0].ScheduleExpression)
+	}
+}
+
+func findFunction(fns []FunctionSpec, name string) *FunctionSpec {
+	for _, fn := range fns {
+		if fn.Name == name {
+			return &fn
+		}
+	}
+	return nil
 }
 
 func TestParseSAMTemplateResourcesAndLayers(t *testing.T) {

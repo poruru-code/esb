@@ -38,4 +38,16 @@ functions:
       {{ $key }}: {{ $value }}
       {{- end }}
     {{- end }}
+    {{- if .HasSchedules }}
+    events:
+      {{- range .Events }}
+      {{- if eq .Type "Schedule" }}
+      - schedule:
+          rate: {{ .ScheduleExpression | quote }}
+          {{- if .Input }}
+          input: {{ .Input | quote }}
+          {{- end }}
+      {{- end }}
+      {{- end }}
+    {{- end }}
 {{- end }}

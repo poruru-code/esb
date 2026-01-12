@@ -77,11 +77,20 @@ func RenderFunctionsYml(functions []FunctionSpec, registry, tag string) (string,
 		Tag:      tag,
 	}
 	for _, fn := range functions {
+		hasSchedules := false
+		for _, e := range fn.Events {
+			if e.Type == "Schedule" {
+				hasSchedules = true
+				break
+			}
+		}
 		entry := functionTemplateContext{
-			Name:        fn.Name,
-			Timeout:     optionalInt(fn.Timeout),
-			MemorySize:  optionalInt(fn.MemorySize),
-			Environment: fn.Environment,
+			Name:         fn.Name,
+			Timeout:      optionalInt(fn.Timeout),
+			MemorySize:   optionalInt(fn.MemorySize),
+			Environment:  fn.Environment,
+			Events:       fn.Events,
+			HasSchedules: hasSchedules,
 		}
 		if fn.Scaling.MaxCapacity != nil || fn.Scaling.MinCapacity != nil {
 			scaling := map[string]any{}
@@ -154,11 +163,13 @@ type functionsTemplateData struct {
 }
 
 type functionTemplateContext struct {
-	Name        string
-	Timeout     *int
-	MemorySize  *int
-	Environment map[string]string
-	Scaling     map[string]any
+	Name         string
+	Timeout      *int
+	MemorySize   *int
+	Environment  map[string]string
+	Scaling      map[string]any
+	Events       []EventSpec
+	HasSchedules bool
 }
 
 type routingTemplateData struct {
