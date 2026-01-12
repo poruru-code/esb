@@ -79,3 +79,4 @@ services/agent/agent*
 services/gateway/.esb-staging/
 .tmp/
 cli/bin/
+cli/esb
