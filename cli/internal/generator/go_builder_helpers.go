@@ -105,7 +105,11 @@ func buildBaseImage(
 	registry string,
 	tag string,
 	noCache bool,
+	verbose bool,
 ) error {
+	if verbose {
+		fmt.Println("Building base image...")
+	}
 	assetsDir := filepath.Join(repoRoot, "cli", "internal", "generator", "assets")
 	dockerfile := filepath.Join(assetsDir, "Dockerfile.base")
 	if _, err := os.Stat(dockerfile); err != nil {
@@ -134,8 +138,15 @@ func buildFunctionImages(
 	registry string,
 	tag string,
 	noCache bool,
+	verbose bool,
 ) error {
+	if verbose {
+		fmt.Println("Building function images...")
+	}
 	for _, fn := range functions {
+		if verbose {
+			fmt.Printf("  Building image for %s...\n", fn.Name)
+		}
 		if strings.TrimSpace(fn.Name) == "" {
 			return fmt.Errorf("function name is required")
 		}
@@ -178,7 +189,11 @@ func buildServiceImages(
 	registry string,
 	tag string,
 	noCache bool,
+	verbose bool,
 ) error {
+	if verbose {
+		fmt.Println("Building service images...")
+	}
 	services := map[string]string{
 		"esb-runtime-node": filepath.Join(repoRoot, "services", "runtime-node"),
 		"esb-agent":        filepath.Join(repoRoot, "services", "agent"),

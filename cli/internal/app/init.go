@@ -10,11 +10,12 @@ import (
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
+	"gopkg.in/yaml.v3"
 )
 
 // runInit creates a new generator.yml configuration file for a SAM template.
 // Returns the path to the generated configuration file.
-func runInit(templatePath string, envs []string, projectName string) (string, error) {
+func runInit(templatePath string, envs []string, projectName string, prompter Prompter) (string, error) {
 	cleaned := normalizeEnvs(envs)
 	if len(cleaned) == 0 {
 		return "", fmt.Errorf("environment name is required")
@@ -25,7 +26,7 @@ func runInit(templatePath string, envs []string, projectName string) (string, er
 		return "", err
 	}
 
-	cfg, generatorPath, err := buildGeneratorConfig(templatePath, specs, projectName)
+	cfg, generatorPath, err := buildGeneratorConfig(templatePath, specs, projectName, prompter)
 	if err != nil {
 		return "", err
 	}
@@ -39,7 +40,7 @@ func runInit(templatePath string, envs []string, projectName string) (string, er
 
 // buildGeneratorConfig constructs the generator.yml configuration structure
 // from the provided template path, environments, and project name.
-func buildGeneratorConfig(templatePath string, envs config.Environments, projectName string) (config.GeneratorConfig, string, error) {
+func buildGeneratorConfig(templatePath string, envs config.Environments, projectName string, prompter Prompter) (config.GeneratorConfig, string, error) {
 	if templatePath == "" {
 		return config.GeneratorConfig{}, "", fmt.Errorf("template path is required")
 	}
@@ -51,8 +52,79 @@ func buildGeneratorConfig(templatePath string, envs config.Environments, project
 	if err != nil {
 		return config.GeneratorConfig{}, "", err
 	}
-	if _, err := os.Stat(absTemplate); err != nil {
+	info, err := os.Stat(absTemplate)
+	if err != nil {
 		return config.GeneratorConfig{}, "", err
+	}
+
+	if info.IsDir() {
+		// Try to auto-detect standard template files within the directory
+		found := false
+		for _, name := range []string{"template.yaml", "template.yml"} {
+			chkPath := filepath.Join(absTemplate, name)
+			if stat, err := os.Stat(chkPath); err == nil && !stat.IsDir() {
+				absTemplate = chkPath
+				found = true
+				break
+			}
+		}
+		if !found {
+			return config.GeneratorConfig{}, "", fmt.Errorf("no template.yaml or template.yml found in directory: %s", templatePath)
+		}
+	}
+
+	// Parse template parameters
+	userParams := make(map[string]any)
+	if prompter != nil {
+		params, err := parseTemplateParameters(absTemplate)
+		if err == nil && len(params) > 0 {
+			fmt.Println("Template Parameters:")
+			for name, p := range params {
+				label := fmt.Sprintf("%s (%s)", name, p.Description)
+				if p.Description == "" {
+					label = name
+				}
+
+				// Safely format default value (which can be nil, string, int, etc.)
+				var defaultStr string
+				hasDefault := p.Default != nil
+
+				if hasDefault {
+					defaultStr = fmt.Sprintf("%v", p.Default)
+				}
+
+				var inputTitle string
+				if hasDefault {
+					displayDefault := defaultStr
+					if displayDefault == "" {
+						displayDefault = "''" // Explicitly show empty string
+					}
+					inputTitle = fmt.Sprintf("%s [Default: %s]", label, displayDefault)
+				} else {
+					inputTitle = fmt.Sprintf("%s [Required]", label)
+				}
+
+				// Prompter.Input unfortunately doesn't support pre-filled value easily unless we change interface
+				// or just rely on "empty means default".
+				val, err := prompter.Input(inputTitle, nil)
+				if err != nil {
+					return config.GeneratorConfig{}, "", err
+				}
+
+				val = strings.TrimSpace(val)
+				if val == "" {
+					if hasDefault {
+						val = defaultStr
+					}
+					// If no default and empty input, we accept empty string (val is "")
+				}
+
+				userParams[name] = val
+			}
+		} else if err != nil {
+			// Warn but don't fail?
+			fmt.Fprintf(os.Stderr, "Warning: failed to parse template parameters: %v\n", err)
+		}
 	}
 
 	projectDir := filepath.Dir(absTemplate)
@@ -71,10 +143,33 @@ func buildGeneratorConfig(templatePath string, envs config.Environments, project
 			SamTemplate: relTemplate,
 			OutputDir:   ".esb/",
 		},
+		Parameters: userParams,
 	}
 
 	generatorPath := filepath.Join(projectDir, "generator.yml")
 	return cfg, generatorPath, nil
+}
+
+type samTemplate struct {
+	Parameters map[string]samParameter `yaml:"Parameters"`
+}
+
+type samParameter struct {
+	Type        string `yaml:"Type"`
+	Default     any    `yaml:"Default"` // Default can be string, number, or list
+	Description string `yaml:"Description"`
+}
+
+func parseTemplateParameters(path string) (map[string]samParameter, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var t samTemplate
+	if err := yaml.Unmarshal(data, &t); err != nil {
+		return nil, err
+	}
+	return t.Parameters, nil
 }
 
 // normalizeProjectName returns the provided name if non-empty,

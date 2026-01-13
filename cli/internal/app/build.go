@@ -15,6 +15,7 @@ type BuildRequest struct {
 	TemplatePath string
 	Env          string
 	NoCache      bool
+	Verbose      bool
 }
 
 // Builder defines the interface for building Lambda function images.
@@ -46,6 +47,7 @@ func runBuild(cli CLI, deps Dependencies, out io.Writer) int {
 		TemplatePath: templatePath,
 		Env:          ctxInfo.Env,
 		NoCache:      cli.Build.NoCache,
+		Verbose:      cli.Build.Verbose,
 	}
 
 	if err := deps.Builder.Build(request); err != nil {

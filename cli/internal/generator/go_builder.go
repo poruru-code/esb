@@ -97,12 +97,23 @@ func (b *GoBuilder) Build(request app.BuildRequest) error {
 	}
 	cfg.Paths.OutputDir = filepath.Join(outputBase, request.Env)
 
+	if request.Verbose {
+		fmt.Println("Generating files...")
+		fmt.Printf("Using Template: %s\n", templatePath)
+		fmt.Printf("Output Dir: %s\n", cfg.Paths.OutputDir)
+		fmt.Println("Parameters:")
+		for k, v := range cfg.Parameters {
+			fmt.Printf("  %s: %v\n", k, v)
+		}
+	}
+
 	functions, err := b.Generate(cfg, GenerateOptions{
 		ProjectRoot:      repoRoot,
 		RegistryExternal: registry.External,
 		RegistryInternal: registry.Internal,
 		Tag:              imageTag,
 		Parameters:       defaultGeneratorParameters(),
+		Verbose:          request.Verbose,
 	})
 	if err != nil {
 		return err
@@ -131,7 +142,7 @@ func (b *GoBuilder) Build(request app.BuildRequest) error {
 		}
 	}
 
-	if err := buildBaseImage(context.Background(), b.Runner, repoRoot, registry.External, imageTag, request.NoCache); err != nil {
+	if err := buildBaseImage(context.Background(), b.Runner, repoRoot, registry.External, imageTag, request.NoCache, request.Verbose); err != nil {
 		return err
 	}
 	if err := buildFunctionImages(
@@ -142,11 +153,12 @@ func (b *GoBuilder) Build(request app.BuildRequest) error {
 		registry.External,
 		imageTag,
 		request.NoCache,
+		request.Verbose,
 	); err != nil {
 		return err
 	}
 	if strings.EqualFold(mode, compose.ModeFirecracker) {
-		if err := buildServiceImages(context.Background(), b.Runner, repoRoot, registry.External, imageTag, request.NoCache); err != nil {
+		if err := buildServiceImages(context.Background(), b.Runner, repoRoot, registry.External, imageTag, request.NoCache, request.Verbose); err != nil {
 			return err
 		}
 	}

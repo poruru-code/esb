@@ -62,6 +62,10 @@ func GenerateFiles(cfg config.GeneratorConfig, opts GenerateOptions) ([]Function
 		parser = DefaultParser{}
 	}
 
+	if opts.Verbose {
+		fmt.Println("Parsing template...")
+	}
+
 	parsed, err := parser.Parse(string(contents), parameters)
 	if err != nil {
 		return nil, err
@@ -83,6 +87,9 @@ func GenerateFiles(cfg config.GeneratorConfig, opts GenerateOptions) ([]Function
 	functions := make([]FunctionSpec, 0, len(parsed.Functions))
 
 	for _, fn := range parsed.Functions {
+		if opts.Verbose {
+			fmt.Printf("Processing function: %s\n", fn.Name)
+		}
 		staged, err := stageFunction(
 			fn,
 			stageContext{

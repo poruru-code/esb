@@ -87,6 +87,7 @@ type (
 
 type BuildCmd struct {
 	NoCache bool `name:"no-cache" help:"Do not use cache when building images"`
+	Verbose bool `short:"v" help:"Enable verbose output"`
 	Force   bool `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
 }
 type UpCmd struct {
