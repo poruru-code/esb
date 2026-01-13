@@ -60,7 +60,7 @@ services:
       - AGENT_RUNTIME=containerd
       # No Firecracker shim - use default containerd runtime
       - CONTAINER_REGISTRY=registry:5010
-      - CONTAINERS_NETWORK=${ESB_NETWORK_EXTERNAL:-test-external}
+      - CONTAINERS_NETWORK=${ESB_NETWORK_EXTERNAL:-${ESB_PROJECT_NAME:-esb}-external}
       - ESB_ENV
 
   registry:

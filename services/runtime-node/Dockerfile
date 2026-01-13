@@ -59,7 +59,7 @@ RUN set -eu; \
     *) echo "unsupported architecture: $arch" >&2; exit 1 ;; \
   esac; \
   url="https://github.com/firecracker-microvm/firecracker/releases/download/v${FIRECRACKER_VERSION}/firecracker-v${FIRECRACKER_VERSION}-${arch}.tgz"; \
-  curl -fsSL -o /tmp/firecracker.tgz "$url"; \
+  curl --retry 5 --retry-connrefused --retry-max-time 60 -fsSL -o /tmp/firecracker.tgz "$url"; \
   tar -xzf /tmp/firecracker.tgz -C /tmp; \
   dir="release-v${FIRECRACKER_VERSION}-${arch}"; \
   install -m 0755 "/tmp/${dir}/firecracker-v${FIRECRACKER_VERSION}-${arch}" /usr/local/bin/firecracker; \

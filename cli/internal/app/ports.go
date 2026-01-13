@@ -54,25 +54,62 @@ func (d composePortDiscoverer) Discover(ctx state.Context) (map[string]int, erro
 	return compose.DiscoverPorts(context.Background(), d.runner, opts)
 }
 
-// discoverAndPersistPorts discovers running service ports and persists them
+// DiscoverAndPersistPorts discovers running service ports and persists them
 // to a JSON file for use by provisioning and E2E tests.
-func discoverAndPersistPorts(ctx state.Context, discoverer PortDiscoverer, out io.Writer) {
+func DiscoverAndPersistPorts(ctx state.Context, discoverer PortDiscoverer, out io.Writer) map[string]int {
 	if discoverer == nil {
-		return
+		return nil
 	}
 	ports, err := discoverer.Discover(ctx)
 	if err != nil {
 		fmt.Fprintln(out, err)
-		return
+		return nil
 	}
 	if len(ports) == 0 {
-		return
+		return nil
 	}
 	if _, err := savePorts(ctx.Env, ports); err != nil {
 		fmt.Fprintln(out, err)
-		return
+		return nil
 	}
 	applyPortsToEnv(ports)
+	return ports
+}
+
+func PrintDiscoveredPorts(out io.Writer, ports map[string]int) {
+	if len(ports) == 0 {
+		return
+	}
+	fmt.Fprintln(out, "")
+	fmt.Fprintln(out, "============================== Discovered Ports ==============================")
+	// Print known critical ports first for better UX
+	printPort(out, ports, "ESB_PORT_GATEWAY_HTTPS", "Gateway HTTPS")
+	printPort(out, ports, "ESB_PORT_VICTORIALOGS", "VictoriaLogs")
+	printPort(out, ports, "ESB_PORT_DATABASE", "ScyllaDB")
+	printPort(out, ports, "ESB_PORT_S3", "MinIO S3")
+	printPort(out, ports, "ESB_PORT_REGISTRY", "Registry")
+
+	// Print remaining unknown ports
+	for k, v := range ports {
+		if !isKnownPort(k) {
+			fmt.Fprintf(out, "  %s: %d\n", k, v)
+		}
+	}
+	fmt.Fprintln(out, "==============================================================================")
+}
+
+func isKnownPort(key string) bool {
+	switch key {
+	case "ESB_PORT_GATEWAY_HTTPS", "ESB_PORT_VICTORIALOGS", "ESB_PORT_DATABASE", "ESB_PORT_S3", "ESB_PORT_REGISTRY", "ESB_PORT_AGENT_GRPC":
+		return true
+	}
+	return false
+}
+
+func printPort(out io.Writer, ports map[string]int, key, label string) {
+	if val, ok := ports[key]; ok {
+		fmt.Fprintf(out, "  %-15s (%s): %d\n", label, key, val)
+	}
 }
 
 // savePorts writes the discovered ports to a JSON file in the ESB home directory.

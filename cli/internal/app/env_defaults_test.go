@@ -47,7 +47,7 @@ func TestApplyEnvironmentDefaultsSetsDefaults(t *testing.T) {
 	if got := os.Getenv("ESB_SUBNET_EXTERNAL"); got != "172.50.0.0/16" {
 		t.Fatalf("unexpected external subnet: %s", got)
 	}
-	if got := os.Getenv("ESB_NETWORK_EXTERNAL"); got != "esb_ext_default" {
+	if got := os.Getenv("ESB_NETWORK_EXTERNAL"); got != "esb-default-external" {
 		t.Fatalf("unexpected external network: %s", got)
 	}
 	if got := os.Getenv("RUNTIME_NET_SUBNET"); got != "172.20.0.0/16" {

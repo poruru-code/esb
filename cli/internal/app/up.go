@@ -79,7 +79,7 @@ func runUp(cli CLI, deps Dependencies, out io.Writer) int {
 		return exitWithError(out, err)
 	}
 
-	discoverAndPersistPorts(ctx, deps.PortDiscoverer, out)
+	ports := DiscoverAndPersistPorts(ctx, deps.PortDiscoverer, out)
 
 	if err := deps.Provisioner.Provision(ProvisionRequest{
 		TemplatePath:   templatePath,
@@ -105,5 +105,9 @@ func runUp(cli CLI, deps Dependencies, out io.Writer) int {
 	fmt.Fprintln(out, "Next:")
 	fmt.Fprintln(out, "  esb logs <service>  # View logs")
 	fmt.Fprintln(out, "  esb down            # Stop environment")
+
+	if ports != nil {
+		PrintDiscoveredPorts(out, ports)
+	}
 	return 0
 }
