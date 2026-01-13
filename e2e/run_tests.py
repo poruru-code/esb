@@ -19,8 +19,6 @@ PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 GO_CLI_ROOT = PROJECT_ROOT / "cli"
 E2E_STATE_ROOT = PROJECT_ROOT / "e2e" / "fixtures" / ".esb"
 
-# Set ESB_REPO for CLI to locate infrastructure repository
-os.environ["ESB_REPO"] = str(PROJECT_ROOT)
 
 # Terminal colors for parallel output
 COLORS = [

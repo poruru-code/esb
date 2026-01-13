@@ -23,9 +23,15 @@ type ConfigSetRepoCmd struct {
 // runConfigSetRepo updates the global configuration with the ESB repo path.
 func runConfigSetRepo(cli CLI, _ Dependencies, out io.Writer) int {
 	repoPath := cli.Config.SetRepo.Path
-	absPath, err := filepath.Abs(repoPath)
+	// Resolve true root (upward search) before saving
+	absPath, err := config.ResolveRepoRoot(repoPath)
 	if err != nil {
-		return exitWithError(out, err)
+		fmt.Fprintf(out, "⚠️  Warning: %v\n", err)
+		// Fallback to absolute path if resolution fails (though unlikely if it's a valid repo)
+		absPath, err = filepath.Abs(repoPath)
+		if err != nil {
+			return exitWithError(out, err)
+		}
 	}
 
 	path, cfg, err := loadGlobalConfigWithPath()
