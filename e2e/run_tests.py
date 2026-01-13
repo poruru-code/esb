@@ -31,11 +31,19 @@ COLORS = [
 COLOR_RESET = "\033[0m"
 
 
-def run_esb(args: list[str], check: bool = True):
+def run_esb(args: list[str], check: bool = True, env_file: str = None):
     """Helper to run the esb CLI."""
-    cmd = ["go", "run", "./cmd/esb"] + args
+    base_cmd = ["go", "run", "./cmd/esb"]
+    if env_file:
+        # Resolve to absolute path since CLI run with a different cwd
+        env_file_path = Path(env_file)
+        if not env_file_path.is_absolute():
+            env_file_path = PROJECT_ROOT / env_file_path
+        base_cmd.extend(["--env-file", str(env_file_path.absolute())])
+
+    cmd = base_cmd + args
     print(f"Running: {' '.join(cmd)}")
-    return subprocess.run(cmd, cwd=GO_CLI_ROOT, check=check)
+    return subprocess.run(cmd, cwd=GO_CLI_ROOT, check=check, stdin=subprocess.DEVNULL)
 
 
 DEFAULT_NO_PROXY_TARGETS = [
@@ -103,39 +111,6 @@ def apply_proxy_env() -> None:
         os.environ["https_proxy"] = os.environ["HTTPS_PROXY"]
     if os.environ.get("https_proxy") and "HTTPS_PROXY" not in os.environ:
         os.environ["HTTPS_PROXY"] = os.environ["https_proxy"]
-
-
-def load_generator_env_entries(generator_path: Path) -> list[tuple[str, str]]:
-    if not generator_path.exists():
-        return []
-
-    data = yaml.safe_load(generator_path.read_text()) or {}
-    envs = data.get("environments", {})
-    entries: list[tuple[str, str]] = []
-
-    if isinstance(envs, dict):
-        for name, mode in envs.items():
-            env_name = str(name).strip()
-            env_mode = str(mode).strip() if mode is not None else ""
-            if env_name:
-                entries.append((env_name, env_mode))
-        return entries
-
-    if isinstance(envs, list):
-        for item in envs:
-            if isinstance(item, str):
-                env_name = item.strip()
-                if env_name:
-                    entries.append((env_name, ""))
-                continue
-            if isinstance(item, dict):
-                env_name = str(item.get("name", "")).strip()
-                env_mode = str(item.get("mode", "")).strip()
-                if env_name:
-                    entries.append((env_name, env_mode))
-        return entries
-
-    return entries
 
 
 def build_env_list(entries: list[tuple[str, str]]) -> str:
@@ -338,14 +313,14 @@ def main():
             env_scenarios[env_name]["exclude"].extend(suite_def.get("exclude", []))
 
     # --- Global Reset & Warm-up ---
-    # Perform this once before any environment execution (unless we are a child process)
-    if not os.environ.get("ESB_TEST_CHILD_PROCESS"):
+    # Perform this once before any environment execution (unless we are in a sub-profile run)
+    if not args.profile:
         warmup_environment(env_scenarios, matrix, esb_project, args)
 
     # --- Unified Execution Mode ---
 
-    # If we are a child process (worker), execute the scenario directly.
-    if os.environ.get("ESB_TEST_CHILD_PROCESS"):
+    # If a specific profile is requested (either by user or as a parallel worker), execute it directly.
+    if args.profile:
         for _, scenario in env_scenarios.items():
             # Inject initialization flags into the scenario
             scenario["perform_reset"] = args.reset
@@ -497,7 +472,8 @@ def warmup_environment(env_scenarios: dict, matrix: list[dict], esb_project: str
 
     # 3. Register ESB project (this generates generator.yml)
     print(f"\n[INIT] Registering ESB project for: {', '.join(active_envs)}")
-    esb_template = os.getenv("ESB_TEMPLATE", "e2e/fixtures/template.yaml")
+    # Use the default E2E template for registration
+    esb_template = "e2e/fixtures/template.yaml"
     subprocess.run(
         [
             "go",
@@ -603,15 +579,17 @@ def run_profile_subprocess(
     """Run a profile in a subprocess and stream output with prefix."""
     prefix = f"{color_code}[{profile_name}]{COLOR_RESET}"
 
-    # Inject child process flag
+    # Inject flags to force non-interactive behavior
     env = os.environ.copy()
-    env["ESB_TEST_CHILD_PROCESS"] = "1"
+    env["TERM"] = "dumb"
+    env["ESB_INTERACTIVE"] = "0"
 
     process = subprocess.Popen(
         cmd,
         cwd=PROJECT_ROOT,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
+        stdin=subprocess.DEVNULL,
         text=True,
         bufsize=1,  # Line buffered
         env=env,
@@ -643,55 +621,34 @@ def run_profile_subprocess(
 
 def run_scenario(args, scenario):
     """Run a single scenario."""
-
-    # Determine actions based on scenario overrides or global args
+    # 0. Resolve scenario-specific parameters once
+    env_name = scenario.get("esb_env", os.environ.get("ESB_ENV", "e2e-docker"))
+    raw_env_file = scenario.get("env_file")
+    env_file = str((PROJECT_ROOT / raw_env_file).absolute()) if raw_env_file else None
+    project_name = scenario.get("esb_project", "esb")
     do_reset = scenario.get("perform_reset", args.reset)
     do_build = scenario.get("perform_build", args.build)
+    build_only = scenario.get("build_only", False)
+    env_vars_override = scenario.get("env_vars", {})
 
-    # 0. Set ESB_PROJECT/ESB_ENV for CLI resolution
-    env_name = scenario.get("esb_env", os.environ.get("ESB_ENV", "e2e-docker"))
-    project_name = scenario.get("esb_project", os.environ.get("ESB_PROJECT", ""))
-    if not project_name:
-        print("[ERROR] ESB project name is missing.")
-        sys.exit(1)
-
+    # 0.1 Set ESB variables for resolution and safety
+    # We set these in os.environ so the CLI doesn't prompt even if .env fails.
     os.environ["ESB_PROJECT"] = project_name
     os.environ["ESB_ENV"] = env_name
-    os.environ["ESB_ENV_SET"] = "1"  # Mark as explicitly set to bypass interactive prompt logic
-    os.environ["ESB_HOME"] = str(E2E_STATE_ROOT / env_name)
-
-    # 0.5 Clear previous image tag to avoid leaks between scenarios in the same process
-    os.environ.pop("ESB_IMAGE_TAG", None)
-    if not os.environ.get("ESB_PROJECT_NAME"):
-        os.environ["ESB_PROJECT_NAME"] = f"esb-{env_name}".lower()
-    if not os.environ.get("ESB_IMAGE_TAG"):
-        os.environ["ESB_IMAGE_TAG"] = env_name
-
-    # 1. Runtime Mode Setup (from generator.yml)
-    generator_path = PROJECT_ROOT / "e2e" / "fixtures" / "generator.yml"
-    env_entries = load_generator_env_entries(generator_path)
-    env_mode = ""
-    for name, mode in env_entries:
-        if name == env_name:
-            env_mode = mode
-            break
-    if env_mode:
-        os.environ["ESB_MODE"] = env_mode
-    else:
-        os.environ.pop("ESB_MODE", None)
+    os.environ["ESB_HOME"] = str((E2E_STATE_ROOT / env_name).absolute())
 
     # Load Scenario-Specific Env File (Required for isolation)
-    if scenario.get("env_file"):
-        env_file_path = PROJECT_ROOT / scenario["env_file"]
-        if env_file_path.exists():
-            load_dotenv(env_file_path, override=True)
-            print(f"Loaded scenario environment from: {env_file_path}")
+    if env_file:
+        p = Path(env_file)
+        if p.exists():
+            load_dotenv(p, override=True)
+            print(f"Loaded scenario environment from: {p}")
         else:
-            print(f"Warning: Scenario environment file not found: {env_file_path}")
+            print(f"Warning: Scenario environment file not found: {p}")
     else:
         print("Warning: No env_file specified for this scenario. Operating with system env only.")
 
-    # 2.5 Inject Proxy Settings (Ensure NO_PROXY includes all internal services)
+    # 2.5 Inject Proxy Settings
     apply_proxy_env()
 
     # 3. Reload env vars into a dict for passing to subprocess (pytest)
@@ -704,13 +661,10 @@ def run_scenario(args, scenario):
     env["VICTORIALOGS_URL"] = f"http://localhost:{env['VICTORIALOGS_PORT']}"
     env["VICTORIALOGS_QUERY_URL"] = env["VICTORIALOGS_URL"]
     env["AGENT_GRPC_ADDRESS"] = f"localhost:{env.get('ESB_PORT_AGENT_GRPC', '50051')}"
+    env["ESB_PROJECT_NAME"] = f"{project_name}-{env_name}"
 
     # Merge scenario-specific environment variables
-    env.update(scenario.get("env_vars", {}))
-
-    # Explicitly set template path
-    esb_template = os.getenv("ESB_TEMPLATE", "e2e/fixtures/template.yaml")
-    env["ESB_TEMPLATE"] = str(PROJECT_ROOT / esb_template)
+    env.update(env_vars_override)
 
     # Note: Do NOT update os.environ with 'env' here.
     # 'env' contains localhost URLs (e.g. VICTORIALOGS_URL=http://localhost:...) intended for pytest.
@@ -727,36 +681,32 @@ def run_scenario(args, scenario):
             thorough_cleanup(env_name, project_name)
 
             # 2.2 Clean artifact directory for this environment
-            import shutil
-
             env_state_dir = E2E_STATE_ROOT / env_name
             if env_state_dir.exists():
                 print(f"  • Cleaning artifact directory: {env_state_dir}")
+                import shutil
+
                 shutil.rmtree(env_state_dir)
 
-            run_esb(["down", "-v"], check=True)
+            run_esb(["down", "-v"], check=True, env_file=env_file)
             # Re-generate configurations via build
-            run_esb(["build", "--no-cache"])
+            run_esb(["build", "--no-cache"], env_file=env_file)
         elif do_build:
             print(f"➜ Building environment: {env_name}")
-            run_esb(["build", "--no-cache"])
+            run_esb(["build", "--no-cache"], env_file=env_file)
         else:
             print(f"➜ Preparing environment: {env_name}")
             # Ensure services are stopped before starting (without destroying data)
-            run_esb(["stop"], check=True)
-            run_esb(["build"])
+            run_esb(["stop"], check=True, env_file=env_file)
+            run_esb(["build"], env_file=env_file)
 
         # If build_only, skip UP and tests
-        if scenario.get("build_only"):
+        if build_only:
             return
 
-        # 3. UP - pass --env-file if specified
+        # 3. UP
         up_args = ["up", "--detach", "--wait"]
-        if scenario.get("env_file"):
-            env_file_path = PROJECT_ROOT / scenario["env_file"]
-            if env_file_path.exists():
-                up_args.extend(["--env-file", str(env_file_path)])
-        run_esb(up_args)
+        run_esb(up_args, env_file=env_file)
 
         # 3.5 Load dynamic ports from ports.json (created by esb up)
         ports = load_ports(env_name)
@@ -802,9 +752,9 @@ def run_scenario(args, scenario):
         sys.exit(1)
 
     finally:
-        # 5. Cleanup (Conditional)
         if args.cleanup:
-            run_esb(["down"])
+            print(f"➜ Cleaning up environment: {env_name}")
+            run_esb(["down"], env_file=scenario.get("env_file"))
         # If not cleanup, we leave containers running for debugging last scenario
         # But next scenario execution will force down anyway.
 

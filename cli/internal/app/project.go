@@ -260,6 +260,9 @@ func runProjectAdd(cli CLI, deps Dependencies, out io.Writer) int {
 		// New project initialization (old esb init behavior)
 		template := cli.Template
 		if template == "" {
+			template = os.Getenv("ESB_TEMPLATE")
+		}
+		if template == "" {
 			// 1. Try to auto-detect standard template files
 			for _, name := range []string{"template.yaml", "template.yml"} {
 				p := filepath.Join(absDir, name)
