@@ -38,7 +38,7 @@ func runLogs(cli CLI, deps Dependencies, out io.Writer) int {
 	}
 
 	ctx := ctxInfo.Context
-	applyRuntimeEnv(ctx)
+	applyRuntimeEnv(ctx, deps.RepoResolver)
 
 	req := LogsRequest{
 		Context:    ctx,

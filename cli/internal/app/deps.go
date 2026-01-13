@@ -61,9 +61,12 @@ func (fn downerFunc) Down(project string, removeVolumes bool) error {
 
 // NewUpper creates an Upper implementation that starts containers
 // via Docker Compose with the specified options.
-func NewUpper() Upper {
+func NewUpper(resolver func(string) (string, error)) Upper {
 	return upperFunc(func(request UpRequest) error {
-		rootDir, err := config.ResolveRepoRoot(request.Context.ProjectDir)
+		if resolver == nil {
+			resolver = config.ResolveRepoRoot
+		}
+		rootDir, err := resolver(request.Context.ProjectDir)
 		if err != nil {
 			return err
 		}
@@ -89,9 +92,12 @@ func (fn upperFunc) Up(request UpRequest) error {
 
 // NewStopper creates a Stopper implementation that stops containers
 // via Docker Compose without removing them.
-func NewStopper() Stopper {
+func NewStopper(resolver func(string) (string, error)) Stopper {
 	return stopperFunc(func(request StopRequest) error {
-		rootDir, err := config.ResolveRepoRoot(request.Context.ProjectDir)
+		if resolver == nil {
+			resolver = config.ResolveRepoRoot
+		}
+		rootDir, err := resolver(request.Context.ProjectDir)
 		if err != nil {
 			return err
 		}
@@ -124,10 +130,13 @@ type Logger interface {
 
 // NewLogger creates a Logger implementation that streams container logs
 // via Docker Compose with follow/tail/timestamp options.
-func NewLogger(client compose.DockerClient) Logger {
+func NewLogger(client compose.DockerClient, resolver func(string) (string, error)) Logger {
+	if resolver == nil {
+		resolver = config.ResolveRepoRoot
+	}
 	return loggerImpl{
 		logsFn: func(request LogsRequest) error {
-			rootDir, err := config.ResolveRepoRoot(request.Context.ProjectDir)
+			rootDir, err := resolver(request.Context.ProjectDir)
 			if err != nil {
 				return err
 			}
@@ -145,7 +154,7 @@ func NewLogger(client compose.DockerClient) Logger {
 			return compose.LogsProject(context.Background(), compose.ExecRunner{}, opts)
 		},
 		listServicesFn: func(request LogsRequest) ([]string, error) {
-			rootDir, err := config.ResolveRepoRoot(request.Context.ProjectDir)
+			rootDir, err := resolver(request.Context.ProjectDir)
 			if err != nil {
 				return nil, err
 			}

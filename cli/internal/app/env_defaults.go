@@ -29,7 +29,7 @@ var defaultPorts = map[string]int{
 
 // applyRuntimeEnv sets all environment variables required for running commands,
 // including project metadata, ports, networks, and custom generator parameters.
-func applyRuntimeEnv(ctx state.Context) {
+func applyRuntimeEnv(ctx state.Context, resolver func(string) (string, error)) {
 	applyModeEnv(ctx.Mode)
 
 	env := strings.TrimSpace(ctx.Env)
@@ -46,7 +46,7 @@ func applyRuntimeEnv(ctx state.Context) {
 	applyRegistryDefaults(ctx.Mode)
 
 	_ = applyGeneratorConfigEnv(ctx.GeneratorPath)
-	applyConfigDirEnv(ctx)
+	applyConfigDirEnv(ctx, resolver)
 }
 
 // applyEnvironmentDefaults is a legacy helper. New code should use applyRuntimeEnv.
@@ -55,7 +55,7 @@ func applyEnvironmentDefaults(envName, mode, composeProject string) {
 		Env:            envName,
 		Mode:           mode,
 		ComposeProject: composeProject,
-	})
+	}, config.ResolveRepoRoot)
 }
 
 // applyPortDefaults sets default port environment variables with an offset
@@ -170,12 +170,16 @@ func applyGeneratorConfigEnv(generatorPath string) error {
 
 // applyConfigDirEnv sets the ESB_CONFIG_DIR environment variable
 // based on the discovered project structure.
-func applyConfigDirEnv(ctx state.Context) {
+func applyConfigDirEnv(ctx state.Context, resolver func(string) (string, error)) {
 	if strings.TrimSpace(os.Getenv("ESB_CONFIG_DIR")) != "" {
 		return
 	}
 
-	root, err := config.ResolveRepoRoot(ctx.ProjectDir)
+	if resolver == nil {
+		resolver = config.ResolveRepoRoot
+	}
+
+	root, err := resolver(ctx.ProjectDir)
 	if err != nil {
 		return
 	}

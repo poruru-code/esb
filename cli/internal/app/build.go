@@ -38,7 +38,7 @@ func runBuild(cli CLI, deps Dependencies, out io.Writer) int {
 		return exitWithError(out, err)
 	}
 	ctx := ctxInfo.Context
-	applyRuntimeEnv(ctx)
+	applyRuntimeEnv(ctx, deps.RepoResolver)
 
 	templatePath := resolvedTemplatePath(ctxInfo)
 
