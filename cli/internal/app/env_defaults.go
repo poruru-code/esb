@@ -77,7 +77,8 @@ func applySubnetDefaults(env string) {
 	if strings.TrimSpace(os.Getenv("ESB_SUBNET_EXTERNAL")) == "" {
 		_ = os.Setenv("ESB_SUBNET_EXTERNAL", fmt.Sprintf("172.%d.0.0/16", envExternalSubnetIndex(env)))
 	}
-	setEnvIfEmpty("ESB_NETWORK_EXTERNAL", fmt.Sprintf("esb_ext_%s", env))
+	// Default to {project}-external to match docker-compose.yml default
+	setEnvIfEmpty("ESB_NETWORK_EXTERNAL", fmt.Sprintf("%s-external", os.Getenv("ESB_PROJECT_NAME")))
 	setEnvIfEmpty("RUNTIME_NET_SUBNET", fmt.Sprintf("172.%d.0.0/16", envRuntimeSubnetIndex(env)))
 	setEnvIfEmpty("RUNTIME_NODE_IP", fmt.Sprintf("172.%d.0.10", envRuntimeSubnetIndex(env)))
 	setEnvIfEmpty("LAMBDA_NETWORK", fmt.Sprintf("esb_int_%s", env))

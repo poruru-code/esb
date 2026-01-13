@@ -397,7 +397,7 @@ def thorough_cleanup(env_name: str, esb_project: str):
     # 2. Networks
     network_filters = [
         f"label=com.docker.compose.project={project_label}",
-        f"name=esb_ext_{env_name}",
+        f"name={project_label}-external",
         f"name={project_label}_default",
     ]
     for filt in network_filters:

@@ -147,7 +147,7 @@ services:
       - ENABLE_SSL=true
       - SSL_CERT_PATH=/app/config/ssl/server.crt
       - SSL_KEY_PATH=/app/config/ssl/server.key
-      - CONTAINERS_NETWORK=${ESB_NETWORK_EXTERNAL:-test-external}
+      - CONTAINERS_NETWORK=${ESB_NETWORK_EXTERNAL:-${ESB_PROJECT_NAME:-esb}-external}
       - AUTH_ENDPOINT_PATH
 
       # --- Tuning & Resilience (Pass-through) ---
@@ -197,7 +197,7 @@ volumes:
 networks:
   # Public network (exposed ports).
   external_network:
-    name: ${ESB_NETWORK_EXTERNAL:-test-external}
+    name: ${ESB_NETWORK_EXTERNAL:-${ESB_PROJECT_NAME:-esb}-external}
     driver: bridge
     ipam:
       config:
