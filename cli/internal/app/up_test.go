@@ -26,6 +26,18 @@ func (f *fakeUpper) Up(request UpRequest) error {
 	return f.err
 }
 
+type fakeUpDowner struct {
+	projects      []string
+	removeVolumes []bool
+	err           error
+}
+
+func (f *fakeUpDowner) Down(project string, removeVolumes bool) error {
+	f.projects = append(f.projects, project)
+	f.removeVolumes = append(f.removeVolumes, removeVolumes)
+	return f.err
+}
+
 type fakeProvisioner struct {
 	calls    int
 	requests []ProvisionRequest
@@ -80,6 +92,96 @@ func TestRunUpCallsUpper(t *testing.T) {
 	}
 	if !upper.requests[0].Detach {
 		t.Fatalf("expected detach to default to true")
+	}
+}
+
+func TestRunUpResetCallsDownBuildUp(t *testing.T) {
+	projectDir := t.TempDir()
+	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
+		t.Fatalf("write generator fixture: %v", err)
+	}
+	setupProjectConfig(t, projectDir, "demo")
+	t.Setenv("ESB_MODE", "")
+
+	downer := &fakeUpDowner{}
+	builder := &fakeUpBuilder{}
+	upper := &fakeUpper{}
+	provisioner := &fakeProvisioner{}
+	waiter := &fakeWaiter{}
+	var out bytes.Buffer
+	deps := Dependencies{
+		Out:         &out,
+		ProjectDir:  projectDir,
+		Downer:      downer,
+		Builder:     builder,
+		Upper:       upper,
+		Provisioner: provisioner,
+		Waiter:      waiter,
+	}
+
+	exitCode := Run([]string{"up", "--reset", "--yes", "--wait"}, deps)
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d", exitCode)
+	}
+	if len(downer.projects) != 1 || downer.projects[0] != expectedComposeProject("demo", "default") {
+		t.Fatalf("unexpected down project: %v", downer.projects)
+	}
+	if len(downer.removeVolumes) != 1 || !downer.removeVolumes[0] {
+		t.Fatalf("expected removeVolumes true, got %v", downer.removeVolumes)
+	}
+	if len(builder.requests) != 1 {
+		t.Fatalf("expected builder called once, got %d", len(builder.requests))
+	}
+	if upper.calls != 1 {
+		t.Fatalf("expected upper called once, got %d", upper.calls)
+	}
+	if len(upper.requests) != 1 || !upper.requests[0].Wait {
+		t.Fatalf("expected wait to be true, got %v", upper.requests)
+	}
+	if provisioner.calls != 1 {
+		t.Fatalf("expected provisioner called once, got %d", provisioner.calls)
+	}
+	if waiter.calls != 1 {
+		t.Fatalf("expected waiter called once, got %d", waiter.calls)
+	}
+}
+
+func TestRunUpResetRequiresYesInNonInteractiveMode(t *testing.T) {
+	projectDir := t.TempDir()
+	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
+		t.Fatalf("write generator fixture: %v", err)
+	}
+	setupProjectConfig(t, projectDir, "demo")
+	t.Setenv("ESB_MODE", "")
+
+	origIsTerminal := isTerminal
+	isTerminal = func(_ *os.File) bool {
+		return false
+	}
+	t.Cleanup(func() {
+		isTerminal = origIsTerminal
+	})
+
+	downer := &fakeUpDowner{}
+	builder := &fakeUpBuilder{}
+	upper := &fakeUpper{}
+	provisioner := &fakeProvisioner{}
+	var out bytes.Buffer
+	deps := Dependencies{
+		Out:         &out,
+		ProjectDir:  projectDir,
+		Downer:      downer,
+		Builder:     builder,
+		Upper:       upper,
+		Provisioner: provisioner,
+	}
+
+	exitCode := Run([]string{"up", "--reset"}, deps)
+	if exitCode == 0 {
+		t.Fatalf("expected non-zero exit code without --yes")
+	}
+	if len(downer.projects) != 0 {
+		t.Fatalf("expected downer not called, got %v", downer.projects)
 	}
 }
 

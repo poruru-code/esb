@@ -725,6 +725,7 @@ def run_scenario(args, scenario):
 
     ensure_firecracker_node_up()
 
+    did_up = False
     try:
         # 2. Reset / Build
         if do_reset:
@@ -740,9 +741,13 @@ def run_scenario(args, scenario):
 
                 shutil.rmtree(env_state_dir)
 
-            run_esb(["down", "-v"], check=True, env_file=env_file)
-            # Re-generate configurations via build
-            run_esb(["build", "--no-cache"], env_file=env_file)
+            if build_only:
+                run_esb(["down", "-v"], check=True, env_file=env_file)
+                # Re-generate configurations via build
+                run_esb(["build", "--no-cache"], env_file=env_file)
+            else:
+                run_esb(["up", "--reset", "--yes", "--detach", "--wait"], env_file=env_file)
+                did_up = True
         elif do_build:
             print(f"➜ Building environment: {env_name}")
             run_esb(["build", "--no-cache"], env_file=env_file)
@@ -757,8 +762,9 @@ def run_scenario(args, scenario):
             return
 
         # 3. UP
-        up_args = ["up", "--detach", "--wait"]
-        run_esb(up_args, env_file=env_file)
+        if not did_up:
+            up_args = ["up", "--detach", "--wait"]
+            run_esb(up_args, env_file=env_file)
 
         # 3.5 Load dynamic ports from ports.json (created by esb up)
         ports = load_ports(env_name)

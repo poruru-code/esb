@@ -24,7 +24,7 @@ Why: Provide a single entry point for developers and operators.
 | `esb build`          | `template.yaml` から設定を生成し、Docker イメージをビルドします。                  | `--no-cache`, `--dry-run`, `--verbose (-v)`                                                  |
 | `esb up`             | サービスの起動とインフラのプロビジョニングを一括で行います（デフォルトでdetach）。 | `--build`, `--wait`                                                                          |
 | `esb down`           | サービスを停止し、コンテナを削除します。                                           | `--volumes (-v)`                                                                             |
-| `esb reset`          | 環境を完全に初期化し、DB等のデータも全て削除して再構築します。                     | `--yes (-y)`                                                                                 |
+| `esb up --reset`     | 環境を完全に初期化し、DB等のデータも全て削除して再構築します。                     | `--yes (-y)`                                                                                 |
 | `esb logs`           | サービスログを表示します。                                                         | `--follow (-f)`, `--tail`, `--timestamps`                                                    |
 | `esb node add`       | Compute Node を登録します。                                                        | `--host`, `--password`, `--skip-key-setup`                                                   |
 | `esb node doctor`    | Compute Node の前提チェックを行います。                                            | `--name`, `--host`, `--strict`                                                               |
@@ -287,13 +287,13 @@ esb down
 esb down --volumes
 ```
 
-### 環境の完全リセット (`esb reset`)
+### 環境の完全リセット (`esb up --reset`)
 
 DB の状態が複雑になった場合や、クリーンな状態からやり直したい場合に使用します。
 **注意: この操作を実行すると、全てのデータベーステーブルと S3 バケットの内容が永久に失われます。** 実行前に確認プロンプトが表示されます。
 
 ```bash
-esb reset
+esb up --reset
 ```
 
 内部的には以下の処理を連続して行います：
@@ -329,6 +329,26 @@ esb reset
 2. `esb build --env <name>` は `cli/internal/generator/parser.go` によって SAM を検証し、`functions.yml`/`routing.yml` を `output_dir/config/` に生成したあと `docker compose` で `esb-lambda-base` と各関数イメージをビルドします。
 3. `esb up --env <name>` → `esb logs`/`esb stop`/`esb prune` は `cli/internal/compose` の Compose 実行を経て、生成済 `.esb` の設定で gateway/agent/runtime を起動・監視・削除します。`esb prune` は ESB 限定の system prune 相当で、`--yes` で実行、`--all` で未使用イメージ全削除、`--volumes` で未使用ボリューム削除、`--hard` で `generator.yml` も削除します。
 4. 状態遷移（Initialized → Up → Down など）や `esb env`/`esb project` の UX、`generator.yml` の参照フローは `docs/developer/cli-architecture.md` に詳述しています。
+
+### シェル補完
+
+`esb completion <bash|zsh|fish>` で補完スクリプトを生成できます。初回は以下のように読み込んでください。
+
+```bash
+# bash
+esb completion bash > ~/.bash_completion.d/esb
+source ~/.bash_completion.d/esb
+
+# zsh
+mkdir -p ~/.zsh/completions
+esb completion zsh > ~/.zsh/completions/_esb
+fpath=(~/.zsh/completions $fpath)
+autoload -Uz compinit && compinit
+
+# fish
+mkdir -p ~/.config/fish/completions
+esb completion fish > ~/.config/fish/completions/esb.fish
+```
 
 ## 開発ガイド
 
@@ -457,8 +477,8 @@ uv run python e2e/run_tests.py --unit-only
 A. 仮想環境 (`.venv`) がアクティベートされているか確認してください。または `uv run esb ...` で実行できます。
 
 **Q. コンテナの挙動がおかしい / データを初期化したい**
-A. `esb reset` コマンドを使用して、環境を完全に初期化してください。
+A. `esb up --reset` コマンドを使用して、環境を完全に初期化してください。
 
 ```bash
-esb reset
+esb up --reset
 ```
