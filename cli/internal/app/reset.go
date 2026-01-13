@@ -46,7 +46,10 @@ func runReset(cli CLI, deps Dependencies, out io.Writer) int {
 	if err := deps.Upper.Up(UpRequest{Context: ctx, Detach: true}); err != nil {
 		return exitWithError(out, err)
 	}
-	discoverAndPersistPorts(ctx, deps.PortDiscoverer, out)
+	ports := DiscoverAndPersistPorts(ctx, deps.PortDiscoverer, out)
+	if ports != nil {
+		PrintDiscoveredPorts(out, ports)
+	}
 
 	fmt.Fprintln(out, "reset complete")
 	return 0
