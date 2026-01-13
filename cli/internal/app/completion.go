@@ -57,8 +57,30 @@ func runCompletionBash(cli CLI, out io.Writer) int {
 		caseParts = append(caseParts, part)
 	}
 
-	script := `_esb_completion() {
-    local cur prev opts cmd sub
+	script := `_esb_find_index() {
+    local target="$1"
+    local i
+    for ((i=1; i<${#COMP_WORDS[@]}; i++)); do
+        if [[ "${COMP_WORDS[i]}" == "${target}" ]]; then
+            echo "${i}"
+            return 0
+        fi
+    done
+    return 1
+}
+_esb_has_positional_after() {
+    local start="$1"
+    local i word
+    for ((i=start; i<COMP_CWORD; i++)); do
+        word="${COMP_WORDS[i]}"
+        if [[ -n "${word}" && "${word}" != -* ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+_esb_completion() {
+    local cur prev opts cmd sub cmd_index sub_index arg_index
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
@@ -71,14 +93,41 @@ func runCompletionBash(cli CLI, out io.Writer) int {
         return 0
     fi
     if [[ "${cmd}" == "env" && ( "${sub}" == "use" || "${sub}" == "remove" ) ]]; then
+        cmd_index=$(_esb_find_index "env") || cmd_index=1
+        sub_index=$((cmd_index+1))
+        arg_index=$((sub_index+1))
+        if _esb_has_positional_after "${arg_index}"; then
+            return 0
+        fi
         COMPREPLY=( $(compgen -W "$(_esb_complete env)" -- "${cur}") )
         return 0
     fi
     if [[ "${cmd}" == "project" && ( "${sub}" == "use" || "${sub}" == "remove" ) ]]; then
+        cmd_index=$(_esb_find_index "project") || cmd_index=1
+        sub_index=$((cmd_index+1))
+        arg_index=$((sub_index+1))
+        if _esb_has_positional_after "${arg_index}"; then
+            return 0
+        fi
         COMPREPLY=( $(compgen -W "$(_esb_complete project)" -- "${cur}") )
         return 0
     fi
-    if [[ "${cmd}" == "logs" || ( "${cmd}" == "env" && "${sub}" == "var" ) ]]; then
+    if [[ "${cmd}" == "logs" ]]; then
+        cmd_index=$(_esb_find_index "logs") || cmd_index=1
+        arg_index=$((cmd_index+1))
+        if _esb_has_positional_after "${arg_index}"; then
+            return 0
+        fi
+        COMPREPLY=( $(compgen -W "$(_esb_complete service)" -- "${cur}") )
+        return 0
+    fi
+    if [[ "${cmd}" == "env" && "${sub}" == "var" ]]; then
+        cmd_index=$(_esb_find_index "env") || cmd_index=1
+        sub_index=$((cmd_index+1))
+        arg_index=$((sub_index+1))
+        if _esb_has_positional_after "${arg_index}"; then
+            return 0
+        fi
         COMPREPLY=( $(compgen -W "$(_esb_complete service)" -- "${cur}") )
         return 0
     fi
@@ -109,6 +158,28 @@ func runCompletionZsh(cli CLI, out io.Writer) int {
 	}
 
 	script := `#compdef esb
+_esb_find_index() {
+    local target="$1"
+    local i
+    for ((i=1; i<${#words[@]}; i++)); do
+        if [[ "${words[i]}" == "${target}" ]]; then
+            echo "${i}"
+            return 0
+        fi
+    done
+    return 1
+}
+_esb_has_positional_after() {
+    local start="$1"
+    local i word
+    for ((i=start; i<CURRENT; i++)); do
+        word="${words[i]}"
+        if [[ -n "${word}" && "${word}" != -* ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
 _esb_completion() {
     local -a commands
     commands=(
@@ -117,19 +188,47 @@ _esb_completion() {
     local prev="${words[$CURRENT-1]}"
     local cmd="${words[2]}"
     local sub="${words[3]}"
+    local cmd_index sub_index arg_index
     if [[ "${prev}" == "--env" || "${prev}" == "-e" ]]; then
         _values 'environments' ${(f)"$(command esb __complete env 2>/dev/null)"}
         return
     fi
     if [[ "${cmd}" == "env" && ( "${sub}" == "use" || "${sub}" == "remove" ) ]]; then
+        cmd_index=$(_esb_find_index "env") || cmd_index=2
+        sub_index=$((cmd_index+1))
+        arg_index=$((sub_index+1))
+        if _esb_has_positional_after "${arg_index}"; then
+            return
+        fi
         _values 'environments' ${(f)"$(command esb __complete env 2>/dev/null)"}
         return
     fi
     if [[ "${cmd}" == "project" && ( "${sub}" == "use" || "${sub}" == "remove" ) ]]; then
+        cmd_index=$(_esb_find_index "project") || cmd_index=2
+        sub_index=$((cmd_index+1))
+        arg_index=$((sub_index+1))
+        if _esb_has_positional_after "${arg_index}"; then
+            return
+        fi
         _values 'projects' ${(f)"$(command esb __complete project 2>/dev/null)"}
         return
     fi
-    if [[ "${cmd}" == "logs" || ( "${cmd}" == "env" && "${sub}" == "var" ) ]]; then
+    if [[ "${cmd}" == "logs" ]]; then
+        cmd_index=$(_esb_find_index "logs") || cmd_index=2
+        arg_index=$((cmd_index+1))
+        if _esb_has_positional_after "${arg_index}"; then
+            return
+        fi
+        _values 'services' ${(f)"$(command esb __complete service 2>/dev/null)"}
+        return
+    fi
+    if [[ "${cmd}" == "env" && "${sub}" == "var" ]]; then
+        cmd_index=$(_esb_find_index "env") || cmd_index=2
+        sub_index=$((cmd_index+1))
+        arg_index=$((sub_index+1))
+        if _esb_has_positional_after "${arg_index}"; then
+            return
+        fi
         _values 'services' ${(f)"$(command esb __complete service 2>/dev/null)"}
         return
     fi
@@ -143,6 +242,37 @@ compdef _esb_completion esb
 
 func runCompletionFish(cli CLI, out io.Writer) int {
 	parser, _ := kong.New(&cli)
+	fmt.Fprintln(out, "function __esb_has_positional_after")
+	fmt.Fprintln(out, "    set -l cmd $argv[1]")
+	fmt.Fprintln(out, "    set -l sub $argv[2]")
+	fmt.Fprintln(out, "    set -l tokens (commandline -opc)")
+	fmt.Fprintln(out, "    set -l current (commandline -ct)")
+	fmt.Fprintln(out, "    if test (count $tokens) -gt 0")
+	fmt.Fprintln(out, "        if test \"$tokens[-1]\" = \"$current\"")
+	fmt.Fprintln(out, "            set -e tokens[-1]")
+	fmt.Fprintln(out, "        end")
+	fmt.Fprintln(out, "    end")
+	fmt.Fprintln(out, "    set -l found 0")
+	fmt.Fprintln(out, "    for tok in $tokens")
+	fmt.Fprintln(out, "        if test $found -eq 0")
+	fmt.Fprintln(out, "            if test \"$tok\" = \"$cmd\"")
+	fmt.Fprintln(out, "                set found 1")
+	fmt.Fprintln(out, "                if test -z \"$sub\"")
+	fmt.Fprintln(out, "                    set found 2")
+	fmt.Fprintln(out, "                end")
+	fmt.Fprintln(out, "            end")
+	fmt.Fprintln(out, "        else if test $found -eq 1")
+	fmt.Fprintln(out, "            if test \"$tok\" = \"$sub\"")
+	fmt.Fprintln(out, "                set found 2")
+	fmt.Fprintln(out, "            end")
+	fmt.Fprintln(out, "        else")
+	fmt.Fprintln(out, "            if not string match -r '^-' -- \"$tok\"")
+	fmt.Fprintln(out, "                return 0")
+	fmt.Fprintln(out, "            end")
+	fmt.Fprintln(out, "        end")
+	fmt.Fprintln(out, "    end")
+	fmt.Fprintln(out, "    return 1")
+	fmt.Fprintln(out, "end")
 	for _, node := range parser.Model.Children {
 		if node.Hidden || strings.HasPrefix(node.Name, "__") {
 			continue
@@ -150,9 +280,9 @@ func runCompletionFish(cli CLI, out io.Writer) int {
 		fmt.Fprintf(out, "complete -c esb -f -a %s -d '%s'\n", node.Name, node.Help)
 	}
 	fmt.Fprintln(out, "complete -c esb -f -l env -s e -r -a '(esb __complete env)' -d 'Environment'")
-	fmt.Fprintln(out, "complete -c esb -f -n '__fish_seen_subcommand_from env; and __fish_seen_subcommand_from use remove' -a '(esb __complete env)'")
-	fmt.Fprintln(out, "complete -c esb -f -n '__fish_seen_subcommand_from project; and __fish_seen_subcommand_from use remove' -a '(esb __complete project)'")
-	fmt.Fprintln(out, "complete -c esb -f -n '__fish_seen_subcommand_from logs' -a '(esb __complete service)'")
-	fmt.Fprintln(out, "complete -c esb -f -n '__fish_seen_subcommand_from env; and __fish_seen_subcommand_from var' -a '(esb __complete service)'")
+	fmt.Fprintln(out, "complete -c esb -f -n '__fish_seen_subcommand_from env; and __fish_seen_subcommand_from use remove; and not __esb_has_positional_after env use; and not __esb_has_positional_after env remove' -a '(esb __complete env)'")
+	fmt.Fprintln(out, "complete -c esb -f -n '__fish_seen_subcommand_from project; and __fish_seen_subcommand_from use remove; and not __esb_has_positional_after project use; and not __esb_has_positional_after project remove' -a '(esb __complete project)'")
+	fmt.Fprintln(out, "complete -c esb -f -n '__fish_seen_subcommand_from logs; and not __esb_has_positional_after logs \"\"' -a '(esb __complete service)'")
+	fmt.Fprintln(out, "complete -c esb -f -n '__fish_seen_subcommand_from env; and __fish_seen_subcommand_from var; and not __esb_has_positional_after env var' -a '(esb __complete service)'")
 	return 0
 }
