@@ -6,6 +6,8 @@ package app
 import (
 	"bytes"
 	"testing"
+
+	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
 func TestRunEnvVarRequiresService(t *testing.T) {
@@ -27,6 +29,19 @@ func TestRunEnvVarRequiresService(t *testing.T) {
 	}
 }
 
+type mockLogger struct {
+	listContainersFn func(string) ([]state.ContainerInfo, error)
+}
+
+func (m mockLogger) Logs(_ LogsRequest) error                     { return nil }
+func (m mockLogger) ListServices(_ LogsRequest) ([]string, error) { return nil, nil }
+func (m mockLogger) ListContainers(p string) ([]state.ContainerInfo, error) {
+	if m.listContainersFn != nil {
+		return m.listContainersFn(p)
+	}
+	return nil, nil
+}
+
 func TestRunEnvVarWithInteractiveSelection(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	projectDir := t.TempDir()
@@ -43,11 +58,20 @@ func TestRunEnvVarWithInteractiveSelection(t *testing.T) {
 		},
 	}
 
+	mockLogger := &mockLogger{
+		listContainersFn: func(_ string) ([]state.ContainerInfo, error) {
+			return []state.ContainerInfo{
+				{Name: "esb-demo-gateway-1", Service: "gateway", State: "running"},
+			}, nil
+		},
+	}
+
 	var out bytes.Buffer
 	deps := Dependencies{
 		Out:        &out,
 		ProjectDir: projectDir,
 		Prompter:   mockPrompter,
+		Logger:     mockLogger,
 	}
 
 	// This will fail because there's no actual docker container

@@ -38,22 +38,7 @@ func applyModeFromConfig(cfg config.GeneratorConfig, env string) {
 	_ = os.Setenv("ESB_MODE", strings.ToLower(mode))
 }
 
-func findRepoRoot(_ string) (string, error) {
-	// 1. Try environment variable
-	if repo := os.Getenv("ESB_REPO"); repo != "" {
-		if info, err := os.Stat(repo); err == nil && info.IsDir() {
-			return repo, nil
-		}
-	}
-
-	// 2. Try global configuration
-	if cfgPath, err := config.GlobalConfigPath(); err == nil {
-		if cfg, err := config.LoadGlobalConfig(cfgPath); err == nil && cfg.RepoPath != "" {
-			if info, err := os.Stat(cfg.RepoPath); err == nil && info.IsDir() {
-				return cfg.RepoPath, nil
-			}
-		}
-	}
-
-	return "", fmt.Errorf("ESB_REPO path not found (env: ESB_REPO or config: repo_path)")
+// findRepoRoot locates the ESB repository root using shared config logic.
+func findRepoRoot(start string) (string, error) {
+	return config.ResolveRepoRoot(start)
 }

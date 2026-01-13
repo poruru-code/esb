@@ -159,24 +159,3 @@ func resolveMode(mode string) string {
 		return ModeDocker
 	}
 }
-
-// FindRepoRoot searches upward from start directory to find the root
-// containing docker-compose.yml.
-func FindRepoRoot(start string) (string, error) {
-	dir := filepath.Clean(start)
-	for {
-		if dir == "" || dir == string(filepath.Separator) {
-			break
-		}
-		path := filepath.Join(dir, "docker-compose.yml")
-		if _, err := os.Stat(path); err == nil {
-			return dir, nil
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			break
-		}
-		dir = parent
-	}
-	return "", fmt.Errorf("compose root not found from %s", start)
-}

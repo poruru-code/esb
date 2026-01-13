@@ -10,6 +10,7 @@ import (
 
 	"github.com/poruru/edge-serverless-box/cli/internal/app"
 	"github.com/poruru/edge-serverless-box/cli/internal/compose"
+	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/generator"
 	"github.com/poruru/edge-serverless-box/cli/internal/provisioner"
 )
@@ -39,14 +40,15 @@ func buildDependencies() (app.Dependencies, io.Closer, error) {
 		DetectorFactory: app.NewDetectorFactory(client, warnf),
 		Builder:         generator.NewGoBuilder(),
 		Downer:          app.NewDowner(client),
-		Upper:           app.NewUpper(),
-		Stopper:         app.NewStopper(),
-		Logger:          app.NewLogger(client),
+		Upper:           app.NewUpper(config.ResolveRepoRoot),
+		Stopper:         app.NewStopper(config.ResolveRepoRoot),
+		Logger:          app.NewLogger(client, config.ResolveRepoRoot),
 		PortDiscoverer:  app.NewPortDiscoverer(),
 		Waiter:          app.NewGatewayWaiter(),
 		Provisioner:     provisionerAdapter{runner: provisioner.New(client)},
 		Pruner:          app.NewPruner(),
 		Prompter:        app.HuhPrompter{},
+		RepoResolver:    config.ResolveRepoRoot,
 	}
 
 	return deps, asCloser(client), nil

@@ -129,7 +129,15 @@ func TestRunUpAppliesEnvDefaults(t *testing.T) {
 	upper := &fakeUpper{}
 	provisioner := &fakeProvisioner{}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, ProjectDir: repoRoot, Upper: upper, Provisioner: provisioner}
+	deps := Dependencies{
+		Out:         &out,
+		ProjectDir:  repoRoot,
+		Upper:       upper,
+		Provisioner: provisioner,
+		RepoResolver: func(_ string) (string, error) {
+			return repoRoot, nil
+		},
+	}
 
 	exitCode := Run([]string{"--env", "staging", "up"}, deps)
 	if exitCode != 0 {

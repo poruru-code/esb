@@ -43,7 +43,7 @@ func runUp(cli CLI, deps Dependencies, out io.Writer) int {
 		return exitWithError(out, err)
 	}
 	ctx := ctxInfo.Context
-	applyRuntimeEnv(ctx)
+	applyRuntimeEnv(ctx, deps.RepoResolver)
 
 	// Ensure authentication credentials are set (auto-generate if missing)
 	creds := EnsureAuthCredentials()

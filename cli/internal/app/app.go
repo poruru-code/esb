@@ -45,6 +45,7 @@ type Dependencies struct {
 	Pruner          Pruner
 	Now             func() time.Time
 	Prompter        Prompter
+	RepoResolver    func(string) (string, error)
 }
 
 // CLI defines the command-line interface structure parsed by Kong.
@@ -127,6 +128,10 @@ func Run(args []string, deps Dependencies) int {
 
 	if err := config.EnsureGlobalConfig(); err != nil {
 		return exitWithError(out, err)
+	}
+
+	if deps.RepoResolver == nil {
+		deps.RepoResolver = config.ResolveRepoRoot
 	}
 
 	// Handle no arguments: show current location and help

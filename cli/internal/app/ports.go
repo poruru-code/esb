@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/compose"
+	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
@@ -40,7 +41,7 @@ func (d composePortDiscoverer) Discover(ctx state.Context) (map[string]int, erro
 	if d.runner == nil {
 		return nil, fmt.Errorf("port discovery runner not configured")
 	}
-	rootDir, err := compose.FindRepoRoot(ctx.ProjectDir)
+	rootDir, err := config.ResolveRepoRoot(ctx.ProjectDir)
 	if err != nil {
 		return nil, err
 	}
