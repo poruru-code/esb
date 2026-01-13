@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kong"
+	"github.com/joho/godotenv"
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 	"github.com/poruru/edge-serverless-box/cli/internal/version"
@@ -53,6 +54,7 @@ type Dependencies struct {
 type CLI struct {
 	Template   string        `short:"t" help:"Path to SAM template"`
 	EnvFlag    string        `short:"e" name:"env" help:"Environment (default: last used)"`
+	EnvFile    string        `name:"env-file" help:"Path to .env file"`
 	Build      BuildCmd      `cmd:"" help:"Build images"`
 	Up         UpCmd         `cmd:"" help:"Start environment"`
 	Down       DownCmd       `cmd:"" help:"Stop environment"`
@@ -92,11 +94,10 @@ type BuildCmd struct {
 	Force   bool `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
 }
 type UpCmd struct {
-	Build   bool   `help:"Rebuild before starting"`
-	Detach  bool   `short:"d" default:"true" help:"Run in background"`
-	Wait    bool   `short:"w" help:"Wait for gateway ready"`
-	Force   bool   `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
-	EnvFile string `name:"env-file" help:"Path to .env file for Docker Compose"`
+	Build  bool `help:"Rebuild before starting"`
+	Detach bool `short:"d" default:"true" help:"Run in background"`
+	Wait   bool `short:"w" help:"Wait for gateway ready"`
+	Force  bool `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
 }
 type DownCmd struct {
 	Volumes bool `short:"v" help:"Remove named volumes"`
@@ -148,6 +149,20 @@ func Run(args []string, deps Dependencies) int {
 	ctx, err := parser.Parse(args)
 	if err != nil {
 		return handleParseError(args, err, deps, out)
+	}
+
+	// Load environment file if provided or if .env exists in current directory
+	if cli.EnvFile != "" {
+		if err := godotenv.Load(cli.EnvFile); err != nil {
+			fmt.Fprintf(out, "Warning: failed to load env file %s: %v\n", cli.EnvFile, err)
+		}
+	} else {
+		// Default to .env in current directory
+		if _, err := os.Stat(".env"); err == nil {
+			if err := godotenv.Load(); err != nil {
+				fmt.Fprintf(out, "Warning: failed to load .env: %v\n", err)
+			}
+		}
 	}
 
 	command := ctx.Command()

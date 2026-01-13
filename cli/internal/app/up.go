@@ -73,7 +73,7 @@ func runUp(cli CLI, deps Dependencies, out io.Writer) int {
 		Context: ctx,
 		Detach:  cli.Up.Detach,
 		Wait:    cli.Up.Wait,
-		EnvFile: cli.Up.EnvFile,
+		EnvFile: cli.EnvFile,
 	}
 	if err := deps.Upper.Up(request); err != nil {
 		return exitWithError(out, err)

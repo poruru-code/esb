@@ -16,7 +16,7 @@ suites:
     exclude: []
 
 # ESB-managed project name
-esb_project: "e2e-fixtures"
+esb_project: "esb"
 
 matrix:
   - esb_env: e2e-docker
