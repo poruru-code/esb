@@ -282,13 +282,64 @@ func runProjectAdd(cli CLI, deps Dependencies, out io.Writer) int {
 				[]string{"esb project add . --template <path>"})
 		}
 
-		envs := splitEnvList(cli.EnvFlag)
-		if len(envs) == 0 {
-			return exitWithSuggestion(out, "Environment name is required for new projects.",
-				[]string{"esb project add . -e dev:docker"})
+		if cli.Project.Add.Name == "" {
+			defaultName := filepath.Base(absDir)
+			if isTerminal(os.Stdin) && deps.Prompter != nil {
+				name, err := deps.Prompter.Input("Project Name", []string{defaultName}) // Suggestion as slice
+				if err != nil {
+					return exitWithError(out, err)
+				}
+				if name != "" { // Only update if user entered something? Or if Prompter returns default?
+					// Prompter.Input implementation usually returns empty if user just hits enter?
+					// Wait, Input(title, suggestions).
+					// If suggestions are provided, does it act as default?
+					// My mock/impl of Input might differ.
+					// Let's assume standard behavior: user types name or we use default.
+					// Actually, common Prompter.Input(title, default) pattern...
+					// Wait, Looking at Prompter interface in `command_context.go`:
+					// Input(title string, suggestions []string) (string, error)
+					// It doesn't take a single default string, but suggestions.
+					// Usually suggestions are for tab completion.
+					// I need to interpret empty input as default manually if I want that.
+					cli.Project.Add.Name = name
+				}
+				// If still empty, use default?
+				if cli.Project.Add.Name == "" {
+					cli.Project.Add.Name = defaultName
+				}
+			}
 		}
 
-		path, err := runInit(template, envs, cli.Project.Add.Name)
+		envs := splitEnvList(cli.EnvFlag)
+		if len(envs) == 0 {
+			if !isTerminal(os.Stdin) || deps.Prompter == nil {
+				return exitWithSuggestion(out, "Environment name is required for new projects.",
+					[]string{"esb project add . -e dev:docker"})
+			}
+
+			// Interactive Prompt
+			envName, err := deps.Prompter.Input("Environment Name (e.g., dev)", nil)
+			if err != nil {
+				return exitWithError(out, err)
+			}
+			if envName == "" {
+				return exitWithError(out, fmt.Errorf("environment name is required"))
+			}
+
+			modeOptions := []selectOption{
+				{Label: "Docker (Standard)", Value: "docker"},
+				{Label: "Containerd (Advanced)", Value: "containerd"},
+				{Label: "Firecracker (MicroVM)", Value: "firecracker"},
+			}
+			mode, err := deps.Prompter.SelectValue("Runtime Mode", modeOptions)
+			if err != nil {
+				return exitWithError(out, err)
+			}
+
+			envs = []string{fmt.Sprintf("%s:%s", envName, mode)}
+		}
+
+		path, err := runInit(template, envs, cli.Project.Add.Name, deps.Prompter)
 		if err != nil {
 			return exitWithError(out, err)
 		}

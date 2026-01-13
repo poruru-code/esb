@@ -23,7 +23,7 @@ func TestBuildGeneratorConfig(t *testing.T) {
 		{Name: "default", Mode: "docker"},
 		{Name: "staging", Mode: "containerd"},
 	}
-	cfg, generatorPath, err := buildGeneratorConfig(templatePath, envs, "")
+	cfg, generatorPath, err := buildGeneratorConfig(templatePath, envs, "", nil)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -52,7 +52,7 @@ func TestRunInitWritesGenerator(t *testing.T) {
 		t.Fatalf("write template: %v", err)
 	}
 
-	generatorPath, err := runInit(templatePath, []string{"default"}, "")
+	generatorPath, err := runInit(templatePath, []string{"default"}, "", nil)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -97,7 +97,7 @@ func TestBuildGeneratorConfigWithName(t *testing.T) {
 	envs := config.Environments{
 		{Name: "default", Mode: "docker"},
 	}
-	cfg, _, err := buildGeneratorConfig(templatePath, envs, "myapp")
+	cfg, _, err := buildGeneratorConfig(templatePath, envs, "myapp", nil)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}

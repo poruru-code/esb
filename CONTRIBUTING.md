@@ -5,39 +5,49 @@ Edge Serverless Box (ESB) の開発へようこそ！
 
 ## 1. 開発環境セットアップ
 
-本プロジェクトでは、パッケージ管理に `uv`、Git フック管理に `lefthook` を使用しています。
+本プロジェクトでは、開発ツール（Go, Python/uv, etc.）のバージョン管理とタスク実行に [mise](https://mise.jdx.dev/) を使用することを推奨しています。
 
-### 必須ツール
-*   Python 3.12+
-*   [uv](https://github.com/astral-sh/uv) (高速なPythonパッケージマネージャ)
-*   Docker & Docker Compose
-*   [mise](https://mise.jdx.dev/) (任意: 依存ツールの一括管理)
+### セットアップ手順
 
-### 初期セットアップ手順
+1.  **mise のインストール**:
+    まだインストールしていない場合は、公式の手順に従ってインストールしてください。
+    ```bash
+    curl https://mise.run | sh
+    ```
 
-リポジトリをクローンした後、以下のコマンドを実行して依存関係をインストールし、Gitフックを有効化してください。
+2.  **シェルの設定 (Activate)**:
+    `mise` が管理するツールにパスを通すため、シェル設定ファイル（`~/.bashrc`, `~/.zshrc` 等）に以下を追加してください。
+    `mise` がインストールされていない環境でもエラーにならないよう、条件分岐を含めることを推奨します。
 
-```bash
-# 依存関係のインストール (devグループを含む)
-uv sync --all-extras
+    ```bash
+    # mise (もしインストールされていれば) を有効化
+    if command -v mise >/dev/null 2>&1; then
+      eval "$(mise activate bash)"
+      # zshの場合は: eval "$(mise activate zsh)"
+    fi
+    ```
+    *設定後はシェルを再起動するか、設定ファイルを読み込んでください。*
 
-# Gitフックのインストール (pre-commit等)
-lefthook install
-```
+3.  **依存ツールのインストール**:
+    リポジトリのルートディレクトリで以下を実行します。初回に設定ファイルを信頼（Trust）するか聞かれる場合があります。
+    ```bash
+    mise trust
+    mise install
+    ```
+    これにより `go` や `uv` が自動的にインストールされ、パスが通ります。
 
-これにより、`.venv` ディレクトリに仮想環境が作成され、コミット時に自動的に Lint と型チェックが実行されるようになります。
+4.  **プロジェクトの初期化**:
+    依存関係のインストール（Pythonパッケージ）とGitフックの有効化、CLIツールのビルドを一括で行います。
+    ```bash
+    mise run setup
+    ```
 
-### mise を使う場合 (推奨)
-
-`.mise.toml` を使ってツール類をまとめて導入できます。
-
-```bash
-mise trust
-mise install
-mise run setup
-```
-
-`mise run setup` は `uv sync --all-extras` と `lefthook install` を実行します。
+### 必須ツール（miseで自動インストールされます）
+*   **Go**: 1.25.1
+*   **Python**: 3.12+
+*   **uv**: Pythonパッケージマネージャ
+*   **lefthook**: Gitフック管理
+*   Docker & Docker Compose (これらは別途システムのインストールが必要です)
 
 ## 2. コーディング規約とツール
 

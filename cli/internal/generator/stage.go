@@ -100,6 +100,10 @@ func stageLayers(layers []LayerSpec, ctx stageContext, functionName, functionDir
 			continue
 		}
 
+		if ctx.Verbose {
+			fmt.Printf("  Staging layer: %s -> %s\n", layer.Name, targetName)
+		}
+
 		layerRef := filepath.ToSlash(filepath.Join("functions", functionName, "layers", targetName))
 		if !ctx.DryRun {
 			targetDir := filepath.Join(layersDir, targetName)
