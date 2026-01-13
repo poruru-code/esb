@@ -108,9 +108,11 @@ type ResetCmd struct {
 	Force bool `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
 }
 type PruneCmd struct {
-	Yes   bool `short:"y" help:"Skip confirmation"`
-	Hard  bool `help:"Also remove generator.yml"`
-	Force bool `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
+	Yes     bool `short:"y" help:"Skip confirmation prompt"`
+	All     bool `short:"a" help:"Remove all unused images (not just dangling)"`
+	Volumes bool `help:"Remove unused volumes"`
+	Hard    bool `help:"Also remove generator.yml"`
+	Force   bool `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
 }
 
 // Run is the main entry point for CLI command execution.

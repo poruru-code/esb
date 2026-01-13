@@ -5,6 +5,7 @@ package app
 
 import (
 	"bytes"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -21,18 +22,6 @@ func (f *fakePruner) Prune(request PruneRequest) error {
 	return f.err
 }
 
-type fakePruneDowner struct {
-	projects      []string
-	removeVolumes []bool
-	err           error
-}
-
-func (f *fakePruneDowner) Down(project string, removeVolumes bool) error {
-	f.projects = append(f.projects, project)
-	f.removeVolumes = append(f.removeVolumes, removeVolumes)
-	return f.err
-}
-
 func TestRunPruneCallsPruner(t *testing.T) {
 	projectDir := t.TempDir()
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
@@ -41,19 +30,12 @@ func TestRunPruneCallsPruner(t *testing.T) {
 	setupProjectConfig(t, projectDir, "demo")
 
 	pruner := &fakePruner{}
-	downer := &fakePruneDowner{}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, ProjectDir: projectDir, Pruner: pruner, Downer: downer}
+	deps := Dependencies{Out: &out, ProjectDir: projectDir, Pruner: pruner}
 
 	exitCode := Run([]string{"prune", "--yes"}, deps)
 	if exitCode != 0 {
 		t.Fatalf("expected exit code 0, got %d", exitCode)
-	}
-	if len(downer.projects) != 1 || downer.projects[0] != expectedComposeProject("demo", "default") {
-		t.Fatalf("unexpected down project: %v", downer.projects)
-	}
-	if len(downer.removeVolumes) != 1 || !downer.removeVolumes[0] {
-		t.Fatalf("expected volumes removed")
 	}
 	if len(pruner.requests) != 1 {
 		t.Fatalf("expected prune called once, got %d", len(pruner.requests))
@@ -69,6 +51,12 @@ func TestRunPruneCallsPruner(t *testing.T) {
 	if req.Hard {
 		t.Fatalf("expected hard prune false by default")
 	}
+	if req.RemoveVolumes {
+		t.Fatalf("expected remove volumes false by default")
+	}
+	if req.AllImages {
+		t.Fatalf("expected all images false by default")
+	}
 }
 
 func TestRunPruneWithHard(t *testing.T) {
@@ -79,19 +67,42 @@ func TestRunPruneWithHard(t *testing.T) {
 	setupProjectConfig(t, projectDir, "demo")
 
 	pruner := &fakePruner{}
-	downer := &fakePruneDowner{}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, ProjectDir: projectDir, Pruner: pruner, Downer: downer}
+	deps := Dependencies{Out: &out, ProjectDir: projectDir, Pruner: pruner}
 
 	exitCode := Run([]string{"prune", "--yes", "--hard"}, deps)
 	if exitCode != 0 {
 		t.Fatalf("expected exit code 0, got %d", exitCode)
 	}
-	if len(downer.removeVolumes) != 1 || !downer.removeVolumes[0] {
-		t.Fatalf("expected volumes removed")
-	}
 	if len(pruner.requests) != 1 || !pruner.requests[0].Hard {
 		t.Fatalf("expected hard prune request, got %v", pruner.requests)
+	}
+}
+
+func TestRunPruneWithVolumesAndAllImages(t *testing.T) {
+	projectDir := t.TempDir()
+	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
+		t.Fatalf("write generator fixture: %v", err)
+	}
+	setupProjectConfig(t, projectDir, "demo")
+
+	pruner := &fakePruner{}
+	var out bytes.Buffer
+	deps := Dependencies{Out: &out, ProjectDir: projectDir, Pruner: pruner}
+
+	exitCode := Run([]string{"prune", "--yes", "--volumes", "--all"}, deps)
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d", exitCode)
+	}
+	if len(pruner.requests) != 1 {
+		t.Fatalf("expected prune called once, got %d", len(pruner.requests))
+	}
+	req := pruner.requests[0]
+	if !req.RemoveVolumes {
+		t.Fatalf("expected remove volumes true")
+	}
+	if !req.AllImages {
+		t.Fatalf("expected all images true")
 	}
 }
 
@@ -103,9 +114,12 @@ func TestRunPruneRequiresYes(t *testing.T) {
 	}
 
 	pruner := &fakePruner{}
-	downer := &fakePruneDowner{}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, ProjectDir: projectDir, Pruner: pruner, Downer: downer}
+	deps := Dependencies{Out: &out, ProjectDir: projectDir, Pruner: pruner}
+
+	originalIsTerminal := isTerminal
+	isTerminal = func(_ *os.File) bool { return false }
+	defer func() { isTerminal = originalIsTerminal }()
 
 	exitCode := Run([]string{"prune"}, deps)
 	if exitCode == 0 {
@@ -123,19 +137,12 @@ func TestRunPruneMissingPruner(t *testing.T) {
 	}
 	setupProjectConfig(t, projectDir, "demo")
 
-	downer := &fakePruneDowner{}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, ProjectDir: projectDir, Downer: downer}
+	deps := Dependencies{Out: &out, ProjectDir: projectDir}
 
 	exitCode := Run([]string{"prune", "--yes"}, deps)
 	if exitCode == 0 {
 		t.Fatalf("expected non-zero exit code for missing pruner")
-	}
-	if len(downer.projects) != 1 {
-		t.Fatalf("expected downer to be called")
-	}
-	if len(downer.removeVolumes) != 1 || !downer.removeVolumes[0] {
-		t.Fatalf("expected volumes removed")
 	}
 }
 
@@ -147,16 +154,12 @@ func TestRunPruneWithEnv(t *testing.T) {
 	setupProjectConfig(t, projectDir, "demo")
 
 	pruner := &fakePruner{}
-	downer := &fakePruneDowner{}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, ProjectDir: projectDir, Pruner: pruner, Downer: downer}
+	deps := Dependencies{Out: &out, ProjectDir: projectDir, Pruner: pruner}
 
 	exitCode := Run([]string{"--env", "staging", "prune", "--yes"}, deps)
 	if exitCode != 0 {
 		t.Fatalf("expected exit code 0, got %d", exitCode)
-	}
-	if len(downer.removeVolumes) != 1 || !downer.removeVolumes[0] {
-		t.Fatalf("expected volumes removed")
 	}
 	if len(pruner.requests) != 1 || pruner.requests[0].Context.ComposeProject != expectedComposeProject("demo", "staging") {
 		t.Fatalf("unexpected context: %v", pruner.requests)
@@ -171,16 +174,12 @@ func TestRunPrunePassesContext(t *testing.T) {
 	setupProjectConfig(t, projectDir, "demo")
 
 	pruner := &fakePruner{}
-	downer := &fakePruneDowner{}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, ProjectDir: projectDir, Pruner: pruner, Downer: downer}
+	deps := Dependencies{Out: &out, ProjectDir: projectDir, Pruner: pruner}
 
 	exitCode := Run([]string{"prune", "--yes"}, deps)
 	if exitCode != 0 {
 		t.Fatalf("expected exit code 0, got %d", exitCode)
-	}
-	if len(downer.removeVolumes) != 1 || !downer.removeVolumes[0] {
-		t.Fatalf("expected volumes removed")
 	}
 	if len(pruner.requests) != 1 {
 		t.Fatalf("expected prune called once, got %d", len(pruner.requests))
@@ -209,16 +208,12 @@ func TestRunPruneUsesActiveEnvFromGlobalConfig(t *testing.T) {
 	t.Setenv("ESB_ENV", "staging")
 
 	pruner := &fakePruner{}
-	downer := &fakePruneDowner{}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, ProjectDir: projectDir, Pruner: pruner, Downer: downer}
+	deps := Dependencies{Out: &out, ProjectDir: projectDir, Pruner: pruner}
 
 	exitCode := Run([]string{"prune", "--yes"}, deps)
 	if exitCode != 0 {
 		t.Fatalf("expected exit code 0, got %d", exitCode)
-	}
-	if len(downer.removeVolumes) != 1 || !downer.removeVolumes[0] {
-		t.Fatalf("expected volumes removed")
 	}
 	if len(pruner.requests) != 1 {
 		t.Fatalf("expected prune called once, got %d", len(pruner.requests))
@@ -236,16 +231,12 @@ func TestRunPruneWithoutGeneratorRemovesContainersOnly(t *testing.T) {
 	projectDir := t.TempDir()
 
 	pruner := &fakePruner{}
-	downer := &fakePruneDowner{}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, ProjectDir: projectDir, Pruner: pruner, Downer: downer}
+	deps := Dependencies{Out: &out, ProjectDir: projectDir, Pruner: pruner}
 
 	exitCode := Run([]string{"prune", "--yes"}, deps)
 	if exitCode == 0 {
 		t.Fatalf("expected non-zero exit code without generator.yml")
-	}
-	if len(downer.projects) != 0 {
-		t.Fatalf("expected no down calls when generator.yml missing")
 	}
 	if len(pruner.requests) != 0 {
 		t.Fatalf("expected no prune calls when generator.yml missing")

@@ -327,7 +327,7 @@ esb reset
 
 1. `esb init -t template.yaml` で `generator.yml` を作成し、`app.tag`, `paths.output_dir`, `environments` を指定します。`esb env add <name> --mode docker|containerd|firecracker` で環境を登録し、`esb project` でテンプレート配置ディレクトリ（`generator.yml` のルート）を切り替えます。
 2. `esb build --env <name>` は `cli/internal/generator/parser.go` によって SAM を検証し、`functions.yml`/`routing.yml` を `output_dir/config/` に生成したあと `docker compose` で `esb-lambda-base` と各関数イメージをビルドします。
-3. `esb up --env <name>` → `esb logs`/`esb stop`/`esb prune` は `cli/internal/compose` の Compose 実行を経て、生成済 `.esb` の設定で gateway/agent/runtime を起動・監視・削除します。`prune --yes` でネットワーク/ボリュームも含めてクリーンします。
+3. `esb up --env <name>` → `esb logs`/`esb stop`/`esb prune` は `cli/internal/compose` の Compose 実行を経て、生成済 `.esb` の設定で gateway/agent/runtime を起動・監視・削除します。`esb prune` は ESB 限定の system prune 相当で、`--yes` で実行、`--all` で未使用イメージ全削除、`--volumes` で未使用ボリューム削除、`--hard` で `generator.yml` も削除します。
 4. 状態遷移（Initialized → Up → Down など）や `esb env`/`esb project` の UX、`generator.yml` の参照フローは `docs/developer/cli-architecture.md` に詳述しています。
 
 ## 開発ガイド
