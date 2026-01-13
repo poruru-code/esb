@@ -15,6 +15,7 @@ import (
 // It tracks registered project paths and last usage.
 type GlobalConfig struct {
 	Version  int                     `yaml:"version"`
+	RepoPath string                  `yaml:"repo_path,omitempty"`
 	Projects map[string]ProjectEntry `yaml:"projects,omitempty"`
 }
 

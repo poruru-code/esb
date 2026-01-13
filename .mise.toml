@@ -21,6 +21,7 @@ run = [
   "uv sync --all-extras",
   "lefthook install",
   "go build -C cli -o ~/.local/bin/esb ./cmd/esb",
+  "esb config set-repo .",
 ]
 
 [tasks.build-cli]

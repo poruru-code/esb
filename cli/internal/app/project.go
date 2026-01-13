@@ -284,8 +284,35 @@ func runProjectAdd(cli CLI, deps Dependencies, out io.Writer) int {
 
 		envs := splitEnvList(cli.EnvFlag)
 		if len(envs) == 0 {
-			return exitWithSuggestion(out, "Environment name is required for new projects.",
-				[]string{"esb project add . -e dev:docker"})
+			if !isTerminal(os.Stdin) {
+				return exitWithSuggestion(out, "Environment name is required for new projects.",
+					[]string{"esb project add . -e dev:docker"})
+			}
+
+			if deps.Prompter == nil {
+				return exitWithError(out, fmt.Errorf("prompter not configured"))
+			}
+
+			// Interactive Prompt
+			envName, err := deps.Prompter.Input("Environment Name (e.g., dev)", nil)
+			if err != nil {
+				return exitWithError(out, err)
+			}
+			if envName == "" {
+				return exitWithError(out, fmt.Errorf("environment name is required"))
+			}
+
+			modeOptions := []selectOption{
+				{Label: "Docker (Standard)", Value: "docker"},
+				{Label: "Containerd (Advanced)", Value: "containerd"},
+				{Label: "Firecracker (MicroVM)", Value: "firecracker"},
+			}
+			mode, err := deps.Prompter.SelectValue("Runtime Mode", modeOptions)
+			if err != nil {
+				return exitWithError(out, err)
+			}
+
+			envs = []string{fmt.Sprintf("%s:%s", envName, mode)}
 		}
 
 		path, err := runInit(template, envs, cli.Project.Add.Name)

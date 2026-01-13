@@ -62,6 +62,7 @@ type CLI struct {
 	Status     StatusCmd     `cmd:"" help:"Show state"`
 	Env        EnvCmd        `cmd:"" name:"env" help:"Manage environments"`
 	Project    ProjectCmd    `cmd:"" help:"Manage projects"`
+	Config     ConfigCmd     `cmd:"" name:"config" help:"Manage configuration"`
 	Completion CompletionCmd `cmd:"" help:"Generate shell completion script"`
 	Version    VersionCmd    `cmd:"" help:"Show version information"`
 }
@@ -181,6 +182,8 @@ func Run(args []string, deps Dependencies) int {
 		return runProjectRemove(cli, deps, out)
 	case command == "project" || command == "project list" || command == "project ls":
 		return runProjectList(cli, deps, out)
+	case strings.HasPrefix(command, "config set-repo"):
+		return runConfigSetRepo(cli, deps, out)
 	case command == "completion bash":
 		return runCompletionBash(cli, out)
 	case command == "completion zsh":

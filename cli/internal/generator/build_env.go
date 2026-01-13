@@ -39,15 +39,21 @@ func applyModeFromConfig(cfg config.GeneratorConfig, env string) {
 }
 
 func findRepoRoot(_ string) (string, error) {
-	repo := os.Getenv("ESB_REPO")
-	if repo == "" {
-		return "", fmt.Errorf("ESB_REPO environment variable is not set")
+	// 1. Try environment variable
+	if repo := os.Getenv("ESB_REPO"); repo != "" {
+		if info, err := os.Stat(repo); err == nil && info.IsDir() {
+			return repo, nil
+		}
 	}
 
-	info, err := os.Stat(repo)
-	if err != nil || !info.IsDir() {
-		return "", fmt.Errorf("ESB_REPO directory does not exist: %s", repo)
+	// 2. Try global configuration
+	if cfgPath, err := config.GlobalConfigPath(); err == nil {
+		if cfg, err := config.LoadGlobalConfig(cfgPath); err == nil && cfg.RepoPath != "" {
+			if info, err := os.Stat(cfg.RepoPath); err == nil && info.IsDir() {
+				return cfg.RepoPath, nil
+			}
+		}
 	}
 
-	return repo, nil
+	return "", fmt.Errorf("ESB_REPO path not found (env: ESB_REPO or config: repo_path)")
 }
