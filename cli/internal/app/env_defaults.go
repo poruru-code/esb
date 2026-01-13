@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
@@ -176,7 +175,7 @@ func applyConfigDirEnv(ctx state.Context) {
 		return
 	}
 
-	root, err := compose.FindRepoRoot(ctx.ProjectDir)
+	root, err := config.ResolveRepoRoot(ctx.ProjectDir)
 	if err != nil {
 		return
 	}

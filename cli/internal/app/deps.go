@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/compose"
+	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
@@ -62,7 +63,7 @@ func (fn downerFunc) Down(project string, removeVolumes bool) error {
 // via Docker Compose with the specified options.
 func NewUpper() Upper {
 	return upperFunc(func(request UpRequest) error {
-		rootDir, err := compose.FindRepoRoot(request.Context.ProjectDir)
+		rootDir, err := config.ResolveRepoRoot(request.Context.ProjectDir)
 		if err != nil {
 			return err
 		}
@@ -90,7 +91,7 @@ func (fn upperFunc) Up(request UpRequest) error {
 // via Docker Compose without removing them.
 func NewStopper() Stopper {
 	return stopperFunc(func(request StopRequest) error {
-		rootDir, err := compose.FindRepoRoot(request.Context.ProjectDir)
+		rootDir, err := config.ResolveRepoRoot(request.Context.ProjectDir)
 		if err != nil {
 			return err
 		}
@@ -126,7 +127,7 @@ type Logger interface {
 func NewLogger(client compose.DockerClient) Logger {
 	return loggerImpl{
 		logsFn: func(request LogsRequest) error {
-			rootDir, err := compose.FindRepoRoot(request.Context.ProjectDir)
+			rootDir, err := config.ResolveRepoRoot(request.Context.ProjectDir)
 			if err != nil {
 				return err
 			}
@@ -144,7 +145,7 @@ func NewLogger(client compose.DockerClient) Logger {
 			return compose.LogsProject(context.Background(), compose.ExecRunner{}, opts)
 		},
 		listServicesFn: func(request LogsRequest) ([]string, error) {
-			rootDir, err := compose.FindRepoRoot(request.Context.ProjectDir)
+			rootDir, err := config.ResolveRepoRoot(request.Context.ProjectDir)
 			if err != nil {
 				return nil, err
 			}

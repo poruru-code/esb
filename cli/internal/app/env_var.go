@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/compose"
+	"github.com/poruru/edge-serverless-box/cli/internal/config"
 )
 
 // runEnvVar executes the 'env var' command which shows environment variables
@@ -28,7 +29,7 @@ func runEnvVar(cli CLI, deps Dependencies, out io.Writer) int {
 	ctx := ctxInfo.Context
 
 	// Get list of services
-	rootDir, err := compose.FindRepoRoot(ctx.ProjectDir)
+	rootDir, err := config.ResolveRepoRoot(ctx.ProjectDir)
 	if err != nil {
 		return exitWithError(out, err)
 	}
