@@ -603,17 +603,10 @@ def run_profiles_with_executor(
 
             # Determine log prefix/color
             profile_index = list(env_scenarios.keys()).index(profile_name)
-            # If sequential (max_workers=1), we don't strictly need colors, but it doesn't hurt.
-            # However, if running sequentially, we might want to announce "Starting..." immediately before submission?
-            # With Executor, submission happens first.
+            color_code = COLORS[profile_index % len(COLORS)]
 
             if max_workers > 1:
                 print(f"[PARALLEL] Scheduling environment: {profile_name}")
-                color_code = COLORS[profile_index % len(COLORS)]
-            else:
-                # Sequential mode logging is handled more by the subprocess stream,
-                # but we can log here too.
-                color_code = ""
 
             future = executor.submit(
                 run_profile_subprocess, profile_name, cmd, color_code, verbose, max_label_len
@@ -677,6 +670,7 @@ def run_profile_subprocess(
     output_lines = []
     tests_started = False
     in_special_block = False
+    last_line_was_blank = True
 
     # Read output line by line as it becomes available
     try:
@@ -699,6 +693,7 @@ def run_profile_subprocess(
 
                     if should_print:
                         print(f"{prefix} {clean_line}", flush=True)
+                        last_line_was_blank = False
 
                     # End of special block if we encounter a new progress line
                     # or if the line is not indented (and not the header itself)
@@ -712,7 +707,9 @@ def run_profile_subprocess(
                         in_special_block = False
 
                     # Preserve blank lines for structure (e.g. before BlockStart)
-                    print(prefix, flush=True)
+                    if not last_line_was_blank:
+                        print(prefix, flush=True)
+                        last_line_was_blank = True
 
                 output_lines.append(line)
 
