@@ -102,31 +102,52 @@ SAM テンプレートでは関数がネストされることがよくありま�
 | `!Join` | 解決された値のリストを指定した区切り文字で結合します。 |
 | `!GetAtt` | 決定論的なプレースホルダー ARN (`arn:aws:local:[Attr]:global:[Res]/[Attr]`) を生成します。 |
 | `!Split` / `!Select` | 文字列の分割と配列要素の選択を行います。 |
-| `!If` | `Conditions` セクションで定義された条件に基づき、値を分岐させます。 |
+| `!If` | `Conditions` セクションで定義された条件に基づき、値を分岐させます。オンデマンドで評価され、結果はキャッシュされます。 |
 | `Fn::Equals` / `And` / `Or` / `Not` | `Conditions` 内で論理評価を行います。 |
 | `!ImportValue` | 他のスタックからのエクスポート値を（プレースホルダーとして）解決します。 |
 
+### 条件評価の堅牢性
+複雑なテンプレートにおける条件の依存関係に対応するため、以下の仕組みを備えています：
+- **オンデマンド評価**: 条件が必要になった時点で初めて評価を行い、結果を `ConditionCache` に保存します（冪等性の確保）。
+- **循環参照検出**: 条件が自分自身を間接的に参照している場合、無限ループを避けるために `ConditionStack` を用いてエラー（Warning）を報告します。
+
 ## 3. 厳密なマッピング (`mapToStruct`)
 
-組み込み関数が解決された生のマップデータは、最終的に Go の構造体にマッピングされます。
+組み込み関数が解決された生のマップデータは、最終的に `mitchellh/mapstructure` を使用して Go の構造体にマッピングされます。
 
 ```go
 func (ctx *ParserContext) mapToStruct(input any, output any) error {
-    resolved := ctx.resolveRecursively(input, 0)
-    data, err := json.Marshal(resolved) // JSON を介したブリッジ
-    if err != nil {
-        return err
-    }
-    return json.Unmarshal(data, output) // 厳密なスキーマ構造体へアンマシュ
+	resolved := ctx.resolveRecursively(input, 0)
+
+	config := &mapstructure.DecoderConfig{
+		TagName:          "json", // 生成済み構造体の json タグを流用
+		WeaklyTypedInput: true,   // 数値型への文字列代入などの型変換を許可
+		Result:           output,
+	}
+
+	decoder, err := mapstructure.NewDecoder(config)
+	if err != nil {
+		return err
+	}
+
+	return decoder.Decode(resolved)
 }
 ```
 
-この「JSON を介したブリッジ」アプローチは、`map[string]any` と特定の型を持つ構造体との変換において、`omitempty` やデフォルト値の処理、タグによる紐付けを Go 標準ライブラリの堅牢な仕組みに任せられるため、非常に信頼性が高い手法です。
+以前は JSON シリアライズを介した「JSON Bridge Pattern」を採用していましたが、現在は `mapstructure` への移行により、中間文字列の生成を排除し、パフォーマンスと型安全性のバランスを最適化しています。`json` タグを明示的に指定することで、自動生成された構造体との互換性を完全に維持しています。
 
-## 4. 開発時のベストプラクティス
+## 4. デフォルト値の解決と命名規約
+
+AWS SAM では、プロパティが省略された場合に特定の命名規則（例: S3 バケット名は論理 ID を小文字化したもの）に従うことがあります。これらのオピニオンを含んだデフォルト解決ロジックは `parser_defaults.go` に集約されています。
+
+- **中央集約**: `DefaultLambdaRuntime` や `DefaultCodeURI` などの定数を定義。
+- **解決ヘルパー**: `ResolveS3BucketName`, `ResolveTableName`, `ResolveCodeURI` などの関数を提供し、複数のリソースタイプ間で一貫した解決ロジックを強制します。
+
+## 5. 開発時のベストプラクティス
 
 - **手動での型キャストを避ける**: 常に `ctx.asString()`, `ctx.asInt()` などのメソッドを使用してください。これらは型変換と組み込み関数の解決を自動的に行います。
+- **Resolve ヘルパーの活用**: リソース名や属性のデフォルト値を決定する際は、`parser_defaults.go` の `ResolveXXX` 関数を優先して使用してください。
 - **生成された構造体を使用する**: リソースをパースする際は、`schema` パッケージの構造体を使用し `mapToStruct` を通してください。これにより、SAM 仕様の進化に伴うプロパティの追加を漏れなくキャッチできます。
 - **エラー報告と修正の指針**:
-    - `mapToStruct` の `Warning` が「未知のフィールド」によるものであれば、スキーマ拡張が必要なサインです。
-    - 「型不一致（例: string -> int）」であれば、`ParserContext` の解決ロジックを見直すか、テンプレートの記述ミスを疑ってください。
+    - `ParserContext.Warnings` を介して、ユーザーに非致命的なエラー（パース失敗の理由など）を通知できます。警告のデデュープ（重複排除）は自動的に行われます。
+    - 「未知のフィールド」によるマッピング不全は、スキーマ拡張が必要なサインです。
