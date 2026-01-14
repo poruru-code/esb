@@ -47,11 +47,25 @@ func decodeNode(node *yaml.Node) any {
 			}
 			m[key] = decodeNode(valueNode)
 		}
+		// Handle tags on mappings (e.g. !Sub { Key: Val })
+		switch node.Tag {
+		case "!Sub":
+			return map[string]any{"Fn::Sub": m}
+		}
 		return m
 	case yaml.SequenceNode:
 		out := make([]any, 0, len(node.Content))
 		for _, item := range node.Content {
 			out = append(out, decodeNode(item))
+		}
+		// Handle tags on sequences (e.g. !Join [ "", [] ])
+		switch node.Tag {
+		case "!Join":
+			return map[string]any{"Fn::Join": out}
+		case "!Sub":
+			return map[string]any{"Fn::Sub": out}
+		case "!GetAtt":
+			return map[string]any{"Fn::GetAtt": out}
 		}
 		return out
 	case yaml.ScalarNode:
@@ -80,6 +94,12 @@ func decodeScalar(node *yaml.Node) any {
 		}
 	case "!!null":
 		return nil
+	case "!Ref":
+		return map[string]any{"Ref": node.Value}
+	case "!Sub":
+		return map[string]any{"Fn::Sub": node.Value}
+	case "!GetAtt":
+		return map[string]any{"Fn::GetAtt": node.Value}
 	}
 	return node.Value
 }

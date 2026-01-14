@@ -25,7 +25,7 @@ func extractFunctionGlobals(data map[string]any) map[string]any {
 	return asMap(globals["Function"])
 }
 
-func parseFunctionDefaults(functionGlobals map[string]any, parameters map[string]string) functionDefaults {
+func parseFunctionDefaults(functionGlobals map[string]any, ctx *ParserContext) functionDefaults {
 	defaults := functionDefaults{
 		Runtime:             "python3.12",
 		Handler:             "lambda_function.lambda_handler",
@@ -39,31 +39,31 @@ func parseFunctionDefaults(functionGlobals map[string]any, parameters map[string
 	}
 
 	if val := functionGlobals["Runtime"]; val != nil {
-		defaults.Runtime = asString(val)
+		defaults.Runtime = ctx.asString(val)
 	}
 	if val := functionGlobals["Handler"]; val != nil {
-		defaults.Handler = asString(val)
+		defaults.Handler = ctx.asString(val)
 	}
 	if val := functionGlobals["Timeout"]; val != nil {
-		defaults.Timeout = asInt(val)
+		defaults.Timeout = ctx.asInt(val)
 	}
 	if val := functionGlobals["MemorySize"]; val != nil {
-		defaults.Memory = asInt(val)
+		defaults.Memory = ctx.asInt(val)
 	}
-	if layers := asSlice(functionGlobals["Layers"]); layers != nil {
+	if layers := ctx.asSlice(functionGlobals["Layers"]); layers != nil {
 		defaults.Layers = layers
 	}
-	if archs := asSlice(functionGlobals["Architectures"]); archs != nil {
+	if archs := ctx.asSlice(functionGlobals["Architectures"]); archs != nil {
 		for _, a := range archs {
-			defaults.Architectures = append(defaults.Architectures, asString(a))
+			defaults.Architectures = append(defaults.Architectures, ctx.asString(a))
 		}
 	}
 	defaults.RuntimeManagement = functionGlobals["RuntimeManagementConfig"]
 
-	if env := asMap(functionGlobals["Environment"]); env != nil {
-		if vars := asMap(env["Variables"]); vars != nil {
+	if env := ctx.asMap(functionGlobals["Environment"]); env != nil {
+		if vars := ctx.asMap(env["Variables"]); vars != nil {
 			for key, value := range vars {
-				defaults.EnvironmentDefaults[key] = resolveIntrinsic(asString(value), parameters)
+				defaults.EnvironmentDefaults[key] = ctx.asString(value)
 			}
 		}
 	}

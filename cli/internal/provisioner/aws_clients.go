@@ -281,7 +281,7 @@ func mapLifecycleRules(items []schema.AWSS3BucketRule) ([]s3types.LifecycleRule,
 
 		// Expiration
 		if exp := item.ExpirationInDays; exp != nil {
-			if days, ok := toInt64(exp); ok {
+			if days, err := toInt64(exp); err == nil {
 				rule.Expiration = &s3types.LifecycleExpiration{Days: aws.Int32(int32(days))}
 			}
 		}

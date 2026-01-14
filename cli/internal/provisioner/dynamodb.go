@@ -167,11 +167,18 @@ func parseProvisionedThroughput(item *schema.AWSDynamoDBTableProvisionedThroughp
 		return &ProvisionedThroughput{ReadCapacityUnits: 1, WriteCapacityUnits: 1}, nil
 	}
 
-	readUnits, _ := toInt64(item.ReadCapacityUnits) // ignore error, default to 0
+	readUnits, err := toInt64(item.ReadCapacityUnits)
+	if err != nil && item.ReadCapacityUnits != nil {
+		return nil, fmt.Errorf("invalid ReadCapacityUnits: %w", err)
+	}
 	if readUnits == 0 {
 		readUnits = 1
 	}
-	writeUnits, _ := toInt64(item.WriteCapacityUnits)
+
+	writeUnits, err := toInt64(item.WriteCapacityUnits)
+	if err != nil && item.WriteCapacityUnits != nil {
+		return nil, fmt.Errorf("invalid WriteCapacityUnits: %w", err)
+	}
 	if writeUnits == 0 {
 		writeUnits = 1
 	}

@@ -87,6 +87,47 @@ Resources:
 	}
 }
 
+func TestParseSAMTemplateIntrinsic(t *testing.T) {
+	// This test verifies that Intrinsic Functions (!Ref) are correctly handled
+	// even when parsing into strict schema-generated types.
+	content := `
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Parameters:
+  MyMemory:
+    Type: Number
+    Default: 512
+Resources:
+  IntrinsicFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: intrinsic-func
+      CodeUri: ./
+      Handler: index.handler
+      Runtime: nodejs18.x
+      MemorySize: !Ref MyMemory
+      Timeout: !Ref MyMemory
+`
+	params := map[string]string{"MyMemory": "1024"}
+	result, err := ParseSAMTemplate(content, params)
+	if err != nil {
+		t.Fatalf("expected no error from ParseSAMTemplate, but got: %v", err)
+	}
+
+	if len(result.Functions) == 0 {
+		t.Fatalf("expected 1 function, but got 0")
+	}
+
+	fn := result.Functions[0]
+	// We expect the parser to handle !Ref and return the resolved value.
+	if fn.MemorySize != 1024 {
+		t.Errorf("expected MemorySize to be 1024 (resolved from !Ref), but got %d", fn.MemorySize)
+	}
+	if fn.Timeout != 1024 {
+		t.Errorf("expected Timeout to be 1024, but got %d", fn.Timeout)
+	}
+}
+
 func TestParseSAMTemplateGlobalsDefaults(t *testing.T) {
 	content := `
 AWSTemplateFormatVersion: '2010-09-09'
@@ -328,8 +369,8 @@ Resources:
 }
 
 func TestResolveIntrinsicSubstitution(t *testing.T) {
-	params := map[string]string{"Prefix": "prod"}
-	value := resolveIntrinsic("func-${Prefix}", params)
+	ctx := NewParserContext(map[string]string{"Prefix": "prod"})
+	value := ctx.resolveIntrinsic("func-${Prefix}")
 	if value != "func-prod" {
 		t.Fatalf("unexpected substitution: %s", value)
 	}

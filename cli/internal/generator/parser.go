@@ -4,10 +4,9 @@
 package generator
 
 import (
-	"encoding/json"
+	"fmt"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/generator/schema"
-	"sigs.k8s.io/yaml"
 )
 
 type ParseResult struct {
@@ -80,19 +79,22 @@ func ParseSAMTemplate(content string, parameters map[string]string) (ParseResult
 		parameters = map[string]string{}
 	}
 
-	jsonData, err := yaml.YAMLToJSON([]byte(content))
-	if err != nil {
-		return ParseResult{}, err
-	}
-
-	// Decode into generated SAM model
-	var template schema.SamModel
-	if err := json.Unmarshal(jsonData, &template); err != nil {
-		return ParseResult{}, err
-	}
-
 	data, err := decodeYAML(content)
 	if err != nil {
+		return ParseResult{}, err
+	}
+	mergedParams := extractParameterDefaults(data)
+	if mergedParams == nil {
+		mergedParams = map[string]string{}
+	}
+	for k, v := range parameters {
+		mergedParams[k] = v
+	}
+
+	pCtx := NewParserContext(mergedParams)
+
+	var template schema.SamModel
+	if err := pCtx.mapToStruct(data, &template); err != nil {
 		return ParseResult{}, err
 	}
 
@@ -101,13 +103,31 @@ func ParseSAMTemplate(content string, parameters map[string]string) (ParseResult
 	}
 
 	functionGlobals := extractFunctionGlobals(data)
-	defaults := parseFunctionDefaults(functionGlobals, parameters)
+	defaults := parseFunctionDefaults(functionGlobals, pCtx)
 
-	layerMap, layers := parseLayerResources(template.Resources, parameters)
-	parsedResources := parseOtherResources(template.Resources, parameters)
+	layerMap, layers := parseLayerResources(template.Resources, pCtx)
+	parsedResources := parseOtherResources(template.Resources, pCtx)
 	parsedResources.Layers = layers
 
-	functions := parseFunctions(template.Resources, defaults, layerMap, parameters)
+	functions := parseFunctions(template.Resources, defaults, layerMap, pCtx)
 
 	return ParseResult{Functions: functions, Resources: parsedResources}, nil
+}
+
+func extractParameterDefaults(data map[string]any) map[string]string {
+	params := asMap(data["Parameters"])
+	if params == nil {
+		return nil
+	}
+	defaults := map[string]string{}
+	for name, val := range params {
+		m := asMap(val)
+		if m == nil {
+			continue
+		}
+		if def := m["Default"]; def != nil {
+			defaults[name] = fmt.Sprint(def)
+		}
+	}
+	return defaults
 }

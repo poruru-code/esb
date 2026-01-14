@@ -4,34 +4,33 @@
 package generator
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/generator/schema"
 )
 
-func parseLayerResources(resources map[string]any, parameters map[string]string) (map[string]LayerSpec, []LayerSpec) {
+func parseLayerResources(resources map[string]any, ctx *ParserContext) (map[string]LayerSpec, []LayerSpec) {
 	layerMap := map[string]LayerSpec{}
 	var layers []LayerSpec
 
 	for logicalID, resource := range resources {
-		m := asMap(resource)
-		if m == nil || asString(m["Type"]) != "AWS::Serverless::LayerVersion" {
+		m := ctx.asMap(resource)
+		if m == nil || ctx.asString(m["Type"]) != "AWS::Serverless::LayerVersion" {
 			continue
 		}
-		props := asMap(m["Properties"])
+		props := ctx.asMap(m["Properties"])
 		if props == nil {
 			continue
 		}
-		layerName := asStringDefault(props["LayerName"], logicalID)
-		layerName = resolveIntrinsic(layerName, parameters)
-		contentURI := asStringDefault(props["ContentUri"], "./")
-		contentURI = resolveIntrinsic(contentURI, parameters)
+		layerName := ctx.asStringDefault(props["LayerName"], logicalID)
+		contentURI := ctx.asStringDefault(props["ContentUri"], "./")
 		contentURI = ensureTrailingSlash(contentURI)
 
 		var compatibleArchs []string
-		if archs := asSlice(props["CompatibleArchitectures"]); archs != nil {
+		if archs := ctx.asSlice(props["CompatibleArchitectures"]); archs != nil {
 			for _, a := range archs {
-				compatibleArchs = append(compatibleArchs, asString(a))
+				compatibleArchs = append(compatibleArchs, ctx.asString(a))
 			}
 		}
 
@@ -47,42 +46,44 @@ func parseLayerResources(resources map[string]any, parameters map[string]string)
 	return layerMap, layers
 }
 
-func parseOtherResources(resources map[string]any, parameters map[string]string) ResourcesSpec {
+func parseOtherResources(resources map[string]any, ctx *ParserContext) ResourcesSpec {
 	parsed := ResourcesSpec{}
 
 	for logicalID, value := range resources {
-		resource := asMap(value)
+		resource := ctx.asMap(value)
 		if resource == nil {
 			continue
 		}
-		resourceType := asString(resource["Type"])
+		resourceType := ctx.asString(resource["Type"])
 		if resourceType == "AWS::Serverless::LayerVersion" || resourceType == "AWS::Serverless::Function" {
 			continue
 		}
-		props := asMap(resource["Properties"])
+		props := ctx.asMap(resource["Properties"])
 
 		switch resourceType {
 		case "AWS::DynamoDB::Table":
-			tableName := asStringDefault(props["TableName"], logicalID)
-			tableName = resolveIntrinsic(tableName, parameters)
+			tableName := ctx.asStringDefault(props["TableName"], logicalID)
 
 			var tableProps schema.AWSDynamoDBTableProperties
-			_ = mapToStruct(props, &tableProps)
+			if err := ctx.mapToStruct(props, &tableProps); err != nil {
+				fmt.Printf("Warning: failed to map DynamoDB table %s: %v\n", logicalID, err)
+			}
 
 			parsed.DynamoDB = append(parsed.DynamoDB, DynamoDBSpec{
 				TableName:              tableName,
 				KeySchema:              tableProps.KeySchema,
 				AttributeDefinitions:   tableProps.AttributeDefinitions,
 				GlobalSecondaryIndexes: tableProps.GlobalSecondaryIndexes,
-				BillingMode:            asStringDefault(props["BillingMode"], "PROVISIONED"),
+				BillingMode:            ctx.asStringDefault(props["BillingMode"], "PROVISIONED"),
 				ProvisionedThroughput:  tableProps.ProvisionedThroughput,
 			})
 		case "AWS::S3::Bucket":
-			bucketName := asStringDefault(props["BucketName"], strings.ToLower(logicalID))
-			bucketName = resolveIntrinsic(bucketName, parameters)
+			bucketName := ctx.asStringDefault(props["BucketName"], strings.ToLower(logicalID))
 
 			var s3Props schema.AWSS3BucketProperties
-			_ = mapToStruct(props, &s3Props)
+			if err := ctx.mapToStruct(props, &s3Props); err != nil {
+				fmt.Printf("Warning: failed to map S3 bucket %s: %v\n", logicalID, err)
+			}
 
 			parsed.S3 = append(parsed.S3, S3Spec{
 				BucketName:             bucketName,
