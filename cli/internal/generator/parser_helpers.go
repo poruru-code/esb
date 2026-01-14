@@ -1,11 +1,12 @@
 package generator
 
 import (
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/mitchellh/mapstructure"
 )
 
 // ParserContext encapsulates parameters and provides intrinsic function resolution.
@@ -33,11 +34,20 @@ func NewParserContext(params map[string]string) *ParserContext {
 
 func (ctx *ParserContext) mapToStruct(input, output any) error {
 	resolved := ctx.resolveRecursively(input, 0)
-	data, err := json.Marshal(resolved)
+
+	config := &mapstructure.DecoderConfig{
+		Metadata:         nil,
+		Result:           output,
+		TagName:          "json",
+		WeaklyTypedInput: true,
+	}
+
+	decoder, err := mapstructure.NewDecoder(config)
 	if err != nil {
 		return err
 	}
-	return json.Unmarshal(data, output)
+
+	return decoder.Decode(resolved)
 }
 
 const maxResolveDepth = 20
