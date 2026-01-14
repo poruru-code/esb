@@ -118,21 +118,185 @@ func EnsureCertificates() error {
 		return err
 	}
 
+	caCertPath := filepath.Join(certDir, "ca.crt")
+	caKeyPath := filepath.Join(certDir, "ca.key")
 	certPath := filepath.Join(certDir, "server.crt")
 	keyPath := filepath.Join(certDir, "server.key")
 
-	errCert := checkFile(certPath)
-	errKey := checkFile(keyPath)
-
-	if errCert == nil && errKey == nil {
-		return nil // Both exist and are files
+	// 1. Ensure Root CA exists
+	caCert, caKey, err := ensureRootCA(caCertPath, caKeyPath)
+	if err != nil {
+		return fmt.Errorf("failed to ensure Root CA: %w", err)
 	}
 
-	fmt.Println("Generating self-signed certificates in " + certDir + "...")
-	// Force cleanup if they exist but are invalid (e.g. directories)
+	// 2. Ensure Server Certificate exists (signed by Root CA)
+	if err := checkFile(certPath); err == nil {
+		if err := checkFile(keyPath); err == nil {
+			return nil // Server certs exist
+		}
+	}
+
+	fmt.Println("Generating server certificate signed by ESB Root CA in " + certDir + "...")
+	// Force cleanup
 	os.RemoveAll(certPath)
 	os.RemoveAll(keyPath)
-	return generateSelfSignedCert(certPath, keyPath)
+
+	return generateServerCert(certPath, keyPath, caCert, caKey)
+}
+
+// ensureRootCA loads or generates the Root CA.
+func ensureRootCA(certPath, keyPath string) (*x509.Certificate, any, error) {
+	// Try loading first
+	if checkFile(certPath) == nil && checkFile(keyPath) == nil {
+		certPEM, err := os.ReadFile(certPath)
+		if err != nil {
+			return nil, nil, err
+		}
+		keyPEM, err := os.ReadFile(keyPath)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		block, _ := pem.Decode(certPEM)
+		if block == nil {
+			return nil, nil, fmt.Errorf("failed to decode CA cert PEM")
+		}
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		keyBlock, _ := pem.Decode(keyPEM)
+		if keyBlock == nil {
+			return nil, nil, fmt.Errorf("failed to decode CA key PEM")
+		}
+		// Try PKCS8 first, then PKCS1
+		key, err := x509.ParsePKCS8PrivateKey(keyBlock.Bytes)
+		if err != nil {
+			key, err = x509.ParsePKCS1PrivateKey(keyBlock.Bytes)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to parse CA private key: %w", err)
+			}
+		}
+		return cert, key, nil
+	}
+
+	fmt.Println("Generating ESB Root CA...")
+	return generateRootCA(certPath, keyPath)
+}
+
+func generateRootCA(certPath, keyPath string) (*x509.Certificate, any, error) {
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	notBefore := time.Now()
+	notAfter := notBefore.Add(365 * 10 * 24 * time.Hour) // 10 years
+
+	serialNumber, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	template := x509.Certificate{
+		SerialNumber: serialNumber,
+		Subject: pkix.Name{
+			Organization: []string{"Edge Serverless Box"},
+			CommonName:   "ESB Root CA",
+		},
+		NotBefore:             notBefore,
+		NotAfter:              notAfter,
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+	}
+
+	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if err := writePEM(certPath, "CERTIFICATE", derBytes); err != nil {
+		return nil, nil, err
+	}
+
+	privBytes, err := x509.MarshalPKCS8PrivateKey(priv)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := writePEM(keyPath, "PRIVATE KEY", privBytes); err != nil {
+		return nil, nil, err
+	}
+
+	return &template, priv, nil
+}
+
+func generateServerCert(certPath, keyPath string, caCert *x509.Certificate, caKey any) error {
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return err
+	}
+
+	notBefore := time.Now()
+	notAfter := notBefore.Add(365 * 24 * time.Hour) // 1 year
+
+	serialNumber, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	if err != nil {
+		return err
+	}
+
+	template := x509.Certificate{
+		SerialNumber: serialNumber,
+		Subject: pkix.Name{
+			Organization: []string{"Edge Serverless Box"},
+			CommonName:   "gateway",
+		},
+		NotBefore: notBefore,
+		NotAfter:  notAfter,
+
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+		DNSNames: []string{
+			"localhost",
+			"gateway",
+			"docker.host.internal",
+			"host.docker.internal",
+		},
+		IPAddresses: []net.IP{
+			net.ParseIP("127.0.0.1"),
+			net.ParseIP("0.0.0.0"),
+		},
+	}
+
+	derBytes, err := x509.CreateCertificate(rand.Reader, &template, caCert, &priv.PublicKey, caKey)
+	if err != nil {
+		return err
+	}
+
+	if err := writePEM(certPath, "CERTIFICATE", derBytes); err != nil {
+		return err
+	}
+
+	privBytes, err := x509.MarshalPKCS8PrivateKey(priv)
+	if err != nil {
+		return err
+	}
+	if err := writePEM(keyPath, "PRIVATE KEY", privBytes); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func writePEM(path, blockType string, bytes []byte) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return pem.Encode(f, &pem.Block{Type: blockType, Bytes: bytes})
 }
 
 // checkFile returns nil if path exists and is a file.
@@ -144,63 +308,6 @@ func checkFile(path string) error {
 	if info.IsDir() {
 		return fmt.Errorf("%s is a directory", path)
 	}
-	return nil
-}
-
-func generateSelfSignedCert(certPath, keyPath string) error {
-	priv, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return err
-	}
-
-	notBefore := time.Now()
-	notAfter := notBefore.Add(365 * 24 * time.Hour)
-
-	serialNumber, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
-	if err != nil {
-		return err
-	}
-
-	template := x509.Certificate{
-		SerialNumber: serialNumber,
-		Subject: pkix.Name{
-			Organization: []string{"Edge Serverless Box"},
-		},
-		NotBefore: notBefore,
-		NotAfter:  notAfter,
-
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		BasicConstraintsValid: true,
-		DNSNames:              []string{"localhost", "gateway"},
-		IPAddresses:           []net.IP{net.ParseIP("127.0.0.1"), net.ParseIP("0.0.0.0")},
-	}
-
-	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
-	if err != nil {
-		return err
-	}
-
-	certOut, err := os.Create(certPath)
-	if err != nil {
-		return err
-	}
-	defer certOut.Close()
-	if err := pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes}); err != nil {
-		return err
-	}
-
-	keyOut, err := os.Create(keyPath)
-	if err != nil {
-		return err
-	}
-	defer keyOut.Close()
-
-	privBytes := x509.MarshalPKCS1PrivateKey(priv)
-	if err := pem.Encode(keyOut, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: privBytes}); err != nil {
-		return err
-	}
-
 	return nil
 }
 
