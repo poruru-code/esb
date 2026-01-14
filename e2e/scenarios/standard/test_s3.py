@@ -151,7 +151,7 @@ class TestS3:
     def test_bucket_lifecycle_configuration(self, auth_token):
         """E2E: S3 Bucket Lifecycle Configuration."""
 
-        # S3 Client for RustFS/MinIO
+        # S3 Client for RustFS
         s3_client = AWSUtils.create_s3_client()
 
         bucket_name = "e2e-test-bucket"
