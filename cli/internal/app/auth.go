@@ -16,6 +16,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -90,15 +91,29 @@ func EnsureAuthCredentials() AuthCredentials {
 	return creds
 }
 
-// EnsureCertificates checks if the certificates exist in ~/.esb/certs
-// and generates them if not. This prevents docker from mounting a directory
-// when the file is missing.
+// EnsureCertificates checks if the certificates exist in the configured directory
+// (ESB_CERT_DIR or ~/.esb/certs) and generates them if not.
 func EnsureCertificates() error {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return err
+	var certDir string
+	if envDir := os.Getenv("ESB_CERT_DIR"); envDir != "" {
+		// Expand ~ if present (though shells usually handle this, env vars might not)
+		if strings.HasPrefix(envDir, "~/") {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return err
+			}
+			certDir = filepath.Join(home, envDir[2:])
+		} else {
+			certDir = envDir
+		}
+	} else {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return err
+		}
+		certDir = filepath.Join(home, ".esb", "certs")
 	}
-	certDir := filepath.Join(home, ".esb", "certs")
+
 	if err := os.MkdirAll(certDir, 0o755); err != nil {
 		return err
 	}
@@ -113,7 +128,7 @@ func EnsureCertificates() error {
 		return nil // Both exist and are files
 	}
 
-	fmt.Println("Generating self-signed certificates in ~/.esb/certs...")
+	fmt.Println("Generating self-signed certificates in " + certDir + "...")
 	// Force cleanup if they exist but are invalid (e.g. directories)
 	os.RemoveAll(certPath)
 	os.RemoveAll(keyPath)
