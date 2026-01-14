@@ -151,8 +151,8 @@ class TestS3:
         s3_client = boto3.client(
             "s3",
             endpoint_url=f"http://localhost:{storage_port}",
-            aws_access_key_id=os.environ.get("RUSTFS_ACCESS_KEY", "rustfsadmin"),
-            aws_secret_access_key=os.environ.get("RUSTFS_SECRET_KEY", "rustfsadmin"),
+            aws_access_key_id=os.environ.get("RUSTFS_ACCESS_KEY", "esb"),
+            aws_secret_access_key=os.environ.get("RUSTFS_SECRET_KEY", "esb"),
             config=Config(signature_version="s3v4"),
             verify=False,
         )

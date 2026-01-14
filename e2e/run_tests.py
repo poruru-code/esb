@@ -187,7 +187,7 @@ def apply_ports_to_env(ports: dict[str, int]) -> None:
 
 def apply_gateway_env_from_container(env: dict[str, str], env_file: str | None) -> None:
     gateway_env = read_service_env(env_file, "gateway")
-    required = ("AUTH_USER", "AUTH_PASS", "X_API_KEY")
+    required = ("AUTH_USER", "AUTH_PASS", "X_API_KEY", "RUSTFS_ACCESS_KEY", "RUSTFS_SECRET_KEY")
     missing = [key for key in required if not gateway_env.get(key)]
     if missing:
         raise RuntimeError(
