@@ -107,6 +107,10 @@ func (b *GoBuilder) Build(request app.BuildRequest) error {
 		}
 	}
 
+	if !request.Verbose {
+		fmt.Print("➜ Generating files... ")
+	}
+
 	functions, err := b.Generate(cfg, GenerateOptions{
 		ProjectRoot:      repoRoot,
 		RegistryExternal: registry.External,
@@ -116,7 +120,13 @@ func (b *GoBuilder) Build(request app.BuildRequest) error {
 		Verbose:          request.Verbose,
 	})
 	if err != nil {
+		if !request.Verbose {
+			fmt.Println("Failed")
+		}
 		return err
+	}
+	if !request.Verbose {
+		fmt.Println("Done")
 	}
 
 	if err := stageConfigFiles(cfg.Paths.OutputDir, repoRoot, request.Env); err != nil {
@@ -143,8 +153,20 @@ func (b *GoBuilder) Build(request app.BuildRequest) error {
 		}
 	}
 
+	if !request.Verbose {
+		fmt.Print("➜ Building base image... ")
+	}
 	if err := buildBaseImage(context.Background(), b.Runner, repoRoot, registry.External, imageTag, request.NoCache, request.Verbose, imageLabels); err != nil {
+		if !request.Verbose {
+			fmt.Println("Failed")
+		}
 		return err
+	}
+	if !request.Verbose {
+		fmt.Println("Done")
+	}
+	if !request.Verbose {
+		fmt.Printf("➜ Building function images (%d functions)... ", len(functions))
 	}
 	if err := buildFunctionImages(
 		context.Background(),
@@ -157,12 +179,31 @@ func (b *GoBuilder) Build(request app.BuildRequest) error {
 		request.Verbose,
 		imageLabels,
 	); err != nil {
+		if !request.Verbose {
+			fmt.Println("Failed")
+		}
 		return err
 	}
+	if !request.Verbose {
+		fmt.Println("Done")
+	}
 	if strings.EqualFold(mode, compose.ModeFirecracker) {
+		if !request.Verbose {
+			fmt.Print("➜ Building service images... ")
+		}
 		if err := buildServiceImages(context.Background(), b.Runner, repoRoot, registry.External, imageTag, request.NoCache, request.Verbose, imageLabels); err != nil {
+			if !request.Verbose {
+				fmt.Println("Failed")
+			}
 			return err
 		}
+		if !request.Verbose {
+			fmt.Println("Done")
+		}
+	}
+
+	if !request.Verbose {
+		fmt.Print("➜ Building control plane images... ")
 	}
 
 	opts := compose.BuildOptions{
@@ -172,6 +213,16 @@ func (b *GoBuilder) Build(request app.BuildRequest) error {
 		Target:   "control",
 		Services: []string{"gateway", "agent"},
 		NoCache:  request.NoCache,
+		Verbose:  request.Verbose,
 	}
-	return b.BuildCompose(context.Background(), b.ComposeRunner, opts)
+	if err := b.BuildCompose(context.Background(), b.ComposeRunner, opts); err != nil {
+		if !request.Verbose {
+			fmt.Println("Failed")
+		}
+		return err
+	}
+	if !request.Verbose {
+		fmt.Println("Done")
+	}
+	return nil
 }

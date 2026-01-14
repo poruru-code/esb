@@ -35,6 +35,7 @@ type UpOptions struct {
 // Implementations run docker compose commands in the specified directory.
 type CommandRunner interface {
 	Run(ctx context.Context, dir, name string, args ...string) error
+	RunQuiet(ctx context.Context, dir, name string, args ...string) error
 	RunOutput(ctx context.Context, dir, name string, args ...string) ([]byte, error)
 }
 
@@ -48,6 +49,18 @@ func (ExecRunner) Run(ctx context.Context, dir, name string, args ...string) err
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+// RunQuiet executes a command and only shows output if it fails.
+func (ExecRunner) RunQuiet(ctx context.Context, dir, name string, args ...string) error {
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Command failed: %s %s\n%s\n", name, strings.Join(args, " "), string(out))
+		return err
+	}
+	return nil
 }
 
 // RunOutput executes a command and returns its stdout. Stderr is inherited.

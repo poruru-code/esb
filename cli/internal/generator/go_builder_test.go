@@ -258,6 +258,15 @@ func (r *recordRunner) Run(_ context.Context, dir, name string, args ...string) 
 	return r.err
 }
 
+func (r *recordRunner) RunQuiet(_ context.Context, dir, name string, args ...string) error {
+	r.calls = append(r.calls, commandCall{
+		dir:  dir,
+		name: name,
+		args: append([]string{}, args...),
+	})
+	return r.err
+}
+
 func (r *recordRunner) RunOutput(_ context.Context, dir, name string, args ...string) ([]byte, error) {
 	r.calls = append(r.calls, commandCall{
 		dir:  dir,

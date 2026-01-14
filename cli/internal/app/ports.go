@@ -15,7 +15,9 @@ import (
 
 	"github.com/poruru/edge-serverless-box/cli/internal/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
+	"github.com/poruru/edge-serverless-box/cli/internal/ui"
 )
 
 // PortDiscoverer defines the interface for discovering dynamically assigned ports
@@ -80,35 +82,39 @@ func PrintDiscoveredPorts(out io.Writer, ports map[string]int) {
 	if len(ports) == 0 {
 		return
 	}
-	fmt.Fprintln(out, "")
-	fmt.Fprintln(out, "============================== Discovered Ports ==============================")
+	console := ui.New(out)
+	console.BlockStart("🔌", "Discovered Ports:")
+
 	// Print known critical ports first for better UX
-	printPort(out, ports, "ESB_PORT_GATEWAY_HTTPS", "Gateway HTTPS")
-	printPort(out, ports, "ESB_PORT_VICTORIALOGS", "VictoriaLogs")
-	printPort(out, ports, "ESB_PORT_DATABASE", "ScyllaDB")
-	printPort(out, ports, "ESB_PORT_S3", "MinIO S3")
-	printPort(out, ports, "ESB_PORT_REGISTRY", "Registry")
+	printPort(console, ports, constants.EnvPortGatewayHTTPS)
+	printPort(console, ports, constants.EnvPortVictoriaLogs)
+	printPort(console, ports, constants.EnvPortDatabase)
+	printPort(console, ports, constants.EnvPortS3)
+	printPort(console, ports, constants.EnvPortS3Mgmt)
+	printPort(console, ports, constants.EnvPortRegistry)
 
 	// Print remaining unknown ports
 	for k, v := range ports {
 		if !isKnownPort(k) {
-			fmt.Fprintf(out, "  %s: %d\n", k, v)
+			console.Item(k, v)
 		}
 	}
-	fmt.Fprintln(out, "==============================================================================")
+	console.BlockEnd()
 }
 
 func isKnownPort(key string) bool {
 	switch key {
-	case "ESB_PORT_GATEWAY_HTTPS", "ESB_PORT_VICTORIALOGS", "ESB_PORT_DATABASE", "ESB_PORT_S3", "ESB_PORT_REGISTRY", "ESB_PORT_AGENT_GRPC":
+	case constants.EnvPortGatewayHTTPS, constants.EnvPortVictoriaLogs, constants.EnvPortDatabase, constants.EnvPortS3, constants.EnvPortS3Mgmt, constants.EnvPortRegistry, constants.EnvPortAgentCGRPC:
 		return true
 	}
 	return false
 }
 
-func printPort(out io.Writer, ports map[string]int, key, label string) {
+func printPort(console *ui.Console, ports map[string]int, key string) {
 	if val, ok := ports[key]; ok {
-		fmt.Fprintf(out, "  %-15s (%s): %d\n", label, key, val)
+		// Use only the environment variable name as the key for consistent alignment,
+		// matching the style of PrintGeneratedCredentials in auth.go.
+		console.Item(key, val)
 	}
 }
 
@@ -136,7 +142,7 @@ func savePorts(env string, ports map[string]int) (string, error) {
 // resolveESBHome returns the ESB home directory for the given environment.
 // Uses ESB_HOME environment variable if set, otherwise ~/.esb/<env>.
 func resolveESBHome(env string) (string, error) {
-	override := strings.TrimSpace(os.Getenv("ESB_HOME"))
+	override := strings.TrimSpace(os.Getenv(constants.EnvESBHome))
 	if override != "" {
 		return override, nil
 	}
@@ -157,16 +163,16 @@ func applyPortsToEnv(ports map[string]int) {
 	for key, value := range ports {
 		_ = os.Setenv(key, strconv.Itoa(value))
 	}
-	if port, ok := ports["ESB_PORT_GATEWAY_HTTPS"]; ok {
-		_ = os.Setenv("GATEWAY_PORT", strconv.Itoa(port))
-		_ = os.Setenv("GATEWAY_URL", fmt.Sprintf("https://localhost:%d", port))
+	if port, ok := ports[constants.EnvPortGatewayHTTPS]; ok {
+		_ = os.Setenv(constants.EnvGatewayPort, strconv.Itoa(port))
+		_ = os.Setenv(constants.EnvGatewayURL, fmt.Sprintf("https://localhost:%d", port))
 	}
-	if port, ok := ports["ESB_PORT_VICTORIALOGS"]; ok {
-		_ = os.Setenv("VICTORIALOGS_PORT", strconv.Itoa(port))
-		_ = os.Setenv("VICTORIALOGS_URL", fmt.Sprintf("http://localhost:%d", port))
-		_ = os.Setenv("VICTORIALOGS_QUERY_URL", fmt.Sprintf("http://localhost:%d", port))
+	if port, ok := ports[constants.EnvPortVictoriaLogs]; ok {
+		_ = os.Setenv(constants.EnvVictoriaLogsPort, strconv.Itoa(port))
+		_ = os.Setenv(constants.EnvVictoriaLogsURL, fmt.Sprintf("http://localhost:%d", port))
+		_ = os.Setenv(constants.EnvVictoriaLogsQueryURL, fmt.Sprintf("http://localhost:%d", port))
 	}
-	if port, ok := ports["ESB_PORT_AGENT_GRPC"]; ok {
-		_ = os.Setenv("AGENT_GRPC_ADDRESS", fmt.Sprintf("localhost:%d", port))
+	if port, ok := ports[constants.EnvPortAgentCGRPC]; ok {
+		_ = os.Setenv(constants.EnvAgentGrpcAddress, fmt.Sprintf("localhost:%d", port))
 	}
 }

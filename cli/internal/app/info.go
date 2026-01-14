@@ -65,9 +65,7 @@ func runInfo(cli CLI, deps Dependencies, out io.Writer) int {
 	if err != nil {
 		envError = err
 		envState = state.ProjectState{
-			HasEnvironments: false,
-			ActiveEnv:       "",
-			GeneratorValid:  true,
+			ActiveEnv: "",
 		}
 	}
 

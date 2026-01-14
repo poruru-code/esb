@@ -17,6 +17,10 @@ func (f *fakeLogsRunner) Run(_ context.Context, _, _ string, _ ...string) error 
 	return f.err
 }
 
+func (f *fakeLogsRunner) RunQuiet(_ context.Context, _, _ string, _ ...string) error {
+	return f.err
+}
+
 func (f *fakeLogsRunner) RunOutput(_ context.Context, _, _ string, _ ...string) ([]byte, error) {
 	return f.output, f.err
 }

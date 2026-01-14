@@ -43,10 +43,10 @@ func TestResolvePortUsesEnv(t *testing.T) {
 }
 
 func TestResolvePortUsesResolverWhenZero(t *testing.T) {
-	t.Setenv("ESB_PORT_STORAGE", "0")
+	t.Setenv("ESB_PORT_S3", "0")
 	resolver := &fakePortResolver{port: 9002}
 
-	port, ok := resolvePort(context.Background(), "ESB_PORT_STORAGE", 9000, PortRequest{}, resolver)
+	port, ok := resolvePort(context.Background(), "ESB_PORT_S3", 9000, PortRequest{}, resolver)
 	if !ok {
 		t.Fatalf("expected port to resolve")
 	}
@@ -59,10 +59,10 @@ func TestResolvePortUsesResolverWhenZero(t *testing.T) {
 }
 
 func TestResolvePortFallsBackToDefaultWhenUnset(t *testing.T) {
-	t.Setenv("ESB_PORT_STORAGE", "")
+	t.Setenv("ESB_PORT_S3", "")
 	resolver := &fakePortResolver{err: errors.New("not found")}
 
-	port, ok := resolvePort(context.Background(), "ESB_PORT_STORAGE", 9000, PortRequest{}, resolver)
+	port, ok := resolvePort(context.Background(), "ESB_PORT_S3", 9000, PortRequest{}, resolver)
 	if !ok {
 		t.Fatalf("expected port to resolve")
 	}

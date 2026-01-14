@@ -1,5 +1,5 @@
 """
-S3-compatible Lambda (RustFS/MinIO).
+S3-compatible Lambda (RustFS).
 
 A simple Lambda function providing S3 API operations.
 """

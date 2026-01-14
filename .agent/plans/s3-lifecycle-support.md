@@ -5,7 +5,7 @@
 ## 概要
 
 1.  **Parser**: `cli/internal/generator/parser.go` を修正し、S3バケットの `LifecycleConfiguration` プロパティを読み取る。
-2.  **Provisioner**: `cli/internal/provisioner` パッケージを拡張し、読み取ったライフサイクル設定を MinIO/S3 に適用する。
+2.  **Provisioner**: `cli/internal/provisioner` パッケージを拡張し、読み取ったライフサイクル設定を RustFS/S3 に適用する。
 
 ## 詳細プラン
 
@@ -51,4 +51,4 @@ type S3API interface {
 *   `tests/test_s3_lifecycle.yml` (仮) のようなテスト用SAMテンプレートを作成。
 *   `LifecycleConfiguration` を含むバケットを定義。
 *   `esb provision` を実行。
-*   MinIO (または S3) に対して `aws s3api get-bucket-lifecycle-configuration --bucket ...` 等を実行し、正しく設定が反映されているか確認する。
+*   RustFS (または S3) に対して `aws s3api get-bucket-lifecycle-configuration --bucket ...` 等を実行し、正しく設定が反映されているか確認する。

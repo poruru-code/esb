@@ -42,6 +42,9 @@ esb env [command] [flags]
 コマンド（例: `up`, `build`）が実行される際、`applyRuntimeEnv` は以下のような変数を注入します：
 - `ESB_ENV`: 現在の環境名。
 - `ESB_PORT_*`: ポートマッピング（環境名ハッシュに基づくオフセット）。
+  - `ESB_PORT_GATEWAY_HTTPS` (Default: 443)
+  - `ESB_PORT_S3` (Default: 9000)
+  - `ESB_PORT_DATABASE` (Default: 8001)
 - `ESB_SUBNET_*`: サブネットCIDR（環境名ハッシュに基づくオフセット）。
 
 ## クラス図 (環境データ)

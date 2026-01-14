@@ -18,6 +18,7 @@ type BuildOptions struct {
 	Services   []string
 	ExtraFiles []string
 	NoCache    bool
+	Verbose    bool
 }
 
 // BuildProject runs docker compose build with the appropriate configuration
@@ -47,7 +48,10 @@ func BuildProject(ctx context.Context, runner CommandRunner, opts BuildOptions) 
 		args = append(args, services...)
 	}
 
-	return runner.Run(ctx, opts.RootDir, "docker", args...)
+	if opts.Verbose {
+		return runner.Run(ctx, opts.RootDir, "docker", args...)
+	}
+	return runner.RunQuiet(ctx, opts.RootDir, "docker", args...)
 }
 
 // ensureService adds a service to the list if not already present.
