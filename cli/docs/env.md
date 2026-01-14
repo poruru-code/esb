@@ -1,50 +1,50 @@
-# `esb env` Command
+# `esb env` コマンド
 
-## Overview
+## 概要
 
-The `esb env` command family manages the environment configurations for the project. It allows users to list, create, switch, and remove environments (e.g., `local`, `dev`, `test`). It also manages the runtime environment variables used by the CLI and Docker containers.
+`esb env` コマンドファミリは、プロジェクトの環境設定を管理します。環境のリスト表示、作成、切り替え、削除（例: `local`, `dev`, `test`）が可能です。また、CLIおよびDockerコンテナで使用されるランタイム環境変数も管理します。
 
-## Usage
+## 使用方法
 
 ```bash
 esb env [command] [flags]
 ```
 
-### Subcommands
+### サブコマンド
 
-| Command | Description |
-|---------|-------------|
-| `list` | List all environments defined in `generator.yml`. |
-| `add` | Add a new environment. |
-| `use` | Switch the active environment. |
-| `remove` | Remove an environment configuration. |
-| `var` | Inspect environment variables of a running container. |
+| コマンド | 説明 |
+|----------|------|
+| `list` | `generator.yml` で定義されているすべての環境をリスト表示します。 |
+| `add` | 新しい環境を追加します。 |
+| `use` | アクティブな環境を切り替えます。 |
+| `remove` | 環境設定を削除します。 |
+| `var` | 稼働中のコンテナの環境変数を検査します。 |
 
-## Implementation Details
+## 実装詳細
 
-The logic is distributed across `cli/internal/app/env.go`, `cli/internal/app/env_defaults.go`, and `cli/internal/app/env_var.go`.
+ロジックは `cli/internal/app/env.go`, `cli/internal/app/env_defaults.go`, `cli/internal/app/env_var.go` に分散されています。
 
-### Key Components
+### 主要コンポーネント
 
-- **`generator.yml`**: The source of truth for environment definitions.
-- **`Global Config`**: Stores the last used environment for the project.
-- **Runtime Environment**: `applyRuntimeEnv` calculates and sets env vars (ports, subnets) deterministically based on the environment name to avoid collisions.
+- **`generator.yml`**: 環境定義の信頼できる情報源（SSOT）。
+- **`Global Config`**: プロジェクトで最後に使用された環境を保存します。
+- **ランタイム環境**: `applyRuntimeEnv` は、衝突を避けるために環境名に基づいて環境変数（ポート、サブネット）を決定論的に計算し設定します。
 
-### Environment Management Flow
+### 環境管理フロー
 
-1. **List**: Reads `generator.yml`, detects running state via `StateDetector`, and prints a status table.
-2. **Add**: Appends a new entry to `generator.yml`. Prompts for name and mode (docker, containerd, firecracker) if interactive.
-3. **Use**: Updates `LastEnv` in `generator.yml` and the global project registry.
-4. **Remove**: Deletes the entry from `generator.yml`. Prevents removing the last environment.
+1. **List**: `generator.yml` を読み込み、`StateDetector` を介して稼働状態を検出し、ステータステーブルを表示します。
+2. **Add**: 新しいエントリを `generator.yml` に追加します。インタラクティブモードの場合、名前とモード（docker, containerd, firecracker）の入力を求めます。
+3. **Use**: `generator.yml` の `LastEnv` とグローバルプロジェクトレジストリを更新します。
+4. **Remove**: エントリを `generator.yml` から削除します。最後の環境の削除は防止されます。
 
-### Runtime Variable Injection
+### ランタイム変数注入
 
-When any command runs (e.g., `up`, `build`), `applyRuntimeEnv` injects variables like:
-- `ESB_ENV`: Current environment name.
-- `ESB_PORT_*`: Port mappings (offset based on env name hash).
-- `ESB_SUBNET_*`: Subnet CIDRs (offset based on env name hash).
+コマンド（例: `up`, `build`）が実行される際、`applyRuntimeEnv` は以下のような変数を注入します：
+- `ESB_ENV`: 現在の環境名。
+- `ESB_PORT_*`: ポートマッピング（環境名ハッシュに基づくオフセット）。
+- `ESB_SUBNET_*`: サブネットCIDR（環境名ハッシュに基づくオフセット）。
 
-## Class Diagram (Environment Data)
+## クラス図 (環境データ)
 
 ```mermaid
 classDiagram
@@ -76,32 +76,32 @@ classDiagram
     ProjectConfig --> GeneratorConfig
     GeneratorConfig --> EnvironmentSpec
     GeneratorConfig --> AppConfig
-    EnvDefaults ..> EnvironmentSpec : Uses Name for Hash
+    EnvDefaults ..> EnvironmentSpec : 名前をハッシュに使用
 ```
 
-## Sequence Diagram (Switch Environment)
+## シーケンス図 (環境切り替え)
 
 ```mermaid
 sequenceDiagram
     participant CLI as esb env use
     participant Config as Global Config
     participant Generator as generator.yml
-    participant FS as File System
+    participant FS as ファイルシステム
 
-    CLI->>Generator: Load Config
-    CLI->>Config: Load Global Registry
+    CLI->>Generator: 設定読み込み
+    CLI->>Config: グローバルレジストリ読み込み
 
-    alt Name provided
-        CLI->>CLI: Validate Name
-    else Interactive
-        CLI->>CLI: Prompt User
+    alt 名前指定あり
+        CLI->>CLI: 名前検証
+    else インタラクティブ
+        CLI->>CLI: ユーザープロンプト
     end
 
-    CLI->>Generator: Update LastEnv
-    CLI->>FS: Save generator.yml
+    CLI->>Generator: LastEnv 更新
+    CLI->>FS: generator.yml 保存
 
-    CLI->>Config: Update LastUsed Timestamp
-    CLI->>FS: Save config.yaml
+    CLI->>Config: LastUsed タイムスタンプ更新
+    CLI->>FS: config.yaml 保存
 
-    CLI-->>CLI: Print export ESB_ENV=...
+    CLI-->>CLI: export ESB_ENV=... を表示
 ```

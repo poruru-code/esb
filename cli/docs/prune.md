@@ -1,67 +1,67 @@
-# `esb prune` Command
+# `esb prune` コマンド
 
-## Overview
+## 概要
 
-The `esb prune` command cleans up Docker resources (containers, networks, images) associated with the ESB environment and removes generated build artifacts. It mimics `docker system prune` but is scoped to the current project and environment.
+`esb prune` コマンドは、ESB環境に関連付けられたDockerリソース（コンテナ、ネットワーク、イメージ）をクリーンアップし、生成されたビルド成果物を削除します。`docker system prune` に似ていますが、現在のプロジェクトと環境にスコープが限定されています。
 
-## Usage
+## 使用方法
 
 ```bash
 esb prune [flags]
 ```
 
-### Flags
+### フラグ
 
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--env`, `-e` | | Target environment (e.g., local). Defaults to last used. |
-| `--yes`, `-y` | | Skip confirmation prompt. |
-| `--all`, `-a` | | Remove all unused ESB images, not just dangling ones. |
-| `--volumes` | | Remove unused volumes. |
-| `--hard` | | Also remove `generator.yml` (nuclear option). |
-| `--force` | | Auto-unset invalid `ESB_PROJECT`/`ESB_ENV` variables. |
+| フラグ | 短縮形 | 説明 |
+|--------|--------|------|
+| `--env` | `-e` | ターゲット環境 (例: local)。デフォルトは最後に使用された環境です。 |
+| `--yes` | `-y` | 確認プロンプトをスキップします。 |
+| `--all` | `-a` | 未使用のすべてのESBイメージを削除します（danglingイメージだけでなく）。 |
+| `--volumes` | | 未使用のボリュームを削除します。 |
+| `--hard` | | `generator.yml` も削除します（完全初期化）。 |
+| `--force` | | 無効な `ESB_PROJECT`/`ESB_ENV` 環境変数を自動的に解除します。 |
 
-## Implementation Details
+## 実装詳細
 
-The command logic is implemented in `cli/internal/app/prune.go`.
+コマンドのロジックは `cli/internal/app/prune.go` に実装されています。
 
-### Key Components
+### 主要コンポーネント
 
-- **`Pruner`**: Interface for resource removal.
-- **Safety Checks**: Requires interactive confirmation unless `--yes` is specified.
+- **`Pruner`**: リソース削除のためのインターフェース。
+- **安全性チェック**: `--yes` が指定されていない限り、インタラクティブな確認が必要です。
 
-### Logic Flow
+### ロジックフロー
 
-1. **Context Resolution**: Determines the project scope.
-2. **Warning Display**: Lists exactly what will be removed based on flags.
-3. **Confirmation**: Prompts user (unless `--yes`).
-4. **Execution (`Pruner.Prune`)**:
-   - Stops containers (if running).
-   - Removes Docker resources (containers, networks, images, volumes) labeled with the project/env.
-   - Deletes the `output/<env>/` directory.
-   - If `--hard` is set, deletes `generator.yml`.
+1. **コンテキスト解決**: プロジェクトスコープを決定します。
+2. **警告表示**: フラグに基づいて削除される対象をリストアップします。
+3. **確認**: ユーザーに確認を求めます（`--yes` がない場合）。
+4. **実行 (`Pruner.Prune`)**:
+   - コンテナを停止します（稼働中の場合）。
+   - プロジェクト/環境ラベルが付与されたDockerリソース（コンテナ、ネットワーク、イメージ、ボリューム）を削除します。
+   - `output/<env>/` ディレクトリを削除します。
+   - `--hard` が設定されている場合、`generator.yml` を削除します。
 
-## Mermaid Flowchart
+## Mermaid フローチャート
 
 ```mermaid
 flowchart TD
-    Start([esb prune]) --> ResolveCtx[Resolve Context]
-    ResolveCtx --> BuildReq[Build PruneRequest]
-    BuildReq --> Interactive{Interactive?}
+    Start([esb prune]) --> ResolveCtx[コンテキスト解決]
+    ResolveCtx --> BuildReq[PruneRequest作成]
+    BuildReq --> Interactive{インタラクティブ?}
 
-    Interactive -- Yes --> Warning[Display Warning]
-    Warning --> Confirm{Confirmed?}
-    Confirm -- No --> Abort([Abort])
+    Interactive -- Yes --> Warning[警告表示]
+    Warning --> Confirm{確認済み?}
+    Confirm -- No --> Abort([中止])
 
     Interactive -- No --> CheckYes{--yes?}
-    CheckYes -- No --> Error([Error: --yes required])
+    CheckYes -- No --> Error([エラー: --yes 必須])
 
     Confirm -- Yes --> PruneExec
     CheckYes -- Yes --> PruneExec
 
     PruneExec[Pruner.Prune]
-    PruneExec --> Docker[Remove Docker Resources]
-    PruneExec --> FS[Remove Artifacts]
+    PruneExec --> Docker[Dockerリソース削除]
+    PruneExec --> FS[成果物削除]
 
-    FS --> Finish([Complete])
+    FS --> Finish([完了])
 ```

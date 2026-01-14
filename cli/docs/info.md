@@ -1,41 +1,41 @@
-# `esb info` Command (Default)
+# `esb info` コマンド (デフォルト)
 
-## Overview
+## 概要
 
-The `esb info` command displays a summary of the current system state, including CLI version, configuration paths, active project details, and the runtime state of the environment.
+`esb info` コマンドは、CLIバージョン、設定パス、アクティブなプロジェクトの詳細、および環境のランタイム状態を含む、現在のシステム状態のサマリーを表示します。
 
-**Note**: This command is implicitly executed when `esb` is run without any arguments.
+**注意**: 引数なしで `esb` を実行した場合、このコマンドが暗黙的に実行されます。
 
-## Usage
+## 使用方法
 
 ```bash
 esb
-# or
+# または
 esb info
 ```
 
-## Implementation Details
+## 実装詳細
 
-The command logic is implemented in `cli/internal/app/info.go`.
+コマンドのロジックは `cli/internal/app/info.go` に実装されています。
 
-### Information Displayed
+### 表示情報
 
-1. **Version**: CLI version.
-2. **Config**: Global configuration path.
+1. **Version**: CLIのバージョン。
+2. **Config**: グローバル設定のパス。
 3. **Project**:
-   - Name and Root Directory.
-   - Generator Config Path (`generator.yml`).
-   - SAM Template Path.
-   - Output Directory.
+   - 名前とルートディレクトリ。
+   - ジェネレーター設定パス (`generator.yml`)。
+   - SAMテンプレートパス。
+   - 出力ディレクトリ。
 4. **Environment**:
-   - Active Environment Name and Mode (e.g., `local (docker)`).
-   - **State**: Derived via `StateDetector` (e.g., `running`, `stopped`, `built`).
-   - Compose Project Name (`esb-local`).
+   - アクティブな環境名とモード (例: `local (docker)`)。
+   - **State**: `StateDetector` を介して導出された状態 (例: `running`, `stopped`, `built`)。
+   - Composeプロジェクト名 (`esb-local`)。
 
-### Logic Flow
+### ロジックフロー
 
-1. **Global Config Load**: Validates `~/.config/esb/config.yaml`.
-2. **Project Resolution**: Identifies the active project.
-3. **State Detection**:
-   - Uses `StateDetector` to query Docker and file system.
-   - Reports "uninitialized" if context is missing, or real-time status if configured.
+1. **グローバル設定読み込み**: `~/.config/esb/config.yaml` を検証します。
+2. **プロジェクト解決**: アクティブなプロジェクトを特定します。
+3. **状態検出**:
+   - `StateDetector` を使用してDockerおよびファイルシステムをクエリします。
+   - コンテキストが不足している場合は「未初期化」、設定済みの場合はリアルタイムのステータスを報告します。

@@ -1,36 +1,36 @@
-# `esb config` Command
+# `esb config` コマンド
 
-## Overview
+## 概要
 
-The `esb config` command allows modification of the global CLI configuration, such as the location of the internal ESB repository (used for base images and templates).
+`esb config` コマンドは、ベースイメージやテンプレートに使用される内部ESBリポジトリの場所など、グローバルなCLI設定を変更することを可能にします。
 
-## Usage
+## 使用方法
 
 ```bash
 esb config [command] [flags]
 ```
 
-### Subcommands
+### サブコマンド
 
-| Command | Description |
-|---------|-------------|
-| `set-repo` | Set the path to the ESB repository root. |
+| コマンド | 説明 |
+|----------|------|
+| `set-repo` | ESBリポジトリルートへのパスを設定します。 |
 
-## Implementation Details
+## 実装詳細
 
-The command logic is implemented in `cli/internal/app/config_cmd.go`.
+コマンドのロジックは `cli/internal/app/config_cmd.go` に実装されています。
 
 ### `set-repo`
 
-This command updates the `repo_path` in the global configuration file (`~/.config/esb/config.yaml`).
-The CLI uses this path to locate internal assets like Dockerfiles for base images.
+このコマンドは、グローバル設定ファイル (`~/.config/esb/config.yaml`) 内の `repo_path` を更新します。
+CLIはこのパスを使用して、ベースイメージ用のDockerfileなどの内部アセットを特定します。
 
-### Logic Flow
+### ロジックフロー
 
-1. **Resolution**: Resolves the provided path to an absolute path. It attempts to find the true root by searching upwards for marker files (via `config.ResolveRepoRoot`).
-2. **Persistence**: Loads the existing global config, updates the `RepoPath` field, and saves it back.
+1. **解決**: 指定されたパスを絶対パスに解決します。マーカーファイルを求めて上方検索を行い、真のルートを見つけようとします（`config.ResolveRepoRoot` 経由）。
+2. **永続化**: 既存のグローバル設定を読み込み、`RepoPath` フィールドを更新して保存します。
 
-## Class Diagram
+## クラス図
 
 ```mermaid
 classDiagram

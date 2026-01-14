@@ -1,20 +1,20 @@
-# ESB CLI Architecture
+# ESB CLI アーキテクチャ
 
-## Overview
+## 概要
 
-The Edge Serverless Box (ESB) CLI is a Go-based command-line tool designed to manage local serverless environments using Docker and AWS SDKs. It follows a layered architecture to ensure testability, modularity, and clean separation of concerns.
+Edge Serverless Box (ESB) CLIは、DockerとAWS SDKを使用してローカルのサーバーレス環境を管理するために設計されたGoベースのコマンドラインツールです。テスト容易性、モジュール性、および関心事の明確な分離を確保するために、階層化されたアーキテクチャを採用しています。
 
-## System Architecture
+## システムアーキテクチャ
 
-The following diagram illustrates the high-level components and their interactions.
+以下の図は、高レベルのコンポーネントとその相互作用を示しています。
 
 ```mermaid
 graph TD
-    User[User] --> CLI[ESB CLI Entrypoint]
+    User[ユーザー] --> CLI[ESB CLI エントリーポイント]
 
-    subgraph "Internal Application Layer"
-        CLI --> App[App Logic (Dispatch)]
-        App --> Dependencies[Dependency Injection]
+    subgraph "内部アプリケーションレイヤー"
+        CLI --> App["Appロジック (ディスパッチ)"]
+        App --> Dependencies[依存性注入]
 
         Dependencies --> Builder[Builder]
         Dependencies --> Provisioner[Provisioner]
@@ -22,11 +22,11 @@ graph TD
         Dependencies --> ComposeAdapter[Compose Adapter]
     end
 
-    subgraph "External Systems"
-        Builder --> Gen[Code Generator]
-        ComposeAdapter --> Docker[Docker Daemon]
-        Provisioner --> AWS[AWS Local Services (DynamoDB/S3)]
-        App --> FS[File System (.env, config)]
+    subgraph "外部システム"
+        Builder --> Gen[コードジェネレーター]
+        ComposeAdapter --> Docker[Dockerデーモン]
+        Provisioner --> AWS["AWSローカルサービス (DynamoDB/S3)"]
+        App --> FS["ファイルシステム (.env, config)"]
     end
 
     App -->|Read| FS
@@ -34,9 +34,9 @@ graph TD
     StateDetector -->|Check| FS
 ```
 
-## Internal Class Structure
+## 内部クラス構造
 
-The core of the CLI is built around the `Dependencies` struct, which aggregates all necessary services. This allows for easy mocking during tests.
+CLIの中核は、必要なすべてのサービスを集約する `Dependencies` 構造体を中心に構築されています。これにより、テスト時のモック化が容易になります。
 
 ```mermaid
 classDiagram
@@ -85,24 +85,24 @@ classDiagram
     Detector ..|> StateDetector
 ```
 
-## State Machine
+## ステートマシン
 
-The CLI manages the lifecycle of the local environment through a defined set of states. The `StateDetector` determines the current state based on file system artifacts and Docker container status.
+CLIは、定義された状態セットを通じてローカル環境のライフサイクルを管理します。`StateDetector` は、ファイルシステムの成果物とDockerコンテナの状態に基づいて現在の状態を決定します。
 
-### States
+### 状態定義
 
-- **Uninitialized**: No valid project context (e.g., missing `.env` or project directory).
-- **Initialized**: Valid context, but no build artifacts or containers exist.
-- **Built**: Build artifacts (Dockerfiles, generated code) exist, but no containers are created.
-- **Stopped**: Containers exist but are not running.
-- **Running**: One or more containers are in the "running" state.
+- **Uninitialized (未初期化)**: 有効なプロジェクトコンテキストが存在しない状態（例: `.env` やプロジェクトディレクトリの欠如）。
+- **Initialized (初期化済み)**: コンテキストは有効だが、ビルド成果物やコンテナが存在しない状態。
+- **Built (ビルド済み)**: ビルド成果物（Dockerfile、生成されたコード）は存在するが、コンテナは作成されていない状態。
+- **Stopped (停止中)**: コンテナは存在するが、稼働していない状態。
+- **Running (稼働中)**: 1つ以上のコンテナが「running」状態にある。
 
-### State Transitions
+### 状態遷移図
 
 ```mermaid
 stateDiagram-v2
     [*] --> Uninitialized
-    Uninitialized --> Initialized : Create .env / Project Init
+    Uninitialized --> Initialized : .env作成 / プロジェクト初期化
     Initialized --> Built : esb build
     Built --> Running : esb up
     Running --> Stopped : esb stop
@@ -112,19 +112,19 @@ stateDiagram-v2
     Built --> Initialized : esb prune --hard
 ```
 
-## Key Components
+## 主要コンポーネント
 
 ### 1. State Detector (`cli/internal/state`)
-Orchestrates state detection by combining:
-- **Context Resolution**: Checks for project validity.
-- **Container Checks**: Queries Docker for running/stopped containers.
-- **Artifact Verification**: Checks for generated files in `output/`.
+以下の要素を組み合わせて状態検出をオーケストレーションします。
+- **コンテキスト解決**: プロジェクトの有効性をチェックします。
+- **コンテナチェック**: Dockerに対して稼働中/停止中のコンテナを問い合わせます。
+- **成果物検証**: `output/` ディレクトリ内の生成ファイルを確認します。
 
 ### 2. Provisioner (`cli/internal/provisioner`)
-Handles the setup of local AWS resources.
-- Parses SAM templates (`template.yaml`).
-- Configures local DynamoDB tables and S3 buckets.
-- Uses `aws-sdk-go-v2` to communicate with local containers.
+ローカルAWSリソースのセットアップを処理します。
+- SAMテンプレート (`template.yaml`) の解析。
+- ローカルDynamoDBテーブルおよびS3バケットの設定。
+- `aws-sdk-go-v2` を使用したローカルコンテナとの通信。
 
 ### 3. Application Logic (`cli/internal/app`)
-Contains the business logic for each command (`up`, `down`, `build`, etc.). It acts as the glue between the CLI interface (Kong) and the internal adapters.
+各コマンド (`up`, `down`, `build` など) のビジネスロジックを含みます。CLIインターフェース (Kong) と内部アダプターの間の接着剤として機能します。

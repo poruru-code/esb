@@ -1,53 +1,53 @@
-# `esb build` Command
+# `esb build` コマンド
 
-## Overview
+## 概要
 
-The `esb build` command compiles the serverless project artifacts. It analyzes the SAM template (`template.yaml`) and the `generator.yml` configuration to generate Dockerfiles for each Lambda function and builds the corresponding Docker images.
+`esb build` コマンドは、サーバーレスプロジェクトの成果物をコンパイルします。SAMテンプレート (`template.yaml`) と `generator.yml` 設定ファイルを解析し、各Lambda関数用のDockerfileを生成して、対応するDockerイメージをビルドします。
 
-## Usage
+## 使用方法
 
 ```bash
 esb build [flags]
 ```
 
-### Flags
+### フラグ
 
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--env`, `-e` | | Target environment (e.g., local, dev). Defaults to last used. |
-| `--template`, `-t` | | Path to SAM template. |
-| `--no-cache` | | Do not use cache when building images. |
-| `--verbose`, `-v` | | Enable verbose output. |
-| `--force` | | Auto-unset invalid `ESB_PROJECT`/`ESB_ENV` variables. |
+| フラグ | 短縮形 | 説明 |
+|--------|--------|------|
+| `--env` | `-e` | ターゲット環境 (例: local, dev)。デフォルトは最後に使用された環境です。 |
+| `--template` | `-t` | SAMテンプレートへのパス。 |
+| `--no-cache` | | イメージビルド時にキャッシュを使用しません。 |
+| `--verbose` | `-v` | 詳細な出力を有効にします。 |
+| `--force` | | 無効な `ESB_PROJECT`/`ESB_ENV` 環境変数を自動的に解除します。 |
 
-## Implementation Details
+## 実装詳細
 
-The command logic is implemented in `cli/internal/app/build.go` and delegates the heavy lifting to `cli/internal/generator/go_builder.go`.
+コマンドのロジックは `cli/internal/app/build.go` に実装されており、主要な処理は `cli/internal/generator/go_builder.go` に委譲されます。
 
-### Key Components
+### 主要コンポーネント
 
-- **`BuildRequest`**: Struct capturing command-line arguments.
-- **`GoBuilder`**: Implementation of the `Builder` interface.
-  - **`Generate`**: Generates build artifacts (Dockerfiles, handler wrappers) into `output/<env>/`.
-  - **`BuildCompose`**: Builds the control plane images (Gateway, Agent).
-  - **`Runner`**: Executes `docker build` commands for base images and function images.
+- **`BuildRequest`**: コマンドライン引数を保持する構造体。
+- **`GoBuilder`**: `Builder` インターフェースの実装。
+  - **`Generate`**: ビルド成果物 (Dockerfiles, ハンドララッパー) を `output/<env>/` に生成します。
+  - **`BuildCompose`**: コントロールプレーンのイメージ (Gateway, Agent) をビルドします。
+  - **`Runner`**: ベースイメージと関数イメージに対して `docker build` コマンドを実行します。
 
-### Build Logic
+### ビルドロジック
 
-1. **Context Resolution**: Determines project directory and active environment.
-2. **Configuration Loading**: Reads `generator.yml` to understand function mappings and parameters.
-3. **Code Generation**:
-   - Parses `template.yaml`.
-   - Generates boilerplate code (e.g., Python/Node.js handlers) and Dockerfiles.
-   - Outputs to `output/<env>/`.
-4. **Image Building**:
-   - Ensures the local registry is running (if required).
-   - Builds the Base Image (shared layers).
-   - Builds individual Function Images.
-   - Builds Service Images (if in Firecracker mode).
-   - Builds Control Plane (Gateway/Agent) via Docker Compose.
+1. **コンテキスト解決**: プロジェクトディレクトリとアクティブな環境を決定します。
+2. **設定読み込み**: `generator.yml` を読み込み、関数のマッピングとパラメータを理解します。
+3. **コード生成**:
+   - `template.yaml` を解析します。
+   - ボイラープレートコード (Python/Node.jsハンドラなど) とDockerfileを生成します。
+   - `output/<env>/` に出力します。
+4. **イメージビルド**:
+   - ローカルレジストリが稼働していることを確認します (必要な場合)。
+   - ベースイメージ (共有レイヤー) をビルドします。
+   - 個別の関数イメージをビルドします。
+   - サービスイメージをビルドします (Firecrackerモードの場合)。
+   - コントロールプレーン (Gateway/Agent) をDocker Compose経由でビルドします。
 
-## Sequence Diagram
+## シーケンス図
 
 ```mermaid
 sequenceDiagram
@@ -58,28 +58,28 @@ sequenceDiagram
     participant Registry as Local Registry
 
     CLI->>Builder: Build(BuildRequest)
-    Builder->>Builder: Load generator.yml
+    Builder->>Builder: generator.yml 読み込み
     Builder->>Generator: Generate(config, options)
-    Generator-->>Builder: FunctionSpecs (list of functions)
+    Generator-->>Builder: FunctionSpecs (関数リスト)
 
-    Builder->>Builder: Stage Config Files (.env, etc.)
+    Builder->>Builder: 設定ファイルのステージング (.env 等)
 
-    opt External Registry
-        Builder->>Registry: Ensure Running
+    opt 外部レジストリ
+        Builder->>Registry: 稼働確認 (Ensure Running)
     end
 
-    Builder->>Docker: Build Base Image
+    Builder->>Docker: ベースイメージのビルド
 
-    loop For Each Function
-        Builder->>Docker: Build Function Image
+    loop 各関数に対して
+        Builder->>Docker: 関数イメージのビルド
     end
 
-    opt Firecracker Mode
-        Builder->>Docker: Build Service Images
+    opt Firecrackerモード
+        Builder->>Docker: サービスイメージのビルド
     end
 
-    Builder->>Docker: Build Control Plane (Gateway/Agent)
+    Builder->>Docker: コントロールプレーンのビルド (Gateway/Agent)
 
-    Docker-->>Builder: Success
-    Builder-->>CLI: Success
+    Docker-->>Builder: 成功
+    Builder-->>CLI: 成功
 ```

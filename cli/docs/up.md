@@ -1,43 +1,43 @@
-# `esb up` Command
+# `esb up` コマンド
 
-## Overview
+## 概要
 
-The `esb up` command starts the local serverless environment. It orchestrates the lifecycle by potentially building artifacts, starting containers via Docker Compose, and provisioning local AWS resources (DynamoDB, S3) defined in the SAM template.
+`esb up` コマンドは、ローカルサーバーレス環境を起動します。必要に応じて成果物のビルド、Docker Composeによるコンテナ起動、およびSAMテンプレートで定義されたローカルAWSリソース（DynamoDB, S3）のプロビジョニングを行い、ライフサイクルを管理します。
 
-## Usage
+## 使用方法
 
 ```bash
 esb up [flags]
 ```
 
-### Flags
+### フラグ
 
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--env`, `-e` | | Target environment (e.g., local). Defaults to last used. |
-| `--build` | | Rebuild images before starting. |
-| `--reset` | | Reset environment (equivalent to `down --volumes` + `build` + `up`). |
-| `--yes`, `-y` | | Skip confirmation prompt for `--reset`. |
-| `--detach`, `-d` | | Run containers in background (default: true). |
-| `--wait`, `-w` | | Wait for the gateway to be ready. |
-| `--env-file` | | Path to custom `.env` file. |
+| フラグ | 短縮形 | 説明 |
+|--------|--------|------|
+| `--env` | `-e` | ターゲット環境 (例: local)。デフォルトは最後に使用された環境です。 |
+| `--build` | | 起動前にイメージを再ビルドします。 |
+| `--reset` | | 環境をリセットします (`down --volumes` + `build` + `up` と同等)。 |
+| `--yes` | `-y` | `--reset` 時の確認プロンプトをスキップします。 |
+| `--detach` | `-d` | コンテナをバックグラウンドで実行します (デフォルト: true)。 |
+| `--wait` | `-w` | ゲートウェイの準備完了を待機します。 |
+| `--env-file` | | カスタム `.env` ファイルへのパスを指定します。 |
 
-## Implementation Details
+## 実装詳細
 
-The command logic is implemented in `cli/internal/app/up.go`. It acts as a high-level orchestrator relying on several interfaces: `Upper`, `Builder`, `Downer`, `Provisioner`, and `PortDiscoverer`.
+コマンドのロジックは `cli/internal/app/up.go` に実装されています。`Upper`, `Builder`, `Downer`, `Provisioner`, `PortDiscoverer` といった複数のインターフェースに依存する高レベルなオーケストレーターとして機能します。
 
-### Workflow Steps
+### ワークフローステップ
 
-1. **Context Resolution**: Determines the active environment and project root.
-2. **Reset (Optional)**: If `--reset` is set, calls `Downer.Down` with volume removal enabled.
-3. **Authentication**: Ensures `auth.json` exists, generating default credentials if missing.
-4. **Build (Optional)**: If `--build` or `--reset` is set, calls the `Builder` to regenerate images.
-5. **Docker Compose Up**: Calls `Upper.Up` to start the containers (Gateway, Agent, etc.).
-6. **Port Discovery**: Scans for dynamically assigned ports (if any) and persists them.
-7. **Provisioning**: Parses `template.yaml` and configures local resources (tables, buckets) via the `Provisioner`.
-8. **Wait (Optional)**: If `--wait` is set, polls the Gateway health endpoint until ready.
+1. **コンテキスト解決**: アクティブな環境とプロジェクトルートを決定します。
+2. **リセット (オプション)**: `--reset` が指定された場合、ボリューム削除を有効にして `Downer.Down` を呼び出します。
+3. **認証**: `auth.json` の存在を確認し、不足している場合はデフォルトの認証情報を生成します。
+4. **ビルド (オプション)**: `--build` または `--reset` が指定された場合、`Builder` を呼び出してイメージを再生成します。
+5. **Docker Compose Up**: `Upper.Up` を呼び出してコンテナ (Gateway, Agentなど) を起動します。
+6. **ポート検出**: 動的に割り当てられたポートがあればスキャンし、永続化します。
+7. **プロビジョニング**: `template.yaml` を解析し、`Provisioner` を介してローカルリソース (テーブル、バケット) を設定します。
+8. **待機 (オプション)**: `--wait` が指定された場合、Gatewayのヘルスエンドポイントが準備完了になるまでポーリングします。
 
-## Sequence Diagram
+## シーケンス図
 
 ```mermaid
 sequenceDiagram
@@ -49,14 +49,14 @@ sequenceDiagram
     participant Provisioner as Provisioner
     participant Waiter as GatewayWaiter
 
-    CLI->>CLI: Resolve Context
+    CLI->>CLI: コンテキスト解決
 
     opt --reset
         CLI->>Downer: Down(volumes=true)
-        Downer->>Docker: Stop & Remove Volumes
+        Downer->>Docker: コンテナ停止 & ボリューム削除
     end
 
-    CLI->>CLI: EnsureAuthCredentials()
+    CLI->>CLI: 認証情報の確認 (EnsureAuthCredentials)
 
     opt --build OR --reset
         CLI->>Builder: Build(BuildRequest)
@@ -65,18 +65,18 @@ sequenceDiagram
     CLI->>Upper: Up(UpRequest)
     Upper->>Docker: compose up -d
 
-    CLI->>CLI: DiscoverAndPersistPorts()
+    CLI->>CLI: ポート検出と保存 (DiscoverAndPersistPorts)
 
     CLI->>Provisioner: Provision(ProvisionRequest)
-    Provisioner->>Provisioner: Parse SAM Template
-    Provisioner->>Docker: Configure DynamoDB/S3 (AWS SDK)
+    Provisioner->>Provisioner: SAMテンプレート解析
+    Provisioner->>Docker: DynamoDB/S3設定 (AWS SDK)
 
     opt --wait
         CLI->>Waiter: Wait(Context)
-        loop Until Ready
-            Waiter->>Docker: Health Check
+        loop 準備完了まで
+            Waiter->>Docker: ヘルスチェック
         end
     end
 
-    CLI-->>CLI: Print Success & Ports
+    CLI-->>CLI: 成功メッセージ & ポート表示
 ```

@@ -1,45 +1,45 @@
-# `esb down` Command
+# `esb down` コマンド
 
-## Overview
+## 概要
 
-The `esb down` command stops and removes the containers associated with the current environment. It is the inverse of `esb up`.
+`esb down` コマンドは、現在の環境に関連付けられたコンテナを停止および削除します。これは `esb up` の逆の操作です。
 
-## Usage
+## 使用方法
 
 ```bash
 esb down [flags]
 ```
 
-### Flags
+### フラグ
 
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--env`, `-e` | | Target environment (e.g., local). Defaults to last used. |
-| `--volumes`, `-v` | | Remove named volumes (e.g., database data). |
-| `--force` | | Auto-unset invalid `ESB_PROJECT`/`ESB_ENV` variables. |
+| フラグ | 短縮形 | 説明 |
+|--------|--------|------|
+| `--env` | `-e` | ターゲット環境 (例: local)。デフォルトは最後に使用された環境です。 |
+| `--volumes` | `-v` | 名前付きボリューム (例: データベースのデータ) を削除します。 |
+| `--force` | | 無効な `ESB_PROJECT`/`ESB_ENV` 環境変数を自動的に解除します。 |
 
-## Implementation Details
+## 実装詳細
 
-The command logic is implemented in `cli/internal/app/down.go`.
+コマンドのロジックは `cli/internal/app/down.go` に実装されています。
 
-### Logic Flow
+### ロジックフロー
 
-1. **Context Resolution**: Identifies the Docker Compose project name based on the active environment.
-2. **Command Execution**: Invokes the `Downer.Down` method.
-3. **Docker Action**: Executes `docker compose down`. If `--volumes` is passed, it appends the `-v` flag to remove associated volumes.
+1. **コンテキスト解決**: アクティブな環境に基づいてDocker Composeのプロジェクト名を特定します。
+2. **コマンド実行**: `Downer.Down` メソッドを呼び出します。
+3. **Dockerアクション**: `docker compose down` を実行します。`--volumes` が渡された場合、`-v` フラグを追加して関連ボリュームを削除します。
 
-## Mermaid Flowchart
+## Mermaid フローチャート
 
 ```mermaid
 flowchart TD
-    Start([esb down]) --> ResolveCtx[Resolve Context]
+    Start([esb down]) --> ResolveCtx[コンテキスト解決]
     ResolveCtx --> CheckVolumes{--volumes?}
 
     CheckVolumes -- Yes --> RemoveVol[Compose Down --volumes]
     CheckVolumes -- No --> KeepVol[Compose Down]
 
-    RemoveVol --> Docker[Stop Containers & Remove Network/Volumes]
-    KeepVol --> Docker[Stop Containers & Remove Network]
+    RemoveVol --> Docker[コンテナ停止 & ネットワーク/ボリューム削除]
+    KeepVol --> Docker[コンテナ停止 & ネットワーク削除]
 
-    Docker --> Finish([Complete])
+    Docker --> Finish([完了])
 ```

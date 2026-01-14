@@ -1,43 +1,43 @@
-# `esb completion` Command
+# `esb completion` コマンド
 
-## Overview
+## 概要
 
-The `esb completion` command generates shell completion scripts for Bash, Zsh, and Fish. These scripts enable tab completion for subcommands, flags, and dynamic values like environment names, project names, and services.
+`esb completion` コマンドは、Bash, Zsh, Fish用のシェル補完スクリプトを生成します。これらのスクリプトにより、サブコマンド、フラグ、および環境名、プロジェクト名、サービス名などの動的な値に対するタブ補完が可能になります。
 
-## Usage
+## 使用方法
 
 ```bash
 esb completion [shell]
 ```
 
-### Subcommands
+### サブコマンド
 
-| Command | Description |
-|---------|-------------|
-| `bash` | Generate Bash completion script. |
-| `zsh` | Generate Zsh completion script. |
-| `fish` | Generate Fish completion script. |
+| コマンド | 説明 |
+|----------|------|
+| `bash` | Bash用補完スクリプトを生成します。 |
+| `zsh` | Zsh用補完スクリプトを生成します。 |
+| `fish` | Fish用補完スクリプトを生成します。 |
 
-## Implementation Details
+## 実装詳細
 
-The command logic is implemented in `cli/internal/app/completion.go`.
+コマンドのロジックは `cli/internal/app/completion.go` に実装されています。
 
-### Dynamic Completion Logic
+### 動的補完ロジック
 
-The generated scripts invoke the hidden `esb __complete` command to fetch dynamic suggestions at runtime.
+生成されたスクリプトは、隠しコマンドである `esb __complete` を呼び出して、実行時に動的な候補を取得します。
 
-- `__complete env`: Lists available environments from `generator.yml`.
-- `__complete project`: Lists registered projects from global config.
-- `__complete service`: Lists Docker services (for `logs` and `env var`).
+- `__complete env`: `generator.yml` から利用可能な環境をリストします。
+- `__complete project`: グローバル設定から登録済みプロジェクトをリストします。
+- `__complete service`: Dockerサービスをリストします（`logs` および `env var` 用）。
 
-### Bash Implementation
-- Uses `compgen` and case statements to handle context.
-- Helper functions `_esb_find_index` and `_esb_has_positional_after` track cursor position relative to commands.
+### Bash 実装
+- `compgen` と case 文を使用してコンテキストを処理します。
+- ヘルパー関数 `_esb_find_index` と `_esb_has_positional_after` がコマンドに対するカーソル位置を追跡します。
 
-### Zsh Implementation
-- Uses `compdef` and `_values` for richer descriptions.
-- Delegates to `esb __complete` for dynamic lists.
+### Zsh 実装
+- より豊富な説明を提供するために `compdef` と `_values` を使用します。
+- 動的リストについては `esb __complete` に委譲します。
 
-### Fish Implementation
-- Uses `complete -c esb ... -a '(esb __complete ...)'`.
-- Defines conditions to ensure completion only triggers in the correct context (e.g., after `use` or `remove`).
+### Fish 実装
+- `complete -c esb ... -a '(esb __complete ...)'` を使用します。
+- 正しいコンテキスト（例: `use` や `remove` の後）でのみ補完がトリガーされるように条件を定義します。
