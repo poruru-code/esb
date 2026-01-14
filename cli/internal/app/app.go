@@ -162,59 +162,67 @@ func Run(args []string, deps Dependencies) int {
 	}
 
 	command := ctx.Command()
-	switch {
-	case command == "build":
-		return runBuild(cli, deps, out)
-	case command == "up":
-		return runUp(cli, deps, out)
-	case command == "down":
-		return runDown(cli, deps, out)
-	case command == "stop":
-		return runStop(cli, deps, out)
-	case command == "prune":
-		return runPrune(cli, deps, out)
-	case strings.HasPrefix(command, "logs"):
-		return runLogs(cli, deps, out)
-	case command == "env" || command == "env list":
-		return runEnvList(cli, deps, out)
-	case strings.HasPrefix(command, "env add"):
-		return runEnvAdd(cli, deps, out)
-	case strings.HasPrefix(command, "env use"):
-		return runEnvUse(cli, deps, out)
-	case strings.HasPrefix(command, "env remove"):
-		return runEnvRemove(cli, deps, out)
-	case strings.HasPrefix(command, "env var"):
-		return runEnvVar(cli, deps, out)
-	case strings.HasPrefix(command, "project add"):
-		return runProjectAdd(cli, deps, out)
-	case command == "project recent":
-		return runProjectRecent(cli, deps, out)
-	case strings.HasPrefix(command, "project use"):
-		return runProjectUse(cli, deps, out)
-	case strings.HasPrefix(command, "project remove"):
-		return runProjectRemove(cli, deps, out)
-	case command == "project" || command == "project list" || command == "project ls":
-		return runProjectList(cli, deps, out)
-	case strings.HasPrefix(command, "config set-repo"):
-		return runConfigSetRepo(cli, deps, out)
-	case command == "__complete env":
-		return runCompleteEnv(cli, deps, out)
-	case command == "__complete project":
-		return runCompleteProject(cli, deps, out)
-	case command == "__complete service":
-		return runCompleteService(cli, deps, out)
-	case command == "completion bash":
-		return runCompletionBash(cli, out)
-	case command == "completion zsh":
-		return runCompletionZsh(cli, out)
-	case command == "completion fish":
-		return runCompletionFish(cli, out)
-	case command == "version":
-		return runVersion(cli, out)
-	default:
-		fmt.Fprintln(out, "unknown command")
-		return 1
+	if exitCode, handled := dispatchCommand(command, cli, deps, out); handled {
+		return exitCode
 	}
+
+	fmt.Fprintln(out, "unknown command")
+	return 1
+}
+
+type commandHandler func(CLI, Dependencies, io.Writer) int
+
+type prefixHandler struct {
+	prefix  string
+	handler commandHandler
+}
+
+func dispatchCommand(command string, cli CLI, deps Dependencies, out io.Writer) (int, bool) {
+	exactHandlers := map[string]commandHandler{
+		"build":              runBuild,
+		"up":                 runUp,
+		"down":               runDown,
+		"stop":               runStop,
+		"prune":              runPrune,
+		"env":                runEnvList,
+		"env list":           runEnvList,
+		"project":            runProjectList,
+		"project list":       runProjectList,
+		"project ls":         runProjectList,
+		"project recent":     runProjectRecent,
+		"config set-repo":    runConfigSetRepo,
+		"__complete env":     runCompleteEnv,
+		"__complete project": runCompleteProject,
+		"__complete service": runCompleteService,
+		"completion bash":    func(_ CLI, _ Dependencies, out io.Writer) int { return runCompletionBash(cli, out) },
+		"completion zsh":     func(_ CLI, _ Dependencies, out io.Writer) int { return runCompletionZsh(cli, out) },
+		"completion fish":    func(_ CLI, _ Dependencies, out io.Writer) int { return runCompletionFish(cli, out) },
+		"version":            func(_ CLI, _ Dependencies, out io.Writer) int { return runVersion(cli, out) },
+	}
+
+	if handler, ok := exactHandlers[command]; ok {
+		return handler(cli, deps, out), true
+	}
+
+	prefixHandlers := []prefixHandler{
+		{prefix: "logs", handler: runLogs},
+		{prefix: "env add", handler: runEnvAdd},
+		{prefix: "env use", handler: runEnvUse},
+		{prefix: "env remove", handler: runEnvRemove},
+		{prefix: "env var", handler: runEnvVar},
+		{prefix: "project add", handler: runProjectAdd},
+		{prefix: "project use", handler: runProjectUse},
+		{prefix: "project remove", handler: runProjectRemove},
+		{prefix: "config set-repo", handler: runConfigSetRepo},
+	}
+
+	for _, entry := range prefixHandlers {
+		if strings.HasPrefix(command, entry.prefix) {
+			return entry.handler(cli, deps, out), true
+		}
+	}
+
+	return 1, false
 }
 
 // runVersion prints the version information of the CLI.

@@ -6,7 +6,6 @@ package compose
 import (
 	"context"
 	"fmt"
-	"strings"
 )
 
 // StopOptions contains configuration for stopping Docker Compose services.
@@ -24,28 +23,11 @@ func StopProject(ctx context.Context, runner CommandRunner, opts StopOptions) er
 	if runner == nil {
 		return fmt.Errorf("command runner is nil")
 	}
-	if opts.RootDir == "" {
-		return fmt.Errorf("root dir is required")
-	}
 
 	mode := resolveMode(opts.Mode)
-	files, err := ResolveComposeFiles(opts.RootDir, mode, opts.Target)
+	args, err := buildComposeArgs(opts.RootDir, mode, opts.Target, opts.Project, opts.ExtraFiles)
 	if err != nil {
 		return err
-	}
-
-	args := []string{"compose"}
-	if opts.Project != "" {
-		args = append(args, "-p", opts.Project)
-	}
-	for _, file := range files {
-		args = append(args, "-f", file)
-	}
-	for _, file := range opts.ExtraFiles {
-		if strings.TrimSpace(file) == "" {
-			continue
-		}
-		args = append(args, "-f", file)
 	}
 
 	args = append(args, "stop")
