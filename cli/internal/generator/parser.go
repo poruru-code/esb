@@ -92,6 +92,7 @@ func ParseSAMTemplate(content string, parameters map[string]string) (ParseResult
 	}
 
 	pCtx := NewParserContext(mergedParams)
+	pCtx.RawConditions = asMap(data["Conditions"])
 
 	var template schema.SamModel
 	if err := pCtx.mapToStruct(data, &template); err != nil {

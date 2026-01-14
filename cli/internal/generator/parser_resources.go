@@ -5,7 +5,6 @@ package generator
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/generator/schema"
 )
@@ -23,8 +22,8 @@ func parseLayerResources(resources map[string]any, ctx *ParserContext) (map[stri
 		if props == nil {
 			continue
 		}
-		layerName := ctx.asStringDefault(props["LayerName"], logicalID)
-		contentURI := ctx.asStringDefault(props["ContentUri"], "./")
+		layerName := ResolveFunctionName(props["LayerName"], logicalID, ctx)
+		contentURI := ResolveCodeURI(props["ContentUri"], ctx)
 		contentURI = ensureTrailingSlash(contentURI)
 
 		var compatibleArchs []string
@@ -62,7 +61,7 @@ func parseOtherResources(resources map[string]any, ctx *ParserContext) Resources
 
 		switch resourceType {
 		case "AWS::DynamoDB::Table":
-			tableName := ctx.asStringDefault(props["TableName"], logicalID)
+			tableName := ResolveTableName(props, logicalID, ctx)
 
 			var tableProps schema.AWSDynamoDBTableProperties
 			if err := ctx.mapToStruct(props, &tableProps); err != nil {
@@ -74,11 +73,11 @@ func parseOtherResources(resources map[string]any, ctx *ParserContext) Resources
 				KeySchema:              tableProps.KeySchema,
 				AttributeDefinitions:   tableProps.AttributeDefinitions,
 				GlobalSecondaryIndexes: tableProps.GlobalSecondaryIndexes,
-				BillingMode:            ctx.asStringDefault(props["BillingMode"], "PROVISIONED"),
+				BillingMode:            ResolveBillingMode(props, ctx),
 				ProvisionedThroughput:  tableProps.ProvisionedThroughput,
 			})
 		case "AWS::S3::Bucket":
-			bucketName := ctx.asStringDefault(props["BucketName"], strings.ToLower(logicalID))
+			bucketName := ResolveS3BucketName(props, logicalID, ctx)
 
 			var s3Props schema.AWSS3BucketProperties
 			if err := ctx.mapToStruct(props, &s3Props); err != nil {

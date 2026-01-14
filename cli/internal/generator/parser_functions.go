@@ -35,8 +35,8 @@ func parseFunctions(
 			fmt.Printf("Warning: failed to map properties for function %s: %v\n", logicalID, err)
 		}
 
-		fnName := ctx.asStringDefault(fnProps.FunctionName, logicalID)
-		codeURI := ctx.asStringDefault(fnProps.CodeUri, "./")
+		fnName := ResolveFunctionName(fnProps.FunctionName, logicalID, ctx)
+		codeURI := ResolveCodeURI(fnProps.CodeUri, ctx)
 		codeURI = ensureTrailingSlash(codeURI)
 
 		handler := ctx.asStringDefault(fnProps.Handler, defaults.Handler)
@@ -46,7 +46,14 @@ func parseFunctions(
 
 		envVars := mergeEnv(defaults.EnvironmentDefaults, props, ctx)
 
-		events := parseEvents(fnProps.Events, ctx)
+		if fnProps.Events != nil {
+			eventsRaw := make(map[string]any)
+			// Map to direct map to support parseEvents
+			if err := ctx.mapToStruct(fnProps.Events, &eventsRaw); err == nil {
+				fnProps.Events = eventsRaw
+			}
+		}
+		events := parseEvents(asMap(fnProps.Events), ctx)
 
 		scalingInput := map[string]any{}
 		if val := fnProps.ReservedConcurrentExecutions; val != nil {

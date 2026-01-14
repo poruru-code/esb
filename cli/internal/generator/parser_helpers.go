@@ -10,14 +10,25 @@ import (
 
 // ParserContext encapsulates parameters and provides intrinsic function resolution.
 type ParserContext struct {
-	Parameters map[string]string
+	Parameters     map[string]string
+	RawConditions  map[string]any
+	ConditionCache map[string]bool
+	ConditionStack map[string]bool // For circular detection
+	Warnings       []string
+	warningsSeen   map[string]struct{}
 }
 
 func NewParserContext(params map[string]string) *ParserContext {
 	if params == nil {
 		params = make(map[string]string)
 	}
-	return &ParserContext{Parameters: params}
+	return &ParserContext{
+		Parameters:     params,
+		RawConditions:  make(map[string]any),
+		ConditionCache: make(map[string]bool),
+		ConditionStack: make(map[string]bool),
+		warningsSeen:   make(map[string]struct{}),
+	}
 }
 
 func (ctx *ParserContext) mapToStruct(input, output any) error {
@@ -32,14 +43,18 @@ func (ctx *ParserContext) mapToStruct(input, output any) error {
 const maxResolveDepth = 20
 
 func (ctx *ParserContext) resolveRecursively(val any, depth int) any {
-	if val == nil || depth > maxResolveDepth {
+	if val == nil {
+		return nil
+	}
+	if depth > maxResolveDepth {
+		ctx.addWarning("Max resolve depth reached, returning raw value")
 		return val
 	}
 
 	switch v := val.(type) {
 	case map[string]any:
 		// First, resolve any intrinsics at this level
-		resolvedMap := ctx.resolve(v)
+		resolvedMap := ctx.resolve(v, depth)
 		// If the resolution resulted in a scalar or slice, return it directly
 		if _, isMap := resolvedMap.(map[string]any); !isMap {
 			return resolvedMap
@@ -59,7 +74,7 @@ func (ctx *ParserContext) resolveRecursively(val any, depth int) any {
 		return newSlice
 	default:
 		// For scalar values, just resolve them (e.g., string with ${param})
-		return ctx.resolve(v)
+		return ctx.resolve(v, depth)
 	}
 }
 
@@ -74,7 +89,7 @@ func asMap(value any) map[string]any {
 }
 
 func (ctx *ParserContext) asMap(value any) map[string]any {
-	resolved := ctx.resolve(value)
+	resolved := ctx.resolve(value, 0)
 	if m, ok := resolved.(map[string]any); ok {
 		return m
 	}
@@ -82,7 +97,7 @@ func (ctx *ParserContext) asMap(value any) map[string]any {
 }
 
 func (ctx *ParserContext) asSlice(value any) []any {
-	resolved := ctx.resolve(value)
+	resolved := ctx.resolve(value, 0)
 	if resolved == nil {
 		return nil
 	}
@@ -104,7 +119,7 @@ func asString(value any) string {
 }
 
 func (ctx *ParserContext) asString(value any) string {
-	resolved := ctx.resolve(value)
+	resolved := ctx.resolve(value, 0)
 	switch typed := resolved.(type) {
 	case string:
 		return typed
@@ -134,7 +149,7 @@ func (ctx *ParserContext) asStringDefault(value any, fallback string) string {
 }
 
 func (ctx *ParserContext) asIntPointer(value any) (*int, bool) {
-	resolved := ctx.resolve(value)
+	resolved := ctx.resolve(value, 0)
 	switch typed := resolved.(type) {
 	case int:
 		return &typed, true
@@ -176,7 +191,7 @@ func (ctx *ParserContext) resolveIntrinsic(value string) string {
 	})
 }
 
-func (ctx *ParserContext) resolve(value any) any {
+func (ctx *ParserContext) resolve(value any, depth int) any {
 	if value == nil {
 		return nil
 	}
@@ -192,7 +207,7 @@ func (ctx *ParserContext) resolve(value any) any {
 	// !Ref
 	if ref, ok := m["Ref"]; ok && len(m) == 1 {
 		// Resolve the Ref value itself first, in case it's an intrinsic
-		resolvedRef := ctx.resolve(ref)
+		resolvedRef := ctx.resolve(ref, depth)
 		if s, ok := resolvedRef.(string); ok {
 			if val, ok := ctx.Parameters[s]; ok {
 				return val
@@ -207,6 +222,18 @@ func (ctx *ParserContext) resolve(value any) any {
 		return value // If resolvedRef is not a string, leave as is
 	}
 
+	// !If
+	if ifVal, ok := m["Fn::If"]; ok && len(m) == 1 {
+		if args, ok := ifVal.([]any); ok && len(args) == 3 {
+			condName := ctx.asString(args[0])
+			if ctx.GetConditionResult(condName) {
+				return ctx.resolveRecursively(args[1], depth+1)
+			}
+			return ctx.resolveRecursively(args[2], depth+1)
+		}
+		ctx.addWarning("Fn::If: arguments must be [condition, true_val, false_val]")
+	}
+
 	// !Sub
 	if sub, ok := m["Fn::Sub"]; ok && len(m) == 1 {
 		switch typed := sub.(type) {
@@ -218,6 +245,7 @@ func (ctx *ParserContext) resolve(value any) any {
 				template := ctx.asString(typed[0]) // Resolve template string
 				vars, isMap := typed[1].(map[string]any)
 				if template == "" {
+					ctx.addWarning("Fn::Sub: template string is empty")
 					return value
 				}
 				// Create temporary context with merged parameters
@@ -251,8 +279,8 @@ func (ctx *ParserContext) resolve(value any) any {
 			}
 			return strings.Join(resolvedElements, sep)
 		}
+		ctx.addWarning("Fn::Join: arguments must be [sep, [elements]]")
 	}
-
 	// !GetAtt
 	if getAtt, ok := m["Fn::GetAtt"]; ok && len(m) == 1 {
 		var resName, attrName string
@@ -264,7 +292,8 @@ func (ctx *ParserContext) resolve(value any) any {
 				resName = parts[0]
 				attrName = parts[1]
 			} else {
-				return value // Malformed GetAtt string
+				ctx.addWarningf("Fn::GetAtt: malformed string %q", typed)
+				return value
 			}
 		case []any:
 			// !GetAtt [Resource, Attribute]
@@ -272,10 +301,12 @@ func (ctx *ParserContext) resolve(value any) any {
 				resName = ctx.asString(ctx.resolveRecursively(typed[0], 0))
 				attrName = ctx.asString(ctx.resolveRecursively(typed[1], 0))
 			} else {
-				return value // Malformed GetAtt array
+				ctx.addWarning("Fn::GetAtt: array must have 2 elements")
+				return value
 			}
 		default:
-			return value // Unsupported type for GetAtt
+			ctx.addWarningf("Fn::GetAtt: unsupported type %T", typed)
+			return value
 		}
 		// We can't fully resolve dynamically allocated ARNs here,
 		// but we can provide a deterministic placeholder.
@@ -338,6 +369,106 @@ func (ctx *ParserContext) asIntDefault(value any, fallback int) int {
 		return *val
 	}
 	return fallback
+}
+
+func (ctx *ParserContext) GetConditionResult(name string) bool {
+	if res, ok := ctx.ConditionCache[name]; ok {
+		return res
+	}
+	raw, ok := ctx.RawConditions[name]
+	if !ok {
+		ctx.addWarningf("Condition %q not found", name)
+		return false
+	}
+
+	if ctx.ConditionStack[name] {
+		ctx.addWarningf("Circular dependency detected in condition %q", name)
+		return false
+	}
+
+	ctx.ConditionStack[name] = true
+	defer delete(ctx.ConditionStack, name)
+
+	res := ctx.EvaluateCondition(raw)
+	ctx.ConditionCache[name] = res
+	return res
+}
+
+func (ctx *ParserContext) EvaluateCondition(value any) bool {
+	m, ok := value.(map[string]any)
+	if !ok {
+		// Bare boolean or string?
+		switch typed := value.(type) {
+		case bool:
+			return typed
+		case string:
+			return typed == "true" || typed == "True" || typed == "1"
+		default:
+			// Resolve as intrinsic first, might be a Ref to a parameter
+			resolved := ctx.resolveRecursively(value, 0)
+			if b, ok := resolved.(bool); ok {
+				return b
+			}
+			if s, ok := resolved.(string); ok {
+				return s == "true" || s == "True" || s == "1"
+			}
+			return false
+		}
+	}
+
+	if eq, ok := m["Fn::Equals"]; ok {
+		if args, ok := eq.([]any); ok && len(args) == 2 {
+			v1 := ctx.resolveRecursively(args[0], 0)
+			v2 := ctx.resolveRecursively(args[1], 0)
+			return fmt.Sprint(v1) == fmt.Sprint(v2)
+		}
+	}
+
+	if not, ok := m["Fn::Not"]; ok {
+		if args, ok := not.([]any); ok && len(args) == 1 {
+			return !ctx.EvaluateCondition(args[0])
+		}
+	}
+
+	if and, ok := m["Fn::And"]; ok {
+		if args, ok := and.([]any); ok {
+			for _, arg := range args {
+				if !ctx.EvaluateCondition(arg) {
+					return false
+				}
+			}
+			return true
+		}
+	}
+
+	if or, ok := m["Fn::Or"]; ok {
+		if args, ok := or.([]any); ok {
+			for _, arg := range args {
+				if ctx.EvaluateCondition(arg) {
+					return true
+				}
+			}
+			return false
+		}
+	}
+
+	if cond, ok := m["Condition"]; ok {
+		return ctx.GetConditionResult(ctx.asString(cond))
+	}
+
+	return false
+}
+
+func (ctx *ParserContext) addWarning(msg string) {
+	if _, seen := ctx.warningsSeen[msg]; seen {
+		return
+	}
+	ctx.Warnings = append(ctx.Warnings, msg)
+	ctx.warningsSeen[msg] = struct{}{}
+}
+
+func (ctx *ParserContext) addWarningf(format string, args ...any) {
+	ctx.addWarning(fmt.Sprintf(format, args...))
 }
 
 // (Removed redundant top-level mapToStruct)

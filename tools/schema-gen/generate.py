@@ -272,16 +272,22 @@ def main():
     ]
 
     try:
-        # Add a dummy definition to force generation of resources if they are being tree-shaken
         if "definitions" not in schema_data:
             schema_data["definitions"] = {}
 
+        # Dynamically build ForceGeneration properties to include all top-level resources
+        force_gen_props = {}
+        for def_name, def_body in schema_data["definitions"].items():
+            # Heuristic: top-level resources usually have a "Type" property (enum)
+            # In our case, merge_extensions creates definitions with titles like AWSS3Bucket
+            # and they have a "Type" field if they are resources.
+            props = def_body.get("properties", {})
+            if "Type" in props and "enum" in props["Type"]:
+                force_gen_props[def_name] = {"$ref": f"#/definitions/{def_name}"}
+
         schema_data["definitions"]["ForceGeneration"] = {
             "type": "object",
-            "properties": {
-                "S3Bucket": {"$ref": "#/definitions/AWSS3Bucket"},
-                "DynamoDBTable": {"$ref": "#/definitions/AWSDynamoDBTable"},
-            },
+            "properties": force_gen_props,
         }
 
         # Add Tag definition as it is missing from base schema but used by resources

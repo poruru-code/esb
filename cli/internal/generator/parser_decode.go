@@ -66,6 +66,20 @@ func decodeNode(node *yaml.Node) any {
 			return map[string]any{"Fn::Sub": out}
 		case "!GetAtt":
 			return map[string]any{"Fn::GetAtt": out}
+		case "!If":
+			return map[string]any{"Fn::If": out}
+		case "!Equals":
+			return map[string]any{"Fn::Equals": out}
+		case "!And":
+			return map[string]any{"Fn::And": out}
+		case "!Or":
+			return map[string]any{"Fn::Or": out}
+		case "!Not":
+			return map[string]any{"Fn::Not": out}
+		case "!Select":
+			return map[string]any{"Fn::Select": out}
+		case "!Split":
+			return map[string]any{"Fn::Split": out}
 		}
 		return out
 	case yaml.ScalarNode:
@@ -100,6 +114,10 @@ func decodeScalar(node *yaml.Node) any {
 		return map[string]any{"Fn::Sub": node.Value}
 	case "!GetAtt":
 		return map[string]any{"Fn::GetAtt": node.Value}
+	case "!ImportValue":
+		return map[string]any{"Fn::ImportValue": node.Value}
+	case "!Condition":
+		return map[string]any{"Condition": node.Value}
 	}
 	return node.Value
 }

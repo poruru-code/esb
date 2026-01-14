@@ -2,6 +2,7 @@ package generator
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -102,8 +103,66 @@ func TestParserContext_Resolve(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := ctx.resolve(tt.input); !reflect.DeepEqual(got, tt.want) {
+			if got := ctx.resolve(tt.input, 0); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("resolve() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParserContext_Conditions(t *testing.T) {
+	ctx := NewParserContext(map[string]string{
+		"Env": "prod",
+	})
+	ctx.RawConditions = map[string]any{
+		"IsProd": true,
+	}
+
+	tests := []struct {
+		name  string
+		input any
+		want  any
+	}{
+		{
+			name:  "equals true",
+			input: map[string]any{"Fn::Equals": []any{"${Env}", "prod"}},
+			want:  true,
+		},
+		{
+			name:  "equals false",
+			input: map[string]any{"Fn::Equals": []any{"${Env}", "dev"}},
+			want:  false,
+		},
+		{
+			name: "if true",
+			input: map[string]any{"Fn::If": []any{
+				"IsProd",
+				"prod-value",
+				"dev-value",
+			}},
+			want: "prod-value",
+		},
+		{
+			name: "nested if",
+			input: map[string]any{"Fn::If": []any{
+				"IsProd",
+				map[string]any{"Ref": "Env"},
+				"dev",
+			}},
+			want: "prod",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if strings.HasPrefix(tt.name, "equals") {
+				if got := ctx.EvaluateCondition(tt.input); got != tt.want.(bool) {
+					t.Errorf("EvaluateCondition() = %v, want %v", got, tt.want)
+				}
+			} else {
+				if got := ctx.resolve(tt.input, 0); !reflect.DeepEqual(got, tt.want) {
+					t.Errorf("resolve() = %v, want %v", got, tt.want)
+				}
 			}
 		})
 	}
@@ -149,5 +208,42 @@ Resources:
 
 	if len(res.Resources.DynamoDB) == 0 || res.Resources.DynamoDB[0].TableName != "dev" {
 		t.Errorf("expected DynamoDB TableName dev, got %+v", res.Resources.DynamoDB)
+	}
+}
+
+func TestParseSAMTemplateWithConditions(t *testing.T) {
+	content := `
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  Env:
+    Type: String
+    Default: dev
+Conditions:
+  IsProd: !Equals [ !Ref Env, "prod" ]
+Resources:
+  MyFunc:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !If [ IsProd, "prod-func", "dev-func" ]
+      CodeUri: ./
+      Handler: index.handler
+      Runtime: nodejs18.x
+`
+	// Test Dev
+	res, err := ParseSAMTemplate(content, map[string]string{"Env": "dev"})
+	if err != nil {
+		t.Fatalf("ParseSAMTemplate dev failed: %v", err)
+	}
+	if res.Functions[0].Name != "dev-func" {
+		t.Errorf("expected dev-func, got %s", res.Functions[0].Name)
+	}
+
+	// Test Prod
+	res, err = ParseSAMTemplate(content, map[string]string{"Env": "prod"})
+	if err != nil {
+		t.Fatalf("ParseSAMTemplate prod failed: %v", err)
+	}
+	if res.Functions[0].Name != "prod-func" {
+		t.Errorf("expected prod-func, got %s", res.Functions[0].Name)
 	}
 }

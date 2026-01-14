@@ -1224,6 +1224,13 @@ type DataSources struct {
 	Lambda   map[string]*LambdaDataSource   `json:"Lambda,omitempty"`
 }
 
+// DeadLetterConfig
+type DeadLetterConfig struct {
+	Arn            interface{} `json:"Arn,omitempty"`
+	QueueLogicalId string      `json:"QueueLogicalId,omitempty"`
+	Type           string      `json:"Type,omitempty"`
+}
+
 // DeadLetterQueue
 type DeadLetterQueue struct {
 	TargetArn string `json:"TargetArn"`
@@ -1351,6 +1358,12 @@ type EndpointConfiguration struct {
 	VPCEndpointIds interface{} `json:"VPCEndpointIds,omitempty"`
 }
 
+// EventBridgeRuleEvent
+type EventBridgeRuleEvent struct {
+	Properties interface{} `json:"Properties"`
+	Type       string      `json:"Type"`
+}
+
 // EventInvokeConfig
 type EventInvokeConfig struct {
 	DestinationConfig        interface{} `json:"DestinationConfig,omitempty"`
@@ -1390,8 +1403,49 @@ type EventsScheduleProperties struct {
 
 // ForceGeneration
 type ForceGeneration struct {
-	DynamoDBTable *AWSDynamoDBTable `json:"DynamoDBTable,omitempty"`
-	S3Bucket      *AWSS3Bucket      `json:"S3Bucket,omitempty"`
+	AWSDynamoDBTable                                                               *AWSDynamoDBTable                                                           `json:"AWSDynamoDBTable,omitempty"`
+	AWSS3Bucket                                                                    *AWSS3Bucket                                                                `json:"AWSS3Bucket,omitempty"`
+	AlexaSkillEvent                                                                *AlexaSkillEvent                                                            `json:"AlexaSkillEvent,omitempty"`
+	Authorizer                                                                     *Authorizer                                                                 `json:"Authorizer,omitempty"`
+	CloudWatchLogsEvent                                                            *CloudWatchLogsEvent                                                        `json:"CloudWatchLogsEvent,omitempty"`
+	CognitoEvent                                                                   *CognitoEvent                                                               `json:"CognitoEvent,omitempty"`
+	DeadLetterQueue                                                                *DeadLetterQueue                                                            `json:"DeadLetterQueue,omitempty"`
+	DocumentDBEvent                                                                *DocumentDBEvent                                                            `json:"DocumentDBEvent,omitempty"`
+	DynamoDBEvent                                                                  *DynamoDBEvent                                                              `json:"DynamoDBEvent,omitempty"`
+	EventInvokeOnFailure                                                           *EventInvokeOnFailure                                                       `json:"EventInvokeOnFailure,omitempty"`
+	EventInvokeOnSuccess                                                           *EventInvokeOnSuccess                                                       `json:"EventInvokeOnSuccess,omitempty"`
+	HttpApiEvent                                                                   *HttpApiEvent                                                               `json:"HttpApiEvent,omitempty"`
+	IoTRuleEvent                                                                   *IoTRuleEvent                                                               `json:"IoTRuleEvent,omitempty"`
+	KinesisEvent                                                                   *KinesisEvent                                                               `json:"KinesisEvent,omitempty"`
+	MQEvent                                                                        *MQEvent                                                                    `json:"MQEvent,omitempty"`
+	MSKEvent                                                                       *MSKEvent                                                                   `json:"MSKEvent,omitempty"`
+	S3Event                                                                        *S3Event                                                                    `json:"S3Event,omitempty"`
+	SNSEvent                                                                       *SNSEvent                                                                   `json:"SNSEvent,omitempty"`
+	SQSEvent                                                                       *SQSEvent                                                                   `json:"SQSEvent,omitempty"`
+	SamtranslatorInternalSchemaSourceAwsServerlessApiResource                      *Resource                                                                   `json:"samtranslator__internal__schema_source__aws_serverless_api__Resource,omitempty"`
+	SamtranslatorInternalSchemaSourceAwsServerlessApplicationResource              *Resource                                                                   `json:"samtranslator__internal__schema_source__aws_serverless_application__Resource,omitempty"`
+	SamtranslatorInternalSchemaSourceAwsServerlessCapacityProviderResource         *SamtranslatorInternalSchemaSourceAwsServerlessCapacityProviderResource     `json:"samtranslator__internal__schema_source__aws_serverless_capacity_provider__Resource,omitempty"`
+	SamtranslatorInternalSchemaSourceAwsServerlessConnectorResource                *Resource                                                                   `json:"samtranslator__internal__schema_source__aws_serverless_connector__Resource,omitempty"`
+	SamtranslatorInternalSchemaSourceAwsServerlessFunctionApiEvent                 *SamtranslatorInternalSchemaSourceAwsServerlessFunctionApiEvent             `json:"samtranslator__internal__schema_source__aws_serverless_function__ApiEvent,omitempty"`
+	SamtranslatorInternalSchemaSourceAwsServerlessFunctionCloudWatchEvent          *SamtranslatorInternalSchemaSourceAwsServerlessFunctionCloudWatchEvent      `json:"samtranslator__internal__schema_source__aws_serverless_function__CloudWatchEvent,omitempty"`
+	SamtranslatorInternalSchemaSourceAwsServerlessFunctionDeadLetterConfig         *DeadLetterConfig                                                           `json:"samtranslator__internal__schema_source__aws_serverless_function__DeadLetterConfig,omitempty"`
+	SamtranslatorInternalSchemaSourceAwsServerlessFunctionEventBridgeRuleEvent     *SamtranslatorInternalSchemaSourceAwsServerlessFunctionEventBridgeRuleEvent `json:"samtranslator__internal__schema_source__aws_serverless_function__EventBridgeRuleEvent,omitempty"`
+	SamtranslatorInternalSchemaSourceAwsServerlessFunctionResource                 *Resource                                                                   `json:"samtranslator__internal__schema_source__aws_serverless_function__Resource,omitempty"`
+	SamtranslatorInternalSchemaSourceAwsServerlessFunctionScheduleEvent            *ScheduleEvent                                                              `json:"samtranslator__internal__schema_source__aws_serverless_function__ScheduleEvent,omitempty"`
+	SamtranslatorInternalSchemaSourceAwsServerlessFunctionScheduleV2Event          *ScheduleV2Event                                                            `json:"samtranslator__internal__schema_source__aws_serverless_function__ScheduleV2Event,omitempty"`
+	SamtranslatorInternalSchemaSourceAwsServerlessGraphqlapiAuth                   *SamtranslatorInternalSchemaSourceAwsServerlessGraphqlapiAuth               `json:"samtranslator__internal__schema_source__aws_serverless_graphqlapi__Auth,omitempty"`
+	SamtranslatorInternalSchemaSourceAwsServerlessGraphqlapiResource               *Resource                                                                   `json:"samtranslator__internal__schema_source__aws_serverless_graphqlapi__Resource,omitempty"`
+	SamtranslatorInternalSchemaSourceAwsServerlessHttpapiResource                  *SamtranslatorInternalSchemaSourceAwsServerlessHttpapiResource              `json:"samtranslator__internal__schema_source__aws_serverless_httpapi__Resource,omitempty"`
+	SamtranslatorInternalSchemaSourceAwsServerlessLayerversionResource             *Resource                                                                   `json:"samtranslator__internal__schema_source__aws_serverless_layerversion__Resource,omitempty"`
+	SamtranslatorInternalSchemaSourceAwsServerlessSimpletableResource              *SamtranslatorInternalSchemaSourceAwsServerlessSimpletableResource          `json:"samtranslator__internal__schema_source__aws_serverless_simpletable__Resource,omitempty"`
+	SamtranslatorInternalSchemaSourceAwsServerlessStatemachineApiEvent             *SamtranslatorInternalSchemaSourceAwsServerlessStatemachineApiEvent         `json:"samtranslator__internal__schema_source__aws_serverless_statemachine__ApiEvent,omitempty"`
+	SamtranslatorInternalSchemaSourceAwsServerlessStatemachineCloudWatchEvent      *SamtranslatorInternalSchemaSourceAwsServerlessStatemachineCloudWatchEvent  `json:"samtranslator__internal__schema_source__aws_serverless_statemachine__CloudWatchEvent,omitempty"`
+	SamtranslatorInternalSchemaSourceAwsServerlessStatemachineDeadLetterConfig     *SamtranslatorInternalSchemaSourceAwsServerlessStatemachineDeadLetterConfig `json:"samtranslator__internal__schema_source__aws_serverless_statemachine__DeadLetterConfig,omitempty"`
+	SamtranslatorInternalSchemaSourceAwsServerlessStatemachineEventBridgeRuleEvent *EventBridgeRuleEvent                                                       `json:"samtranslator__internal__schema_source__aws_serverless_statemachine__EventBridgeRuleEvent,omitempty"`
+	SamtranslatorInternalSchemaSourceAwsServerlessStatemachineResource             *Resource                                                                   `json:"samtranslator__internal__schema_source__aws_serverless_statemachine__Resource,omitempty"`
+	SamtranslatorInternalSchemaSourceAwsServerlessStatemachineScheduleEvent        *ScheduleEvent                                                              `json:"samtranslator__internal__schema_source__aws_serverless_statemachine__ScheduleEvent,omitempty"`
+	SamtranslatorInternalSchemaSourceAwsServerlessStatemachineScheduleV2Event      *SamtranslatorInternalSchemaSourceAwsServerlessStatemachineScheduleV2Event  `json:"samtranslator__internal__schema_source__aws_serverless_statemachine__ScheduleV2Event,omitempty"`
+	SelfManagedKafkaEvent                                                          *SelfManagedKafkaEvent                                                      `json:"SelfManagedKafkaEvent,omitempty"`
 }
 
 // Function
@@ -1419,41 +1473,7 @@ type GatewayResponses struct{}
 
 // Globals
 type Globals struct {
-	Architectures                interface{}               `json:"Architectures,omitempty"`
-	AssumeRolePolicyDocument     *AssumeRolePolicyDocument `json:"AssumeRolePolicyDocument,omitempty"`
-	AutoPublishAlias             interface{}               `json:"AutoPublishAlias,omitempty"`
-	CapacityProviderConfig       interface{}               `json:"CapacityProviderConfig,omitempty"`
-	CodeUri                      interface{}               `json:"CodeUri,omitempty"`
-	DeadLetterQueue              interface{}               `json:"DeadLetterQueue,omitempty"`
-	DeploymentPreference         interface{}               `json:"DeploymentPreference,omitempty"`
-	Description                  interface{}               `json:"Description,omitempty"`
-	DurableConfig                interface{}               `json:"DurableConfig,omitempty"`
-	Environment                  interface{}               `json:"Environment,omitempty"`
-	EphemeralStorage             interface{}               `json:"EphemeralStorage,omitempty"`
-	EventInvokeConfig            interface{}               `json:"EventInvokeConfig,omitempty"`
-	FunctionScalingConfig        interface{}               `json:"FunctionScalingConfig,omitempty"`
-	Handler                      interface{}               `json:"Handler,omitempty"`
-	KmsKeyArn                    interface{}               `json:"KmsKeyArn,omitempty"`
-	Layers                       interface{}               `json:"Layers,omitempty"`
-	LoggingConfig                interface{}               `json:"LoggingConfig,omitempty"`
-	MemorySize                   interface{}               `json:"MemorySize,omitempty"`
-	PermissionsBoundary          interface{}               `json:"PermissionsBoundary,omitempty"`
-	PropagateTags                bool                      `json:"PropagateTags,omitempty"`
-	ProvisionedConcurrencyConfig interface{}               `json:"ProvisionedConcurrencyConfig,omitempty"`
-	PublishToLatestPublished     interface{}               `json:"PublishToLatestPublished,omitempty"`
-	RecursiveLoop                interface{}               `json:"RecursiveLoop,omitempty"`
-	ReservedConcurrentExecutions interface{}               `json:"ReservedConcurrentExecutions,omitempty"`
-	RolePath                     interface{}               `json:"RolePath,omitempty"`
-	Runtime                      interface{}               `json:"Runtime,omitempty"`
-	RuntimeManagementConfig      interface{}               `json:"RuntimeManagementConfig,omitempty"`
-	SnapStart                    interface{}               `json:"SnapStart,omitempty"`
-	SourceKMSKeyArn              interface{}               `json:"SourceKMSKeyArn,omitempty"`
-	Tags                         *Tags                     `json:"Tags,omitempty"`
-	TenancyConfig                interface{}               `json:"TenancyConfig,omitempty"`
-	Timeout                      interface{}               `json:"Timeout,omitempty"`
-	Tracing                      interface{}               `json:"Tracing,omitempty"`
-	VersionDeletionPolicy        interface{}               `json:"VersionDeletionPolicy,omitempty"`
-	VpcConfig                    interface{}               `json:"VpcConfig,omitempty"`
+	PublishLambdaVersion bool `json:"PublishLambdaVersion,omitempty"`
 }
 
 // Hooks
@@ -1665,11 +1685,11 @@ type MSKEventProperties struct {
 
 // MainGlobals
 type MainGlobals struct {
-	Api              *SamtranslatorInternalSchemaSourceAwsServerlessApiGlobals              `json:"Api,omitempty"`
+	Api              *Globals                                                               `json:"Api,omitempty"`
 	CapacityProvider *SamtranslatorInternalSchemaSourceAwsServerlessCapacityProviderGlobals `json:"CapacityProvider,omitempty"`
 	Function         *Globals                                                               `json:"Function,omitempty"`
 	HttpApi          *Globals                                                               `json:"HttpApi,omitempty"`
-	LayerVersion     *SamtranslatorInternalSchemaSourceAwsServerlessLayerversionGlobals     `json:"LayerVersion,omitempty"`
+	LayerVersion     *Globals                                                               `json:"LayerVersion,omitempty"`
 	SimpleTable      *Globals                                                               `json:"SimpleTable,omitempty"`
 	StateMachine     *Globals                                                               `json:"StateMachine,omitempty"`
 }
@@ -1727,6 +1747,18 @@ type Resolver struct {
 	Pipeline     []string    `json:"Pipeline,omitempty"`
 	Runtime      *Runtime    `json:"Runtime,omitempty"`
 	Sync         *Sync       `json:"Sync,omitempty"`
+}
+
+// Resource
+type Resource struct {
+	Condition           interface{}                                                        `json:"Condition,omitempty"`
+	DeletionPolicy      interface{}                                                        `json:"DeletionPolicy,omitempty"`
+	DependsOn           interface{}                                                        `json:"DependsOn,omitempty"`
+	IgnoreGlobals       interface{}                                                        `json:"IgnoreGlobals,omitempty"`
+	Metadata            interface{}                                                        `json:"Metadata,omitempty"`
+	Properties          *SamtranslatorInternalSchemaSourceAwsServerlessConnectorProperties `json:"Properties"`
+	Type                string                                                             `json:"Type"`
+	UpdateReplacePolicy interface{}                                                        `json:"UpdateReplacePolicy,omitempty"`
 }
 
 // ResourceReference
@@ -2570,6 +2602,12 @@ type ScalingConfig struct {
 	MaxVCpuCount          interface{} `json:"MaxVCpuCount,omitempty"`
 }
 
+// ScheduleEvent
+type ScheduleEvent struct {
+	Properties interface{} `json:"Properties"`
+	Type       string      `json:"Type"`
+}
+
 // ScheduleEventProperties
 type ScheduleEventProperties struct {
 	DeadLetterConfig interface{} `json:"DeadLetterConfig,omitempty"`
@@ -2587,6 +2625,12 @@ type ScheduleEventProperties struct {
 // ScheduleTarget
 type ScheduleTarget struct {
 	Id interface{} `json:"Id"`
+}
+
+// ScheduleV2Event
+type ScheduleV2Event struct {
+	Properties interface{} `json:"Properties"`
+	Type       string      `json:"Type"`
 }
 
 // SelfManagedKafkaEvent

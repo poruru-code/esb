@@ -10953,10 +10953,133 @@
     "ForceGeneration": {
       "type": "object",
       "properties": {
-        "S3Bucket": {
+        "AlexaSkillEvent": {
+          "$ref": "#/definitions/AlexaSkillEvent"
+        },
+        "Authorizer": {
+          "$ref": "#/definitions/Authorizer"
+        },
+        "CloudWatchLogsEvent": {
+          "$ref": "#/definitions/CloudWatchLogsEvent"
+        },
+        "CognitoEvent": {
+          "$ref": "#/definitions/CognitoEvent"
+        },
+        "DeadLetterQueue": {
+          "$ref": "#/definitions/DeadLetterQueue"
+        },
+        "DocumentDBEvent": {
+          "$ref": "#/definitions/DocumentDBEvent"
+        },
+        "DynamoDBEvent": {
+          "$ref": "#/definitions/DynamoDBEvent"
+        },
+        "EventInvokeOnFailure": {
+          "$ref": "#/definitions/EventInvokeOnFailure"
+        },
+        "EventInvokeOnSuccess": {
+          "$ref": "#/definitions/EventInvokeOnSuccess"
+        },
+        "HttpApiEvent": {
+          "$ref": "#/definitions/HttpApiEvent"
+        },
+        "IoTRuleEvent": {
+          "$ref": "#/definitions/IoTRuleEvent"
+        },
+        "KinesisEvent": {
+          "$ref": "#/definitions/KinesisEvent"
+        },
+        "MQEvent": {
+          "$ref": "#/definitions/MQEvent"
+        },
+        "MSKEvent": {
+          "$ref": "#/definitions/MSKEvent"
+        },
+        "S3Event": {
+          "$ref": "#/definitions/S3Event"
+        },
+        "SNSEvent": {
+          "$ref": "#/definitions/SNSEvent"
+        },
+        "SQSEvent": {
+          "$ref": "#/definitions/SQSEvent"
+        },
+        "SelfManagedKafkaEvent": {
+          "$ref": "#/definitions/SelfManagedKafkaEvent"
+        },
+        "samtranslator__internal__schema_source__aws_serverless_api__Resource": {
+          "$ref": "#/definitions/samtranslator__internal__schema_source__aws_serverless_api__Resource"
+        },
+        "samtranslator__internal__schema_source__aws_serverless_application__Resource": {
+          "$ref": "#/definitions/samtranslator__internal__schema_source__aws_serverless_application__Resource"
+        },
+        "samtranslator__internal__schema_source__aws_serverless_capacity_provider__Resource": {
+          "$ref": "#/definitions/samtranslator__internal__schema_source__aws_serverless_capacity_provider__Resource"
+        },
+        "samtranslator__internal__schema_source__aws_serverless_connector__Resource": {
+          "$ref": "#/definitions/samtranslator__internal__schema_source__aws_serverless_connector__Resource"
+        },
+        "samtranslator__internal__schema_source__aws_serverless_function__ApiEvent": {
+          "$ref": "#/definitions/samtranslator__internal__schema_source__aws_serverless_function__ApiEvent"
+        },
+        "samtranslator__internal__schema_source__aws_serverless_function__CloudWatchEvent": {
+          "$ref": "#/definitions/samtranslator__internal__schema_source__aws_serverless_function__CloudWatchEvent"
+        },
+        "samtranslator__internal__schema_source__aws_serverless_function__DeadLetterConfig": {
+          "$ref": "#/definitions/samtranslator__internal__schema_source__aws_serverless_function__DeadLetterConfig"
+        },
+        "samtranslator__internal__schema_source__aws_serverless_function__EventBridgeRuleEvent": {
+          "$ref": "#/definitions/samtranslator__internal__schema_source__aws_serverless_function__EventBridgeRuleEvent"
+        },
+        "samtranslator__internal__schema_source__aws_serverless_function__Resource": {
+          "$ref": "#/definitions/samtranslator__internal__schema_source__aws_serverless_function__Resource"
+        },
+        "samtranslator__internal__schema_source__aws_serverless_function__ScheduleEvent": {
+          "$ref": "#/definitions/samtranslator__internal__schema_source__aws_serverless_function__ScheduleEvent"
+        },
+        "samtranslator__internal__schema_source__aws_serverless_function__ScheduleV2Event": {
+          "$ref": "#/definitions/samtranslator__internal__schema_source__aws_serverless_function__ScheduleV2Event"
+        },
+        "samtranslator__internal__schema_source__aws_serverless_graphqlapi__Auth": {
+          "$ref": "#/definitions/samtranslator__internal__schema_source__aws_serverless_graphqlapi__Auth"
+        },
+        "samtranslator__internal__schema_source__aws_serverless_graphqlapi__Resource": {
+          "$ref": "#/definitions/samtranslator__internal__schema_source__aws_serverless_graphqlapi__Resource"
+        },
+        "samtranslator__internal__schema_source__aws_serverless_httpapi__Resource": {
+          "$ref": "#/definitions/samtranslator__internal__schema_source__aws_serverless_httpapi__Resource"
+        },
+        "samtranslator__internal__schema_source__aws_serverless_layerversion__Resource": {
+          "$ref": "#/definitions/samtranslator__internal__schema_source__aws_serverless_layerversion__Resource"
+        },
+        "samtranslator__internal__schema_source__aws_serverless_simpletable__Resource": {
+          "$ref": "#/definitions/samtranslator__internal__schema_source__aws_serverless_simpletable__Resource"
+        },
+        "samtranslator__internal__schema_source__aws_serverless_statemachine__ApiEvent": {
+          "$ref": "#/definitions/samtranslator__internal__schema_source__aws_serverless_statemachine__ApiEvent"
+        },
+        "samtranslator__internal__schema_source__aws_serverless_statemachine__CloudWatchEvent": {
+          "$ref": "#/definitions/samtranslator__internal__schema_source__aws_serverless_statemachine__CloudWatchEvent"
+        },
+        "samtranslator__internal__schema_source__aws_serverless_statemachine__DeadLetterConfig": {
+          "$ref": "#/definitions/samtranslator__internal__schema_source__aws_serverless_statemachine__DeadLetterConfig"
+        },
+        "samtranslator__internal__schema_source__aws_serverless_statemachine__EventBridgeRuleEvent": {
+          "$ref": "#/definitions/samtranslator__internal__schema_source__aws_serverless_statemachine__EventBridgeRuleEvent"
+        },
+        "samtranslator__internal__schema_source__aws_serverless_statemachine__Resource": {
+          "$ref": "#/definitions/samtranslator__internal__schema_source__aws_serverless_statemachine__Resource"
+        },
+        "samtranslator__internal__schema_source__aws_serverless_statemachine__ScheduleEvent": {
+          "$ref": "#/definitions/samtranslator__internal__schema_source__aws_serverless_statemachine__ScheduleEvent"
+        },
+        "samtranslator__internal__schema_source__aws_serverless_statemachine__ScheduleV2Event": {
+          "$ref": "#/definitions/samtranslator__internal__schema_source__aws_serverless_statemachine__ScheduleV2Event"
+        },
+        "AWSS3Bucket": {
           "$ref": "#/definitions/AWSS3Bucket"
         },
-        "DynamoDBTable": {
+        "AWSDynamoDBTable": {
           "$ref": "#/definitions/AWSDynamoDBTable"
         }
       }

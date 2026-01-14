@@ -80,7 +80,7 @@ graph TD
 - 新しい拡張を追加して型名が不安定になった場合は、`generate.py` の `sanitize_title` ロジックを確認してください。
 
 ### ForceGeneration について
-`sam.schema.json` は巨大なため、生成ツールが「使用されていない」と判断したリソースを自動的に削除（Tree-shaking）してしまうことがあります。これを防ぐため、`generate.py` は `ForceGeneration` というダミー定義を作成し、主要な全ての AWS リソースが明示的に参照されるように強制しています。
+`sam.schema.json` は巨大なため、生成ツールが「使用されていない」と判断したリソースを自動的に削除（Tree-shaking）してしまうことがあります。これを防ぐため、`generate.py` は `ForceGeneration` というダミー定義を動的に作成し、`definitions` 内のすべての AWS リソースが明示的に参照されるように強制しています。
 
 ## 2. 組み込み関数 (Intrinsic Function) の解決
 
@@ -102,6 +102,9 @@ SAM テンプレートでは関数がネストされることがよくありま�
 | `!Join` | 解決された値のリストを指定した区切り文字で結合します。 |
 | `!GetAtt` | 決定論的なプレースホルダー ARN (`arn:aws:local:[Attr]:global:[Res]/[Attr]`) を生成します。 |
 | `!Split` / `!Select` | 文字列の分割と配列要素の選択を行います。 |
+| `!If` | `Conditions` セクションで定義された条件に基づき、値を分岐させます。 |
+| `Fn::Equals` / `And` / `Or` / `Not` | `Conditions` 内で論理評価を行います。 |
+| `!ImportValue` | 他のスタックからのエクスポート値を（プレースホルダーとして）解決します。 |
 
 ## 3. 厳密なマッピング (`mapToStruct`)
 
