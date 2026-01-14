@@ -95,11 +95,12 @@ func generateSecureRandom(length int) string {
 // Only called when credentials were actually generated.
 func PrintGeneratedCredentials(out io.Writer, creds AuthCredentials) {
 	console := ui.New(out)
-	console.Header("🔑", "Authentication credentials:")
+	console.BlockStart("🔑", "Authentication credentials:")
 	console.Item("AUTH_USER", creds.AuthUser)
 	console.Item("AUTH_PASS", creds.AuthPass)
 	console.Item("JWT_SECRET_KEY", creds.JWTSecretKey)
 	console.Item("X_API_KEY", creds.XAPIKey)
 	console.Item("RUSTFS_ACCESS_KEY", creds.RustfsAccessKey)
 	console.Item("RUSTFS_SECRET_KEY", creds.RustfsSecretKey)
+	console.BlockEnd()
 }

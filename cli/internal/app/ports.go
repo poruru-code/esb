@@ -83,7 +83,7 @@ func PrintDiscoveredPorts(out io.Writer, ports map[string]int) {
 		return
 	}
 	console := ui.New(out)
-	console.Header("🔌", "Discovered Ports:")
+	console.BlockStart("🔌", "Discovered Ports:")
 
 	// Print known critical ports first for better UX
 	printPort(console, ports, constants.EnvPortGatewayHTTPS, "Gateway HTTPS")
@@ -99,6 +99,7 @@ func PrintDiscoveredPorts(out io.Writer, ports map[string]int) {
 			console.Item(k, v)
 		}
 	}
+	console.BlockEnd()
 }
 
 func isKnownPort(key string) bool {

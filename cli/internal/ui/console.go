@@ -24,6 +24,21 @@ func (c *Console) Header(emoji, title string) {
 	fmt.Fprintf(c.Out, "%s %s\n", emoji, title)
 }
 
+// BlockStart starts a logical block of information with an emoji header.
+// It ensures there is vertical padding (blank line) around the block for better parsing.
+func (c *Console) BlockStart(emoji, title string) {
+	// Depending on UX preference, could enforce pre-padding, but post-padding is key for "End of Block".
+	// Let's enforce pre-padding to separate from previous logs.
+	fmt.Fprintln(c.Out)
+	c.Header(emoji, title)
+}
+
+// BlockEnd ends a logical block.
+// It prints a blank line to clearly demarcate the end of the information block.
+func (c *Console) BlockEnd() {
+	fmt.Fprintln(c.Out)
+}
+
 // Item prints a key-value item with indentation.
 // Example:    Key: Value
 func (c *Console) Item(key string, value any) {
