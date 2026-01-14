@@ -1,0 +1,36 @@
+{
+  "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-notificationconfiguration.html",
+  "Properties": {
+    "TopicConfigurations": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-notificationconfiguration.html#cfn-s3-bucket-notificationconfiguration-topicconfigurations",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "List",
+      "ItemType": "TopicConfiguration",
+      "DuplicatesAllowed": false
+    },
+    "QueueConfigurations": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-notificationconfiguration.html#cfn-s3-bucket-notificationconfiguration-queueconfigurations",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "List",
+      "ItemType": "QueueConfiguration",
+      "DuplicatesAllowed": false
+    },
+    "LambdaConfigurations": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-notificationconfiguration.html#cfn-s3-bucket-notificationconfiguration-lambdaconfigurations",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "List",
+      "ItemType": "LambdaConfiguration",
+      "DuplicatesAllowed": false
+    },
+    "EventBridgeConfiguration": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-notificationconfiguration.html#cfn-s3-bucket-notificationconfiguration-eventbridgeconfiguration",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "EventBridgeConfiguration"
+    }
+  },
+  "typeName": "AWS::S3::Bucket.NotificationConfiguration"
+}

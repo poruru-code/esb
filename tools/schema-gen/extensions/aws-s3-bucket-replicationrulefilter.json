@@ -1,0 +1,24 @@
+{
+  "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-replicationrulefilter.html",
+  "Properties": {
+    "And": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-replicationrulefilter.html#cfn-s3-bucket-replicationrulefilter-and",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "ReplicationRuleAndOperator"
+    },
+    "TagFilter": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-replicationrulefilter.html#cfn-s3-bucket-replicationrulefilter-tagfilter",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "TagFilter"
+    },
+    "Prefix": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-replicationrulefilter.html#cfn-s3-bucket-replicationrulefilter-prefix",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "PrimitiveType": "String"
+    }
+  },
+  "typeName": "AWS::S3::Bucket.ReplicationRuleFilter"
+}

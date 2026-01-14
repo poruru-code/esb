@@ -5,6 +5,7 @@ package provisioner
 
 import (
 	"fmt"
+	"strconv"
 )
 
 func toString(value any) string {
@@ -31,33 +32,47 @@ func toStringSlice(value any) []string {
 	return out
 }
 
-func toInt64(value any) (int64, bool) {
+func toInt64(value any) (int64, error) {
+	if value == nil {
+		return 0, fmt.Errorf("value is nil")
+	}
 	switch v := value.(type) {
 	case int:
-		return int64(v), true
+		return int64(v), nil
 	case int64:
-		return v, true
+		return v, nil
 	case float64:
-		return int64(v), true
+		return int64(v), nil
 	case float32:
-		return int64(v), true
+		return int64(v), nil
 	case uint:
-		return int64(v), true
+		return int64(v), nil
 	case uint64:
-		return int64(v), true
+		return int64(v), nil
 	case uint32:
-		return int64(v), true
+		return int64(v), nil
 	case uint16:
-		return int64(v), true
+		return int64(v), nil
 	case uint8:
-		return int64(v), true
+		return int64(v), nil
 	case int32:
-		return int64(v), true
+		return int64(v), nil
 	case int16:
-		return int64(v), true
+		return int64(v), nil
 	case int8:
-		return int64(v), true
+		return int64(v), nil
+	case string:
+		if v == "" {
+			return 0, fmt.Errorf("value is empty string")
+		}
+		if i, err := strconv.ParseInt(v, 10, 64); err == nil {
+			return i, nil
+		}
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return int64(f), nil
+		}
+		return 0, fmt.Errorf("failed to parse string '%s' as integer", v)
 	default:
-		return 0, false
+		return 0, fmt.Errorf("unsupported type %T for integer conversion", value)
 	}
 }

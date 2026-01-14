@@ -1,0 +1,18 @@
+{
+  "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-timetolivespecification.html",
+  "Properties": {
+    "Enabled": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-timetolivespecification.html#cfn-dynamodb-table-timetolivespecification-enabled",
+      "UpdateType": "Mutable",
+      "Required": true,
+      "PrimitiveType": "Boolean"
+    },
+    "AttributeName": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-timetolivespecification.html#cfn-dynamodb-table-timetolivespecification-attributename",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "PrimitiveType": "String"
+    }
+  },
+  "typeName": "AWS::DynamoDB::Table.TimeToLiveSpecification"
+}

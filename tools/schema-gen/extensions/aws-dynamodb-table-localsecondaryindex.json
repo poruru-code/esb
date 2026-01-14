@@ -1,0 +1,26 @@
+{
+  "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-localsecondaryindex.html",
+  "Properties": {
+    "IndexName": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-localsecondaryindex.html#cfn-dynamodb-table-localsecondaryindex-indexname",
+      "UpdateType": "Mutable",
+      "Required": true,
+      "PrimitiveType": "String"
+    },
+    "Projection": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-localsecondaryindex.html#cfn-dynamodb-table-localsecondaryindex-projection",
+      "UpdateType": "Mutable",
+      "Required": true,
+      "Type": "Projection"
+    },
+    "KeySchema": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-localsecondaryindex.html#cfn-dynamodb-table-localsecondaryindex-keyschema",
+      "UpdateType": "Mutable",
+      "Required": true,
+      "Type": "List",
+      "ItemType": "KeySchema",
+      "DuplicatesAllowed": false
+    }
+  },
+  "typeName": "AWS::DynamoDB::Table.LocalSecondaryIndex"
+}

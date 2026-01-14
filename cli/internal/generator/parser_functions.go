@@ -3,61 +3,88 @@
 // Why: Keep function extraction logic isolated and testable.
 package generator
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+
+	"github.com/poruru/edge-serverless-box/cli/internal/generator/schema"
+)
 
 func parseFunctions(
 	resources map[string]any,
 	defaults functionDefaults,
 	layerMap map[string]LayerSpec,
-	parameters map[string]string,
+	ctx *ParserContext,
 ) []FunctionSpec {
 	functions := make([]FunctionSpec, 0)
 	for logicalID, value := range resources {
-		m := asMap(value)
-		if m == nil || asString(m["Type"]) != "AWS::Serverless::Function" {
+		m := ctx.asMap(value)
+		if m == nil || ctx.asString(m["Type"]) != "AWS::Serverless::Function" {
 			continue
 		}
 
-		props := asMap(m["Properties"])
+		props := ctx.asMap(m["Properties"])
 		if props == nil {
 			continue
 		}
 
-		fnName := asStringDefault(props["FunctionName"], logicalID)
-		fnName = resolveIntrinsic(fnName, parameters)
-		codeURI := asStringDefault(props["CodeUri"], "./")
-		codeURI = resolveIntrinsic(codeURI, parameters)
+		// Parse strict properties using mapToStruct
+		var fnProps schema.SamtranslatorInternalSchemaSourceAwsServerlessFunctionProperties
+		if err := ctx.mapToStruct(props, &fnProps); err != nil {
+			// Report error but continue with what we have
+			fmt.Printf("Warning: failed to map properties for function %s: %v\n", logicalID, err)
+		}
+
+		fnName := ResolveFunctionName(fnProps.FunctionName, logicalID, ctx)
+		codeURI := ResolveCodeURI(fnProps.CodeUri, ctx)
 		codeURI = ensureTrailingSlash(codeURI)
 
-		handler := asStringDefault(props["Handler"], defaults.Handler)
-		runtime := asStringDefault(props["Runtime"], defaults.Runtime)
-		timeout := asIntDefault(props["Timeout"], defaults.Timeout)
-		memory := asIntDefault(props["MemorySize"], defaults.Memory)
+		handler := ctx.asStringDefault(fnProps.Handler, defaults.Handler)
+		runtime := ctx.asStringDefault(fnProps.Runtime, defaults.Runtime)
+		timeout := ctx.asIntDefault(fnProps.Timeout, defaults.Timeout)
+		memory := ctx.asIntDefault(fnProps.MemorySize, defaults.Memory)
 
-		envVars := mergeEnv(defaults.EnvironmentDefaults, props, parameters)
+		envVars := mergeEnv(defaults.EnvironmentDefaults, props, ctx)
 
-		events := parseEvents(asMap(props["Events"]))
+		if fnProps.Events != nil {
+			eventsRaw := make(map[string]any)
+			// Map to direct map to support parseEvents
+			if err := ctx.mapToStruct(fnProps.Events, &eventsRaw); err == nil {
+				fnProps.Events = eventsRaw
+			}
+		}
+		events := parseEvents(asMap(fnProps.Events), ctx)
 
 		scalingInput := map[string]any{}
-		if val := props["ReservedConcurrentExecutions"]; val != nil {
+		if val := fnProps.ReservedConcurrentExecutions; val != nil {
 			scalingInput["ReservedConcurrentExecutions"] = val
 		}
-		if provisioned := asMap(props["ProvisionedConcurrencyConfig"]); provisioned != nil {
-			scalingInput["ProvisionedConcurrencyConfig"] = provisioned
+		if fnProps.ProvisionedConcurrencyConfig != nil {
+			// Convert strictly typed ProvisionedConcurrencyConfig back to map?
+			// Actually, schema definition says ProvisionedConcurrencyConfig interface{}
+			if pMap, ok := fnProps.ProvisionedConcurrencyConfig.(map[string]any); ok {
+				scalingInput["ProvisionedConcurrencyConfig"] = pMap
+			} else {
+				// Try converting if it's map[interface{}]interface{} or other json types
+				var converted map[string]any
+				if err := ctx.mapToStruct(fnProps.ProvisionedConcurrencyConfig, &converted); err == nil {
+					scalingInput["ProvisionedConcurrencyConfig"] = converted
+				}
+			}
 		}
-		scaling := parseScaling(scalingInput)
+		scaling := parseScaling(scalingInput, ctx)
 
-		layerRefs := props["Layers"]
+		layerRefs := fnProps.Layers
 		if layerRefs == nil {
 			layerRefs = defaults.Layers
 		}
-		layers := collectLayers(layerRefs, layerMap)
+		layers := collectLayers(layerRefs, layerMap, ctx)
 
-		architectures := resolveArchitectures(props, defaults.Architectures)
+		architectures := resolveArchitectures(props, defaults.Architectures, ctx)
 
-		runtimeManagement := runtimeManagementFromConfig(props["RuntimeManagementConfig"])
+		runtimeManagement := runtimeManagementFromConfig(fnProps.RuntimeManagementConfig, ctx)
 		if runtimeManagement.UpdateRuntimeOn == "" && defaults.RuntimeManagement != nil {
-			runtimeManagement = runtimeManagementFromConfig(defaults.RuntimeManagement)
+			runtimeManagement = runtimeManagementFromConfig(defaults.RuntimeManagement, ctx)
 		}
 
 		functions = append(functions, FunctionSpec{
@@ -80,51 +107,51 @@ func parseFunctions(
 	return functions
 }
 
-func mergeEnv(defaultEnv map[string]string, props map[string]any, parameters map[string]string) map[string]string {
+func mergeEnv(defaultEnv map[string]string, props map[string]any, ctx *ParserContext) map[string]string {
 	envVars := map[string]string{}
 	for key, value := range defaultEnv {
 		envVars[key] = value
 	}
-	if env := asMap(props["Environment"]); env != nil {
-		if vars := asMap(env["Variables"]); vars != nil {
+	if env := ctx.asMap(props["Environment"]); env != nil {
+		if vars := ctx.asMap(env["Variables"]); vars != nil {
 			for key, val := range vars {
-				envVars[key] = resolveIntrinsic(asString(val), parameters)
+				envVars[key] = ctx.asString(val)
 			}
 		}
 	}
 	return envVars
 }
 
-func resolveArchitectures(props map[string]any, defaults []string) []string {
-	if archs := asSlice(props["Architectures"]); archs != nil {
+func resolveArchitectures(props map[string]any, defaults []string, ctx *ParserContext) []string {
+	if archs := ctx.asSlice(props["Architectures"]); archs != nil {
 		var architectures []string
 		for _, a := range archs {
-			architectures = append(architectures, asString(a))
+			architectures = append(architectures, ctx.asString(a))
 		}
 		return architectures
 	}
 	return copyStringSlice(defaults)
 }
 
-func parseEvents(events map[string]any) []EventSpec {
+func parseEvents(events map[string]any, ctx *ParserContext) []EventSpec {
 	if events == nil {
 		return nil
 	}
 	result := []EventSpec{}
 	for _, raw := range events {
-		event := asMap(raw)
+		event := ctx.asMap(raw)
 		if event == nil {
 			continue
 		}
-		eventType := asString(event["Type"])
-		props := asMap(event["Properties"])
+		eventType := ctx.asString(event["Type"])
+		props := ctx.asMap(event["Properties"])
 		if props == nil {
 			continue
 		}
 
 		if eventType == "Api" {
-			path := asString(props["Path"])
-			method := asString(props["Method"])
+			path := ctx.asString(props["Path"])
+			method := ctx.asString(props["Method"])
 			if path == "" || method == "" {
 				continue
 			}
@@ -134,11 +161,11 @@ func parseEvents(events map[string]any) []EventSpec {
 				Method: strings.ToLower(method),
 			})
 		} else if eventType == "Schedule" {
-			schedule := asString(props["Schedule"])
+			schedule := ctx.asString(props["Schedule"])
 			if schedule == "" {
 				continue
 			}
-			input := asString(props["Input"])
+			input := ctx.asString(props["Input"])
 			result = append(result, EventSpec{
 				Type:               "Schedule",
 				ScheduleExpression: schedule,
@@ -149,21 +176,21 @@ func parseEvents(events map[string]any) []EventSpec {
 	return result
 }
 
-func parseScaling(props map[string]any) ScalingSpec {
+func parseScaling(props map[string]any, ctx *ParserContext) ScalingSpec {
 	var scaling ScalingSpec
-	if value, ok := asIntPointer(props["ReservedConcurrentExecutions"]); ok {
+	if value, ok := ctx.asIntPointer(props["ReservedConcurrentExecutions"]); ok {
 		scaling.MaxCapacity = value
 	}
-	if provisioned := asMap(props["ProvisionedConcurrencyConfig"]); provisioned != nil {
-		if value, ok := asIntPointer(provisioned["ProvisionedConcurrentExecutions"]); ok {
+	if provisioned := ctx.asMap(props["ProvisionedConcurrencyConfig"]); provisioned != nil {
+		if value, ok := ctx.asIntPointer(provisioned["ProvisionedConcurrentExecutions"]); ok {
 			scaling.MinCapacity = value
 		}
 	}
 	return scaling
 }
 
-func collectLayers(raw any, layerMap map[string]LayerSpec) []LayerSpec {
-	refs := extractLayerRefs(raw)
+func collectLayers(raw any, layerMap map[string]LayerSpec, ctx *ParserContext) []LayerSpec {
+	refs := extractLayerRefs(raw, ctx)
 	if len(refs) == 0 {
 		return nil
 	}
@@ -176,8 +203,8 @@ func collectLayers(raw any, layerMap map[string]LayerSpec) []LayerSpec {
 	return layers
 }
 
-func extractLayerRefs(raw any) []string {
-	values := asSlice(raw)
+func extractLayerRefs(raw any, ctx *ParserContext) []string {
+	values := ctx.asSlice(raw)
 	if values == nil {
 		return nil
 	}
@@ -189,7 +216,7 @@ func extractLayerRefs(raw any) []string {
 				refs = append(refs, typed)
 			}
 		case map[string]any:
-			if ref := asString(typed["Ref"]); ref != "" {
+			if ref := ctx.asString(typed["Ref"]); ref != "" {
 				refs = append(refs, ref)
 			}
 		}
@@ -197,12 +224,12 @@ func extractLayerRefs(raw any) []string {
 	return refs
 }
 
-func runtimeManagementFromConfig(config any) RuntimeManagementConfig {
-	m := asMap(config)
+func runtimeManagementFromConfig(config any, ctx *ParserContext) RuntimeManagementConfig {
+	m := ctx.asMap(config)
 	if m == nil || m["UpdateRuntimeOn"] == nil {
 		return RuntimeManagementConfig{}
 	}
-	return RuntimeManagementConfig{UpdateRuntimeOn: asString(m["UpdateRuntimeOn"])}
+	return RuntimeManagementConfig{UpdateRuntimeOn: ctx.asString(m["UpdateRuntimeOn"])}
 }
 
 func copyStringSlice(input []string) []string {

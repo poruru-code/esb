@@ -1,0 +1,18 @@
+{
+  "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-targetobjectkeyformat.html",
+  "Properties": {
+    "PartitionedPrefix": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-targetobjectkeyformat.html#cfn-s3-bucket-targetobjectkeyformat-partitionedprefix",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "PartitionedPrefix"
+    },
+    "SimplePrefix": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-targetobjectkeyformat.html#cfn-s3-bucket-targetobjectkeyformat-simpleprefix",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "PrimitiveType": "Json"
+    }
+  },
+  "typeName": "AWS::S3::Bucket.TargetObjectKeyFormat"
+}

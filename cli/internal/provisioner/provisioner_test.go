@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/generator"
+	"github.com/poruru/edge-serverless-box/cli/internal/generator/schema"
 )
 
 type fakePortResolver struct {
@@ -100,14 +101,14 @@ func (f *fakeS3) CreateBucket(_ context.Context, name string) error {
 	return nil
 }
 
-func (f *fakeS3) PutBucketLifecycleConfiguration(_ context.Context, name string, rules any) error {
-	if _, ok := rules.(map[string]any); !ok {
+func (f *fakeS3) PutBucketLifecycleConfiguration(_ context.Context, name string, config *schema.AWSS3BucketLifecycleConfiguration) error {
+	if config == nil {
 		return errors.New("invalid lifecycle configuration format")
 	}
 	if f.lifecycleConf == nil {
 		f.lifecycleConf = make(map[string]interface{})
 	}
-	f.lifecycleConf[name] = rules
+	f.lifecycleConf[name] = config
 	return nil
 }
 
@@ -116,11 +117,11 @@ func TestProvisionDynamoCreatesWhenMissing(t *testing.T) {
 	tables := []generator.DynamoDBSpec{
 		{
 			TableName: "test-table",
-			KeySchema: []any{
-				map[string]any{"AttributeName": "id", "KeyType": "HASH"},
+			KeySchema: []schema.AWSDynamoDBTableKeySchema{
+				{AttributeName: "id", KeyType: "HASH"},
 			},
-			AttributeDefinitions: []any{
-				map[string]any{"AttributeName": "id", "AttributeType": "S"},
+			AttributeDefinitions: []schema.AWSDynamoDBTableAttributeDefinition{
+				{AttributeName: "id", AttributeType: "S"},
 			},
 			BillingMode: "PAY_PER_REQUEST",
 		},

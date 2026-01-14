@@ -1,0 +1,144 @@
+{
+  "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html",
+  "Properties": {
+    "OnDemandThroughput": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-ondemandthroughput",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "OnDemandThroughput"
+    },
+    "SSESpecification": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-ssespecification",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "SSESpecification"
+    },
+    "KinesisStreamSpecification": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-kinesisstreamspecification",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "KinesisStreamSpecification"
+    },
+    "StreamSpecification": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-streamspecification",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "StreamSpecification"
+    },
+    "ContributorInsightsSpecification": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-contributorinsightsspecification",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "ContributorInsightsSpecification"
+    },
+    "ImportSourceSpecification": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-importsourcespecification",
+      "UpdateType": "Immutable",
+      "Required": false,
+      "Type": "ImportSourceSpecification"
+    },
+    "PointInTimeRecoverySpecification": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-pointintimerecoveryspecification",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "PointInTimeRecoverySpecification"
+    },
+    "ProvisionedThroughput": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-provisionedthroughput",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "ProvisionedThroughput"
+    },
+    "WarmThroughput": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-warmthroughput",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "WarmThroughput"
+    },
+    "TableName": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-tablename",
+      "UpdateType": "Immutable",
+      "Required": false,
+      "PrimitiveType": "String"
+    },
+    "AttributeDefinitions": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-attributedefinitions",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "List",
+      "ItemType": "AttributeDefinition",
+      "DuplicatesAllowed": false
+    },
+    "GlobalSecondaryIndexes": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-globalsecondaryindexes",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "List",
+      "ItemType": "GlobalSecondaryIndex",
+      "DuplicatesAllowed": true
+    },
+    "BillingMode": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-billingmode",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "PrimitiveType": "String"
+    },
+    "ResourcePolicy": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-resourcepolicy",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "ResourcePolicy"
+    },
+    "LocalSecondaryIndexes": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-localsecondaryindexes",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "List",
+      "ItemType": "LocalSecondaryIndex",
+      "DuplicatesAllowed": true
+    },
+    "KeySchema": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-keyschema",
+      "UpdateType": "Immutable",
+      "Required": true,
+      "DuplicatesAllowed": false,
+      "ItemType": "KeySchema",
+      "Type": "List"
+    },
+    "DeletionProtectionEnabled": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-deletionprotectionenabled",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "PrimitiveType": "Boolean"
+    },
+    "TableClass": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-tableclass",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "PrimitiveType": "String"
+    },
+    "Tags": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-tags",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "List",
+      "ItemType": "Tag",
+      "DuplicatesAllowed": true
+    },
+    "TimeToLiveSpecification": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-timetolivespecification",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "TimeToLiveSpecification"
+    }
+  },
+  "Attributes": {
+    "Arn": {
+      "PrimitiveType": "String"
+    },
+    "StreamArn": {
+      "PrimitiveType": "String"
+    }
+  },
+  "typeName": "AWS::DynamoDB::Table"
+}

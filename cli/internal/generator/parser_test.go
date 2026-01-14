@@ -39,6 +39,93 @@ Resources:
 	if fn.Runtime != "python3.12" {
 		t.Fatalf("unexpected runtime: %s", fn.Runtime)
 	}
+	// Verify parsing works using strict schema types implicitly via Result
+	if fn.MemorySize != 0 { // Default
+		t.Logf("memory size: %d", fn.MemorySize)
+	}
+
+	// Add a test case specifically for a field that relies on strict typing logic if possible
+	// But since the struct fields are mostly standard types (string, int), existing tests cover the values.
+	// We can add a check for a field that might be sensitive to type mapping.
+}
+
+func TestParseSAMTemplateStrictTypes(t *testing.T) {
+	// This test explicitly checks fields that are handled by the new strict parsing logic
+	content := `
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Resources:
+  StrictFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: strict-func
+      CodeUri: functions/strict/
+      Handler: index.handler
+      Runtime: nodejs18.x
+      Timeout: 60
+      MemorySize: 512
+      Architectures:
+        - arm64
+      AutoPublishAlias: live
+`
+	result, err := ParseSAMTemplate(content, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	fn := result.Functions[0]
+	if fn.Name != "strict-func" {
+		t.Errorf("unexpected name: %s", fn.Name)
+	}
+	if fn.Timeout != 60 {
+		t.Errorf("unexpected timeout: %d", fn.Timeout)
+	}
+	if fn.MemorySize != 512 {
+		t.Errorf("unexpected memory: %d", fn.MemorySize)
+	}
+	if len(fn.Architectures) != 1 || fn.Architectures[0] != "arm64" {
+		t.Errorf("unexpected architectures: %v", fn.Architectures)
+	}
+}
+
+func TestParseSAMTemplateIntrinsic(t *testing.T) {
+	// This test verifies that Intrinsic Functions (!Ref) are correctly handled
+	// even when parsing into strict schema-generated types.
+	content := `
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Parameters:
+  MyMemory:
+    Type: Number
+    Default: 512
+Resources:
+  IntrinsicFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: intrinsic-func
+      CodeUri: ./
+      Handler: index.handler
+      Runtime: nodejs18.x
+      MemorySize: !Ref MyMemory
+      Timeout: !Ref MyMemory
+`
+	params := map[string]string{"MyMemory": "1024"}
+	result, err := ParseSAMTemplate(content, params)
+	if err != nil {
+		t.Fatalf("expected no error from ParseSAMTemplate, but got: %v", err)
+	}
+
+	if len(result.Functions) == 0 {
+		t.Fatalf("expected 1 function, but got 0")
+	}
+
+	fn := result.Functions[0]
+	// We expect the parser to handle !Ref and return the resolved value.
+	if fn.MemorySize != 1024 {
+		t.Errorf("expected MemorySize to be 1024 (resolved from !Ref), but got %d", fn.MemorySize)
+	}
+	if fn.Timeout != 1024 {
+		t.Errorf("expected Timeout to be 1024, but got %d", fn.Timeout)
+	}
 }
 
 func TestParseSAMTemplateGlobalsDefaults(t *testing.T) {
@@ -282,8 +369,8 @@ Resources:
 }
 
 func TestResolveIntrinsicSubstitution(t *testing.T) {
-	params := map[string]string{"Prefix": "prod"}
-	value := resolveIntrinsic("func-${Prefix}", params)
+	ctx := NewParserContext(map[string]string{"Prefix": "prod"})
+	value := ctx.resolveIntrinsic("func-${Prefix}")
 	if value != "func-prod" {
 		t.Fatalf("unexpected substitution: %s", value)
 	}

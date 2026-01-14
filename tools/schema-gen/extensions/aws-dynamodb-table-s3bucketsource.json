@@ -1,0 +1,24 @@
+{
+  "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-s3bucketsource.html",
+  "Properties": {
+    "S3Bucket": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-s3bucketsource.html#cfn-dynamodb-table-s3bucketsource-s3bucket",
+      "UpdateType": "Immutable",
+      "Required": true,
+      "PrimitiveType": "String"
+    },
+    "S3KeyPrefix": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-s3bucketsource.html#cfn-dynamodb-table-s3bucketsource-s3keyprefix",
+      "UpdateType": "Immutable",
+      "Required": false,
+      "PrimitiveType": "String"
+    },
+    "S3BucketOwner": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-s3bucketsource.html#cfn-dynamodb-table-s3bucketsource-s3bucketowner",
+      "UpdateType": "Immutable",
+      "Required": false,
+      "PrimitiveType": "String"
+    }
+  },
+  "typeName": "AWS::DynamoDB::Table.S3BucketSource"
+}

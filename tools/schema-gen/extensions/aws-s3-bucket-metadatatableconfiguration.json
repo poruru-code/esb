@@ -1,0 +1,12 @@
+{
+  "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-metadatatableconfiguration.html",
+  "Properties": {
+    "S3TablesDestination": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-metadatatableconfiguration.html#cfn-s3-bucket-metadatatableconfiguration-s3tablesdestination",
+      "UpdateType": "Mutable",
+      "Required": true,
+      "Type": "S3TablesDestination"
+    }
+  },
+  "typeName": "AWS::S3::Bucket.MetadataTableConfiguration"
+}

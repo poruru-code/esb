@@ -1,0 +1,201 @@
+{
+  "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html",
+  "Properties": {
+    "InventoryConfigurations": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-inventoryconfigurations",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "List",
+      "ItemType": "InventoryConfiguration",
+      "DuplicatesAllowed": false
+    },
+    "BucketEncryption": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-bucketencryption",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "BucketEncryption"
+    },
+    "WebsiteConfiguration": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-websiteconfiguration",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "WebsiteConfiguration"
+    },
+    "NotificationConfiguration": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-notificationconfiguration",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "NotificationConfiguration"
+    },
+    "LifecycleConfiguration": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-lifecycleconfiguration",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "LifecycleConfiguration"
+    },
+    "VersioningConfiguration": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-versioningconfiguration",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "VersioningConfiguration"
+    },
+    "MetricsConfigurations": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-metricsconfigurations",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "List",
+      "ItemType": "MetricsConfiguration",
+      "DuplicatesAllowed": false
+    },
+    "AccessControl": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-accesscontrol",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "PrimitiveType": "String"
+    },
+    "MetadataTableConfiguration": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-metadatatableconfiguration",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "MetadataTableConfiguration"
+    },
+    "IntelligentTieringConfigurations": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-intelligenttieringconfigurations",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "List",
+      "ItemType": "IntelligentTieringConfiguration",
+      "DuplicatesAllowed": false
+    },
+    "AnalyticsConfigurations": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-analyticsconfigurations",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "List",
+      "ItemType": "AnalyticsConfiguration",
+      "DuplicatesAllowed": false
+    },
+    "AbacStatus": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-abacstatus",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "PrimitiveType": "String"
+    },
+    "AccelerateConfiguration": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-accelerateconfiguration",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "AccelerateConfiguration"
+    },
+    "PublicAccessBlockConfiguration": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-publicaccessblockconfiguration",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "PublicAccessBlockConfiguration"
+    },
+    "BucketName": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-bucketname",
+      "UpdateType": "Immutable",
+      "Required": false,
+      "PrimitiveType": "String"
+    },
+    "CorsConfiguration": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-corsconfiguration",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "CorsConfiguration"
+    },
+    "OwnershipControls": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-ownershipcontrols",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "OwnershipControls"
+    },
+    "ObjectLockConfiguration": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-objectlockconfiguration",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "ObjectLockConfiguration"
+    },
+    "ObjectLockEnabled": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-objectlockenabled",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "PrimitiveType": "Boolean"
+    },
+    "LoggingConfiguration": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-loggingconfiguration",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "LoggingConfiguration"
+    },
+    "MetadataConfiguration": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-metadataconfiguration",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "MetadataConfiguration"
+    },
+    "ReplicationConfiguration": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-replicationconfiguration",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "ReplicationConfiguration"
+    },
+    "Tags": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-tags",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "List",
+      "ItemType": "Tag",
+      "DuplicatesAllowed": true
+    }
+  },
+  "Attributes": {
+    "MetadataTableConfiguration.S3TablesDestination.TableArn": {
+      "PrimitiveType": "String"
+    },
+    "MetadataConfiguration.Destination.TableBucketType": {
+      "PrimitiveType": "String"
+    },
+    "DomainName": {
+      "PrimitiveType": "String"
+    },
+    "MetadataConfiguration.JournalTableConfiguration.TableName": {
+      "PrimitiveType": "String"
+    },
+    "WebsiteURL": {
+      "PrimitiveType": "String"
+    },
+    "DualStackDomainName": {
+      "PrimitiveType": "String"
+    },
+    "MetadataConfiguration.JournalTableConfiguration.TableArn": {
+      "PrimitiveType": "String"
+    },
+    "MetadataTableConfiguration.S3TablesDestination.TableNamespace": {
+      "PrimitiveType": "String"
+    },
+    "MetadataConfiguration.Destination.TableNamespace": {
+      "PrimitiveType": "String"
+    },
+    "RegionalDomainName": {
+      "PrimitiveType": "String"
+    },
+    "MetadataConfiguration.Destination.TableBucketArn": {
+      "PrimitiveType": "String"
+    },
+    "MetadataConfiguration.InventoryTableConfiguration.TableArn": {
+      "PrimitiveType": "String"
+    },
+    "MetadataConfiguration.Destination": {
+      "Type": "MetadataDestination"
+    },
+    "MetadataConfiguration.InventoryTableConfiguration.TableName": {
+      "PrimitiveType": "String"
+    },
+    "Arn": {
+      "PrimitiveType": "String"
+    }
+  },
+  "typeName": "AWS::S3::Bucket"
+}

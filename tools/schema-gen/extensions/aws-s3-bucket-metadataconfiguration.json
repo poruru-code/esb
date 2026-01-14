@@ -1,0 +1,24 @@
+{
+  "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-metadataconfiguration.html",
+  "Properties": {
+    "Destination": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-metadataconfiguration.html#cfn-s3-bucket-metadataconfiguration-destination",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "MetadataDestination"
+    },
+    "JournalTableConfiguration": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-metadataconfiguration.html#cfn-s3-bucket-metadataconfiguration-journaltableconfiguration",
+      "UpdateType": "Mutable",
+      "Required": true,
+      "Type": "JournalTableConfiguration"
+    },
+    "InventoryTableConfiguration": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-metadataconfiguration.html#cfn-s3-bucket-metadataconfiguration-inventorytableconfiguration",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "InventoryTableConfiguration"
+    }
+  },
+  "typeName": "AWS::S3::Bucket.MetadataConfiguration"
+}

@@ -1,0 +1,20 @@
+{
+  "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-projection.html",
+  "Properties": {
+    "NonKeyAttributes": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-projection.html#cfn-dynamodb-table-projection-nonkeyattributes",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "List",
+      "PrimitiveItemType": "String",
+      "DuplicatesAllowed": true
+    },
+    "ProjectionType": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-projection.html#cfn-dynamodb-table-projection-projectiontype",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "PrimitiveType": "String"
+    }
+  },
+  "typeName": "AWS::DynamoDB::Table.Projection"
+}
