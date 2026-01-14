@@ -42,6 +42,8 @@ Gateway は Lambda 環境の "Master Config" として機能し、サービス�
 | `DYNAMODB_ENDPOINT`   | (任意)                     | 明示的に上書きする場合に使用。未設定時は `http://database:8000` が注入される。   |
 | `VICTORIALOGS_URL`    | `http://victorialogs:9428` | 自身のログ送信先。                                                               |
 | `CONTAINERS_NETWORK`  | `ESB_NETWORK_EXTERNAL`     | 自身の所属チェックおよびワーカーの状態監視に使用。                               |
+| `RUSTFS_ACCESS_KEY`  | (自動生成)                 | S3 ストレージ (RustFS) のアクセスキー。未指定時は `esb` またはランダム値が設定される。 |
+| `RUSTFS_SECRET_KEY`  | (自動生成)                 | S3 ストレージ (RustFS) のシークレットキー。未指定時はランダム値が設定される。         |
 | `ESB_DATA_PLANE_HOST` | `10.88.0.1`                | **Containerd/FC Mode**: ネットワークゲートウェイ兼 DNS サーバーの IP。           |
 
 ### 2. Agent & Runtime Node

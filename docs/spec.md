@@ -107,6 +107,8 @@ services/gateway/
     - **API**: ポート `9000` (S3互換)
     - **Console**: ポート `9001` (管理Web UI)
 - **認証**: 環境変数でAccessKey/SecretKeyを設定。
+- **ライフサイクル機能**: `template.yaml` の `LifecycleConfiguration` プロパティを介して、オブジェクトの有効期限切れ（ExpirationInDays など）を自動設定可能です。
+    - **サポート項目**: `Status` (Enabled/Disabled), `ID` (識別子), `Prefix` (フィルタ), `ExpirationInDays` (有効期限日数)。
 
 ### 2.5 ScyllaDB (Database)
 - **役割**: Dockerコンテナ向けの高性能NoSQLデータベース。AWS DynamoDB互換API (Alternator) を提供。
