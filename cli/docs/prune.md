@@ -41,7 +41,7 @@ esb prune [flags]
    - `output/<env>/` ディレクトリを削除します。
    - `--hard` が設定されている場合、`generator.yml` を削除します。
 
-## Mermaid フローチャート
+## フローチャート
 
 ```mermaid
 flowchart TD

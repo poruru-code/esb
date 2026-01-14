@@ -39,3 +39,21 @@ esb info
 3. **状態検出**:
    - `StateDetector` を使用してDockerおよびファイルシステムをクエリします。
    - コンテキストが不足している場合は「未初期化」、設定済みの場合はリアルタイムのステータスを報告します。
+
+## フローチャート
+
+```mermaid
+flowchart TD
+    Start([esb info]) --> LoadGlobal[グローバル設定読み込み]
+    LoadGlobal --> ResolveProj[プロジェクト解決]
+    ResolveProj --> ResolveCtx[コンテキスト解決]
+
+    ResolveCtx --> DetectState[StateDetector.Detect]
+    DetectState --> QueryDocker[Docker状態クエリ]
+    DetectState --> CheckFS[成果物チェック]
+
+    QueryDocker --> Result[状態決定]
+    CheckFS --> Result
+
+    Result --> Display[情報表示]
+```

@@ -28,7 +28,7 @@ esb down [flags]
 2. **コマンド実行**: `Downer.Down` メソッドを呼び出します。
 3. **Dockerアクション**: `docker compose down` を実行します。`--volumes` が渡された場合、`-v` フラグを追加して関連ボリュームを削除します。
 
-## Mermaid フローチャート
+## フローチャート
 
 ```mermaid
 flowchart TD

@@ -32,7 +32,7 @@ esb stop [flags]
 2. **コマンド実行**: `Stopper.Stop` を呼び出します。
 3. **Dockerアクション**: `docker compose stop` を実行します。
 
-## Mermaid フローチャート
+## フローチャート
 
 ```mermaid
 flowchart TD

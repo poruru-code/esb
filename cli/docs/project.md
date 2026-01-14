@@ -45,7 +45,7 @@ esb project [command] [flags]
 2. **永続化**: グローバル設定ファイルを新しい `LastUsed` タイムスタンプで更新します。
 3. **出力**: シェル統合用に `export ESB_PROJECT=...` を表示します。
 
-## Mermaid フローチャート (プロジェクト解決)
+## フローチャート (プロジェクト解決)
 
 ```mermaid
 flowchart TD

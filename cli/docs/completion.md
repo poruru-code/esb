@@ -41,3 +41,18 @@ esb completion [shell]
 ### Fish 実装
 - `complete -c esb ... -a '(esb __complete ...)'` を使用します。
 - 正しいコンテキスト（例: `use` や `remove` の後）でのみ補完がトリガーされるように条件を定義します。
+
+## シーケンス図 (動的補完)
+
+```mermaid
+sequenceDiagram
+    participant User as ユーザー (Shell)
+    participant Script as 補完スクリプト
+    participant CLI as esb __complete
+
+    User->>Script: TABキー押下 (esb env use [TAB])
+    Script->>Script: コンテキスト判定 (env use)
+    Script->>CLI: esb __complete env
+    CLI-->>Script: 環境リスト (local, dev...)
+    Script-->>User: 候補表示
+```

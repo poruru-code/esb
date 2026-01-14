@@ -46,7 +46,7 @@ esb logs [service] [flags]
      - 選択結果で `req.Service` を更新します。
 3. **ログ取得**: `Logger.Logs(req)` を呼び出します。これは通常 `docker compose logs` をラップします。
 
-## Mermaid シーケンス図
+## シーケンス図
 
 ```mermaid
 sequenceDiagram
