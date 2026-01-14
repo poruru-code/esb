@@ -214,6 +214,17 @@ source .venv/bin/activate  # macOS/Linux
 *   **Ruff**: 高速な Lint / Formatting
 *   **Ty**: 統合型チェック
 
+### 証明書のセットアップ
+
+開発環境で使用するSSL証明書を生成します。
+
+```bash
+mise run setup:certs
+```
+
+これにより `~/.esb/certs` に証明書が生成され、ローカル開発環境でHTTPSが利用可能になります。
+初回実行時に `mkcert -install` が実行され、ローカルのルートCAがシステムにインストールされます。
+
 
 ### プロジェクトの初期化 (`esb init`)
 

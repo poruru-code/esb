@@ -21,7 +21,7 @@ services:
       - https_proxy
       - no_proxy
     volumes:
-      - ${ESB_CERT_DIR:-~/.esb/certs}/rootCA.crt:/usr/local/share/ca-certificates/esb-rootCA.crt:ro
+      - ${ESB_CERT_DIR:-~/.esb/certs}/rootCA.pem:/usr/local/share/ca-certificates/esb-rootCA.crt:ro
     command: >
       sh -c "update-ca-certificates && /app/agent"
     restart: unless-stopped

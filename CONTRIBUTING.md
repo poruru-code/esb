@@ -51,6 +51,7 @@ Edge Serverless Box (ESB) の開発へようこそ！
 *   **Go**: 1.25.1
 *   **Python**: 3.12+
 *   **uv**: Pythonパッケージマネージャ
+*   **mkcert**: ローカル開発用TLS証明書生成ツール
 *   **lefthook**: Gitフック管理
 *   Docker & Docker Compose (これらは別途システムのインストールが必要です)
 

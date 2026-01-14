@@ -30,6 +30,7 @@ dependencies = [
     "grpcio>=1.59.0",
     "protobuf>=4.25.0",
     "aws-croniter>=1.0.5",
+    "toml>=0.10.2",
 ]
 
 [project.optional-dependencies]

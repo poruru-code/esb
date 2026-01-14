@@ -6,6 +6,7 @@ python = "3.12"
 go = "1.25.1"
 uv = "latest"
 lefthook = "latest"
+mkcert = "latest"
  
 # Go tooling (installed via go install)
 "go:github.com/golangci/golangci-lint/cmd/golangci-lint" = "latest"
@@ -15,6 +16,7 @@ lefthook = "latest"
 
 [env]
 _.path = ["~/.local/bin"]
+CAROOT = "{{env.HOME}}/.esb/certs"
  
 [tasks.setup]
 description = "Install dependencies and enable git hooks"
@@ -23,7 +25,12 @@ run = [
   "lefthook install",
   "go build -C cli -o ~/.local/bin/esb ./cmd/esb",
   "esb config set-repo .",
+  "mise run setup:certs",
 ]
+
+[tasks."setup:certs"]
+description = "Generate development certificates using mkcert"
+run = "uv run python tools/cert-gen/generate.py"
  
 [tasks.build-cli]
 description = "Build esb CLI to ~/.local/bin"
