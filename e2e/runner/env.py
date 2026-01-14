@@ -24,6 +24,7 @@ def read_service_env(env_file: str | None, service: str) -> dict[str, str]:
     except json.JSONDecodeError as exc:
         raise RuntimeError(f"Failed to parse esb env var output: {exc}") from exc
 
+
 DEFAULT_NO_PROXY_TARGETS = [
     "agent",
     "database",
@@ -40,6 +41,7 @@ DEFAULT_NO_PROXY_TARGETS = [
     "127.0.0.1",
     "172.20.0.0/16",
 ]
+
 
 def apply_proxy_env() -> None:
     proxy_keys = ("HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy")
@@ -99,17 +101,20 @@ def build_env_list(entries: list[tuple[str, str]]) -> str:
             parts.append(name)
     return ",".join(parts)
 
+
 def resolve_esb_home(env_name: str) -> Path:
     esb_home = os.environ.get("ESB_HOME")
     if esb_home:
         return Path(esb_home).expanduser()
     return Path.home() / ".esb" / env_name
 
+
 def load_ports(env_name: str) -> dict[str, int]:
     port_file = resolve_esb_home(env_name) / "ports.json"
     if port_file.exists():
         return json.loads(port_file.read_text())
     return {}
+
 
 def apply_ports_to_env(ports: dict[str, int]) -> None:
     for env_var, port in ports.items():
@@ -129,6 +134,7 @@ def apply_ports_to_env(ports: dict[str, int]) -> None:
     if "ESB_PORT_AGENT_GRPC" in ports:
         agent_port = ports["ESB_PORT_AGENT_GRPC"]
         os.environ["AGENT_GRPC_ADDRESS"] = f"localhost:{agent_port}"
+
 
 def apply_gateway_env_from_container(env: dict[str, str], env_file: str | None) -> None:
     gateway_env = read_service_env(env_file, "gateway")
@@ -152,6 +158,7 @@ def apply_gateway_env_from_container(env: dict[str, str], env_file: str | None) 
         value = gateway_env.get(key)
         if value:
             env[key] = value
+
 
 def ensure_firecracker_node_up() -> None:
     """Fail fast if compute services are not running in firecracker mode."""
