@@ -120,8 +120,8 @@ func EnsureCertificates() error {
 		return err
 	}
 
-	caCertPath := filepath.Join(certDir, "ca.crt")
-	caKeyPath := filepath.Join(certDir, "ca.key")
+	caCertPath := filepath.Join(certDir, "rootCA.crt")
+	caKeyPath := filepath.Join(certDir, "rootCA.key")
 	certPath := filepath.Join(certDir, "server.crt")
 	keyPath := filepath.Join(certDir, "server.key")
 
