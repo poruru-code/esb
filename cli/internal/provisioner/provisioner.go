@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/compose"
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/generator"
 )
 
@@ -97,7 +98,7 @@ func (r *Runner) Provision(request Request) error {
 	if len(parsed.Resources.DynamoDB) > 0 {
 		port, ok := resolvePort(
 			ctx,
-			"ESB_PORT_DATABASE",
+			constants.EnvPortDatabase,
 			defaultDynamoPort,
 			PortRequest{Project: composeProject, Service: "database", ContainerPort: 8000},
 			r.PortResolver,
@@ -118,7 +119,7 @@ func (r *Runner) Provision(request Request) error {
 	if len(parsed.Resources.S3) > 0 {
 		port, ok := resolvePort(
 			ctx,
-			"ESB_PORT_S3",
+			constants.EnvPortS3,
 			defaultS3Port,
 			PortRequest{Project: composeProject, Service: "s3-storage", ContainerPort: 9000},
 			r.PortResolver,

@@ -4,6 +4,14 @@ import os
 import pytest
 import requests
 
+try:
+    from e2e.helpers.aws_utils import AWSUtils
+except ImportError:
+    import sys
+
+    sys.path.append(os.getcwd())
+    from e2e.helpers.aws_utils import AWSUtils
+
 from e2e.conftest import (
     DEFAULT_REQUEST_TIMEOUT,
     GATEWAY_URL,
@@ -63,33 +71,26 @@ class TestConnectivity:
         assert response.status_code == 200, f"DynamoDB connectivity failed: {response.text}"
 
     def test_s3_connectivity(self, gateway_health, auth_token):
-        """Lambda can connect to S3 (MinIO)."""
+        """Lambda can connect to S3 (RustFS)."""
         # Ensure bucket exists
-        import boto3
-
-        s3_endpoint = "http://localhost:13900"  # Default test port
-
-        # Try to infer S3 port from environment if available
-        # Note: In full-matrix-v5-ctr, s3 is often on 13900 but check if overridden
-        if "GATEWAY_PORT" in os.environ and os.environ["GATEWAY_PORT"] == "5343":
-            s3_endpoint = "http://localhost:13900"
 
         try:
-            access_key = os.environ.get("RUSTFS_ACCESS_KEY", "rustfsadmin")
-            secret_key = os.environ.get("RUSTFS_SECRET_KEY", "rustfsadmin")
+            # Use helper to create client. Note: AWSUtils defaults to ESB_PORT_S3 (9000).
+            # If we need custom logic for 13900/5343, we might need to adjust,
+            # but usually ESB_PORT_S3 should be set correctly in env by now.
+            # However, looking at the original code, it had specific logic for 13900.
+            # Let's see if we can use AWSUtils with explicit port/endpoint if needed,
+            # or if AWSUtils defaults (from env) are sufficient.
+            # The original code manually constructed endpoint_url.
+            # Let's try to trust AWSUtils which reads ESB_PORT_S3 from env.
+            # If ESB_PORT_S3 is set, AWSUtils uses it.
 
-            s3 = boto3.client(
-                "s3",
-                endpoint_url=s3_endpoint,
-                aws_access_key_id=access_key,
-                aws_secret_access_key=secret_key,
-                region_name="us-east-1",
-            )
+            s3 = AWSUtils.create_s3_client()
             s3.create_bucket(Bucket="e2e-test-bucket")
         except Exception as e:
             # If bucket exists, it throws... but checking the error properly is better
             # For smoke test, print error but don't hard fail yet, let lambda try
-            print(f"Warning: Failed to create bucket {s3_endpoint}: {e}")
+            print(f"Warning: Failed to create bucket: {e}")
 
         response = requests.post(
             f"{GATEWAY_URL}/api/s3",

@@ -9,6 +9,8 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 )
 
 // CommandOutputer defines the interface for executing commands and capturing output.
@@ -36,29 +38,29 @@ type PortDiscoveryOptions struct {
 
 var DefaultPortMappings = []PortMapping{
 	{
-		EnvVar:        "ESB_PORT_GATEWAY_HTTPS",
+		EnvVar:        constants.EnvPortGatewayHTTPS,
 		Service:       "gateway",
 		ContainerPort: 443,
 		Modes:         []string{ModeDocker},
 	},
 	{
-		EnvVar:        "ESB_PORT_GATEWAY_HTTPS",
+		EnvVar:        constants.EnvPortGatewayHTTPS,
 		Service:       "runtime-node",
 		ContainerPort: 443,
 		Modes:         []string{ModeContainerd, ModeFirecracker},
 	},
-	{EnvVar: "ESB_PORT_S3", Service: "s3-storage", ContainerPort: 9000},
-	{EnvVar: "ESB_PORT_S3_MGMT", Service: "s3-storage", ContainerPort: 9001},
-	{EnvVar: "ESB_PORT_DATABASE", Service: "database", ContainerPort: 8000},
-	{EnvVar: "ESB_PORT_VICTORIALOGS", Service: "victorialogs", ContainerPort: 9428},
+	{EnvVar: constants.EnvPortS3, Service: "s3-storage", ContainerPort: 9000},
+	{EnvVar: constants.EnvPortS3Mgmt, Service: "s3-storage", ContainerPort: 9001},
+	{EnvVar: constants.EnvPortDatabase, Service: "database", ContainerPort: 8000},
+	{EnvVar: constants.EnvPortVictoriaLogs, Service: "victorialogs", ContainerPort: 9428},
 	{
-		EnvVar:        "ESB_PORT_REGISTRY",
+		EnvVar:        constants.EnvPortRegistry,
 		Service:       "registry",
 		ContainerPort: 5010,
 		Modes:         []string{ModeContainerd, ModeFirecracker},
 	},
 	{
-		EnvVar:        "ESB_PORT_AGENT_GRPC",
+		EnvVar:        constants.EnvPortAgentCGRPC,
 		Service:       "runtime-node",
 		ContainerPort: 50051,
 		Modes:         []string{ModeContainerd, ModeFirecracker},

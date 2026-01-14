@@ -6,9 +6,10 @@ package app
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"fmt"
 	"io"
 	"os"
+
+	"github.com/poruru/edge-serverless-box/cli/internal/ui"
 )
 
 // AuthCredentials holds the authentication configuration that was either
@@ -93,11 +94,12 @@ func generateSecureRandom(length int) string {
 // PrintGeneratedCredentials outputs the auto-generated credentials to the writer.
 // Only called when credentials were actually generated.
 func PrintGeneratedCredentials(out io.Writer, creds AuthCredentials) {
-	fmt.Fprintln(out, "🔑 Authentication credentials:")
-	fmt.Fprintf(out, "   AUTH_USER         = %s\n", creds.AuthUser)
-	fmt.Fprintf(out, "   AUTH_PASS         = %s\n", creds.AuthPass)
-	fmt.Fprintf(out, "   JWT_SECRET_KEY    = %s\n", creds.JWTSecretKey)
-	fmt.Fprintf(out, "   X_API_KEY         = %s\n", creds.XAPIKey)
-	fmt.Fprintf(out, "   RUSTFS_ACCESS_KEY = %s\n", creds.RustfsAccessKey)
-	fmt.Fprintf(out, "   RUSTFS_SECRET_KEY = %s\n", creds.RustfsSecretKey)
+	console := ui.New(out)
+	console.Header("🔑", "Authentication credentials:")
+	console.Item("AUTH_USER", creds.AuthUser)
+	console.Item("AUTH_PASS", creds.AuthPass)
+	console.Item("JWT_SECRET_KEY", creds.JWTSecretKey)
+	console.Item("X_API_KEY", creds.XAPIKey)
+	console.Item("RUSTFS_ACCESS_KEY", creds.RustfsAccessKey)
+	console.Item("RUSTFS_SECRET_KEY", creds.RustfsSecretKey)
 }

@@ -1,5 +1,5 @@
 """
-S3 compatibility tests (RustFS/MinIO).
+S3 compatibility tests (RustFS).
 
 - Verify S3 API compatibility
 - Validate behavior with RustFS backend
@@ -8,6 +8,15 @@ S3 compatibility tests (RustFS/MinIO).
 import uuid
 
 import pytest
+
+try:
+    from e2e.helpers.aws_utils import AWSUtils
+except ImportError:
+    import os
+    import sys
+
+    sys.path.append(os.getcwd())
+    from e2e.helpers.aws_utils import AWSUtils
 
 from e2e.conftest import call_api
 
@@ -141,21 +150,9 @@ class TestS3:
 
     def test_bucket_lifecycle_configuration(self, auth_token):
         """E2E: S3 Bucket Lifecycle Configuration."""
-        import os
-
-        import boto3
-        from botocore.config import Config
 
         # S3 Client for RustFS/MinIO
-        storage_port = int(os.environ.get("ESB_PORT_S3", 9000))
-        s3_client = boto3.client(
-            "s3",
-            endpoint_url=f"http://localhost:{storage_port}",
-            aws_access_key_id=os.environ.get("RUSTFS_ACCESS_KEY", "esb"),
-            aws_secret_access_key=os.environ.get("RUSTFS_SECRET_KEY", "esb"),
-            config=Config(signature_version="s3v4"),
-            verify=False,
-        )
+        s3_client = AWSUtils.create_s3_client()
 
         bucket_name = "e2e-test-bucket"
 

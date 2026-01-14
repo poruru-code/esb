@@ -13,18 +13,19 @@ import (
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
 var defaultPorts = map[string]int{
-	"ESB_PORT_GATEWAY_HTTPS": 443,
-	"ESB_PORT_GATEWAY_HTTP":  80,
-	"ESB_PORT_AGENT_GRPC":    50051,
-	"ESB_PORT_S3":            9000,
-	"ESB_PORT_S3_MGMT":       9001,
-	"ESB_PORT_DATABASE":      8001,
-	"ESB_PORT_REGISTRY":      5010,
-	"ESB_PORT_VICTORIALOGS":  9428,
+	constants.EnvPortGatewayHTTPS: 443,
+	constants.EnvPortGatewayHTTP:  80,
+	constants.EnvPortAgentCGRPC:   50051,
+	constants.EnvPortS3:           9000,
+	constants.EnvPortS3Mgmt:       9001,
+	constants.EnvPortDatabase:     8001,
+	constants.EnvPortRegistry:     5010,
+	constants.EnvPortVictoriaLogs: 9428,
 }
 
 // applyRuntimeEnv sets all environment variables required for running commands,
@@ -37,9 +38,9 @@ func applyRuntimeEnv(ctx state.Context, resolver func(string) (string, error)) {
 		env = "default"
 	}
 
-	_ = os.Setenv("ESB_ENV", env)
-	setEnvIfEmpty("ESB_PROJECT_NAME", ctx.ComposeProject)
-	setEnvIfEmpty("ESB_IMAGE_TAG", env)
+	_ = os.Setenv(constants.EnvESBEnv, env)
+	setEnvIfEmpty(constants.EnvESBProjectName, ctx.ComposeProject)
+	setEnvIfEmpty(constants.EnvESBImageTag, env)
 
 	applyPortDefaults(env)
 	applySubnetDefaults(env)
@@ -74,29 +75,29 @@ func applyPortDefaults(env string) {
 // applySubnetDefaults sets default subnet and network environment variables,
 // using indices derived from the environment name to avoid collisions.
 func applySubnetDefaults(env string) {
-	if strings.TrimSpace(os.Getenv("ESB_SUBNET_EXTERNAL")) == "" {
-		_ = os.Setenv("ESB_SUBNET_EXTERNAL", fmt.Sprintf("172.%d.0.0/16", envExternalSubnetIndex(env)))
+	if strings.TrimSpace(os.Getenv(constants.EnvSubnetExternal)) == "" {
+		_ = os.Setenv(constants.EnvSubnetExternal, fmt.Sprintf("172.%d.0.0/16", envExternalSubnetIndex(env)))
 	}
 	// Default to {project}-external to match docker-compose.yml default
-	setEnvIfEmpty("ESB_NETWORK_EXTERNAL", fmt.Sprintf("%s-external", os.Getenv("ESB_PROJECT_NAME")))
-	setEnvIfEmpty("RUNTIME_NET_SUBNET", fmt.Sprintf("172.%d.0.0/16", envRuntimeSubnetIndex(env)))
-	setEnvIfEmpty("RUNTIME_NODE_IP", fmt.Sprintf("172.%d.0.10", envRuntimeSubnetIndex(env)))
-	setEnvIfEmpty("LAMBDA_NETWORK", fmt.Sprintf("esb_int_%s", env))
+	setEnvIfEmpty(constants.EnvNetworkExternal, fmt.Sprintf("%s-external", os.Getenv(constants.EnvESBProjectName)))
+	setEnvIfEmpty(constants.EnvRuntimeNetSubnet, fmt.Sprintf("172.%d.0.0/16", envRuntimeSubnetIndex(env)))
+	setEnvIfEmpty(constants.EnvRuntimeNodeIP, fmt.Sprintf("172.%d.0.10", envRuntimeSubnetIndex(env)))
+	setEnvIfEmpty(constants.EnvLambdaNetwork, fmt.Sprintf("esb_int_%s", env))
 }
 
 // applyRegistryDefaults sets the CONTAINER_REGISTRY environment variable
 // for containerd/firecracker modes when not already specified.
 func applyRegistryDefaults(mode string) {
-	if strings.TrimSpace(os.Getenv("CONTAINER_REGISTRY")) != "" {
+	if strings.TrimSpace(os.Getenv(constants.EnvContainerRegistry)) != "" {
 		return
 	}
 	normalized := strings.ToLower(strings.TrimSpace(mode))
 	if normalized == "" {
-		normalized = strings.ToLower(strings.TrimSpace(os.Getenv("ESB_MODE")))
+		normalized = strings.ToLower(strings.TrimSpace(os.Getenv(constants.EnvESBMode)))
 	}
 	switch normalized {
 	case "containerd", "firecracker":
-		_ = os.Setenv("CONTAINER_REGISTRY", "registry:5010")
+		_ = os.Setenv(constants.EnvContainerRegistry, "registry:5010")
 	}
 }
 
@@ -151,10 +152,10 @@ func applyGeneratorConfigEnv(generatorPath string) error {
 	}
 
 	if strings.TrimSpace(cfg.Paths.FunctionsYml) != "" {
-		_ = os.Setenv("GATEWAY_FUNCTIONS_YML", cfg.Paths.FunctionsYml)
+		_ = os.Setenv(constants.EnvGatewayFunctionsYml, cfg.Paths.FunctionsYml)
 	}
 	if strings.TrimSpace(cfg.Paths.RoutingYml) != "" {
-		_ = os.Setenv("GATEWAY_ROUTING_YML", cfg.Paths.RoutingYml)
+		_ = os.Setenv(constants.EnvGatewayRoutingYml, cfg.Paths.RoutingYml)
 	}
 
 	for key, value := range cfg.Parameters {
@@ -172,7 +173,7 @@ func applyGeneratorConfigEnv(generatorPath string) error {
 // applyConfigDirEnv sets the ESB_CONFIG_DIR environment variable
 // based on the discovered project structure.
 func applyConfigDirEnv(ctx state.Context, resolver func(string) (string, error)) {
-	if strings.TrimSpace(os.Getenv("ESB_CONFIG_DIR")) != "" {
+	if strings.TrimSpace(os.Getenv(constants.EnvESBConfigDir)) != "" {
 		return
 	}
 
@@ -189,7 +190,7 @@ func applyConfigDirEnv(ctx state.Context, resolver func(string) (string, error))
 	if _, err := os.Stat(stagingAbs); err != nil {
 		return
 	}
-	_ = os.Setenv("ESB_CONFIG_DIR", filepath.ToSlash(stagingRel))
+	_ = os.Setenv(constants.EnvESBConfigDir, filepath.ToSlash(stagingRel))
 }
 
 // setEnvIfEmpty sets an environment variable only if it's currently empty.
