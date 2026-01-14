@@ -15,6 +15,7 @@ import (
 type S3API interface {
 	ListBuckets(ctx context.Context) ([]string, error)
 	CreateBucket(ctx context.Context, name string) error
+	PutBucketLifecycleConfiguration(ctx context.Context, name string, rules any) error
 }
 
 func provisionS3(ctx context.Context, client S3API, buckets []generator.S3Spec, out io.Writer) {
@@ -39,13 +40,20 @@ func provisionS3(ctx context.Context, client S3API, buckets []generator.S3Spec, 
 		}
 		if _, ok := existingBuckets[name]; ok {
 			fmt.Fprintf(out, "Bucket '%s' already exists. Skipping.\n", name)
-			continue
+		} else {
+			if err := client.CreateBucket(ctx, name); err != nil {
+				fmt.Fprintf(out, "❌ Failed to create bucket %s: %v\n", name, err)
+				continue
+			}
+			fmt.Fprintf(out, "✅ Created S3 Bucket: %s\n", name)
 		}
 
-		if err := client.CreateBucket(ctx, name); err != nil {
-			fmt.Fprintf(out, "❌ Failed to create bucket %s: %v\n", name, err)
-			continue
+		if bucket.LifecycleConfiguration != nil {
+			if err := client.PutBucketLifecycleConfiguration(ctx, name, bucket.LifecycleConfiguration); err != nil {
+				fmt.Fprintf(out, "❌ Failed to set lifecycle for bucket %s: %v\n", name, err)
+			} else {
+				fmt.Fprintf(out, "✅ Set Lifecycle Configuration for S3 Bucket: %s\n", name)
+			}
 		}
-		fmt.Fprintf(out, "✅ Created S3 Bucket: %s\n", name)
 	}
 }

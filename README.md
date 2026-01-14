@@ -214,6 +214,7 @@ source .venv/bin/activate  # macOS/Linux
 *   **Ruff**: 高速な Lint / Formatting
 *   **Ty**: 統合型チェック
 
+
 ### 証明書のセットアップ
 
 開発環境で使用するSSL証明書を生成します。
@@ -445,9 +446,17 @@ MyTable:
         AttributeType: S
     BillingMode: PAY_PER_REQUEST
 
+MyBucket:
+  Type: AWS::S3::Bucket
+  Properties:
+    BucketName: my-test-bucket
+    LifecycleConfiguration:
+      Rules:
+        - Status: Enabled
+          ExpirationInDays: 7
 ```
 
-上記を追記保存すると、ローカルの ScyllaDB に自動的にテーブルが作成されます（`Provisioner` 機能）。
+上記を追記保存すると、ローカルのサービスに自動的にテーブルやバケット（およびライフサイクル設定）が作成・適用されます（`Provisioner` 機能）。
 
 ### テスト実行
 

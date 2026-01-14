@@ -6,7 +6,6 @@ package containerd
 import (
 	"context"
 	"fmt"
-
 	"syscall"
 
 	"github.com/containerd/containerd"

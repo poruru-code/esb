@@ -187,7 +187,7 @@ def apply_ports_to_env(ports: dict[str, int]) -> None:
 
 def apply_gateway_env_from_container(env: dict[str, str], env_file: str | None) -> None:
     gateway_env = read_service_env(env_file, "gateway")
-    required = ("AUTH_USER", "AUTH_PASS", "X_API_KEY")
+    required = ("AUTH_USER", "AUTH_PASS", "X_API_KEY", "RUSTFS_ACCESS_KEY", "RUSTFS_SECRET_KEY")
     missing = [key for key in required if not gateway_env.get(key)]
     if missing:
         raise RuntimeError(
@@ -774,6 +774,9 @@ def run_scenario(args, scenario):
             # log_ports(env_name, ports)
 
             # Update env dict for pytest subprocess
+            for k, v in ports.items():
+                env[k] = str(v)
+
             env["GATEWAY_PORT"] = str(
                 ports.get("ESB_PORT_GATEWAY_HTTPS", env.get("GATEWAY_PORT", "443"))
             )

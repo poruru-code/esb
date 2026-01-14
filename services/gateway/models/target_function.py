@@ -18,4 +18,3 @@ class TargetFunction(BaseModel):
     path_params: Dict[str, str]
     route_path: Optional[str] = None
     function_config: Dict[str, Any]
-

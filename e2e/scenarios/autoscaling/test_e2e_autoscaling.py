@@ -28,9 +28,7 @@ def _grpc_list_containers():
     with grpc.insecure_channel(address) as channel:
         grpc.channel_ready_future(channel).result(timeout=GRPC_TIMEOUT_SECONDS)
         stub = agent_pb2_grpc.AgentServiceStub(channel)
-        resp = stub.ListContainers(
-            agent_pb2.ListContainersRequest(), timeout=GRPC_TIMEOUT_SECONDS
-        )
+        resp = stub.ListContainers(agent_pb2.ListContainersRequest(), timeout=GRPC_TIMEOUT_SECONDS)
         return resp.containers
 
 
@@ -38,9 +36,7 @@ def get_container_ids(function_name: str) -> list[str]:
     """Get container IDs for a function name pattern"""
     target = _normalize_function_name(function_name)
     try:
-        return [
-            c.container_id for c in _grpc_list_containers() if c.function_name == target
-        ]
+        return [c.container_id for c in _grpc_list_containers() if c.function_name == target]
     except (grpc.RpcError, grpc.FutureTimeoutError):
         # Fallback for local debugging when gRPC is not reachable.
         cmd = ["docker", "ps", "-q", "-f", f"name=lambda-{function_name}"]

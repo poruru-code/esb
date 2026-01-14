@@ -8,6 +8,7 @@ package v1
 
 import (
 	context "context"
+
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -157,21 +158,27 @@ type UnimplementedAgentServiceServer struct{}
 func (UnimplementedAgentServiceServer) EnsureContainer(context.Context, *EnsureContainerRequest) (*WorkerInfo, error) {
 	return nil, status.Error(codes.Unimplemented, "method EnsureContainer not implemented")
 }
+
 func (UnimplementedAgentServiceServer) DestroyContainer(context.Context, *DestroyContainerRequest) (*DestroyContainerResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DestroyContainer not implemented")
 }
+
 func (UnimplementedAgentServiceServer) PauseContainer(context.Context, *PauseContainerRequest) (*PauseContainerResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method PauseContainer not implemented")
 }
+
 func (UnimplementedAgentServiceServer) ResumeContainer(context.Context, *ResumeContainerRequest) (*ResumeContainerResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ResumeContainer not implemented")
 }
+
 func (UnimplementedAgentServiceServer) ListContainers(context.Context, *ListContainersRequest) (*ListContainersResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListContainers not implemented")
 }
+
 func (UnimplementedAgentServiceServer) GetContainerMetrics(context.Context, *GetContainerMetricsRequest) (*GetContainerMetricsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetContainerMetrics not implemented")
 }
+
 func (UnimplementedAgentServiceServer) InvokeWorker(context.Context, *InvokeWorkerRequest) (*InvokeWorkerResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method InvokeWorker not implemented")
 }

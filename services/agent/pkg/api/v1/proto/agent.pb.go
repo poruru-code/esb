@@ -736,21 +736,24 @@ func file_proto_agent_proto_rawDescGZIP() []byte {
 	return file_proto_agent_proto_rawDescData
 }
 
-var file_proto_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
-var file_proto_agent_proto_goTypes = []interface{}{
-	(*PauseContainerRequest)(nil),    // 0: esb.agent.v1.PauseContainerRequest
-	(*PauseContainerResponse)(nil),   // 1: esb.agent.v1.PauseContainerResponse
-	(*ResumeContainerRequest)(nil),   // 2: esb.agent.v1.ResumeContainerRequest
-	(*ResumeContainerResponse)(nil),  // 3: esb.agent.v1.ResumeContainerResponse
-	(*EnsureContainerRequest)(nil),   // 4: esb.agent.v1.EnsureContainerRequest
-	(*DestroyContainerRequest)(nil),  // 5: esb.agent.v1.DestroyContainerRequest
-	(*DestroyContainerResponse)(nil), // 6: esb.agent.v1.DestroyContainerResponse
-	(*WorkerInfo)(nil),               // 7: esb.agent.v1.WorkerInfo
-	(*ListContainersRequest)(nil),    // 8: esb.agent.v1.ListContainersRequest
-	(*ListContainersResponse)(nil),   // 9: esb.agent.v1.ListContainersResponse
-	(*ContainerState)(nil),           // 10: esb.agent.v1.ContainerState
-	nil,                              // 11: esb.agent.v1.EnsureContainerRequest.EnvEntry
-}
+var (
+	file_proto_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+	file_proto_agent_proto_goTypes  = []interface{}{
+		(*PauseContainerRequest)(nil),    // 0: esb.agent.v1.PauseContainerRequest
+		(*PauseContainerResponse)(nil),   // 1: esb.agent.v1.PauseContainerResponse
+		(*ResumeContainerRequest)(nil),   // 2: esb.agent.v1.ResumeContainerRequest
+		(*ResumeContainerResponse)(nil),  // 3: esb.agent.v1.ResumeContainerResponse
+		(*EnsureContainerRequest)(nil),   // 4: esb.agent.v1.EnsureContainerRequest
+		(*DestroyContainerRequest)(nil),  // 5: esb.agent.v1.DestroyContainerRequest
+		(*DestroyContainerResponse)(nil), // 6: esb.agent.v1.DestroyContainerResponse
+		(*WorkerInfo)(nil),               // 7: esb.agent.v1.WorkerInfo
+		(*ListContainersRequest)(nil),    // 8: esb.agent.v1.ListContainersRequest
+		(*ListContainersResponse)(nil),   // 9: esb.agent.v1.ListContainersResponse
+		(*ContainerState)(nil),           // 10: esb.agent.v1.ContainerState
+		nil,                              // 11: esb.agent.v1.EnsureContainerRequest.EnvEntry
+	}
+)
+
 var file_proto_agent_proto_depIdxs = []int32{
 	11, // 0: esb.agent.v1.EnsureContainerRequest.env:type_name -> esb.agent.v1.EnsureContainerRequest.EnvEntry
 	10, // 1: esb.agent.v1.ListContainersResponse.containers:type_name -> esb.agent.v1.ContainerState

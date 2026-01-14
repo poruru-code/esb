@@ -8,9 +8,7 @@ from services.gateway.config import GatewayConfig
 
 
 def _set_required_env(monkeypatch) -> None:
-    monkeypatch.setenv(
-        "JWT_SECRET_KEY", "test-secret-key-must-be-very-long-for-security"
-    )
+    monkeypatch.setenv("JWT_SECRET_KEY", "test-secret-key-must-be-very-long-for-security")
     monkeypatch.setenv("X_API_KEY", "test-api-key")
     monkeypatch.setenv("AUTH_USER", "test-user")
     monkeypatch.setenv("AUTH_PASS", "test-pass")

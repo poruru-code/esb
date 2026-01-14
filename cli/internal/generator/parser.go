@@ -65,7 +65,8 @@ type DynamoDBSpec struct {
 }
 
 type S3Spec struct {
-	BucketName string
+	BucketName             string
+	LifecycleConfiguration any
 }
 
 type ResourcesSpec struct {

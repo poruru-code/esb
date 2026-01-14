@@ -54,9 +54,7 @@ class TestReconciliation:
                 os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
             ),
         )
-        assert restart_result.returncode == 0, (
-            f"Failed to restart gateway: {restart_result.stderr}"
-        )
+        assert restart_result.returncode == 0, f"Failed to restart gateway: {restart_result.stderr}"
 
         # Wait for Gateway health check.
         print("Step 3: Waiting for Gateway to become healthy...")

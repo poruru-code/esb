@@ -7,11 +7,12 @@
 package v1
 
 import (
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
+
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
 const (
@@ -1059,28 +1060,31 @@ func file_agent_proto_rawDescGZIP() []byte {
 	return file_agent_proto_rawDescData
 }
 
-var file_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
-var file_agent_proto_goTypes = []any{
-	(*PauseContainerRequest)(nil),       // 0: esb.agent.v1.PauseContainerRequest
-	(*PauseContainerResponse)(nil),      // 1: esb.agent.v1.PauseContainerResponse
-	(*ResumeContainerRequest)(nil),      // 2: esb.agent.v1.ResumeContainerRequest
-	(*ResumeContainerResponse)(nil),     // 3: esb.agent.v1.ResumeContainerResponse
-	(*EnsureContainerRequest)(nil),      // 4: esb.agent.v1.EnsureContainerRequest
-	(*DestroyContainerRequest)(nil),     // 5: esb.agent.v1.DestroyContainerRequest
-	(*DestroyContainerResponse)(nil),    // 6: esb.agent.v1.DestroyContainerResponse
-	(*WorkerInfo)(nil),                  // 7: esb.agent.v1.WorkerInfo
-	(*InvokeWorkerRequest)(nil),         // 8: esb.agent.v1.InvokeWorkerRequest
-	(*InvokeWorkerResponse)(nil),        // 9: esb.agent.v1.InvokeWorkerResponse
-	(*ListContainersRequest)(nil),       // 10: esb.agent.v1.ListContainersRequest
-	(*ListContainersResponse)(nil),      // 11: esb.agent.v1.ListContainersResponse
-	(*ContainerState)(nil),              // 12: esb.agent.v1.ContainerState
-	(*GetContainerMetricsRequest)(nil),  // 13: esb.agent.v1.GetContainerMetricsRequest
-	(*GetContainerMetricsResponse)(nil), // 14: esb.agent.v1.GetContainerMetricsResponse
-	(*ContainerMetrics)(nil),            // 15: esb.agent.v1.ContainerMetrics
-	nil,                                 // 16: esb.agent.v1.EnsureContainerRequest.EnvEntry
-	nil,                                 // 17: esb.agent.v1.InvokeWorkerRequest.HeadersEntry
-	nil,                                 // 18: esb.agent.v1.InvokeWorkerResponse.HeadersEntry
-}
+var (
+	file_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
+	file_agent_proto_goTypes  = []any{
+		(*PauseContainerRequest)(nil),       // 0: esb.agent.v1.PauseContainerRequest
+		(*PauseContainerResponse)(nil),      // 1: esb.agent.v1.PauseContainerResponse
+		(*ResumeContainerRequest)(nil),      // 2: esb.agent.v1.ResumeContainerRequest
+		(*ResumeContainerResponse)(nil),     // 3: esb.agent.v1.ResumeContainerResponse
+		(*EnsureContainerRequest)(nil),      // 4: esb.agent.v1.EnsureContainerRequest
+		(*DestroyContainerRequest)(nil),     // 5: esb.agent.v1.DestroyContainerRequest
+		(*DestroyContainerResponse)(nil),    // 6: esb.agent.v1.DestroyContainerResponse
+		(*WorkerInfo)(nil),                  // 7: esb.agent.v1.WorkerInfo
+		(*InvokeWorkerRequest)(nil),         // 8: esb.agent.v1.InvokeWorkerRequest
+		(*InvokeWorkerResponse)(nil),        // 9: esb.agent.v1.InvokeWorkerResponse
+		(*ListContainersRequest)(nil),       // 10: esb.agent.v1.ListContainersRequest
+		(*ListContainersResponse)(nil),      // 11: esb.agent.v1.ListContainersResponse
+		(*ContainerState)(nil),              // 12: esb.agent.v1.ContainerState
+		(*GetContainerMetricsRequest)(nil),  // 13: esb.agent.v1.GetContainerMetricsRequest
+		(*GetContainerMetricsResponse)(nil), // 14: esb.agent.v1.GetContainerMetricsResponse
+		(*ContainerMetrics)(nil),            // 15: esb.agent.v1.ContainerMetrics
+		nil,                                 // 16: esb.agent.v1.EnsureContainerRequest.EnvEntry
+		nil,                                 // 17: esb.agent.v1.InvokeWorkerRequest.HeadersEntry
+		nil,                                 // 18: esb.agent.v1.InvokeWorkerResponse.HeadersEntry
+	}
+)
+
 var file_agent_proto_depIdxs = []int32{
 	16, // 0: esb.agent.v1.EnsureContainerRequest.env:type_name -> esb.agent.v1.EnsureContainerRequest.EnvEntry
 	17, // 1: esb.agent.v1.InvokeWorkerRequest.headers:type_name -> esb.agent.v1.InvokeWorkerRequest.HeadersEntry
