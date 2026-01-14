@@ -42,7 +42,7 @@ func (c *Console) BlockEnd() {
 // Item prints a key-value item with indentation.
 // Example:    Key: Value
 func (c *Console) Item(key string, value any) {
-	fmt.Fprintf(c.Out, "   %-18s %v\n", key+":", value)
+	fmt.Fprintf(c.Out, "   %-30s %v\n", key+":", value)
 }
 
 // ItemPlain prints a generic indented line.

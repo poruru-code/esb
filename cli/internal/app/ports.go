@@ -86,12 +86,12 @@ func PrintDiscoveredPorts(out io.Writer, ports map[string]int) {
 	console.BlockStart("🔌", "Discovered Ports:")
 
 	// Print known critical ports first for better UX
-	printPort(console, ports, constants.EnvPortGatewayHTTPS, "Gateway HTTPS")
-	printPort(console, ports, constants.EnvPortVictoriaLogs, "VictoriaLogs")
-	printPort(console, ports, constants.EnvPortDatabase, "ScyllaDB")
-	printPort(console, ports, constants.EnvPortS3, "RustFS")
-	printPort(console, ports, constants.EnvPortS3Mgmt, "S3 Management")
-	printPort(console, ports, constants.EnvPortRegistry, "Registry")
+	printPort(console, ports, constants.EnvPortGatewayHTTPS)
+	printPort(console, ports, constants.EnvPortVictoriaLogs)
+	printPort(console, ports, constants.EnvPortDatabase)
+	printPort(console, ports, constants.EnvPortS3)
+	printPort(console, ports, constants.EnvPortS3Mgmt)
+	printPort(console, ports, constants.EnvPortRegistry)
 
 	// Print remaining unknown ports
 	for k, v := range ports {
@@ -110,13 +110,11 @@ func isKnownPort(key string) bool {
 	return false
 }
 
-func printPort(console *ui.Console, ports map[string]int, key, label string) {
+func printPort(console *ui.Console, ports map[string]int, key string) {
 	if val, ok := ports[key]; ok {
-		// Use manual formatting to include the key name in parenthesis if needed,
-		// or extend Console.Item to support it. For now, match the detailed "Key (Env): Val" style.
-		// Or simplified: use Item with formatted key.
-		displayKey := fmt.Sprintf("%s (%s)", label, key)
-		console.Item(displayKey, val)
+		// Use only the environment variable name as the key for consistent alignment,
+		// matching the style of PrintGeneratedCredentials in auth.go.
+		console.Item(key, val)
 	}
 }
 

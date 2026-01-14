@@ -10,7 +10,7 @@ except ImportError:
     import sys
 
     sys.path.append(os.getcwd())
-    from e2e.helpers.aws_utils import AWSUtils
+    from e2e.runner.aws_utils import AWSUtils
 
 from e2e.conftest import (
     DEFAULT_REQUEST_TIMEOUT,

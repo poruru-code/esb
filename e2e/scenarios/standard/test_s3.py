@@ -9,16 +9,8 @@ import uuid
 
 import pytest
 
-try:
-    from e2e.helpers.aws_utils import AWSUtils
-except ImportError:
-    import os
-    import sys
-
-    sys.path.append(os.getcwd())
-    from e2e.helpers.aws_utils import AWSUtils
-
 from e2e.conftest import call_api
+from e2e.runner.aws_utils import AWSUtils
 
 
 class TestS3:
