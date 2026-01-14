@@ -1,0 +1,18 @@
+{
+  "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-streamspecification.html",
+  "Properties": {
+    "StreamViewType": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-streamspecification.html#cfn-dynamodb-table-streamspecification-streamviewtype",
+      "UpdateType": "Mutable",
+      "Required": true,
+      "PrimitiveType": "String"
+    },
+    "ResourcePolicy": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-streamspecification.html#cfn-dynamodb-table-streamspecification-resourcepolicy",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "ResourcePolicy"
+    }
+  },
+  "typeName": "AWS::DynamoDB::Table.StreamSpecification"
+}

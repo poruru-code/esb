@@ -1,0 +1,18 @@
+{
+  "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-dataexport.html",
+  "Properties": {
+    "Destination": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-dataexport.html#cfn-s3-bucket-dataexport-destination",
+      "UpdateType": "Mutable",
+      "Required": true,
+      "Type": "Destination"
+    },
+    "OutputSchemaVersion": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-dataexport.html#cfn-s3-bucket-dataexport-outputschemaversion",
+      "UpdateType": "Mutable",
+      "Required": true,
+      "PrimitiveType": "String"
+    }
+  },
+  "typeName": "AWS::S3::Bucket.DataExport"
+}

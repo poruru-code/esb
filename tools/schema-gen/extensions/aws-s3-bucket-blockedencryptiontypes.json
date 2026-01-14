@@ -1,0 +1,14 @@
+{
+  "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-blockedencryptiontypes.html",
+  "Properties": {
+    "EncryptionType": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-blockedencryptiontypes.html#cfn-s3-bucket-blockedencryptiontypes-encryptiontype",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "List",
+      "PrimitiveItemType": "String",
+      "DuplicatesAllowed": false
+    }
+  },
+  "typeName": "AWS::S3::Bucket.BlockedEncryptionTypes"
+}

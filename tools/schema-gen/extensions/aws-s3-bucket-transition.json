@@ -1,0 +1,24 @@
+{
+  "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-transition.html",
+  "Properties": {
+    "TransitionDate": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-transition.html#cfn-s3-bucket-transition-transitiondate",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "PrimitiveType": "String"
+    },
+    "StorageClass": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-transition.html#cfn-s3-bucket-transition-storageclass",
+      "UpdateType": "Mutable",
+      "Required": true,
+      "PrimitiveType": "String"
+    },
+    "TransitionInDays": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-transition.html#cfn-s3-bucket-transition-transitionindays",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "PrimitiveType": "Integer"
+    }
+  },
+  "typeName": "AWS::S3::Bucket.Transition"
+}

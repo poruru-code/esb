@@ -3,7 +3,11 @@
 // Why: Separate resource extraction from the main parser flow.
 package generator
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/poruru/edge-serverless-box/cli/internal/generator/schema"
+)
 
 func parseLayerResources(resources map[string]any, parameters map[string]string) (map[string]LayerSpec, []LayerSpec) {
 	layerMap := map[string]LayerSpec{}
@@ -61,20 +65,28 @@ func parseOtherResources(resources map[string]any, parameters map[string]string)
 		case "AWS::DynamoDB::Table":
 			tableName := asStringDefault(props["TableName"], logicalID)
 			tableName = resolveIntrinsic(tableName, parameters)
+
+			var tableProps schema.AWSDynamoDBTableProperties
+			_ = mapToStruct(props, &tableProps)
+
 			parsed.DynamoDB = append(parsed.DynamoDB, DynamoDBSpec{
 				TableName:              tableName,
-				KeySchema:              props["KeySchema"],
-				AttributeDefinitions:   props["AttributeDefinitions"],
-				GlobalSecondaryIndexes: props["GlobalSecondaryIndexes"],
+				KeySchema:              tableProps.KeySchema,
+				AttributeDefinitions:   tableProps.AttributeDefinitions,
+				GlobalSecondaryIndexes: tableProps.GlobalSecondaryIndexes,
 				BillingMode:            asStringDefault(props["BillingMode"], "PROVISIONED"),
-				ProvisionedThroughput:  props["ProvisionedThroughput"],
+				ProvisionedThroughput:  tableProps.ProvisionedThroughput,
 			})
 		case "AWS::S3::Bucket":
 			bucketName := asStringDefault(props["BucketName"], strings.ToLower(logicalID))
 			bucketName = resolveIntrinsic(bucketName, parameters)
+
+			var s3Props schema.AWSS3BucketProperties
+			_ = mapToStruct(props, &s3Props)
+
 			parsed.S3 = append(parsed.S3, S3Spec{
 				BucketName:             bucketName,
-				LifecycleConfiguration: props["LifecycleConfiguration"],
+				LifecycleConfiguration: s3Props.LifecycleConfiguration,
 			})
 
 		}

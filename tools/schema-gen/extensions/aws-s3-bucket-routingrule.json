@@ -1,0 +1,18 @@
+{
+  "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-routingrule.html",
+  "Properties": {
+    "RedirectRule": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-routingrule.html#cfn-s3-bucket-routingrule-redirectrule",
+      "UpdateType": "Mutable",
+      "Required": true,
+      "Type": "RedirectRule"
+    },
+    "RoutingRuleCondition": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-routingrule.html#cfn-s3-bucket-routingrule-routingrulecondition",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "RoutingRuleCondition"
+    }
+  },
+  "typeName": "AWS::S3::Bucket.RoutingRule"
+}

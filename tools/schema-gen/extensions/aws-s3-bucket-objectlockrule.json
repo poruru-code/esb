@@ -1,0 +1,12 @@
+{
+  "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-objectlockrule.html",
+  "Properties": {
+    "DefaultRetention": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-objectlockrule.html#cfn-s3-bucket-objectlockrule-defaultretention",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "DefaultRetention"
+    }
+  },
+  "typeName": "AWS::S3::Bucket.ObjectLockRule"
+}

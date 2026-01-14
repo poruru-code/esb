@@ -57,16 +57,16 @@ type RuntimeManagementConfig struct {
 
 type DynamoDBSpec struct {
 	TableName              string
-	KeySchema              any
-	AttributeDefinitions   any
-	GlobalSecondaryIndexes any
+	KeySchema              []schema.AWSDynamoDBTableKeySchema
+	AttributeDefinitions   []schema.AWSDynamoDBTableAttributeDefinition
+	GlobalSecondaryIndexes []schema.AWSDynamoDBTableGlobalSecondaryIndex
 	BillingMode            string
-	ProvisionedThroughput  any
+	ProvisionedThroughput  *schema.AWSDynamoDBTableProvisionedThroughput
 }
 
 type S3Spec struct {
 	BucketName             string
-	LifecycleConfiguration any
+	LifecycleConfiguration *schema.AWSS3BucketLifecycleConfiguration
 }
 
 type ResourcesSpec struct {

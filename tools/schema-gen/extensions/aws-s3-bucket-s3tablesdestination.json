@@ -1,0 +1,30 @@
+{
+  "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-s3tablesdestination.html",
+  "Properties": {
+    "TableBucketArn": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-s3tablesdestination.html#cfn-s3-bucket-s3tablesdestination-tablebucketarn",
+      "UpdateType": "Mutable",
+      "Required": true,
+      "PrimitiveType": "String"
+    },
+    "TableName": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-s3tablesdestination.html#cfn-s3-bucket-s3tablesdestination-tablename",
+      "UpdateType": "Mutable",
+      "Required": true,
+      "PrimitiveType": "String"
+    },
+    "TableArn": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-s3tablesdestination.html#cfn-s3-bucket-s3tablesdestination-tablearn",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "PrimitiveType": "String"
+    },
+    "TableNamespace": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-s3tablesdestination.html#cfn-s3-bucket-s3tablesdestination-tablenamespace",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "PrimitiveType": "String"
+    }
+  },
+  "typeName": "AWS::S3::Bucket.S3TablesDestination"
+}

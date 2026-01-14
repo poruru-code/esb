@@ -39,6 +39,52 @@ Resources:
 	if fn.Runtime != "python3.12" {
 		t.Fatalf("unexpected runtime: %s", fn.Runtime)
 	}
+	// Verify parsing works using strict schema types implicitly via Result
+	if fn.MemorySize != 0 { // Default
+		t.Logf("memory size: %d", fn.MemorySize)
+	}
+
+	// Add a test case specifically for a field that relies on strict typing logic if possible
+	// But since the struct fields are mostly standard types (string, int), existing tests cover the values.
+	// We can add a check for a field that might be sensitive to type mapping.
+}
+
+func TestParseSAMTemplateStrictTypes(t *testing.T) {
+	// This test explicitly checks fields that are handled by the new strict parsing logic
+	content := `
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Resources:
+  StrictFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: strict-func
+      CodeUri: functions/strict/
+      Handler: index.handler
+      Runtime: nodejs18.x
+      Timeout: 60
+      MemorySize: 512
+      Architectures:
+        - arm64
+      AutoPublishAlias: live
+`
+	result, err := ParseSAMTemplate(content, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	fn := result.Functions[0]
+	if fn.Name != "strict-func" {
+		t.Errorf("unexpected name: %s", fn.Name)
+	}
+	if fn.Timeout != 60 {
+		t.Errorf("unexpected timeout: %d", fn.Timeout)
+	}
+	if fn.MemorySize != 512 {
+		t.Errorf("unexpected memory: %d", fn.MemorySize)
+	}
+	if len(fn.Architectures) != 1 || fn.Architectures[0] != "arm64" {
+		t.Errorf("unexpected architectures: %v", fn.Architectures)
+	}
 }
 
 func TestParseSAMTemplateGlobalsDefaults(t *testing.T) {

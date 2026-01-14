@@ -4,11 +4,24 @@
 package generator
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
 )
+
+func structToMap(input any) (map[string]any, error) {
+	data, err := json.Marshal(input)
+	if err != nil {
+		return nil, err
+	}
+	var output map[string]any
+	if err := json.Unmarshal(data, &output); err != nil {
+		return nil, err
+	}
+	return output, nil
+}
 
 func asMap(value any) map[string]any {
 	if value == nil {
@@ -112,4 +125,13 @@ func asIntDefault(value any, fallback int) int {
 		return *val
 	}
 	return fallback
+}
+
+// mapToStruct converts data between different struct types via JSON marshaling.
+func mapToStruct(input, output any) error {
+	data, err := json.Marshal(input)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(data, output)
 }

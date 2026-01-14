@@ -1,0 +1,14 @@
+{
+  "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-corsconfiguration.html",
+  "Properties": {
+    "CorsRules": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-corsconfiguration.html#cfn-s3-bucket-corsconfiguration-corsrules",
+      "UpdateType": "Mutable",
+      "Required": true,
+      "Type": "List",
+      "ItemType": "CorsRule",
+      "DuplicatesAllowed": false
+    }
+  },
+  "typeName": "AWS::S3::Bucket.CorsConfiguration"
+}

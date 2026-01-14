@@ -1,0 +1,50 @@
+{
+  "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-corsrule.html",
+  "Properties": {
+    "ExposedHeaders": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-corsrule.html#cfn-s3-bucket-corsrule-exposedheaders",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "List",
+      "PrimitiveItemType": "String",
+      "DuplicatesAllowed": false
+    },
+    "AllowedMethods": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-corsrule.html#cfn-s3-bucket-corsrule-allowedmethods",
+      "UpdateType": "Mutable",
+      "Required": true,
+      "Type": "List",
+      "PrimitiveItemType": "String",
+      "DuplicatesAllowed": false
+    },
+    "AllowedOrigins": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-corsrule.html#cfn-s3-bucket-corsrule-allowedorigins",
+      "UpdateType": "Mutable",
+      "Required": true,
+      "Type": "List",
+      "PrimitiveItemType": "String",
+      "DuplicatesAllowed": false
+    },
+    "AllowedHeaders": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-corsrule.html#cfn-s3-bucket-corsrule-allowedheaders",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "List",
+      "PrimitiveItemType": "String",
+      "DuplicatesAllowed": false
+    },
+    "MaxAge": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-corsrule.html#cfn-s3-bucket-corsrule-maxage",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "PrimitiveType": "Integer"
+    },
+    "Id": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-corsrule.html#cfn-s3-bucket-corsrule-id",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "PrimitiveType": "String"
+    }
+  },
+  "typeName": "AWS::S3::Bucket.CorsRule"
+}

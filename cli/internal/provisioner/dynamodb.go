@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/generator"
+	"github.com/poruru/edge-serverless-box/cli/internal/generator/schema"
 )
 
 type DynamoDBAPI interface {
@@ -132,65 +133,46 @@ func buildDynamoCreateInput(table generator.DynamoDBSpec) (DynamoCreateInput, er
 	}, nil
 }
 
-func parseKeySchema(raw any) ([]KeySchemaElement, error) {
-	if raw == nil {
+func parseKeySchema(items []schema.AWSDynamoDBTableKeySchema) ([]KeySchemaElement, error) {
+	if len(items) == 0 {
 		return nil, nil
 	}
-	values, ok := raw.([]any)
-	if !ok {
-		return nil, fmt.Errorf("invalid key schema")
-	}
-	out := make([]KeySchemaElement, 0, len(values))
-	for _, value := range values {
-		entry, ok := value.(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("invalid key schema entry")
-		}
-		name := strings.TrimSpace(toString(entry["AttributeName"]))
-		keyType := strings.TrimSpace(toString(entry["KeyType"]))
+	out := make([]KeySchemaElement, 0, len(items))
+	for _, item := range items {
+		name := strings.TrimSpace(toString(item.AttributeName))
+		keyType := strings.TrimSpace(toString(item.KeyType))
 		out = append(out, KeySchemaElement{AttributeName: name, KeyType: keyType})
 	}
 	return out, nil
 }
 
-func parseAttributeDefinitions(raw any) ([]AttributeDefinition, error) {
-	if raw == nil {
+func parseAttributeDefinitions(items []schema.AWSDynamoDBTableAttributeDefinition) ([]AttributeDefinition, error) {
+	if len(items) == 0 {
 		return nil, nil
 	}
-	values, ok := raw.([]any)
-	if !ok {
-		return nil, fmt.Errorf("invalid attribute definitions")
-	}
-	out := make([]AttributeDefinition, 0, len(values))
-	for _, value := range values {
-		entry, ok := value.(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("invalid attribute definition entry")
-		}
-		name := strings.TrimSpace(toString(entry["AttributeName"]))
-		attrType := strings.TrimSpace(toString(entry["AttributeType"]))
+	out := make([]AttributeDefinition, 0, len(items))
+	for _, item := range items {
+		name := strings.TrimSpace(toString(item.AttributeName))
+		attrType := strings.TrimSpace(toString(item.AttributeType))
 		out = append(out, AttributeDefinition{AttributeName: name, AttributeType: attrType})
 	}
 	return out, nil
 }
 
-func parseProvisionedThroughput(raw any, billingMode string) (*ProvisionedThroughput, error) {
+func parseProvisionedThroughput(item *schema.AWSDynamoDBTableProvisionedThroughput, billingMode string) (*ProvisionedThroughput, error) {
 	if strings.EqualFold(billingMode, "PAY_PER_REQUEST") {
 		return nil, nil
 	}
-	if raw == nil {
+	if item == nil {
 		return &ProvisionedThroughput{ReadCapacityUnits: 1, WriteCapacityUnits: 1}, nil
 	}
-	entry, ok := raw.(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("invalid provisioned throughput")
-	}
-	readUnits, ok := toInt64(entry["ReadCapacityUnits"])
-	if !ok {
+
+	readUnits, _ := toInt64(item.ReadCapacityUnits) // ignore error, default to 0
+	if readUnits == 0 {
 		readUnits = 1
 	}
-	writeUnits, ok := toInt64(entry["WriteCapacityUnits"])
-	if !ok {
+	writeUnits, _ := toInt64(item.WriteCapacityUnits)
+	if writeUnits == 0 {
 		writeUnits = 1
 	}
 	return &ProvisionedThroughput{
@@ -199,30 +181,22 @@ func parseProvisionedThroughput(raw any, billingMode string) (*ProvisionedThroug
 	}, nil
 }
 
-func parseGlobalSecondaryIndexes(raw any, billingMode string) ([]GlobalSecondaryIndex, error) {
-	if raw == nil {
+func parseGlobalSecondaryIndexes(items []schema.AWSDynamoDBTableGlobalSecondaryIndex, billingMode string) ([]GlobalSecondaryIndex, error) {
+	if len(items) == 0 {
 		return nil, nil
 	}
-	values, ok := raw.([]any)
-	if !ok {
-		return nil, fmt.Errorf("invalid global secondary indexes")
-	}
-	out := make([]GlobalSecondaryIndex, 0, len(values))
-	for _, value := range values {
-		entry, ok := value.(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("invalid global secondary index entry")
-		}
-		name := strings.TrimSpace(toString(entry["IndexName"]))
-		keySchema, err := parseKeySchema(entry["KeySchema"])
+	out := make([]GlobalSecondaryIndex, 0, len(items))
+	for _, item := range items {
+		name := strings.TrimSpace(toString(item.IndexName))
+		keySchema, err := parseKeySchema(item.KeySchema)
 		if err != nil {
 			return nil, err
 		}
-		projection, err := parseProjection(entry["Projection"])
+		projection, err := parseProjection(item.Projection)
 		if err != nil {
 			return nil, err
 		}
-		throughput, err := parseProvisionedThroughput(entry["ProvisionedThroughput"], billingMode)
+		throughput, err := parseProvisionedThroughput(item.ProvisionedThroughput, billingMode)
 		if err != nil {
 			return nil, err
 		}
@@ -236,16 +210,17 @@ func parseGlobalSecondaryIndexes(raw any, billingMode string) ([]GlobalSecondary
 	return out, nil
 }
 
-func parseProjection(raw any) (Projection, error) {
-	if raw == nil {
+func parseProjection(item *schema.AWSDynamoDBTableProjection) (Projection, error) {
+	if item == nil {
 		return Projection{}, nil
 	}
-	entry, ok := raw.(map[string]any)
-	if !ok {
-		return Projection{}, fmt.Errorf("invalid projection")
-	}
-	projectionType := strings.TrimSpace(toString(entry["ProjectionType"]))
-	nonKeys := toStringSlice(entry["NonKeyAttributes"])
+	projectionType := strings.TrimSpace(toString(item.ProjectionType))
+
+	// NonKeyAttributes is []interface{} in schema because of strict parsing of []interface{}?
+	// In sam_generated.go: NonKeyAttributes []interface{} `json:"NonKeyAttributes,omitempty"`
+	// So we need to convert slice of interface to slice of string.
+	nonKeys := toStringSlice(item.NonKeyAttributes)
+
 	return Projection{
 		ProjectionType:   projectionType,
 		NonKeyAttributes: nonKeys,

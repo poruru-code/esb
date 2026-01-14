@@ -1,0 +1,24 @@
+{
+  "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-lambdaconfiguration.html",
+  "Properties": {
+    "Function": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-lambdaconfiguration.html#cfn-s3-bucket-lambdaconfiguration-function",
+      "UpdateType": "Mutable",
+      "Required": true,
+      "PrimitiveType": "String"
+    },
+    "Filter": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-lambdaconfiguration.html#cfn-s3-bucket-lambdaconfiguration-filter",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "NotificationFilter"
+    },
+    "Event": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-lambdaconfiguration.html#cfn-s3-bucket-lambdaconfiguration-event",
+      "UpdateType": "Mutable",
+      "Required": true,
+      "PrimitiveType": "String"
+    }
+  },
+  "typeName": "AWS::S3::Bucket.LambdaConfiguration"
+}

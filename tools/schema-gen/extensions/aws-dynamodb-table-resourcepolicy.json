@@ -1,0 +1,12 @@
+{
+  "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-resourcepolicy.html",
+  "Properties": {
+    "PolicyDocument": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-resourcepolicy.html#cfn-dynamodb-table-resourcepolicy-policydocument",
+      "UpdateType": "Mutable",
+      "Required": true,
+      "PrimitiveType": "Json"
+    }
+  },
+  "typeName": "AWS::DynamoDB::Table.ResourcePolicy"
+}

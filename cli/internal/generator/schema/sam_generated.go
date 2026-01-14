@@ -2,6 +2,1095 @@
 
 package schema
 
+// AWSDynamoDBTable
+type AWSDynamoDBTable struct {
+	Properties *AWSDynamoDBTableProperties `json:"Properties,omitempty"`
+	Type       interface{}                 `json:"Type,omitempty"`
+}
+
+// AWSDynamoDBTableAttributeDefinition
+type AWSDynamoDBTableAttributeDefinition struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-attributedefinition.html#cfn-dynamodb-table-attributedefinition-attributename
+	AttributeName interface{} `json:"AttributeName"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-attributedefinition.html#cfn-dynamodb-table-attributedefinition-attributetype
+	AttributeType interface{} `json:"AttributeType"`
+}
+
+// AWSDynamoDBTableContributorInsightsSpecification
+type AWSDynamoDBTableContributorInsightsSpecification struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-contributorinsightsspecification.html#cfn-dynamodb-table-contributorinsightsspecification-enabled
+	Enabled interface{} `json:"Enabled"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-contributorinsightsspecification.html#cfn-dynamodb-table-contributorinsightsspecification-mode
+	Mode interface{} `json:"Mode,omitempty"`
+}
+
+// AWSDynamoDBTableCsv
+type AWSDynamoDBTableCsv struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-csv.html#cfn-dynamodb-table-csv-delimiter
+	Delimiter interface{} `json:"Delimiter,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-csv.html#cfn-dynamodb-table-csv-headerlist
+	HeaderList []interface{} `json:"HeaderList,omitempty"`
+}
+
+// AWSDynamoDBTableGlobalSecondaryIndex
+type AWSDynamoDBTableGlobalSecondaryIndex struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-globalsecondaryindex.html#cfn-dynamodb-table-globalsecondaryindex-contributorinsightsspecification
+	ContributorInsightsSpecification *AWSDynamoDBTableContributorInsightsSpecification `json:"ContributorInsightsSpecification,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-globalsecondaryindex.html#cfn-dynamodb-table-globalsecondaryindex-indexname
+	IndexName interface{} `json:"IndexName"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-globalsecondaryindex.html#cfn-dynamodb-table-globalsecondaryindex-keyschema
+	KeySchema []AWSDynamoDBTableKeySchema `json:"KeySchema"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-globalsecondaryindex.html#cfn-dynamodb-table-globalsecondaryindex-ondemandthroughput
+	OnDemandThroughput *AWSDynamoDBTableOnDemandThroughput `json:"OnDemandThroughput,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-globalsecondaryindex.html#cfn-dynamodb-table-globalsecondaryindex-projection
+	Projection *AWSDynamoDBTableProjection `json:"Projection"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-globalsecondaryindex.html#cfn-dynamodb-table-globalsecondaryindex-provisionedthroughput
+	ProvisionedThroughput *AWSDynamoDBTableProvisionedThroughput `json:"ProvisionedThroughput,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-globalsecondaryindex.html#cfn-dynamodb-table-globalsecondaryindex-warmthroughput
+	WarmThroughput *AWSDynamoDBTableWarmThroughput `json:"WarmThroughput,omitempty"`
+}
+
+// AWSDynamoDBTableImportSourceSpecification
+type AWSDynamoDBTableImportSourceSpecification struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-importsourcespecification.html#cfn-dynamodb-table-importsourcespecification-inputcompressiontype
+	InputCompressionType interface{} `json:"InputCompressionType,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-importsourcespecification.html#cfn-dynamodb-table-importsourcespecification-inputformat
+	InputFormat interface{} `json:"InputFormat"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-importsourcespecification.html#cfn-dynamodb-table-importsourcespecification-inputformatoptions
+	InputFormatOptions *AWSDynamoDBTableInputFormatOptions `json:"InputFormatOptions,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-importsourcespecification.html#cfn-dynamodb-table-importsourcespecification-s3bucketsource
+	S3BucketSource *AWSDynamoDBTableS3BucketSource `json:"S3BucketSource"`
+}
+
+// AWSDynamoDBTableInputFormatOptions
+type AWSDynamoDBTableInputFormatOptions struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-inputformatoptions.html#cfn-dynamodb-table-inputformatoptions-csv
+	Csv *AWSDynamoDBTableCsv `json:"Csv,omitempty"`
+}
+
+// AWSDynamoDBTableKeySchema
+type AWSDynamoDBTableKeySchema struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-keyschema.html#cfn-dynamodb-table-keyschema-attributename
+	AttributeName interface{} `json:"AttributeName"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-keyschema.html#cfn-dynamodb-table-keyschema-keytype
+	KeyType interface{} `json:"KeyType"`
+}
+
+// AWSDynamoDBTableKinesisStreamSpecification
+type AWSDynamoDBTableKinesisStreamSpecification struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-kinesisstreamspecification.html#cfn-dynamodb-table-kinesisstreamspecification-approximatecreationdatetimeprecision
+	ApproximateCreationDateTimePrecision interface{} `json:"ApproximateCreationDateTimePrecision,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-kinesisstreamspecification.html#cfn-dynamodb-table-kinesisstreamspecification-streamarn
+	StreamArn interface{} `json:"StreamArn"`
+}
+
+// AWSDynamoDBTableLocalSecondaryIndex
+type AWSDynamoDBTableLocalSecondaryIndex struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-localsecondaryindex.html#cfn-dynamodb-table-localsecondaryindex-indexname
+	IndexName interface{} `json:"IndexName"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-localsecondaryindex.html#cfn-dynamodb-table-localsecondaryindex-keyschema
+	KeySchema []AWSDynamoDBTableKeySchema `json:"KeySchema"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-localsecondaryindex.html#cfn-dynamodb-table-localsecondaryindex-projection
+	Projection *AWSDynamoDBTableProjection `json:"Projection"`
+}
+
+// AWSDynamoDBTableOnDemandThroughput
+type AWSDynamoDBTableOnDemandThroughput struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-ondemandthroughput.html#cfn-dynamodb-table-ondemandthroughput-maxreadrequestunits
+	MaxReadRequestUnits interface{} `json:"MaxReadRequestUnits,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-ondemandthroughput.html#cfn-dynamodb-table-ondemandthroughput-maxwriterequestunits
+	MaxWriteRequestUnits interface{} `json:"MaxWriteRequestUnits,omitempty"`
+}
+
+// AWSDynamoDBTablePointInTimeRecoverySpecification
+type AWSDynamoDBTablePointInTimeRecoverySpecification struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-pointintimerecoveryspecification.html#cfn-dynamodb-table-pointintimerecoveryspecification-pointintimerecoveryenabled
+	PointInTimeRecoveryEnabled interface{} `json:"PointInTimeRecoveryEnabled,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-pointintimerecoveryspecification.html#cfn-dynamodb-table-pointintimerecoveryspecification-recoveryperiodindays
+	RecoveryPeriodInDays interface{} `json:"RecoveryPeriodInDays,omitempty"`
+}
+
+// AWSDynamoDBTableProjection
+type AWSDynamoDBTableProjection struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-projection.html#cfn-dynamodb-table-projection-nonkeyattributes
+	NonKeyAttributes []interface{} `json:"NonKeyAttributes,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-projection.html#cfn-dynamodb-table-projection-projectiontype
+	ProjectionType interface{} `json:"ProjectionType,omitempty"`
+}
+
+// AWSDynamoDBTableProperties
+type AWSDynamoDBTableProperties struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-attributedefinitions
+	AttributeDefinitions []AWSDynamoDBTableAttributeDefinition `json:"AttributeDefinitions,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-billingmode
+	BillingMode interface{} `json:"BillingMode,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-contributorinsightsspecification
+	ContributorInsightsSpecification *AWSDynamoDBTableContributorInsightsSpecification `json:"ContributorInsightsSpecification,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-deletionprotectionenabled
+	DeletionProtectionEnabled interface{} `json:"DeletionProtectionEnabled,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-globalsecondaryindexes
+	GlobalSecondaryIndexes []AWSDynamoDBTableGlobalSecondaryIndex `json:"GlobalSecondaryIndexes,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-importsourcespecification
+	ImportSourceSpecification *AWSDynamoDBTableImportSourceSpecification `json:"ImportSourceSpecification,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-keyschema
+	KeySchema []AWSDynamoDBTableKeySchema `json:"KeySchema"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-kinesisstreamspecification
+	KinesisStreamSpecification *AWSDynamoDBTableKinesisStreamSpecification `json:"KinesisStreamSpecification,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-localsecondaryindexes
+	LocalSecondaryIndexes []AWSDynamoDBTableLocalSecondaryIndex `json:"LocalSecondaryIndexes,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-ondemandthroughput
+	OnDemandThroughput *AWSDynamoDBTableOnDemandThroughput `json:"OnDemandThroughput,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-pointintimerecoveryspecification
+	PointInTimeRecoverySpecification *AWSDynamoDBTablePointInTimeRecoverySpecification `json:"PointInTimeRecoverySpecification,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-provisionedthroughput
+	ProvisionedThroughput *AWSDynamoDBTableProvisionedThroughput `json:"ProvisionedThroughput,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-resourcepolicy
+	ResourcePolicy *AWSDynamoDBTableResourcePolicy `json:"ResourcePolicy,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-ssespecification
+	SSESpecification *AWSDynamoDBTableSSESpecification `json:"SSESpecification,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-streamspecification
+	StreamSpecification *AWSDynamoDBTableStreamSpecification `json:"StreamSpecification,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-tableclass
+	TableClass interface{} `json:"TableClass,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-tablename
+	TableName interface{} `json:"TableName,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-tags
+	Tags []Tag `json:"Tags,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-timetolivespecification
+	TimeToLiveSpecification *AWSDynamoDBTableTimeToLiveSpecification `json:"TimeToLiveSpecification,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dynamodb-table.html#cfn-dynamodb-table-warmthroughput
+	WarmThroughput *AWSDynamoDBTableWarmThroughput `json:"WarmThroughput,omitempty"`
+}
+
+// AWSDynamoDBTableProvisionedThroughput
+type AWSDynamoDBTableProvisionedThroughput struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-provisionedthroughput.html#cfn-dynamodb-table-provisionedthroughput-readcapacityunits
+	ReadCapacityUnits interface{} `json:"ReadCapacityUnits"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-provisionedthroughput.html#cfn-dynamodb-table-provisionedthroughput-writecapacityunits
+	WriteCapacityUnits interface{} `json:"WriteCapacityUnits"`
+}
+
+// AWSDynamoDBTableResourcePolicy
+type AWSDynamoDBTableResourcePolicy struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-resourcepolicy.html#cfn-dynamodb-table-resourcepolicy-policydocument
+	PolicyDocument interface{} `json:"PolicyDocument"`
+}
+
+// AWSDynamoDBTableS3BucketSource
+type AWSDynamoDBTableS3BucketSource struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-s3bucketsource.html#cfn-dynamodb-table-s3bucketsource-s3bucket
+	S3Bucket interface{} `json:"S3Bucket"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-s3bucketsource.html#cfn-dynamodb-table-s3bucketsource-s3bucketowner
+	S3BucketOwner interface{} `json:"S3BucketOwner,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-s3bucketsource.html#cfn-dynamodb-table-s3bucketsource-s3keyprefix
+	S3KeyPrefix interface{} `json:"S3KeyPrefix,omitempty"`
+}
+
+// AWSDynamoDBTableSSESpecification
+type AWSDynamoDBTableSSESpecification struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-ssespecification.html#cfn-dynamodb-table-ssespecification-kmsmasterkeyid
+	KMSMasterKeyId interface{} `json:"KMSMasterKeyId,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-ssespecification.html#cfn-dynamodb-table-ssespecification-sseenabled
+	SSEEnabled interface{} `json:"SSEEnabled"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-ssespecification.html#cfn-dynamodb-table-ssespecification-ssetype
+	SSEType interface{} `json:"SSEType,omitempty"`
+}
+
+// AWSDynamoDBTableStreamSpecification
+type AWSDynamoDBTableStreamSpecification struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-streamspecification.html#cfn-dynamodb-table-streamspecification-resourcepolicy
+	ResourcePolicy *AWSDynamoDBTableResourcePolicy `json:"ResourcePolicy,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-streamspecification.html#cfn-dynamodb-table-streamspecification-streamviewtype
+	StreamViewType interface{} `json:"StreamViewType"`
+}
+
+// AWSDynamoDBTableTimeToLiveSpecification
+type AWSDynamoDBTableTimeToLiveSpecification struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-timetolivespecification.html#cfn-dynamodb-table-timetolivespecification-attributename
+	AttributeName interface{} `json:"AttributeName,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-timetolivespecification.html#cfn-dynamodb-table-timetolivespecification-enabled
+	Enabled interface{} `json:"Enabled"`
+}
+
+// AWSDynamoDBTableWarmThroughput
+type AWSDynamoDBTableWarmThroughput struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-warmthroughput.html#cfn-dynamodb-table-warmthroughput-readunitspersecond
+	ReadUnitsPerSecond interface{} `json:"ReadUnitsPerSecond,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-warmthroughput.html#cfn-dynamodb-table-warmthroughput-writeunitspersecond
+	WriteUnitsPerSecond interface{} `json:"WriteUnitsPerSecond,omitempty"`
+}
+
+// AWSS3Bucket
+type AWSS3Bucket struct {
+	Properties *AWSS3BucketProperties `json:"Properties,omitempty"`
+	Type       interface{}            `json:"Type,omitempty"`
+}
+
+// AWSS3BucketAbortIncompleteMultipartUpload
+type AWSS3BucketAbortIncompleteMultipartUpload struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-abortincompletemultipartupload.html#cfn-s3-bucket-abortincompletemultipartupload-daysafterinitiation
+	DaysAfterInitiation interface{} `json:"DaysAfterInitiation"`
+}
+
+// AWSS3BucketAccelerateConfiguration
+type AWSS3BucketAccelerateConfiguration struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-accelerateconfiguration.html#cfn-s3-bucket-accelerateconfiguration-accelerationstatus
+	AccelerationStatus interface{} `json:"AccelerationStatus"`
+}
+
+// AWSS3BucketAccessControlTranslation
+type AWSS3BucketAccessControlTranslation struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-accesscontroltranslation.html#cfn-s3-bucket-accesscontroltranslation-owner
+	Owner interface{} `json:"Owner"`
+}
+
+// AWSS3BucketAnalyticsConfiguration
+type AWSS3BucketAnalyticsConfiguration struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-analyticsconfiguration.html#cfn-s3-bucket-analyticsconfiguration-id
+	Id interface{} `json:"Id"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-analyticsconfiguration.html#cfn-s3-bucket-analyticsconfiguration-prefix
+	Prefix interface{} `json:"Prefix,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-analyticsconfiguration.html#cfn-s3-bucket-analyticsconfiguration-storageclassanalysis
+	StorageClassAnalysis *AWSS3BucketStorageClassAnalysis `json:"StorageClassAnalysis"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-analyticsconfiguration.html#cfn-s3-bucket-analyticsconfiguration-tagfilters
+	TagFilters []AWSS3BucketTagFilter `json:"TagFilters,omitempty"`
+}
+
+// AWSS3BucketBlockedEncryptionTypes
+type AWSS3BucketBlockedEncryptionTypes struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-blockedencryptiontypes.html#cfn-s3-bucket-blockedencryptiontypes-encryptiontype
+	EncryptionType []interface{} `json:"EncryptionType,omitempty"`
+}
+
+// AWSS3BucketBucketEncryption
+type AWSS3BucketBucketEncryption struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-bucketencryption.html#cfn-s3-bucket-bucketencryption-serversideencryptionconfiguration
+	ServerSideEncryptionConfiguration []AWSS3BucketServerSideEncryptionRule `json:"ServerSideEncryptionConfiguration"`
+}
+
+// AWSS3BucketCorsConfiguration
+type AWSS3BucketCorsConfiguration struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-corsconfiguration.html#cfn-s3-bucket-corsconfiguration-corsrules
+	CorsRules []AWSS3BucketCorsRule `json:"CorsRules"`
+}
+
+// AWSS3BucketCorsRule
+type AWSS3BucketCorsRule struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-corsrule.html#cfn-s3-bucket-corsrule-allowedheaders
+	AllowedHeaders []interface{} `json:"AllowedHeaders,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-corsrule.html#cfn-s3-bucket-corsrule-allowedmethods
+	AllowedMethods []interface{} `json:"AllowedMethods"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-corsrule.html#cfn-s3-bucket-corsrule-allowedorigins
+	AllowedOrigins []interface{} `json:"AllowedOrigins"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-corsrule.html#cfn-s3-bucket-corsrule-exposedheaders
+	ExposedHeaders []interface{} `json:"ExposedHeaders,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-corsrule.html#cfn-s3-bucket-corsrule-id
+	Id interface{} `json:"Id,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-corsrule.html#cfn-s3-bucket-corsrule-maxage
+	MaxAge interface{} `json:"MaxAge,omitempty"`
+}
+
+// AWSS3BucketDataExport
+type AWSS3BucketDataExport struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-dataexport.html#cfn-s3-bucket-dataexport-destination
+	Destination *AWSS3BucketDestination `json:"Destination"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-dataexport.html#cfn-s3-bucket-dataexport-outputschemaversion
+	OutputSchemaVersion interface{} `json:"OutputSchemaVersion"`
+}
+
+// AWSS3BucketDefaultRetention
+type AWSS3BucketDefaultRetention struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-defaultretention.html#cfn-s3-bucket-defaultretention-days
+	Days interface{} `json:"Days,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-defaultretention.html#cfn-s3-bucket-defaultretention-mode
+	Mode interface{} `json:"Mode,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-defaultretention.html#cfn-s3-bucket-defaultretention-years
+	Years interface{} `json:"Years,omitempty"`
+}
+
+// AWSS3BucketDeleteMarkerReplication
+type AWSS3BucketDeleteMarkerReplication struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-deletemarkerreplication.html#cfn-s3-bucket-deletemarkerreplication-status
+	Status interface{} `json:"Status,omitempty"`
+}
+
+// AWSS3BucketDestination
+type AWSS3BucketDestination struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-destination.html#cfn-s3-bucket-destination-bucketaccountid
+	BucketAccountId interface{} `json:"BucketAccountId,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-destination.html#cfn-s3-bucket-destination-bucketarn
+	BucketArn interface{} `json:"BucketArn"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-destination.html#cfn-s3-bucket-destination-format
+	Format interface{} `json:"Format"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-destination.html#cfn-s3-bucket-destination-prefix
+	Prefix interface{} `json:"Prefix,omitempty"`
+}
+
+// AWSS3BucketEncryptionConfiguration
+type AWSS3BucketEncryptionConfiguration struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-encryptionconfiguration.html#cfn-s3-bucket-encryptionconfiguration-replicakmskeyid
+	ReplicaKmsKeyID interface{} `json:"ReplicaKmsKeyID"`
+}
+
+// AWSS3BucketEventBridgeConfiguration
+type AWSS3BucketEventBridgeConfiguration struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-eventbridgeconfiguration.html#cfn-s3-bucket-eventbridgeconfiguration-eventbridgeenabled
+	EventBridgeEnabled interface{} `json:"EventBridgeEnabled"`
+}
+
+// AWSS3BucketFilterRule
+type AWSS3BucketFilterRule struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-filterrule.html#cfn-s3-bucket-filterrule-name
+	Name interface{} `json:"Name"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-filterrule.html#cfn-s3-bucket-filterrule-value
+	Value interface{} `json:"Value"`
+}
+
+// AWSS3BucketIntelligentTieringConfiguration
+type AWSS3BucketIntelligentTieringConfiguration struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-intelligenttieringconfiguration.html#cfn-s3-bucket-intelligenttieringconfiguration-id
+	Id interface{} `json:"Id"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-intelligenttieringconfiguration.html#cfn-s3-bucket-intelligenttieringconfiguration-prefix
+	Prefix interface{} `json:"Prefix,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-intelligenttieringconfiguration.html#cfn-s3-bucket-intelligenttieringconfiguration-status
+	Status interface{} `json:"Status"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-intelligenttieringconfiguration.html#cfn-s3-bucket-intelligenttieringconfiguration-tagfilters
+	TagFilters []AWSS3BucketTagFilter `json:"TagFilters,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-intelligenttieringconfiguration.html#cfn-s3-bucket-intelligenttieringconfiguration-tierings
+	Tierings []AWSS3BucketTiering `json:"Tierings"`
+}
+
+// AWSS3BucketInventoryConfiguration
+type AWSS3BucketInventoryConfiguration struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-inventoryconfiguration.html#cfn-s3-bucket-inventoryconfiguration-destination
+	Destination *AWSS3BucketDestination `json:"Destination"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-inventoryconfiguration.html#cfn-s3-bucket-inventoryconfiguration-enabled
+	Enabled interface{} `json:"Enabled"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-inventoryconfiguration.html#cfn-s3-bucket-inventoryconfiguration-id
+	Id interface{} `json:"Id"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-inventoryconfiguration.html#cfn-s3-bucket-inventoryconfiguration-includedobjectversions
+	IncludedObjectVersions interface{} `json:"IncludedObjectVersions"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-inventoryconfiguration.html#cfn-s3-bucket-inventoryconfiguration-optionalfields
+	OptionalFields []interface{} `json:"OptionalFields,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-inventoryconfiguration.html#cfn-s3-bucket-inventoryconfiguration-prefix
+	Prefix interface{} `json:"Prefix,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-inventoryconfiguration.html#cfn-s3-bucket-inventoryconfiguration-schedulefrequency
+	ScheduleFrequency interface{} `json:"ScheduleFrequency"`
+}
+
+// AWSS3BucketInventoryTableConfiguration
+type AWSS3BucketInventoryTableConfiguration struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-inventorytableconfiguration.html#cfn-s3-bucket-inventorytableconfiguration-configurationstate
+	ConfigurationState interface{} `json:"ConfigurationState"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-inventorytableconfiguration.html#cfn-s3-bucket-inventorytableconfiguration-encryptionconfiguration
+	EncryptionConfiguration *AWSS3BucketMetadataTableEncryptionConfiguration `json:"EncryptionConfiguration,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-inventorytableconfiguration.html#cfn-s3-bucket-inventorytableconfiguration-tablearn
+	TableArn interface{} `json:"TableArn,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-inventorytableconfiguration.html#cfn-s3-bucket-inventorytableconfiguration-tablename
+	TableName interface{} `json:"TableName,omitempty"`
+}
+
+// AWSS3BucketJournalTableConfiguration
+type AWSS3BucketJournalTableConfiguration struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-journaltableconfiguration.html#cfn-s3-bucket-journaltableconfiguration-encryptionconfiguration
+	EncryptionConfiguration *AWSS3BucketMetadataTableEncryptionConfiguration `json:"EncryptionConfiguration,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-journaltableconfiguration.html#cfn-s3-bucket-journaltableconfiguration-recordexpiration
+	RecordExpiration *AWSS3BucketRecordExpiration `json:"RecordExpiration"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-journaltableconfiguration.html#cfn-s3-bucket-journaltableconfiguration-tablearn
+	TableArn interface{} `json:"TableArn,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-journaltableconfiguration.html#cfn-s3-bucket-journaltableconfiguration-tablename
+	TableName interface{} `json:"TableName,omitempty"`
+}
+
+// AWSS3BucketLambdaConfiguration
+type AWSS3BucketLambdaConfiguration struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-lambdaconfiguration.html#cfn-s3-bucket-lambdaconfiguration-event
+	Event interface{} `json:"Event"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-lambdaconfiguration.html#cfn-s3-bucket-lambdaconfiguration-filter
+	Filter *AWSS3BucketNotificationFilter `json:"Filter,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-lambdaconfiguration.html#cfn-s3-bucket-lambdaconfiguration-function
+	Function interface{} `json:"Function"`
+}
+
+// AWSS3BucketLifecycleConfiguration
+type AWSS3BucketLifecycleConfiguration struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-lifecycleconfiguration.html#cfn-s3-bucket-lifecycleconfiguration-rules
+	Rules []AWSS3BucketRule `json:"Rules"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-lifecycleconfiguration.html#cfn-s3-bucket-lifecycleconfiguration-transitiondefaultminimumobjectsize
+	TransitionDefaultMinimumObjectSize interface{} `json:"TransitionDefaultMinimumObjectSize,omitempty"`
+}
+
+// AWSS3BucketLoggingConfiguration
+type AWSS3BucketLoggingConfiguration struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-loggingconfiguration.html#cfn-s3-bucket-loggingconfiguration-destinationbucketname
+	DestinationBucketName interface{} `json:"DestinationBucketName,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-loggingconfiguration.html#cfn-s3-bucket-loggingconfiguration-logfileprefix
+	LogFilePrefix interface{} `json:"LogFilePrefix,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-loggingconfiguration.html#cfn-s3-bucket-loggingconfiguration-targetobjectkeyformat
+	TargetObjectKeyFormat *AWSS3BucketTargetObjectKeyFormat `json:"TargetObjectKeyFormat,omitempty"`
+}
+
+// AWSS3BucketMetadataConfiguration
+type AWSS3BucketMetadataConfiguration struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-metadataconfiguration.html#cfn-s3-bucket-metadataconfiguration-destination
+	Destination *AWSS3BucketMetadataDestination `json:"Destination,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-metadataconfiguration.html#cfn-s3-bucket-metadataconfiguration-inventorytableconfiguration
+	InventoryTableConfiguration *AWSS3BucketInventoryTableConfiguration `json:"InventoryTableConfiguration,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-metadataconfiguration.html#cfn-s3-bucket-metadataconfiguration-journaltableconfiguration
+	JournalTableConfiguration *AWSS3BucketJournalTableConfiguration `json:"JournalTableConfiguration"`
+}
+
+// AWSS3BucketMetadataDestination
+type AWSS3BucketMetadataDestination struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-metadatadestination.html#cfn-s3-bucket-metadatadestination-tablebucketarn
+	TableBucketArn interface{} `json:"TableBucketArn,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-metadatadestination.html#cfn-s3-bucket-metadatadestination-tablebuckettype
+	TableBucketType interface{} `json:"TableBucketType"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-metadatadestination.html#cfn-s3-bucket-metadatadestination-tablenamespace
+	TableNamespace interface{} `json:"TableNamespace,omitempty"`
+}
+
+// AWSS3BucketMetadataTableConfiguration
+type AWSS3BucketMetadataTableConfiguration struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-metadatatableconfiguration.html#cfn-s3-bucket-metadatatableconfiguration-s3tablesdestination
+	S3TablesDestination *AWSS3BucketS3TablesDestination `json:"S3TablesDestination"`
+}
+
+// AWSS3BucketMetadataTableEncryptionConfiguration
+type AWSS3BucketMetadataTableEncryptionConfiguration struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-metadatatableencryptionconfiguration.html#cfn-s3-bucket-metadatatableencryptionconfiguration-kmskeyarn
+	KmsKeyArn interface{} `json:"KmsKeyArn,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-metadatatableencryptionconfiguration.html#cfn-s3-bucket-metadatatableencryptionconfiguration-ssealgorithm
+	SseAlgorithm interface{} `json:"SseAlgorithm"`
+}
+
+// AWSS3BucketMetrics
+type AWSS3BucketMetrics struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-metrics.html#cfn-s3-bucket-metrics-eventthreshold
+	EventThreshold *AWSS3BucketReplicationTimeValue `json:"EventThreshold,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-metrics.html#cfn-s3-bucket-metrics-status
+	Status interface{} `json:"Status"`
+}
+
+// AWSS3BucketMetricsConfiguration
+type AWSS3BucketMetricsConfiguration struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-metricsconfiguration.html#cfn-s3-bucket-metricsconfiguration-accesspointarn
+	AccessPointArn interface{} `json:"AccessPointArn,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-metricsconfiguration.html#cfn-s3-bucket-metricsconfiguration-id
+	Id interface{} `json:"Id"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-metricsconfiguration.html#cfn-s3-bucket-metricsconfiguration-prefix
+	Prefix interface{} `json:"Prefix,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-metricsconfiguration.html#cfn-s3-bucket-metricsconfiguration-tagfilters
+	TagFilters []AWSS3BucketTagFilter `json:"TagFilters,omitempty"`
+}
+
+// AWSS3BucketNoncurrentVersionExpiration
+type AWSS3BucketNoncurrentVersionExpiration struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-noncurrentversionexpiration.html#cfn-s3-bucket-noncurrentversionexpiration-newernoncurrentversions
+	NewerNoncurrentVersions interface{} `json:"NewerNoncurrentVersions,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-noncurrentversionexpiration.html#cfn-s3-bucket-noncurrentversionexpiration-noncurrentdays
+	NoncurrentDays interface{} `json:"NoncurrentDays"`
+}
+
+// AWSS3BucketNoncurrentVersionTransition
+type AWSS3BucketNoncurrentVersionTransition struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-noncurrentversiontransition.html#cfn-s3-bucket-noncurrentversiontransition-newernoncurrentversions
+	NewerNoncurrentVersions interface{} `json:"NewerNoncurrentVersions,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-noncurrentversiontransition.html#cfn-s3-bucket-noncurrentversiontransition-storageclass
+	StorageClass interface{} `json:"StorageClass"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-noncurrentversiontransition.html#cfn-s3-bucket-noncurrentversiontransition-transitionindays
+	TransitionInDays interface{} `json:"TransitionInDays"`
+}
+
+// AWSS3BucketNotificationConfiguration
+type AWSS3BucketNotificationConfiguration struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-notificationconfiguration.html#cfn-s3-bucket-notificationconfiguration-eventbridgeconfiguration
+	EventBridgeConfiguration *AWSS3BucketEventBridgeConfiguration `json:"EventBridgeConfiguration,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-notificationconfiguration.html#cfn-s3-bucket-notificationconfiguration-lambdaconfigurations
+	LambdaConfigurations []AWSS3BucketLambdaConfiguration `json:"LambdaConfigurations,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-notificationconfiguration.html#cfn-s3-bucket-notificationconfiguration-queueconfigurations
+	QueueConfigurations []AWSS3BucketQueueConfiguration `json:"QueueConfigurations,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-notificationconfiguration.html#cfn-s3-bucket-notificationconfiguration-topicconfigurations
+	TopicConfigurations []AWSS3BucketTopicConfiguration `json:"TopicConfigurations,omitempty"`
+}
+
+// AWSS3BucketNotificationFilter
+type AWSS3BucketNotificationFilter struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-notificationfilter.html#cfn-s3-bucket-notificationfilter-s3key
+	S3Key *AWSS3BucketS3KeyFilter `json:"S3Key"`
+}
+
+// AWSS3BucketObjectLockConfiguration
+type AWSS3BucketObjectLockConfiguration struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-objectlockconfiguration.html#cfn-s3-bucket-objectlockconfiguration-objectlockenabled
+	ObjectLockEnabled interface{} `json:"ObjectLockEnabled,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-objectlockconfiguration.html#cfn-s3-bucket-objectlockconfiguration-rule
+	Rule *AWSS3BucketObjectLockRule `json:"Rule,omitempty"`
+}
+
+// AWSS3BucketObjectLockRule
+type AWSS3BucketObjectLockRule struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-objectlockrule.html#cfn-s3-bucket-objectlockrule-defaultretention
+	DefaultRetention *AWSS3BucketDefaultRetention `json:"DefaultRetention,omitempty"`
+}
+
+// AWSS3BucketOwnershipControls
+type AWSS3BucketOwnershipControls struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-ownershipcontrols.html#cfn-s3-bucket-ownershipcontrols-rules
+	Rules []AWSS3BucketOwnershipControlsRule `json:"Rules"`
+}
+
+// AWSS3BucketOwnershipControlsRule
+type AWSS3BucketOwnershipControlsRule struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-ownershipcontrolsrule.html#cfn-s3-bucket-ownershipcontrolsrule-objectownership
+	ObjectOwnership interface{} `json:"ObjectOwnership,omitempty"`
+}
+
+// AWSS3BucketPartitionedPrefix
+type AWSS3BucketPartitionedPrefix struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-partitionedprefix.html#cfn-s3-bucket-partitionedprefix-partitiondatesource
+	PartitionDateSource interface{} `json:"PartitionDateSource,omitempty"`
+}
+
+// AWSS3BucketProperties
+type AWSS3BucketProperties struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-abacstatus
+	AbacStatus interface{} `json:"AbacStatus,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-accelerateconfiguration
+	AccelerateConfiguration *AWSS3BucketAccelerateConfiguration `json:"AccelerateConfiguration,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-accesscontrol
+	AccessControl interface{} `json:"AccessControl,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-analyticsconfigurations
+	AnalyticsConfigurations []AWSS3BucketAnalyticsConfiguration `json:"AnalyticsConfigurations,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-bucketencryption
+	BucketEncryption *AWSS3BucketBucketEncryption `json:"BucketEncryption,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-bucketname
+	BucketName interface{} `json:"BucketName,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-corsconfiguration
+	CorsConfiguration *AWSS3BucketCorsConfiguration `json:"CorsConfiguration,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-intelligenttieringconfigurations
+	IntelligentTieringConfigurations []AWSS3BucketIntelligentTieringConfiguration `json:"IntelligentTieringConfigurations,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-inventoryconfigurations
+	InventoryConfigurations []AWSS3BucketInventoryConfiguration `json:"InventoryConfigurations,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-lifecycleconfiguration
+	LifecycleConfiguration *AWSS3BucketLifecycleConfiguration `json:"LifecycleConfiguration,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-loggingconfiguration
+	LoggingConfiguration *AWSS3BucketLoggingConfiguration `json:"LoggingConfiguration,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-metadataconfiguration
+	MetadataConfiguration *AWSS3BucketMetadataConfiguration `json:"MetadataConfiguration,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-metadatatableconfiguration
+	MetadataTableConfiguration *AWSS3BucketMetadataTableConfiguration `json:"MetadataTableConfiguration,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-metricsconfigurations
+	MetricsConfigurations []AWSS3BucketMetricsConfiguration `json:"MetricsConfigurations,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-notificationconfiguration
+	NotificationConfiguration *AWSS3BucketNotificationConfiguration `json:"NotificationConfiguration,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-objectlockconfiguration
+	ObjectLockConfiguration *AWSS3BucketObjectLockConfiguration `json:"ObjectLockConfiguration,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-objectlockenabled
+	ObjectLockEnabled interface{} `json:"ObjectLockEnabled,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-ownershipcontrols
+	OwnershipControls *AWSS3BucketOwnershipControls `json:"OwnershipControls,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-publicaccessblockconfiguration
+	PublicAccessBlockConfiguration *AWSS3BucketPublicAccessBlockConfiguration `json:"PublicAccessBlockConfiguration,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-replicationconfiguration
+	ReplicationConfiguration *AWSS3BucketReplicationConfiguration `json:"ReplicationConfiguration,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-tags
+	Tags []Tag `json:"Tags,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-versioningconfiguration
+	VersioningConfiguration *AWSS3BucketVersioningConfiguration `json:"VersioningConfiguration,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-s3-bucket.html#cfn-s3-bucket-websiteconfiguration
+	WebsiteConfiguration *AWSS3BucketWebsiteConfiguration `json:"WebsiteConfiguration,omitempty"`
+}
+
+// AWSS3BucketPublicAccessBlockConfiguration
+type AWSS3BucketPublicAccessBlockConfiguration struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-publicaccessblockconfiguration.html#cfn-s3-bucket-publicaccessblockconfiguration-blockpublicacls
+	BlockPublicAcls interface{} `json:"BlockPublicAcls,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-publicaccessblockconfiguration.html#cfn-s3-bucket-publicaccessblockconfiguration-blockpublicpolicy
+	BlockPublicPolicy interface{} `json:"BlockPublicPolicy,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-publicaccessblockconfiguration.html#cfn-s3-bucket-publicaccessblockconfiguration-ignorepublicacls
+	IgnorePublicAcls interface{} `json:"IgnorePublicAcls,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-publicaccessblockconfiguration.html#cfn-s3-bucket-publicaccessblockconfiguration-restrictpublicbuckets
+	RestrictPublicBuckets interface{} `json:"RestrictPublicBuckets,omitempty"`
+}
+
+// AWSS3BucketQueueConfiguration
+type AWSS3BucketQueueConfiguration struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-queueconfiguration.html#cfn-s3-bucket-queueconfiguration-event
+	Event interface{} `json:"Event"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-queueconfiguration.html#cfn-s3-bucket-queueconfiguration-filter
+	Filter *AWSS3BucketNotificationFilter `json:"Filter,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-queueconfiguration.html#cfn-s3-bucket-queueconfiguration-queue
+	Queue interface{} `json:"Queue"`
+}
+
+// AWSS3BucketRecordExpiration
+type AWSS3BucketRecordExpiration struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-recordexpiration.html#cfn-s3-bucket-recordexpiration-days
+	Days interface{} `json:"Days,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-recordexpiration.html#cfn-s3-bucket-recordexpiration-expiration
+	Expiration interface{} `json:"Expiration"`
+}
+
+// AWSS3BucketRedirectAllRequestsTo
+type AWSS3BucketRedirectAllRequestsTo struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-redirectallrequeststo.html#cfn-s3-bucket-redirectallrequeststo-hostname
+	HostName interface{} `json:"HostName"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-redirectallrequeststo.html#cfn-s3-bucket-redirectallrequeststo-protocol
+	Protocol interface{} `json:"Protocol,omitempty"`
+}
+
+// AWSS3BucketRedirectRule
+type AWSS3BucketRedirectRule struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-redirectrule.html#cfn-s3-bucket-redirectrule-hostname
+	HostName interface{} `json:"HostName,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-redirectrule.html#cfn-s3-bucket-redirectrule-httpredirectcode
+	HttpRedirectCode interface{} `json:"HttpRedirectCode,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-redirectrule.html#cfn-s3-bucket-redirectrule-protocol
+	Protocol interface{} `json:"Protocol,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-redirectrule.html#cfn-s3-bucket-redirectrule-replacekeyprefixwith
+	ReplaceKeyPrefixWith interface{} `json:"ReplaceKeyPrefixWith,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-redirectrule.html#cfn-s3-bucket-redirectrule-replacekeywith
+	ReplaceKeyWith interface{} `json:"ReplaceKeyWith,omitempty"`
+}
+
+// AWSS3BucketReplicaModifications
+type AWSS3BucketReplicaModifications struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-replicamodifications.html#cfn-s3-bucket-replicamodifications-status
+	Status interface{} `json:"Status"`
+}
+
+// AWSS3BucketReplicationConfiguration
+type AWSS3BucketReplicationConfiguration struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-replicationconfiguration.html#cfn-s3-bucket-replicationconfiguration-role
+	Role interface{} `json:"Role"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-replicationconfiguration.html#cfn-s3-bucket-replicationconfiguration-rules
+	Rules []AWSS3BucketReplicationRule `json:"Rules"`
+}
+
+// AWSS3BucketReplicationDestination
+type AWSS3BucketReplicationDestination struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-replicationdestination.html#cfn-s3-bucket-replicationdestination-accesscontroltranslation
+	AccessControlTranslation *AWSS3BucketAccessControlTranslation `json:"AccessControlTranslation,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-replicationdestination.html#cfn-s3-bucket-replicationdestination-account
+	Account interface{} `json:"Account,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-replicationdestination.html#cfn-s3-bucket-replicationdestination-bucket
+	Bucket interface{} `json:"Bucket"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-replicationdestination.html#cfn-s3-bucket-replicationdestination-encryptionconfiguration
+	EncryptionConfiguration *AWSS3BucketEncryptionConfiguration `json:"EncryptionConfiguration,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-replicationdestination.html#cfn-s3-bucket-replicationdestination-metrics
+	Metrics *AWSS3BucketMetrics `json:"Metrics,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-replicationdestination.html#cfn-s3-bucket-replicationdestination-replicationtime
+	ReplicationTime *AWSS3BucketReplicationTime `json:"ReplicationTime,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-replicationdestination.html#cfn-s3-bucket-replicationdestination-storageclass
+	StorageClass interface{} `json:"StorageClass,omitempty"`
+}
+
+// AWSS3BucketReplicationRule
+type AWSS3BucketReplicationRule struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-replicationrule.html#cfn-s3-bucket-replicationrule-deletemarkerreplication
+	DeleteMarkerReplication *AWSS3BucketDeleteMarkerReplication `json:"DeleteMarkerReplication,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-replicationrule.html#cfn-s3-bucket-replicationrule-destination
+	Destination *AWSS3BucketReplicationDestination `json:"Destination"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-replicationrule.html#cfn-s3-bucket-replicationrule-filter
+	Filter *AWSS3BucketReplicationRuleFilter `json:"Filter,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-replicationrule.html#cfn-s3-bucket-replicationrule-id
+	Id interface{} `json:"Id,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-replicationrule.html#cfn-s3-bucket-replicationrule-prefix
+	Prefix interface{} `json:"Prefix,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-replicationrule.html#cfn-s3-bucket-replicationrule-priority
+	Priority interface{} `json:"Priority,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-replicationrule.html#cfn-s3-bucket-replicationrule-sourceselectioncriteria
+	SourceSelectionCriteria *AWSS3BucketSourceSelectionCriteria `json:"SourceSelectionCriteria,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-replicationrule.html#cfn-s3-bucket-replicationrule-status
+	Status interface{} `json:"Status"`
+}
+
+// AWSS3BucketReplicationRuleAndOperator
+type AWSS3BucketReplicationRuleAndOperator struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-replicationruleandoperator.html#cfn-s3-bucket-replicationruleandoperator-prefix
+	Prefix interface{} `json:"Prefix,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-replicationruleandoperator.html#cfn-s3-bucket-replicationruleandoperator-tagfilters
+	TagFilters []AWSS3BucketTagFilter `json:"TagFilters,omitempty"`
+}
+
+// AWSS3BucketReplicationRuleFilter
+type AWSS3BucketReplicationRuleFilter struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-replicationrulefilter.html#cfn-s3-bucket-replicationrulefilter-and
+	And *AWSS3BucketReplicationRuleAndOperator `json:"And,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-replicationrulefilter.html#cfn-s3-bucket-replicationrulefilter-prefix
+	Prefix interface{} `json:"Prefix,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-replicationrulefilter.html#cfn-s3-bucket-replicationrulefilter-tagfilter
+	TagFilter *AWSS3BucketTagFilter `json:"TagFilter,omitempty"`
+}
+
+// AWSS3BucketReplicationTime
+type AWSS3BucketReplicationTime struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-replicationtime.html#cfn-s3-bucket-replicationtime-status
+	Status interface{} `json:"Status"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-replicationtime.html#cfn-s3-bucket-replicationtime-time
+	Time *AWSS3BucketReplicationTimeValue `json:"Time"`
+}
+
+// AWSS3BucketReplicationTimeValue
+type AWSS3BucketReplicationTimeValue struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-replicationtimevalue.html#cfn-s3-bucket-replicationtimevalue-minutes
+	Minutes interface{} `json:"Minutes"`
+}
+
+// AWSS3BucketRoutingRule
+type AWSS3BucketRoutingRule struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-routingrule.html#cfn-s3-bucket-routingrule-redirectrule
+	RedirectRule *AWSS3BucketRedirectRule `json:"RedirectRule"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-routingrule.html#cfn-s3-bucket-routingrule-routingrulecondition
+	RoutingRuleCondition *AWSS3BucketRoutingRuleCondition `json:"RoutingRuleCondition,omitempty"`
+}
+
+// AWSS3BucketRoutingRuleCondition
+type AWSS3BucketRoutingRuleCondition struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-routingrulecondition.html#cfn-s3-bucket-routingrulecondition-httperrorcodereturnedequals
+	HttpErrorCodeReturnedEquals interface{} `json:"HttpErrorCodeReturnedEquals,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-routingrulecondition.html#cfn-s3-bucket-routingrulecondition-keyprefixequals
+	KeyPrefixEquals interface{} `json:"KeyPrefixEquals,omitempty"`
+}
+
+// AWSS3BucketRule
+type AWSS3BucketRule struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-rule.html#cfn-s3-bucket-rule-abortincompletemultipartupload
+	AbortIncompleteMultipartUpload *AWSS3BucketAbortIncompleteMultipartUpload `json:"AbortIncompleteMultipartUpload,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-rule.html#cfn-s3-bucket-rule-expirationdate
+	ExpirationDate interface{} `json:"ExpirationDate,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-rule.html#cfn-s3-bucket-rule-expirationindays
+	ExpirationInDays interface{} `json:"ExpirationInDays,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-rule.html#cfn-s3-bucket-rule-expiredobjectdeletemarker
+	ExpiredObjectDeleteMarker interface{} `json:"ExpiredObjectDeleteMarker,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-rule.html#cfn-s3-bucket-rule-id
+	Id interface{} `json:"Id,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-rule.html#cfn-s3-bucket-rule-noncurrentversionexpiration
+	NoncurrentVersionExpiration *AWSS3BucketNoncurrentVersionExpiration `json:"NoncurrentVersionExpiration,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-rule.html#cfn-s3-bucket-rule-noncurrentversionexpirationindays
+	NoncurrentVersionExpirationInDays interface{} `json:"NoncurrentVersionExpirationInDays,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-rule.html#cfn-s3-bucket-rule-noncurrentversiontransition
+	NoncurrentVersionTransition *AWSS3BucketNoncurrentVersionTransition `json:"NoncurrentVersionTransition,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-rule.html#cfn-s3-bucket-rule-noncurrentversiontransitions
+	NoncurrentVersionTransitions []AWSS3BucketNoncurrentVersionTransition `json:"NoncurrentVersionTransitions,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-rule.html#cfn-s3-bucket-rule-objectsizegreaterthan
+	ObjectSizeGreaterThan interface{} `json:"ObjectSizeGreaterThan,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-rule.html#cfn-s3-bucket-rule-objectsizelessthan
+	ObjectSizeLessThan interface{} `json:"ObjectSizeLessThan,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-rule.html#cfn-s3-bucket-rule-prefix
+	Prefix interface{} `json:"Prefix,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-rule.html#cfn-s3-bucket-rule-status
+	Status interface{} `json:"Status"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-rule.html#cfn-s3-bucket-rule-tagfilters
+	TagFilters []AWSS3BucketTagFilter `json:"TagFilters,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-rule.html#cfn-s3-bucket-rule-transition
+	Transition *AWSS3BucketTransition `json:"Transition,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-rule.html#cfn-s3-bucket-rule-transitions
+	Transitions []AWSS3BucketTransition `json:"Transitions,omitempty"`
+}
+
+// AWSS3BucketS3KeyFilter
+type AWSS3BucketS3KeyFilter struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-s3keyfilter.html#cfn-s3-bucket-s3keyfilter-rules
+	Rules []AWSS3BucketFilterRule `json:"Rules"`
+}
+
+// AWSS3BucketS3TablesDestination
+type AWSS3BucketS3TablesDestination struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-s3tablesdestination.html#cfn-s3-bucket-s3tablesdestination-tablearn
+	TableArn interface{} `json:"TableArn,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-s3tablesdestination.html#cfn-s3-bucket-s3tablesdestination-tablebucketarn
+	TableBucketArn interface{} `json:"TableBucketArn"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-s3tablesdestination.html#cfn-s3-bucket-s3tablesdestination-tablename
+	TableName interface{} `json:"TableName"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-s3tablesdestination.html#cfn-s3-bucket-s3tablesdestination-tablenamespace
+	TableNamespace interface{} `json:"TableNamespace,omitempty"`
+}
+
+// AWSS3BucketServerSideEncryptionByDefault
+type AWSS3BucketServerSideEncryptionByDefault struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-serversideencryptionbydefault.html#cfn-s3-bucket-serversideencryptionbydefault-kmsmasterkeyid
+	KMSMasterKeyID interface{} `json:"KMSMasterKeyID,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-serversideencryptionbydefault.html#cfn-s3-bucket-serversideencryptionbydefault-ssealgorithm
+	SSEAlgorithm interface{} `json:"SSEAlgorithm"`
+}
+
+// AWSS3BucketServerSideEncryptionRule
+type AWSS3BucketServerSideEncryptionRule struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-serversideencryptionrule.html#cfn-s3-bucket-serversideencryptionrule-blockedencryptiontypes
+	BlockedEncryptionTypes *AWSS3BucketBlockedEncryptionTypes `json:"BlockedEncryptionTypes,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-serversideencryptionrule.html#cfn-s3-bucket-serversideencryptionrule-bucketkeyenabled
+	BucketKeyEnabled interface{} `json:"BucketKeyEnabled,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-serversideencryptionrule.html#cfn-s3-bucket-serversideencryptionrule-serversideencryptionbydefault
+	ServerSideEncryptionByDefault *AWSS3BucketServerSideEncryptionByDefault `json:"ServerSideEncryptionByDefault,omitempty"`
+}
+
+// AWSS3BucketSourceSelectionCriteria
+type AWSS3BucketSourceSelectionCriteria struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-sourceselectioncriteria.html#cfn-s3-bucket-sourceselectioncriteria-replicamodifications
+	ReplicaModifications *AWSS3BucketReplicaModifications `json:"ReplicaModifications,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-sourceselectioncriteria.html#cfn-s3-bucket-sourceselectioncriteria-ssekmsencryptedobjects
+	SseKmsEncryptedObjects *AWSS3BucketSseKmsEncryptedObjects `json:"SseKmsEncryptedObjects,omitempty"`
+}
+
+// AWSS3BucketSseKmsEncryptedObjects
+type AWSS3BucketSseKmsEncryptedObjects struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-ssekmsencryptedobjects.html#cfn-s3-bucket-ssekmsencryptedobjects-status
+	Status interface{} `json:"Status"`
+}
+
+// AWSS3BucketStorageClassAnalysis
+type AWSS3BucketStorageClassAnalysis struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-storageclassanalysis.html#cfn-s3-bucket-storageclassanalysis-dataexport
+	DataExport *AWSS3BucketDataExport `json:"DataExport,omitempty"`
+}
+
+// AWSS3BucketTagFilter
+type AWSS3BucketTagFilter struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-tagfilter.html#cfn-s3-bucket-tagfilter-key
+	Key interface{} `json:"Key"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-tagfilter.html#cfn-s3-bucket-tagfilter-value
+	Value interface{} `json:"Value"`
+}
+
+// AWSS3BucketTargetObjectKeyFormat
+type AWSS3BucketTargetObjectKeyFormat struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-targetobjectkeyformat.html#cfn-s3-bucket-targetobjectkeyformat-partitionedprefix
+	PartitionedPrefix *AWSS3BucketPartitionedPrefix `json:"PartitionedPrefix,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-targetobjectkeyformat.html#cfn-s3-bucket-targetobjectkeyformat-simpleprefix
+	SimplePrefix interface{} `json:"SimplePrefix,omitempty"`
+}
+
+// AWSS3BucketTiering
+type AWSS3BucketTiering struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-tiering.html#cfn-s3-bucket-tiering-accesstier
+	AccessTier interface{} `json:"AccessTier"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-tiering.html#cfn-s3-bucket-tiering-days
+	Days interface{} `json:"Days"`
+}
+
+// AWSS3BucketTopicConfiguration
+type AWSS3BucketTopicConfiguration struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-topicconfiguration.html#cfn-s3-bucket-topicconfiguration-event
+	Event interface{} `json:"Event"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-topicconfiguration.html#cfn-s3-bucket-topicconfiguration-filter
+	Filter *AWSS3BucketNotificationFilter `json:"Filter,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-topicconfiguration.html#cfn-s3-bucket-topicconfiguration-topic
+	Topic interface{} `json:"Topic"`
+}
+
+// AWSS3BucketTransition
+type AWSS3BucketTransition struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-transition.html#cfn-s3-bucket-transition-storageclass
+	StorageClass interface{} `json:"StorageClass"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-transition.html#cfn-s3-bucket-transition-transitiondate
+	TransitionDate interface{} `json:"TransitionDate,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-transition.html#cfn-s3-bucket-transition-transitionindays
+	TransitionInDays interface{} `json:"TransitionInDays,omitempty"`
+}
+
+// AWSS3BucketVersioningConfiguration
+type AWSS3BucketVersioningConfiguration struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-versioningconfiguration.html#cfn-s3-bucket-versioningconfiguration-status
+	Status interface{} `json:"Status"`
+}
+
+// AWSS3BucketWebsiteConfiguration
+type AWSS3BucketWebsiteConfiguration struct {
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-websiteconfiguration.html#cfn-s3-bucket-websiteconfiguration-errordocument
+	ErrorDocument interface{} `json:"ErrorDocument,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-websiteconfiguration.html#cfn-s3-bucket-websiteconfiguration-indexdocument
+	IndexDocument interface{} `json:"IndexDocument,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-websiteconfiguration.html#cfn-s3-bucket-websiteconfiguration-redirectallrequeststo
+	RedirectAllRequestsTo *AWSS3BucketRedirectAllRequestsTo `json:"RedirectAllRequestsTo,omitempty"`
+
+	// http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-websiteconfiguration.html#cfn-s3-bucket-websiteconfiguration-routingrules
+	RoutingRules []AWSS3BucketRoutingRule `json:"RoutingRules,omitempty"`
+}
+
 // AccessAssociation
 type AccessAssociation struct {
 	VpcEndpointId interface{} `json:"VpcEndpointId"`
@@ -37,15 +1126,6 @@ type ApiKey struct {
 
 // AssumeRolePolicyDocument
 type AssumeRolePolicyDocument struct{}
-
-// Auth
-type Auth struct {
-	Additional       []Authorizer            `json:"Additional,omitempty"`
-	LambdaAuthorizer *LambdaAuthorizerConfig `json:"LambdaAuthorizer,omitempty"`
-	OpenIDConnect    *OpenIDConnectConfig    `json:"OpenIDConnect,omitempty"`
-	Type             string                  `json:"Type"`
-	UserPool         *UserPoolConfig         `json:"UserPool,omitempty"`
-}
 
 // Authorizer
 type Authorizer struct {
@@ -308,6 +1388,12 @@ type EventsScheduleProperties struct {
 	State            interface{} `json:"State,omitempty"`
 }
 
+// ForceGeneration
+type ForceGeneration struct {
+	DynamoDBTable *AWSDynamoDBTable `json:"DynamoDBTable,omitempty"`
+	S3Bucket      *AWSS3Bucket      `json:"S3Bucket,omitempty"`
+}
+
 // Function
 type Function struct {
 	CodeUri      interface{} `json:"CodeUri,omitempty"`
@@ -333,16 +1419,41 @@ type GatewayResponses struct{}
 
 // Globals
 type Globals struct {
-	AccessLogSettings    interface{} `json:"AccessLogSettings,omitempty"`
-	Auth                 interface{} `json:"Auth,omitempty"`
-	CorsConfiguration    interface{} `json:"CorsConfiguration,omitempty"`
-	DefaultRouteSettings interface{} `json:"DefaultRouteSettings,omitempty"`
-	Domain               interface{} `json:"Domain,omitempty"`
-	FailOnWarnings       interface{} `json:"FailOnWarnings,omitempty"`
-	PropagateTags        bool        `json:"PropagateTags,omitempty"`
-	RouteSettings        interface{} `json:"RouteSettings,omitempty"`
-	StageVariables       interface{} `json:"StageVariables,omitempty"`
-	Tags                 *Tags       `json:"Tags,omitempty"`
+	Architectures                interface{}               `json:"Architectures,omitempty"`
+	AssumeRolePolicyDocument     *AssumeRolePolicyDocument `json:"AssumeRolePolicyDocument,omitempty"`
+	AutoPublishAlias             interface{}               `json:"AutoPublishAlias,omitempty"`
+	CapacityProviderConfig       interface{}               `json:"CapacityProviderConfig,omitempty"`
+	CodeUri                      interface{}               `json:"CodeUri,omitempty"`
+	DeadLetterQueue              interface{}               `json:"DeadLetterQueue,omitempty"`
+	DeploymentPreference         interface{}               `json:"DeploymentPreference,omitempty"`
+	Description                  interface{}               `json:"Description,omitempty"`
+	DurableConfig                interface{}               `json:"DurableConfig,omitempty"`
+	Environment                  interface{}               `json:"Environment,omitempty"`
+	EphemeralStorage             interface{}               `json:"EphemeralStorage,omitempty"`
+	EventInvokeConfig            interface{}               `json:"EventInvokeConfig,omitempty"`
+	FunctionScalingConfig        interface{}               `json:"FunctionScalingConfig,omitempty"`
+	Handler                      interface{}               `json:"Handler,omitempty"`
+	KmsKeyArn                    interface{}               `json:"KmsKeyArn,omitempty"`
+	Layers                       interface{}               `json:"Layers,omitempty"`
+	LoggingConfig                interface{}               `json:"LoggingConfig,omitempty"`
+	MemorySize                   interface{}               `json:"MemorySize,omitempty"`
+	PermissionsBoundary          interface{}               `json:"PermissionsBoundary,omitempty"`
+	PropagateTags                bool                      `json:"PropagateTags,omitempty"`
+	ProvisionedConcurrencyConfig interface{}               `json:"ProvisionedConcurrencyConfig,omitempty"`
+	PublishToLatestPublished     interface{}               `json:"PublishToLatestPublished,omitempty"`
+	RecursiveLoop                interface{}               `json:"RecursiveLoop,omitempty"`
+	ReservedConcurrentExecutions interface{}               `json:"ReservedConcurrentExecutions,omitempty"`
+	RolePath                     interface{}               `json:"RolePath,omitempty"`
+	Runtime                      interface{}               `json:"Runtime,omitempty"`
+	RuntimeManagementConfig      interface{}               `json:"RuntimeManagementConfig,omitempty"`
+	SnapStart                    interface{}               `json:"SnapStart,omitempty"`
+	SourceKMSKeyArn              interface{}               `json:"SourceKMSKeyArn,omitempty"`
+	Tags                         *Tags                     `json:"Tags,omitempty"`
+	TenancyConfig                interface{}               `json:"TenancyConfig,omitempty"`
+	Timeout                      interface{}               `json:"Timeout,omitempty"`
+	Tracing                      interface{}               `json:"Tracing,omitempty"`
+	VersionDeletionPolicy        interface{}               `json:"VersionDeletionPolicy,omitempty"`
+	VpcConfig                    interface{}               `json:"VpcConfig,omitempty"`
 }
 
 // Hooks
@@ -556,10 +1667,10 @@ type MSKEventProperties struct {
 type MainGlobals struct {
 	Api              *SamtranslatorInternalSchemaSourceAwsServerlessApiGlobals              `json:"Api,omitempty"`
 	CapacityProvider *SamtranslatorInternalSchemaSourceAwsServerlessCapacityProviderGlobals `json:"CapacityProvider,omitempty"`
-	Function         *SamtranslatorInternalSchemaSourceAwsServerlessFunctionGlobals         `json:"Function,omitempty"`
+	Function         *Globals                                                               `json:"Function,omitempty"`
 	HttpApi          *Globals                                                               `json:"HttpApi,omitempty"`
 	LayerVersion     *SamtranslatorInternalSchemaSourceAwsServerlessLayerversionGlobals     `json:"LayerVersion,omitempty"`
-	SimpleTable      *SamtranslatorInternalSchemaSourceAwsServerlessSimpletableGlobals      `json:"SimpleTable,omitempty"`
+	SimpleTable      *Globals                                                               `json:"SimpleTable,omitempty"`
 	StateMachine     *Globals                                                               `json:"StateMachine,omitempty"`
 }
 
@@ -585,18 +1696,6 @@ type OpenIDConnectConfig struct {
 type PrimaryKey struct {
 	Name interface{} `json:"Name"`
 	Type interface{} `json:"Type"`
-}
-
-// Properties
-type Properties struct {
-	CapacityProviderName interface{} `json:"CapacityProviderName,omitempty"`
-	InstanceRequirements interface{} `json:"InstanceRequirements,omitempty"`
-	KmsKeyArn            interface{} `json:"KmsKeyArn,omitempty"`
-	OperatorRole         interface{} `json:"OperatorRole,omitempty"`
-	PropagateTags        bool        `json:"PropagateTags,omitempty"`
-	ScalingConfig        interface{} `json:"ScalingConfig,omitempty"`
-	Tags                 *Tags       `json:"Tags,omitempty"`
-	VpcConfig            interface{} `json:"VpcConfig"`
 }
 
 // Ref
@@ -697,8 +1796,9 @@ type SQSEventProperties struct {
 
 // SamModel
 type SamModel struct {
-	Globals   *MainGlobals           `json:"Globals,omitempty"`
-	Resources map[string]interface{} `json:"Resources"`
+	ForceGeneration *ForceGeneration       `json:"ForceGeneration,omitempty"`
+	Globals         *MainGlobals           `json:"Globals,omitempty"`
+	Resources       map[string]interface{} `json:"Resources"`
 }
 
 // SamtranslatorInternalSchemaSourceAnyCfnResourceResource
@@ -887,14 +1987,14 @@ type SamtranslatorInternalSchemaSourceAwsServerlessCapacityProviderProperties st
 
 // SamtranslatorInternalSchemaSourceAwsServerlessCapacityProviderResource
 type SamtranslatorInternalSchemaSourceAwsServerlessCapacityProviderResource struct {
-	Condition           interface{} `json:"Condition,omitempty"`
-	DeletionPolicy      interface{} `json:"DeletionPolicy,omitempty"`
-	DependsOn           interface{} `json:"DependsOn,omitempty"`
-	IgnoreGlobals       interface{} `json:"IgnoreGlobals,omitempty"`
-	Metadata            interface{} `json:"Metadata,omitempty"`
-	Properties          *Properties `json:"Properties"`
-	Type                string      `json:"Type"`
-	UpdateReplacePolicy interface{} `json:"UpdateReplacePolicy,omitempty"`
+	Condition           interface{}                                                               `json:"Condition,omitempty"`
+	DeletionPolicy      interface{}                                                               `json:"DeletionPolicy,omitempty"`
+	DependsOn           interface{}                                                               `json:"DependsOn,omitempty"`
+	IgnoreGlobals       interface{}                                                               `json:"IgnoreGlobals,omitempty"`
+	Metadata            interface{}                                                               `json:"Metadata,omitempty"`
+	Properties          *SamtranslatorInternalSchemaSourceAwsServerlessCapacityProviderProperties `json:"Properties"`
+	Type                string                                                                    `json:"Type"`
+	UpdateReplacePolicy interface{}                                                               `json:"UpdateReplacePolicy,omitempty"`
 }
 
 // SamtranslatorInternalSchemaSourceAwsServerlessConnectorProperties
@@ -906,14 +2006,14 @@ type SamtranslatorInternalSchemaSourceAwsServerlessConnectorProperties struct {
 
 // SamtranslatorInternalSchemaSourceAwsServerlessConnectorResource
 type SamtranslatorInternalSchemaSourceAwsServerlessConnectorResource struct {
-	Condition           interface{} `json:"Condition,omitempty"`
-	DeletionPolicy      interface{} `json:"DeletionPolicy,omitempty"`
-	DependsOn           interface{} `json:"DependsOn,omitempty"`
-	IgnoreGlobals       interface{} `json:"IgnoreGlobals,omitempty"`
-	Metadata            interface{} `json:"Metadata,omitempty"`
-	Properties          *Properties `json:"Properties"`
-	Type                string      `json:"Type"`
-	UpdateReplacePolicy interface{} `json:"UpdateReplacePolicy,omitempty"`
+	Condition           interface{}                                                        `json:"Condition,omitempty"`
+	DeletionPolicy      interface{}                                                        `json:"DeletionPolicy,omitempty"`
+	DependsOn           interface{}                                                        `json:"DependsOn,omitempty"`
+	IgnoreGlobals       interface{}                                                        `json:"IgnoreGlobals,omitempty"`
+	Metadata            interface{}                                                        `json:"Metadata,omitempty"`
+	Properties          *SamtranslatorInternalSchemaSourceAwsServerlessConnectorProperties `json:"Properties"`
+	Type                string                                                             `json:"Type"`
+	UpdateReplacePolicy interface{}                                                        `json:"UpdateReplacePolicy,omitempty"`
 }
 
 // SamtranslatorInternalSchemaSourceAwsServerlessFunctionApiEvent
@@ -1143,30 +2243,30 @@ type SamtranslatorInternalSchemaSourceAwsServerlessGraphqlapiAuth struct {
 
 // SamtranslatorInternalSchemaSourceAwsServerlessGraphqlapiProperties
 type SamtranslatorInternalSchemaSourceAwsServerlessGraphqlapiProperties struct {
-	ApiKeys             map[string]*ApiKey              `json:"ApiKeys,omitempty"`
-	Auth                *Auth                           `json:"Auth"`
-	Cache               *Cache                          `json:"Cache,omitempty"`
-	DataSources         *DataSources                    `json:"DataSources,omitempty"`
-	DomainName          *DomainName                     `json:"DomainName,omitempty"`
-	Functions           map[string]*Function            `json:"Functions,omitempty"`
-	IntrospectionConfig interface{}                     `json:"IntrospectionConfig,omitempty"`
-	Logging             interface{}                     `json:"Logging,omitempty"`
-	Name                interface{}                     `json:"Name,omitempty"`
-	OwnerContact        interface{}                     `json:"OwnerContact,omitempty"`
-	QueryDepthLimit     interface{}                     `json:"QueryDepthLimit,omitempty"`
-	ResolverCountLimit  interface{}                     `json:"ResolverCountLimit,omitempty"`
-	Resolvers           map[string]map[string]*Resolver `json:"Resolvers,omitempty"`
-	SchemaInline        interface{}                     `json:"SchemaInline,omitempty"`
-	SchemaUri           interface{}                     `json:"SchemaUri,omitempty"`
-	Tags                *Tags                           `json:"Tags,omitempty"`
-	Visibility          interface{}                     `json:"Visibility,omitempty"`
-	XrayEnabled         bool                            `json:"XrayEnabled,omitempty"`
+	ApiKeys             map[string]*ApiKey                                            `json:"ApiKeys,omitempty"`
+	Auth                *SamtranslatorInternalSchemaSourceAwsServerlessGraphqlapiAuth `json:"Auth"`
+	Cache               *Cache                                                        `json:"Cache,omitempty"`
+	DataSources         *DataSources                                                  `json:"DataSources,omitempty"`
+	DomainName          *DomainName                                                   `json:"DomainName,omitempty"`
+	Functions           map[string]*Function                                          `json:"Functions,omitempty"`
+	IntrospectionConfig interface{}                                                   `json:"IntrospectionConfig,omitempty"`
+	Logging             interface{}                                                   `json:"Logging,omitempty"`
+	Name                interface{}                                                   `json:"Name,omitempty"`
+	OwnerContact        interface{}                                                   `json:"OwnerContact,omitempty"`
+	QueryDepthLimit     interface{}                                                   `json:"QueryDepthLimit,omitempty"`
+	ResolverCountLimit  interface{}                                                   `json:"ResolverCountLimit,omitempty"`
+	Resolvers           map[string]map[string]*Resolver                               `json:"Resolvers,omitempty"`
+	SchemaInline        interface{}                                                   `json:"SchemaInline,omitempty"`
+	SchemaUri           interface{}                                                   `json:"SchemaUri,omitempty"`
+	Tags                *Tags                                                         `json:"Tags,omitempty"`
+	Visibility          interface{}                                                   `json:"Visibility,omitempty"`
+	XrayEnabled         bool                                                          `json:"XrayEnabled,omitempty"`
 }
 
 // SamtranslatorInternalSchemaSourceAwsServerlessGraphqlapiResource
 type SamtranslatorInternalSchemaSourceAwsServerlessGraphqlapiResource struct {
-	Properties *Properties `json:"Properties"`
-	Type       string      `json:"Type"`
+	Properties *SamtranslatorInternalSchemaSourceAwsServerlessGraphqlapiProperties `json:"Properties"`
+	Type       string                                                              `json:"Type"`
 }
 
 // SamtranslatorInternalSchemaSourceAwsServerlessHttpapiAuth
@@ -1272,14 +2372,14 @@ type SamtranslatorInternalSchemaSourceAwsServerlessLayerversionProperties struct
 
 // SamtranslatorInternalSchemaSourceAwsServerlessLayerversionResource
 type SamtranslatorInternalSchemaSourceAwsServerlessLayerversionResource struct {
-	Condition           interface{} `json:"Condition,omitempty"`
-	DeletionPolicy      interface{} `json:"DeletionPolicy,omitempty"`
-	DependsOn           interface{} `json:"DependsOn,omitempty"`
-	IgnoreGlobals       interface{} `json:"IgnoreGlobals,omitempty"`
-	Metadata            interface{} `json:"Metadata,omitempty"`
-	Properties          *Properties `json:"Properties"`
-	Type                string      `json:"Type"`
-	UpdateReplacePolicy interface{} `json:"UpdateReplacePolicy,omitempty"`
+	Condition           interface{}                                                           `json:"Condition,omitempty"`
+	DeletionPolicy      interface{}                                                           `json:"DeletionPolicy,omitempty"`
+	DependsOn           interface{}                                                           `json:"DependsOn,omitempty"`
+	IgnoreGlobals       interface{}                                                           `json:"IgnoreGlobals,omitempty"`
+	Metadata            interface{}                                                           `json:"Metadata,omitempty"`
+	Properties          *SamtranslatorInternalSchemaSourceAwsServerlessLayerversionProperties `json:"Properties"`
+	Type                string                                                                `json:"Type"`
+	UpdateReplacePolicy interface{}                                                           `json:"UpdateReplacePolicy,omitempty"`
 }
 
 // SamtranslatorInternalSchemaSourceAwsServerlessSimpletableGlobals
@@ -1299,15 +2399,15 @@ type SamtranslatorInternalSchemaSourceAwsServerlessSimpletableProperties struct 
 
 // SamtranslatorInternalSchemaSourceAwsServerlessSimpletableResource
 type SamtranslatorInternalSchemaSourceAwsServerlessSimpletableResource struct {
-	Condition           interface{}                   `json:"Condition,omitempty"`
-	Connectors          map[string]*EmbeddedConnector `json:"Connectors,omitempty"`
-	DeletionPolicy      interface{}                   `json:"DeletionPolicy,omitempty"`
-	DependsOn           interface{}                   `json:"DependsOn,omitempty"`
-	IgnoreGlobals       interface{}                   `json:"IgnoreGlobals,omitempty"`
-	Metadata            interface{}                   `json:"Metadata,omitempty"`
-	Properties          *Properties                   `json:"Properties,omitempty"`
-	Type                string                        `json:"Type"`
-	UpdateReplacePolicy interface{}                   `json:"UpdateReplacePolicy,omitempty"`
+	Condition           interface{}                                                          `json:"Condition,omitempty"`
+	Connectors          map[string]*EmbeddedConnector                                        `json:"Connectors,omitempty"`
+	DeletionPolicy      interface{}                                                          `json:"DeletionPolicy,omitempty"`
+	DependsOn           interface{}                                                          `json:"DependsOn,omitempty"`
+	IgnoreGlobals       interface{}                                                          `json:"IgnoreGlobals,omitempty"`
+	Metadata            interface{}                                                          `json:"Metadata,omitempty"`
+	Properties          *SamtranslatorInternalSchemaSourceAwsServerlessSimpletableProperties `json:"Properties,omitempty"`
+	Type                string                                                               `json:"Type"`
+	UpdateReplacePolicy interface{}                                                          `json:"UpdateReplacePolicy,omitempty"`
 }
 
 // SamtranslatorInternalSchemaSourceAwsServerlessStatemachineApiEvent
@@ -1406,15 +2506,15 @@ type SamtranslatorInternalSchemaSourceAwsServerlessStatemachineProperties struct
 
 // SamtranslatorInternalSchemaSourceAwsServerlessStatemachineResource
 type SamtranslatorInternalSchemaSourceAwsServerlessStatemachineResource struct {
-	Condition           interface{}                   `json:"Condition,omitempty"`
-	Connectors          map[string]*EmbeddedConnector `json:"Connectors,omitempty"`
-	DeletionPolicy      interface{}                   `json:"DeletionPolicy,omitempty"`
-	DependsOn           interface{}                   `json:"DependsOn,omitempty"`
-	IgnoreGlobals       interface{}                   `json:"IgnoreGlobals,omitempty"`
-	Metadata            interface{}                   `json:"Metadata,omitempty"`
-	Properties          *Properties                   `json:"Properties"`
-	Type                string                        `json:"Type"`
-	UpdateReplacePolicy interface{}                   `json:"UpdateReplacePolicy,omitempty"`
+	Condition           interface{}                                                           `json:"Condition,omitempty"`
+	Connectors          map[string]*EmbeddedConnector                                         `json:"Connectors,omitempty"`
+	DeletionPolicy      interface{}                                                           `json:"DeletionPolicy,omitempty"`
+	DependsOn           interface{}                                                           `json:"DependsOn,omitempty"`
+	IgnoreGlobals       interface{}                                                           `json:"IgnoreGlobals,omitempty"`
+	Metadata            interface{}                                                           `json:"Metadata,omitempty"`
+	Properties          *SamtranslatorInternalSchemaSourceAwsServerlessStatemachineProperties `json:"Properties"`
+	Type                string                                                                `json:"Type"`
+	UpdateReplacePolicy interface{}                                                           `json:"UpdateReplacePolicy,omitempty"`
 }
 
 // SamtranslatorInternalSchemaSourceAwsServerlessStatemachineResourcePolicy
@@ -1534,6 +2634,12 @@ type Sync struct {
 	ConflictDetection           interface{}                  `json:"ConflictDetection"`
 	ConflictHandler             interface{}                  `json:"ConflictHandler,omitempty"`
 	LambdaConflictHandlerConfig *LambdaConflictHandlerConfig `json:"LambdaConflictHandlerConfig,omitempty"`
+}
+
+// Tag
+type Tag struct {
+	Key   string `json:"Key"`
+	Value string `json:"Value"`
 }
 
 // Tags

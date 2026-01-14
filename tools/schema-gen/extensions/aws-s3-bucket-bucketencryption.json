@@ -1,0 +1,14 @@
+{
+  "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-bucketencryption.html",
+  "Properties": {
+    "ServerSideEncryptionConfiguration": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-bucketencryption.html#cfn-s3-bucket-bucketencryption-serversideencryptionconfiguration",
+      "UpdateType": "Mutable",
+      "Required": true,
+      "Type": "List",
+      "ItemType": "ServerSideEncryptionRule",
+      "DuplicatesAllowed": false
+    }
+  },
+  "typeName": "AWS::S3::Bucket.BucketEncryption"
+}

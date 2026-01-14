@@ -1,0 +1,12 @@
+{
+  "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-inputformatoptions.html",
+  "Properties": {
+    "Csv": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-dynamodb-table-inputformatoptions.html#cfn-dynamodb-table-inputformatoptions-csv",
+      "UpdateType": "Immutable",
+      "Required": false,
+      "Type": "Csv"
+    }
+  },
+  "typeName": "AWS::DynamoDB::Table.InputFormatOptions"
+}

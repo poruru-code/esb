@@ -1,0 +1,18 @@
+{
+  "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-redirectallrequeststo.html",
+  "Properties": {
+    "Protocol": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-redirectallrequeststo.html#cfn-s3-bucket-redirectallrequeststo-protocol",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "PrimitiveType": "String"
+    },
+    "HostName": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-redirectallrequeststo.html#cfn-s3-bucket-redirectallrequeststo-hostname",
+      "UpdateType": "Mutable",
+      "Required": true,
+      "PrimitiveType": "String"
+    }
+  },
+  "typeName": "AWS::S3::Bucket.RedirectAllRequestsTo"
+}

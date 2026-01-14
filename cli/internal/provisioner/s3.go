@@ -10,12 +10,13 @@ import (
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/generator"
+	"github.com/poruru/edge-serverless-box/cli/internal/generator/schema"
 )
 
 type S3API interface {
 	ListBuckets(ctx context.Context) ([]string, error)
 	CreateBucket(ctx context.Context, name string) error
-	PutBucketLifecycleConfiguration(ctx context.Context, name string, rules any) error
+	PutBucketLifecycleConfiguration(ctx context.Context, name string, config *schema.AWSS3BucketLifecycleConfiguration) error
 }
 
 func provisionS3(ctx context.Context, client S3API, buckets []generator.S3Spec, out io.Writer) {

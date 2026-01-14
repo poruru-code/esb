@@ -1,0 +1,20 @@
+{
+  "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-lifecycleconfiguration.html",
+  "Properties": {
+    "TransitionDefaultMinimumObjectSize": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-lifecycleconfiguration.html#cfn-s3-bucket-lifecycleconfiguration-transitiondefaultminimumobjectsize",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "PrimitiveType": "String"
+    },
+    "Rules": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-lifecycleconfiguration.html#cfn-s3-bucket-lifecycleconfiguration-rules",
+      "UpdateType": "Mutable",
+      "Required": true,
+      "Type": "List",
+      "ItemType": "Rule",
+      "DuplicatesAllowed": false
+    }
+  },
+  "typeName": "AWS::S3::Bucket.LifecycleConfiguration"
+}

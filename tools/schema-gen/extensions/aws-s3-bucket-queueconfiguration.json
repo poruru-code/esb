@@ -1,0 +1,24 @@
+{
+  "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-queueconfiguration.html",
+  "Properties": {
+    "Filter": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-queueconfiguration.html#cfn-s3-bucket-queueconfiguration-filter",
+      "UpdateType": "Mutable",
+      "Required": false,
+      "Type": "NotificationFilter"
+    },
+    "Event": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-queueconfiguration.html#cfn-s3-bucket-queueconfiguration-event",
+      "UpdateType": "Mutable",
+      "Required": true,
+      "PrimitiveType": "String"
+    },
+    "Queue": {
+      "Documentation": "http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket-queueconfiguration.html#cfn-s3-bucket-queueconfiguration-queue",
+      "UpdateType": "Mutable",
+      "Required": true,
+      "PrimitiveType": "String"
+    }
+  },
+  "typeName": "AWS::S3::Bucket.QueueConfiguration"
+}
