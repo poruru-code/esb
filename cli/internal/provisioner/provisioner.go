@@ -118,7 +118,7 @@ func (r *Runner) Provision(request Request) error {
 	if len(parsed.Resources.S3) > 0 {
 		port, ok := resolvePort(
 			ctx,
-			"ESB_PORT_STORAGE",
+			"ESB_PORT_S3",
 			defaultS3Port,
 			PortRequest{Project: composeProject, Service: "s3-storage", ContainerPort: 9000},
 			r.PortResolver,

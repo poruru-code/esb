@@ -147,7 +147,7 @@ class TestS3:
         from botocore.config import Config
 
         # S3 Client for RustFS/MinIO
-        storage_port = os.environ.get("ESB_PORT_STORAGE", "9000")
+        storage_port = int(os.environ.get("ESB_PORT_S3", 9000))
         s3_client = boto3.client(
             "s3",
             endpoint_url=f"http://localhost:{storage_port}",

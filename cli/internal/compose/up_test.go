@@ -25,6 +25,13 @@ func (f *fakeRunner) Run(_ context.Context, dir, name string, args ...string) er
 	return f.err
 }
 
+func (f *fakeRunner) RunQuiet(_ context.Context, dir, name string, args ...string) error {
+	f.dir = dir
+	f.name = name
+	f.args = append([]string{}, args...)
+	return f.err
+}
+
 func (f *fakeRunner) RunOutput(_ context.Context, dir, name string, args ...string) ([]byte, error) {
 	f.dir = dir
 	f.name = name

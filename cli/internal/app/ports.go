@@ -80,27 +80,26 @@ func PrintDiscoveredPorts(out io.Writer, ports map[string]int) {
 	if len(ports) == 0 {
 		return
 	}
-	fmt.Fprintln(out, "")
-	fmt.Fprintln(out, "============================== Discovered Ports ==============================")
+	fmt.Fprintln(out, "🔌 Discovered Ports:")
 	// Print known critical ports first for better UX
 	printPort(out, ports, "ESB_PORT_GATEWAY_HTTPS", "Gateway HTTPS")
 	printPort(out, ports, "ESB_PORT_VICTORIALOGS", "VictoriaLogs")
 	printPort(out, ports, "ESB_PORT_DATABASE", "ScyllaDB")
 	printPort(out, ports, "ESB_PORT_S3", "MinIO S3")
+	printPort(out, ports, "ESB_PORT_S3_MGMT", "S3 Management")
 	printPort(out, ports, "ESB_PORT_REGISTRY", "Registry")
 
 	// Print remaining unknown ports
 	for k, v := range ports {
 		if !isKnownPort(k) {
-			fmt.Fprintf(out, "  %s: %d\n", k, v)
+			fmt.Fprintf(out, "   %s: %d\n", k, v)
 		}
 	}
-	fmt.Fprintln(out, "==============================================================================")
 }
 
 func isKnownPort(key string) bool {
 	switch key {
-	case "ESB_PORT_GATEWAY_HTTPS", "ESB_PORT_VICTORIALOGS", "ESB_PORT_DATABASE", "ESB_PORT_S3", "ESB_PORT_REGISTRY", "ESB_PORT_AGENT_GRPC":
+	case "ESB_PORT_GATEWAY_HTTPS", "ESB_PORT_VICTORIALOGS", "ESB_PORT_DATABASE", "ESB_PORT_S3", "ESB_PORT_S3_MGMT", "ESB_PORT_REGISTRY", "ESB_PORT_AGENT_GRPC":
 		return true
 	}
 	return false
@@ -108,7 +107,7 @@ func isKnownPort(key string) bool {
 
 func printPort(out io.Writer, ports map[string]int, key, label string) {
 	if val, ok := ports[key]; ok {
-		fmt.Fprintf(out, "  %-15s (%s): %d\n", label, key, val)
+		fmt.Fprintf(out, "   %-15s (%s): %d\n", label, key, val)
 	}
 }
 

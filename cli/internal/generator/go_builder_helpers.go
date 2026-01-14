@@ -136,11 +136,11 @@ func buildBaseImage(
 		imageTag = fmt.Sprintf("%s/%s", registry, imageTag)
 	}
 
-	if err := buildDockerImage(ctx, runner, assetsDir, "Dockerfile.base", imageTag, noCache, labels); err != nil {
+	if err := buildDockerImage(ctx, runner, assetsDir, "Dockerfile.base", imageTag, noCache, verbose, labels); err != nil {
 		return err
 	}
 	if registry != "" {
-		return pushDockerImage(ctx, runner, assetsDir, imageTag)
+		return pushDockerImage(ctx, runner, assetsDir, imageTag, verbose)
 	}
 	return nil
 }
@@ -186,11 +186,11 @@ func buildFunctionImages(
 		}
 		dockerfileRel = filepath.ToSlash(dockerfileRel)
 
-		if err := buildDockerImage(ctx, runner, outputDir, dockerfileRel, imageTag, noCache, labels); err != nil {
+		if err := buildDockerImage(ctx, runner, outputDir, dockerfileRel, imageTag, noCache, verbose, labels); err != nil {
 			return err
 		}
 		if registry != "" {
-			if err := pushDockerImage(ctx, runner, outputDir, imageTag); err != nil {
+			if err := pushDockerImage(ctx, runner, outputDir, imageTag, verbose); err != nil {
 				return err
 			}
 		}
@@ -224,11 +224,11 @@ func buildServiceImages(
 		if registry != "" {
 			imageTag = fmt.Sprintf("%s/%s", registry, imageTag)
 		}
-		if err := buildDockerImage(ctx, runner, dir, "Dockerfile", imageTag, noCache, labels); err != nil {
+		if err := buildDockerImage(ctx, runner, dir, "Dockerfile", imageTag, noCache, verbose, labels); err != nil {
 			return err
 		}
 		if registry != "" {
-			if err := pushDockerImage(ctx, runner, dir, imageTag); err != nil {
+			if err := pushDockerImage(ctx, runner, dir, imageTag, verbose); err != nil {
 				return err
 			}
 		}
@@ -243,6 +243,7 @@ func buildDockerImage(
 	dockerfile string,
 	imageTag string,
 	noCache bool,
+	verbose bool,
 	labels map[string]string,
 ) error {
 	if runner == nil {
@@ -263,7 +264,10 @@ func buildDockerImage(
 	args = append(args, dockerLabelArgs(labels)...)
 	args = append(args, dockerBuildArgs()...)
 	args = append(args, ".")
-	return runner.Run(ctx, contextDir, "docker", args...)
+	if verbose {
+		return runner.Run(ctx, contextDir, "docker", args...)
+	}
+	return runner.RunQuiet(ctx, contextDir, "docker", args...)
 }
 
 func pushDockerImage(
@@ -271,6 +275,7 @@ func pushDockerImage(
 	runner compose.CommandRunner,
 	contextDir string,
 	imageTag string,
+	verbose bool,
 ) error {
 	if runner == nil {
 		return fmt.Errorf("command runner is nil")
@@ -278,7 +283,10 @@ func pushDockerImage(
 	if imageTag == "" {
 		return fmt.Errorf("image tag is required")
 	}
-	return runner.Run(ctx, contextDir, "docker", "push", imageTag)
+	if verbose {
+		return runner.Run(ctx, contextDir, "docker", "push", imageTag)
+	}
+	return runner.RunQuiet(ctx, contextDir, "docker", "push", imageTag)
 }
 
 func dockerBuildArgs() []string {

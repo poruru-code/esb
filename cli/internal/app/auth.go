@@ -93,12 +93,11 @@ func generateSecureRandom(length int) string {
 // PrintGeneratedCredentials outputs the auto-generated credentials to the writer.
 // Only called when credentials were actually generated.
 func PrintGeneratedCredentials(out io.Writer, creds AuthCredentials) {
-	fmt.Fprintln(out, "✓ Authentication credentials auto-generated:")
-	fmt.Fprintf(out, "  AUTH_USER         = %s\n", creds.AuthUser)
-	fmt.Fprintf(out, "  AUTH_PASS         = %s\n", creds.AuthPass)
-	fmt.Fprintf(out, "  JWT_SECRET_KEY    = %s\n", creds.JWTSecretKey)
-	fmt.Fprintf(out, "  X_API_KEY         = %s\n", creds.XAPIKey)
-	fmt.Fprintf(out, "  RUSTFS_ACCESS_KEY = %s\n", creds.RustfsAccessKey)
-	fmt.Fprintf(out, "  RUSTFS_SECRET_KEY = %s\n", creds.RustfsSecretKey)
-	fmt.Fprintln(out)
+	fmt.Fprintln(out, "🔑 Authentication credentials:")
+	fmt.Fprintf(out, "   AUTH_USER         = %s\n", creds.AuthUser)
+	fmt.Fprintf(out, "   AUTH_PASS         = %s\n", creds.AuthPass)
+	fmt.Fprintf(out, "   JWT_SECRET_KEY    = %s\n", creds.JWTSecretKey)
+	fmt.Fprintf(out, "   X_API_KEY         = %s\n", creds.XAPIKey)
+	fmt.Fprintf(out, "   RUSTFS_ACCESS_KEY = %s\n", creds.RustfsAccessKey)
+	fmt.Fprintf(out, "   RUSTFS_SECRET_KEY = %s\n", creds.RustfsSecretKey)
 }

@@ -48,10 +48,18 @@ def build_esb_cmd(args: list[str], env_file: str | None) -> list[str]:
     return base_cmd + args
 
 
-def run_esb(args: list[str], check: bool = True, env_file: str | None = None):
+def run_esb(
+    args: list[str], check: bool = True, env_file: str | None = None, verbose: bool = False
+):
     """Helper to run the esb CLI."""
+    if verbose and "build" in args:
+        # Build command has its own verbose flag
+        if "--verbose" not in args and "-v" not in args:
+            args = ["build", "--verbose"] + [a for a in args if a != "build"]
+
     cmd = build_esb_cmd(args, env_file)
-    print(f"Running: {' '.join(cmd)}")
+    if verbose:
+        print(f"Running: {' '.join(cmd)}")
     return subprocess.run(cmd, cwd=GO_CLI_ROOT, check=check, stdin=subprocess.DEVNULL)
 
 
@@ -249,6 +257,7 @@ def main():
         action="store_true",
         help="Run environments in parallel (e.g., e2e-docker and e2e-containerd simultaneously)",
     )
+    parser.add_argument("--verbose", action="store_true", help="Show full logs")
     args = parser.parse_args()
 
     # --- Load Test Matrix (Needed for Env Info) ---
@@ -412,6 +421,7 @@ def main():
         cleanup=args.cleanup,
         fail_fast=args.fail_fast,
         max_workers=max_workers,
+        verbose=args.verbose,
     )
 
     for _, (success, profile_failed) in results.items():
@@ -419,10 +429,10 @@ def main():
             failed_entries.extend(profile_failed)
 
     if failed_entries:
-        print(f"\n[FAILED] The following environments failed: {', '.join(failed_entries)}")
+        print(f"\n❌ [FAILED] The following environments failed: {', '.join(failed_entries)}")
         sys.exit(1)
 
-    print("\n[PASSED] ALL MATRIX ENTRIES PASSED!")
+    print("\n🎉 [PASSED] ALL MATRIX ENTRIES PASSED!")
     sys.exit(0)
 
 
@@ -553,6 +563,7 @@ def run_profiles_with_executor(
     cleanup: bool,
     fail_fast: bool,
     max_workers: int,
+    verbose: bool = False,
 ) -> dict[str, tuple[bool, list[str]]]:
     """
     Run environments using a ProcessPoolExecutor.
@@ -560,6 +571,9 @@ def run_profiles_with_executor(
     Returns: dict mapping env_name to (success, failed_scenario_names)
     """
     results = {}
+
+    # Calculate max profile name length for aligned logging (+2 for brackets)
+    max_label_len = max(len(p) for p in env_scenarios.keys()) + 2 if env_scenarios else 0
 
     # We use 'spawn' or default context. For simple script execution, default is fine.
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
@@ -584,6 +598,8 @@ def run_profiles_with_executor(
                 cmd.append("--cleanup")
             if fail_fast:
                 cmd.append("--fail-fast")
+            if verbose:
+                cmd.append("--verbose")
 
             # Determine log prefix/color
             profile_index = list(env_scenarios.keys()).index(profile_name)
@@ -599,7 +615,9 @@ def run_profiles_with_executor(
                 # but we can log here too.
                 color_code = ""
 
-            future = executor.submit(run_profile_subprocess, profile_name, cmd, color_code)
+            future = executor.submit(
+                run_profile_subprocess, profile_name, cmd, color_code, verbose, max_label_len
+            )
             future_to_profile[future] = profile_name
 
         # Process results as they complete
@@ -613,9 +631,11 @@ def run_profiles_with_executor(
                 prefix = "[PARALLEL]" if max_workers > 1 else "[MATRIX]"
 
                 if success:
-                    print(f"{prefix} Environment {profile_name} PASSED")
+                    print(f"✅ {prefix} Environment {profile_name} PASSED")
                 else:
-                    print(f"{prefix} Environment {profile_name} FAILED (exit code: {returncode})")
+                    print(
+                        f"❌ {prefix} Environment {profile_name} FAILED (exit code: {returncode})"
+                    )
 
                 results[profile_name] = (success, failed_list)
             except Exception as e:
@@ -626,10 +646,17 @@ def run_profiles_with_executor(
 
 
 def run_profile_subprocess(
-    profile_name: str, cmd: list[str], color_code: str = ""
+    profile_name: str,
+    cmd: list[str],
+    color_code: str = "",
+    verbose: bool = False,
+    label_width: int = 0,
 ) -> tuple[int, str]:
     """Run a profile in a subprocess and stream output with prefix."""
-    prefix = f"{color_code}[{profile_name}]{COLOR_RESET}"
+    label = f"[{profile_name}]"
+    if label_width > 0:
+        label = label.ljust(label_width)
+    prefix = f"{color_code}{label}{COLOR_RESET}"
 
     # Inject flags to force non-interactive behavior
     env = os.environ.copy()
@@ -648,19 +675,53 @@ def run_profile_subprocess(
     )
 
     output_lines = []
+    tests_started = False
+    in_special_block = False
 
     # Read output line by line as it becomes available
     try:
         if process.stdout:
             for line in iter(process.stdout.readline, ""):
                 clean_line = line.rstrip()
-                if clean_line:  # Only print non-empty lines to avoid prefix spam
-                    print(f"{prefix} {clean_line}", flush=True)
+                if clean_line:
+                    if "test session starts" in clean_line:
+                        tests_started = True
+
+                    # Detect special info blocks (Auth credentials and Discovered Ports)
+                    # Starts with Key or Plug emoji
+                    is_special_header = clean_line.startswith("🔑") or clean_line.startswith("🔌")
+                    if is_special_header:
+                        in_special_block = True
+
+                    should_print = (
+                        verbose or tests_started or clean_line.startswith("➜") or in_special_block
+                    )
+
+                    if should_print:
+                        print(f"{prefix} {clean_line}", flush=True)
+
+                    # End of special block if we encounter a new progress line
+                    # or if the line is not indented (and not the header itself)
+                    if in_special_block and not is_special_header:
+                        if clean_line.startswith("➜") or not clean_line.startswith(" "):
+                            in_special_block = False
+
+                else:
+                    # Empty line terminates a block
+                    if in_special_block:
+                        in_special_block = False
+
                 output_lines.append(line)
+
     except Exception as e:
         print(f"{prefix} Error reading output: {e}")
 
     returncode = process.wait()
+
+    if returncode != 0 and not verbose and not tests_started:
+        print(f"{prefix} ➜ Subprocess failed before tests started. Printing cached logs...\n")
+        for line in output_lines:
+            print(f"{prefix} {line.rstrip()}", flush=True)
 
     # Write output to a log file for debugging
     log_file = PROJECT_ROOT / "e2e" / f".parallel-{profile_name}.log"
@@ -742,20 +803,34 @@ def run_scenario(args, scenario):
                 shutil.rmtree(env_state_dir)
 
             if build_only:
-                run_esb(["down", "-v"], check=True, env_file=env_file)
+                run_esb(["down", "-v"], check=True, env_file=env_file, verbose=args.verbose)
                 # Re-generate configurations via build
-                run_esb(["build", "--no-cache"], env_file=env_file)
+                run_esb(["build", "--no-cache"], env_file=env_file, verbose=args.verbose)
             else:
-                run_esb(["up", "--reset", "--yes", "--detach", "--wait"], env_file=env_file)
+                run_esb(
+                    ["up", "--reset", "--yes", "--detach", "--wait"],
+                    env_file=env_file,
+                    verbose=args.verbose,
+                )
                 did_up = True
         elif do_build:
-            print(f"➜ Building environment: {env_name}")
-            run_esb(["build", "--no-cache"], env_file=env_file)
+            if not args.verbose:
+                print(f"➜ Building environment: {env_name}... ", end="", flush=True)
+            else:
+                print(f"➜ Building environment: {env_name}")
+            run_esb(["build", "--no-cache"], env_file=env_file, verbose=args.verbose)
+            if not args.verbose:
+                print("Done")
         else:
-            print(f"➜ Preparing environment: {env_name}")
+            if not args.verbose:
+                print(f"➜ Preparing environment: {env_name}... ", end="", flush=True)
+            else:
+                print(f"➜ Preparing environment: {env_name}")
             # Ensure services are stopped before starting (without destroying data)
-            run_esb(["stop"], check=True, env_file=env_file)
-            run_esb(["build"], env_file=env_file)
+            run_esb(["stop"], check=True, env_file=env_file, verbose=args.verbose)
+            run_esb(["build"], env_file=env_file, verbose=args.verbose)
+            if not args.verbose:
+                print("Done")
 
         # If build_only, skip UP and tests
         if build_only:
@@ -764,7 +839,7 @@ def run_scenario(args, scenario):
         # 3. UP
         if not did_up:
             up_args = ["up", "--detach", "--wait"]
-            run_esb(up_args, env_file=env_file)
+            run_esb(up_args, env_file=env_file, verbose=args.verbose)
 
         # 3.5 Load dynamic ports from ports.json (created by esb up)
         ports = load_ports(env_name)
@@ -819,8 +894,13 @@ def run_scenario(args, scenario):
 
     finally:
         if args.cleanup:
-            print(f"➜ Cleaning up environment: {env_name}")
-            run_esb(["down"], env_file=scenario.get("env_file"))
+            if not args.verbose:
+                print(f"➜ Cleaning up environment: {env_name}... ", end="", flush=True)
+            else:
+                print(f"➜ Cleaning up environment: {env_name}")
+            run_esb(["down"], env_file=scenario.get("env_file"), verbose=args.verbose)
+            if not args.verbose:
+                print("Done")
         # If not cleanup, we leave containers running for debugging last scenario
         # But next scenario execution will force down anyway.
 

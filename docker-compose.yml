@@ -27,8 +27,8 @@ services:
       permission-helper:
         condition: service_completed_successfully
     ports:
-      - "${ESB_PORT_STORAGE:-0}:9000" # S3 API
-      - "${ESB_PORT_STORAGE_MGMT:-0}:9001" # Console
+      - "${ESB_PORT_S3:-9000}:9000" # S3 API
+      - "${ESB_PORT_S3_MGMT:-9001}:9001" # Console
     volumes:
       - rustfs_data:/data/rustfs
       - ./config/lifecycle.yml:/app/config/lifecycle.yml:ro

@@ -47,8 +47,8 @@ var DefaultPortMappings = []PortMapping{
 		ContainerPort: 443,
 		Modes:         []string{ModeContainerd, ModeFirecracker},
 	},
-	{EnvVar: "ESB_PORT_STORAGE", Service: "s3-storage", ContainerPort: 9000},
-	{EnvVar: "ESB_PORT_STORAGE_MGMT", Service: "s3-storage", ContainerPort: 9001},
+	{EnvVar: "ESB_PORT_S3", Service: "s3-storage", ContainerPort: 9000},
+	{EnvVar: "ESB_PORT_S3_MGMT", Service: "s3-storage", ContainerPort: 9001},
 	{EnvVar: "ESB_PORT_DATABASE", Service: "database", ContainerPort: 8000},
 	{EnvVar: "ESB_PORT_VICTORIALOGS", Service: "victorialogs", ContainerPort: 9428},
 	{
