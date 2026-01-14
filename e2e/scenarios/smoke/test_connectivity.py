@@ -32,7 +32,9 @@ class TestConnectivity:
                 timeout=DEFAULT_REQUEST_TIMEOUT,
             )
             # VictoriaLogs returns 200 or empty for /health
-            assert response.status_code in (200, 204), f"VictoriaLogs health check failed: {response.status_code}"
+            assert response.status_code in (200, 204), (
+                f"VictoriaLogs health check failed: {response.status_code}"
+            )
         except Exception as e:
             pytest.fail(f"VictoriaLogs connection failed ({VICTORIALOGS_URL}): {e}")
 
@@ -64,37 +66,38 @@ class TestConnectivity:
         """Lambda can connect to S3 (MinIO)."""
         # Ensure bucket exists
         import boto3
+
         s3_endpoint = "http://localhost:13900"  # Default test port
-        
+
         # Try to infer S3 port from environment if available
         # Note: In full-matrix-v5-ctr, s3 is often on 13900 but check if overridden
         if "GATEWAY_PORT" in os.environ and os.environ["GATEWAY_PORT"] == "5343":
-             s3_endpoint = "http://localhost:13900"
-        
+            s3_endpoint = "http://localhost:13900"
+
         try:
-             access_key = os.environ.get("RUSTFS_ACCESS_KEY", "rustfsadmin")
-             secret_key = os.environ.get("RUSTFS_SECRET_KEY", "rustfsadmin")
-             
-             s3 = boto3.client(
-                 "s3", 
-                 endpoint_url=s3_endpoint, 
-                 aws_access_key_id=access_key, 
-                 aws_secret_access_key=secret_key,
-                 region_name="us-east-1"
-             )
-             s3.create_bucket(Bucket="e2e-test-bucket")
+            access_key = os.environ.get("RUSTFS_ACCESS_KEY", "rustfsadmin")
+            secret_key = os.environ.get("RUSTFS_SECRET_KEY", "rustfsadmin")
+
+            s3 = boto3.client(
+                "s3",
+                endpoint_url=s3_endpoint,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+                region_name="us-east-1",
+            )
+            s3.create_bucket(Bucket="e2e-test-bucket")
         except Exception as e:
-             # If bucket exists, it throws... but checking the error properly is better
-             # For smoke test, print error but don't hard fail yet, let lambda try
-             print(f"Warning: Failed to create bucket {s3_endpoint}: {e}")
+            # If bucket exists, it throws... but checking the error properly is better
+            # For smoke test, print error but don't hard fail yet, let lambda try
+            print(f"Warning: Failed to create bucket {s3_endpoint}: {e}")
 
         response = requests.post(
             f"{GATEWAY_URL}/api/s3",
             json={
-                "action": "put", 
-                "key": "connectivity-test.txt", 
+                "action": "put",
+                "key": "connectivity-test.txt",
                 "content": "ok",
-                "bucket": "e2e-test-bucket"  # Must match created bucket
+                "bucket": "e2e-test-bucket",  # Must match created bucket
             },
             headers={"Authorization": f"Bearer {auth_token}"},
             timeout=30,
@@ -115,7 +118,7 @@ class TestConnectivity:
         assert response.status_code == 200, f"Chain invoke failed: {response.text}"
         data = response.json()
         assert data.get("success") is True, f"Chain invoke returned error: {data}"
-        
+
         # Child response is nested and might be a string body that needs parsing
         child = data.get("child", {})
         if isinstance(child.get("body"), str):

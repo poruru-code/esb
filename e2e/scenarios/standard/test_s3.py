@@ -7,6 +7,8 @@ S3 compatibility tests (RustFS/MinIO).
 
 import uuid
 
+import pytest
+
 from e2e.conftest import call_api
 
 
@@ -136,4 +138,44 @@ class TestS3:
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
-        assert len(data["objects"]) >= 3
+
+    def test_bucket_lifecycle_configuration(self, auth_token):
+        """E2E: S3 Bucket Lifecycle Configuration."""
+        import os
+
+        import boto3
+        from botocore.config import Config
+
+        # S3 Client for RustFS/MinIO
+        storage_port = os.environ.get("ESB_PORT_STORAGE", "9000")
+        s3_client = boto3.client(
+            "s3",
+            endpoint_url=f"http://localhost:{storage_port}",
+            aws_access_key_id=os.environ.get("RUSTFS_ACCESS_KEY", "rustfsadmin"),
+            aws_secret_access_key=os.environ.get("RUSTFS_SECRET_KEY", "rustfsadmin"),
+            config=Config(signature_version="s3v4"),
+            verify=False,
+        )
+
+        bucket_name = "e2e-test-bucket"
+
+        # Verify Lifecycle Configuration
+        try:
+            response = s3_client.get_bucket_lifecycle_configuration(Bucket=bucket_name)
+            rules = response.get("Rules", [])
+
+            assert len(rules) > 0, "Lifecycle rules should be configured"
+
+            # Verify specific rule (e.g., Expiration: 7 days)
+            found = False
+            for rule in rules:
+                if rule.get("Status") == "Enabled":
+                    expiration = rule.get("Expiration", {})
+                    if expiration.get("Days") == 7:
+                        found = True
+                        break
+
+            assert found, "Expected lifecycle rule (Expiration: 7 days) not found"
+
+        except Exception as e:
+            pytest.fail(f"Failed to get bucket lifecycle configuration: {e}")

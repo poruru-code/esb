@@ -212,10 +212,10 @@ func (s *AgentServer) GetContainerMetrics(ctx context.Context, req *pb.GetContai
 
 	return &pb.GetContainerMetricsResponse{
 		Metrics: &pb.ContainerMetrics{
-			ContainerId:  metrics.ID,
-			FunctionName: metrics.FunctionName,
+			ContainerId:   metrics.ID,
+			FunctionName:  metrics.FunctionName,
 			ContainerName: metrics.ContainerName,
-			State:        metrics.State,
+			State:         metrics.State,
 			MemoryCurrent: metrics.MemoryCurrent,
 			MemoryMax:     metrics.MemoryMax,
 			OomEvents:     metrics.OOMEvents,

@@ -108,7 +108,7 @@ class TestContainerPoolAcquire:
         # Fill up capacity (simulate 2 workers acquired)
         pool._all_workers[mock_worker.id] = mock_worker
         pool._all_workers["c2"] = WorkerInfo(id="c2", name="w2", ip_address="10.0.0.2")
-        
+
         # In Condition-based pool, fill _all_workers is enough to prevent new provision
         # but to prevent acquire from returning, we don't put them in _idle_workers.
 
@@ -244,7 +244,11 @@ class TestContainerPoolConcurrency:
             nonlocal call_count
             call_count += 1
             await asyncio.sleep(0.1)  # Simulate provisioning delay
-            return [WorkerInfo(id=f"c{call_count}", name=f"w{call_count}", ip_address=f"10.0.0.{call_count}")]
+            return [
+                WorkerInfo(
+                    id=f"c{call_count}", name=f"w{call_count}", ip_address=f"10.0.0.{call_count}"
+                )
+            ]
 
         # Launch 5 concurrent acquires (max_capacity=3)
         tasks = [pool.acquire(provision_callback) for _ in range(5)]

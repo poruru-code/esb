@@ -28,19 +28,23 @@ class TestMetricsAPI:
         expected_memory_max = 128 * 1024 * 1024
 
         metrics_entry = None
-        metrics_resp = None # Initialize metrics_resp outside the loop
+        metrics_resp = None  # Initialize metrics_resp outside the loop
         for _ in range(10):
             metrics_resp = requests.get(
                 f"{GATEWAY_URL}/metrics/containers",
                 headers=headers,
                 verify=VERIFY_SSL,
             )
-            
+
             # Allow 200 OK or 501 Not Implemented (for Docker runtime)
             if metrics_resp.status_code == 200:
                 data = metrics_resp.json()
                 metrics_entry = next(
-                    (item for item in data.get("containers", []) if item.get("function_name") == "lambda-echo"),
+                    (
+                        item
+                        for item in data.get("containers", [])
+                        if item.get("function_name") == "lambda-echo"
+                    ),
                     None,
                 )
                 if metrics_entry and metrics_entry.get("memory_max", 0) > 0:
@@ -51,21 +55,25 @@ class TestMetricsAPI:
                 # Note: Gateway exception handler returns {"message": "..."}
                 error_body = metrics_resp.json()
                 error_detail = error_body.get("message") or error_body.get("detail") or ""
-                
-                assert "metrics are not implemented" in error_detail.lower() or "docker" in error_detail.lower(), \
-                    f"Unexpected 501 error detail: {error_detail}"
-                
+
+                assert (
+                    "metrics are not implemented" in error_detail.lower()
+                    or "docker" in error_detail.lower()
+                ), f"Unexpected 501 error detail: {error_detail}"
+
                 # If valid 501, we consider the test passed for this runtime.
                 # Return immediately as we can't verify metrics values.
                 return
             else:
-                 # Other errors (4xx, 503, etc.) fail the assertions below
-                 pass
-            
+                # Other errors (4xx, 503, etc.) fail the assertions below
+                pass
+
             time.sleep(1)
 
         # If we got 200 OK, verify metrics content
-        assert metrics_resp.status_code == 200, f"Metrics API failed with {metrics_resp.status_code}: {metrics_resp.text}"
+        assert metrics_resp.status_code == 200, (
+            f"Metrics API failed with {metrics_resp.status_code}: {metrics_resp.text}"
+        )
         assert metrics_entry is not None
         assert metrics_entry["state"] in {"RUNNING", "PAUSED"}
         assert metrics_entry["memory_max"] == expected_memory_max

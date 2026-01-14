@@ -87,7 +87,6 @@ async def test_provision_success(grpc_client, mock_stub, mock_registry):
         assert env["VICTORIALOGS_URL"] == "http://victorialogs:8428"
 
 
-
 @pytest.mark.asyncio
 async def test_provision_fallback_containerd(grpc_client, mock_stub, mock_registry):
     """Test fallback logic when endpoints are not set (Containerd mode)."""
@@ -96,7 +95,7 @@ async def test_provision_fallback_containerd(grpc_client, mock_stub, mock_regist
         "image": "my-func:latest",
         "environment": {},
     }
-    
+
     mock_response = agent_pb2.WorkerInfo(id="w1", name="w1", ip_address="1.2.3.4", port=8080)
     mock_stub.EnsureContainer = AsyncMock(return_value=mock_response)
 
@@ -108,8 +107,8 @@ async def test_provision_fallback_containerd(grpc_client, mock_stub, mock_regist
         mock_config.S3_ENDPOINT = ""
         mock_config.DYNAMODB_ENDPOINT = ""
         mock_config.GATEWAY_VICTORIALOGS_URL = ""
-        mock_config.VICTORIALOGS_URL = "" # Host URL ignored in fallback
-        mock_config.ESB_DATA_PLANE_HOST = "10.99.99.99" # Custom Data Plane Host
+        mock_config.VICTORIALOGS_URL = ""  # Host URL ignored in fallback
+        mock_config.ESB_DATA_PLANE_HOST = "10.99.99.99"  # Custom Data Plane Host
 
         # 2. Call
         await grpc_client.provision("my-func")
@@ -122,6 +121,7 @@ async def test_provision_fallback_containerd(grpc_client, mock_stub, mock_regist
         assert env["AWS_ENDPOINT_URL_S3"] == "http://10.99.99.99:9000"
         assert env["AWS_ENDPOINT_URL_DYNAMODB"] == "http://10.99.99.99:8000"
         assert env["AWS_ENDPOINT_URL_CLOUDWATCH_LOGS"] == "http://10.99.99.99:9428"
+
 
 @pytest.mark.asyncio
 async def test_grpc_delete_container(mock_stub, mock_registry):

@@ -72,7 +72,11 @@ func parseOtherResources(resources map[string]any, parameters map[string]string)
 		case "AWS::S3::Bucket":
 			bucketName := asStringDefault(props["BucketName"], strings.ToLower(logicalID))
 			bucketName = resolveIntrinsic(bucketName, parameters)
-			parsed.S3 = append(parsed.S3, S3Spec{BucketName: bucketName})
+			parsed.S3 = append(parsed.S3, S3Spec{
+				BucketName:             bucketName,
+				LifecycleConfiguration: props["LifecycleConfiguration"],
+			})
+
 		}
 	}
 

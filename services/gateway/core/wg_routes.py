@@ -198,9 +198,7 @@ def _resolve_allowed_ips(interface: str, conf_path: str) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description="Ensure WireGuard routes exist for AllowedIPs."
-    )
+    parser = argparse.ArgumentParser(description="Ensure WireGuard routes exist for AllowedIPs.")
     parser.add_argument(
         "--interface",
         default=os.environ.get("WG_INTERFACE", ""),

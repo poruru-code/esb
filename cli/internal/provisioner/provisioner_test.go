@@ -86,8 +86,9 @@ func (f *fakeDynamo) CreateTable(_ context.Context, input DynamoCreateInput) err
 }
 
 type fakeS3 struct {
-	existing []string
-	created  []string
+	existing      []string
+	created       []string
+	lifecycleConf map[string]interface{}
 }
 
 func (f *fakeS3) ListBuckets(_ context.Context) ([]string, error) {
@@ -96,6 +97,17 @@ func (f *fakeS3) ListBuckets(_ context.Context) ([]string, error) {
 
 func (f *fakeS3) CreateBucket(_ context.Context, name string) error {
 	f.created = append(f.created, name)
+	return nil
+}
+
+func (f *fakeS3) PutBucketLifecycleConfiguration(_ context.Context, name string, rules any) error {
+	if _, ok := rules.(map[string]any); !ok {
+		return errors.New("invalid lifecycle configuration format")
+	}
+	if f.lifecycleConf == nil {
+		f.lifecycleConf = make(map[string]interface{})
+	}
+	f.lifecycleConf[name] = rules
 	return nil
 }
 

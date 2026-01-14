@@ -774,6 +774,9 @@ def run_scenario(args, scenario):
             # log_ports(env_name, ports)
 
             # Update env dict for pytest subprocess
+            for k, v in ports.items():
+                env[k] = str(v)
+
             env["GATEWAY_PORT"] = str(
                 ports.get("ESB_PORT_GATEWAY_HTTPS", env.get("GATEWAY_PORT", "443"))
             )

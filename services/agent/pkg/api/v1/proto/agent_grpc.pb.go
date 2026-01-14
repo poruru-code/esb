@@ -105,21 +105,24 @@ type AgentServiceServer interface {
 }
 
 // UnimplementedAgentServiceServer should be embedded to have forward compatible implementations.
-type UnimplementedAgentServiceServer struct {
-}
+type UnimplementedAgentServiceServer struct{}
 
 func (UnimplementedAgentServiceServer) EnsureContainer(context.Context, *EnsureContainerRequest) (*WorkerInfo, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method EnsureContainer not implemented")
 }
+
 func (UnimplementedAgentServiceServer) DestroyContainer(context.Context, *DestroyContainerRequest) (*DestroyContainerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DestroyContainer not implemented")
 }
+
 func (UnimplementedAgentServiceServer) PauseContainer(context.Context, *PauseContainerRequest) (*PauseContainerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PauseContainer not implemented")
 }
+
 func (UnimplementedAgentServiceServer) ResumeContainer(context.Context, *ResumeContainerRequest) (*ResumeContainerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResumeContainer not implemented")
 }
+
 func (UnimplementedAgentServiceServer) ListContainers(context.Context, *ListContainersRequest) (*ListContainersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListContainers not implemented")
 }

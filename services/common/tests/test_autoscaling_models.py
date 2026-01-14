@@ -4,7 +4,6 @@ Tests for Auto-Scaling Data Structures
 TDD: RED phase - write tests first, then implement.
 """
 
-
 import pytest
 
 

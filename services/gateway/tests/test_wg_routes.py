@@ -60,9 +60,7 @@ AllowedIPs = 10.88.1.0/24
 
 
 def test_filter_allowed_ips_accepts_rfc1918_and_host_routes():
-    accepted, skipped = filter_allowed_ips(
-        [RFC1918_SAMPLE, WG_HOST_SAMPLE, PUBLIC_HOST_SAMPLE]
-    )
+    accepted, skipped = filter_allowed_ips([RFC1918_SAMPLE, WG_HOST_SAMPLE, PUBLIC_HOST_SAMPLE])
 
     assert accepted == [RFC1918_SAMPLE, WG_HOST_SAMPLE, PUBLIC_HOST_SAMPLE]
     assert skipped == []

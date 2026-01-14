@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
 type awsDynamoClient struct {
@@ -224,4 +225,129 @@ func (c awsS3Client) CreateBucket(ctx context.Context, name string) error {
 	}
 	_, err := c.client.CreateBucket(ctx, &s3.CreateBucketInput{Bucket: aws.String(name)})
 	return err
+}
+
+// PutBucketLifecycleConfiguration applies lifecycle rules to the bucket.
+// Supported fields in each Rule:
+// - Id (string)
+// - Status (Enabled/Disabled)
+// - Prefix (string)
+// - ExpirationInDays (int)
+func (c awsS3Client) PutBucketLifecycleConfiguration(ctx context.Context, name string, rules any) error {
+	if c.client == nil {
+		return fmt.Errorf("s3 client is nil")
+	}
+
+	rawRules, ok := rules.(map[string]any)
+	if !ok {
+		// It might be using map[interface{}]interface{} if coming directly from yaml decode sometimes,
+		// but generator usually normalizes. If nil or wrong type, just return.
+		return fmt.Errorf("invalid lifecycle configuration format")
+	}
+
+	awsRules, err := mapLifecycleRules(rawRules["Rules"])
+	if err != nil {
+		return err
+	}
+
+	_, err = c.client.PutBucketLifecycleConfiguration(ctx, &s3.PutBucketLifecycleConfigurationInput{
+		Bucket: aws.String(name),
+		LifecycleConfiguration: &s3types.BucketLifecycleConfiguration{
+			Rules: awsRules,
+		},
+	})
+	return err
+}
+
+func mapLifecycleRules(raw any) ([]s3types.LifecycleRule, error) {
+	items, ok := raw.([]any)
+	if !ok {
+		// Try slice of interface{} just in case
+		if slice, ok := raw.([]interface{}); ok {
+			items = slice
+		} else {
+			return nil, fmt.Errorf("lifecycle rules must be a list")
+		}
+	}
+
+	out := make([]s3types.LifecycleRule, 0, len(items))
+	for _, item := range items {
+		ruleMap, ok := item.(map[string]any)
+		if !ok {
+			// Try map[interface{}]interface{}
+			if m, ok := item.(map[interface{}]interface{}); ok {
+				ruleMap = make(map[string]any)
+				for k, v := range m {
+					ruleMap[fmt.Sprint(k)] = v
+				}
+			} else {
+				continue
+			}
+		}
+
+		rule := s3types.LifecycleRule{}
+		statusStr := strings.ToLower(asString(ruleMap["Status"]))
+		if statusStr == "enabled" {
+			rule.Status = s3types.ExpirationStatusEnabled
+		} else {
+			rule.Status = s3types.ExpirationStatusDisabled
+		}
+
+		if id := asString(ruleMap["Id"]); id != "" {
+			rule.ID = aws.String(id)
+		}
+
+		// Filter
+		if prefix, ok := ruleMap["Prefix"]; ok {
+			if pStr := asString(prefix); pStr != "" {
+				rule.Filter = &s3types.LifecycleRuleFilter{Prefix: aws.String(pStr)}
+			}
+		}
+
+		// Expiration
+		if exp := ruleMap["ExpirationInDays"]; exp != nil {
+			if days, ok := asInt(exp); ok {
+				rule.Expiration = &s3types.LifecycleExpiration{Days: aws.Int32(int32(days))}
+			}
+		}
+
+		out = append(out, rule)
+	}
+	return out, nil
+}
+
+func asString(v any) string {
+	if v == nil {
+		return ""
+	}
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return fmt.Sprint(v)
+}
+
+func asInt(v any) (int, bool) {
+	if v == nil {
+		return 0, false
+	}
+	switch n := v.(type) {
+	case int:
+		return n, true
+	case int32:
+		return int(n), true
+	case int64:
+		return int(n), true
+	case uint:
+		return int(n), true
+	case uint32:
+		return int(n), true
+	case uint64:
+		return int(n), true
+	case float32:
+		return int(n), true
+	case float64:
+		return int(n), true
+	default:
+		return 0, false
+	}
 }

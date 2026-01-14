@@ -92,6 +92,10 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: e2e-test-bucket
+      LifecycleConfiguration:
+        Rules:
+          - Status: Enabled
+            ExpirationInDays: 7
 
   EchoFunction:
     Type: AWS::Serverless::Function
