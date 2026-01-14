@@ -711,6 +711,9 @@ def run_profile_subprocess(
                     if in_special_block:
                         in_special_block = False
 
+                    # Preserve blank lines for structure (e.g. before BlockStart)
+                    print(prefix, flush=True)
+
                 output_lines.append(line)
 
     except Exception as e:
