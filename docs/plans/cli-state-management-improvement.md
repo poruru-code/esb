@@ -162,8 +162,8 @@ stateDiagram-v2
     Stopped --> Built: esb build
     Built --> Initialized: esb prune
     Running --> Running: esb up --build
-    Running --> Built: esb reset (途中)
-    Built --> Running: esb reset (完了)
+    Running --> Built: esb up --reset (down+build)
+    Built --> Running: esb up --reset (up)
 ```
 
 ### 入れ子構造の全体像
@@ -195,7 +195,7 @@ project 選択 (ESB_PROJECT / last_used)
     ↓ 必須
 env 選択 (ESB_ENV / app.last_env / 単一環境)
     ↓ 必須
-build / up / down / stop / reset / logs / prune (環境操作コマンド)
+build / up / down / stop / logs / prune (環境操作コマンド、up --reset は up の拡張)
 ```
 
 ### コマンド別の前提条件
@@ -213,9 +213,8 @@ build / up / down / stop / reset / logs / prune (環境操作コマンド)
 | `esb down` | ✓ | ✓ 必須 | ✓ 必須 | |
 | `esb stop` | ✓ | ✓ 必須 | ✓ 必須 | |
 | `esb logs` | ✓ | ✓ 必須 | ✓ 必須 | |
-| `esb reset` | ✓ | ✓ 必須 | ✓ 必須 | |
+| `esb up --reset` | ✓ | ✓ 必須 | ✓ 必須 | |
 | `esb prune` | ✓ | ✓ 必須 | ✓ 必須 | |
-| `esb status` | ✓ | 適応表示 | 適応表示 | 現在地を表示 |
 | `esb info` | ✓ | 適応表示 | 適応表示 | 詳細情報を表示 |
 
 ### エラーメッセージ例
@@ -351,29 +350,9 @@ func runBuild(cli CLI, deps Dependencies, out io.Writer) int {
 }
 ```
 
-### Phase 5: status/info コマンドの改善
+### Phase 5: info コマンドの改善
 
 **目的**: 現在のレベルに応じた適切な情報表示
-
-**出力例**:
-```
-# プロジェクトがない場合
-$ esb status
-No projects registered.
-Run 'esb init -t <template>' to get started.
-
-# 環境がない場合
-$ esb status
-Project: my-app
-No active environment.
-Run 'esb env use <env>' to select one.
-
-# 通常
-$ esb status
-Project: my-app
-Environment: dev
-State: running
-```
 
 ## ドキュメント更新
 
@@ -397,14 +376,14 @@ State: running
 
 ## 既知のバグ・改善項目
 
-### BUG: reset コマンドで Provision が呼ばれない
+### BUG: reset 相当の処理で Provision が呼ばれない
 
-**現象**: `esb reset` 実行後、Lambda 関数が正しく登録されない可能性がある
+**現象**: 旧 `esb reset` 実行後、Lambda 関数が正しく登録されない可能性がある
 
-**原因**: `reset.go` は `Upper.Up()` のみ呼び出しており、`Provisioner.Provision()` を呼んでいない
+**原因**: 旧 `reset.go` は `Upper.Up()` のみ呼び出しており、`Provisioner.Provision()` を呼んでいない
 
 ```go
-// reset.go (現状)
+// reset.go (旧実装)
 deps.Downer.Down(ctx.ComposeProject, true)
 deps.Builder.Build(request)
 deps.Upper.Up(UpRequest{...})  // ← provision なし
@@ -414,7 +393,7 @@ deps.Upper.Up(request)
 deps.Provisioner.Provision(...)  // ← こちらにはある
 ```
 
-**修正方針**: Provision に冪等性があるため、`Upper.Up()` 実装内で provision を呼ぶか、`reset.go` に明示的に追加する
+**修正方針**: `reset` コマンドを廃止し、`esb up --reset` に統合して `Provisioner`/`Waiter` まで実行する
 
 ### UX改善: prune コマンドの再構成
 

@@ -46,7 +46,7 @@ func buildDependencies() (app.Dependencies, io.Closer, error) {
 		PortDiscoverer:  app.NewPortDiscoverer(),
 		Waiter:          app.NewGatewayWaiter(),
 		Provisioner:     provisionerAdapter{runner: provisioner.New(client)},
-		Pruner:          app.NewPruner(),
+		Pruner:          app.NewPruner(client),
 		Prompter:        app.HuhPrompter{},
 		RepoResolver:    config.ResolveRepoRoot,
 	}

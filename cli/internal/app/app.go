@@ -60,12 +60,11 @@ type CLI struct {
 	Down       DownCmd       `cmd:"" help:"Stop environment"`
 	Stop       StopCmd       `cmd:"" help:"Stop environment (preserve state)"`
 	Logs       LogsCmd       `cmd:"" help:"View logs"`
-	Reset      ResetCmd      `cmd:"" help:"Reset environment"`
 	Prune      PruneCmd      `cmd:"" help:"Remove resources"`
-	Status     StatusCmd     `cmd:"" help:"Show state"`
 	Env        EnvCmd        `cmd:"" name:"env" help:"Manage environments"`
 	Project    ProjectCmd    `cmd:"" help:"Manage projects"`
 	Config     ConfigCmd     `cmd:"" name:"config" help:"Manage configuration"`
+	Complete   CompleteCmd   `cmd:"" name:"__complete" hidden:"" help:"Completion candidate provider"`
 	Completion CompletionCmd `cmd:"" help:"Generate shell completion script"`
 	Version    VersionCmd    `cmd:"" help:"Show version information"`
 }
@@ -73,9 +72,6 @@ type CLI struct {
 type VersionCmd struct{}
 
 type (
-	StatusCmd struct {
-		Force bool `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
-	}
 	StopCmd struct {
 		Force bool `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
 	}
@@ -95,6 +91,8 @@ type BuildCmd struct {
 }
 type UpCmd struct {
 	Build  bool `help:"Rebuild before starting"`
+	Reset  bool `help:"Reset environment before starting (down --volumes + build)"`
+	Yes    bool `short:"y" help:"Skip confirmation prompt for --reset"`
 	Detach bool `short:"d" default:"true" help:"Run in background"`
 	Wait   bool `short:"w" help:"Wait for gateway ready"`
 	Force  bool `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
@@ -103,14 +101,12 @@ type DownCmd struct {
 	Volumes bool `short:"v" help:"Remove named volumes"`
 	Force   bool `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
 }
-type ResetCmd struct {
-	Yes   bool `short:"y" help:"Skip confirmation"`
-	Force bool `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
-}
 type PruneCmd struct {
-	Yes   bool `short:"y" help:"Skip confirmation"`
-	Hard  bool `help:"Also remove generator.yml"`
-	Force bool `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
+	Yes     bool `short:"y" help:"Skip confirmation prompt"`
+	All     bool `short:"a" help:"Remove all unused images (not just dangling)"`
+	Volumes bool `help:"Remove unused volumes"`
+	Hard    bool `help:"Also remove generator.yml"`
+	Force   bool `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
 }
 
 // Run is the main entry point for CLI command execution.
@@ -166,137 +162,72 @@ func Run(args []string, deps Dependencies) int {
 	}
 
 	command := ctx.Command()
-	switch {
-	case command == "build":
-		return runBuild(cli, deps, out)
-	case command == "up":
-		return runUp(cli, deps, out)
-	case command == "down":
-		return runDown(cli, deps, out)
-	case command == "stop":
-		return runStop(cli, deps, out)
-	case command == "reset":
-		return runReset(cli, deps, out)
-	case command == "prune":
-		return runPrune(cli, deps, out)
-	case command == "status":
-		return runStatus(cli, deps, out)
-	case strings.HasPrefix(command, "logs"):
-		return runLogs(cli, deps, out)
-	case command == "env" || command == "env list":
-		return runEnvList(cli, deps, out)
-	case strings.HasPrefix(command, "env add"):
-		return runEnvAdd(cli, deps, out)
-	case strings.HasPrefix(command, "env use"):
-		return runEnvUse(cli, deps, out)
-	case strings.HasPrefix(command, "env remove"):
-		return runEnvRemove(cli, deps, out)
-	case strings.HasPrefix(command, "env var"):
-		return runEnvVar(cli, deps, out)
-	case strings.HasPrefix(command, "project add"):
-		return runProjectAdd(cli, deps, out)
-	case command == "project recent":
-		return runProjectRecent(cli, deps, out)
-	case strings.HasPrefix(command, "project use"):
-		return runProjectUse(cli, deps, out)
-	case strings.HasPrefix(command, "project remove"):
-		return runProjectRemove(cli, deps, out)
-	case command == "project" || command == "project list" || command == "project ls":
-		return runProjectList(cli, deps, out)
-	case strings.HasPrefix(command, "config set-repo"):
-		return runConfigSetRepo(cli, deps, out)
-	case command == "completion bash":
-		return runCompletionBash(cli, out)
-	case command == "completion zsh":
-		return runCompletionZsh(cli, out)
-	case command == "completion fish":
-		return runCompletionFish(cli, out)
-	case command == "version":
-		return runVersion(cli, out)
-	default:
-		fmt.Fprintln(out, "unknown command")
-		return 1
+	if exitCode, handled := dispatchCommand(command, cli, deps, out); handled {
+		return exitCode
 	}
+
+	fmt.Fprintln(out, "unknown command")
+	return 1
+}
+
+type commandHandler func(CLI, Dependencies, io.Writer) int
+
+type prefixHandler struct {
+	prefix  string
+	handler commandHandler
+}
+
+func dispatchCommand(command string, cli CLI, deps Dependencies, out io.Writer) (int, bool) {
+	exactHandlers := map[string]commandHandler{
+		"build":              runBuild,
+		"up":                 runUp,
+		"down":               runDown,
+		"stop":               runStop,
+		"prune":              runPrune,
+		"env":                runEnvList,
+		"env list":           runEnvList,
+		"project":            runProjectList,
+		"project list":       runProjectList,
+		"project ls":         runProjectList,
+		"project recent":     runProjectRecent,
+		"config set-repo":    runConfigSetRepo,
+		"__complete env":     runCompleteEnv,
+		"__complete project": runCompleteProject,
+		"__complete service": runCompleteService,
+		"completion bash":    func(_ CLI, _ Dependencies, out io.Writer) int { return runCompletionBash(cli, out) },
+		"completion zsh":     func(_ CLI, _ Dependencies, out io.Writer) int { return runCompletionZsh(cli, out) },
+		"completion fish":    func(_ CLI, _ Dependencies, out io.Writer) int { return runCompletionFish(cli, out) },
+		"version":            func(_ CLI, _ Dependencies, out io.Writer) int { return runVersion(cli, out) },
+	}
+
+	if handler, ok := exactHandlers[command]; ok {
+		return handler(cli, deps, out), true
+	}
+
+	prefixHandlers := []prefixHandler{
+		{prefix: "logs", handler: runLogs},
+		{prefix: "env add", handler: runEnvAdd},
+		{prefix: "env use", handler: runEnvUse},
+		{prefix: "env remove", handler: runEnvRemove},
+		{prefix: "env var", handler: runEnvVar},
+		{prefix: "project add", handler: runProjectAdd},
+		{prefix: "project use", handler: runProjectUse},
+		{prefix: "project remove", handler: runProjectRemove},
+		{prefix: "config set-repo", handler: runConfigSetRepo},
+	}
+
+	for _, entry := range prefixHandlers {
+		if strings.HasPrefix(command, entry.prefix) {
+			return entry.handler(cli, deps, out), true
+		}
+	}
+
+	return 1, false
 }
 
 // runVersion prints the version information of the CLI.
 func runVersion(_ CLI, out io.Writer) int {
 	fmt.Fprintln(out, version.GetVersion())
-	return 0
-}
-
-// runStatus executes the 'status' command which displays the current
-// environment state (running, stopped, or not initialized).
-func runStatus(cli CLI, deps Dependencies, out io.Writer) int {
-	factory := deps.DetectorFactory
-	if factory == nil {
-		fmt.Fprintln(out, "detector factory not configured")
-		return 1
-	}
-
-	opts := newResolveOptions(cli.Status.Force)
-	_, cfg, err := loadGlobalConfigWithPath()
-	if err != nil {
-		fmt.Fprintln(out, err)
-		return 1
-	}
-	if cli.Template == "" && len(cfg.Projects) == 0 {
-		fmt.Fprintln(out, "No projects registered.")
-		fmt.Fprintln(out, "Run 'esb project add . --template <path>' to get started.")
-		return 1
-	}
-
-	selection, err := resolveProjectSelection(cli, deps, opts)
-	if err != nil {
-		fmt.Fprintln(out, err)
-		return 1
-	}
-
-	projectDir := selection.Dir
-	if strings.TrimSpace(projectDir) == "" {
-		projectDir = "."
-	}
-	project, err := loadProjectConfig(projectDir)
-	if err != nil {
-		fmt.Fprintln(out, err)
-		return 1
-	}
-
-	envState, err := state.ResolveProjectState(state.ProjectStateOptions{
-		EnvFlag:     cli.EnvFlag,
-		EnvVar:      os.Getenv("ESB_ENV"),
-		Config:      project.Generator,
-		Force:       opts.Force,
-		Interactive: opts.Interactive,
-		Prompt:      opts.Prompt,
-	})
-	if err != nil {
-		fmt.Fprintf(out, "Project: %s\n", project.Name)
-		fmt.Fprintln(out, err)
-		return 1
-	}
-
-	ctx, err := state.ResolveContext(project.Dir, envState.ActiveEnv)
-	if err != nil {
-		fmt.Fprintln(out, err)
-		return 1
-	}
-
-	detector, err := factory(ctx.ProjectDir, ctx.Env)
-	if err != nil {
-		fmt.Fprintln(out, err)
-		return 1
-	}
-
-	stateValue, err := detector.Detect()
-	if err != nil {
-		fmt.Fprintln(out, err)
-		return 1
-	}
-
-	fmt.Fprintf(out, "Project: %s\n", project.Name)
-	fmt.Fprintf(out, "Environment: %s\n", ctx.Env)
-	fmt.Fprintf(out, "State: %s\n", stateValue)
 	return 0
 }
 

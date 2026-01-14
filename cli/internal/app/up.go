@@ -6,6 +6,7 @@ package app
 import (
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
@@ -45,15 +46,39 @@ func runUp(cli CLI, deps Dependencies, out io.Writer) int {
 	ctx := ctxInfo.Context
 	applyRuntimeEnv(ctx, deps.RepoResolver)
 
+	templatePath := resolvedTemplatePath(ctxInfo)
+
+	if cli.Up.Reset {
+		if deps.Downer == nil {
+			fmt.Fprintln(out, "up: downer not configured")
+			return 1
+		}
+		printResetWarning(out)
+		if !cli.Up.Yes {
+			if !isTerminal(os.Stdin) {
+				return exitWithError(out, fmt.Errorf("up --reset requires --yes in non-interactive mode"))
+			}
+			confirmed, err := promptYesNo("Are you sure you want to continue?")
+			if err != nil {
+				return exitWithError(out, err)
+			}
+			if !confirmed {
+				fmt.Fprintln(out, "Aborted.")
+				return 1
+			}
+		}
+		if err := deps.Downer.Down(ctx.ComposeProject, true); err != nil {
+			return exitWithError(out, err)
+		}
+	}
+
 	// Ensure authentication credentials are set (auto-generate if missing)
 	creds := EnsureAuthCredentials()
 	if creds.Generated {
 		PrintGeneratedCredentials(out, creds)
 	}
 
-	templatePath := resolvedTemplatePath(ctxInfo)
-
-	if cli.Up.Build {
+	if cli.Up.Build || cli.Up.Reset {
 		if deps.Builder == nil {
 			fmt.Fprintln(out, "up: builder not configured")
 			return 1
@@ -110,4 +135,12 @@ func runUp(cli CLI, deps Dependencies, out io.Writer) int {
 		PrintDiscoveredPorts(out, ports)
 	}
 	return 0
+}
+
+func printResetWarning(out io.Writer) {
+	fmt.Fprintln(out, "WARNING! This will remove:")
+	fmt.Fprintln(out, "  - all containers for the selected environment")
+	fmt.Fprintln(out, "  - all volumes for the selected environment (DB/S3 data)")
+	fmt.Fprintln(out, "  - rebuild images and restart services")
+	fmt.Fprintln(out, "")
 }

@@ -11,12 +11,17 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/api/types/network"
+	"github.com/docker/docker/api/types/volume"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
 const (
-	composeProjectLabel = "com.docker.compose.project"
-	composeServiceLabel = "com.docker.compose.service"
+	ComposeProjectLabel = "com.docker.compose.project"
+	ComposeServiceLabel = "com.docker.compose.service"
+	ESBProjectLabel     = "com.esb.project"
+	ESBEnvLabel         = "com.esb.env"
+	ESBManagedLabel     = "com.esb.managed"
 )
 
 // DockerClient defines the subset of Docker SDK methods used by this package.
@@ -26,6 +31,10 @@ type DockerClient interface {
 	ImageList(ctx context.Context, options image.ListOptions) ([]image.Summary, error)
 	ContainerStop(ctx context.Context, containerID string, options container.StopOptions) error
 	ContainerRemove(ctx context.Context, containerID string, options container.RemoveOptions) error
+	ContainersPrune(ctx context.Context, pruneFilters filters.Args) (container.PruneReport, error)
+	ImagesPrune(ctx context.Context, pruneFilters filters.Args) (image.PruneReport, error)
+	NetworksPrune(ctx context.Context, pruneFilters filters.Args) (network.PruneReport, error)
+	VolumesPrune(ctx context.Context, pruneFilters filters.Args) (volume.PruneReport, error)
 }
 
 // ListContainersByProject returns container information for all containers
@@ -36,7 +45,7 @@ func ListContainersByProject(
 	project string,
 ) ([]state.ContainerInfo, error) {
 	labelFilter := filters.NewArgs()
-	labelFilter.Add("label", fmt.Sprintf("%s=%s", composeProjectLabel, project))
+	labelFilter.Add("label", fmt.Sprintf("%s=%s", ComposeProjectLabel, project))
 
 	containers, err := client.ContainerList(ctx, container.ListOptions{
 		All:     true,
@@ -48,7 +57,7 @@ func ListContainersByProject(
 
 	result := make([]state.ContainerInfo, 0, len(containers))
 	for _, ctr := range containers {
-		if ctr.Labels == nil || ctr.Labels[composeProjectLabel] != project {
+		if ctr.Labels == nil || ctr.Labels[ComposeProjectLabel] != project {
 			continue
 		}
 
@@ -59,7 +68,7 @@ func ListContainersByProject(
 
 		result = append(result, state.ContainerInfo{
 			Name:    name,
-			Service: ctr.Labels[composeServiceLabel],
+			Service: ctr.Labels[ComposeServiceLabel],
 			State:   ctr.State,
 		})
 	}

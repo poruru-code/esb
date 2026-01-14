@@ -73,6 +73,9 @@ func EnsureAuthCredentials() AuthCredentials {
 	creds.RustfsSecretKey = os.Getenv("RUSTFS_SECRET_KEY")
 
 	creds.Generated = generated
+
+	// EnsureCertificates call removed. Use 'mise run setup:certs' to generate certificates.
+
 	return creds
 }
 

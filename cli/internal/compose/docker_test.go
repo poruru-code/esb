@@ -8,7 +8,10 @@ import (
 	"testing"
 
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/api/types/network"
+	"github.com/docker/docker/api/types/volume"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
@@ -36,6 +39,26 @@ func (f *fakeDockerClient) ContainerStop(_ context.Context, _ string, _ containe
 func (f *fakeDockerClient) ContainerRemove(_ context.Context, _ string, _ container.RemoveOptions) error {
 	f.calls++
 	return nil
+}
+
+func (f *fakeDockerClient) ContainersPrune(_ context.Context, _ filters.Args) (container.PruneReport, error) {
+	f.calls++
+	return container.PruneReport{}, nil
+}
+
+func (f *fakeDockerClient) ImagesPrune(_ context.Context, _ filters.Args) (image.PruneReport, error) {
+	f.calls++
+	return image.PruneReport{}, nil
+}
+
+func (f *fakeDockerClient) NetworksPrune(_ context.Context, _ filters.Args) (network.PruneReport, error) {
+	f.calls++
+	return network.PruneReport{}, nil
+}
+
+func (f *fakeDockerClient) VolumesPrune(_ context.Context, _ filters.Args) (volume.PruneReport, error) {
+	f.calls++
+	return volume.PruneReport{}, nil
 }
 
 func TestListContainersByProject(t *testing.T) {

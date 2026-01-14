@@ -6,7 +6,6 @@ package compose
 import (
 	"context"
 	"fmt"
-	"strings"
 )
 
 // BuildOptions contains configuration for building Docker Compose services.
@@ -28,32 +27,16 @@ func BuildProject(ctx context.Context, runner CommandRunner, opts BuildOptions) 
 	if runner == nil {
 		return fmt.Errorf("command runner is nil")
 	}
-	if opts.RootDir == "" {
-		return fmt.Errorf("root dir is required")
-	}
 
 	mode := resolveMode(opts.Mode)
 	services := append([]string{}, opts.Services...)
 	if mode == ModeContainerd || mode == ModeFirecracker {
 		services = ensureService(services, "runtime-node")
 	}
-	files, err := ResolveComposeFiles(opts.RootDir, mode, opts.Target)
+
+	args, err := buildComposeArgs(opts.RootDir, mode, opts.Target, opts.Project, opts.ExtraFiles)
 	if err != nil {
 		return err
-	}
-
-	args := []string{"compose"}
-	if opts.Project != "" {
-		args = append(args, "-p", opts.Project)
-	}
-	for _, file := range files {
-		args = append(args, "-f", file)
-	}
-	for _, file := range opts.ExtraFiles {
-		if strings.TrimSpace(file) == "" {
-			continue
-		}
-		args = append(args, "-f", file)
 	}
 
 	args = append(args, "build")

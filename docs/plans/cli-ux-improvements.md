@@ -46,7 +46,6 @@ Usage: esb <command>
 Quick Actions:
   esb logs     View container logs
   esb down     Stop services
-  esb status   Show detailed status
 
 Commands:
   init       Initialize project
@@ -260,7 +259,7 @@ Tab 補完なし
 
 ```bash
 $ esb <TAB>
-build   down   env   info   init   logs   project   prune   reset   status   stop   up
+build   down   env   info   init   logs   project   prune   stop   up
 
 $ esb env use <TAB>
 dev   staging   prod

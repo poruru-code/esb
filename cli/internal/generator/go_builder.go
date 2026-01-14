@@ -129,6 +129,7 @@ func (b *GoBuilder) Build(request app.BuildRequest) error {
 		projectName = "esb"
 	}
 	composeProject := fmt.Sprintf("%s-%s", projectName, strings.ToLower(request.Env))
+	imageLabels := esbImageLabels(composeProject, request.Env)
 
 	if registry.External != "" {
 		if err := ensureRegistryRunning(
@@ -142,7 +143,7 @@ func (b *GoBuilder) Build(request app.BuildRequest) error {
 		}
 	}
 
-	if err := buildBaseImage(context.Background(), b.Runner, repoRoot, registry.External, imageTag, request.NoCache, request.Verbose); err != nil {
+	if err := buildBaseImage(context.Background(), b.Runner, repoRoot, registry.External, imageTag, request.NoCache, request.Verbose, imageLabels); err != nil {
 		return err
 	}
 	if err := buildFunctionImages(
@@ -154,11 +155,12 @@ func (b *GoBuilder) Build(request app.BuildRequest) error {
 		imageTag,
 		request.NoCache,
 		request.Verbose,
+		imageLabels,
 	); err != nil {
 		return err
 	}
 	if strings.EqualFold(mode, compose.ModeFirecracker) {
-		if err := buildServiceImages(context.Background(), b.Runner, repoRoot, registry.External, imageTag, request.NoCache, request.Verbose); err != nil {
+		if err := buildServiceImages(context.Background(), b.Runner, repoRoot, registry.External, imageTag, request.NoCache, request.Verbose, imageLabels); err != nil {
 			return err
 		}
 	}

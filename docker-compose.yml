@@ -197,8 +197,6 @@ volumes:
 networks:
   # Public network (exposed ports).
   external_network:
+    # Let Docker choose the subnet unless the network is pre-created.
     name: ${ESB_NETWORK_EXTERNAL:-${ESB_PROJECT_NAME:-esb}-external}
     driver: bridge
-    ipam:
-      config:
-        - subnet: ${ESB_SUBNET_EXTERNAL:-172.50.0.0/16}

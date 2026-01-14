@@ -9,7 +9,10 @@ import (
 	"testing"
 
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/api/types/network"
+	"github.com/docker/docker/api/types/volume"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
@@ -29,6 +32,22 @@ func (fakeDockerClient) ContainerStop(_ context.Context, _ string, _ container.S
 
 func (fakeDockerClient) ContainerRemove(_ context.Context, _ string, _ container.RemoveOptions) error {
 	return nil
+}
+
+func (fakeDockerClient) ContainersPrune(_ context.Context, _ filters.Args) (container.PruneReport, error) {
+	return container.PruneReport{}, nil
+}
+
+func (fakeDockerClient) ImagesPrune(_ context.Context, _ filters.Args) (image.PruneReport, error) {
+	return image.PruneReport{}, nil
+}
+
+func (fakeDockerClient) NetworksPrune(_ context.Context, _ filters.Args) (network.PruneReport, error) {
+	return network.PruneReport{}, nil
+}
+
+func (fakeDockerClient) VolumesPrune(_ context.Context, _ filters.Args) (volume.PruneReport, error) {
+	return volume.PruneReport{}, nil
 }
 
 func TestNewDetectorFactory(t *testing.T) {

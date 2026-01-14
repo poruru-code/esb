@@ -56,6 +56,7 @@ func (w gatewayWaiter) Wait(_ state.Context) error {
 	}
 	url := fmt.Sprintf("https://localhost:%s/health", port)
 	deadline := time.Now().Add(w.timeout)
+	var lastErr error
 
 	for time.Now().Before(deadline) {
 		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
@@ -63,14 +64,20 @@ func (w gatewayWaiter) Wait(_ state.Context) error {
 			return err
 		}
 		resp, err := w.client.Do(req)
-		if err == nil {
+		if err != nil {
+			lastErr = err
+		} else {
 			_ = resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
 				return nil
 			}
+			lastErr = fmt.Errorf("status code %d", resp.StatusCode)
 		}
 		time.Sleep(w.interval)
 	}
 
-	return fmt.Errorf("gateway failed to start")
+	if lastErr != nil {
+		return fmt.Errorf("gateway failed to start: %v", lastErr)
+	}
+	return fmt.Errorf("gateway failed to start (timeout)")
 }

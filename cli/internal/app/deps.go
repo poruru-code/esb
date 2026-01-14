@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
@@ -200,10 +201,26 @@ func (l loggerImpl) ListContainers(project string) ([]state.ContainerInfo, error
 
 // NewPruner creates a Pruner implementation that removes generated artifacts
 // and optionally the generator.yml configuration file.
-func NewPruner() Pruner {
+func NewPruner(client compose.DockerClient) Pruner {
 	return prunerFunc(func(request PruneRequest) error {
-		if err := os.RemoveAll(request.Context.OutputEnvDir); err != nil {
+		if client == nil {
+			return ErrDockerClientNil
+		}
+		if strings.TrimSpace(request.Context.ComposeProject) == "" {
+			return errors.New("compose project is required")
+		}
+		_, err := compose.PruneProject(context.Background(), client, compose.PruneOptions{
+			Project:       request.Context.ComposeProject,
+			RemoveVolumes: request.RemoveVolumes,
+			AllImages:     request.AllImages,
+		})
+		if err != nil {
 			return err
+		}
+		if strings.TrimSpace(request.Context.OutputEnvDir) != "" {
+			if err := os.RemoveAll(request.Context.OutputEnvDir); err != nil {
+				return err
+			}
 		}
 		if request.Hard {
 			if err := os.Remove(request.Context.GeneratorPath); err != nil && !os.IsNotExist(err) {

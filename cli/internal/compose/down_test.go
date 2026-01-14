@@ -8,7 +8,10 @@ import (
 	"testing"
 
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/api/types/network"
+	"github.com/docker/docker/api/types/volume"
 )
 
 type downFakeClient struct {
@@ -35,6 +38,22 @@ func (f *downFakeClient) ContainerRemove(_ context.Context, id string, opts cont
 	f.removed = append(f.removed, id)
 	f.removeVolume = append(f.removeVolume, opts.RemoveVolumes)
 	return nil
+}
+
+func (f *downFakeClient) ContainersPrune(_ context.Context, _ filters.Args) (container.PruneReport, error) {
+	return container.PruneReport{}, nil
+}
+
+func (f *downFakeClient) ImagesPrune(_ context.Context, _ filters.Args) (image.PruneReport, error) {
+	return image.PruneReport{}, nil
+}
+
+func (f *downFakeClient) NetworksPrune(_ context.Context, _ filters.Args) (network.PruneReport, error) {
+	return network.PruneReport{}, nil
+}
+
+func (f *downFakeClient) VolumesPrune(_ context.Context, _ filters.Args) (volume.PruneReport, error) {
+	return volume.PruneReport{}, nil
 }
 
 func TestDownProjectStopsAndRemoves(t *testing.T) {

@@ -31,19 +31,47 @@ COLORS = [
 COLOR_RESET = "\033[0m"
 
 
-def run_esb(args: list[str], check: bool = True, env_file: str = None):
-    """Helper to run the esb CLI."""
-    base_cmd = ["go", "run", "./cmd/esb"]
-    if env_file:
-        # Resolve to absolute path since CLI run with a different cwd
-        env_file_path = Path(env_file)
-        if not env_file_path.is_absolute():
-            env_file_path = PROJECT_ROOT / env_file_path
-        base_cmd.extend(["--env-file", str(env_file_path.absolute())])
+def resolve_env_file_path(env_file: str | None) -> str | None:
+    if not env_file:
+        return None
+    env_file_path = Path(env_file)
+    if not env_file_path.is_absolute():
+        env_file_path = PROJECT_ROOT / env_file_path
+    return str(env_file_path.absolute())
 
-    cmd = base_cmd + args
+
+def build_esb_cmd(args: list[str], env_file: str | None) -> list[str]:
+    base_cmd = ["go", "run", "./cmd/esb"]
+    env_file_path = resolve_env_file_path(env_file)
+    if env_file_path:
+        base_cmd.extend(["--env-file", env_file_path])
+    return base_cmd + args
+
+
+def run_esb(args: list[str], check: bool = True, env_file: str | None = None):
+    """Helper to run the esb CLI."""
+    cmd = build_esb_cmd(args, env_file)
     print(f"Running: {' '.join(cmd)}")
     return subprocess.run(cmd, cwd=GO_CLI_ROOT, check=check, stdin=subprocess.DEVNULL)
+
+
+def read_service_env(env_file: str | None, service: str) -> dict[str, str]:
+    cmd = build_esb_cmd(["env", "var", service, "--format", "json"], env_file)
+    result = subprocess.run(
+        cmd,
+        cwd=GO_CLI_ROOT,
+        check=True,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    if result.stderr.strip():
+        print(f"[WARN] esb env var output: {result.stderr.strip()}")
+    try:
+        return json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Failed to parse esb env var output: {exc}") from exc
 
 
 DEFAULT_NO_PROXY_TARGETS = [
@@ -155,6 +183,30 @@ def apply_ports_to_env(ports: dict[str, int]) -> None:
     if "ESB_PORT_AGENT_GRPC" in ports:
         agent_port = ports["ESB_PORT_AGENT_GRPC"]
         os.environ["AGENT_GRPC_ADDRESS"] = f"localhost:{agent_port}"
+
+
+def apply_gateway_env_from_container(env: dict[str, str], env_file: str | None) -> None:
+    gateway_env = read_service_env(env_file, "gateway")
+    required = ("AUTH_USER", "AUTH_PASS", "X_API_KEY")
+    missing = [key for key in required if not gateway_env.get(key)]
+    if missing:
+        raise RuntimeError(
+            f"Missing required gateway env vars from container: {', '.join(missing)}"
+        )
+
+    for key in required:
+        env[key] = gateway_env[key]
+
+    auth_path = gateway_env.get("AUTH_ENDPOINT_PATH")
+    if auth_path:
+        env["AUTH_ENDPOINT_PATH"] = auth_path
+    else:
+        env.setdefault("AUTH_ENDPOINT_PATH", "/user/auth/v1")
+
+    for key in ("VERIFY_SSL", "CONTAINERS_NETWORK", "GATEWAY_INTERNAL_URL"):
+        value = gateway_env.get(key)
+        if value:
+            env[key] = value
 
 
 def ensure_firecracker_node_up() -> None:
@@ -673,6 +725,7 @@ def run_scenario(args, scenario):
 
     ensure_firecracker_node_up()
 
+    did_up = False
     try:
         # 2. Reset / Build
         if do_reset:
@@ -688,9 +741,13 @@ def run_scenario(args, scenario):
 
                 shutil.rmtree(env_state_dir)
 
-            run_esb(["down", "-v"], check=True, env_file=env_file)
-            # Re-generate configurations via build
-            run_esb(["build", "--no-cache"], env_file=env_file)
+            if build_only:
+                run_esb(["down", "-v"], check=True, env_file=env_file)
+                # Re-generate configurations via build
+                run_esb(["build", "--no-cache"], env_file=env_file)
+            else:
+                run_esb(["up", "--reset", "--yes", "--detach", "--wait"], env_file=env_file)
+                did_up = True
         elif do_build:
             print(f"➜ Building environment: {env_name}")
             run_esb(["build", "--no-cache"], env_file=env_file)
@@ -705,8 +762,9 @@ def run_scenario(args, scenario):
             return
 
         # 3. UP
-        up_args = ["up", "--detach", "--wait"]
-        run_esb(up_args, env_file=env_file)
+        if not did_up:
+            up_args = ["up", "--detach", "--wait"]
+            run_esb(up_args, env_file=env_file)
 
         # 3.5 Load dynamic ports from ports.json (created by esb up)
         ports = load_ports(env_name)
@@ -728,6 +786,8 @@ def run_scenario(args, scenario):
             if "ESB_PORT_AGENT_GRPC" in ports:
                 env["AGENT_GRPC_ADDRESS"] = f"localhost:{ports['ESB_PORT_AGENT_GRPC']}"
 
+        apply_gateway_env_from_container(env, env_file)
+
         # 4. Run Tests
         if not scenario["targets"]:
             # No test targets specified, skip test execution
@@ -748,6 +808,9 @@ def run_scenario(args, scenario):
             sys.exit(result.returncode)
 
     except subprocess.CalledProcessError as e:
+        print(f"Error executing command: {e}")
+        sys.exit(1)
+    except RuntimeError as e:
         print(f"Error executing command: {e}")
         sys.exit(1)
 

@@ -1,0 +1,18 @@
+[certificate]
+output_dir = "~/.esb/certs"
+filename_cert = "server.crt"
+filename_key = "server.key"
+
+[hosts]
+domains = [
+    "localhost",
+    "registry",
+    "gateway",
+    "host.docker.internal"
+]
+ips = [
+    "127.0.0.1",
+    "::1",
+    "10.99.0.1"
+]
+include_local_ip = true

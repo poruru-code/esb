@@ -156,6 +156,15 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	if !hasDockerPushTag(dockerRunner.calls, "localhost:5010/hello:staging") {
 		t.Fatalf("expected function image push")
 	}
+	if !hasDockerBuildLabel(dockerRunner.calls, "com.esb.managed=true") {
+		t.Fatalf("expected managed label on build")
+	}
+	if !hasDockerBuildLabel(dockerRunner.calls, "com.esb.project=demo-staging") {
+		t.Fatalf("expected project label on build")
+	}
+	if !hasDockerBuildLabel(dockerRunner.calls, "com.esb.env=staging") {
+		t.Fatalf("expected env label on build")
+	}
 
 	if !hasComposeUpRegistry(composeRunner.calls) {
 		t.Fatalf("expected registry compose up")
@@ -282,6 +291,23 @@ func hasDockerPushTag(calls []commandCall, tag string) bool {
 		}
 		if call.args[0] == "push" && call.args[1] == tag {
 			return true
+		}
+	}
+	return false
+}
+
+func hasDockerBuildLabel(calls []commandCall, label string) bool {
+	for _, call := range calls {
+		if call.name != "docker" || len(call.args) < 3 {
+			continue
+		}
+		if call.args[0] != "build" {
+			continue
+		}
+		for i := 0; i+1 < len(call.args); i++ {
+			if call.args[i] == "--label" && call.args[i+1] == label {
+				return true
+			}
 		}
 	}
 	return false

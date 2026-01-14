@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/compose"
@@ -49,6 +50,19 @@ func defaultGeneratorParameters() map[string]string {
 		"S3_ENDPOINT_HOST":       "s3-storage",
 		"DYNAMODB_ENDPOINT_HOST": "database",
 	}
+}
+
+func esbImageLabels(project, env string) map[string]string {
+	labels := map[string]string{
+		compose.ESBManagedLabel: "true",
+	}
+	if trimmed := strings.TrimSpace(project); trimmed != "" {
+		labels[compose.ESBProjectLabel] = trimmed
+	}
+	if trimmed := strings.TrimSpace(env); trimmed != "" {
+		labels[compose.ESBEnvLabel] = trimmed
+	}
+	return labels
 }
 
 func stageConfigFiles(outputDir, repoRoot, env string) error {
@@ -106,6 +120,7 @@ func buildBaseImage(
 	tag string,
 	noCache bool,
 	verbose bool,
+	labels map[string]string,
 ) error {
 	if verbose {
 		fmt.Println("Building base image...")
@@ -121,7 +136,7 @@ func buildBaseImage(
 		imageTag = fmt.Sprintf("%s/%s", registry, imageTag)
 	}
 
-	if err := buildDockerImage(ctx, runner, assetsDir, "Dockerfile.base", imageTag, noCache); err != nil {
+	if err := buildDockerImage(ctx, runner, assetsDir, "Dockerfile.base", imageTag, noCache, labels); err != nil {
 		return err
 	}
 	if registry != "" {
@@ -139,6 +154,7 @@ func buildFunctionImages(
 	tag string,
 	noCache bool,
 	verbose bool,
+	labels map[string]string,
 ) error {
 	if verbose {
 		fmt.Println("Building function images...")
@@ -170,7 +186,7 @@ func buildFunctionImages(
 		}
 		dockerfileRel = filepath.ToSlash(dockerfileRel)
 
-		if err := buildDockerImage(ctx, runner, outputDir, dockerfileRel, imageTag, noCache); err != nil {
+		if err := buildDockerImage(ctx, runner, outputDir, dockerfileRel, imageTag, noCache, labels); err != nil {
 			return err
 		}
 		if registry != "" {
@@ -190,6 +206,7 @@ func buildServiceImages(
 	tag string,
 	noCache bool,
 	verbose bool,
+	labels map[string]string,
 ) error {
 	if verbose {
 		fmt.Println("Building service images...")
@@ -207,7 +224,7 @@ func buildServiceImages(
 		if registry != "" {
 			imageTag = fmt.Sprintf("%s/%s", registry, imageTag)
 		}
-		if err := buildDockerImage(ctx, runner, dir, "Dockerfile", imageTag, noCache); err != nil {
+		if err := buildDockerImage(ctx, runner, dir, "Dockerfile", imageTag, noCache, labels); err != nil {
 			return err
 		}
 		if registry != "" {
@@ -226,6 +243,7 @@ func buildDockerImage(
 	dockerfile string,
 	imageTag string,
 	noCache bool,
+	labels map[string]string,
 ) error {
 	if runner == nil {
 		return fmt.Errorf("command runner is nil")
@@ -242,6 +260,7 @@ func buildDockerImage(
 		args = append(args, "--no-cache")
 	}
 	args = append(args, "-f", dockerfile, "-t", imageTag)
+	args = append(args, dockerLabelArgs(labels)...)
 	args = append(args, dockerBuildArgs()...)
 	args = append(args, ".")
 	return runner.Run(ctx, contextDir, "docker", args...)
@@ -278,6 +297,26 @@ func dockerBuildArgs() []string {
 			continue
 		}
 		args = append(args, "--build-arg", key+"="+value)
+	}
+	return args
+}
+
+func dockerLabelArgs(labels map[string]string) []string {
+	if len(labels) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(labels))
+	for key := range labels {
+		if strings.TrimSpace(key) == "" {
+			continue
+		}
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	args := make([]string, 0, len(keys)*2)
+	for _, key := range keys {
+		value := strings.TrimSpace(labels[key])
+		args = append(args, "--label", fmt.Sprintf("%s=%s", key, value))
 	}
 	return args
 }

@@ -15,7 +15,7 @@ import (
 // Docker Compose project. Optionally removes volumes if removeVolumes is true.
 func DownProject(ctx context.Context, client DockerClient, project string, removeVolumes bool) error {
 	labelFilter := filters.NewArgs()
-	labelFilter.Add("label", fmt.Sprintf("%s=%s", composeProjectLabel, project))
+	labelFilter.Add("label", fmt.Sprintf("%s=%s", ComposeProjectLabel, project))
 
 	containers, err := client.ContainerList(ctx, container.ListOptions{
 		All:     true,
@@ -26,7 +26,7 @@ func DownProject(ctx context.Context, client DockerClient, project string, remov
 	}
 
 	for _, ctr := range containers {
-		if ctr.Labels == nil || ctr.Labels[composeProjectLabel] != project {
+		if ctr.Labels == nil || ctr.Labels[ComposeProjectLabel] != project {
 			continue
 		}
 		if ctr.State == "running" {
