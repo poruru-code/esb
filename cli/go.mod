@@ -13,6 +13,7 @@ require (
 	github.com/charmbracelet/huh v0.8.0
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/joho/godotenv v1.5.1
+	github.com/mitchellh/mapstructure v1.5.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
