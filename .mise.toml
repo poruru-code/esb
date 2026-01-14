@@ -1,20 +1,21 @@
 # Toolchain versions managed by mise.
-
+ 
 [tools]
 # Runtimes
 python = "3.12"
 go = "1.25.1"
-
-# Core tooling
 uv = "latest"
 lefthook = "latest"
-
+ 
 # Go tooling (installed via go install)
 "go:github.com/golangci/golangci-lint/cmd/golangci-lint" = "latest"
 "go:mvdan.cc/gofumpt" = "latest"
 "go:golang.org/x/tools/cmd/goimports" = "latest"
 "go:github.com/air-verse/air" = "latest"
 
+[env]
+_.path = ["~/.local/bin"]
+ 
 [tasks.setup]
 description = "Install dependencies and enable git hooks"
 run = [
@@ -23,14 +24,13 @@ run = [
   "go build -C cli -o ~/.local/bin/esb ./cmd/esb",
   "esb config set-repo .",
 ]
-
+ 
 [tasks.build-cli]
 description = "Build esb CLI to ~/.local/bin"
 dir = "cli"
 run = "go build -o ~/.local/bin/esb ./cmd/esb"
-
+ 
 [tasks.dev-cli]
 description = "Watch and rebuild esb CLI on changes"
 dir = "cli"
 run = "air"
-
