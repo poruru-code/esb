@@ -1,0 +1,14 @@
+# Where: .dockleignore
+# What: Dockle ignore list for ESB images.
+# Why: Allow known, intentional exceptions while Dockle is introduced.
+
+# Running as root is still required for some images (runtime-node, base images).
+CIS-DI-0001
+
+# Local images may use "latest" tags during development builds.
+DKL-DI-0006
+
+# Content trust/healthcheck/setuid info checks are noisy for base images.
+CIS-DI-0005
+CIS-DI-0006
+CIS-DI-0008

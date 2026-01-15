@@ -1,0 +1,31 @@
+# Where: config/container-structure-test/runtime-node-firecracker.yaml
+# What: Container Structure Tests for the runtime-node Firecracker image.
+# Why: Ensure Firecracker binaries and entrypoints are present.
+
+schemaVersion: "2.0.0"
+
+metadataTest:
+  entrypoint: ["/entrypoint.sh"]
+
+fileExistenceTests:
+  - name: "entrypoint"
+    path: "/entrypoint.sh"
+    shouldExist: true
+  - name: "entrypoint-firecracker"
+    path: "/entrypoint.firecracker.sh"
+    shouldExist: true
+  - name: "firecracker"
+    path: "/usr/local/bin/firecracker"
+    shouldExist: true
+  - name: "jailer"
+    path: "/usr/local/bin/jailer"
+    shouldExist: true
+  - name: "firecracker-containerd"
+    path: "/usr/local/bin/firecracker-containerd"
+    shouldExist: true
+  - name: "containerd-shim-firecracker"
+    path: "/usr/local/bin/containerd-shim-aws-firecracker"
+    shouldExist: true
+  - name: "firecracker-config"
+    path: "/etc/firecracker-containerd/config.toml"
+    shouldExist: true

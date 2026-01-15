@@ -1,0 +1,43 @@
+# Where: config/container-structure-test/gateway.yaml
+# What: Container Structure Tests for the gateway-api image.
+# Why: Verify entrypoint, ports, and expected application files.
+
+schemaVersion: "2.0.0"
+
+metadataTest:
+  exposedPorts: ["8443"]
+  entrypoint: ["/app/entrypoint.sh"]
+  cmd:
+    - "uvicorn"
+    - "services.gateway.main:app"
+    - "--host"
+    - "0.0.0.0"
+    - "--port"
+    - "8443"
+    - "--ssl-keyfile"
+    - "/app/config/ssl/server.key"
+    - "--ssl-certfile"
+    - "/app/config/ssl/server.crt"
+
+fileExistenceTests:
+  - name: "entrypoint"
+    path: "/app/entrypoint.sh"
+    shouldExist: true
+  - name: "gateway-package"
+    path: "/app/services/gateway"
+    shouldExist: true
+  - name: "common-package"
+    path: "/app/services/common"
+    shouldExist: true
+  - name: "virtualenv"
+    path: "/app/.venv"
+    shouldExist: true
+  - name: "config-dir"
+    path: "/app/config"
+    shouldExist: true
+
+commandTests:
+  - name: "python-version"
+    command: "python"
+    args: ["--version"]
+    expectedOutput: ["Python 3.12"]
