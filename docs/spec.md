@@ -17,7 +17,7 @@ flowchart TD
     User["Client / Developer"]
     
     subgraph Host ["Host OS"]
-        Gateway["Gateway API<br>(:443)"]
+        Gateway["Gateway API<br>(443 -> 8443)"]
         Agent["Go Agent (gRPC)<br>(:50051)"]
         CoreDNS["CoreDNS (Sidecar)<br>(:53)"]
         RustFS["RustFS S3<br>(:9000)"]
@@ -58,7 +58,7 @@ flowchart TD
 ### 2.1 Gateway API (FastAPI)
 - **役割**: クライアントからのリクエスト受付、認証、およびLambda関数へのリクエストルーティング。
 - **通信**: クライアントとはHTTPで通信。内部では Go Agent (gRPC) と連携し、Lambdaコンテナの起動確認とリクエスト転送を行います。
-- **ポート**: `443`
+- **ポート**: コンテナ内 `8443`（ホスト公開は `443`）
 
 #### ディレクトリ構成
 ```
@@ -120,12 +120,12 @@ services/gateway/
 
 ## 3. ネットワーク仕様
 
-Gateway は external_network 上で起動し、443 をホストに公開します。Agent は runtime-node の NetNS を共有し、runtime-node が 50051 を公開します。
+Gateway は external_network 上で起動し、コンテナ内 `8443` をホスト `443` に公開します。Agent は runtime-node の NetNS を共有し、runtime-node が 50051 を公開します。
 分離構成では 50051（runtime-node/agent）は Compute 側に存在します。
 
 | サービス名     | コンテナ内ポート | ホスト公開ポート | URL                           | プロトコル          |
 | -------------- | ---------------- | ---------------- | ----------------------------- | ------------------- |
-| Gateway API    | 443              | 443              | `https://localhost:443`       | HTTPS               |
+| Gateway API    | 8443             | 443              | `https://localhost:443`       | HTTPS               |
 | Agent gRPC     | 50051            | 50051            | `grpc://<compute-host>:50051` | gRPC                |
 | CoreDNS        | 53               | なし             | `10.88.0.1:53`                | DNS (UDP/TCP)       |
 | RustFS API     | 9000             | 9000             | `http://localhost:9000`       | HTTP                |

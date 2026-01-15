@@ -21,8 +21,8 @@ OS およびランタイムの断片化（例：Alpine と Debian の混在）�
 
 ### 1.3 決定論的信頼 (Deterministic Trust)
 動的な証明書設定は、実行時の予期せぬ失敗（x509 エラー）の温床となります。
-- **原則**: 「証明書が存在しない限り起動を許可しない (Fail-Fast)」を徹底する。
-- **利点**: 起動時に問題を検知し、安全でない状態での運用を物理的に阻止。
+- **原則**: Root CA はビルド時に焼き込み、存在しなければビルドを失敗させる。
+- **利点**: 実行時の信頼ストア更新が不要になり、最小権限に寄せられる。
 
 ---
 
@@ -34,7 +34,7 @@ ESB のビルドプロセスは、効率的なキャッシュ利用とクリー�
 graph TD
     subgraph "Base Layer"
         BASE["esb-service-base (Debian 12 + Python 3.12)"]
-        TRUST["ensure_ca_trust.sh / Common Tools"]
+        TRUST["Root CA Layer (Build-Time)"]
         BASE --> TRUST
     end
 
@@ -53,7 +53,7 @@ graph TD
         PROD["Prod Stage (esb-service-base)"]
         COPY_VENV["COPY --from=builder /app/.venv"]
         COPY_APP["COPY services/ (Minimal Source)"]
-        ENTRY["entrypoint.sh (Setup & Trust)"]
+        ENTRY["entrypoint.sh (Service Init)"]
         
         PROD --> COPY_VENV
         COPY_VENV --> COPY_APP
@@ -68,10 +68,12 @@ graph TD
 
 ## 3. 重要コンポーネントの詳解
 
-### 3.1 共通信頼ユーティリティ (`ensure_ca_trust.sh`)
-全てのイメージに `/usr/local/bin/ensure_ca_trust.sh` を配置し、エントリポイントから呼び出す形式です。
-- **環境変数 `REQUIRE_CA_TRUST=true`**: これがセットされている場合、Root CA が見つからなければステータスコード `1` で終了します。
-- **環境変数 `SSL_CERT_DIR`**: 内部の証明書探索標準パス。ホスト側の `${ESB_CERT_DIR}` がここに読み取り専用 (`ro`) でマウントされることを前提とします。
+### 3.1 Root CA のビルド時焼き込み
+Root CA はビルド時にイメージへ焼き込み、実行時に更新しません。
+- **BuildKit secret `esb_root_ca`**: `${ESB_CERT_DIR}/rootCA.crt` をビルド時に渡し、`/usr/local/share/ca-certificates/esb-rootCA.crt` として配置します。
+- **ビルド時更新**: `update-ca-certificates` をビルドで実行し、実行時の権限要件を排除します。
+- **BuildKit 必須**: `docker build --secret` / `docker compose build` の build secrets を利用します。
+- **ローテーション**: CA を更新する場合はイメージを再ビルドします。
 
 ### 3.2 パッケージ管理 (`uv`)
 ビルドの高速化と再現性のために `uv` を採用しています。
@@ -81,5 +83,5 @@ graph TD
 
 ## 4. 今後の拡張への指針
 
-- **非 root 実行への移行**: 現在は 443 ポートのリスニング等のため root で動作していますが、将来的に `USER` 命令を使用して非 root 化する場合は、特権ポートの回避（8443等）と `setcap` の検討が必要です。
+- **非 root 実行への移行**: Gateway は 8443 で待ち受けるため特権ポート要件は緩和されていますが、WireGuard/iptables 等の権限要件が残っています。将来的に `USER` 命令を使用して非 root 化する場合は、権限分離や `setcap` の検討が必要です。
 - **C 拡張への対応**: 新たなライブラリを追加する際は、`builder` ステージでビルドされたバイナリが `prod` ステージで必要とする共有ライブラリ (`.so`) を、OS パッケージとして `apt-get` 等で追加することを忘れないでください。

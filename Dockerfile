@@ -1,7 +1,7 @@
 # Root DinD Container
 # Parent container: run the Docker daemon and manage inner containers.
 
-FROM docker:24-dind
+FROM docker:24-dind@sha256:9b17a9f25adf17b88d0a013b4f00160754adf4b07ccbe9986664a49886c2c98e
 
 # Install required tools.
 RUN apk add --no-cache bash curl git python3 py3-pip

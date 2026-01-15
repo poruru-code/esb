@@ -1,7 +1,9 @@
 # syntax=docker/dockerfile:1
 
-ARG GO_VERSION=1.24
+ARG GO_VERSION=1.25.1
 ARG DEBIAN_VERSION=bookworm
+ARG GOLANG_DIGEST=sha256:c423747fbd96fd8f0b1102d947f51f9b266060217478e5f9bf86f145969562ee
+ARG DEBIAN_SLIM_DIGEST=sha256:56ff6d36d4eb3db13a741b342ec466f121480b5edded42e4b7ee850ce7a418ee
 # Specific commit for firecracker-containerd compatibility
 ARG FIRECRACKER_CONTAINERD_REF=d6ffdaa615b8da95dea35e611d0290447fcf8fd1
 ARG FIRECRACKER_VERSION=1.14.0
@@ -10,7 +12,7 @@ ARG FIRECRACKER_VERSION=1.14.0
 # Stage 1: Firecracker Builder
 # Compiles firecracker-containerd, shim, and tools from source
 # -----------------------------------------------------------------------------
-FROM golang:${GO_VERSION}-${DEBIAN_VERSION} AS firecracker-builder
+FROM golang:${GO_VERSION}-${DEBIAN_VERSION}@${GOLANG_DIGEST} AS firecracker-builder
 
 ARG FIRECRACKER_CONTAINERD_REF
 
@@ -40,7 +42,7 @@ RUN make -C firecracker-control/cmd/containerd firecracker-containerd firecracke
 # Stage 2: Firecracker Binaries
 # Downloads pre-built Firecracker and Jailer binaries
 # -----------------------------------------------------------------------------
-FROM debian:${DEBIAN_VERSION}-slim AS firecracker-bins
+FROM debian:${DEBIAN_VERSION}-slim@${DEBIAN_SLIM_DIGEST} AS firecracker-bins
 
 ARG FIRECRACKER_VERSION
 ARG FIRECRACKER_ARCH

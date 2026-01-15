@@ -180,24 +180,6 @@ ensure_hv_network() {
   fi
 }
 
-ensure_ca_trust() {
-  if [ -f /usr/local/bin/ensure_ca_trust.sh ]; then
-    . /usr/local/bin/ensure_ca_trust.sh
-    ensure_ca_trust
-    return
-  fi
-
-  ca_path="/usr/local/share/ca-certificates/esb-rootCA.crt"
-  if [ ! -f "$ca_path" ]; then
-    return
-  fi
-  if ! command -v update-ca-certificates >/dev/null 2>&1; then
-    log_warn "update-ca-certificates not found; skipping CA install"
-    return
-  fi
-  update-ca-certificates >/dev/null 2>&1 || log_warn "failed to update CA certificates"
-}
-
 ensure_wg_route() {
   if [ -z "${WG_CONTROL_NET:-}" ]; then
     return

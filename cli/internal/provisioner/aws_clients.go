@@ -6,6 +6,7 @@ package provisioner
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -16,6 +17,13 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/generator/schema"
 )
 
+func traceProvisionerOp(format string, args ...any) {
+	if strings.TrimSpace(os.Getenv("ESB_PROVISIONER_TRACE")) == "" {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "[provisioner] "+format+"\n", args...)
+}
+
 type awsDynamoClient struct {
 	client *dynamodb.Client
 }
@@ -24,6 +32,7 @@ func (c awsDynamoClient) ListTables(ctx context.Context) ([]string, error) {
 	if c.client == nil {
 		return nil, fmt.Errorf("dynamodb client is nil")
 	}
+	traceProvisionerOp("dynamodb.ListTables")
 	resp, err := c.client.ListTables(ctx, &dynamodb.ListTablesInput{})
 	if err != nil {
 		return nil, err
@@ -35,6 +44,7 @@ func (c awsDynamoClient) CreateTable(ctx context.Context, input DynamoCreateInpu
 	if c.client == nil {
 		return fmt.Errorf("dynamodb client is nil")
 	}
+	traceProvisionerOp("dynamodb.CreateTable table=%s", input.TableName)
 	awsInput, err := buildAWSCreateTableInput(input)
 	if err != nil {
 		return err
@@ -206,6 +216,7 @@ func (c awsS3Client) ListBuckets(ctx context.Context) ([]string, error) {
 	if c.client == nil {
 		return nil, fmt.Errorf("s3 client is nil")
 	}
+	traceProvisionerOp("s3.ListBuckets")
 	resp, err := c.client.ListBuckets(ctx, &s3.ListBucketsInput{})
 	if err != nil {
 		return nil, err
@@ -224,6 +235,7 @@ func (c awsS3Client) CreateBucket(ctx context.Context, name string) error {
 	if c.client == nil {
 		return fmt.Errorf("s3 client is nil")
 	}
+	traceProvisionerOp("s3.CreateBucket bucket=%s", name)
 	_, err := c.client.CreateBucket(ctx, &s3.CreateBucketInput{Bucket: aws.String(name)})
 	return err
 }
@@ -237,6 +249,7 @@ func (c awsS3Client) PutBucketLifecycleConfiguration(ctx context.Context, name s
 	if config == nil {
 		return nil
 	}
+	traceProvisionerOp("s3.PutBucketLifecycleConfiguration bucket=%s", name)
 
 	awsRules, err := mapLifecycleRules(config.Rules)
 	if err != nil {

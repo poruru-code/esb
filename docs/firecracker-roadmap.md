@@ -21,7 +21,7 @@ Why: Keep Phase C scope and sequencing aligned across the team.
 - **agent/coredns は runtime-node の NetNS を共有**し、gateway は Control 側の独立コンテナで起動する。
 - **agent は PIDNS を共有**し、`/proc/<pid>/ns/net` を使って CNI add/del を行う。
   - 参照する PID は **containerd task/shim の実行 PID**。
-- **gateway が 443 を外部公開**し、runtime-node が 50051 を公開する。
+- **gateway は 8443 で待ち受け、ホスト 443 を外部公開**し、runtime-node が 50051 を公開する。
 - **registry / s3-storage / database / victorialogs** は external_network 上で稼働。
 - **CoreDNS により `10.88.0.1` での名前解決を提供**（S3/Dynamo/VictoriaLogs）。
   - Lambda VM の nameserver として `10.88.0.1` を設定。
@@ -37,12 +37,12 @@ Why: Keep Phase C scope and sequencing aligned across the team.
 
 ```mermaid
 flowchart LR
-  Client["Client / SDK"] -->|HTTPS :443| HostPorts["Host Ports\n(runtime-node:443, 50051)"]
+  Client["Client / SDK"] -->|HTTPS :443| HostPorts["Host Ports\n(runtime-node:443->8443, 50051)"]
 
   subgraph DockerWorld["Docker World (no host net)"]
     subgraph RuntimeNS["runtime-node NetNS (shared)"]
       RuntimeNode["runtime-node (privileged)\ncontainerd + runc\nCNI bridge 10.88.0.0/16\nsnapshot store"]
-      Gateway["gateway\nnetns=runtime-node\n:443"]
+      Gateway["gateway\nnetns=runtime-node\n:8443"]
       Agent["agent\nnetns+pidns=runtime-node\n:50051"]
 
       TaskNS["task netns\n/proc/<pid>/ns/net"]
@@ -70,7 +70,7 @@ flowchart LR
       TaskNS -->|Net attached\nIP assigned| Worker
 
       Gateway -->|Invoke\nworker.ip:8080| Worker
-      Worker -->|Lambda->Gateway\nGATEWAY_INTERNAL_URL\nhttps://10.99.0.1:443| Gateway
+      Worker -->|Lambda->Gateway\nGATEWAY_INTERNAL_URL\nhttps://10.99.0.1:8443| Gateway
       Worker -->|DNS Query\n10.88.0.1:53| CoreDNS
     end
 
@@ -148,7 +148,7 @@ flowchart LR
   Client["Client / SDK"] -->|HTTPS :443| Gateway
 
   subgraph ControlPlane["Control Plane (WSL/Docker)"]
-    Gateway["gateway<br>:443<br>wg0 (tunnel)<br>10.99.0.1"]
+    Gateway["gateway<br>:8443<br>wg0 (tunnel)<br>10.99.0.1"]
     Registry["esb-registry:5010"]
     S3["s3-storage:9000/9001"]
     DB["database:8001"]
@@ -321,7 +321,7 @@ sudo firecracker-ctr --address /run/firecracker-containerd/containerd.sock \
 2) **Gateway コンテナにトンネル終端を実装**
    - トンネル方式は **WireGuard（ユーザー空間 `wireguard-go` 前提）**を採用。
    - **gateway は runtime-node の NetNS を共有しない**（`network_mode: service:runtime-node` を外す）。
-     - 例: `ports: ["443:443"]`, `networks: [external_network]`
+     - 例: `ports: ["443:8443"]`, `networks: [external_network]`
      - `AGENT_GRPC_ADDRESS=runtime-node:50051` を指定し、gRPC は runtime-node 経由で接続する。
    - Gateway コンテナに以下を追加（実装時の変更点）:
      - `cap_add: [NET_ADMIN]`
@@ -338,7 +338,7 @@ sudo firecracker-ctr --address /run/firecracker-containerd/containerd.sock \
      ```
    - WSL ホストには **一切ルートを入れない**（route は gateway コンテナ内のみ）。
    - **worker → gateway の戻り経路は WG に寄せる**:
-     - `GATEWAY_INTERNAL_URL=https://10.99.0.1:443`
+     - `GATEWAY_INTERNAL_URL=https://10.99.0.1:8443`
      - runtime-node に `WG_CONTROL_NET=10.99.0.0/24` を設定し、WG 宛のルートを追加する。
 
 3) **Compute VM（ホスト側）でトンネル終端と転送を有効化**

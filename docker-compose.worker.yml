@@ -20,7 +20,6 @@ services:
       - http_proxy
       - https_proxy
       - no_proxy
-      - REQUIRE_CA_TRUST=${REQUIRE_CA_TRUST:-true}
     volumes:
       - ${ESB_CERT_DIR:-~/.esb/certs}:/app/config/ssl:ro
     command: ["/app/agent"]

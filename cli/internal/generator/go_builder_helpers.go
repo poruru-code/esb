@@ -20,6 +20,11 @@ type registryConfig struct {
 	Internal string
 }
 
+const (
+	esbRootCASecretID = "esb_root_ca"
+	esbRootCACertName = "rootCA.crt"
+)
+
 func resolveRegistryConfig(mode string) registryConfig {
 	switch strings.ToLower(strings.TrimSpace(mode)) {
 	case compose.ModeContainerd, compose.ModeFirecracker:
@@ -316,6 +321,11 @@ func buildDockerImage(
 	args = append(args, "-f", dockerfile, "-t", imageTag)
 	args = append(args, dockerLabelArgs(labels)...)
 	args = append(args, dockerBuildArgs()...)
+	secretArgs, err := dockerSecretArgs(dockerfile)
+	if err != nil {
+		return err
+	}
+	args = append(args, secretArgs...)
 	args = append(args, ".")
 	if verbose {
 		return runner.Run(ctx, contextDir, "docker", args...)
@@ -360,6 +370,72 @@ func dockerBuildArgs() []string {
 		args = append(args, "--build-arg", key+"="+value)
 	}
 	return args
+}
+
+func dockerSecretArgs(dockerfile string) ([]string, error) {
+	if !needsRootCASecret(dockerfile) {
+		return nil, nil
+	}
+	path, err := resolveRootCAPath()
+	if err != nil {
+		return nil, err
+	}
+	if os.Getenv("DOCKER_BUILDKIT") == "" {
+		_ = os.Setenv("DOCKER_BUILDKIT", "1")
+	}
+	return []string{"--secret", fmt.Sprintf("id=%s,src=%s", esbRootCASecretID, path)}, nil
+}
+
+func needsRootCASecret(dockerfile string) bool {
+	return filepath.Base(dockerfile) == "Dockerfile.service-base"
+}
+
+func resolveRootCAPath() (string, error) {
+	if value := strings.TrimSpace(os.Getenv("ESB_CA_CERT_PATH")); value != "" {
+		return ensureRootCAPath(expandHome(value))
+	}
+	if value := strings.TrimSpace(os.Getenv("ESB_CERT_DIR")); value != "" {
+		return ensureRootCAPath(filepath.Join(expandHome(value), esbRootCACertName))
+	}
+	if value := strings.TrimSpace(os.Getenv("CAROOT")); value != "" {
+		return ensureRootCAPath(filepath.Join(expandHome(value), esbRootCACertName))
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("root CA not found: %w", err)
+	}
+	return ensureRootCAPath(filepath.Join(home, ".esb", "certs", esbRootCACertName))
+}
+
+func ensureRootCAPath(path string) (string, error) {
+	if path == "" {
+		return "", fmt.Errorf("root CA path is empty")
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return "", fmt.Errorf("root CA not found at %s (run mise run setup:certs)", path)
+	}
+	if info.IsDir() {
+		return "", fmt.Errorf("root CA path is a directory: %s", path)
+	}
+	return path, nil
+}
+
+func expandHome(path string) string {
+	if path == "" || path[0] != '~' {
+		return path
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return path
+	}
+	if path == "~" {
+		return home
+	}
+	if strings.HasPrefix(path, "~/") {
+		return filepath.Join(home, path[2:])
+	}
+	return path
 }
 
 func dockerLabelArgs(labels map[string]string) []string {

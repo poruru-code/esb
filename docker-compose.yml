@@ -13,6 +13,8 @@ services:
       dockerfile: services/common/Dockerfile.service-base
       args:
         ESB_ENV: ${ESB_ENV:-default}
+      secrets:
+        - esb_root_ca
 
   # ============================================
   # Permission Helper (for RustFS)
@@ -153,7 +155,7 @@ services:
       - RUSTFS_SECRET_KEY=${RUSTFS_SECRET_KEY:-}
 
       # --- Server & Network Configuration ---
-      - UVICORN_BIND_ADDR=0.0.0.0:443
+      - UVICORN_BIND_ADDR=0.0.0.0:8443
       - ENABLE_SSL=true
       - SSL_CERT_PATH=/app/config/ssl/server.crt
       - SSL_KEY_PATH=/app/config/ssl/server.key
@@ -188,8 +190,6 @@ services:
       - http_proxy
       - https_proxy
       - no_proxy
-      - REQUIRE_CA_TRUST=${REQUIRE_CA_TRUST:-true}
-      - SSL_CERT_DIR=/app/config/ssl
       - GRPC_VERBOSITY=ERROR
     depends_on:
       database:
@@ -205,6 +205,9 @@ volumes:
   rustfs_data:
   victorialogs_data:
 
+secrets:
+  esb_root_ca:
+    file: ${ESB_CERT_DIR:-~/.esb/certs}/rootCA.crt
 
 networks:
   # Public network (exposed ports).

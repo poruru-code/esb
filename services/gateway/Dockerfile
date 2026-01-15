@@ -2,7 +2,7 @@
 FROM esb-service-base:latest AS builder
 
 # Install uv (standardized via official image in standard path)
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+COPY --from=ghcr.io/astral-sh/uv:0.8.13@sha256:4de5495181a281bc744845b9579acf7b221d6791f99bcc211b9ec13f417c2853 /uv /uvx /usr/local/bin/
 
 WORKDIR /app
 
@@ -74,7 +74,7 @@ RUN if [ -f /tmp/esb_config/functions.yml ]; then \
 COPY services/gateway/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-EXPOSE 443
+EXPOSE 8443
 
 ENTRYPOINT ["/app/entrypoint.sh"]
-CMD ["uvicorn", "services.gateway.main:app", "--host", "0.0.0.0", "--port", "443", "--ssl-keyfile", "/app/config/ssl/server.key", "--ssl-certfile", "/app/config/ssl/server.crt"]
+CMD ["uvicorn", "services.gateway.main:app", "--host", "0.0.0.0", "--port", "8443", "--ssl-keyfile", "/app/config/ssl/server.key", "--ssl-certfile", "/app/config/ssl/server.crt"]
