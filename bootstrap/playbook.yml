@@ -1,0 +1,10 @@
+---
+- name: Setup Ubuntu with Docker and Proxy
+  hosts: all
+  become: true
+  vars_files:
+    - vars.yml
+
+  roles:
+    - common
+    - docker
