@@ -134,10 +134,10 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		t.Fatalf("unexpected compose services: %v", buildOpts.Services)
 	}
 
-	if got := os.Getenv("ESB_CONFIG_DIR"); got != "services/gateway/.esb-staging/staging/config" {
+	if got := os.Getenv("ESB_CONFIG_DIR"); got != "services/gateway/.esb-staging/demo-staging/staging/config" {
 		t.Fatalf("unexpected ESB_CONFIG_DIR: %s", got)
 	}
-	if got := os.Getenv("ESB_PROJECT_NAME"); got != "esb-staging" {
+	if got := os.Getenv("ESB_PROJECT_NAME"); got != "demo-staging" {
 		t.Fatalf("unexpected ESB_PROJECT_NAME: %s", got)
 	}
 	if got := os.Getenv("ESB_IMAGE_TAG"); got != "staging" {
@@ -147,7 +147,7 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		t.Fatalf("unexpected ESB_MODE: %s", got)
 	}
 
-	staged := filepath.Join(repoRoot, "services", "gateway", ".esb-staging", "staging", "config", "functions.yml")
+	staged := filepath.Join(repoRoot, "services", "gateway", ".esb-staging", "demo-staging", "staging", "config", "functions.yml")
 	if _, err := os.Stat(staged); err != nil {
 		t.Fatalf("expected staged config: %v", err)
 	}

@@ -129,16 +129,16 @@ func (b *GoBuilder) Build(request app.BuildRequest) error {
 		fmt.Println("Done")
 	}
 
-	if err := stageConfigFiles(cfg.Paths.OutputDir, repoRoot, request.Env); err != nil {
-		return err
-	}
-	applyBuildEnv(request.Env)
-
 	projectName := strings.ToLower(cfg.App.Name)
 	if projectName == "" {
 		projectName = "esb"
 	}
 	composeProject := fmt.Sprintf("%s-%s", projectName, strings.ToLower(request.Env))
+
+	if err := stageConfigFiles(cfg.Paths.OutputDir, repoRoot, composeProject, request.Env); err != nil {
+		return err
+	}
+	applyBuildEnv(request.Env, composeProject)
 	imageLabels := esbImageLabels(composeProject, request.Env)
 
 	if registry.External != "" {
