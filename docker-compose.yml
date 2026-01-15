@@ -142,8 +142,7 @@ services:
     container_name: ${ESB_PROJECT_NAME:-esb}-gateway
     # NOTE: ports and networks are defined by adapter files (fc.yml / containerd.yml)
     volumes:
-      - ${ESB_CERT_DIR:-~/.esb/certs}/server.crt:/app/config/ssl/server.crt:ro
-      - ${ESB_CERT_DIR:-~/.esb/certs}/server.key:/app/config/ssl/server.key:ro
+      - ${ESB_CERT_DIR:-~/.esb/certs}:/app/config/ssl:ro
     environment:
       # --- Required / Core Authentication (auto-generated if unset) ---
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-}
@@ -189,6 +188,8 @@ services:
       - http_proxy
       - https_proxy
       - no_proxy
+      - REQUIRE_CA_TRUST=${REQUIRE_CA_TRUST:-true}
+      - SSL_CERT_DIR=/app/config/ssl
       - GRPC_VERBOSITY=ERROR
     depends_on:
       database:

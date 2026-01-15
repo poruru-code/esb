@@ -17,10 +17,13 @@ services:
     environment:
       - CNI_GW_IP=${ESB_DATA_PLANE_HOST:-10.88.0.1}
       - VHOST_VSOCK_REQUIRED=0
+      - REQUIRE_CA_TRUST=${REQUIRE_CA_TRUST:-true}
+      - SSL_CERT_DIR=/app/config/ssl
     volumes:
       # Share containerd socket and state with Agent
       - runtime_containerd_run:/run/containerd
       - runtime_containerd_lib:/var/lib/containerd
+      - ${ESB_CERT_DIR:-~/.esb/certs}:/app/config/ssl:ro
     healthcheck:
       test: ["CMD", "ctr", "-a", "/run/containerd/containerd.sock", "version"]
       interval: 5s
@@ -84,6 +87,10 @@ services:
       - ESB_DATA_PLANE_HOST=${ESB_DATA_PLANE_HOST:-10.88.0.1}
       # Log Shipping: Reach VictoriaLogs via DNS
       - GATEWAY_VICTORIALOGS_URL=http://10.88.0.1:9428
+      - REQUIRE_CA_TRUST=${REQUIRE_CA_TRUST:-true}
+      - SSL_CERT_DIR=/app/config/ssl
+    volumes:
+      - ${ESB_CERT_DIR:-~/.esb/certs}:/app/config/ssl:ro
 
 volumes:
   runtime_containerd_run:

@@ -52,6 +52,9 @@ COPY services/gateway /app/services/gateway
 # Copy Config (base: SSL certs, HAProxy, etc.)
 COPY config /app/config
 
+# Link the shared CA trust utility for the entrypoint
+RUN mkdir -p /usr/local/bin && ln -sf /app/services/common/ensure_ca_trust.sh /usr/local/bin/ensure_ca_trust.sh
+
 # Environment-specific config (functions.yml, routing.yml)
 ARG ESB_CONFIG_DIR=""
 COPY ${ESB_CONFIG_DIR:-services/gateway/config}/ /tmp/esb_config/

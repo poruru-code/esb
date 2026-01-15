@@ -181,6 +181,12 @@ ensure_hv_network() {
 }
 
 ensure_ca_trust() {
+  if [ -f /usr/local/bin/ensure_ca_trust.sh ]; then
+    . /usr/local/bin/ensure_ca_trust.sh
+    ensure_ca_trust
+    return
+  fi
+
   ca_path="/usr/local/share/ca-certificates/esb-rootCA.crt"
   if [ ! -f "$ca_path" ]; then
     return
