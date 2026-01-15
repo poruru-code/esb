@@ -3,14 +3,14 @@ FROM cgr.dev/chainguard/go:latest AS builder
 
 WORKDIR /app
 
-# Copy go.mod and go.sum from the agent service directory
-COPY services/agent/go.mod services/agent/go.sum ./
+# Copy go.mod and go.sum (local to context=services/agent)
+COPY go.mod go.sum ./
 RUN go mod download
 
 # Copy the entire agent service source code
-COPY services/agent/ .
+COPY . .
 
-# Build the binary (main is in cmd/agent relative to services/agent/)
+# Build the binary
 RUN CGO_ENABLED=0 GOOS=linux go build -o /app/agent ./cmd/agent
 
 # Production Stage (Standardized via service-base)
@@ -32,13 +32,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get purge -y --auto-remove curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Path is now relative to project root (context=.)
-COPY services/agent/config/cni/ /etc/cni/net.d/
+# CNI configuration (local to services/agent/config/cni)
+COPY config/cni/ /etc/cni/net.d/
 
 COPY --from=builder /app/agent /app/agent
 
-# entrypoint.sh still needs to be copied as it's service-specific
-COPY services/agent/entrypoint.sh /app/entrypoint.sh
+# entrypoint.sh (local)
+COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
 ENV PORT=50051
