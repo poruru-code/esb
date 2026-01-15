@@ -5,7 +5,7 @@
 
 ensure_ca_trust() {
   target_ca_path="/usr/local/share/ca-certificates/esb-rootCA.crt"
-  mounted_certs_dir="/app/config/ssl"
+  mounted_certs_dir="${SSL_CERT_DIR:-/app/config/ssl}"
   
   # Try to discover Root CA from mounted directory if target doesn't exist
   if [ ! -f "$target_ca_path" ] && [ -d "$mounted_certs_dir" ]; then
