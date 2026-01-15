@@ -1,16 +1,17 @@
 # ESB System Service Base Image
 # Unified foundation for Agent, Gateway, and Runtime-Node.
 
-FROM debian:bookworm-slim
+FROM python:3.12-slim-bookworm
 
-# Install common dependencies
+# Install common dependencies including user-identified requirements
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
+    curl \
+    wget \
+    gnupg \
+    tzdata \
     iproute2 \
     iptables \
-    curl \
-    python3 \
-    python3-pip \
   && rm -rf /var/lib/apt/lists/*
 
 # Copy the shared CA trust utility
