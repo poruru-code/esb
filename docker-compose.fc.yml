@@ -13,6 +13,8 @@ services:
       - "${ESB_PORT_AGENT_GRPC:-0}:50051"
     networks:
       - external_network
+    volumes:
+      - ${ESB_CERT_DIR:-~/.esb/certs}:/app/config/ssl:ro
     environment:
       - CNI_GW_IP=10.88.0.1
       - DNAT_APPLY_OUTPUT=1

@@ -4,6 +4,7 @@ import os
 import shutil
 import socket
 import subprocess
+import sys
 
 import toml
 
@@ -88,10 +89,25 @@ if __name__ == "__main__":
 
     # Check and install Root CA
     root_ca_path = os.path.join(os.environ["CAROOT"], "rootCA.pem")
+
+    # Safety check: Docker sometimes creates a directory if the mount target is missing
+    if os.path.isdir(root_ca_path):
+        print(f"ERROR: {root_ca_path} is a directory, but it should be a file.")
+        print("This often happens when Docker mistakenly creates a directory for a file mount.")
+        print(f"Please run: sudo rm -rf {root_ca_path}")
+        sys.exit(1)
+
     if args.force or not os.path.exists(root_ca_path):
         install_root_ca()
     else:
         print(f"Root CA exists at {root_ca_path}. Skipping installation. Use --force to reinstall.")
+
+    # Convert/Copy Root CA to .crt for easier use in containers (update-ca-certificates)
+    root_ca_crt = os.path.join(os.environ["CAROOT"], "rootCA.crt")
+    if os.path.exists(root_ca_path):
+        if args.force or not os.path.exists(root_ca_crt):
+            print(f"Creating {root_ca_crt} from {root_ca_path}...")
+            shutil.copy2(root_ca_path, root_ca_crt)
 
     # Check and generate Server Certs
     cert_file = os.path.join(output_dir, cert_cfg.get("filename_cert", "server.crt"))

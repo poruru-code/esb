@@ -3,12 +3,14 @@ FROM cgr.dev/chainguard/go:latest AS builder
 
 WORKDIR /app
 
-COPY go.mod go.sum ./
+# Copy go.mod and go.sum from the agent service directory
+COPY services/agent/go.mod services/agent/go.sum ./
 RUN go mod download
 
-COPY . .
+# Copy the entire agent service source code
+COPY services/agent/ .
 
-# Build the binary
+# Build the binary (main is in cmd/agent relative to services/agent/)
 RUN CGO_ENABLED=0 GOOS=linux go build -o /app/agent ./cmd/agent
 
 # Production Stage
@@ -29,12 +31,21 @@ RUN apk update && apk add --no-cache ca-certificates iptables ctr-2 curl && \
     rm cni-plugins.tgz && \
     apk del curl
 
-COPY config/cni/ /etc/cni/net.d/
+# Path is now relative to project root (context=.)
+COPY services/agent/config/cni/ /etc/cni/net.d/
 
 COPY --from=builder /app/agent /app/agent
+
+# Add CA trust utility and entrypoint
+COPY services/common/ensure_ca_trust.sh /usr/local/bin/ensure_ca_trust.sh
+RUN chmod +x /usr/local/bin/ensure_ca_trust.sh
+
+COPY services/agent/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
 ENV PORT=50051
 
 EXPOSE ${PORT}
 
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["/app/agent"]

@@ -40,7 +40,7 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		"docker-compose.registry.yml",
 		"docker-compose.containerd.yml",
 	)
-	writeTestFile(t, filepath.Join(repoRoot, "cli", "internal", "generator", "assets", "Dockerfile.base"), "FROM scratch\n")
+	writeTestFile(t, filepath.Join(repoRoot, "cli", "internal", "generator", "assets", "Dockerfile.lambda-base"), "FROM scratch\n")
 
 	var gotCfg config.GeneratorConfig
 	var gotOpts GenerateOptions
@@ -197,7 +197,7 @@ func TestGoBuilderBuildFirecrackerBuildsServiceImages(t *testing.T) {
 		"docker-compose.registry.yml",
 		"docker-compose.fc.yml",
 	)
-	writeTestFile(t, filepath.Join(repoRoot, "cli", "internal", "generator", "assets", "Dockerfile.base"), "FROM scratch\n")
+	writeTestFile(t, filepath.Join(repoRoot, "cli", "internal", "generator", "assets", "Dockerfile.lambda-base"), "FROM scratch\n")
 	writeTestFile(t, filepath.Join(repoRoot, "services", "runtime-node", "Dockerfile"), "FROM scratch\n")
 	writeTestFile(t, filepath.Join(repoRoot, "services", "agent", "Dockerfile"), "FROM scratch\n")
 

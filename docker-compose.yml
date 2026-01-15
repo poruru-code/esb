@@ -4,6 +4,17 @@
 
 services:
   # ============================================
+  # Base Service Image (Common tools)
+  # ============================================
+  service-base:
+    image: esb-service-base:latest
+    build:
+      context: .
+      dockerfile: services/common/Dockerfile.service-base
+      args:
+        ESB_ENV: ${ESB_ENV:-default}
+
+  # ============================================
   # Permission Helper (for RustFS)
   # ============================================
   permission-helper:

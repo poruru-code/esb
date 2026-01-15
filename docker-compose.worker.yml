@@ -2,8 +2,8 @@ services:
   agent:
     image: esb-agent:${ESB_IMAGE_TAG:-latest}
     build:
-      context: services/agent
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/agent/Dockerfile
     container_name: ${ESB_PROJECT_NAME:-esb}-agent
     cap_add: [NET_ADMIN, SYS_ADMIN]
     environment:
@@ -21,7 +21,6 @@ services:
       - https_proxy
       - no_proxy
     volumes:
-      - ${ESB_CERT_DIR:-~/.esb/certs}/rootCA.pem:/usr/local/share/ca-certificates/esb-rootCA.crt:ro
-    command: >
-      sh -c "update-ca-certificates && /app/agent"
+      - ${ESB_CERT_DIR:-~/.esb/certs}:/app/config/ssl:ro
+    command: ["/app/agent"]
     restart: unless-stopped

@@ -11,6 +11,13 @@ WORKER_ROUTE_VIA="${GATEWAY_WORKER_ROUTE_VIA:-}"
 WORKER_ROUTE_CIDR="${GATEWAY_WORKER_ROUTE_CIDR:-10.88.0.0/16}"
 HAPROXY_CFG="${HAPROXY_CFG:-/app/config/haproxy.gateway.cfg}"
 
+ensure_ca_trust() {
+  if [ -f /usr/local/bin/ensure_ca_trust.sh ]; then
+    . /usr/local/bin/ensure_ca_trust.sh
+    ensure_ca_trust
+  fi
+}
+
 apply_wg_routes() {
   if ! command -v python >/dev/null 2>&1; then
     echo "WARN: python not found; skipping WireGuard route correction"
@@ -71,6 +78,7 @@ else
   echo "INFO: WireGuard config or /dev/net/tun missing; skipping tunnel setup"
 fi
 
+ensure_ca_trust
 apply_worker_routes_override
 start_registry_proxy
 

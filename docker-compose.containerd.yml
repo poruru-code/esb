@@ -56,6 +56,7 @@ services:
       - runtime_containerd_lib:/var/lib/containerd
       - esb_cni_data:/var/lib/cni
       - ./services/agent/config/cni:/etc/cni/net.d:ro
+      - ${ESB_CERT_DIR:-~/.esb/certs}:/app/config/ssl:ro
     environment:
       - AGENT_RUNTIME=containerd
       # No Firecracker shim - use default containerd runtime
