@@ -4,19 +4,19 @@
 package generator
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/staging"
 )
 
-func applyBuildEnv(env string) {
-	configDir := filepath.Join("services", "gateway", ".esb-staging", env, "config")
+func applyBuildEnv(env, composeProject string) {
+	configDir := staging.ConfigDirRelative(composeProject, env)
 	_ = os.Setenv("ESB_CONFIG_DIR", filepath.ToSlash(configDir))
 	if os.Getenv("ESB_PROJECT_NAME") == "" {
-		_ = os.Setenv("ESB_PROJECT_NAME", fmt.Sprintf("esb-%s", strings.ToLower(env)))
+		_ = os.Setenv("ESB_PROJECT_NAME", staging.ComposeProjectKey(composeProject, env))
 	}
 	if os.Getenv("ESB_IMAGE_TAG") == "" {
 		_ = os.Setenv("ESB_IMAGE_TAG", env)

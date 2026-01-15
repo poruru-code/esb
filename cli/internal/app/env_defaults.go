@@ -14,6 +14,7 @@ import (
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/cli/internal/staging"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
@@ -282,7 +283,7 @@ func applyConfigDirEnv(ctx state.Context, resolver func(string) (string, error))
 	if err != nil {
 		return
 	}
-	stagingRel := filepath.Join("services", "gateway", ".esb-staging", ctx.Env, "config")
+	stagingRel := staging.ConfigDirRelative(ctx.ComposeProject, ctx.Env)
 	stagingAbs := filepath.Join(root, stagingRel)
 	if _, err := os.Stat(stagingAbs); err != nil {
 		return

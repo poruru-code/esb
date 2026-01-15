@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/compose"
+	"github.com/poruru/edge-serverless-box/cli/internal/staging"
 )
 
 type registryConfig struct {
@@ -65,9 +66,10 @@ func esbImageLabels(project, env string) map[string]string {
 	return labels
 }
 
-func stageConfigFiles(outputDir, repoRoot, env string) error {
+func stageConfigFiles(outputDir, repoRoot, composeProject, env string) error {
 	configDir := filepath.Join(outputDir, "config")
-	destDir := filepath.Join(repoRoot, "services", "gateway", ".esb-staging", env, "config")
+	stagingRoot := staging.BaseDir(repoRoot, composeProject, env)
+	destDir := filepath.Join(stagingRoot, env, "config")
 	if err := removeDir(destDir); err != nil {
 		return err
 	}
@@ -88,7 +90,7 @@ func stageConfigFiles(outputDir, repoRoot, env string) error {
 	// Stage pyproject.toml for isolated builds
 	rootPyProject := filepath.Join(repoRoot, "pyproject.toml")
 	if fileExists(rootPyProject) {
-		destPyProject := filepath.Join(repoRoot, "services", "gateway", ".esb-staging", "pyproject.toml")
+		destPyProject := filepath.Join(stagingRoot, "pyproject.toml")
 		if err := copyFile(rootPyProject, destPyProject); err != nil {
 			return err
 		}
@@ -96,12 +98,12 @@ func stageConfigFiles(outputDir, repoRoot, env string) error {
 
 	// Stage services/common and services/gateway for standardized structure
 	commonSrc := filepath.Join(repoRoot, "services", "common")
-	commonDest := filepath.Join(repoRoot, "services", "gateway", ".esb-staging", "services", "common")
+	commonDest := filepath.Join(stagingRoot, "services", "common")
 	gatewaySrc := filepath.Join(repoRoot, "services", "gateway")
-	gatewayDest := filepath.Join(repoRoot, "services", "gateway", ".esb-staging", "services", "gateway")
+	gatewayDest := filepath.Join(stagingRoot, "services", "gateway")
 
 	// Clean staging services dir
-	if err := removeDir(filepath.Join(repoRoot, "services", "gateway", ".esb-staging", "services")); err != nil {
+	if err := removeDir(filepath.Join(stagingRoot, "services")); err != nil {
 		return err
 	}
 

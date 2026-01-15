@@ -217,7 +217,8 @@ func TestRunUpAppliesEnvDefaults(t *testing.T) {
 	}
 	setupProjectConfig(t, repoRoot, "demo")
 
-	stagingDir := filepath.Join(repoRoot, "services", "gateway", ".esb-staging", "staging", "config")
+	projectName := expectedComposeProject("demo", "staging")
+	stagingDir := filepath.Join(repoRoot, "services", "gateway", ".esb-staging", projectName, "staging", "config")
 	if err := os.MkdirAll(stagingDir, 0o755); err != nil {
 		t.Fatalf("create staging dir: %v", err)
 	}
@@ -249,13 +250,13 @@ func TestRunUpAppliesEnvDefaults(t *testing.T) {
 	if got := os.Getenv("ESB_ENV"); got != "staging" {
 		t.Fatalf("unexpected ESB_ENV: %s", got)
 	}
-	if got := os.Getenv("ESB_PROJECT_NAME"); got != expectedComposeProject("demo", "staging") {
+	if got := os.Getenv("ESB_PROJECT_NAME"); got != projectName {
 		t.Fatalf("unexpected ESB_PROJECT_NAME: %s", got)
 	}
 	if got := os.Getenv("ESB_IMAGE_TAG"); got != "staging" {
 		t.Fatalf("unexpected ESB_IMAGE_TAG: %s", got)
 	}
-	expectedConfigDir := filepath.ToSlash(filepath.Join("services", "gateway", ".esb-staging", "staging", "config"))
+	expectedConfigDir := filepath.ToSlash(filepath.Join("services", "gateway", ".esb-staging", projectName, "staging", "config"))
 	if got := os.Getenv("ESB_CONFIG_DIR"); got != expectedConfigDir {
 		t.Fatalf("unexpected ESB_CONFIG_DIR: %s", got)
 	}
