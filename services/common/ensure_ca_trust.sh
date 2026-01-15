@@ -14,6 +14,9 @@ ensure_ca_trust() {
       cp "$mounted_certs_dir/rootCA.crt" "$target_ca_path"
     elif [ -f "$mounted_certs_dir/rootCA.pem" ]; then
       cp "$mounted_certs_dir/rootCA.pem" "$target_ca_path"
+    elif [ "${REQUIRE_CA_TRUST:-false}" = "true" ]; then
+      echo "ERROR: REQUIRE_CA_TRUST is true but no Root CA found in $mounted_certs_dir" >&2
+      exit 1
     fi
   fi
 
