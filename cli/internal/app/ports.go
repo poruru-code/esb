@@ -170,7 +170,6 @@ func applyPortsToEnv(ports map[string]int) {
 	if port, ok := ports[constants.EnvPortVictoriaLogs]; ok {
 		_ = os.Setenv(constants.EnvVictoriaLogsPort, strconv.Itoa(port))
 		_ = os.Setenv(constants.EnvVictoriaLogsURL, fmt.Sprintf("http://localhost:%d", port))
-		_ = os.Setenv(constants.EnvVictoriaLogsQueryURL, fmt.Sprintf("http://localhost:%d", port))
 	}
 	if port, ok := ports[constants.EnvPortAgentCGRPC]; ok {
 		_ = os.Setenv(constants.EnvAgentGrpcAddress, fmt.Sprintf("localhost:%d", port))

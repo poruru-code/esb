@@ -44,6 +44,16 @@ DEFAULT_NO_PROXY_TARGETS = [
 
 
 def apply_proxy_env() -> None:
+    """
+    Apply proxy environment variable corrections for the Python runner process.
+
+    Note: While the Go CLI ('esb') also implements similar NO_PROXY correction,
+    this Python-side implementation remains necessary. Changes to environment
+    variables in a child process (the CLI) do not propagate back to the
+    parent process (this runner/pytest). Setting NO_PROXY here ensures that
+    the Python 'requests' library and other tools bypass the proxy when
+    communicating with local ESB services.
+    """
     proxy_keys = ("HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy")
     extra_key = "ESB_NO_PROXY_EXTRA"
 
@@ -129,7 +139,6 @@ def apply_ports_to_env(ports: dict[str, int]) -> None:
         vl_port = ports["ESB_PORT_VICTORIALOGS"]
         os.environ["VICTORIALOGS_PORT"] = str(vl_port)
         os.environ["VICTORIALOGS_URL"] = f"http://localhost:{vl_port}"
-        os.environ["VICTORIALOGS_QUERY_URL"] = os.environ["VICTORIALOGS_URL"]
 
     if "ESB_PORT_AGENT_GRPC" in ports:
         agent_port = ports["ESB_PORT_AGENT_GRPC"]
