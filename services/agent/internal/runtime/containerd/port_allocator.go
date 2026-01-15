@@ -15,10 +15,10 @@ type PortAllocator struct {
 }
 
 // NewPortAllocator creates a new PortAllocator with the given port range.
-func NewPortAllocator(min, max int) *PortAllocator {
+func NewPortAllocator(minPort, maxPort int) *PortAllocator {
 	return &PortAllocator{
-		min:       min,
-		max:       max,
+		min:       minPort,
+		max:       maxPort,
 		allocated: make(map[int]bool),
 	}
 }

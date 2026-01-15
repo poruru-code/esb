@@ -21,6 +21,9 @@ func applyBuildEnv(env, composeProject string) {
 	if os.Getenv("ESB_IMAGE_TAG") == "" {
 		_ = os.Setenv("ESB_IMAGE_TAG", env)
 	}
+	if os.Getenv("DOCKER_BUILDKIT") == "" {
+		_ = os.Setenv("DOCKER_BUILDKIT", "1")
+	}
 }
 
 func applyModeFromConfig(cfg config.GeneratorConfig, env string) {

@@ -104,14 +104,16 @@ flowchart TD
             Agent["Go Agent<br/>(containerd runtime)"]
             Gateway["Gateway API"]
             CoreDNS["CoreDNS<br/>(10.88.0.1:53)"]
+            DockerDNS["Docker DNS<br/>(127.0.0.11)"]
             
             %% Vertical Stack
             Agent --- Gateway
             Gateway --- CoreDNS
+            CoreDNS -->|"Forward"| DockerDNS
         end
 
         Containerd[["containerd.sock"]]
-        CNI["CNI Bridge<br/>(esb-cni0: 10.88.0.1)"]
+        CNI["CNI Bridge<br/>(esb0: 10.88.0.1)"]
 
         subgraph CMP ["Compute Plane (Containerd Runtime)"]
             direction TB
@@ -143,8 +145,9 @@ flowchart TD
     %% Networking
     Gateway -->|"Invoke (L3 Direct)"| WorkerA
     WorkerA -->|"DNS Query (10.88.0.1)"| CoreDNS
-    CoreDNS -->|"Resolve"| DS
-    WorkerA -->|"AWS API (Direct IP)"| DS
+    CoreDNS -->|"Forward"| DockerDNS
+    DockerDNS -->|"Resolve"| DS
+    WorkerA -->|"AWS API (service name)"| DS
     %% CNI MASQUERADE handles the routing
 ```
 
@@ -157,6 +160,7 @@ sequenceDiagram
     participant GW as API Gateway (localhost)
     participant AG as Go Agent (localhost)
     participant DNS as CoreDNS (10.88.0.1)
+    participant DDNS as Docker DNS (127.0.0.11)
     participant CNI as CNI Bridge (NAT/MASQ)
     participant WA as Worker A
 
@@ -170,9 +174,11 @@ sequenceDiagram
     CNI->>WA: HTTP POST: Invoke (Worker A)
     
     WA->>DNS: Resolve "s3-storage"
+    DNS->>DDNS: Forward query
+    DDNS-->>DNS: Return Container IP
     DNS-->>WA: Return Container IP
     
-    WA->>CNI: AWS API Call (S3/Dynamo)
+    WA->>CNI: AWS API Call (S3/Dynamo/VLogs)
     Note over CNI: MASQUERADE (SNAT)
     CNI->>DS: Forward to Data Services
     DS-->>WA: API Response
@@ -184,7 +190,18 @@ sequenceDiagram
 ### ステップ解説 (Containerd)
 - **1-4. 準備**: Agent は containerd API を直接操作してコンテナを起動し、CNI を通じて独立した IP を割り当てます。この際、DNS サーバーとして `10.88.0.1` (CoreDNS) が設定されます。
 - **5-7. 実行**: Gateway は CNI ブリッジを介して、ワーカーのプライベート IP に対して直接パケットを送信します。
-- **8-13. 通信**: ワーカーは `CoreDNS` を介してサービス名（`s3-storage` 等）を解決します。実際の通信は CNI ブリッジの `MASQUERADE` ルールによって透過的に外部ネットワークへルーティングされます。
+- **8-13. 通信**: ワーカーは `CoreDNS` を介してサービス名（`s3-storage` など）を解決し、CoreDNS は Docker DNS (`127.0.0.11`) へフォワードします。実際の通信は CNI ブリッジの `MASQUERADE` ルールによって透過的に外部ネットワークへルーティングされます。
+
+補足:
+- Gateway はコンテナ内部では `:8443` で待ち受け、ホスト公開は `ESB_PORT_GATEWAY_HTTPS` に依存します。
+- containerd モードでは `runtime-node` が NetNS の親で、`gateway`/`agent`/`coredns` が `network_mode: service:runtime-node` で同居します。
+- ワーカーの `/etc/resolv.conf` は `CNI_DNS_SERVER` または `CNI_GW_IP` を参照し、CoreDNS に到達できないと `s3-storage`/`database` の名前解決が失敗します。
+- CNI サブネットから control-plane へ到達するため、`runtime-node` の MASQUERADE と FORWARD ルールが必要です。
+
+トラブルシュート:
+- `docker exec esb-<env>-runtime-node iptables -t nat -S POSTROUTING` で `10.88.0.0/16` の MASQUERADE を確認
+- `ctr -n esb task exec ... cat /etc/resolv.conf` で nameserver が設定されているか確認
+- `docker logs esb-<env>-coredns` で DNS の起動ログを確認
 
 ---
 

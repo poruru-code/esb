@@ -7,6 +7,9 @@
       "bridge": "esb0",
       "isGateway": true,
       "ipMasq": true,
+      "dns": {
+        "nameservers": ["10.88.0.1"]
+      },
       "ipam": {
         "type": "host-local",
         "subnet": "10.88.0.0/16",

@@ -1,3 +1,6 @@
+# Where: services/gateway/Dockerfile.firecracker
+# What: Gateway image for Firecracker/WireGuard mode.
+# Why: Isolate WireGuard/HAProxy tooling from the core gateway image.
 # Builder Stage - Standardized via python base (Debian 12 + Python 3.12)
 FROM esb-python-base:latest AS builder
 
@@ -34,7 +37,9 @@ WORKDIR /app
 
 # Install service-specific runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    haproxy \
     iproute2 \
+    wireguard-tools \
     && rm -rf /var/lib/apt/lists/*
 
 # Fix python symlink safely (python formula might put it in /usr/local/bin)

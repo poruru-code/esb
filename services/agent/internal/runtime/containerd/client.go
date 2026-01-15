@@ -6,9 +6,9 @@ import (
 	"github.com/containerd/containerd"
 )
 
-// ContainerdClient defines the subset of containerd.Client methods we use,
+// Client defines the subset of containerd.Client methods we use,
 // making it easier to mock for TDD.
-type ContainerdClient interface {
+type Client interface {
 	Containers(ctx context.Context, filters ...string) ([]containerd.Container, error)
 	LoadContainer(ctx context.Context, id string) (containerd.Container, error)
 	NewContainer(ctx context.Context, id string, opts ...containerd.NewContainerOpts) (containerd.Container, error)
@@ -17,7 +17,7 @@ type ContainerdClient interface {
 	Close() error
 }
 
-// ClientWrapper is a real implementation of ContainerdClient using containerd.Client.
+// ClientWrapper is a real implementation of Client using containerd.Client.
 type ClientWrapper struct {
 	*containerd.Client
 }

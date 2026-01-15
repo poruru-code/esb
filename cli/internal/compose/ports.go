@@ -40,14 +40,20 @@ var DefaultPortMappings = []PortMapping{
 	{
 		EnvVar:        constants.EnvPortGatewayHTTPS,
 		Service:       "gateway",
-		ContainerPort: 443,
+		ContainerPort: 8443,
 		Modes:         []string{ModeDocker},
 	},
 	{
 		EnvVar:        constants.EnvPortGatewayHTTPS,
 		Service:       "runtime-node",
-		ContainerPort: 443,
-		Modes:         []string{ModeContainerd, ModeFirecracker},
+		ContainerPort: 8443,
+		Modes:         []string{ModeContainerd},
+	},
+	{
+		EnvVar:        constants.EnvPortGatewayHTTPS,
+		Service:       "gateway",
+		ContainerPort: 8443,
+		Modes:         []string{ModeFirecracker},
 	},
 	{EnvVar: constants.EnvPortS3, Service: "s3-storage", ContainerPort: 9000},
 	{EnvVar: constants.EnvPortS3Mgmt, Service: "s3-storage", ContainerPort: 9001},

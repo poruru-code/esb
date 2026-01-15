@@ -30,7 +30,6 @@ setup_cgroupv2_delegation
 ensure_ip_forward
 ensure_route_localnet
 ensure_hv_network
-ensure_ca_trust
 ensure_wg_route
 start_wg_route_watcher
 

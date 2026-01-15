@@ -81,10 +81,10 @@ func (m *MockRuntime) Close() error {
 
 const bufSize = 1024 * 1024
 
-var lis *bufconn.Listener
-
 func initServer(t *testing.T, mockRT *MockRuntime) *grpc.ClientConn {
-	lis = bufconn.Listen(bufSize)
+	t.Helper()
+
+	lis := bufconn.Listen(bufSize)
 	s := grpc.NewServer()
 
 	// Inject mock runtime
@@ -92,13 +92,11 @@ func initServer(t *testing.T, mockRT *MockRuntime) *grpc.ClientConn {
 	pb.RegisterAgentServiceServer(s, server)
 
 	go func() {
-		if err := s.Serve(lis); err != nil {
-			t.Errorf("Server exited with error: %v", err)
-		}
+		_ = s.Serve(lis)
 	}()
 
-	conn, err := grpc.DialContext(context.Background(), "bufnet",
-		grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
+	conn, err := grpc.NewClient("passthrough:///bufnet",
+		grpc.WithContextDialer(func(_ context.Context, _ string) (net.Conn, error) {
 			return lis.Dial()
 		}),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -106,6 +104,11 @@ func initServer(t *testing.T, mockRT *MockRuntime) *grpc.ClientConn {
 	if err != nil {
 		t.Fatalf("Failed to dial bufnet: %v", err)
 	}
+	t.Cleanup(func() {
+		_ = conn.Close()
+		s.Stop()
+		_ = lis.Close()
+	})
 	return conn
 }
 

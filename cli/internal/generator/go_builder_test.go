@@ -83,6 +83,7 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	t.Setenv("ESB_PROJECT_NAME", "")
 	t.Setenv("ESB_IMAGE_TAG", "")
 
+	setupRootCA(t)
 	request := app.BuildRequest{
 		ProjectDir:   projectDir,
 		TemplatePath: templatePath,
@@ -130,8 +131,14 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	if buildOpts.Target != "control" {
 		t.Fatalf("unexpected compose target: %s", buildOpts.Target)
 	}
-	if len(buildOpts.Services) != 3 || buildOpts.Services[0] != "service-base" || buildOpts.Services[1] != "gateway" || buildOpts.Services[2] != "agent" {
+	expectedServices := []string{"os-base", "python-base", "gateway", "agent"}
+	if len(buildOpts.Services) != len(expectedServices) {
 		t.Fatalf("unexpected compose services: %v", buildOpts.Services)
+	}
+	for i, service := range expectedServices {
+		if buildOpts.Services[i] != service {
+			t.Fatalf("unexpected compose services: %v", buildOpts.Services)
+		}
 	}
 
 	if got := os.Getenv("ESB_CONFIG_DIR"); got != "services/gateway/.esb-staging/demo-staging/staging/config" {
@@ -212,6 +219,7 @@ func TestGoBuilderBuildFirecrackerBuildsServiceImages(t *testing.T) {
 	writeTestFile(t, filepath.Join(repoRoot, "pyproject.toml"), "[project]\n")
 	writeTestFile(t, filepath.Join(repoRoot, "cli", "internal", "generator", "assets", "Dockerfile.lambda-base"), "FROM scratch\n")
 	writeTestFile(t, filepath.Join(repoRoot, "services", "runtime-node", "Dockerfile"), "FROM scratch\n")
+	writeTestFile(t, filepath.Join(repoRoot, "services", "runtime-node", "Dockerfile.firecracker"), "FROM scratch\n")
 	writeTestFile(t, filepath.Join(repoRoot, "services", "agent", "Dockerfile"), "FROM scratch\n")
 
 	generate := func(cfg config.GeneratorConfig, _ GenerateOptions) ([]FunctionSpec, error) {
@@ -224,6 +232,7 @@ func TestGoBuilderBuildFirecrackerBuildsServiceImages(t *testing.T) {
 
 	dockerRunner := &recordRunner{}
 	composeRunner := &recordRunner{}
+	setupRootCA(t)
 	builder := &GoBuilder{
 		Runner:        dockerRunner,
 		ComposeRunner: composeRunner,
@@ -350,6 +359,16 @@ func hasComposeUpRegistry(calls []commandCall) bool {
 		}
 	}
 	return false
+}
+
+func setupRootCA(t *testing.T) string {
+	t.Helper()
+
+	caDir := t.TempDir()
+	caPath := filepath.Join(caDir, esbRootCACertName)
+	writeTestFile(t, caPath, "root-CA")
+	t.Setenv("ESB_CA_CERT_PATH", caPath)
+	return caPath
 }
 
 func writeComposeFiles(t *testing.T, root string, names ...string) {

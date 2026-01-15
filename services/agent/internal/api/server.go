@@ -177,7 +177,7 @@ func (s *AgentServer) ResumeContainer(ctx context.Context, req *pb.ResumeContain
 	}, nil
 }
 
-func (s *AgentServer) ListContainers(ctx context.Context, req *pb.ListContainersRequest) (*pb.ListContainersResponse, error) {
+func (s *AgentServer) ListContainers(ctx context.Context, _ *pb.ListContainersRequest) (*pb.ListContainersResponse, error) {
 	states, err := s.runtime.List(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to list containers: %v", err)

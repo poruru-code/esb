@@ -171,9 +171,22 @@ func (b *GoBuilder) Build(request app.BuildRequest) error {
 	}
 
 	if !request.Verbose {
-		fmt.Print("➜ Building service base image... ")
+		fmt.Print("➜ Building OS base image... ")
 	}
-	if err := buildDockerImage(context.Background(), b.Runner, repoRoot, "services/common/Dockerfile.service-base", "esb-service-base:latest", request.NoCache, request.Verbose, imageLabels); err != nil {
+	if err := buildDockerImage(context.Background(), b.Runner, repoRoot, "services/common/Dockerfile.os-base", "esb-os-base:latest", request.NoCache, request.Verbose, imageLabels); err != nil {
+		if !request.Verbose {
+			fmt.Println("Failed")
+		}
+		return err
+	}
+	if !request.Verbose {
+		fmt.Println("Done")
+	}
+
+	if !request.Verbose {
+		fmt.Print("➜ Building Python base image... ")
+	}
+	if err := buildDockerImage(context.Background(), b.Runner, repoRoot, "services/common/Dockerfile.python-base", "esb-python-base:latest", request.NoCache, request.Verbose, imageLabels); err != nil {
 		if !request.Verbose {
 			fmt.Println("Failed")
 		}
@@ -229,7 +242,7 @@ func (b *GoBuilder) Build(request app.BuildRequest) error {
 		Project:  composeProject,
 		Mode:     mode,
 		Target:   "control",
-		Services: []string{"service-base", "gateway", "agent"},
+		Services: []string{"os-base", "python-base", "gateway", "agent"},
 		NoCache:  request.NoCache,
 		Verbose:  request.Verbose,
 	}

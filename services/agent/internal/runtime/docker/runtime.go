@@ -18,8 +18,8 @@ import (
 	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
 )
 
-// DockerClient defines the subset of Docker API used by Agent.
-type DockerClient interface {
+// Client defines the subset of Docker API used by Agent.
+type Client interface {
 	ContainerList(ctx context.Context, options container.ListOptions) ([]container.Summary, error)
 	ContainerCreate(ctx context.Context, config *container.Config, hostConfig *container.HostConfig, networkingConfig *network.NetworkingConfig, platform *v1.Platform, containerName string) (container.CreateResponse, error)
 	ContainerStart(ctx context.Context, containerID string, options container.StartOptions) error
@@ -30,13 +30,13 @@ type DockerClient interface {
 }
 
 type Runtime struct {
-	client    DockerClient
+	client    Client
 	networkID string
 	env       string
 }
 
 // NewRuntime creates a new Docker runtime.
-func NewRuntime(client DockerClient, networkID string, env string) *Runtime {
+func NewRuntime(client Client, networkID, env string) *Runtime {
 	return &Runtime{
 		client:    client,
 		networkID: networkID,
@@ -151,13 +151,13 @@ func (r *Runtime) Destroy(ctx context.Context, id string) error {
 	return r.client.ContainerRemove(ctx, id, container.RemoveOptions{Force: true})
 }
 
-func (r *Runtime) Suspend(ctx context.Context, id string) error {
+func (r *Runtime) Suspend(_ context.Context, _ string) error {
 	// We could call Docker's Pause, but Phase 2's main focus is containerd.
 	// For Docker, keep it simplified or unimplemented, but return a stub or error for compatibility.
 	return fmt.Errorf("pause not implemented for docker runtime")
 }
 
-func (r *Runtime) Resume(ctx context.Context, id string) error {
+func (r *Runtime) Resume(_ context.Context, _ string) error {
 	return fmt.Errorf("resume not implemented for docker runtime")
 }
 
@@ -167,7 +167,7 @@ func (r *Runtime) Close() error {
 
 // GC - Docker runtime doesn't require GC as containers are managed by Docker daemon.
 // This is a stub for interface compatibility.
-func (r *Runtime) GC(ctx context.Context) error {
+func (r *Runtime) GC(_ context.Context) error {
 	// No-op for Docker runtime
 	return nil
 }
@@ -219,6 +219,6 @@ func (r *Runtime) List(ctx context.Context) ([]runtime.ContainerState, error) {
 	return states, nil
 }
 
-func (r *Runtime) Metrics(ctx context.Context, id string) (*runtime.ContainerMetrics, error) {
+func (r *Runtime) Metrics(_ context.Context, _ string) (*runtime.ContainerMetrics, error) {
 	return nil, fmt.Errorf("metrics not implemented for docker runtime")
 }

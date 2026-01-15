@@ -23,7 +23,7 @@
     - ローカル環境 (Containerd): Docker DNS (`127.0.0.11`) へフォワード
     - リモート環境 (Firecracker/WG): `extra_hosts` 設定により `10.99.0.1` (Gateway) へ解決
 - **gateway**:
-  - HTTPS エントリポイント（`:443`）
+  - HTTPS エントリポイント（`:8443`、ホスト公開は `:443`）
   - Control Plane 内の各サービスのリバースプロキシ (HAProxy) を内蔵し、WireGuard 経由のマルチサービス通信を単一 IP で受ける
 - **agent**:
   - containerd 経由で task を作成し、CNI 設定で `dns.nameservers = ["10.88.0.1"]` を注入
@@ -31,7 +31,7 @@
 ## トラフィックフロー
 
 ### 1) Client -> Gateway（HTTPS）
-- **経路**: Host `:443` -> `gateway` コンテナ
+- **経路**: Host `:443` -> `gateway` コンテナ `:8443`
 
 ### 2) Gateway -> Worker（Invoke）
 - **経路**: `gateway` -> `worker.ip:8080` (CNI サブネット内)
@@ -60,7 +60,7 @@
 - `9000`: S3 (RustFS)
 - `8000`: DynamoDB (ScyllaDB)
 - `9428`: VictoriaLogs
-- `443`: Gateway API
+ - `8443`: Gateway API
 
 ## トラブルシュート
 

@@ -7,15 +7,15 @@ import (
 )
 
 func TestPortAllocator_Allocate(t *testing.T) {
-	min, max := 20000, 20005
-	pa := NewPortAllocator(min, max)
+	minPort, maxPort := 20000, 20005
+	pa := NewPortAllocator(minPort, maxPort)
 
 	// Allocate all available ports
 	allocated := make(map[int]bool)
-	for i := 0; i < (max - min + 1); i++ {
+	for i := 0; i < (maxPort - minPort + 1); i++ {
 		port, err := pa.Allocate()
 		assert.NoError(t, err)
-		assert.True(t, port >= min && port <= max)
+		assert.True(t, port >= minPort && port <= maxPort)
 		assert.False(t, allocated[port], "Port %d was already allocated", port)
 		allocated[port] = true
 	}

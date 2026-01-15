@@ -4,9 +4,9 @@
 # Runtimes
 python = "3.12"
 go = "1.25.1"
-uv = "latest"
+uv = "0.8.13"
 lefthook = "latest"
-mkcert = "latest"
+mkcert = "1.4.4"
  
 # Go tooling (installed via go install)
 "go:github.com/golangci/golangci-lint/cmd/golangci-lint" = "latest"

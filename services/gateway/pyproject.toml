@@ -1,0 +1,34 @@
+# Where: services/gateway/pyproject.toml
+# What: Gateway dependency spec for container builds.
+# Why: Keep dependency resolution local to the Gateway service.
+
+[project]
+name = "esb-gateway"
+version = "0.1.0"
+description = "Gateway runtime dependencies for Edge Serverless Box."
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.104.1",
+    "uvicorn[standard]>=0.24.0",
+    "python-multipart>=0.0.6",
+    "docker>=6.1.3",
+    "apscheduler>=3.10.4",
+    "pyjwt>=2.8.0",
+    "boto3>=1.34.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.0.0",
+    "python-dotenv>=1.0.0",
+    "httpx>=0.25.1",
+    "pyyaml>=6.0",
+    "watchdog>=6.0.0",
+    "jinja2>=3.1",
+    "cachetools>=5.3.0",
+    "grpcio>=1.59.0",
+    "protobuf>=4.25.0",
+    "aws-croniter>=1.0.5",
+    "toml>=0.10.2",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
