@@ -70,15 +70,12 @@ RUN set -eu; \
 # Stage 3: Final Runtime Image
 # Assembles the runtime with containerd and firecracker support
 # -----------------------------------------------------------------------------
-FROM debian:${DEBIAN_VERSION}-slim
+FROM esb-service-base
 
 # System dependencies for containerd and firecracker networking/devmapper
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
     containerd \
     dmsetup \
-    iproute2 \
-    iptables \
     runc \
     udev \
     util-linux \

@@ -1,0 +1,29 @@
+# ESB System Service Base Image
+# Unified foundation for Agent, Gateway, and Runtime-Node.
+
+FROM python:3.12-slim-bookworm
+
+# Install common dependencies including user-identified requirements
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    wget \
+    gnupg \
+    tzdata \
+    iproute2 \
+    iptables \
+  && rm -rf /var/lib/apt/lists/*
+
+# Copy the shared CA trust utility
+COPY services/common/ensure_ca_trust.sh /usr/local/bin/ensure_ca_trust.sh
+RUN chmod +x /usr/local/bin/ensure_ca_trust.sh
+
+# Environment variables for standardized SSL mounting
+ENV SSL_CERT_DIR=/app/config/ssl
+
+# We don't copy all of services/common here because that would make the base heavy
+# and require rebuilds on every change to common.
+# Instead, we rely on individual services to stage what they need OR
+# we use the project root as context if strictly necessary.
+# HOWEVER, for Python services, having a common place for ensure_ca_trust
+# and other shell utilities is the primary goal here.

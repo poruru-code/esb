@@ -84,6 +84,57 @@ func stageConfigFiles(outputDir, repoRoot, env string) error {
 			return err
 		}
 	}
+
+	// Stage pyproject.toml for isolated builds
+	rootPyProject := filepath.Join(repoRoot, "pyproject.toml")
+	if fileExists(rootPyProject) {
+		destPyProject := filepath.Join(repoRoot, "services", "gateway", ".esb-staging", "pyproject.toml")
+		if err := copyFile(rootPyProject, destPyProject); err != nil {
+			return err
+		}
+	}
+
+	// Stage services/common and services/gateway for standardized structure
+	commonSrc := filepath.Join(repoRoot, "services", "common")
+	commonDest := filepath.Join(repoRoot, "services", "gateway", ".esb-staging", "services", "common")
+	gatewaySrc := filepath.Join(repoRoot, "services", "gateway")
+	gatewayDest := filepath.Join(repoRoot, "services", "gateway", ".esb-staging", "services", "gateway")
+
+	// Clean staging services dir
+	if err := removeDir(filepath.Join(repoRoot, "services", "gateway", ".esb-staging", "services")); err != nil {
+		return err
+	}
+
+	// Copy common
+	if err := copyDir(commonSrc, commonDest); err != nil {
+		return err
+	}
+
+	// Copy gateway source (excluding .esb-staging to avoid infinite recursion)
+	entries, err := os.ReadDir(gatewaySrc)
+	if err != nil {
+		return err
+	}
+	if err := ensureDir(gatewayDest); err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if entry.Name() == ".esb-staging" {
+			continue
+		}
+		srcPath := filepath.Join(gatewaySrc, entry.Name())
+		dstPath := filepath.Join(gatewayDest, entry.Name())
+		if entry.IsDir() {
+			if err := copyDir(srcPath, dstPath); err != nil {
+				return err
+			}
+		} else {
+			if err := copyFile(srcPath, dstPath); err != nil {
+				return err
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -126,7 +177,7 @@ func buildBaseImage(
 		fmt.Println("Building base image...")
 	}
 	assetsDir := filepath.Join(repoRoot, "cli", "internal", "generator", "assets")
-	dockerfile := filepath.Join(assetsDir, "Dockerfile.base")
+	dockerfile := filepath.Join(assetsDir, "Dockerfile.lambda-base")
 	if _, err := os.Stat(dockerfile); err != nil {
 		return fmt.Errorf("base dockerfile not found: %w", err)
 	}
@@ -136,7 +187,7 @@ func buildBaseImage(
 		imageTag = fmt.Sprintf("%s/%s", registry, imageTag)
 	}
 
-	if err := buildDockerImage(ctx, runner, assetsDir, "Dockerfile.base", imageTag, noCache, verbose, labels); err != nil {
+	if err := buildDockerImage(ctx, runner, assetsDir, "Dockerfile.lambda-base", imageTag, noCache, verbose, labels); err != nil {
 		return err
 	}
 	if registry != "" {

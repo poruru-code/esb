@@ -1,45 +1,52 @@
-# Builder Stage - Wolfi with Python 3.12
-FROM cgr.dev/chainguard/wolfi-base:latest AS builder
+# Builder Stage - Standardized via service-base (Debian 12 + Python 3.12)
+FROM esb-service-base:latest AS builder
+
+# Install uv (standardized via official image in standard path)
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+
 WORKDIR /app
 
-# Install build dependencies, Python 3.12 and uv
-RUN apk update && apk add --no-cache \
-    python-3.12 \
-    python-3.12-dev \
-    uv \
-    build-base \
-    ca-certificates
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Create virtual environment
 ENV VIRTUAL_ENV=/app/.venv
 RUN uv venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
-# Copy dependencies definition and source for package installation
+# Copy dependencies definition for better cache efficiency
 COPY pyproject.toml README.md /app/
-COPY tools /app/tools
 
 # Install dependencies (Cache layer)
 RUN uv pip compile pyproject.toml -o requirements.txt && \
     uv pip install -r requirements.txt
 
-# Install the project itself to generate metadata
+# Copy source code for final installation (ensures build-backend sees everything)
+COPY tools /app/tools
+COPY services /app/services
 RUN uv pip install .
 
-# Final stage - Wolfi with Python 3.12
-FROM cgr.dev/chainguard/wolfi-base:latest
+# Final stage - Standardized via service-base
+FROM esb-service-base:latest AS prod
 
 WORKDIR /app
 
-# Install Python 3.12 runtime and network tools
-RUN apk update && apk add --no-cache \
-    python-3.12 \
+# Install service-specific runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
     haproxy \
-    iproute2 \
-    wireguard-go \
     wireguard-tools \
-    ca-certificates && \
-    ln -sf /usr/bin/python3 /usr/bin/python
+    && rm -rf /var/lib/apt/lists/*
+
+# Fix python symlink safely (python formula might put it in /usr/local/bin)
+RUN if ! command -v python >/dev/null 2>&1; then \
+        ln -sf "$(command -v python3)" /usr/local/bin/python; \
+    fi
+
+# Copy uv for operational use/debugging from standardized path
+COPY --from=builder /usr/local/bin/uv /usr/local/bin/uvx /usr/local/bin/
 
 # Copy virtual environment from builder
 COPY --from=builder /app/.venv /app/.venv
@@ -53,8 +60,9 @@ COPY services/gateway /app/services/gateway
 COPY config /app/config
 
 # Environment-specific config (functions.yml, routing.yml)
-ARG ESB_CONFIG_DIR=""
-COPY ${ESB_CONFIG_DIR:-services/gateway/config}/ /tmp/esb_config/
+# Use ARG with default to improve portability of the COPY command
+ARG ESB_CONFIG_DIR=services/gateway/config
+COPY ${ESB_CONFIG_DIR}/ /tmp/esb_config/
 RUN if [ -f /tmp/esb_config/functions.yml ]; then \
       cp /tmp/esb_config/functions.yml /app/config/functions.yml && \
       cp /tmp/esb_config/routing.yml /app/config/routing.yml; \

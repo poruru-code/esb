@@ -6,8 +6,7 @@ services:
       - "${ESB_PORT_REGISTRY:-0}:5010" # Registry API (pushes from host)
     volumes:
       - registry_data:/var/lib/registry
-      - ${ESB_CERT_DIR:-~/.esb/certs}/server.crt:/certs/server.crt:ro
-      - ${ESB_CERT_DIR:-~/.esb/certs}/server.key:/certs/server.key:ro
+      - ${ESB_CERT_DIR:-~/.esb/certs}:/certs:ro
     environment:
       REGISTRY_HTTP_ADDR: 0.0.0.0:5010
       REGISTRY_HTTP_TLS_CERTIFICATE: /certs/server.crt
