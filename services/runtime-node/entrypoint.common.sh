@@ -329,7 +329,19 @@ start_devmapper_watcher() {
 
 apply_cni_nat() {
   # Ensure SNAT/MASQUERADE for CNI subnet traffic exiting to external networks.
-  iptables -t nat -A POSTROUTING -s 10.88.0.0/16 ! -d 10.88.0.0/16 -j MASQUERADE
+  ensure_iptables_rule nat POSTROUTING -s 10.88.0.0/16 ! -d 10.88.0.0/16 -j MASQUERADE
+  # Allow forwarding between the CNI bridge and external interfaces.
+  ensure_iptables_rule filter FORWARD -i esb0 -j ACCEPT
+  ensure_iptables_rule filter FORWARD -o esb0 -j ACCEPT
+}
+
+ensure_iptables_rule() {
+  table="$1"
+  shift
+  if iptables -t "$table" -C "$@" >/dev/null 2>&1; then
+    return
+  fi
+  iptables -t "$table" -A "$@"
 }
 
 start_containerd() {

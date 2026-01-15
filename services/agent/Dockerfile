@@ -13,13 +13,15 @@ COPY . .
 # Build the binary
 RUN CGO_ENABLED=0 GOOS=linux go build -o /app/agent ./cmd/agent
 
-# Production Stage (Standardized via service-base)
-FROM esb-service-base:latest AS prod
+# Production Stage (Standardized via os base)
+FROM esb-os-base:latest AS prod
 
 WORKDIR /app
 
 # Install containerd runtime tools (apt-get as base is Debian)
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    iproute2 \
+    iptables \
     curl \
     && CNI_PLUGINS_VERSION="v1.3.0" \
     && ARCH=$(uname -m) \

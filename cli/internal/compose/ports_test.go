@@ -43,8 +43,8 @@ func TestDiscoverPortsFiltersByMode(t *testing.T) {
 
 	runner := fakeOutputRunner{
 		outputs: map[string]string{
-			"gateway:443":       "0.0.0.0:10443",
-			"runtime-node:443":  "0.0.0.0:20443",
+			"gateway:8443":      "0.0.0.0:10443",
+			"runtime-node:8443": "0.0.0.0:20443",
 			"victorialogs:9428": "[::]:19428",
 		},
 	}

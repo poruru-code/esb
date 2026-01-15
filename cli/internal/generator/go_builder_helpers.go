@@ -269,12 +269,21 @@ func buildServiceImages(
 	if verbose {
 		fmt.Println("Building service images...")
 	}
-	services := map[string]string{
-		"esb-runtime-node": filepath.Join(repoRoot, "services", "runtime-node"),
-		"esb-agent":        filepath.Join(repoRoot, "services", "agent"),
+	services := map[string]struct {
+		dir        string
+		dockerfile string
+	}{
+		"esb-runtime-node": {
+			dir:        filepath.Join(repoRoot, "services", "runtime-node"),
+			dockerfile: "Dockerfile.firecracker",
+		},
+		"esb-agent": {
+			dir:        filepath.Join(repoRoot, "services", "agent"),
+			dockerfile: "Dockerfile",
+		},
 	}
-	for name, dir := range services {
-		dockerfile := filepath.Join(dir, "Dockerfile")
+	for name, info := range services {
+		dockerfile := filepath.Join(info.dir, info.dockerfile)
 		if _, err := os.Stat(dockerfile); err != nil {
 			return fmt.Errorf("service dockerfile not found: %w", err)
 		}
@@ -282,11 +291,11 @@ func buildServiceImages(
 		if registry != "" {
 			imageTag = fmt.Sprintf("%s/%s", registry, imageTag)
 		}
-		if err := buildDockerImage(ctx, runner, dir, "Dockerfile", imageTag, noCache, verbose, labels); err != nil {
+		if err := buildDockerImage(ctx, runner, info.dir, info.dockerfile, imageTag, noCache, verbose, labels); err != nil {
 			return err
 		}
 		if registry != "" {
-			if err := pushDockerImage(ctx, runner, dir, imageTag, verbose); err != nil {
+			if err := pushDockerImage(ctx, runner, info.dir, imageTag, verbose); err != nil {
 				return err
 			}
 		}
@@ -387,7 +396,8 @@ func dockerSecretArgs(dockerfile string) ([]string, error) {
 }
 
 func needsRootCASecret(dockerfile string) bool {
-	return filepath.Base(dockerfile) == "Dockerfile.service-base"
+	base := filepath.Base(dockerfile)
+	return base == "Dockerfile.os-base" || base == "Dockerfile.python-base"
 }
 
 func resolveRootCAPath() (string, error) {

@@ -97,8 +97,8 @@ func initServer(t *testing.T, mockRT *MockRuntime) *grpc.ClientConn {
 		}
 	}()
 
-	conn, err := grpc.DialContext(context.Background(), "bufnet",
-		grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
+	conn, err := grpc.NewClient("bufnet",
+		grpc.WithContextDialer(func(_ context.Context, _ string) (net.Conn, error) {
 			return lis.Dial()
 		}),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),

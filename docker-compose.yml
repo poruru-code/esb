@@ -4,15 +4,21 @@
 
 services:
   # ============================================
-  # Base Service Image (Common tools)
+  # Base Images (Debian 12)
   # ============================================
-  service-base:
-    image: esb-service-base:latest
+  os-base:
+    image: esb-os-base:latest
     build:
       context: .
-      dockerfile: services/common/Dockerfile.service-base
-      args:
-        ESB_ENV: ${ESB_ENV:-default}
+      dockerfile: services/common/Dockerfile.os-base
+      secrets:
+        - esb_root_ca
+
+  python-base:
+    image: esb-python-base:latest
+    build:
+      context: .
+      dockerfile: services/common/Dockerfile.python-base
       secrets:
         - esb_root_ca
 
@@ -141,6 +147,8 @@ services:
       dockerfile: services/gateway/Dockerfile
       args:
         ESB_CONFIG_DIR: ${ESB_CONFIG_DIR:-}
+        ESB_UID: ${ESB_UID:-1000}
+        ESB_GID: ${ESB_GID:-1000}
     container_name: ${ESB_PROJECT_NAME:-esb}-gateway
     # NOTE: ports and networks are defined by adapter files (fc.yml / containerd.yml)
     volumes:

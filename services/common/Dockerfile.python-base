@@ -1,0 +1,17 @@
+# syntax=docker/dockerfile:1.7
+# Where: services/common/Dockerfile.python-base
+# What: Python 3.12 base image for Python services.
+# Why: Keep Debian 12 + CA trust while minimizing extra packages.
+
+FROM python:3.12-slim-bookworm@sha256:4a3ceab05b4e396df42a042415e43a286bb5793352b9258f889d6c7d38ed01fb
+
+# Install minimal OS packages
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    tzdata \
+  && rm -rf /var/lib/apt/lists/*
+
+# Bake the local Root CA into the image at build time (BuildKit secret).
+RUN --mount=type=secret,id=esb_root_ca,required=true \
+    install -m 0644 /run/secrets/esb_root_ca /usr/local/share/ca-certificates/esb-rootCA.crt \
+    && update-ca-certificates

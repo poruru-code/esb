@@ -5,7 +5,7 @@ services:
   runtime-node:
     build:
       context: services/runtime-node
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.firecracker
     container_name: ${ESB_PROJECT_NAME:-esb}-runtime-node
     entrypoint: /entrypoint.firecracker.sh
     privileged: true
@@ -71,6 +71,14 @@ services:
   # 3. Gateway Wiring (WireGuard for FC Mode)
   # ------------------------------------------
   gateway:
+    user: "0:0"
+    build:
+      context: .
+      dockerfile: services/gateway/Dockerfile.firecracker
+      args:
+        ESB_CONFIG_DIR: ${ESB_CONFIG_DIR:-}
+        ESB_UID: ${ESB_UID:-1000}
+        ESB_GID: ${ESB_GID:-1000}
     ports:
       - "${ESB_PORT_GATEWAY_HTTPS:-0}:8443"
     networks:

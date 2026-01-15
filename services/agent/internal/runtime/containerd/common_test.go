@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-// MockClient is a mock for ContainerdClient
+// MockClient is a mock for Client.
 type MockClient struct {
 	mock.Mock
 }
@@ -188,11 +188,11 @@ func (m *MockImage) Labels() map[string]string {
 	return nil
 }
 
-func (m *MockImage) Config(ctx context.Context) (v1.Descriptor, error) {
+func (m *MockImage) Config(_ context.Context) (v1.Descriptor, error) {
 	return v1.Descriptor{}, nil
 }
 
-func (m *MockImage) RootFS(ctx context.Context) ([]digest.Digest, error) {
+func (m *MockImage) RootFS(_ context.Context) ([]digest.Digest, error) {
 	return nil, nil
 }
 
@@ -211,39 +211,43 @@ type MockContentStore struct {
 	mock.Mock
 }
 
-func (m *MockContentStore) Info(ctx context.Context, dgst digest.Digest) (content.Info, error) {
+func (m *MockContentStore) Info(_ context.Context, _ digest.Digest) (content.Info, error) {
 	return content.Info{}, nil
 }
 
-func (m *MockContentStore) Update(ctx context.Context, info content.Info, fieldpaths ...string) (content.Info, error) {
+func (m *MockContentStore) Update(
+	_ context.Context,
+	_ content.Info,
+	_ ...string,
+) (content.Info, error) {
 	return content.Info{}, nil
 }
 
-func (m *MockContentStore) Walk(ctx context.Context, fn content.WalkFunc, filters ...string) error {
+func (m *MockContentStore) Walk(_ context.Context, _ content.WalkFunc, _ ...string) error {
 	return nil
 }
 
-func (m *MockContentStore) Delete(ctx context.Context, dgst digest.Digest) error {
+func (m *MockContentStore) Delete(_ context.Context, _ digest.Digest) error {
 	return nil
 }
 
-func (m *MockContentStore) ReaderAt(ctx context.Context, desc v1.Descriptor) (content.ReaderAt, error) {
+func (m *MockContentStore) ReaderAt(_ context.Context, _ v1.Descriptor) (content.ReaderAt, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
-func (m *MockContentStore) Status(ctx context.Context, ref string) (content.Status, error) {
+func (m *MockContentStore) Status(_ context.Context, _ string) (content.Status, error) {
 	return content.Status{}, nil
 }
 
-func (m *MockContentStore) ListStatuses(ctx context.Context, filters ...string) ([]content.Status, error) {
+func (m *MockContentStore) ListStatuses(_ context.Context, _ ...string) ([]content.Status, error) {
 	return nil, nil
 }
 
-func (m *MockContentStore) Abort(ctx context.Context, ref string) error {
+func (m *MockContentStore) Abort(_ context.Context, _ string) error {
 	return nil
 }
 
-func (m *MockContentStore) Writer(ctx context.Context, opts ...content.WriterOpt) (content.Writer, error) {
+func (m *MockContentStore) Writer(_ context.Context, _ ...content.WriterOpt) (content.Writer, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
@@ -259,15 +263,15 @@ func (m *MockImage) Platform() platforms.MatchComparer {
 	return nil
 }
 
-func (m *MockImage) Size(ctx context.Context) (int64, error) {
+func (m *MockImage) Size(_ context.Context) (int64, error) {
 	return 0, nil
 }
 
-func (m *MockImage) Usage(ctx context.Context, usages ...containerd.UsageOpt) (int64, error) {
+func (m *MockImage) Usage(_ context.Context, _ ...containerd.UsageOpt) (int64, error) {
 	return 0, nil
 }
 
-func (m *MockImage) Spec(ctx context.Context) (v1.Image, error) {
+func (m *MockImage) Spec(_ context.Context) (v1.Image, error) {
 	return v1.Image{}, nil
 }
 

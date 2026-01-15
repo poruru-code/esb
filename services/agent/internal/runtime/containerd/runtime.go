@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -20,11 +21,13 @@ import (
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/types"
 	"github.com/containerd/containerd/cio"
+	"github.com/containerd/containerd/containers"
 	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/namespaces"
 	"github.com/containerd/containerd/oci"
 	"github.com/containerd/go-cni"
 	"github.com/containerd/typeurl/v2"
+	specs "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
 )
 
@@ -32,10 +35,12 @@ const (
 	runtimeFirecracker   = "aws.firecracker"
 	snapshotterOverlay   = "overlayfs"
 	snapshotterDevmapper = "devmapper"
+	defaultCNIDNSServer  = "10.88.0.1"
+	resolvConfMountPath  = "/run/containerd/esb/resolv.conf"
 )
 
 type Runtime struct {
-	client        ContainerdClient
+	client        Client
 	cni           cni.CNI
 	cniMu         sync.Mutex // serialize CNI operations to avoid bridge races
 	namespace     string
@@ -44,7 +49,7 @@ type Runtime struct {
 }
 
 // NewRuntime creates a new containerd runtime with CNI networking.
-func NewRuntime(client ContainerdClient, cniPlugin cni.CNI, namespace string, env string) *Runtime {
+func NewRuntime(client Client, cniPlugin cni.CNI, namespace, env string) *Runtime {
 	return &Runtime{
 		client:    client,
 		cni:       cniPlugin,
@@ -62,6 +67,43 @@ func resolveSnapshotter() string {
 		return snapshotterDevmapper
 	}
 	return snapshotterOverlay
+}
+
+func resolveCNIDNSServer() string {
+	if value := strings.TrimSpace(os.Getenv("CNI_DNS_SERVER")); value != "" {
+		return value
+	}
+	if value := strings.TrimSpace(os.Getenv("CNI_GW_IP")); value != "" {
+		return value
+	}
+	return defaultCNIDNSServer
+}
+
+func ensureResolvConf() (string, error) {
+	dnsServer := resolveCNIDNSServer()
+	if dnsServer == "" {
+		return "", fmt.Errorf("CNI DNS server is empty")
+	}
+	payload := fmt.Sprintf("nameserver %s\n", dnsServer)
+	if err := os.MkdirAll(filepath.Dir(resolvConfMountPath), 0o755); err != nil {
+		return "", fmt.Errorf("create resolv.conf dir: %w", err)
+	}
+	if err := os.WriteFile(resolvConfMountPath, []byte(payload), 0o644); err != nil {
+		return "", fmt.Errorf("write resolv.conf: %w", err)
+	}
+	return resolvConfMountPath, nil
+}
+
+func withResolvConf(path string) oci.SpecOpts {
+	return func(_ context.Context, _ oci.Client, _ *containers.Container, s *oci.Spec) error {
+		s.Mounts = append(s.Mounts, specs.Mount{
+			Destination: "/etc/resolv.conf",
+			Type:        "bind",
+			Source:      path,
+			Options:     []string{"rbind", "ro"},
+		})
+		return nil
+	}
 }
 
 func memoryLimitBytes(env map[string]string) (uint64, bool) {
@@ -217,6 +259,11 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 		oci.WithImageConfig(imgObj), // Apply image config (ENTRYPOINT, CMD, ENV, WORKDIR)
 		oci.WithEnv(envList),        // Override with custom env
 	}
+	if resolvPath, err := ensureResolvConf(); err != nil {
+		log.Printf("WARNING: failed to prepare resolv.conf: %v", err)
+	} else {
+		specOpts = append(specOpts, withResolvConf(resolvPath))
+	}
 	if limitBytes, ok := memoryLimitBytes(req.Env); ok {
 		specOpts = append(specOpts, oci.WithMemoryLimit(limitBytes))
 	}
@@ -260,13 +307,19 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 	// 3. Create and Start Task
 	task, err := container.NewTask(ctx, cio.NewCreator(cio.WithStdio))
 	if err != nil {
-		container.Delete(ctx, containerd.WithSnapshotCleanup)
+		if delErr := container.Delete(ctx, containerd.WithSnapshotCleanup); delErr != nil {
+			log.Printf("WARNING: failed to cleanup container %s: %v", containerID, delErr)
+		}
 		return nil, fmt.Errorf("failed to create task: %w", err)
 	}
 
 	if err := task.Start(ctx); err != nil {
-		task.Delete(ctx, containerd.WithProcessKill)
-		container.Delete(ctx, containerd.WithSnapshotCleanup)
+		if _, delErr := task.Delete(ctx, containerd.WithProcessKill); delErr != nil {
+			log.Printf("WARNING: failed to cleanup task %s: %v", containerID, delErr)
+		}
+		if delErr := container.Delete(ctx, containerd.WithSnapshotCleanup); delErr != nil {
+			log.Printf("WARNING: failed to cleanup container %s: %v", containerID, delErr)
+		}
 		return nil, fmt.Errorf("failed to start task: %w", err)
 	}
 
@@ -274,16 +327,24 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 	result, err := r.setupCNI(ctx, containerID, netnsPath)
 	if err != nil {
 		_ = r.removeCNI(ctx, containerID, netnsPath)
-		task.Delete(ctx, containerd.WithProcessKill)
-		container.Delete(ctx, containerd.WithSnapshotCleanup)
+		if _, delErr := task.Delete(ctx, containerd.WithProcessKill); delErr != nil {
+			log.Printf("WARNING: failed to cleanup task %s: %v", containerID, delErr)
+		}
+		if delErr := container.Delete(ctx, containerd.WithSnapshotCleanup); delErr != nil {
+			log.Printf("WARNING: failed to cleanup container %s: %v", containerID, delErr)
+		}
 		return nil, fmt.Errorf("failed to setup CNI network: %w", err)
 	}
 
 	ipAddress, err := extractIPv4(result)
 	if err != nil {
 		_ = r.removeCNI(ctx, containerID, netnsPath)
-		task.Delete(ctx, containerd.WithProcessKill)
-		container.Delete(ctx, containerd.WithSnapshotCleanup)
+		if _, delErr := task.Delete(ctx, containerd.WithProcessKill); delErr != nil {
+			log.Printf("WARNING: failed to cleanup task %s: %v", containerID, delErr)
+		}
+		if delErr := container.Delete(ctx, containerd.WithSnapshotCleanup); delErr != nil {
+			log.Printf("WARNING: failed to cleanup container %s: %v", containerID, delErr)
+		}
 		return nil, fmt.Errorf("failed to detect container IP: %w", err)
 	}
 
