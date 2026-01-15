@@ -40,6 +40,14 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		"docker-compose.registry.yml",
 		"docker-compose.containerd.yml",
 	)
+	// Create mock service directories and root files required by staging logic
+	if err := os.MkdirAll(filepath.Join(repoRoot, "services", "common"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(repoRoot, "services", "gateway"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, filepath.Join(repoRoot, "pyproject.toml"), "[project]\n")
 	writeTestFile(t, filepath.Join(repoRoot, "cli", "internal", "generator", "assets", "Dockerfile.lambda-base"), "FROM scratch\n")
 
 	var gotCfg config.GeneratorConfig
@@ -122,7 +130,7 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	if buildOpts.Target != "control" {
 		t.Fatalf("unexpected compose target: %s", buildOpts.Target)
 	}
-	if len(buildOpts.Services) != 2 || buildOpts.Services[0] != "gateway" || buildOpts.Services[1] != "agent" {
+	if len(buildOpts.Services) != 3 || buildOpts.Services[0] != "service-base" || buildOpts.Services[1] != "gateway" || buildOpts.Services[2] != "agent" {
 		t.Fatalf("unexpected compose services: %v", buildOpts.Services)
 	}
 
@@ -197,6 +205,11 @@ func TestGoBuilderBuildFirecrackerBuildsServiceImages(t *testing.T) {
 		"docker-compose.registry.yml",
 		"docker-compose.fc.yml",
 	)
+	// Create mock service directories and root files required by staging logic
+	if err := os.MkdirAll(filepath.Join(repoRoot, "services", "common"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, filepath.Join(repoRoot, "pyproject.toml"), "[project]\n")
 	writeTestFile(t, filepath.Join(repoRoot, "cli", "internal", "generator", "assets", "Dockerfile.lambda-base"), "FROM scratch\n")
 	writeTestFile(t, filepath.Join(repoRoot, "services", "runtime-node", "Dockerfile"), "FROM scratch\n")
 	writeTestFile(t, filepath.Join(repoRoot, "services", "agent", "Dockerfile"), "FROM scratch\n")
