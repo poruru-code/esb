@@ -195,7 +195,6 @@ def run_scenario(args, scenario):
     env["VICTORIALOGS_PORT"] = env.get("ESB_PORT_VICTORIALOGS", "9428")
     env["GATEWAY_URL"] = f"https://localhost:{env['GATEWAY_PORT']}"
     env["VICTORIALOGS_URL"] = f"http://localhost:{env['VICTORIALOGS_PORT']}"
-    env["VICTORIALOGS_QUERY_URL"] = env["VICTORIALOGS_URL"]
     env["AGENT_GRPC_ADDRESS"] = f"localhost:{env.get('ESB_PORT_AGENT_GRPC', '50051')}"
     env["ESB_PROJECT_NAME"] = f"{project_name}-{env_name}"
 
@@ -276,7 +275,6 @@ def run_scenario(args, scenario):
             )
             env["GATEWAY_URL"] = f"https://localhost:{env['GATEWAY_PORT']}"
             env["VICTORIALOGS_URL"] = f"http://localhost:{env['VICTORIALOGS_PORT']}"
-            env["VICTORIALOGS_QUERY_URL"] = env["VICTORIALOGS_URL"]
             if "ESB_PORT_AGENT_GRPC" in ports:
                 env["AGENT_GRPC_ADDRESS"] = f"localhost:{ports['ESB_PORT_AGENT_GRPC']}"
 

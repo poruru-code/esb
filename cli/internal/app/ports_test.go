@@ -50,7 +50,6 @@ func TestApplyPortsToEnvSetsDerived(t *testing.T) {
 	t.Setenv("GATEWAY_URL", "")
 	t.Setenv("VICTORIALOGS_PORT", "")
 	t.Setenv("VICTORIALOGS_URL", "")
-	t.Setenv("VICTORIALOGS_QUERY_URL", "")
 	t.Setenv("AGENT_GRPC_ADDRESS", "")
 
 	applyPortsToEnv(map[string]int{

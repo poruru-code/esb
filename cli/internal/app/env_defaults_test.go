@@ -5,6 +5,7 @@ package app
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -114,4 +115,33 @@ func TestApplyEnvironmentDefaultsReplacesZeroPorts(t *testing.T) {
 	if got := os.Getenv("ESB_PORT_DATABASE"); got != "8001" {
 		t.Fatalf("unexpected database port: %s", got)
 	}
+}
+
+func TestApplyProxyDefaults(t *testing.T) {
+	t.Setenv("HTTP_PROXY", "http://proxy.example.com:8080")
+	t.Setenv("NO_PROXY", "existing.com")
+	t.Setenv("ESB_NO_PROXY_EXTRA", "extra.com")
+
+	applyProxyDefaults()
+
+	noProxy := os.Getenv("NO_PROXY")
+	for _, target := range []string{"existing.com", "agent", "victorialogs", "localhost", "extra.com"} {
+		if !containsTarget(noProxy, target) {
+			t.Errorf("NO_PROXY missing target: %s (got: %s)", target, noProxy)
+		}
+	}
+
+	if os.Getenv("http_proxy") != "http://proxy.example.com:8080" {
+		t.Errorf("http_proxy not synced")
+	}
+}
+
+func containsTarget(s, target string) bool {
+	parts := strings.Split(s, ",")
+	for _, p := range parts {
+		if strings.TrimSpace(p) == target {
+			return true
+		}
+	}
+	return false
 }

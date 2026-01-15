@@ -31,13 +31,12 @@ const (
 	EnvPortVictoriaLogs = "ESB_PORT_VICTORIALOGS"
 
 	// Legacy/External Service Ports (Gateway Internal)
-	EnvGatewayPort          = "GATEWAY_PORT"
-	EnvGatewayURL           = "GATEWAY_URL"
-	EnvGatewayInternalURL   = "GATEWAY_INTERNAL_URL"
-	EnvVictoriaLogsPort     = "VICTORIALOGS_PORT"
-	EnvVictoriaLogsURL      = "VICTORIALOGS_URL"
-	EnvVictoriaLogsQueryURL = "VICTORIALOGS_QUERY_URL"
-	EnvAgentGrpcAddress     = "AGENT_GRPC_ADDRESS"
+	EnvGatewayPort        = "GATEWAY_PORT"
+	EnvGatewayURL         = "GATEWAY_URL"
+	EnvGatewayInternalURL = "GATEWAY_INTERNAL_URL"
+	EnvVictoriaLogsPort   = "VICTORIALOGS_PORT"
+	EnvVictoriaLogsURL    = "VICTORIALOGS_URL"
+	EnvAgentGrpcAddress   = "AGENT_GRPC_ADDRESS"
 
 	// Generator Configuration
 	EnvGatewayFunctionsYml = "GATEWAY_FUNCTIONS_YML"
