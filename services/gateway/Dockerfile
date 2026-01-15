@@ -1,8 +1,8 @@
 # Builder Stage - Standardized via service-base (Debian 12 + Python 3.12)
 FROM esb-service-base:latest AS builder
 
-# Install uv (standardized via official image)
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+# Install uv (standardized via official image in standard path)
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 
 WORKDIR /app
 
@@ -24,8 +24,9 @@ COPY pyproject.toml README.md /app/
 RUN uv pip compile pyproject.toml -o requirements.txt && \
     uv pip install -r requirements.txt
 
-# Copy source code and build
+# Copy source code for final installation (ensures build-backend sees everything)
 COPY tools /app/tools
+COPY services /app/services
 RUN uv pip install .
 
 # Final stage - Standardized via service-base
@@ -44,8 +45,8 @@ RUN if ! command -v python >/dev/null 2>&1; then \
         ln -sf "$(command -v python3)" /usr/local/bin/python; \
     fi
 
-# Copy uv for operational use/debugging
-COPY --from=builder /bin/uv /bin/uvx /bin/
+# Copy uv for operational use/debugging from standardized path
+COPY --from=builder /usr/local/bin/uv /usr/local/bin/uvx /usr/local/bin/
 
 # Copy virtual environment from builder
 COPY --from=builder /app/.venv /app/.venv
