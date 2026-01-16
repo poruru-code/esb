@@ -24,7 +24,7 @@ type ConfigSetRepoCmd struct {
 func runConfigSetRepo(cli CLI, _ Dependencies, out io.Writer) int {
 	repoPath := cli.Config.SetRepo.Path
 	// Resolve true root (upward search) before saving
-	absPath, err := config.ResolveRepoRoot(repoPath)
+	absPath, err := config.ResolveRepoRootFromPath(repoPath)
 	if err != nil {
 		fmt.Fprintf(out, "⚠️  Warning: %v\n", err)
 		// Fallback to absolute path if resolution fails (though unlikely if it's a valid repo)
