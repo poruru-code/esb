@@ -81,8 +81,48 @@ TEMPLATES: tuple[TemplateSpec, ...] = (
         "services/agent/config/cni/10-{{SLUG}}.conflist",
     ),
     TemplateSpec(
+        "tools/branding/templates/services/agent/Dockerfile.tmpl",
+        "services/agent/Dockerfile",
+    ),
+    TemplateSpec(
+        "tools/branding/templates/services/runtime-node/Dockerfile.tmpl",
+        "services/runtime-node/Dockerfile",
+    ),
+    TemplateSpec(
+        "tools/branding/templates/services/runtime-node/Dockerfile.firecracker.tmpl",
+        "services/runtime-node/Dockerfile.firecracker",
+    ),
+    TemplateSpec(
+        "tools/branding/templates/services/gateway/Dockerfile.tmpl",
+        "services/gateway/Dockerfile",
+    ),
+    TemplateSpec(
+        "tools/branding/templates/services/gateway/Dockerfile.firecracker.tmpl",
+        "services/gateway/Dockerfile.firecracker",
+    ),
+    TemplateSpec(
         "tools/branding/templates/cli/internal/constants/env.go.tmpl",
         "cli/internal/constants/env.go",
+    ),
+    TemplateSpec(
+        "tools/branding/templates/Makefile.tmpl",
+        "Makefile",
+    ),
+    TemplateSpec(
+        "tools/branding/templates/config/container-structure-test/os-base.yaml.tmpl",
+        "config/container-structure-test/os-base.yaml",
+    ),
+    TemplateSpec(
+        "tools/branding/templates/config/container-structure-test/python-base.yaml.tmpl",
+        "config/container-structure-test/python-base.yaml",
+    ),
+    TemplateSpec(
+        "tools/branding/templates/config/container-structure-test/agent.yaml.tmpl",
+        "config/container-structure-test/agent.yaml",
+    ),
+    TemplateSpec(
+        "tools/branding/templates/tools/cert-gen/config.toml.tmpl",
+        "tools/cert-gen/config.toml",
     ),
 )
 

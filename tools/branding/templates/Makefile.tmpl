@@ -10,8 +10,8 @@ CST_IMAGE ?= gcr.io/gcp-runtimes/container-structure-test:v1.16.0
 DOCKLE_IMAGE ?= goodwithtech/dockle:v0.4.14
 DOCKLE_TMP_DIR ?= /tmp
 DOCKLE_TMP_MODE ?= file
-BRAND_SLUG ?= esb
-IMAGE_PREFIX ?= esb
+BRAND_SLUG ?= {{SLUG}}
+IMAGE_PREFIX ?= {{IMAGE_PREFIX}}
 DOCKLE_TMP_VOLUME ?= $(BRAND_SLUG)-dockle-tmp
 DOCKLE_IGNORES ?= $(shell if [ -f .dockleignore ]; then grep -vE '^[[:space:]]*(#|$$)' .dockleignore | paste -sd, -; fi)
 

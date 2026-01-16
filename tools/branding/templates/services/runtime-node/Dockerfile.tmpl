@@ -6,8 +6,9 @@
 # Why: Avoid shipping Firecracker binaries when not required.
 
 ARG DEBIAN_VERSION=bookworm
+ARG OS_BASE_IMAGE={{IMAGE_PREFIX}}-os-base:latest
 
-FROM esb-os-base:latest
+FROM ${OS_BASE_IMAGE}
 
 # System dependencies for containerd networking/devmapper
 RUN apt-get update && apt-get install -y --no-install-recommends \

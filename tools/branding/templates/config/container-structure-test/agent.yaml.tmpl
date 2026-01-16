@@ -19,5 +19,5 @@ fileExistenceTests:
     path: "/app/entrypoint.sh"
     shouldExist: true
   - name: "cni-config"
-    path: "/etc/cni/net.d/10-esb.conflist"
+    path: "/etc/cni/net.d/10-{{SLUG}}.conflist"
     shouldExist: true

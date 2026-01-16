@@ -77,7 +77,7 @@ RUN set -eu; \
 # Stage 3: Final Runtime Image
 # Assembles the runtime with containerd and firecracker support
 # -----------------------------------------------------------------------------
-FROM esb-os-base:latest
+FROM {{IMAGE_PREFIX}}-os-base:latest
 
 # System dependencies for containerd and firecracker networking/devmapper
 RUN apt-get update && apt-get install -y --no-install-recommends \
