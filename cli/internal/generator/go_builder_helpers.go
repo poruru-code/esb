@@ -5,6 +5,8 @@ package generator
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -330,6 +332,11 @@ func buildDockerImage(
 	args = append(args, "-f", dockerfile, "-t", imageTag)
 	args = append(args, dockerLabelArgs(labels)...)
 	args = append(args, dockerBuildArgs()...)
+	caArgs, err := dockerCABuildArgs(dockerfile)
+	if err != nil {
+		return err
+	}
+	args = append(args, caArgs...)
 	secretArgs, err := dockerSecretArgs(dockerfile)
 	if err != nil {
 		return err
@@ -381,6 +388,17 @@ func dockerBuildArgs() []string {
 	return args
 }
 
+func dockerCABuildArgs(dockerfile string) ([]string, error) {
+	if !needsRootCASecret(dockerfile) {
+		return nil, nil
+	}
+	fingerprint, err := resolveRootCAFingerprint()
+	if err != nil {
+		return nil, err
+	}
+	return []string{"--build-arg", fmt.Sprintf("ESB_CA_FINGERPRINT=%s", fingerprint)}, nil
+}
+
 func dockerSecretArgs(dockerfile string) ([]string, error) {
 	if !needsRootCASecret(dockerfile) {
 		return nil, nil
@@ -429,6 +447,19 @@ func ensureRootCAPath(path string) (string, error) {
 		return "", fmt.Errorf("root CA path is a directory: %s", path)
 	}
 	return path, nil
+}
+
+func resolveRootCAFingerprint() (string, error) {
+	path, err := resolveRootCAPath()
+	if err != nil {
+		return "", err
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("read root CA: %w", err)
+	}
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:]), nil
 }
 
 func expandHome(path string) string {
