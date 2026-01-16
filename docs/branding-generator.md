@@ -35,6 +35,7 @@
 - `mise branding:check` は `uv run python tools/branding/generate.py --check` を実行し、差分がある場合に非ゼロで終了する。
 - 例: `mise run branding:check -- --brand padma`
 - ヘッダーを除外した状態で差分を見たい場合は `--no-header` を追加する（`mise run branding:check -- --brand padma --no-header`）。
+- `--check` は読み取り専用で、`config/branding.yaml` と `--brand` が食い違う場合はエラーにする。
 
 ## テスト/確認
 - 生成後は `uv run e2e/run_tests.py --reset --profile e2e-containerd` などで E2E を再実行し、CA, CNI, CLI 名称の整合性を確認。

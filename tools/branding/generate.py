@@ -93,12 +93,14 @@ def main() -> int:
     args = parse_args()
     try:
         root = resolve_repo_root(args.root)
-        brand_name = resolve_brand(args.brand, root)
+        brand_name = resolve_brand(args.brand, root, check=args.check)
         print(f"==== BRANDING: {brand_name} ====")
         branding = derive_branding(brand_name)
-        write_branding_env(root, branding, brand_name)
+        if not args.check:
+            write_branding_env(root, branding, brand_name)
         context = build_context(branding)
-        cleanup_old_cni_configs(root, context["SLUG"])
+        if not args.check:
+            cleanup_old_cni_configs(root, context["SLUG"])
         mismatches = render_templates(
             root,
             context,
@@ -146,15 +148,21 @@ def resolve_repo_root(root: Path | None) -> Path:
     raise BrandingError("repository root not found (docker-compose.yml missing)")
 
 
-def resolve_brand(brand: str | None, root: Path) -> str:
+def resolve_brand(brand: str | None, root: Path, *, check: bool = False) -> str:
     config_path = root / BRANDING_CONFIG_PATH
     config_brand = load_brand_from_config(config_path)
     if brand is not None and brand.strip():
         brand_value = brand.strip()
         if config_brand and config_brand != brand_value:
+            if check:
+                raise BrandingError(
+                    f"brand mismatch for --check (config={config_brand}, requested={brand_value})"
+                )
             # Update branding configuration to match requested brand
             write_brand_config(config_path, brand_value)
         elif not config_brand:
+            if check:
+                raise BrandingError("brand missing in config/branding.yaml for --check")
             write_brand_config(config_path, brand_value)
         return brand_value
     if config_brand:
