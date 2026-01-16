@@ -12,8 +12,8 @@ import (
 // ResolveRepoRoot determines the ESB repository root path.
 // Priority:
 // 1. ESB_REPO environment variable (validated as root or searched upward)
-// 2. repo_path in global config (~/.esb/config.yaml) (validated as root or searched upward)
-// 3. Upward search for docker-compose.yml from startDir
+// 2. Upward search for docker-compose.yml from startDir
+// 3. repo_path in global config (~/.esb/config.yaml) (validated as root or searched upward)
 func ResolveRepoRoot(startDir string) (string, error) {
 	// 1. Try environment variable
 	if repo := os.Getenv("ESB_REPO"); repo != "" {
@@ -22,7 +22,14 @@ func ResolveRepoRoot(startDir string) (string, error) {
 		}
 	}
 
-	// 2. Try global configuration
+	// 2. Search upwards from start directory (dev mode / inside repo)
+	if startDir != "" {
+		if root, ok := findRepoRoot(startDir); ok {
+			return root, nil
+		}
+	}
+
+	// 3. Try global configuration
 	if cfgPath, err := GlobalConfigPath(); err == nil {
 		if cfg, err := LoadGlobalConfig(cfgPath); err == nil && cfg.RepoPath != "" {
 			if root, ok := findRepoRoot(cfg.RepoPath); ok {
@@ -31,14 +38,15 @@ func ResolveRepoRoot(startDir string) (string, error) {
 		}
 	}
 
-	// 3. Search upwards from start directory (dev mode / inside repo)
-	if startDir != "" {
-		if root, ok := findRepoRoot(startDir); ok {
-			return root, nil
-		}
-	}
-
 	return "", fmt.Errorf("ESB repository root not found. Please run 'esb config set-repo <path>' or set ESB_REPO.") //nolint:revive
+}
+
+// ResolveRepoRootFromPath determines the ESB repository root path using only the supplied path.
+func ResolveRepoRootFromPath(path string) (string, error) {
+	if root, ok := findRepoRoot(path); ok {
+		return root, nil
+	}
+	return "", fmt.Errorf("ESB repository root not found at %s", path)
 }
 
 // findRepoRoot searches upward from the given path to find

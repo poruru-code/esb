@@ -22,12 +22,13 @@ esb config [command] [flags]
 
 ### `set-repo`
 
-このコマンドは、グローバル設定ファイル (`~/.config/esb/config.yaml`) 内の `repo_path` を更新します。
+このコマンドは、グローバル設定ファイル (`~/.esb/config.yaml`) 内の `repo_path` を更新します。
+`ESB_CONFIG_PATH` または `ESB_CONFIG_HOME` が設定されている場合は、それらを優先します。
 CLIはこのパスを使用して、ベースイメージ用のDockerfileなどの内部アセットを特定します。
 
 ### ロジックフロー
 
-1. **解決**: 指定されたパスを絶対パスに解決します。マーカーファイルを求めて上方検索を行い、真のルートを見つけようとします（`config.ResolveRepoRoot` 経由）。
+1. **解決**: 指定されたパスを絶対パスに解決します。マーカーファイルを求めて上方検索を行い、真のルートを見つけようとします（`config.ResolveRepoRootFromPath` 経由）。
 2. **永続化**: 既存のグローバル設定を読み込み、`RepoPath` フィールドを更新して保存します。
 
 ## クラス図
