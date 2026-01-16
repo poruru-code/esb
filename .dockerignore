@@ -45,3 +45,11 @@ cli/
 *.log
 debug_*.py
 bench_*.py
+
+# ESB build artifacts
+.esb/
+**/.esb/
+
+# Dockerfiles should not be copied into runtime images
+services/gateway/Dockerfile
+services/gateway/Dockerfile.firecracker

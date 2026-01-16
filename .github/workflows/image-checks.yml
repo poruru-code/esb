@@ -1,0 +1,44 @@
+# Where: .github/workflows/image-checks.yml
+# What: Build core images and run CST/Dockle checks.
+# Why: Enforce container image hygiene in CI.
+
+name: image-checks
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  image-checks:
+    runs-on: ubuntu-latest
+    env:
+      ESB_CERT_DIR: ${{ github.workspace }}/.esb/certs
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare Root CA (CI)
+        run: |
+          mkdir -p "${ESB_CERT_DIR}"
+          openssl req -x509 -newkey rsa:2048 -nodes \
+            -keyout "${ESB_CERT_DIR}/rootCA-key.pem" \
+            -out "${ESB_CERT_DIR}/rootCA.crt" \
+            -days 365 \
+            -subj "/CN=esb-ci"
+
+      - name: Build core images
+        env:
+          DOCKER_BUILDKIT: "1"
+          COMPOSE_DOCKER_CLI_BUILD: "1"
+        run: |
+          docker compose -f docker-compose.yml build os-base python-base
+          docker compose -f docker-compose.yml -f docker-compose.worker.yml build gateway agent
+
+      - name: Run container structure tests
+        run: make cst
+
+      - name: Run dockle checks
+        run: make dockle
