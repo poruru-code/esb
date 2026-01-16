@@ -1,6 +1,6 @@
 // Where: cli/internal/compose/prune.go
-// What: ESB-scoped Docker prune helpers.
-// Why: Provide a system-prune-like cleanup limited to an ESB compose project.
+// What: Project-scoped Docker prune helpers.
+// Why: Provide a system-prune-like cleanup limited to a compose project.
 package compose
 
 import (
@@ -12,7 +12,7 @@ import (
 	"github.com/docker/docker/api/types/image"
 )
 
-// PruneOptions configures ESB-scoped cleanup behavior.
+// PruneOptions configures project-scoped cleanup behavior.
 type PruneOptions struct {
 	Project       string
 	RemoveVolumes bool
@@ -28,9 +28,9 @@ type PruneReport struct {
 	SpaceReclaimed    uint64
 }
 
-// PruneProject deletes ESB resources scoped to a compose project label.
+// PruneProject deletes resources scoped to a compose project label.
 // It removes stopped containers, unused networks, dangling/unused images,
-// and optionally volumes. Image pruning is limited to ESB-labeled images.
+// and optionally volumes. Image pruning is limited to managed images.
 func PruneProject(ctx context.Context, client DockerClient, opts PruneOptions) (PruneReport, error) {
 	if client == nil {
 		return PruneReport{}, fmt.Errorf("docker client is nil")

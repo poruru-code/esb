@@ -41,7 +41,7 @@ fi
 # --detach: start services in the background.
 echo "Starting via CLI..."
 cd /app
-esb up --build --detach
+{{CLI_NAME}} up --build --detach
 
 # Tail logs to keep the container alive.
 echo "All services started. Tailing logs..."

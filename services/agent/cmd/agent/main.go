@@ -1,5 +1,5 @@
 // Where: services/agent/cmd/agent/main.go
-// What: Bootstrap the ESB Agent runtime and CNI setup.
+// What: Bootstrap the agent runtime and CNI setup.
 // Why: Keep startup wiring and env-driven networking behavior centralized.
 package main
 

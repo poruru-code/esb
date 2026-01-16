@@ -1,6 +1,6 @@
 // Where: cli/internal/app/prune.go
 // What: Prune command helpers.
-// Why: Clean ESB Docker resources and generated artifacts safely.
+// Why: Clean project-scoped Docker resources and generated artifacts safely.
 package app
 
 import (
@@ -11,7 +11,7 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
-// PruneRequest contains parameters for removing ESB resources and artifacts.
+// PruneRequest contains parameters for removing project resources and artifacts.
 // The Hard flag also removes the generator.yml configuration file.
 type PruneRequest struct {
 	Context       state.Context
@@ -20,13 +20,13 @@ type PruneRequest struct {
 	AllImages     bool
 }
 
-// Pruner defines the interface for removing ESB resources and artifacts.
+// Pruner defines the interface for removing project resources and artifacts.
 // Implementations prune Docker resources and optionally clean configuration.
 type Pruner interface {
 	Prune(request PruneRequest) error
 }
 
-// runPrune executes the 'prune' command which removes ESB-scoped Docker
+// runPrune executes the 'prune' command which removes project-scoped Docker
 // resources and generated artifacts, with a docker system prune-like prompt.
 func runPrune(cli CLI, deps Dependencies, out io.Writer) int {
 	opts := newResolveOptions(cli.Prune.Force)
@@ -72,18 +72,18 @@ func runPrune(cli CLI, deps Dependencies, out io.Writer) int {
 
 func printPruneWarning(out io.Writer, request PruneRequest) {
 	fmt.Fprintln(out, "WARNING! This will remove:")
-	fmt.Fprintln(out, "  - all stopped ESB containers")
-	fmt.Fprintln(out, "  - all ESB networks not used by at least one container")
+	fmt.Fprintln(out, "  - all stopped project containers")
+	fmt.Fprintln(out, "  - all project networks not used by at least one container")
 	if request.AllImages {
-		fmt.Fprintln(out, "  - all ESB images not used by at least one container")
+		fmt.Fprintln(out, "  - all project images not used by at least one container")
 	} else {
-		fmt.Fprintln(out, "  - all dangling ESB images")
+		fmt.Fprintln(out, "  - all dangling project images")
 	}
 	if request.RemoveVolumes {
-		fmt.Fprintln(out, "  - all ESB volumes not used by at least one container")
+		fmt.Fprintln(out, "  - all project volumes not used by at least one container")
 	}
 	if request.Context.OutputEnvDir != "" {
-		fmt.Fprintf(out, "  - ESB generated artifacts: %s\n", request.Context.OutputEnvDir)
+		fmt.Fprintf(out, "  - generated artifacts: %s\n", request.Context.OutputEnvDir)
 	}
 	if request.Hard {
 		fmt.Fprintln(out, "  - generator.yml")

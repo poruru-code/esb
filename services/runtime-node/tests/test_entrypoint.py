@@ -1,6 +1,7 @@
 # Where: services/runtime-node/tests/test_entrypoint.py
 # What: Tests for runtime-node entrypoint safeguards.
 # Why: Prevent devmapper pool reinitialization regressions.
+import re
 from pathlib import Path
 
 ENTRYPOINTS = (
@@ -13,7 +14,7 @@ def test_entrypoint_requires_existing_devmapper_pool():
     common = Path("services/runtime-node/entrypoint.common.sh").read_text()
     assert "ensure_devmapper_ready" in common
     assert "dmsetup status" in common
-    assert "Run esb node provision." in common
+    assert re.search(r"Run .* node provision\.", common)
     assert "dmsetup create" not in common
     for path in ENTRYPOINTS:
         script = Path(path).read_text()
