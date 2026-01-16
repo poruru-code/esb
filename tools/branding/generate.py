@@ -104,7 +104,6 @@ def main() -> int:
             context,
             args.check,
             args.verbose,
-            write=not args.no_output,
             strip_header=args.no_header,
         )
     except BrandingError as exc:
@@ -128,12 +127,6 @@ def parse_args() -> argparse.Namespace:
         help="Brand identifier (defaults to config/branding.yaml)",
     )
     parser.add_argument("--check", action="store_true", help="Check if outputs are up to date")
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        dest="no_output",
-        help="Dry-run without writing rendered templates",
-    )
     parser.add_argument("--verbose", action="store_true", help="Print rendered outputs")
     parser.add_argument(
         "--no-header",
@@ -228,7 +221,6 @@ def render_templates(
     check: bool,
     verbose: bool,
     *,
-    write: bool = True,
     strip_header: bool = False,
 ) -> list[str]:
     mismatches: list[str] = []
@@ -237,7 +229,7 @@ def render_templates(
         target_path = root / render_string(spec.target, context)
         template = template_path.read_text(encoding="utf-8")
         rendered = render_string(template, context)
-        if strip_header and not check:
+        if strip_header:
             rendered = remove_header(rendered, template_path)
 
         if check:
@@ -251,8 +243,7 @@ def render_templates(
 
         if verbose:
             print(f"render {template_path} -> {target_path}")
-        if write:
-            write_file(target_path, rendered)
+        write_file(target_path, rendered)
     return mismatches
 
 

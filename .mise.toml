@@ -46,6 +46,10 @@ run = [
   "mise run setup:certs",
   "mise run build-cli",
 ]
+
+[tasks."branding:check"]
+description = "Check branding templates without writing outputs"
+run = "uv run python tools/branding/generate.py --check"
  
 [tasks.dev-cli]
 description = "Watch and rebuild CLI on changes"
