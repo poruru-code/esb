@@ -44,4 +44,14 @@ const (
 
 	// Registry Configuration
 	EnvContainerRegistry = "CONTAINER_REGISTRY"
+
+	// Proxy Configuration
+	EnvESBNoProxyExtra = "ESB_NO_PROXY_EXTRA"
+
+	// Certificate Configuration
+	EnvESBCertDir    = "ESB_CERT_DIR"
+	EnvESBCACertPath = "ESB_CA_CERT_PATH"
+
+	// Build args
+	BuildArgCAFingerprint = "ESB_CA_FINGERPRINT"
 )

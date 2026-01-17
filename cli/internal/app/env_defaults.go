@@ -92,7 +92,7 @@ func applyProxyDefaults() {
 		existingNoProxy = os.Getenv("no_proxy")
 	}
 
-	extraNoProxy := os.Getenv("ESB_NO_PROXY_EXTRA")
+	extraNoProxy := os.Getenv(constants.EnvESBNoProxyExtra)
 
 	if !hasProxy && existingNoProxy == "" && extraNoProxy == "" {
 		return
