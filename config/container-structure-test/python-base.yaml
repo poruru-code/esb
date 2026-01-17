@@ -11,7 +11,7 @@ fileExistenceTests:
     path: "/usr/local/bin/python"
     shouldExist: true
   - name: "root-ca"
-    path: "/usr/local/share/ca-certificates/esb-rootCA.crt"
+    path: "/usr/local/share/ca-certificates/rootCA.crt"
     shouldExist: true
 
 commandTests:
