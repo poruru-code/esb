@@ -87,6 +87,18 @@ def env_key(suffix: str) -> str:
     return f"{ENV_PREFIX}_{suffix}"
 
 
+def apply_esb_aliases(env: dict[str, str]) -> None:
+    """Expose ESB_* aliases for tests when the brand prefix differs."""
+    if ENV_PREFIX == "ESB":
+        return
+    prefix = f"{ENV_PREFIX}_"
+    for key, value in list(env.items()):
+        if not key.startswith(prefix):
+            continue
+        esb_key = f"ESB_{key[len(prefix) :]}"
+        env.setdefault(esb_key, value)
+
+
 def resolve_env_file_path(env_file: Optional[str]) -> Optional[str]:
     if not env_file:
         return None

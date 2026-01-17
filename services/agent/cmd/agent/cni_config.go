@@ -11,6 +11,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
 )
 
 func prepareCNIConfig(baseFile, subnet string) (string, error) {
@@ -24,7 +26,7 @@ func prepareCNIConfig(baseFile, subnet string) (string, error) {
 		return "", err
 	}
 
-	outputDir := "/run/esb/cni"
+	outputDir := runtime.BrandingRuntimeCNIDir
 	if err := os.MkdirAll(outputDir, 0o755); err != nil {
 		return "", fmt.Errorf("create CNI override dir: %w", err)
 	}

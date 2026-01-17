@@ -15,7 +15,7 @@ defaults:
 functions:
 {{- range .Functions }}
   {{ .Name }}:
-    image: "${FUNCTION_IMAGE_PREFIX}{{ .Name }}:${ESB_IMAGE_TAG}"
+    image: "${FUNCTION_IMAGE_PREFIX}{{ .Name }}:{{ printf "${%s_IMAGE_TAG}" $.EnvPrefix }}"
     {{- if .Timeout }}
     timeout: {{ .Timeout }}
     {{- end }}

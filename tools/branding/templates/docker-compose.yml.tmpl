@@ -180,7 +180,7 @@ services:
       - SSL_KEY_PATH=/app/config/ssl/server.key
       - CONTAINERS_NETWORK={{ENV_PREFIX_VAR}}_NETWORK_EXTERNAL:-{{ENV_PREFIX_VAR}}_PROJECT_NAME:-{{SLUG}}}-external}
       - AUTH_ENDPOINT_PATH
-      - ESB_IMAGE_TAG=${ESB_IMAGE_TAG:-}
+      - {{ENV_PREFIX}}_IMAGE_TAG={{ENV_PREFIX_VAR}}_IMAGE_TAG:-}
       - FUNCTION_IMAGE_PREFIX=${FUNCTION_IMAGE_PREFIX:-}
 
       # --- Tuning & Resilience (Pass-through) ---

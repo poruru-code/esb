@@ -3,7 +3,13 @@ import os
 import subprocess
 from pathlib import Path
 
-from e2e.runner.utils import GO_CLI_ROOT, build_esb_cmd
+from e2e.runner.utils import (
+    BRAND_HOME_DIR,
+    GO_CLI_ROOT,
+    apply_esb_aliases,
+    build_esb_cmd,
+    env_key,
+)
 
 
 def read_service_env(env_file: str | None, service: str) -> dict[str, str]:
@@ -55,7 +61,7 @@ def apply_proxy_env() -> None:
     communicating with local ESB services.
     """
     proxy_keys = ("HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy")
-    extra_key = "ESB_NO_PROXY_EXTRA"
+    extra_key = env_key("NO_PROXY_EXTRA")
 
     has_proxy = any(os.environ.get(key) for key in proxy_keys)
     existing_no_proxy = os.environ.get("NO_PROXY") or os.environ.get("no_proxy")
@@ -113,10 +119,13 @@ def build_env_list(entries: list[tuple[str, str]]) -> str:
 
 
 def resolve_esb_home(env_name: str) -> Path:
+    prefixed_home = os.environ.get(env_key("HOME"))
+    if prefixed_home:
+        return Path(prefixed_home).expanduser()
     esb_home = os.environ.get("ESB_HOME")
     if esb_home:
         return Path(esb_home).expanduser()
-    return Path.home() / ".esb" / env_name
+    return Path.home() / BRAND_HOME_DIR / env_name
 
 
 def load_ports(env_name: str) -> dict[str, int]:
@@ -129,19 +138,23 @@ def load_ports(env_name: str) -> dict[str, int]:
 def apply_ports_to_env(ports: dict[str, int]) -> None:
     for env_var, port in ports.items():
         os.environ[env_var] = str(port)
+    apply_esb_aliases(os.environ)
 
-    if "ESB_PORT_GATEWAY_HTTPS" in ports:
-        gateway_port = ports["ESB_PORT_GATEWAY_HTTPS"]
+    gateway_key = env_key("PORT_GATEWAY_HTTPS")
+    if gateway_key in ports:
+        gateway_port = ports[gateway_key]
         os.environ["GATEWAY_PORT"] = str(gateway_port)
         os.environ["GATEWAY_URL"] = f"https://localhost:{gateway_port}"
 
-    if "ESB_PORT_VICTORIALOGS" in ports:
-        vl_port = ports["ESB_PORT_VICTORIALOGS"]
+    vl_key = env_key("PORT_VICTORIALOGS")
+    if vl_key in ports:
+        vl_port = ports[vl_key]
         os.environ["VICTORIALOGS_PORT"] = str(vl_port)
         os.environ["VICTORIALOGS_URL"] = f"http://localhost:{vl_port}"
 
-    if "ESB_PORT_AGENT_GRPC" in ports:
-        agent_port = ports["ESB_PORT_AGENT_GRPC"]
+    agent_key = env_key("PORT_AGENT_GRPC")
+    if agent_key in ports:
+        agent_port = ports[agent_key]
         os.environ["AGENT_GRPC_ADDRESS"] = f"localhost:{agent_port}"
 
 
@@ -171,6 +184,6 @@ def apply_gateway_env_from_container(env: dict[str, str], env_file: str | None) 
 
 def ensure_firecracker_node_up() -> None:
     """Fail fast if compute services are not running in firecracker mode."""
-    if os.environ.get("ESB_MODE") != "firecracker":
+    if os.environ.get(env_key("MODE")) != "firecracker":
         return
     print("[WARN] firecracker node check is not implemented for Go CLI")

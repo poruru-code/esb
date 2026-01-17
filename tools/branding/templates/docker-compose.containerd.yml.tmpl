@@ -87,6 +87,7 @@ services:
       - GATEWAY_INTERNAL_URL=https://{{ENV_PREFIX_VAR}}_DATA_PLANE_HOST:-10.88.0.1}:8443
       # Data Plane Host (for constructing S3/DB endpoints in code)
       - {{ENV_PREFIX}}_DATA_PLANE_HOST={{ENV_PREFIX_VAR}}_DATA_PLANE_HOST:-10.88.0.1}
+      - {{ENV_PREFIX}}_IMAGE_TAG={{ENV_PREFIX_VAR}}_IMAGE_TAG:-}
       - FUNCTION_IMAGE_PREFIX=registry:5010/
       # Service endpoints resolved via CoreDNS in the CNI subnet
       - DYNAMODB_ENDPOINT=http://database:8000

@@ -3,6 +3,8 @@ import os
 import boto3
 from botocore.config import Config
 
+from e2e.runner.utils import env_key
+
 
 class AWSUtils:
     """Helper class for creating AWS clients with consistent configuration."""
@@ -11,7 +13,7 @@ class AWSUtils:
     def create_s3_client(s3_port=None):
         """Create a configured S3 client for RustFS."""
         if s3_port is None:
-            s3_port = int(os.environ.get("ESB_PORT_S3", 9000))
+            s3_port = int(os.environ.get(env_key("PORT_S3"), 9000))
 
         return boto3.client(
             "s3",
@@ -26,7 +28,7 @@ class AWSUtils:
     def create_dynamodb_client(db_port=None):
         """Create a configured DynamoDB client."""
         if db_port is None:
-            db_port = int(os.environ.get("ESB_PORT_DATABASE", 8001))
+            db_port = int(os.environ.get(env_key("PORT_DATABASE"), 8001))
 
         return boto3.client(
             "dynamodb",
