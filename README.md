@@ -328,6 +328,7 @@ esb up --reset
 | [network-optimization.md](docs/network-optimization.md)                       | ネットワーク最適化                   |
 | [resilience.md](docs/resilience.md)                                           | システム回復性とサーキットブレーカー |
 | [generator-architecture.md](docs/generator-architecture.md)                   | Generator内部アーキテクチャ          |
+| [branding-flow.md (tool)](https://github.com/poruru-code/esb-branding-tool/blob/main/docs/branding-flow.md) | ブランディング生成/下流運用フロー    |
 | [client-auth-spec.md](docs/client-auth-spec.md)                               | クライアント認証仕様                 |
 | [autoscaling.md](docs/autoscaling.md)                                         | オートスケーリングとプーリング       |
 | [spec.md](docs/spec.md)                                                       | システム仕様                         |

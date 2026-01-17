@@ -143,7 +143,7 @@ parameters:
 - `esb_commit` は必須。`esb_ref` は tag/branch 指定時のみ記録する。
 
 ## 参照メモ
-- 下流運用フロー: `docs/downstream-branding-flow.md`
+- 下流運用フロー: https://github.com/poruru-code/esb-branding-tool/blob/main/docs/branding-flow.md
 
 ## 未決事項（次セッションで決める）
 - ツール repo の versioning 方針（タグ / リリース / ESB commit 追従の運用）
