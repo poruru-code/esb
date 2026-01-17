@@ -4,6 +4,7 @@
 # What: Agent image build (builder + runtime).
 # Why: Keep base image naming aligned with branding defaults.
 # Builder Stage
+ARG OS_BASE_IMAGE=esb-os-base:latest
 FROM golang:1.25.1-bookworm@sha256:c423747fbd96fd8f0b1102d947f51f9b266060217478e5f9bf86f145969562ee AS builder
 
 WORKDIR /app
@@ -19,7 +20,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o /app/agent ./cmd/agent
 
 # Production Stage (Standardized via os base)
-FROM esb-os-base:latest AS prod
+FROM ${OS_BASE_IMAGE} AS prod
 
 WORKDIR /app
 
@@ -32,7 +33,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && ARCH=$(uname -m) \
     && if [ "$ARCH" = "x86_64" ]; then ARCH="amd64"; fi \
     && if [ "$ARCH" = "aarch64" ]; then ARCH="arm64"; fi \
-    && curl -L -o cni-plugins.tgz "https://github.com/containernetworking/plugins/releases/download/${CNI_PLUGINS_VERSION}/cni-plugins-linux-${ARCH}-${CNI_PLUGINS_VERSION}.tgz" \
+    && curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors --connect-timeout 15 --max-time 300 \
+    -o cni-plugins.tgz "https://github.com/containernetworking/plugins/releases/download/${CNI_PLUGINS_VERSION}/cni-plugins-linux-${ARCH}-${CNI_PLUGINS_VERSION}.tgz" \
     && mkdir -p /opt/cni/bin \
     && tar -C /opt/cni/bin -xzf cni-plugins.tgz \
     && rm cni-plugins.tgz \
