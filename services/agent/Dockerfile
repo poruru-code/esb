@@ -4,6 +4,7 @@
 # What: Agent image build (builder + runtime).
 # Why: Keep base image naming aligned with branding defaults.
 # Builder Stage
+ARG OS_BASE_IMAGE=esb-os-base:latest
 FROM golang:1.25.1-bookworm@sha256:c423747fbd96fd8f0b1102d947f51f9b266060217478e5f9bf86f145969562ee AS builder
 
 WORKDIR /app
@@ -19,7 +20,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o /app/agent ./cmd/agent
 
 # Production Stage (Standardized via os base)
-FROM esb-os-base:latest AS prod
+FROM ${OS_BASE_IMAGE} AS prod
 
 WORKDIR /app
 
