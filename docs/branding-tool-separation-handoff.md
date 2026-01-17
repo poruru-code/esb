@@ -110,29 +110,47 @@ ESB CI
               ├── OK: ツール repo が branding.lock を更新して push
               └── NG: ESB 側を fail させる（trigger-workflow-and-wait で結果取得）
 ```
-ESB 側は「PR チェック」または「main への merge チェック」に組み込み、常に tool 側の検証が走るようにする。
+ESB 側の運用方針:
+- PR は同期チェックとして組み込む（trigger-workflow-and-wait で結果取得）。
+- main は非同期で dispatch のみ（失敗時は通知/ログ）。
+- ツール側修正後の回復は、ESB 側の再実行で再 dispatch する。
 
 ## 受入基準（ツール側のチェック）
 - ベース repo で生成した成果物が**正**であり、ツールで生成した成果物が一致すること。
 - 実装: `uv run python tools/branding/generate.py --root <esb_repo> --check --brand esb`
 
 ## branding.lock の仕様（暫定案）
-ツール repo で管理する ESB スナップショット情報。
+ツール repo で管理する ESB スナップショット情報。再現性と追跡性を優先する。
 
 ```yaml
-esb_repo: https://github.com/poruru-code/edge-serverless-box.git
-esb_commit: <sha>
-esb_tag: <optional>
-checked_at: 2026-01-18T00:00:00+09:00
+schema_version: 1
+locked_at: "2026-01-18T10:00:00Z"
+
+tool:
+  commit: "<sha>"
+  ref: "<optional-tag-or-branch>"
+
+source:
+  esb_repo: "https://github.com/poruru-code/edge-serverless-box.git"
+  esb_commit: "<sha>"
+  esb_ref: "<optional-tag-or-branch>"
+
+parameters:
+  brand: "esb"
 ```
-更新主体はツール CI（branding check 成功時）とする。配置はツール repo ルート固定。
+
+更新ルール:
+- 更新主体はツール CI（branding check 成功時の commit/push）。
+- 人手で `branding.lock` を直接編集しない。
+- 例外対応は `workflow_dispatch` など CI の手動トリガー経由で更新する。
+- `esb_commit` は必須。`esb_ref` は tag/branch 指定時のみ記録する。
 
 ## 参照メモ
 - 下流運用フロー: `docs/downstream-branding-flow.md`
 
 ## 未決事項（次セッションで決める）
 - ツール repo の versioning 方針（タグ / リリース / ESB commit 追従の運用）
-- `branding.lock` の確定フォーマットと更新ルール
+- `branding.lock` 仕様/更新ルールの最終確定
 - CI 認証方式（PAT / GitHub App 等）
 
 ## 次のアクション案（新セッション）
