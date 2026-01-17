@@ -15,10 +15,11 @@ import (
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/remotes"
 	"github.com/containerd/containerd/remotes/docker"
+	agentRuntime "github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
 )
 
 // CA certificate path mounted in container
-const caCertPath = "/usr/local/share/ca-certificates/esb-rootCA.crt"
+const caCertPath = agentRuntime.BrandingRootCACertPath
 
 // ensureImage checks if the image exists in the current namespace, and pulls it if not.
 func (r *Runtime) ensureImage(ctx context.Context, ref string) (containerd.Image, error) {

@@ -15,6 +15,24 @@ from e2e.runner.executor import run_profiles_with_executor, run_scenario, warmup
 from e2e.runner.utils import GO_CLI_ROOT, PROJECT_ROOT
 
 
+def print_tail_logs(failed_entries: list[str], *, lines: int = 40) -> None:
+    for env_name in failed_entries:
+        log_path = PROJECT_ROOT / "e2e" / f".parallel-{env_name}.log"
+        if not log_path.exists():
+            print(f"[PARALLEL] No log file found for {env_name}: {log_path}")
+            continue
+        print(f"\n[PARALLEL] Last {lines} lines for {env_name} ({log_path}):")
+        try:
+            with log_path.open("r", encoding="utf-8") as f:
+                content = f.read().splitlines()
+        except OSError as exc:
+            print(f"[PARALLEL] Failed to read log for {env_name}: {exc}")
+            continue
+        tail = content[-lines:] if len(content) > lines else content
+        for line in tail:
+            print(line)
+
+
 def main():
     # Suppress warnings.
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -156,6 +174,7 @@ def main():
 
     if failed_entries:
         print(f"\n❌ [FAILED] The following environments failed: {', '.join(failed_entries)}")
+        print_tail_logs(failed_entries)
         sys.exit(1)
 
     print("\n🎉 [PASSED] ALL MATRIX ENTRIES PASSED!")

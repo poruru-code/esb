@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
@@ -45,12 +46,12 @@ func NewGatewayWaiter() GatewayWaiter {
 }
 
 // Wait polls the gateway's health endpoint until it returns 200 OK
-// or the timeout is reached. Uses ESB_PORT_GATEWAY_HTTPS for the port.
+// or the timeout is reached. Uses branding-aware gateway port for the port.
 func (w gatewayWaiter) Wait(_ state.Context) error {
 	if w.client == nil {
 		return fmt.Errorf("gateway waiter client not configured")
 	}
-	port := strings.TrimSpace(os.Getenv("ESB_PORT_GATEWAY_HTTPS"))
+	port := strings.TrimSpace(os.Getenv(constants.EnvPortGatewayHTTPS))
 	if port == "" {
 		port = "443"
 	}

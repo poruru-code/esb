@@ -12,6 +12,7 @@ import (
 	"text/template"
 
 	"github.com/Masterminds/sprig/v3"
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 )
 
 const defaultSitecustomizeSource = "cli/internal/generator/assets/site-packages/sitecustomize.py"
@@ -73,8 +74,9 @@ func RenderFunctionsYml(functions []FunctionSpec, registry, tag string) (string,
 	}
 
 	data := functionsTemplateData{
-		Registry: registry,
-		Tag:      tag,
+		Registry:  registry,
+		Tag:       tag,
+		EnvPrefix: constants.BrandingEnvPrefix,
 	}
 	for _, fn := range functions {
 		hasSchedules := false
@@ -159,6 +161,7 @@ type dockerfileTemplateData struct {
 type functionsTemplateData struct {
 	Registry  string
 	Tag       string
+	EnvPrefix string
 	Functions []functionTemplateContext
 }
 

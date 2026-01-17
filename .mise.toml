@@ -16,14 +16,13 @@ mkcert = "1.4.4"
 
 [env]
 _.path = ["~/.local/bin"]
-CAROOT = "{{env.HOME}}/.esb/certs"
  
 [tasks.setup]
 description = "Install dependencies and enable git hooks"
 run = [
   "uv sync --all-extras",
   "lefthook install",
-  "go build -C cli -o ~/.local/bin/esb ./cmd/esb",
+  "mise run build-cli",
   "esb config set-repo .",
   "mise run setup:certs",
 ]
@@ -33,11 +32,26 @@ description = "Generate development certificates using mkcert"
 run = "uv run python tools/cert-gen/generate.py"
  
 [tasks.build-cli]
-description = "Build esb CLI to ~/.local/bin"
+description = "Build CLI to ~/.local/bin"
 dir = "cli"
-run = "go build -o ~/.local/bin/esb ./cmd/esb"
+run = [
+  "bash -lc 'source ../.branding.env && go build -o ~/.local/bin/${BRANDING_CLI_NAME} ./cmd/esb'",
+  "bash -lc 'source ../.branding.env && mkdir -p ~/.local/share/bash-completion/completions && ~/.local/bin/${BRANDING_CLI_NAME} completion bash > ~/.local/share/bash-completion/completions/${BRANDING_CLI_NAME}'",
+]
+
+[tasks."branding:generate"]
+description = "Render branding templates (call with --brand if needed)"
+run = [
+  "uv run python tools/branding/generate.py",
+  "mise run setup:certs",
+  "mise run build-cli",
+]
+
+[tasks."branding:check"]
+description = "Check branding templates without writing outputs"
+run = "uv run python tools/branding/generate.py --check"
  
 [tasks.dev-cli]
-description = "Watch and rebuild esb CLI on changes"
+description = "Watch and rebuild CLI on changes"
 dir = "cli"
 run = "air"

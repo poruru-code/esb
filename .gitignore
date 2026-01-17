@@ -40,6 +40,7 @@ docker-images/
 # Environment
 .env
 .env.local
+.branding.env
 
 # Logs
 *.log
@@ -70,12 +71,16 @@ build/lambda-images/*.tar
 # ESB artifacts
 .esb/
 generator.yml
+# Staging and fixtures
+e2e/fixtures/.*/
+services/gateway/.staging/
+services/gateway/.*-staging/
 # WireGuard configs (local secrets)
 config/wireguard/**/wg0.conf
 # Go Agent Binary
 services/agent/agent*
 
-# ESB Staging for external templates
+# Legacy ESB staging (remove once cleaned)
 services/gateway/.esb-staging/
 .tmp/
 cli/bin/

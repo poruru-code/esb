@@ -1,5 +1,5 @@
 // Where: services/agent/cmd/agent/main.go
-// What: Bootstrap the ESB Agent runtime and CNI setup.
+// What: Bootstrap the agent runtime and CNI setup.
 // Why: Keep startup wiring and env-driven networking behavior centralized.
 package main
 
@@ -44,7 +44,7 @@ func main() {
 	log.Printf("Target Network: %s", networkID)
 
 	// Phase 7: Environment Isolation
-	esbEnv := os.Getenv("ESB_ENV")
+	esbEnv := os.Getenv(runtime.BrandingEnvVarEnv)
 	if esbEnv == "" {
 		esbEnv = "default"
 	}
@@ -76,7 +76,7 @@ func main() {
 
 		cniConfFile := os.Getenv("CNI_CONF_FILE")
 		if cniConfFile == "" {
-			cniConfFile = fmt.Sprintf("%s/10-esb.conflist", cniConfDir)
+			cniConfFile = fmt.Sprintf("%s/10-%s.conflist", cniConfDir, runtime.BrandingSlug)
 		}
 
 		cniSubnet := strings.TrimSpace(os.Getenv("CNI_SUBNET"))
@@ -112,7 +112,7 @@ func main() {
 
 		// 2. Create Runtime with CNI networking
 		// Phase 7: Use stable namespace to match cgroup delegation.
-		namespace := "esb"
+		namespace := runtime.BrandingRuntimeNamespace
 		rt = agentContainerd.NewRuntime(wrappedClient, cniPlugin, namespace, esbEnv)
 		log.Printf("Runtime: containerd (initialized with CNI, namespace=%s)", namespace)
 

@@ -41,7 +41,7 @@ func applyRuntimeEnv(ctx state.Context, resolver func(string) (string, error)) {
 
 	_ = os.Setenv(constants.EnvESBEnv, env)
 	setEnvIfEmpty(constants.EnvESBProjectName, ctx.ComposeProject)
-	setEnvIfEmpty(constants.EnvESBImageTag, env)
+	setEnvIfEmpty(constants.EnvESBImageTag, defaultImageTag(ctx.Mode, env))
 
 	applyPortDefaults(env)
 	applySubnetDefaults(env)
@@ -50,6 +50,28 @@ func applyRuntimeEnv(ctx state.Context, resolver func(string) (string, error)) {
 	_ = applyGeneratorConfigEnv(ctx.GeneratorPath)
 	applyConfigDirEnv(ctx, resolver)
 	applyProxyDefaults()
+	if os.Getenv("DOCKER_BUILDKIT") == "" {
+		_ = os.Setenv("DOCKER_BUILDKIT", "1")
+	}
+}
+
+func defaultImageTag(mode, env string) string {
+	normalized := strings.ToLower(strings.TrimSpace(mode))
+	if normalized == "" {
+		normalized = strings.ToLower(strings.TrimSpace(os.Getenv(constants.EnvESBMode)))
+	}
+	switch normalized {
+	case "docker":
+		return "docker"
+	case "containerd":
+		return "containerd"
+	case "firecracker":
+		return "firecracker"
+	}
+	if strings.TrimSpace(env) != "" {
+		return env
+	}
+	return "latest"
 }
 
 // applyProxyDefaults ensures that proxy-related environment variables are consistent
@@ -70,7 +92,7 @@ func applyProxyDefaults() {
 		existingNoProxy = os.Getenv("no_proxy")
 	}
 
-	extraNoProxy := os.Getenv("ESB_NO_PROXY_EXTRA")
+	extraNoProxy := os.Getenv(constants.EnvESBNoProxyExtra)
 
 	if !hasProxy && existingNoProxy == "" && extraNoProxy == "" {
 		return
@@ -275,20 +297,13 @@ func applyConfigDirEnv(ctx state.Context, resolver func(string) (string, error))
 		return
 	}
 
-	if resolver == nil {
-		resolver = config.ResolveRepoRoot
-	}
+	_ = resolver
 
-	root, err := resolver(ctx.ProjectDir)
-	if err != nil {
-		return
-	}
-	stagingRel := staging.ConfigDirRelative(ctx.ComposeProject, ctx.Env)
-	stagingAbs := filepath.Join(root, stagingRel)
+	stagingAbs := staging.ConfigDir(ctx.ComposeProject, ctx.Env)
 	if _, err := os.Stat(stagingAbs); err != nil {
 		return
 	}
-	_ = os.Setenv(constants.EnvESBConfigDir, filepath.ToSlash(stagingRel))
+	_ = os.Setenv(constants.EnvESBConfigDir, filepath.ToSlash(stagingAbs))
 }
 
 // setEnvIfEmpty sets an environment variable only if it's currently empty.

@@ -14,7 +14,14 @@ from e2e.runner.env import (
     ensure_firecracker_node_up,
     load_ports,
 )
-from e2e.runner.utils import E2E_STATE_ROOT, PROJECT_ROOT, run_esb
+from e2e.runner.utils import (
+    BRAND_SLUG,
+    E2E_STATE_ROOT,
+    PROJECT_ROOT,
+    apply_esb_aliases,
+    env_key,
+    run_esb,
+)
 
 # Terminal colors for parallel output
 COLORS = [
@@ -135,6 +142,7 @@ def warmup_environment(env_scenarios: dict, matrix: list[dict], esb_project: str
     # Assuming run_esb helper logic or direct call
     # Here we replicate the call from original script
     GO_CLI_ROOT = PROJECT_ROOT / "cli"
+    project_name = os.environ.get(env_key("PROJECT"), esb_project or BRAND_SLUG)
     subprocess.run(
         [
             "go",
@@ -148,7 +156,7 @@ def warmup_environment(env_scenarios: dict, matrix: list[dict], esb_project: str
             "--env",
             env_list,
             "--name",
-            esb_project,
+            project_name,
         ],
         cwd=GO_CLI_ROOT,
         check=True,
@@ -158,10 +166,10 @@ def warmup_environment(env_scenarios: dict, matrix: list[dict], esb_project: str
 def run_scenario(args, scenario):
     """Run a single scenario."""
     # 0. Resolve scenario-specific parameters once
-    env_name = scenario.get("esb_env", os.environ.get("ESB_ENV", "e2e-docker"))
+    env_name = scenario.get("esb_env", os.environ.get(env_key("ENV"), "e2e-docker"))
     raw_env_file = scenario.get("env_file")
     env_file = str((PROJECT_ROOT / raw_env_file).absolute()) if raw_env_file else None
-    project_name = scenario.get("esb_project", "esb")
+    project_name = scenario.get("esb_project", BRAND_SLUG)
     do_reset = scenario.get("perform_reset", args.reset)
     do_build = scenario.get("perform_build", args.build)
     build_only = scenario.get("build_only", False)
@@ -169,9 +177,9 @@ def run_scenario(args, scenario):
 
     # 0.1 Set ESB variables for resolution and safety
     # We set these in os.environ so the CLI doesn't prompt even if .env fails.
-    os.environ["ESB_PROJECT"] = project_name
-    os.environ["ESB_ENV"] = env_name
-    os.environ["ESB_HOME"] = str((E2E_STATE_ROOT / env_name).absolute())
+    os.environ[env_key("PROJECT")] = project_name
+    os.environ[env_key("ENV")] = env_name
+    os.environ[env_key("HOME")] = str((E2E_STATE_ROOT / env_name).absolute())
 
     # Load Scenario-Specific Env File (Required for isolation)
     if env_file:
@@ -191,12 +199,13 @@ def run_scenario(args, scenario):
     env = os.environ.copy()
 
     # Capture calculated values for convenience
-    env["GATEWAY_PORT"] = env.get("ESB_PORT_GATEWAY_HTTPS", "443")
-    env["VICTORIALOGS_PORT"] = env.get("ESB_PORT_VICTORIALOGS", "9428")
+    env["GATEWAY_PORT"] = env.get(env_key("PORT_GATEWAY_HTTPS"), "443")
+    env["VICTORIALOGS_PORT"] = env.get(env_key("PORT_VICTORIALOGS"), "9428")
     env["GATEWAY_URL"] = f"https://localhost:{env['GATEWAY_PORT']}"
     env["VICTORIALOGS_URL"] = f"http://localhost:{env['VICTORIALOGS_PORT']}"
-    env["AGENT_GRPC_ADDRESS"] = f"localhost:{env.get('ESB_PORT_AGENT_GRPC', '50051')}"
-    env["ESB_PROJECT_NAME"] = f"{project_name}-{env_name}"
+    env["AGENT_GRPC_ADDRESS"] = f"localhost:{env.get(env_key('PORT_AGENT_GRPC'), '50051')}"
+    env[env_key("PROJECT_NAME")] = f"{project_name}-{env_name}"
+    apply_esb_aliases(env)
 
     # Merge scenario-specific environment variables
     env.update(env_vars_override)
@@ -268,15 +277,17 @@ def run_scenario(args, scenario):
                 env[k] = str(v)
 
             env["GATEWAY_PORT"] = str(
-                ports.get("ESB_PORT_GATEWAY_HTTPS", env.get("GATEWAY_PORT", "443"))
+                ports.get(env_key("PORT_GATEWAY_HTTPS"), env.get("GATEWAY_PORT", "443"))
             )
             env["VICTORIALOGS_PORT"] = str(
-                ports.get("ESB_PORT_VICTORIALOGS", env.get("VICTORIALOGS_PORT", "9428"))
+                ports.get(env_key("PORT_VICTORIALOGS"), env.get("VICTORIALOGS_PORT", "9428"))
             )
             env["GATEWAY_URL"] = f"https://localhost:{env['GATEWAY_PORT']}"
             env["VICTORIALOGS_URL"] = f"http://localhost:{env['VICTORIALOGS_PORT']}"
-            if "ESB_PORT_AGENT_GRPC" in ports:
-                env["AGENT_GRPC_ADDRESS"] = f"localhost:{ports['ESB_PORT_AGENT_GRPC']}"
+            agent_key = env_key("PORT_AGENT_GRPC")
+            if agent_key in ports:
+                env["AGENT_GRPC_ADDRESS"] = f"localhost:{ports[agent_key]}"
+            apply_esb_aliases(env)
 
         apply_gateway_env_from_container(env, env_file)
 
@@ -333,7 +344,8 @@ def run_profile_subprocess(
     # Inject flags to force non-interactive behavior
     env = os.environ.copy()
     env["TERM"] = "dumb"
-    env["ESB_INTERACTIVE"] = "0"
+    env[env_key("INTERACTIVE")] = "0"
+    apply_esb_aliases(env)
 
     process = subprocess.Popen(
         cmd,
@@ -350,6 +362,12 @@ def run_profile_subprocess(
     tests_started = False
     in_special_block = False
     last_line_was_blank = True
+    early_failure = False
+    early_failure_patterns = (
+        "Error executing command:",
+        "ERROR: failed to build",
+        "failed to solve:",
+    )
 
     # Read output line by line as it becomes available
     try:
@@ -379,6 +397,14 @@ def run_profile_subprocess(
                     if in_special_block and not is_special_header:
                         if clean_line.startswith("➜") or not clean_line.startswith(" "):
                             in_special_block = False
+
+                    if not tests_started and any(
+                        pat in clean_line for pat in early_failure_patterns
+                    ):
+                        early_failure = True
+                        print(f"{prefix} ➜ Build failed; stopping this environment.", flush=True)
+                        process.terminate()
+                        break
                 else:
                     # Empty line terminates a block
                     if in_special_block:
@@ -394,7 +420,12 @@ def run_profile_subprocess(
     except Exception as e:
         print(f"{prefix} Error reading output: {e}")
 
-    returncode = process.wait()
+    try:
+        returncode = process.wait(timeout=15)
+    except subprocess.TimeoutExpired:
+        if early_failure:
+            process.kill()
+        returncode = process.wait()
 
     if returncode != 0 and not verbose and not tests_started:
         print(f"{prefix} ➜ Subprocess failed before tests started. Printing cached logs...\n")

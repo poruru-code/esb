@@ -1,6 +1,6 @@
 // Where: cli/internal/compose/prune_test.go
-// What: Tests for ESB-scoped prune helpers.
-// Why: Ensure prune filters match ESB project labels and flags.
+// What: Tests for project-scoped prune helpers.
+// Why: Ensure prune filters match project labels and flags.
 package compose
 
 import (

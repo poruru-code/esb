@@ -49,6 +49,8 @@ bench_*.py
 # ESB build artifacts
 .esb/
 **/.esb/
+**/.*-staging/
+**/.staging/
 
 # Dockerfiles should not be copied into runtime images
 services/gateway/Dockerfile

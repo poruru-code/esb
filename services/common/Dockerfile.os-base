@@ -12,8 +12,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
 # Bake the local Root CA into the image at build time (BuildKit secret).
-ARG ESB_CA_FINGERPRINT
-RUN --mount=type=secret,id=esb_root_ca,required=true \
-    printf '%s' "$ESB_CA_FINGERPRINT" >/dev/null \
-    && install -m 0644 /run/secrets/esb_root_ca /usr/local/share/ca-certificates/esb-rootCA.crt \
+ARG ROOT_CA_FINGERPRINT
+ARG ROOT_CA_MOUNT_ID
+ARG ROOT_CA_CERT_FILENAME
+RUN --mount=type=secret,id=${ROOT_CA_MOUNT_ID},required=true \
+    printf '%s' "$ROOT_CA_FINGERPRINT" >/dev/null \
+    && install -m 0644 /run/secrets/${ROOT_CA_MOUNT_ID} /usr/local/share/ca-certificates/${ROOT_CA_CERT_FILENAME} \
     && update-ca-certificates

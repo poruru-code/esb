@@ -1,12 +1,24 @@
 #!/usr/bin/env python3
 import argparse
+import getpass
 import os
 import shutil
 import socket
 import subprocess
 import sys
+from pathlib import Path
+from types import ModuleType
 
 import toml
+
+try:
+    import grp as _grp
+except ImportError:  # pragma: no cover - non-POSIX
+    grp_module: ModuleType | None = None
+else:
+    grp_module = _grp
+
+DEFAULT_CERT_OUTPUT_DIR = "~/.local/share/certs"
 
 
 def get_local_ip():
@@ -19,25 +31,55 @@ def get_local_ip():
         return "127.0.0.1"
 
 
-def check_mkcert():
-    if not shutil.which("mkcert"):
+def resolve_mkcert_path() -> str:
+    mkcert_path = shutil.which("mkcert")
+    if not mkcert_path:
+        return ""
+    return mkcert_path
+
+
+def resolve_sudo_path() -> str:
+    sudo_path = shutil.which("sudo")
+    if not sudo_path:
+        return ""
+    return sudo_path
+
+
+def check_mkcert(mkcert_path: str):
+    if not mkcert_path:
         print("Error: mkcert not found.")
         print("Please install mkcert via mise or system package manager.")
         exit(1)
 
 
-def install_root_ca():
+def install_root_ca(mkcert_path: str, output_dir: str):
     print("Installing local Root CA...")
-    subprocess.check_call(["mkcert", "-install"])
+    try:
+        subprocess.check_call([mkcert_path, "-install"])
+    except subprocess.CalledProcessError as exc:
+        sudo_path = resolve_sudo_path()
+        if not sudo_path:
+            raise RuntimeError(
+                "mkcert -install failed and sudo is not available. "
+                f"Try running: {mkcert_path} -install"
+            ) from exc
+        print("mkcert -install failed, retrying with sudo...")
+        env = os.environ.copy()
+        subprocess.check_call([sudo_path, "-E", mkcert_path, "-install"], env=env)
+        ensure_user_ownership(output_dir)
 
 
-def generate_cert(config_path):
-    config = toml.load(config_path)
+def generate_cert(config, output_dir, mkcert_path: str):
     cert_cfg = config.get("certificate", {})
     host_cfg = config.get("hosts", {})
 
-    output_dir = os.path.expanduser(cert_cfg.get("output_dir", "~/.esb/certs"))
+    output_dir = os.path.expanduser(output_dir)
     os.makedirs(output_dir, exist_ok=True)
+    if not os.access(output_dir, os.W_OK):
+        raise RuntimeError(
+            f"Certificate output directory is not writable: {output_dir}. "
+            "Fix ownership or permissions and retry."
+        )
 
     cert_file = os.path.join(output_dir, cert_cfg.get("filename_cert", "server.crt"))
     key_file = os.path.join(output_dir, cert_cfg.get("filename_key", "server.key"))
@@ -52,7 +94,7 @@ def generate_cert(config_path):
             ips.append(local_ip)
 
     # mkcert引数構築
-    cmd = ["mkcert", "-cert-file", cert_file, "-key-file", key_file]
+    cmd = [mkcert_path, "-cert-file", cert_file, "-key-file", key_file]
     cmd.extend(domains)
     cmd.extend(ips)
 
@@ -62,6 +104,67 @@ def generate_cert(config_path):
 
     subprocess.check_call(cmd)
     print("Certificate generation complete.")
+
+
+def resolve_repo_root() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
+def ensure_output_dir(output_dir: str) -> None:
+    expanded = os.path.expanduser(output_dir)
+    owner_hint = str(Path(expanded).parent)
+    try:
+        os.makedirs(expanded, exist_ok=True)
+    except PermissionError as exc:
+        if not attempt_fix_permissions(owner_hint):
+            raise RuntimeError(
+                f"Certificate output directory is not writable: {expanded}. "
+                f"Fix ownership (e.g. sudo chown -R $USER:$USER {owner_hint}) and retry."
+            ) from exc
+    if not os.access(expanded, os.W_OK):
+        if not attempt_fix_permissions(owner_hint):
+            raise RuntimeError(
+                f"Certificate output directory is not writable: {expanded}. "
+                f"Fix ownership (e.g. sudo chown -R $USER:$USER {owner_hint}) and retry."
+            )
+    if not os.access(expanded, os.W_OK):
+        raise RuntimeError(
+            f"Certificate output directory is not writable: {expanded}. "
+            f"Fix ownership (e.g. sudo chown -R $USER:$USER {owner_hint}) and retry."
+        )
+
+
+def current_user_group() -> tuple[str, str]:
+    user = os.environ.get("USER") or getpass.getuser()
+    group = ""
+    if grp_module is not None:
+        try:
+            group = grp_module.getgrgid(os.getgid()).gr_name
+        except KeyError:
+            group = ""
+    if not group:
+        group = user
+    return user, group
+
+
+def attempt_fix_permissions(path: str) -> bool:
+    sudo_path = resolve_sudo_path()
+    if not sudo_path:
+        return False
+    user, group = current_user_group()
+    print(f"Attempting to fix permissions with sudo for {path}...")
+    try:
+        subprocess.check_call([sudo_path, "chown", "-R", f"{user}:{group}", path])
+    except subprocess.CalledProcessError:
+        return False
+    return True
+
+
+def ensure_user_ownership(output_dir: str) -> None:
+    expanded = os.path.expanduser(output_dir)
+    if os.access(expanded, os.W_OK):
+        return
+    attempt_fix_permissions(expanded)
 
 
 if __name__ == "__main__":
@@ -76,16 +179,22 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    # Load config
-    config = toml.load(args.config)
+    repo_root = resolve_repo_root()
+    config_path = Path(args.config)
+    if not config_path.is_absolute():
+        config_path = repo_root / config_path
+    config = toml.load(config_path)
     cert_cfg = config.get("certificate", {})
-    output_dir = os.path.expanduser(cert_cfg.get("output_dir", "~/.esb/certs"))
+    output_dir = os.path.expanduser(cert_cfg.get("output_dir", DEFAULT_CERT_OUTPUT_DIR))
 
-    # Ensure CAROOT is set to output_dir if not present
-    if "CAROOT" not in os.environ:
-        os.environ["CAROOT"] = output_dir
+    # Force CAROOT to follow branding output_dir to avoid stale env vars.
+    if os.environ.get("CAROOT") and os.environ["CAROOT"] != output_dir:
+        print(f"Overriding CAROOT to {output_dir} (was {os.environ['CAROOT']}).")
+    os.environ["CAROOT"] = output_dir
+    ensure_output_dir(output_dir)
 
-    check_mkcert()
+    mkcert_path = resolve_mkcert_path()
+    check_mkcert(mkcert_path)
 
     # Check and install Root CA
     root_ca_path = os.path.join(os.environ["CAROOT"], "rootCA.pem")
@@ -98,7 +207,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     if args.force or not os.path.exists(root_ca_path):
-        install_root_ca()
+        install_root_ca(mkcert_path, output_dir)
     else:
         print(f"Root CA exists at {root_ca_path}. Skipping installation. Use --force to reinstall.")
 
@@ -114,7 +223,7 @@ if __name__ == "__main__":
     key_file = os.path.join(output_dir, cert_cfg.get("filename_key", "server.key"))
 
     if args.force or not (os.path.exists(cert_file) and os.path.exists(key_file)):
-        generate_cert(args.config)
+        generate_cert(config, output_dir, mkcert_path)
     else:
         print(
             f"Certificates exist at {output_dir}. Skipping generation. Use --force to regenerate."

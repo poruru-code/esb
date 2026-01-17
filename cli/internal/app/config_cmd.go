@@ -13,14 +13,14 @@ import (
 
 // ConfigCmd groups configuration subcommands.
 type ConfigCmd struct {
-	SetRepo ConfigSetRepoCmd `cmd:"" help:"Set ESB repository path"`
+	SetRepo ConfigSetRepoCmd `cmd:"" help:"Set repository path"`
 }
 
 type ConfigSetRepoCmd struct {
-	Path string `arg:"" help:"Path to ESB repository root"`
+	Path string `arg:"" help:"Path to repository root"`
 }
 
-// runConfigSetRepo updates the global configuration with the ESB repo path.
+// runConfigSetRepo updates the global configuration with the repo path.
 func runConfigSetRepo(cli CLI, _ Dependencies, out io.Writer) int {
 	repoPath := cli.Config.SetRepo.Path
 	// Resolve true root (upward search) before saving
