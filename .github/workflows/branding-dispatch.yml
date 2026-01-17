@@ -1,0 +1,126 @@
+# Where: .github/workflows/branding-dispatch.yml
+# What: Dispatch branding check to the tool repository.
+# Why: Ensure ESB changes keep branding outputs in sync.
+
+name: branding-dispatch
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      esb_ref:
+        description: "ESB ref to check (commit/tag/branch)"
+        required: false
+      brand:
+        description: "Brand identifier"
+        required: false
+        default: esb
+
+jobs:
+  branding-dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.BRANDING_APP_ID }}
+          private-key: ${{ secrets.BRANDING_APP_PRIVATE_KEY }}
+          owner: poruru-code
+          repositories: ebs-branding-tool
+
+      - name: Resolve payload
+        run: |
+          python - <<'PY'
+          import json
+          import os
+
+          event = json.load(open(os.environ["GITHUB_EVENT_PATH"], "r", encoding="utf-8"))
+          inputs = event.get("inputs") or {}
+          brand = (inputs.get("brand") or "esb").strip()
+          esb_ref = (inputs.get("esb_ref") or "").strip()
+          if not esb_ref:
+              pr = event.get("pull_request")
+              if pr:
+                  esb_ref = pr["head"]["sha"]
+              else:
+                  esb_ref = os.environ["GITHUB_SHA"]
+
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as handle:
+              handle.write(f"ESB_REPO={os.environ['GITHUB_REPOSITORY']}\n")
+              handle.write(f"ESB_REF={esb_ref}\n")
+              handle.write(f"BRAND={brand}\n")
+          PY
+
+      - name: Dispatch branding check
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          echo "DISPATCHED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+          curl -fsS -L -X POST \
+            -H "Authorization: Bearer ${APP_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/poruru-code/ebs-branding-tool/dispatches \
+            -d "{\"event_type\":\"branding-check\",\"client_payload\":{\"esb_repo\":\"${ESB_REPO}\",\"esb_ref\":\"${ESB_REF}\",\"brand\":\"${BRAND}\"}}"
+
+      - name: Wait for branding check
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          python - <<'PY'
+          import datetime as dt
+          import json
+          import os
+          import sys
+          import time
+          import urllib.request
+
+          api_url = os.environ.get("GITHUB_API_URL", "https://api.github.com")
+          token = os.environ["APP_TOKEN"]
+          dispatched_at = os.environ["DISPATCHED_AT"]
+          start = dt.datetime.fromisoformat(dispatched_at.replace("Z", "+00:00"))
+          deadline = time.time() + 900
+          workflow = "branding-check.yml"
+          repo = "poruru-code/ebs-branding-tool"
+
+          def fetch_runs():
+              url = f"{api_url}/repos/{repo}/actions/workflows/{workflow}/runs?event=repository_dispatch&per_page=5"
+              req = urllib.request.Request(
+                  url,
+                  headers={
+                      "Authorization": f"Bearer {token}",
+                      "Accept": "application/vnd.github+json",
+                  },
+              )
+              with urllib.request.urlopen(req) as resp:
+                  return json.loads(resp.read().decode("utf-8"))
+
+          while time.time() < deadline:
+              data = fetch_runs()
+              runs = data.get("workflow_runs", [])
+              target = None
+              for run in runs:
+                  created_at = dt.datetime.fromisoformat(run["created_at"].replace("Z", "+00:00"))
+                  if created_at >= start:
+                      target = run
+                      break
+              if target:
+                  status = target.get("status")
+                  conclusion = target.get("conclusion")
+                  html_url = target.get("html_url", "")
+                  print(f"branding check status={status} conclusion={conclusion} {html_url}".strip())
+                  if status == "completed":
+                      if conclusion != "success":
+                          print("branding check failed", file=sys.stderr)
+                          sys.exit(1)
+                      print("branding check succeeded")
+                      sys.exit(0)
+              time.sleep(10)
+
+          print("branding check timed out", file=sys.stderr)
+          sys.exit(1)
+          PY
