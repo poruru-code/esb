@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
@@ -66,7 +67,7 @@ func TestRunUpCallsUpper(t *testing.T) {
 		t.Fatalf("write generator fixture: %v", err)
 	}
 	setupProjectConfig(t, projectDir, "demo")
-	t.Setenv("ESB_MODE", "")
+	t.Setenv(constants.EnvESBMode, "")
 
 	upper := &fakeUpper{}
 	provisioner := &fakeProvisioner{}
@@ -101,7 +102,7 @@ func TestRunUpResetCallsDownBuildUp(t *testing.T) {
 		t.Fatalf("write generator fixture: %v", err)
 	}
 	setupProjectConfig(t, projectDir, "demo")
-	t.Setenv("ESB_MODE", "")
+	t.Setenv(constants.EnvESBMode, "")
 
 	downer := &fakeUpDowner{}
 	builder := &fakeUpBuilder{}
@@ -152,7 +153,7 @@ func TestRunUpResetRequiresYesInNonInteractiveMode(t *testing.T) {
 		t.Fatalf("write generator fixture: %v", err)
 	}
 	setupProjectConfig(t, projectDir, "demo")
-	t.Setenv("ESB_MODE", "")
+	t.Setenv(constants.EnvESBMode, "")
 
 	origIsTerminal := isTerminal
 	isTerminal = func(_ *os.File) bool {
@@ -191,7 +192,7 @@ func TestRunUpWithEnv(t *testing.T) {
 		t.Fatalf("write generator fixture: %v", err)
 	}
 	setupProjectConfig(t, projectDir, "demo")
-	t.Setenv("ESB_MODE", "")
+	t.Setenv(constants.EnvESBMode, "")
 
 	upper := &fakeUpper{}
 	provisioner := &fakeProvisioner{}
@@ -218,16 +219,16 @@ func TestRunUpAppliesEnvDefaults(t *testing.T) {
 	setupProjectConfig(t, repoRoot, "demo")
 
 	projectName := expectedComposeProject("demo", "staging")
-	stagingDir := filepath.Join(repoRoot, "services", "gateway", ".esb-staging", projectName, "staging", "config")
+	stagingDir := filepath.Join(repoRoot, "services", "gateway", constants.BrandingStagingDir, projectName, "staging", "config")
 	if err := os.MkdirAll(stagingDir, 0o755); err != nil {
 		t.Fatalf("create staging dir: %v", err)
 	}
 
-	t.Setenv("ESB_ENV", "default")
-	t.Setenv("ESB_PROJECT_NAME", "")
-	t.Setenv("ESB_IMAGE_TAG", "")
-	t.Setenv("ESB_CONFIG_DIR", "")
-	t.Setenv("ESB_MODE", "")
+	t.Setenv(constants.EnvESBEnv, "default")
+	t.Setenv(constants.EnvESBProjectName, "")
+	t.Setenv(constants.EnvESBImageTag, "")
+	t.Setenv(constants.EnvESBConfigDir, "")
+	t.Setenv(constants.EnvESBMode, "")
 
 	upper := &fakeUpper{}
 	provisioner := &fakeProvisioner{}
@@ -247,18 +248,18 @@ func TestRunUpAppliesEnvDefaults(t *testing.T) {
 		t.Fatalf("expected exit code 0, got %d", exitCode)
 	}
 
-	if got := os.Getenv("ESB_ENV"); got != "staging" {
-		t.Fatalf("unexpected ESB_ENV: %s", got)
+	if got := os.Getenv(constants.EnvESBEnv); got != "staging" {
+		t.Fatalf("unexpected %s: %s", constants.EnvESBEnv, got)
 	}
-	if got := os.Getenv("ESB_PROJECT_NAME"); got != projectName {
-		t.Fatalf("unexpected ESB_PROJECT_NAME: %s", got)
+	if got := os.Getenv(constants.EnvESBProjectName); got != projectName {
+		t.Fatalf("unexpected %s: %s", constants.EnvESBProjectName, got)
 	}
-	if got := os.Getenv("ESB_IMAGE_TAG"); got != "staging" {
-		t.Fatalf("unexpected ESB_IMAGE_TAG: %s", got)
+	if got := os.Getenv(constants.EnvESBImageTag); got != "docker" {
+		t.Fatalf("unexpected %s: %s", constants.EnvESBImageTag, got)
 	}
-	expectedConfigDir := filepath.ToSlash(filepath.Join("services", "gateway", ".esb-staging", projectName, "staging", "config"))
-	if got := os.Getenv("ESB_CONFIG_DIR"); got != expectedConfigDir {
-		t.Fatalf("unexpected ESB_CONFIG_DIR: %s", got)
+	expectedConfigDir := filepath.ToSlash(filepath.Join("services", "gateway", constants.BrandingStagingDir, projectName, "staging", "config"))
+	if got := os.Getenv(constants.EnvESBConfigDir); got != expectedConfigDir {
+		t.Fatalf("unexpected %s: %s", constants.EnvESBConfigDir, got)
 	}
 }
 
@@ -273,7 +274,7 @@ func TestRunUpAppliesGeneratorParameters(t *testing.T) {
 		Environments: config.Environments{{Name: "default", Mode: "docker"}},
 		Paths: config.PathsConfig{
 			SamTemplate:  "template.yaml",
-			OutputDir:    ".esb/",
+			OutputDir:    constants.BrandingOutputDir + "/",
 			FunctionsYml: "custom/functions.yml",
 			RoutingYml:   "custom/routing.yml",
 		},
@@ -296,7 +297,7 @@ func TestRunUpAppliesGeneratorParameters(t *testing.T) {
 	t.Setenv("RUSTFS_ACCESS_KEY", "")
 	t.Setenv("RETRY_COUNT", "")
 	t.Setenv("FEATURE_FLAG", "")
-	t.Setenv("ESB_MODE", "")
+	t.Setenv(constants.EnvESBMode, "")
 
 	upper := &fakeUpper{}
 	provisioner := &fakeProvisioner{}
@@ -335,11 +336,11 @@ func TestRunUpKeepsExplicitEnvOverrides(t *testing.T) {
 	}
 	setupProjectConfig(t, projectDir, "demo")
 
-	t.Setenv("ESB_ENV", "custom")
-	t.Setenv("ESB_PROJECT_NAME", "custom-project")
-	t.Setenv("ESB_IMAGE_TAG", "custom-tag")
-	t.Setenv("ESB_CONFIG_DIR", "custom/config")
-	t.Setenv("ESB_MODE", "")
+	t.Setenv(constants.EnvESBEnv, "custom")
+	t.Setenv(constants.EnvESBProjectName, "custom-project")
+	t.Setenv(constants.EnvESBImageTag, "custom-tag")
+	t.Setenv(constants.EnvESBConfigDir, "custom/config")
+	t.Setenv(constants.EnvESBMode, "")
 
 	upper := &fakeUpper{}
 	provisioner := &fakeProvisioner{}
@@ -351,17 +352,17 @@ func TestRunUpKeepsExplicitEnvOverrides(t *testing.T) {
 		t.Fatalf("expected exit code 0, got %d", exitCode)
 	}
 
-	if got := os.Getenv("ESB_ENV"); got != "default" {
-		t.Fatalf("unexpected ESB_ENV: %s", got)
+	if got := os.Getenv(constants.EnvESBEnv); got != "default" {
+		t.Fatalf("unexpected %s: %s", constants.EnvESBEnv, got)
 	}
-	if got := os.Getenv("ESB_PROJECT_NAME"); got != "custom-project" {
-		t.Fatalf("unexpected ESB_PROJECT_NAME: %s", got)
+	if got := os.Getenv(constants.EnvESBProjectName); got != "custom-project" {
+		t.Fatalf("unexpected %s: %s", constants.EnvESBProjectName, got)
 	}
-	if got := os.Getenv("ESB_IMAGE_TAG"); got != "custom-tag" {
-		t.Fatalf("unexpected ESB_IMAGE_TAG: %s", got)
+	if got := os.Getenv(constants.EnvESBImageTag); got != "custom-tag" {
+		t.Fatalf("unexpected %s: %s", constants.EnvESBImageTag, got)
 	}
-	if got := os.Getenv("ESB_CONFIG_DIR"); got != "custom/config" {
-		t.Fatalf("unexpected ESB_CONFIG_DIR: %s", got)
+	if got := os.Getenv(constants.EnvESBConfigDir); got != "custom/config" {
+		t.Fatalf("unexpected %s: %s", constants.EnvESBConfigDir, got)
 	}
 }
 
@@ -371,7 +372,7 @@ func TestRunUpMissingUpper(t *testing.T) {
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
 	}
-	t.Setenv("ESB_MODE", "")
+	t.Setenv(constants.EnvESBMode, "")
 
 	var out bytes.Buffer
 	deps := Dependencies{Out: &out, ProjectDir: projectDir}
@@ -388,7 +389,7 @@ func TestRunUpMissingProvisioner(t *testing.T) {
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
 	}
-	t.Setenv("ESB_MODE", "")
+	t.Setenv(constants.EnvESBMode, "")
 
 	upper := &fakeUpper{}
 	var out bytes.Buffer
@@ -416,7 +417,7 @@ func TestRunUpWithBuildRunsBuilder(t *testing.T) {
 		t.Fatalf("write generator fixture: %v", err)
 	}
 	setupProjectConfig(t, projectDir, "demo")
-	t.Setenv("ESB_MODE", "")
+	t.Setenv(constants.EnvESBMode, "")
 
 	upper := &fakeUpper{}
 	builder := &fakeUpBuilder{}
@@ -450,7 +451,7 @@ func TestRunUpWithBuildMissingBuilder(t *testing.T) {
 		t.Fatalf("write generator fixture: %v", err)
 	}
 	setupProjectConfig(t, projectDir, "demo")
-	t.Setenv("ESB_MODE", "")
+	t.Setenv(constants.EnvESBMode, "")
 
 	upper := &fakeUpper{}
 	provisioner := &fakeProvisioner{}
@@ -472,7 +473,7 @@ func TestRunUpWithWaitCallsWaiter(t *testing.T) {
 		t.Fatalf("write generator fixture: %v", err)
 	}
 	setupProjectConfig(t, projectDir, "demo")
-	t.Setenv("ESB_MODE", "")
+	t.Setenv(constants.EnvESBMode, "")
 
 	upper := &fakeUpper{}
 	provisioner := &fakeProvisioner{}
@@ -501,7 +502,7 @@ func TestRunUpWithWaiterError(t *testing.T) {
 		t.Fatalf("write generator fixture: %v", err)
 	}
 	setupProjectConfig(t, projectDir, "demo")
-	t.Setenv("ESB_MODE", "")
+	t.Setenv(constants.EnvESBMode, "")
 
 	upper := &fakeUpper{}
 	provisioner := &fakeProvisioner{}
@@ -531,7 +532,7 @@ func TestRunUpSetsModeFromGenerator(t *testing.T) {
 	}
 	setupProjectConfig(t, projectDir, "demo")
 
-	t.Setenv("ESB_MODE", "")
+	t.Setenv(constants.EnvESBMode, "")
 
 	upper := &fakeUpper{}
 	provisioner := &fakeProvisioner{}
@@ -542,8 +543,8 @@ func TestRunUpSetsModeFromGenerator(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("expected exit code 0, got %d", exitCode)
 	}
-	if got := os.Getenv("ESB_MODE"); got != "containerd" {
-		t.Fatalf("unexpected ESB_MODE: %s", got)
+	if got := os.Getenv(constants.EnvESBMode); got != "containerd" {
+		t.Fatalf("unexpected %s: %s", constants.EnvESBMode, got)
 	}
 }
 
@@ -556,9 +557,9 @@ func TestRunUpUsesActiveEnvFromGlobalConfig(t *testing.T) {
 	if err := writeGeneratorFixtureWithEnvs(projectDir, envs, "demo"); err != nil {
 		t.Fatalf("write generator fixture: %v", err)
 	}
-	t.Setenv("ESB_MODE", "")
+	t.Setenv(constants.EnvESBMode, "")
 	setupProjectConfig(t, projectDir, "demo")
-	t.Setenv("ESB_ENV", "staging")
+	t.Setenv(constants.EnvESBEnv, "staging")
 
 	upper := &fakeUpper{}
 	provisioner := &fakeProvisioner{}

@@ -9,35 +9,35 @@ services:
   # Base Images (Debian 12)
   # ============================================
   os-base:
-    image: esb-os-base:latest
+    image: {{IMAGE_PREFIX}}-os-base:latest
     build:
       context: .
       dockerfile: services/common/Dockerfile.os-base
       args:
-        ROOT_CA_SECRET_ID: esb_root_ca
-        ROOT_CA_CERT_FILENAME: rootCA.crt
+        ROOT_CA_SECRET_ID: {{ROOT_CA_SECRET_ID}}
+        ROOT_CA_CERT_FILENAME: {{ROOT_CA_CERT_FILENAME}}
         ROOT_CA_FINGERPRINT: ${ROOT_CA_FINGERPRINT:-}
       secrets:
-        - esb_root_ca
+        - {{ROOT_CA_SECRET_ID}}
 
   python-base:
-    image: esb-python-base:latest
+    image: {{IMAGE_PREFIX}}-python-base:latest
     build:
       context: .
       dockerfile: services/common/Dockerfile.python-base
       args:
-        ROOT_CA_SECRET_ID: esb_root_ca
-        ROOT_CA_CERT_FILENAME: rootCA.crt
+        ROOT_CA_SECRET_ID: {{ROOT_CA_SECRET_ID}}
+        ROOT_CA_CERT_FILENAME: {{ROOT_CA_CERT_FILENAME}}
         ROOT_CA_FINGERPRINT: ${ROOT_CA_FINGERPRINT:-}
       secrets:
-        - esb_root_ca
+        - {{ROOT_CA_SECRET_ID}}
 
   # ============================================
   # Permission Helper (for RustFS)
   # ============================================
   permission-helper:
     image: alpine
-    container_name: ${ESB_PROJECT_NAME:-esb}-permission-helper
+    container_name: {{ENV_PREFIX_VAR}}_PROJECT_NAME:-{{SLUG}}}-permission-helper
     volumes:
       - rustfs_data:/data/rustfs
     command: >
@@ -51,13 +51,13 @@ services:
   # ============================================
   s3-storage:
     image: rustfs/rustfs:latest
-    container_name: ${ESB_PROJECT_NAME:-esb}-s3-storage
+    container_name: {{ENV_PREFIX_VAR}}_PROJECT_NAME:-{{SLUG}}}-s3-storage
     depends_on:
       permission-helper:
         condition: service_completed_successfully
     ports:
-      - "${ESB_PORT_S3:-9000}:9000" # S3 API
-      - "${ESB_PORT_S3_MGMT:-9001}:9001" # Console
+      - "{{ENV_PREFIX_VAR}}_PORT_S3:-9000}:9000" # S3 API
+      - "{{ENV_PREFIX_VAR}}_PORT_S3_MGMT:-9001}:9001" # Console
     volumes:
       - rustfs_data:/data/rustfs
       - ./config/lifecycle.yml:/app/config/lifecycle.yml:ro
@@ -92,9 +92,9 @@ services:
   # ============================================
   database:
     image: scylladb/scylla:latest
-    container_name: ${ESB_PROJECT_NAME:-esb}-database
+    container_name: {{ENV_PREFIX_VAR}}_PROJECT_NAME:-{{SLUG}}}-database
     ports:
-      - "${ESB_PORT_DATABASE:-0}:8000" # Alternator API (Host dynamic -> Container 8000)
+      - "{{ENV_PREFIX_VAR}}_PORT_DATABASE:-0}:8000" # Alternator API (Host dynamic -> Container 8000)
     volumes:
       - scylladb_data:/var/lib/scylla
     command: --smp 1 --memory ${SCYLLADB_MEMORY:-1}G --developer-mode 1 --alternator-port 8000 --alternator-address 0.0.0.0 --alternator-write-isolation always_use_lwt
@@ -121,9 +121,9 @@ services:
   # ============================================
   victorialogs:
     image: victoriametrics/victoria-logs:latest
-    container_name: ${ESB_PROJECT_NAME:-esb}-victorialogs
+    container_name: {{ENV_PREFIX_VAR}}_PROJECT_NAME:-{{SLUG}}}-victorialogs
     ports:
-      - "${ESB_PORT_VICTORIALOGS:-0}:9428" # VictoriaLogs UI/API
+      - "{{ENV_PREFIX_VAR}}_PORT_VICTORIALOGS:-0}:9428" # VictoriaLogs UI/API
     volumes:
       - victorialogs_data:/victoria-logs-data
     command:
@@ -151,18 +151,18 @@ services:
   # API Gateway (Facade)
   # ============================================
   gateway:
-    image: gateway-api:${ESB_IMAGE_TAG:-latest}
+    image: gateway-api:{{ENV_PREFIX_VAR}}_IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: services/gateway/Dockerfile
       args:
-        CONFIG_DIR: ${ESB_CONFIG_DIR:-services/gateway/config}
-        ESB_UID: ${ESB_UID:-1000}
-        ESB_GID: ${ESB_GID:-1000}
-    container_name: ${ESB_PROJECT_NAME:-esb}-gateway
+        CONFIG_DIR: {{ENV_PREFIX_VAR}}_CONFIG_DIR:-services/gateway/config}
+        {{ENV_PREFIX}}_UID: {{ENV_PREFIX_VAR}}_UID:-1000}
+        {{ENV_PREFIX}}_GID: {{ENV_PREFIX_VAR}}_GID:-1000}
+    container_name: {{ENV_PREFIX_VAR}}_PROJECT_NAME:-{{SLUG}}}-gateway
     # NOTE: ports and networks are defined by adapter files (fc.yml / containerd.yml)
     volumes:
-      - ${ESB_CERT_DIR:-~/.esb/certs}:/app/config/ssl:ro
+      - {{ENV_PREFIX_VAR}}_CERT_DIR:-~/{{HOME_DIR}}/certs}:/app/config/ssl:ro
     environment:
       # --- Required / Core Authentication (auto-generated if unset) ---
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-}
@@ -177,7 +177,7 @@ services:
       - ENABLE_SSL=true
       - SSL_CERT_PATH=/app/config/ssl/server.crt
       - SSL_KEY_PATH=/app/config/ssl/server.key
-      - CONTAINERS_NETWORK=${ESB_NETWORK_EXTERNAL:-${ESB_PROJECT_NAME:-esb}-external}
+      - CONTAINERS_NETWORK={{ENV_PREFIX_VAR}}_NETWORK_EXTERNAL:-{{ENV_PREFIX_VAR}}_PROJECT_NAME:-{{SLUG}}}-external}
       - AUTH_ENDPOINT_PATH
       - ESB_IMAGE_TAG=${ESB_IMAGE_TAG:-}
       - FUNCTION_IMAGE_PREFIX=${FUNCTION_IMAGE_PREFIX:-}
@@ -226,12 +226,12 @@ volumes:
   victorialogs_data:
 
 secrets:
-  esb_root_ca:
-    file: ${ESB_CERT_DIR:-~/.esb/certs}/rootCA.crt
+  {{ROOT_CA_SECRET_ID}}:
+    file: {{ENV_PREFIX_VAR}}_CERT_DIR:-~/{{HOME_DIR}}/certs}/rootCA.crt
 
 networks:
   # Public network (exposed ports).
   external_network:
     # Let Docker choose the subnet unless the network is pre-created.
-    name: ${ESB_NETWORK_EXTERNAL:-${ESB_PROJECT_NAME:-esb}-external}
+    name: {{ENV_PREFIX_VAR}}_NETWORK_EXTERNAL:-{{ENV_PREFIX_VAR}}_PROJECT_NAME:-{{SLUG}}}-external}
     driver: bridge

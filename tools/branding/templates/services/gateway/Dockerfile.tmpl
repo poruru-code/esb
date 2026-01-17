@@ -49,18 +49,18 @@ RUN if ! command -v python >/dev/null 2>&1; then \
 
 # Create a non-root user (uid/gid are configurable for host-mounted cert access)
 RUN set -eu; \
-    if ! getent group "${{{ENV_PREFIX}}_GID}" >/dev/null 2>&1; then \
+    if ! getent group "{{ENV_PREFIX_VAR}}_GID}" >/dev/null 2>&1; then \
         if command -v groupadd >/dev/null 2>&1; then \
-            groupadd -g "${{{ENV_PREFIX}}_GID}" {{SLUG}}; \
+            groupadd -g "{{ENV_PREFIX_VAR}}_GID}" {{SLUG}}; \
         else \
-            addgroup --gid "${{{ENV_PREFIX}}_GID}" {{SLUG}}; \
+            addgroup --gid "{{ENV_PREFIX_VAR}}_GID}" {{SLUG}}; \
         fi; \
     fi; \
-    if ! id -u "${{{ENV_PREFIX}}_UID}" >/dev/null 2>&1; then \
+    if ! id -u "{{ENV_PREFIX_VAR}}_UID}" >/dev/null 2>&1; then \
         if command -v useradd >/dev/null 2>&1; then \
-            useradd -u "${{{ENV_PREFIX}}_UID}" -g "${{{ENV_PREFIX}}_GID}" -d /app -s /bin/sh {{SLUG}}; \
+            useradd -u "{{ENV_PREFIX_VAR}}_UID}" -g "{{ENV_PREFIX_VAR}}_GID}" -d /app -s /bin/sh {{SLUG}}; \
         else \
-            adduser --uid "${{{ENV_PREFIX}}_UID}" --gid "${{{ENV_PREFIX}}_GID}" --home /app --disabled-password --gecos "" {{SLUG}}; \
+            adduser --uid "{{ENV_PREFIX_VAR}}_UID}" --gid "{{ENV_PREFIX_VAR}}_GID}" --home /app --disabled-password --gecos "" {{SLUG}}; \
         fi; \
     fi
 
@@ -93,10 +93,10 @@ RUN if [ -f /tmp/config/functions.yml ]; then \
 
 COPY services/gateway/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh \
-    && chown -R "${{{ENV_PREFIX}}_UID}:${{{ENV_PREFIX}}_GID}" /app
+    && chown -R "{{ENV_PREFIX_VAR}}_UID}:{{ENV_PREFIX_VAR}}_GID}" /app
 
 ENV HOME=/app
-USER ${{{ENV_PREFIX}}_UID}:${{{ENV_PREFIX}}_GID}
+USER {{ENV_PREFIX_VAR}}_UID}:{{ENV_PREFIX_VAR}}_GID}
 
 EXPOSE 8443
 

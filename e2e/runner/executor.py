@@ -350,6 +350,12 @@ def run_profile_subprocess(
     tests_started = False
     in_special_block = False
     last_line_was_blank = True
+    early_failure = False
+    early_failure_patterns = (
+        "Error executing command:",
+        "ERROR: failed to build",
+        "failed to solve:",
+    )
 
     # Read output line by line as it becomes available
     try:
@@ -379,6 +385,14 @@ def run_profile_subprocess(
                     if in_special_block and not is_special_header:
                         if clean_line.startswith("➜") or not clean_line.startswith(" "):
                             in_special_block = False
+
+                    if not tests_started and any(
+                        pat in clean_line for pat in early_failure_patterns
+                    ):
+                        early_failure = True
+                        print(f"{prefix} ➜ Build failed; stopping this environment.", flush=True)
+                        process.terminate()
+                        break
                 else:
                     # Empty line terminates a block
                     if in_special_block:
@@ -394,7 +408,12 @@ def run_profile_subprocess(
     except Exception as e:
         print(f"{prefix} Error reading output: {e}")
 
-    returncode = process.wait()
+    try:
+        returncode = process.wait(timeout=15)
+    except subprocess.TimeoutExpired:
+        if early_failure:
+            process.kill()
+        returncode = process.wait()
 
     if returncode != 0 and not verbose and not tests_started:
         print(f"{prefix} ➜ Subprocess failed before tests started. Printing cached logs...\n")

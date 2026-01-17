@@ -7,112 +7,114 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 )
 
 func TestApplyEnvironmentDefaultsSetsDefaults(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	t.Setenv("ESB_ENV", "")
-	t.Setenv("ESB_PROJECT_NAME", "")
-	t.Setenv("ESB_IMAGE_TAG", "")
-	t.Setenv("ESB_PORT_GATEWAY_HTTPS", "")
-	t.Setenv("ESB_PORT_GATEWAY_HTTP", "")
-	t.Setenv("ESB_PORT_AGENT_GRPC", "")
-	t.Setenv("ESB_PORT_REGISTRY", "")
-	t.Setenv("ESB_SUBNET_EXTERNAL", "")
-	t.Setenv("ESB_NETWORK_EXTERNAL", "")
-	t.Setenv("RUNTIME_NET_SUBNET", "")
-	t.Setenv("RUNTIME_NODE_IP", "")
-	t.Setenv("LAMBDA_NETWORK", "")
-	t.Setenv("CONTAINER_REGISTRY", "")
+	t.Setenv(constants.EnvESBEnv, "")
+	t.Setenv(constants.EnvESBProjectName, "")
+	t.Setenv(constants.EnvESBImageTag, "")
+	t.Setenv(constants.EnvPortGatewayHTTPS, "")
+	t.Setenv(constants.EnvPortGatewayHTTP, "")
+	t.Setenv(constants.EnvPortAgentCGRPC, "")
+	t.Setenv(constants.EnvPortRegistry, "")
+	t.Setenv(constants.EnvSubnetExternal, "")
+	t.Setenv(constants.EnvNetworkExternal, "")
+	t.Setenv(constants.EnvRuntimeNetSubnet, "")
+	t.Setenv(constants.EnvRuntimeNodeIP, "")
+	t.Setenv(constants.EnvLambdaNetwork, "")
+	t.Setenv(constants.EnvContainerRegistry, "")
 
-	applyEnvironmentDefaults("default", "docker", "esb-default")
+	applyEnvironmentDefaults("default", "docker", constants.BrandingSlug+"-default")
 
-	if got := os.Getenv("ESB_PROJECT_NAME"); got != "esb-default" {
+	if got := os.Getenv(constants.EnvESBProjectName); got != constants.BrandingSlug+"-default" {
 		t.Fatalf("unexpected project name: %s", got)
 	}
-	if got := os.Getenv("ESB_IMAGE_TAG"); got != "default" {
+	if got := os.Getenv(constants.EnvESBImageTag); got != "docker" {
 		t.Fatalf("unexpected image tag: %s", got)
 	}
-	if got := os.Getenv("ESB_PORT_GATEWAY_HTTPS"); got != "443" {
+	if got := os.Getenv(constants.EnvPortGatewayHTTPS); got != "443" {
 		t.Fatalf("unexpected gateway https port: %s", got)
 	}
-	if got := os.Getenv("ESB_PORT_GATEWAY_HTTP"); got != "80" {
+	if got := os.Getenv(constants.EnvPortGatewayHTTP); got != "80" {
 		t.Fatalf("unexpected gateway http port: %s", got)
 	}
-	if got := os.Getenv("ESB_PORT_AGENT_GRPC"); got != "50051" {
+	if got := os.Getenv(constants.EnvPortAgentCGRPC); got != "50051" {
 		t.Fatalf("unexpected agent grpc port: %s", got)
 	}
-	if got := os.Getenv("ESB_PORT_REGISTRY"); got != "5010" {
+	if got := os.Getenv(constants.EnvPortRegistry); got != "5010" {
 		t.Fatalf("unexpected registry port: %s", got)
 	}
-	if got := os.Getenv("ESB_SUBNET_EXTERNAL"); got != "172.50.0.0/16" {
+	if got := os.Getenv(constants.EnvSubnetExternal); got != "172.50.0.0/16" {
 		t.Fatalf("unexpected external subnet: %s", got)
 	}
-	if got := os.Getenv("ESB_NETWORK_EXTERNAL"); got != "esb-default-external" {
+	if got := os.Getenv(constants.EnvNetworkExternal); got != constants.BrandingSlug+"-default-external" {
 		t.Fatalf("unexpected external network: %s", got)
 	}
-	if got := os.Getenv("RUNTIME_NET_SUBNET"); got != "172.20.0.0/16" {
+	if got := os.Getenv(constants.EnvRuntimeNetSubnet); got != "172.20.0.0/16" {
 		t.Fatalf("unexpected runtime subnet: %s", got)
 	}
-	if got := os.Getenv("RUNTIME_NODE_IP"); got != "172.20.0.10" {
+	if got := os.Getenv(constants.EnvRuntimeNodeIP); got != "172.20.0.10" {
 		t.Fatalf("unexpected runtime node ip: %s", got)
 	}
-	if got := os.Getenv("LAMBDA_NETWORK"); got != "esb_int_default" {
+	if got := os.Getenv(constants.EnvLambdaNetwork); got != constants.BrandingSlug+"_int_default" {
 		t.Fatalf("unexpected lambda network: %s", got)
 	}
-	if got := os.Getenv("CONTAINER_REGISTRY"); got != "" {
+	if got := os.Getenv(constants.EnvContainerRegistry); got != "" {
 		t.Fatalf("unexpected container registry: %s", got)
 	}
 }
 
 func TestApplyEnvironmentDefaultsDoesNotOverrideExisting(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	t.Setenv("ESB_ENV", "")
-	t.Setenv("ESB_PROJECT_NAME", "custom-project")
-	t.Setenv("ESB_IMAGE_TAG", "custom-tag")
-	t.Setenv("ESB_PORT_GATEWAY_HTTPS", "1234")
-	t.Setenv("ESB_SUBNET_EXTERNAL", "172.99.0.0/16")
+	t.Setenv(constants.EnvESBEnv, "")
+	t.Setenv(constants.EnvESBProjectName, "custom-project")
+	t.Setenv(constants.EnvESBImageTag, "custom-tag")
+	t.Setenv(constants.EnvPortGatewayHTTPS, "1234")
+	t.Setenv(constants.EnvSubnetExternal, "172.99.0.0/16")
 
-	applyEnvironmentDefaults("demo", "docker", "esb-demo")
+	applyEnvironmentDefaults("demo", "docker", constants.BrandingSlug+"-demo")
 
-	if got := os.Getenv("ESB_PROJECT_NAME"); got != "custom-project" {
+	if got := os.Getenv(constants.EnvESBProjectName); got != "custom-project" {
 		t.Fatalf("unexpected project name: %s", got)
 	}
-	if got := os.Getenv("ESB_IMAGE_TAG"); got != "custom-tag" {
+	if got := os.Getenv(constants.EnvESBImageTag); got != "custom-tag" {
 		t.Fatalf("unexpected image tag: %s", got)
 	}
-	if got := os.Getenv("ESB_PORT_GATEWAY_HTTPS"); got != "1234" {
+	if got := os.Getenv(constants.EnvPortGatewayHTTPS); got != "1234" {
 		t.Fatalf("unexpected gateway https port: %s", got)
 	}
-	if got := os.Getenv("ESB_SUBNET_EXTERNAL"); got != "172.99.0.0/16" {
+	if got := os.Getenv(constants.EnvSubnetExternal); got != "172.99.0.0/16" {
 		t.Fatalf("unexpected external subnet: %s", got)
 	}
 }
 
 func TestApplyEnvironmentDefaultsSetsRegistryForContainerd(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	t.Setenv("ESB_ENV", "")
-	t.Setenv("CONTAINER_REGISTRY", "")
+	t.Setenv(constants.EnvESBEnv, "")
+	t.Setenv(constants.EnvContainerRegistry, "")
 
-	applyEnvironmentDefaults("staging", "containerd", "esb-staging")
+	applyEnvironmentDefaults("staging", "containerd", constants.BrandingSlug+"-staging")
 
-	if got := os.Getenv("CONTAINER_REGISTRY"); got != "registry:5010" {
+	if got := os.Getenv(constants.EnvContainerRegistry); got != "registry:5010" {
 		t.Fatalf("unexpected container registry: %s", got)
 	}
 }
 
 func TestApplyEnvironmentDefaultsReplacesZeroPorts(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	t.Setenv("ESB_ENV", "")
-	t.Setenv("ESB_PORT_GATEWAY_HTTPS", "0")
-	t.Setenv("ESB_PORT_DATABASE", "0")
+	t.Setenv(constants.EnvESBEnv, "")
+	t.Setenv(constants.EnvPortGatewayHTTPS, "0")
+	t.Setenv(constants.EnvPortDatabase, "0")
 
-	applyEnvironmentDefaults("default", "docker", "esb-default")
+	applyEnvironmentDefaults("default", "docker", constants.BrandingSlug+"-default")
 
-	if got := os.Getenv("ESB_PORT_GATEWAY_HTTPS"); got != "443" {
+	if got := os.Getenv(constants.EnvPortGatewayHTTPS); got != "443" {
 		t.Fatalf("unexpected gateway https port: %s", got)
 	}
-	if got := os.Getenv("ESB_PORT_DATABASE"); got != "8001" {
+	if got := os.Getenv(constants.EnvPortDatabase); got != "8001" {
 		t.Fatalf("unexpected database port: %s", got)
 	}
 }
@@ -120,7 +122,7 @@ func TestApplyEnvironmentDefaultsReplacesZeroPorts(t *testing.T) {
 func TestApplyProxyDefaults(t *testing.T) {
 	t.Setenv("HTTP_PROXY", "http://proxy.example.com:8080")
 	t.Setenv("NO_PROXY", "existing.com")
-	t.Setenv("ESB_NO_PROXY_EXTRA", "extra.com")
+	t.Setenv(constants.EnvESBNoProxyExtra, "extra.com")
 
 	applyProxyDefaults()
 

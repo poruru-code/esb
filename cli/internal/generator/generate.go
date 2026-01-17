@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
@@ -123,6 +124,8 @@ func GenerateFiles(cfg config.GeneratorConfig, opts GenerateOptions) ([]Function
 		functions = append(functions, staged.Function)
 	}
 
+	sortFunctionsByName(functions)
+
 	functionsYmlPath := resolveConfigPath(cfg.Paths.FunctionsYml, baseDir, outputDir, "functions.yml")
 	functionsContent, err := RenderFunctionsYml(functions, opts.RegistryInternal, resolvedTag)
 	if err != nil {
@@ -183,6 +186,12 @@ func resolveTag(tag, fallback string) string {
 		return fallback
 	}
 	return "latest"
+}
+
+func sortFunctionsByName(functions []FunctionSpec) {
+	sort.Slice(functions, func(i, j int) bool {
+		return functions[i].Name < functions[j].Name
+	})
 }
 
 // mergeParameters merges generator config parameters with runtime overrides.

@@ -15,11 +15,7 @@ defaults:
 functions:
 {{- range .Functions }}
   {{ .Name }}:
-    {{- if $.Registry }}
-    image: "{{ $.Registry }}/{{ .Name }}:{{ $.Tag }}"
-    {{- else }}
-    image: "{{ .Name }}:{{ $.Tag }}"
-    {{- end }}
+    image: "${FUNCTION_IMAGE_PREFIX}{{ .Name }}:${ESB_IMAGE_TAG}"
     {{- if .Timeout }}
     timeout: {{ .Timeout }}
     {{- end }}

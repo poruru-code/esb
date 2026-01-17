@@ -41,7 +41,7 @@ func applyRuntimeEnv(ctx state.Context, resolver func(string) (string, error)) {
 
 	_ = os.Setenv(constants.EnvESBEnv, env)
 	setEnvIfEmpty(constants.EnvESBProjectName, ctx.ComposeProject)
-	setEnvIfEmpty(constants.EnvESBImageTag, env)
+	setEnvIfEmpty(constants.EnvESBImageTag, defaultImageTag(ctx.Mode, env))
 
 	applyPortDefaults(env)
 	applySubnetDefaults(env)
@@ -50,6 +50,25 @@ func applyRuntimeEnv(ctx state.Context, resolver func(string) (string, error)) {
 	_ = applyGeneratorConfigEnv(ctx.GeneratorPath)
 	applyConfigDirEnv(ctx, resolver)
 	applyProxyDefaults()
+}
+
+func defaultImageTag(mode, env string) string {
+	normalized := strings.ToLower(strings.TrimSpace(mode))
+	if normalized == "" {
+		normalized = strings.ToLower(strings.TrimSpace(os.Getenv(constants.EnvESBMode)))
+	}
+	switch normalized {
+	case "docker":
+		return "docker"
+	case "containerd":
+		return "containerd"
+	case "firecracker":
+		return "firecracker"
+	}
+	if strings.TrimSpace(env) != "" {
+		return env
+	}
+	return "latest"
 }
 
 // applyProxyDefaults ensures that proxy-related environment variables are consistent

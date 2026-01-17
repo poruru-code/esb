@@ -12,6 +12,7 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/app"
 	"github.com/poruru/edge-serverless-box/cli/internal/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 )
 
 func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
@@ -26,7 +27,7 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		},
 		Paths: config.PathsConfig{
 			SamTemplate: "template.yaml",
-			OutputDir:   ".esb/",
+			OutputDir:   constants.BrandingOutputDir + "/",
 		},
 	}
 	if err := config.SaveGeneratorConfig(filepath.Join(projectDir, "generator.yml"), cfg); err != nil {
@@ -78,10 +79,11 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		FindRepoRoot: func(string) (string, error) { return repoRoot, nil },
 	}
 
-	t.Setenv("ESB_MODE", "")
-	t.Setenv("ESB_CONFIG_DIR", "")
-	t.Setenv("ESB_PROJECT_NAME", "")
-	t.Setenv("ESB_IMAGE_TAG", "")
+	t.Setenv(constants.EnvESBMode, "")
+	t.Setenv(constants.EnvESBConfigDir, "")
+	t.Setenv(constants.EnvESBProjectName, "")
+	t.Setenv(constants.EnvESBImageTag, "")
+	t.Setenv(constants.EnvESBMode, "")
 
 	setupRootCA(t)
 	request := app.BuildRequest{
@@ -93,7 +95,7 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	expectedOutput := filepath.Join(projectDir, ".esb", "staging")
+	expectedOutput := filepath.Join(projectDir, constants.BrandingOutputDir, "staging")
 	if gotCfg.Paths.OutputDir != expectedOutput {
 		t.Fatalf("unexpected output dir: %s", gotCfg.Paths.OutputDir)
 	}
@@ -141,43 +143,44 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		}
 	}
 
-	if got := os.Getenv("ESB_CONFIG_DIR"); got != "services/gateway/.esb-staging/demo-staging/staging/config" {
-		t.Fatalf("unexpected ESB_CONFIG_DIR: %s", got)
+	expectedConfigDir := filepath.ToSlash(filepath.Join("services", "gateway", constants.BrandingStagingDir, "demo-staging", "staging", "config"))
+	if got := os.Getenv(constants.EnvESBConfigDir); got != expectedConfigDir {
+		t.Fatalf("unexpected %s: %s", constants.EnvESBConfigDir, got)
 	}
-	if got := os.Getenv("ESB_PROJECT_NAME"); got != "demo-staging" {
-		t.Fatalf("unexpected ESB_PROJECT_NAME: %s", got)
+	if got := os.Getenv(constants.EnvESBProjectName); got != "demo-staging" {
+		t.Fatalf("unexpected %s: %s", constants.EnvESBProjectName, got)
 	}
-	if got := os.Getenv("ESB_IMAGE_TAG"); got != "staging" {
-		t.Fatalf("unexpected ESB_IMAGE_TAG: %s", got)
+	if got := os.Getenv(constants.EnvESBImageTag); got != "containerd" {
+		t.Fatalf("unexpected %s: %s", constants.EnvESBImageTag, got)
 	}
-	if got := os.Getenv("ESB_MODE"); got != "containerd" {
-		t.Fatalf("unexpected ESB_MODE: %s", got)
+	if got := os.Getenv(constants.EnvESBMode); got != "containerd" {
+		t.Fatalf("unexpected %s: %s", constants.EnvESBMode, got)
 	}
 
-	staged := filepath.Join(repoRoot, "services", "gateway", ".esb-staging", "demo-staging", "staging", "config", "functions.yml")
+	staged := filepath.Join(repoRoot, "services", "gateway", constants.BrandingStagingDir, "demo-staging", "staging", "config", "functions.yml")
 	if _, err := os.Stat(staged); err != nil {
 		t.Fatalf("expected staged config: %v", err)
 	}
 
-	if !hasDockerBuildTag(dockerRunner.calls, "localhost:5010/esb-lambda-base:staging") {
+	if !hasDockerBuildTag(dockerRunner.calls, "localhost:5010/"+constants.BrandingImagePrefix+"-lambda-base:containerd") {
 		t.Fatalf("expected base image build")
 	}
-	if !hasDockerBuildTag(dockerRunner.calls, "localhost:5010/hello:staging") {
+	if !hasDockerBuildTag(dockerRunner.calls, "localhost:5010/hello:containerd") {
 		t.Fatalf("expected function image build")
 	}
-	if !hasDockerPushTag(dockerRunner.calls, "localhost:5010/esb-lambda-base:staging") {
+	if !hasDockerPushTag(dockerRunner.calls, "localhost:5010/"+constants.BrandingImagePrefix+"-lambda-base:containerd") {
 		t.Fatalf("expected base image push")
 	}
-	if !hasDockerPushTag(dockerRunner.calls, "localhost:5010/hello:staging") {
+	if !hasDockerPushTag(dockerRunner.calls, "localhost:5010/hello:containerd") {
 		t.Fatalf("expected function image push")
 	}
-	if !hasDockerBuildLabel(dockerRunner.calls, "com.esb.managed=true") {
+	if !hasDockerBuildLabel(dockerRunner.calls, constants.BrandingLabelPrefix+".managed=true") {
 		t.Fatalf("expected managed label on build")
 	}
-	if !hasDockerBuildLabel(dockerRunner.calls, "com.esb.project=demo-staging") {
+	if !hasDockerBuildLabel(dockerRunner.calls, constants.BrandingLabelPrefix+".project=demo-staging") {
 		t.Fatalf("expected project label on build")
 	}
-	if !hasDockerBuildLabel(dockerRunner.calls, "com.esb.env=staging") {
+	if !hasDockerBuildLabel(dockerRunner.calls, constants.BrandingLabelPrefix+".env=staging") {
 		t.Fatalf("expected env label on build")
 	}
 
@@ -198,7 +201,7 @@ func TestGoBuilderBuildFirecrackerBuildsServiceImages(t *testing.T) {
 		},
 		Paths: config.PathsConfig{
 			SamTemplate: "template.yaml",
-			OutputDir:   ".esb/",
+			OutputDir:   constants.BrandingOutputDir + "/",
 		},
 	}
 	if err := config.SaveGeneratorConfig(filepath.Join(projectDir, "generator.yml"), cfg); err != nil {
@@ -252,10 +255,10 @@ func TestGoBuilderBuildFirecrackerBuildsServiceImages(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if !hasDockerBuildTag(dockerRunner.calls, "localhost:5010/esb-runtime-node:prod") {
+	if !hasDockerBuildTag(dockerRunner.calls, "localhost:5010/"+constants.BrandingImagePrefix+"-runtime-node:prod") {
 		t.Fatalf("expected runtime-node image build")
 	}
-	if !hasDockerBuildTag(dockerRunner.calls, "localhost:5010/esb-agent:prod") {
+	if !hasDockerBuildTag(dockerRunner.calls, "localhost:5010/"+constants.BrandingImagePrefix+"-agent:prod") {
 		t.Fatalf("expected agent image build")
 	}
 }
@@ -365,9 +368,9 @@ func setupRootCA(t *testing.T) string {
 	t.Helper()
 
 	caDir := t.TempDir()
-	caPath := filepath.Join(caDir, esbRootCACertName)
+	caPath := filepath.Join(caDir, constants.BrandingRootCACertFilename)
 	writeTestFile(t, caPath, "root-CA")
-	t.Setenv("ESB_CA_CERT_PATH", caPath)
+	t.Setenv(constants.EnvESBCACertPath, caPath)
 	return caPath
 }
 

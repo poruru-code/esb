@@ -10,9 +10,6 @@ from pathlib import Path
 from types import ModuleType
 
 import toml
-import yaml
-
-from tools.branding.branding import BrandingError, derive_branding
 
 try:
     import grp as _grp
@@ -113,30 +110,6 @@ def resolve_repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
-def load_branding(repo_root: Path):
-    branding_path = repo_root / "config" / "branding.yaml"
-    if not branding_path.exists():
-        raise RuntimeError(f"Branding config not found: {branding_path}")
-
-    data = yaml.safe_load(branding_path.read_text()) or {}
-    brand = str(data.get("brand", "")).strip()
-    if not brand:
-        raise RuntimeError("Branding config must define 'brand'")
-
-    try:
-        return derive_branding(brand)
-    except BrandingError as exc:
-        raise RuntimeError(f"Invalid branding config: {exc}") from exc
-
-
-def resolve_output_dir(config: dict, branding) -> str:
-    cert_cfg = config.get("certificate", {})
-    output_dir = cert_cfg.get("output_dir", DEFAULT_CERT_OUTPUT_DIR)
-    if branding and output_dir == DEFAULT_CERT_OUTPUT_DIR:
-        output_dir = f"~/{branding.paths['home_dir']}/certs"
-    return output_dir
-
-
 def ensure_output_dir(output_dir: str) -> None:
     expanded = os.path.expanduser(output_dir)
     owner_hint = str(Path(expanded).parent)
@@ -211,9 +184,8 @@ if __name__ == "__main__":
     if not config_path.is_absolute():
         config_path = repo_root / config_path
     config = toml.load(config_path)
-    branding = load_branding(repo_root)
     cert_cfg = config.get("certificate", {})
-    output_dir = os.path.expanduser(resolve_output_dir(config, branding))
+    output_dir = os.path.expanduser(cert_cfg.get("output_dir", DEFAULT_CERT_OUTPUT_DIR))
 
     # Force CAROOT to follow branding output_dir to avoid stale env vars.
     if os.environ.get("CAROOT") and os.environ["CAROOT"] != output_dir:

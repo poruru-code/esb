@@ -75,7 +75,7 @@ ENV PYTHONPATH=/app
 # Copy services code
 COPY services/common /app/services/common
 COPY services/gateway /app/services/gateway
-RUN rm -rf /app/services/gateway/.esb-staging
+RUN rm -rf /app/services/gateway/.staging
 # Copy Config (base: SSL certs, HAProxy, etc.)
 COPY config /app/config
 
