@@ -155,8 +155,9 @@ services:
     build:
       context: .
       dockerfile: services/gateway/Dockerfile
+      additional_contexts:
+        config: {{ENV_PREFIX_VAR}}_CONFIG_DIR:-services/gateway/config}
       args:
-        CONFIG_DIR: {{ENV_PREFIX_VAR}}_CONFIG_DIR:-services/gateway/config}
         {{ENV_PREFIX}}_UID: {{ENV_PREFIX_VAR}}_UID:-1000}
         {{ENV_PREFIX}}_GID: {{ENV_PREFIX_VAR}}_GID:-1000}
     container_name: {{ENV_PREFIX_VAR}}_PROJECT_NAME:-{{SLUG}}}-gateway

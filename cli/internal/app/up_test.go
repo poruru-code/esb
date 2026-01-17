@@ -12,6 +12,7 @@ import (
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/cli/internal/staging"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
@@ -219,7 +220,8 @@ func TestRunUpAppliesEnvDefaults(t *testing.T) {
 	setupProjectConfig(t, repoRoot, "demo")
 
 	projectName := expectedComposeProject("demo", "staging")
-	stagingDir := filepath.Join(repoRoot, "services", "gateway", constants.BrandingStagingDir, projectName, "staging", "config")
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	stagingDir := staging.ConfigDir(projectName, "staging")
 	if err := os.MkdirAll(stagingDir, 0o755); err != nil {
 		t.Fatalf("create staging dir: %v", err)
 	}
@@ -257,7 +259,7 @@ func TestRunUpAppliesEnvDefaults(t *testing.T) {
 	if got := os.Getenv(constants.EnvESBImageTag); got != "docker" {
 		t.Fatalf("unexpected %s: %s", constants.EnvESBImageTag, got)
 	}
-	expectedConfigDir := filepath.ToSlash(filepath.Join("services", "gateway", constants.BrandingStagingDir, projectName, "staging", "config"))
+	expectedConfigDir := filepath.ToSlash(staging.ConfigDir(projectName, "staging"))
 	if got := os.Getenv(constants.EnvESBConfigDir); got != expectedConfigDir {
 		t.Fatalf("unexpected %s: %s", constants.EnvESBConfigDir, got)
 	}

@@ -77,8 +77,9 @@ services:
     build:
       context: .
       dockerfile: services/gateway/Dockerfile.firecracker
+      additional_contexts:
+        config: {{ENV_PREFIX_VAR}}_CONFIG_DIR:-services/gateway/config}
       args:
-        CONFIG_DIR: {{ENV_PREFIX_VAR}}_CONFIG_DIR:-}
         {{ENV_PREFIX}}_UID: {{ENV_PREFIX_VAR}}_UID:-1000}
         {{ENV_PREFIX}}_GID: {{ENV_PREFIX_VAR}}_GID:-1000}
     ports:

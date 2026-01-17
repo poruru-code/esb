@@ -12,8 +12,10 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/compose"
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/staging"
 )
 
@@ -22,15 +24,10 @@ type registryConfig struct {
 	Internal string
 }
 
-const (
-	esbRootCASecretID = "esb_root_ca"
-	esbRootCACertName = "rootCA.crt"
-)
-
 func resolveRegistryConfig(mode string) registryConfig {
 	switch strings.ToLower(strings.TrimSpace(mode)) {
 	case compose.ModeContainerd, compose.ModeFirecracker:
-		port := strings.TrimSpace(os.Getenv("ESB_PORT_REGISTRY"))
+		port := strings.TrimSpace(os.Getenv(constants.EnvPortRegistry))
 		if port == "" {
 			port = "5010"
 		}
@@ -44,7 +41,7 @@ func resolveRegistryConfig(mode string) registryConfig {
 }
 
 func resolveImageTag(env string) string {
-	if tag := strings.TrimSpace(os.Getenv("ESB_IMAGE_TAG")); tag != "" {
+	if tag := strings.TrimSpace(os.Getenv(constants.EnvESBImageTag)); tag != "" {
 		return tag
 	}
 	if strings.TrimSpace(env) != "" {
@@ -60,7 +57,7 @@ func defaultGeneratorParameters() map[string]string {
 	}
 }
 
-func esbImageLabels(project, env string) map[string]string {
+func brandingImageLabels(project, env string) map[string]string {
 	labels := map[string]string{
 		compose.ESBManagedLabel: "true",
 	}
@@ -75,8 +72,8 @@ func esbImageLabels(project, env string) map[string]string {
 
 func stageConfigFiles(outputDir, repoRoot, composeProject, env string) error {
 	configDir := filepath.Join(outputDir, "config")
-	stagingRoot := staging.BaseDir(repoRoot, composeProject, env)
-	destDir := filepath.Join(stagingRoot, env, "config")
+	stagingRoot := staging.BaseDir(composeProject, env)
+	destDir := staging.ConfigDir(composeProject, env)
 	if err := removeDir(destDir); err != nil {
 		return err
 	}
@@ -119,7 +116,7 @@ func stageConfigFiles(outputDir, repoRoot, composeProject, env string) error {
 		return err
 	}
 
-	// Copy gateway source (excluding .esb-staging to avoid infinite recursion)
+	// Copy gateway source (excluding staging dir to avoid infinite recursion)
 	entries, err := os.ReadDir(gatewaySrc)
 	if err != nil {
 		return err
@@ -128,7 +125,7 @@ func stageConfigFiles(outputDir, repoRoot, composeProject, env string) error {
 		return err
 	}
 	for _, entry := range entries {
-		if entry.Name() == ".esb-staging" {
+		if entry.Name() == constants.BrandingStagingDir {
 			continue
 		}
 		srcPath := filepath.Join(gatewaySrc, entry.Name())
@@ -191,10 +188,7 @@ func buildBaseImage(
 		return fmt.Errorf("base dockerfile not found: %w", err)
 	}
 
-	imageTag := fmt.Sprintf("esb-lambda-base:%s", tag)
-	if registry != "" {
-		imageTag = fmt.Sprintf("%s/%s", registry, imageTag)
-	}
+	imageTag := lambdaBaseImageTag(registry, tag)
 
 	if err := buildDockerImage(ctx, runner, assetsDir, "Dockerfile.lambda-base", imageTag, noCache, verbose, labels); err != nil {
 		return err
@@ -203,6 +197,38 @@ func buildBaseImage(
 		return pushDockerImage(ctx, runner, assetsDir, imageTag, verbose)
 	}
 	return nil
+}
+
+func withBuildLock(name string, fn func() error) error {
+	key := strings.TrimSpace(name)
+	if key == "" {
+		return fn()
+	}
+	lockRoot := staging.RootDir()
+	if err := os.MkdirAll(lockRoot, 0o755); err != nil {
+		return err
+	}
+	lockPath := filepath.Join(lockRoot, fmt.Sprintf(".lock-%s", key))
+	lockFile, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o644)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = syscall.Flock(int(lockFile.Fd()), syscall.LOCK_UN)
+		_ = lockFile.Close()
+	}()
+	if err := syscall.Flock(int(lockFile.Fd()), syscall.LOCK_EX); err != nil {
+		return err
+	}
+	return fn()
+}
+
+func lambdaBaseImageTag(registry, tag string) string {
+	imageTag := fmt.Sprintf("%s-lambda-base:%s", constants.BrandingImagePrefix, tag)
+	if registry != "" {
+		return fmt.Sprintf("%s/%s", registry, imageTag)
+	}
+	return imageTag
 }
 
 func buildFunctionImages(
@@ -219,6 +245,7 @@ func buildFunctionImages(
 	if verbose {
 		fmt.Println("Building function images...")
 	}
+	expectedFingerprint := strings.TrimSpace(labels[compose.ESBImageFingerprintLabel])
 	for _, fn := range functions {
 		if verbose {
 			fmt.Printf("  Building image for %s...\n", fn.Name)
@@ -246,8 +273,19 @@ func buildFunctionImages(
 		}
 		dockerfileRel = filepath.ToSlash(dockerfileRel)
 
-		if err := buildDockerImage(ctx, runner, outputDir, dockerfileRel, imageTag, noCache, verbose, labels); err != nil {
-			return err
+		skipBuild := false
+		if !noCache && expectedFingerprint != "" {
+			if dockerImageHasLabelValue(ctx, runner, outputDir, imageTag, compose.ESBImageFingerprintLabel, expectedFingerprint) {
+				skipBuild = true
+				if verbose {
+					fmt.Printf("  Skipping %s (up-to-date)\n", fn.Name)
+				}
+			}
+		}
+		if !skipBuild {
+			if err := buildDockerImage(ctx, runner, outputDir, dockerfileRel, imageTag, noCache, verbose, labels); err != nil {
+				return err
+			}
 		}
 		if registry != "" {
 			if err := pushDockerImage(ctx, runner, outputDir, imageTag, verbose); err != nil {
@@ -275,11 +313,11 @@ func buildServiceImages(
 		dir        string
 		dockerfile string
 	}{
-		"esb-runtime-node": {
+		fmt.Sprintf("%s-runtime-node", constants.BrandingImagePrefix): {
 			dir:        filepath.Join(repoRoot, "services", "runtime-node"),
 			dockerfile: "Dockerfile.firecracker",
 		},
-		"esb-agent": {
+		fmt.Sprintf("%s-agent", constants.BrandingImagePrefix): {
 			dir:        filepath.Join(repoRoot, "services", "agent"),
 			dockerfile: "Dockerfile",
 		},
@@ -396,7 +434,7 @@ func dockerCABuildArgs(dockerfile string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return []string{"--build-arg", fmt.Sprintf("ESB_CA_FINGERPRINT=%s", fingerprint)}, nil
+	return []string{"--build-arg", fmt.Sprintf("%s=%s", constants.BuildArgCAFingerprint, fingerprint)}, nil
 }
 
 func dockerSecretArgs(dockerfile string) ([]string, error) {
@@ -410,7 +448,11 @@ func dockerSecretArgs(dockerfile string) ([]string, error) {
 	if os.Getenv("DOCKER_BUILDKIT") == "" {
 		_ = os.Setenv("DOCKER_BUILDKIT", "1")
 	}
-	return []string{"--secret", fmt.Sprintf("id=%s,src=%s", esbRootCASecretID, path)}, nil
+	return []string{
+		"--secret", fmt.Sprintf("id=%s,src=%s", constants.BrandingRootCASecretID, path),
+		"--build-arg", fmt.Sprintf("ROOT_CA_SECRET_ID=%s", constants.BrandingRootCASecretID),
+		"--build-arg", fmt.Sprintf("ROOT_CA_CERT_FILENAME=%s", constants.BrandingRootCACertFilename),
+	}, nil
 }
 
 func needsRootCASecret(dockerfile string) bool {
@@ -419,20 +461,20 @@ func needsRootCASecret(dockerfile string) bool {
 }
 
 func resolveRootCAPath() (string, error) {
-	if value := strings.TrimSpace(os.Getenv("ESB_CA_CERT_PATH")); value != "" {
+	if value := strings.TrimSpace(os.Getenv(constants.EnvESBCACertPath)); value != "" {
 		return ensureRootCAPath(expandHome(value))
 	}
-	if value := strings.TrimSpace(os.Getenv("ESB_CERT_DIR")); value != "" {
-		return ensureRootCAPath(filepath.Join(expandHome(value), esbRootCACertName))
+	if value := strings.TrimSpace(os.Getenv(constants.EnvESBCertDir)); value != "" {
+		return ensureRootCAPath(filepath.Join(expandHome(value), constants.BrandingRootCACertFilename))
 	}
 	if value := strings.TrimSpace(os.Getenv("CAROOT")); value != "" {
-		return ensureRootCAPath(filepath.Join(expandHome(value), esbRootCACertName))
+		return ensureRootCAPath(filepath.Join(expandHome(value), constants.BrandingRootCACertFilename))
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("root CA not found: %w", err)
 	}
-	return ensureRootCAPath(filepath.Join(home, ".esb", "certs", esbRootCACertName))
+	return ensureRootCAPath(filepath.Join(home, constants.BrandingHomeDir, "certs", constants.BrandingRootCACertFilename))
 }
 
 func ensureRootCAPath(path string) (string, error) {
@@ -514,7 +556,7 @@ func writeFunctionDockerignore(contextDir, functionDir string) error {
 	}
 
 	lines := []string{
-		"# Auto-generated by esb build.",
+		fmt.Sprintf("# Auto-generated by %s build.", constants.BrandingCLIName),
 		"# What: Limit Docker build context to the active function and its layers.",
 		"# Why: Reduce context upload size when using output_dir as build context.",
 		"*",

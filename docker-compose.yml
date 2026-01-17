@@ -155,8 +155,9 @@ services:
     build:
       context: .
       dockerfile: services/gateway/Dockerfile
+      additional_contexts:
+        config: ${ESB_CONFIG_DIR:-services/gateway/config}
       args:
-        CONFIG_DIR: ${ESB_CONFIG_DIR:-services/gateway/config}
         ESB_UID: ${ESB_UID:-1000}
         ESB_GID: ${ESB_GID:-1000}
     container_name: ${ESB_PROJECT_NAME:-esb}-gateway

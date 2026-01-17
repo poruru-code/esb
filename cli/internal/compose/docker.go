@@ -13,15 +13,18 @@ import (
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/volume"
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
 const (
-	ComposeProjectLabel = "com.docker.compose.project"
-	ComposeServiceLabel = "com.docker.compose.service"
-	ESBProjectLabel     = "com.esb.project"
-	ESBEnvLabel         = "com.esb.env"
-	ESBManagedLabel     = "com.esb.managed"
+	ComposeProjectLabel      = "com.docker.compose.project"
+	ComposeServiceLabel      = "com.docker.compose.service"
+	ESBProjectLabel          = constants.BrandingLabelPrefix + ".project"
+	ESBEnvLabel              = constants.BrandingLabelPrefix + ".env"
+	ESBManagedLabel          = constants.BrandingLabelPrefix + ".managed"
+	ESBCAFingerprintLabel    = constants.BrandingLabelPrefix + ".ca_fingerprint"
+	ESBImageFingerprintLabel = constants.BrandingLabelPrefix + ".image_fingerprint"
 )
 
 // DockerClient defines the subset of Docker SDK methods used by this package.

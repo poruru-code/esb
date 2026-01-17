@@ -50,6 +50,9 @@ func applyRuntimeEnv(ctx state.Context, resolver func(string) (string, error)) {
 	_ = applyGeneratorConfigEnv(ctx.GeneratorPath)
 	applyConfigDirEnv(ctx, resolver)
 	applyProxyDefaults()
+	if os.Getenv("DOCKER_BUILDKIT") == "" {
+		_ = os.Setenv("DOCKER_BUILDKIT", "1")
+	}
 }
 
 func defaultImageTag(mode, env string) string {
@@ -294,20 +297,13 @@ func applyConfigDirEnv(ctx state.Context, resolver func(string) (string, error))
 		return
 	}
 
-	if resolver == nil {
-		resolver = config.ResolveRepoRoot
-	}
+	_ = resolver
 
-	root, err := resolver(ctx.ProjectDir)
-	if err != nil {
-		return
-	}
-	stagingRel := staging.ConfigDirRelative(ctx.ComposeProject, ctx.Env)
-	stagingAbs := filepath.Join(root, stagingRel)
+	stagingAbs := staging.ConfigDir(ctx.ComposeProject, ctx.Env)
 	if _, err := os.Stat(stagingAbs); err != nil {
 		return
 	}
-	_ = os.Setenv(constants.EnvESBConfigDir, filepath.ToSlash(stagingRel))
+	_ = os.Setenv(constants.EnvESBConfigDir, filepath.ToSlash(stagingAbs))
 }
 
 // setEnvIfEmpty sets an environment variable only if it's currently empty.

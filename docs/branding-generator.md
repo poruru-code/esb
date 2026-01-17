@@ -21,6 +21,14 @@
 - `services/agent/config/cni` ディレクトリには `10-<slug>.conflist` が 1 つだけ残る。ブランド名を変えたら生成ツールが旧ファイルを自動削除し、新しい `<slug>` 名のファイルだけを残す。
 - `10-cni.conflist.tmpl` には `_comment` フィールド付きヘッダーを追加し、コメントに生成元テンプレートを記載。
 
+## ステージングキャッシュ
+- 生成された `functions.yml` / `routing.yml` のステージングはリポジトリ外に置く。
+- パスは `XDG_CACHE_HOME/<slug>/staging` を優先し、未設定時は `~/.<slug>/.cache/staging` を使う。
+- ステージングのディレクトリ名は `project + env` のハッシュを含める。
+- `ESB_CONFIG_DIR` はステージング済みの `config/` を指し、Docker ビルドの追加コンテキストとして利用する。
+- 追加コンテキストを使うため、Docker BuildKit を有効化する（`DOCKER_BUILDKIT=1`）。
+- 関数イメージには `com.<slug>.image_fingerprint` ラベルを付け、`project + env` と出力内容、lambda base の ID を基に更新判定する（`--no-cache` で無効化）。
+
 ## CA とビルドフロー
 - `mise run setup:certs` により `uv run python tools/cert-gen/generate.py` が呼ばれ、`CAROOT` は `.mise.toml` の設定に依存せず、現ブランドの `~/.<slug>/certs` を使う。
 - Docker ビルド（`services/common/Dockerfile.*`）には `ROOT_CA_FINGERPRINT` を渡し、`branding:generate` を走らせることで `docker-compose*.yml` やエージェント・ランタイムのソースがブランド名を反映する。

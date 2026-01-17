@@ -1,5 +1,5 @@
 // Where: cli/internal/generator/go_builder.go
-// What: Go-native build implementation for esb build.
+// What: Go-native build implementation for CLI build.
 // Why: Replace the Python build pipeline with a Go-based generator + docker workflow.
 package generator
 
@@ -13,6 +13,7 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/app"
 	"github.com/poruru/edge-serverless-box/cli/internal/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 )
 
 type GoBuilder struct {
@@ -131,7 +132,7 @@ func (b *GoBuilder) Build(request app.BuildRequest) error {
 
 	projectName := strings.ToLower(cfg.App.Name)
 	if projectName == "" {
-		projectName = "esb"
+		projectName = constants.BrandingSlug
 	}
 	composeProject := fmt.Sprintf("%s-%s", projectName, strings.ToLower(request.Env))
 
@@ -139,7 +140,19 @@ func (b *GoBuilder) Build(request app.BuildRequest) error {
 		return err
 	}
 	applyBuildEnv(request.Env, composeProject)
-	imageLabels := esbImageLabels(composeProject, request.Env)
+	imageLabels := brandingImageLabels(composeProject, request.Env)
+	rootFingerprint, err := resolveRootCAFingerprint()
+	if err != nil {
+		return err
+	}
+	if os.Getenv(constants.BuildArgCAFingerprint) == "" {
+		_ = os.Setenv(constants.BuildArgCAFingerprint, rootFingerprint)
+	}
+	baseImageLabels := make(map[string]string, len(imageLabels)+1)
+	for key, value := range imageLabels {
+		baseImageLabels[key] = value
+	}
+	baseImageLabels[compose.ESBCAFingerprintLabel] = rootFingerprint
 
 	if registry.External != "" {
 		if err := ensureRegistryRunning(
@@ -160,6 +173,7 @@ func (b *GoBuilder) Build(request app.BuildRequest) error {
 	if !request.Verbose {
 		fmt.Print("➜ Building base image... ")
 	}
+	lambdaBaseTag := lambdaBaseImageTag(registry.External, imageTag)
 	if err := buildBaseImage(context.Background(), b.Runner, repoRoot, registry.External, imageTag, request.NoCache, request.Verbose, imageLabels); err != nil {
 		if !request.Verbose {
 			fmt.Println("Failed")
@@ -170,30 +184,96 @@ func (b *GoBuilder) Build(request app.BuildRequest) error {
 		fmt.Println("Done")
 	}
 
+	baseImageID := dockerImageID(context.Background(), b.Runner, repoRoot, lambdaBaseTag)
+	imageFingerprint, err := buildImageFingerprint(
+		cfg.Paths.OutputDir,
+		composeProject,
+		request.Env,
+		baseImageID,
+		functions,
+	)
+	if err != nil {
+		return err
+	}
+	functionLabels := imageLabels
+	if imageFingerprint != "" {
+		functionLabels = make(map[string]string, len(imageLabels)+1)
+		for key, value := range imageLabels {
+			functionLabels[key] = value
+		}
+		functionLabels[compose.ESBImageFingerprintLabel] = imageFingerprint
+	}
+
 	if !request.Verbose {
 		fmt.Print("➜ Building OS base image... ")
 	}
-	if err := buildDockerImage(context.Background(), b.Runner, repoRoot, "services/common/Dockerfile.os-base", "esb-os-base:latest", request.NoCache, request.Verbose, imageLabels); err != nil {
-		if !request.Verbose {
-			fmt.Println("Failed")
+	osBaseTag := fmt.Sprintf("%s-os-base:latest", constants.BrandingImagePrefix)
+	if err := withBuildLock("os-base", func() error {
+		if !request.NoCache && dockerImageHasLabelValue(context.Background(), b.Runner, repoRoot, osBaseTag, compose.ESBCAFingerprintLabel, rootFingerprint) {
+			if request.Verbose {
+				fmt.Println("Skipping OS base image build (already exists).")
+			} else {
+				fmt.Println("Skipped")
+			}
+			return nil
 		}
+		if err := buildDockerImage(
+			context.Background(),
+			b.Runner,
+			repoRoot,
+			"services/common/Dockerfile.os-base",
+			osBaseTag,
+			request.NoCache,
+			request.Verbose,
+			baseImageLabels,
+		); err != nil {
+			if !request.Verbose {
+				fmt.Println("Failed")
+			}
+			return err
+		}
+		if !request.Verbose {
+			fmt.Println("Done")
+		}
+		return nil
+	}); err != nil {
 		return err
-	}
-	if !request.Verbose {
-		fmt.Println("Done")
 	}
 
 	if !request.Verbose {
 		fmt.Print("➜ Building Python base image... ")
 	}
-	if err := buildDockerImage(context.Background(), b.Runner, repoRoot, "services/common/Dockerfile.python-base", "esb-python-base:latest", request.NoCache, request.Verbose, imageLabels); err != nil {
-		if !request.Verbose {
-			fmt.Println("Failed")
+	pythonBaseTag := fmt.Sprintf("%s-python-base:latest", constants.BrandingImagePrefix)
+	if err := withBuildLock("python-base", func() error {
+		if !request.NoCache && dockerImageHasLabelValue(context.Background(), b.Runner, repoRoot, pythonBaseTag, compose.ESBCAFingerprintLabel, rootFingerprint) {
+			if request.Verbose {
+				fmt.Println("Skipping Python base image build (already exists).")
+			} else {
+				fmt.Println("Skipped")
+			}
+			return nil
 		}
+		if err := buildDockerImage(
+			context.Background(),
+			b.Runner,
+			repoRoot,
+			"services/common/Dockerfile.python-base",
+			pythonBaseTag,
+			request.NoCache,
+			request.Verbose,
+			baseImageLabels,
+		); err != nil {
+			if !request.Verbose {
+				fmt.Println("Failed")
+			}
+			return err
+		}
+		if !request.Verbose {
+			fmt.Println("Done")
+		}
+		return nil
+	}); err != nil {
 		return err
-	}
-	if !request.Verbose {
-		fmt.Println("Done")
 	}
 
 	if !request.Verbose {
@@ -208,7 +288,7 @@ func (b *GoBuilder) Build(request app.BuildRequest) error {
 		imageTag,
 		request.NoCache,
 		request.Verbose,
-		imageLabels,
+		functionLabels,
 	); err != nil {
 		if !request.Verbose {
 			fmt.Println("Failed")

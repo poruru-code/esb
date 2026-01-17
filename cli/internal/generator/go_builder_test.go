@@ -13,9 +13,11 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/cli/internal/staging"
 )
 
 func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 	projectDir := t.TempDir()
 	templatePath := filepath.Join(projectDir, "template.yaml")
 	writeTestFile(t, templatePath, "Resources: {}")
@@ -143,7 +145,7 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		}
 	}
 
-	expectedConfigDir := filepath.ToSlash(filepath.Join("services", "gateway", constants.BrandingStagingDir, "demo-staging", "staging", "config"))
+	expectedConfigDir := filepath.ToSlash(staging.ConfigDir("demo-staging", "staging"))
 	if got := os.Getenv(constants.EnvESBConfigDir); got != expectedConfigDir {
 		t.Fatalf("unexpected %s: %s", constants.EnvESBConfigDir, got)
 	}
@@ -157,21 +159,21 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		t.Fatalf("unexpected %s: %s", constants.EnvESBMode, got)
 	}
 
-	staged := filepath.Join(repoRoot, "services", "gateway", constants.BrandingStagingDir, "demo-staging", "staging", "config", "functions.yml")
+	staged := filepath.Join(staging.ConfigDir("demo-staging", "staging"), "functions.yml")
 	if _, err := os.Stat(staged); err != nil {
 		t.Fatalf("expected staged config: %v", err)
 	}
 
-	if !hasDockerBuildTag(dockerRunner.calls, "localhost:5010/"+constants.BrandingImagePrefix+"-lambda-base:containerd") {
+	if !hasDockerBuildTag(dockerRunner.calls, "localhost:5010/"+constants.BrandingImagePrefix+"-lambda-base:staging") {
 		t.Fatalf("expected base image build")
 	}
-	if !hasDockerBuildTag(dockerRunner.calls, "localhost:5010/hello:containerd") {
+	if !hasDockerBuildTag(dockerRunner.calls, "localhost:5010/hello:staging") {
 		t.Fatalf("expected function image build")
 	}
-	if !hasDockerPushTag(dockerRunner.calls, "localhost:5010/"+constants.BrandingImagePrefix+"-lambda-base:containerd") {
+	if !hasDockerPushTag(dockerRunner.calls, "localhost:5010/"+constants.BrandingImagePrefix+"-lambda-base:staging") {
 		t.Fatalf("expected base image push")
 	}
-	if !hasDockerPushTag(dockerRunner.calls, "localhost:5010/hello:containerd") {
+	if !hasDockerPushTag(dockerRunner.calls, "localhost:5010/hello:staging") {
 		t.Fatalf("expected function image push")
 	}
 	if !hasDockerBuildLabel(dockerRunner.calls, constants.BrandingLabelPrefix+".managed=true") {
@@ -190,6 +192,7 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 }
 
 func TestGoBuilderBuildFirecrackerBuildsServiceImages(t *testing.T) {
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 	projectDir := t.TempDir()
 	templatePath := filepath.Join(projectDir, "template.yaml")
 	writeTestFile(t, templatePath, "Resources: {}")
@@ -217,6 +220,9 @@ func TestGoBuilderBuildFirecrackerBuildsServiceImages(t *testing.T) {
 	)
 	// Create mock service directories and root files required by staging logic
 	if err := os.MkdirAll(filepath.Join(repoRoot, "services", "common"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(repoRoot, "services", "gateway"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	writeTestFile(t, filepath.Join(repoRoot, "pyproject.toml"), "[project]\n")

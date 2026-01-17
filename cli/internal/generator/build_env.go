@@ -14,7 +14,7 @@ import (
 )
 
 func applyBuildEnv(env, composeProject string) {
-	configDir := staging.ConfigDirRelative(composeProject, env)
+	configDir := staging.ConfigDir(composeProject, env)
 	_ = os.Setenv(constants.EnvESBConfigDir, filepath.ToSlash(configDir))
 	if os.Getenv(constants.EnvESBProjectName) == "" {
 		_ = os.Setenv(constants.EnvESBProjectName, staging.ComposeProjectKey(composeProject, env))
