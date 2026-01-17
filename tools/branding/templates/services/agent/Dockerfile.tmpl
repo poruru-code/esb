@@ -33,7 +33,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && ARCH=$(uname -m) \
     && if [ "$ARCH" = "x86_64" ]; then ARCH="amd64"; fi \
     && if [ "$ARCH" = "aarch64" ]; then ARCH="arm64"; fi \
-    && curl -L -o cni-plugins.tgz "https://github.com/containernetworking/plugins/releases/download/${CNI_PLUGINS_VERSION}/cni-plugins-linux-${ARCH}-${CNI_PLUGINS_VERSION}.tgz" \
+    && curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors --connect-timeout 15 --max-time 300 \
+    -o cni-plugins.tgz "https://github.com/containernetworking/plugins/releases/download/${CNI_PLUGINS_VERSION}/cni-plugins-linux-${ARCH}-${CNI_PLUGINS_VERSION}.tgz" \
     && mkdir -p /opt/cni/bin \
     && tar -C /opt/cni/bin -xzf cni-plugins.tgz \
     && rm cni-plugins.tgz \
