@@ -15,7 +15,7 @@ Why: Keep downstream secrets out of base and keep updates reproducible.
 ```mermaid
 flowchart TD
   A[ベースrepo: esb] -->|fork/clone| B[下流repo作成]
-  B --> C[branding:generate でブランド変更]
+  B --> C[branding tool でブランド変更]
   C --> D[生成物を固定してコミット]
   A -->|format-patch| E[パッチ生成]
   E -->|git am| F[下流repoへ取り込み]
@@ -35,10 +35,11 @@ git remote add upstream <base-repo-url>
 ### 2) 下流でブランド変更（初回）
 ```bash
 # 例: acme に変更
-mise run branding:generate -- --brand acme
-# もしくは
-uv run python tools/branding/generate.py --brand acme
+git clone https://github.com/poruru-code/esb-branding-tool /tmp/esb-branding-tool
+cd /tmp/esb-branding-tool
+uv run python tools/branding/generate.py --root <downstream-repo> --brand acme
 
+cd <downstream-repo>
 git add .
 git commit -m "Branding: acme"
 ```
@@ -60,7 +61,9 @@ git am /tmp/branding-patches/*.patch
 - compose / Dockerfile / runtime 設定のテンプレが更新された
 
 ```bash
-mise run branding:generate -- --brand <downstream_brand>
+cd /tmp/esb-branding-tool
+uv run python tools/branding/generate.py --root <downstream-repo> --brand <downstream_brand>
+cd <downstream-repo>
 git add .
 git commit -m "Branding: regenerate for upstream changes"
 ```

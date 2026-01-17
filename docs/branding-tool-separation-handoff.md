@@ -41,7 +41,7 @@ Why: Preserve decisions, constraints, and executable next steps.
 - ツール自体は repo に残さない。
 
 ## ツールリポジトリの初期構成（最小案）
-現状の `tools/branding` をそのまま移植する前提。
+`esb-branding-tool` を正とし、`tools/branding` はツール repo 側で管理する。
 
 ```
 <tool-repo>/
@@ -62,11 +62,8 @@ uv --version
 
 ### 1) ツール repo を用意
 ```bash
-# 新規 repo 作成後、ESB から tools/branding を移植
-git clone <tool-repo-url>
-cp -R <esb-repo>/tools/branding tools/branding
-git add tools/branding
-git commit -m "Tool: import branding generator"
+# ツール repo を取得
+git clone https://github.com/poruru-code/esb-branding-tool
 ```
 
 ### 2) ツール repo から ESB を検証（手動）
@@ -76,8 +73,8 @@ cd <tool-repo>
 # ベースの生成物が正になる（ESB repo 内の生成結果と一致すること）
 uv run python tools/branding/generate.py --root /tmp/esb-check --check --brand esb
 ```
-ESB 側でテンプレート更新が入った場合は、`/tmp/esb-check` 側で生成物が最新であることを前提とする。
-必要なら ESB 側で `tools/branding/generate.py` を実行してから `--check` を行う。
+ESB 側でテンプレート更新が入った場合は、ツール repo 側で更新したテンプレートを使う前提とする。
+必要ならツール repo で `generate.py` を実行してから `--check` を行う。
 
 ### 3) 下流でブランド変更（手動）
 ```bash

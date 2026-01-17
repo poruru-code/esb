@@ -39,18 +39,6 @@ run = [
   "bash -lc 'source ../.branding.env && mkdir -p ~/.local/share/bash-completion/completions && ~/.local/bin/${BRANDING_CLI_NAME} completion bash > ~/.local/share/bash-completion/completions/${BRANDING_CLI_NAME}'",
 ]
 
-[tasks."branding:generate"]
-description = "Render branding templates (call with --brand if needed)"
-run = [
-  "uv run python tools/branding/generate.py",
-  "mise run setup:certs",
-  "mise run build-cli",
-]
-
-[tasks."branding:check"]
-description = "Check branding templates without writing outputs"
-run = "uv run python tools/branding/generate.py --check"
- 
 [tasks.dev-cli]
 description = "Watch and rebuild CLI on changes"
 dir = "cli"
