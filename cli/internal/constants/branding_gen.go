@@ -13,6 +13,6 @@ const (
 	BrandingHomeDir            = ".esb"
 	BrandingOutputDir          = ".esb"
 	BrandingStagingDir         = ".staging"
-	BrandingRootCASecretID     = "esb_root_ca"
+	BrandingRootCAMountID      = "esb_root_ca"
 	BrandingRootCACertFilename = "rootCA.crt"
 )

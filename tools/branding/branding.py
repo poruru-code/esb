@@ -90,7 +90,7 @@ def build_context(branding: Branding) -> dict[str, str]:
         "HOME_DIR": branding.paths["home_dir"],
         "OUTPUT_DIR": branding.paths["output_dir"],
         "STAGING_DIR": branding.paths["staging_dir"],
-        "ROOT_CA_SECRET_ID": branding.root_ca["secret_id"],
+        "ROOT_CA_MOUNT_ID": branding.root_ca["secret_id"],
         "ROOT_CA_CERT_FILENAME": branding.root_ca["cert_filename"],
         "RUNTIME_CONTAINER_PREFIX": branding.runtime["container_prefix"],
         "RUNTIME_NAMESPACE": branding.runtime["namespace"],

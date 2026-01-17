@@ -14,11 +14,11 @@ services:
       context: .
       dockerfile: services/common/Dockerfile.os-base
       args:
-        ROOT_CA_SECRET_ID: {{ROOT_CA_SECRET_ID}}
+        ROOT_CA_MOUNT_ID: {{ROOT_CA_MOUNT_ID}}
         ROOT_CA_CERT_FILENAME: {{ROOT_CA_CERT_FILENAME}}
         ROOT_CA_FINGERPRINT: ${ROOT_CA_FINGERPRINT:-}
       secrets:
-        - {{ROOT_CA_SECRET_ID}}
+        - {{ROOT_CA_MOUNT_ID}}
 
   python-base:
     image: {{IMAGE_PREFIX}}-python-base:latest
@@ -26,11 +26,11 @@ services:
       context: .
       dockerfile: services/common/Dockerfile.python-base
       args:
-        ROOT_CA_SECRET_ID: {{ROOT_CA_SECRET_ID}}
+        ROOT_CA_MOUNT_ID: {{ROOT_CA_MOUNT_ID}}
         ROOT_CA_CERT_FILENAME: {{ROOT_CA_CERT_FILENAME}}
         ROOT_CA_FINGERPRINT: ${ROOT_CA_FINGERPRINT:-}
       secrets:
-        - {{ROOT_CA_SECRET_ID}}
+        - {{ROOT_CA_MOUNT_ID}}
 
   # ============================================
   # Permission Helper (for RustFS)
@@ -227,7 +227,7 @@ volumes:
   victorialogs_data:
 
 secrets:
-  {{ROOT_CA_SECRET_ID}}:
+  {{ROOT_CA_MOUNT_ID}}:
     file: {{ENV_PREFIX_VAR}}_CERT_DIR:-~/{{HOME_DIR}}/certs}/rootCA.crt
 
 networks:

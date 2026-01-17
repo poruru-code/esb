@@ -449,8 +449,8 @@ func dockerSecretArgs(dockerfile string) ([]string, error) {
 		_ = os.Setenv("DOCKER_BUILDKIT", "1")
 	}
 	return []string{
-		"--secret", fmt.Sprintf("id=%s,src=%s", constants.BrandingRootCASecretID, path),
-		"--build-arg", fmt.Sprintf("ROOT_CA_SECRET_ID=%s", constants.BrandingRootCASecretID),
+		"--secret", fmt.Sprintf("id=%s,src=%s", constants.BrandingRootCAMountID, path),
+		"--build-arg", fmt.Sprintf("ROOT_CA_MOUNT_ID=%s", constants.BrandingRootCAMountID),
 		"--build-arg", fmt.Sprintf("ROOT_CA_CERT_FILENAME=%s", constants.BrandingRootCACertFilename),
 	}, nil
 }

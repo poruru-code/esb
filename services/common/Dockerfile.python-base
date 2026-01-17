@@ -13,9 +13,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Bake the local Root CA into the image at build time (BuildKit secret).
 ARG ROOT_CA_FINGERPRINT
-ARG ROOT_CA_SECRET_ID
+ARG ROOT_CA_MOUNT_ID
 ARG ROOT_CA_CERT_FILENAME
-RUN --mount=type=secret,id=${ROOT_CA_SECRET_ID},required=true \
+RUN --mount=type=secret,id=${ROOT_CA_MOUNT_ID},required=true \
     printf '%s' "$ROOT_CA_FINGERPRINT" >/dev/null \
-    && install -m 0644 /run/secrets/${ROOT_CA_SECRET_ID} /usr/local/share/ca-certificates/${ROOT_CA_CERT_FILENAME} \
+    && install -m 0644 /run/secrets/${ROOT_CA_MOUNT_ID} /usr/local/share/ca-certificates/${ROOT_CA_CERT_FILENAME} \
     && update-ca-certificates
