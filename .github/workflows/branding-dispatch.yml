@@ -30,7 +30,7 @@ jobs:
           app-id: ${{ secrets.BRANDING_APP_ID }}
           private-key: ${{ secrets.BRANDING_APP_PRIVATE_KEY }}
           owner: poruru-code
-          repositories: ebs-branding-tool
+          repositories: esb-branding-tool
 
       - name: Resolve payload
         run: |
@@ -63,7 +63,7 @@ jobs:
           curl -fsS -L -X POST \
             -H "Authorization: Bearer ${APP_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
-            https://api.github.com/repos/poruru-code/ebs-branding-tool/dispatches \
+            https://api.github.com/repos/poruru-code/esb-branding-tool/dispatches \
             -d "{\"event_type\":\"branding-check\",\"client_payload\":{\"esb_repo\":\"${ESB_REPO}\",\"esb_ref\":\"${ESB_REF}\",\"brand\":\"${BRAND}\"}}"
 
       - name: Wait for branding check
@@ -85,7 +85,7 @@ jobs:
           start = dt.datetime.fromisoformat(dispatched_at.replace("Z", "+00:00"))
           deadline = time.time() + 900
           workflow = "branding-check.yml"
-          repo = "poruru-code/ebs-branding-tool"
+          repo = "poruru-code/esb-branding-tool"
 
           def fetch_runs():
               url = f"{api_url}/repos/{repo}/actions/workflows/{workflow}/runs?event=repository_dispatch&per_page=5"
