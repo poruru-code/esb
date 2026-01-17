@@ -5,13 +5,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-BRANDING_SLUG_FALLBACK="esb"
-if [ -f "${REPO_ROOT}/.branding.env" ]; then
-  # shellcheck disable=SC1090
-  . "${REPO_ROOT}/.branding.env"
-fi
-CGROUP_PARENT="${BRANDING_SLUG:-${BRANDING_SLUG_FALLBACK}}"
+CGROUP_PARENT="esb"
 
 print_section() {
   printf "\n==== %s ====\n" "$1"
