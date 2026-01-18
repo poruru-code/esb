@@ -75,15 +75,15 @@ class TestConnectivity:
         # Ensure bucket exists
 
         try:
-            # Use helper to create client. Note: AWSUtils defaults to ESB_PORT_S3 (9000).
+            # Use helper to create client. Note: AWSUtils defaults to PORT_S3 (9000).
             # If we need custom logic for 13900/5343, we might need to adjust,
-            # but usually ESB_PORT_S3 should be set correctly in env by now.
+            # but usually PORT_S3 should be set correctly in env by now.
             # However, looking at the original code, it had specific logic for 13900.
             # Let's see if we can use AWSUtils with explicit port/endpoint if needed,
             # or if AWSUtils defaults (from env) are sufficient.
             # The original code manually constructed endpoint_url.
-            # Let's try to trust AWSUtils which reads ESB_PORT_S3 from env.
-            # If ESB_PORT_S3 is set, AWSUtils uses it.
+            # Let's try to trust AWSUtils which reads PORT_S3 from env.
+            # If PORT_S3 is set, AWSUtils uses it.
 
             s3 = AWSUtils.create_s3_client()
             s3.create_bucket(Bucket="e2e-test-bucket")

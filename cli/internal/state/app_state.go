@@ -1,6 +1,6 @@
 // Where: cli/internal/state/app_state.go
 // What: Application-level project selection helpers.
-// Why: Resolve ESB_PROJECT and recent project fallback consistently.
+// Why: Resolve brand-prefixed PROJECT and recent project fallback consistently.
 package state
 
 import (
@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
 )
 
 // PromptFunc asks the user a yes/no question and returns true on confirmation.
@@ -36,17 +38,18 @@ func ResolveAppState(opts AppStateOptions) (AppState, error) {
 	projectEnv := strings.TrimSpace(opts.ProjectEnv)
 
 	if projectEnv != "" {
+		key := envutil.HostEnvKey(constants.HostSuffixProject)
 		if _, ok := opts.Projects[projectEnv]; ok {
 			return AppState{HasProjects: hasProjects, ActiveProject: projectEnv}, nil
 		}
-		allowed, err := confirmUnset("ESB_PROJECT", projectEnv, opts)
+		allowed, err := confirmUnset(key, projectEnv, opts)
 		if err != nil {
 			return AppState{}, err
 		}
 		if !allowed {
-			return AppState{}, fmt.Errorf("ESB_PROJECT %q not found", projectEnv)
+			return AppState{}, fmt.Errorf("%s %q not found", key, projectEnv)
 		}
-		_ = os.Unsetenv("ESB_PROJECT")
+		_ = os.Unsetenv(key)
 	}
 
 	if !hasProjects {

@@ -9,10 +9,13 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/poruru/edge-serverless-box/meta"
+
 	"github.com/poruru/edge-serverless-box/cli/internal/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
-	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
+	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
 	"github.com/poruru/edge-serverless-box/cli/internal/staging"
 )
 
@@ -29,7 +32,7 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		},
 		Paths: config.PathsConfig{
 			SamTemplate: "template.yaml",
-			OutputDir:   constants.BrandingOutputDir + "/",
+			OutputDir:   meta.OutputDir + "/",
 		},
 	}
 	if err := config.SaveGeneratorConfig(filepath.Join(projectDir, "generator.yml"), cfg); err != nil {
@@ -81,11 +84,10 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		FindRepoRoot: func(string) (string, error) { return repoRoot, nil },
 	}
 
-	t.Setenv(constants.EnvESBMode, "")
-	t.Setenv(constants.EnvESBConfigDir, "")
-	t.Setenv(constants.EnvESBProjectName, "")
-	t.Setenv(constants.EnvESBImageTag, "")
-	t.Setenv(constants.EnvESBMode, "")
+	t.Setenv(envutil.HostEnvKey(constants.HostSuffixMode), "")
+	t.Setenv(constants.EnvConfigDir, "")
+	t.Setenv(constants.EnvProjectName, "")
+	t.Setenv(constants.EnvImageTag, "")
 
 	setupRootCA(t)
 	request := manifest.BuildRequest{
@@ -97,7 +99,7 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	expectedOutput := filepath.Join(projectDir, constants.BrandingOutputDir, "staging")
+	expectedOutput := filepath.Join(projectDir, meta.OutputDir, "staging")
 	if gotCfg.Paths.OutputDir != expectedOutput {
 		t.Fatalf("unexpected output dir: %s", gotCfg.Paths.OutputDir)
 	}
@@ -146,17 +148,17 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	}
 
 	expectedConfigDir := filepath.ToSlash(staging.ConfigDir("demo-staging", "staging"))
-	if got := os.Getenv(constants.EnvESBConfigDir); got != expectedConfigDir {
-		t.Fatalf("unexpected %s: %s", constants.EnvESBConfigDir, got)
+	if got := os.Getenv(constants.EnvConfigDir); got != expectedConfigDir {
+		t.Fatalf("unexpected %s: %s", constants.EnvConfigDir, got)
 	}
-	if got := os.Getenv(constants.EnvESBProjectName); got != "demo-staging" {
-		t.Fatalf("unexpected %s: %s", constants.EnvESBProjectName, got)
+	if got := os.Getenv(constants.EnvProjectName); got != "demo-staging" {
+		t.Fatalf("unexpected %s: %s", constants.EnvProjectName, got)
 	}
-	if got := os.Getenv(constants.EnvESBImageTag); got != "containerd" {
-		t.Fatalf("unexpected %s: %s", constants.EnvESBImageTag, got)
+	if got := os.Getenv(constants.EnvImageTag); got != "containerd" {
+		t.Fatalf("unexpected %s: %s", constants.EnvImageTag, got)
 	}
-	if got := os.Getenv(constants.EnvESBMode); got != "containerd" {
-		t.Fatalf("unexpected %s: %s", constants.EnvESBMode, got)
+	if got := envutil.GetHostEnv(constants.HostSuffixMode); got != "containerd" {
+		t.Fatalf("unexpected %s: %s", constants.HostSuffixMode, got)
 	}
 
 	staged := filepath.Join(staging.ConfigDir("demo-staging", "staging"), "functions.yml")
@@ -164,25 +166,25 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		t.Fatalf("expected staged config: %v", err)
 	}
 
-	if !hasDockerBuildTag(dockerRunner.calls, "localhost:5010/"+constants.BrandingImagePrefix+"-lambda-base:staging") {
+	if !hasDockerBuildTag(dockerRunner.calls, "localhost:5010/"+meta.ImagePrefix+"-lambda-base:staging") {
 		t.Fatalf("expected base image build")
 	}
 	if !hasDockerBuildTag(dockerRunner.calls, "localhost:5010/hello:staging") {
 		t.Fatalf("expected function image build")
 	}
-	if !hasDockerPushTag(dockerRunner.calls, "localhost:5010/"+constants.BrandingImagePrefix+"-lambda-base:staging") {
+	if !hasDockerPushTag(dockerRunner.calls, "localhost:5010/"+meta.ImagePrefix+"-lambda-base:staging") {
 		t.Fatalf("expected base image push")
 	}
 	if !hasDockerPushTag(dockerRunner.calls, "localhost:5010/hello:staging") {
 		t.Fatalf("expected function image push")
 	}
-	if !hasDockerBuildLabel(dockerRunner.calls, constants.BrandingLabelPrefix+".managed=true") {
+	if !hasDockerBuildLabel(dockerRunner.calls, meta.LabelPrefix+".managed=true") {
 		t.Fatalf("expected managed label on build")
 	}
-	if !hasDockerBuildLabel(dockerRunner.calls, constants.BrandingLabelPrefix+".project=demo-staging") {
+	if !hasDockerBuildLabel(dockerRunner.calls, meta.LabelPrefix+".project=demo-staging") {
 		t.Fatalf("expected project label on build")
 	}
-	if !hasDockerBuildLabel(dockerRunner.calls, constants.BrandingLabelPrefix+".env=staging") {
+	if !hasDockerBuildLabel(dockerRunner.calls, meta.LabelPrefix+".env=staging") {
 		t.Fatalf("expected env label on build")
 	}
 
@@ -204,7 +206,7 @@ func TestGoBuilderBuildFirecrackerBuildsServiceImages(t *testing.T) {
 		},
 		Paths: config.PathsConfig{
 			SamTemplate: "template.yaml",
-			OutputDir:   constants.BrandingOutputDir + "/",
+			OutputDir:   meta.OutputDir + "/",
 		},
 	}
 	if err := config.SaveGeneratorConfig(filepath.Join(projectDir, "generator.yml"), cfg); err != nil {
@@ -261,10 +263,10 @@ func TestGoBuilderBuildFirecrackerBuildsServiceImages(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if !hasDockerBuildTag(dockerRunner.calls, "localhost:5010/"+constants.BrandingImagePrefix+"-runtime-node:prod") {
+	if !hasDockerBuildTag(dockerRunner.calls, "localhost:5010/"+meta.ImagePrefix+"-runtime-node:prod") {
 		t.Fatalf("expected runtime-node image build")
 	}
-	if !hasDockerBuildTag(dockerRunner.calls, "localhost:5010/"+constants.BrandingImagePrefix+"-agent:prod") {
+	if !hasDockerBuildTag(dockerRunner.calls, "localhost:5010/"+meta.ImagePrefix+"-agent:prod") {
 		t.Fatalf("expected agent image build")
 	}
 }
@@ -374,9 +376,9 @@ func setupRootCA(t *testing.T) string {
 	t.Helper()
 
 	caDir := t.TempDir()
-	caPath := filepath.Join(caDir, constants.BrandingRootCACertFilename)
+	caPath := filepath.Join(caDir, meta.RootCACertFilename)
 	writeTestFile(t, caPath, "root-CA")
-	t.Setenv(constants.EnvESBCACertPath, caPath)
+	t.Setenv(envutil.HostEnvKey(constants.HostSuffixCACertPath), caPath)
 	return caPath
 }
 

@@ -8,6 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
+	"github.com/poruru/edge-serverless-box/meta"
 	"gopkg.in/yaml.v3"
 )
 
@@ -34,9 +37,9 @@ func DefaultGlobalConfig() GlobalConfig {
 }
 
 // GlobalConfigPath returns the path to the global config file.
-// Respects ESB_CONFIG_PATH and ESB_CONFIG_HOME environment variables.
+// Respects brand-specific CONFIG_PATH and CONFIG_HOME environment variables.
 func GlobalConfigPath() (string, error) {
-	if override := strings.TrimSpace(os.Getenv("ESB_CONFIG_PATH")); override != "" {
+	if override := strings.TrimSpace(envutil.GetHostEnv(constants.HostSuffixConfigPath)); override != "" {
 		path := override
 		if !filepath.IsAbs(path) {
 			if abs, err := filepath.Abs(path); err == nil {
@@ -45,14 +48,14 @@ func GlobalConfigPath() (string, error) {
 		}
 		return path, nil
 	}
-	if override := strings.TrimSpace(os.Getenv("ESB_CONFIG_HOME")); override != "" {
+	if override := strings.TrimSpace(envutil.GetHostEnv(constants.HostSuffixConfigHome)); override != "" {
 		return filepath.Join(override, "config.yaml"), nil
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, ".esb", "config.yaml"), nil
+	return filepath.Join(home, meta.HomeDir, "config.yaml"), nil
 }
 
 // EnsureGlobalConfig creates the global config file if it doesn't exist.

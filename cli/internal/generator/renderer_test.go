@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"gopkg.in/yaml.v3"
 	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
+	"gopkg.in/yaml.v3"
 )
 
 func TestRenderDockerfileSimple(t *testing.T) {

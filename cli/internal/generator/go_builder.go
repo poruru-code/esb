@@ -10,10 +10,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/poruru/edge-serverless-box/meta"
+
 	"github.com/poruru/edge-serverless-box/cli/internal/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
-	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
 )
 
 type GoBuilder struct {
@@ -132,7 +134,7 @@ func (b *GoBuilder) Build(request manifest.BuildRequest) error {
 
 	projectName := strings.ToLower(cfg.App.Name)
 	if projectName == "" {
-		projectName = constants.BrandingSlug
+		projectName = meta.Slug
 	}
 	composeProject := fmt.Sprintf("%s-%s", projectName, strings.ToLower(request.Env))
 
@@ -207,7 +209,7 @@ func (b *GoBuilder) Build(request manifest.BuildRequest) error {
 	if !request.Verbose {
 		fmt.Print("➜ Building OS base image... ")
 	}
-	osBaseTag := fmt.Sprintf("%s-os-base:latest", constants.BrandingImagePrefix)
+	osBaseTag := fmt.Sprintf("%s-os-base:latest", meta.ImagePrefix)
 	if err := withBuildLock("os-base", func() error {
 		if !request.NoCache && dockerImageHasLabelValue(context.Background(), b.Runner, repoRoot, osBaseTag, compose.ESBCAFingerprintLabel, rootFingerprint) {
 			if request.Verbose {
@@ -243,7 +245,7 @@ func (b *GoBuilder) Build(request manifest.BuildRequest) error {
 	if !request.Verbose {
 		fmt.Print("➜ Building Python base image... ")
 	}
-	pythonBaseTag := fmt.Sprintf("%s-python-base:latest", constants.BrandingImagePrefix)
+	pythonBaseTag := fmt.Sprintf("%s-python-base:latest", meta.ImagePrefix)
 	if err := withBuildLock("python-base", func() error {
 		if !request.NoCache && dockerImageHasLabelValue(context.Background(), b.Runner, repoRoot, pythonBaseTag, compose.ESBCAFingerprintLabel, rootFingerprint) {
 			if request.Verbose {

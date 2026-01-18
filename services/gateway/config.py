@@ -64,9 +64,7 @@ class GatewayConfig(BaseAppConfig):
     # External integration (hostnames required from env)
     CONTAINERS_NETWORK: str = Field(..., description="Network for Lambda containers")
     GATEWAY_INTERNAL_URL: str = Field(..., description="Gateway URL from containers")
-    ESB_DATA_PLANE_HOST: str = Field(
-        default="10.88.0.1", description="Host for data plane services"
-    )
+    DATA_PLANE_HOST: str = Field(default="10.88.0.1", description="Host for data plane services")
     LAMBDA_INVOKE_TIMEOUT: float = Field(
         default=30.0, description="Lambda invoke timeout (seconds)"
     )

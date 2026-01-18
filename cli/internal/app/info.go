@@ -6,9 +6,10 @@ package app
 import (
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 	"github.com/poruru/edge-serverless-box/cli/internal/version"
 )
@@ -52,7 +53,7 @@ func runInfo(cli CLI, deps Dependencies, out io.Writer) int {
 
 	envState, err := state.ResolveProjectState(state.ProjectStateOptions{
 		EnvFlag:     cli.EnvFlag,
-		EnvVar:      os.Getenv("ESB_ENV"),
+		EnvVar:      envutil.GetHostEnv(constants.HostSuffixEnv),
 		Config:      project.Generator,
 		Force:       opts.Force,
 		Interactive: opts.Interactive,

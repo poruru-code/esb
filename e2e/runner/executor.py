@@ -18,7 +18,6 @@ from e2e.runner.utils import (
     BRAND_SLUG,
     E2E_STATE_ROOT,
     PROJECT_ROOT,
-    apply_esb_aliases,
     env_key,
     run_esb,
 )
@@ -205,7 +204,6 @@ def run_scenario(args, scenario):
     env["VICTORIALOGS_URL"] = f"http://localhost:{env['VICTORIALOGS_PORT']}"
     env["AGENT_GRPC_ADDRESS"] = f"localhost:{env.get(env_key('PORT_AGENT_GRPC'), '50051')}"
     env[env_key("PROJECT_NAME")] = f"{project_name}-{env_name}"
-    apply_esb_aliases(env)
 
     # Merge scenario-specific environment variables
     env.update(env_vars_override)
@@ -287,7 +285,6 @@ def run_scenario(args, scenario):
             agent_key = env_key("PORT_AGENT_GRPC")
             if agent_key in ports:
                 env["AGENT_GRPC_ADDRESS"] = f"localhost:{ports[agent_key]}"
-            apply_esb_aliases(env)
 
         apply_gateway_env_from_container(env, env_file)
 
@@ -345,7 +342,7 @@ def run_profile_subprocess(
     env = os.environ.copy()
     env["TERM"] = "dumb"
     env[env_key("INTERACTIVE")] = "0"
-    apply_esb_aliases(env)
+    env["E2E_WORKER"] = "1"
 
     process = subprocess.Popen(
         cmd,

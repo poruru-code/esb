@@ -8,16 +8,19 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
 )
 
 func TestSavePortsWritesFile(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	esbHome := t.TempDir()
-	t.Setenv("ESB_HOME", esbHome)
+	t.Setenv(envutil.HostEnvKey(constants.HostSuffixHome), esbHome)
 
 	ports := map[string]int{
-		"ESB_PORT_GATEWAY_HTTPS": 10443,
-		"ESB_PORT_VICTORIALOGS":  19428,
+		constants.EnvPortGatewayHTTPS: 10443,
+		constants.EnvPortVictoriaLogs: 19428,
 	}
 
 	path, err := savePorts("staging", ports)
@@ -36,41 +39,41 @@ func TestSavePortsWritesFile(t *testing.T) {
 	if err := json.Unmarshal(payload, &loaded); err != nil {
 		t.Fatalf("unmarshal ports: %v", err)
 	}
-	if loaded["ESB_PORT_GATEWAY_HTTPS"] != 10443 {
-		t.Fatalf("unexpected gateway port: %d", loaded["ESB_PORT_GATEWAY_HTTPS"])
+	if loaded[constants.EnvPortGatewayHTTPS] != 10443 {
+		t.Fatalf("unexpected gateway port: %d", loaded[constants.EnvPortGatewayHTTPS])
 	}
 }
 
 func TestApplyPortsToEnvSetsDerived(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	t.Setenv("ESB_PORT_GATEWAY_HTTPS", "")
-	t.Setenv("ESB_PORT_VICTORIALOGS", "")
-	t.Setenv("ESB_PORT_AGENT_GRPC", "")
-	t.Setenv("GATEWAY_PORT", "")
-	t.Setenv("GATEWAY_URL", "")
-	t.Setenv("VICTORIALOGS_PORT", "")
-	t.Setenv("VICTORIALOGS_URL", "")
-	t.Setenv("AGENT_GRPC_ADDRESS", "")
+	t.Setenv(constants.EnvPortGatewayHTTPS, "")
+	t.Setenv(constants.EnvPortVictoriaLogs, "")
+	t.Setenv(constants.EnvPortAgentGRPC, "")
+	t.Setenv(constants.EnvGatewayPort, "")
+	t.Setenv(constants.EnvGatewayURL, "")
+	t.Setenv(constants.EnvVictoriaLogsPort, "")
+	t.Setenv(constants.EnvVictoriaLogsURL, "")
+	t.Setenv(constants.EnvAgentGrpcAddress, "")
 
 	applyPortsToEnv(map[string]int{
-		"ESB_PORT_GATEWAY_HTTPS": 10443,
-		"ESB_PORT_VICTORIALOGS":  19428,
-		"ESB_PORT_AGENT_GRPC":    50051,
+		constants.EnvPortGatewayHTTPS: 10443,
+		constants.EnvPortVictoriaLogs: 19428,
+		constants.EnvPortAgentGRPC:    50051,
 	})
 
-	if got := os.Getenv("ESB_PORT_GATEWAY_HTTPS"); got != "10443" {
+	if got := os.Getenv(constants.EnvPortGatewayHTTPS); got != "10443" {
 		t.Fatalf("unexpected gateway env: %s", got)
 	}
-	if got := os.Getenv("GATEWAY_PORT"); got != "10443" {
+	if got := os.Getenv(constants.EnvGatewayPort); got != "10443" {
 		t.Fatalf("unexpected gateway port: %s", got)
 	}
-	if got := os.Getenv("GATEWAY_URL"); got != "https://localhost:10443" {
+	if got := os.Getenv(constants.EnvGatewayURL); got != "https://localhost:10443" {
 		t.Fatalf("unexpected gateway url: %s", got)
 	}
-	if got := os.Getenv("VICTORIALOGS_URL"); got != "http://localhost:19428" {
+	if got := os.Getenv(constants.EnvVictoriaLogsURL); got != "http://localhost:19428" {
 		t.Fatalf("unexpected victorialogs url: %s", got)
 	}
-	if got := os.Getenv("AGENT_GRPC_ADDRESS"); got != "localhost:50051" {
+	if got := os.Getenv(constants.EnvAgentGrpcAddress); got != "localhost:50051" {
 		t.Fatalf("unexpected agent grpc address: %s", got)
 	}
 }

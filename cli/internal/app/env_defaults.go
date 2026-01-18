@@ -14,6 +14,7 @@ import (
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
 	"github.com/poruru/edge-serverless-box/cli/internal/staging"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
@@ -21,7 +22,7 @@ import (
 var defaultPorts = map[string]int{
 	constants.EnvPortGatewayHTTPS: 443,
 	constants.EnvPortGatewayHTTP:  80,
-	constants.EnvPortAgentCGRPC:   50051,
+	constants.EnvPortAgentGRPC:    50051,
 	constants.EnvPortS3:           9000,
 	constants.EnvPortS3Mgmt:       9001,
 	constants.EnvPortDatabase:     8001,
@@ -39,9 +40,22 @@ func applyRuntimeEnv(ctx state.Context, resolver func(string) (string, error)) {
 		env = "default"
 	}
 
-	_ = os.Setenv(constants.EnvESBEnv, env)
-	setEnvIfEmpty(constants.EnvESBProjectName, ctx.ComposeProject)
-	setEnvIfEmpty(constants.EnvESBImageTag, defaultImageTag(ctx.Mode, env))
+	// Host-level variables (with prefix) for brand-aware logic
+	envutil.SetHostEnv(constants.HostSuffixEnv, env)
+	envutil.SetHostEnv(constants.HostSuffixMode, ctx.Mode)
+	tag := defaultImageTag(ctx.Mode, env)
+	envutil.SetHostEnv(constants.HostSuffixImageTag, tag)
+
+	// Compose variables (no prefix) for docker-compose.yml reference
+	setEnvIfEmpty("ENV", env)
+	setEnvIfEmpty("MODE", ctx.Mode)
+	setEnvIfEmpty(constants.EnvImageTag, tag)
+
+	// Compose project metadata
+	if os.Getenv(constants.EnvProjectName) == "" {
+		_ = os.Setenv(constants.EnvProjectName, ctx.ComposeProject)
+	}
+	setEnvIfEmpty(constants.EnvImagePrefix, os.Getenv("IMAGE_PREFIX"))
 
 	applyPortDefaults(env)
 	applySubnetDefaults(env)
@@ -58,7 +72,7 @@ func applyRuntimeEnv(ctx state.Context, resolver func(string) (string, error)) {
 func defaultImageTag(mode, env string) string {
 	normalized := strings.ToLower(strings.TrimSpace(mode))
 	if normalized == "" {
-		normalized = strings.ToLower(strings.TrimSpace(os.Getenv(constants.EnvESBMode)))
+		normalized = strings.ToLower(strings.TrimSpace(envutil.GetHostEnv(constants.HostSuffixMode)))
 	}
 	switch normalized {
 	case "docker":
@@ -92,7 +106,7 @@ func applyProxyDefaults() {
 		existingNoProxy = os.Getenv("no_proxy")
 	}
 
-	extraNoProxy := os.Getenv(constants.EnvESBNoProxyExtra)
+	extraNoProxy := envutil.GetHostEnv(constants.HostSuffixNoProxyExtra)
 
 	if !hasProxy && existingNoProxy == "" && extraNoProxy == "" {
 		return
@@ -199,7 +213,7 @@ func applySubnetDefaults(env string) {
 		_ = os.Setenv(constants.EnvSubnetExternal, fmt.Sprintf("172.%d.0.0/16", envExternalSubnetIndex(env)))
 	}
 	// Default to {project}-external to match docker-compose.yml default
-	setEnvIfEmpty(constants.EnvNetworkExternal, fmt.Sprintf("%s-external", os.Getenv(constants.EnvESBProjectName)))
+	setEnvIfEmpty(constants.EnvNetworkExternal, fmt.Sprintf("%s-external", os.Getenv(constants.EnvProjectName)))
 	setEnvIfEmpty(constants.EnvRuntimeNetSubnet, fmt.Sprintf("172.%d.0.0/16", envRuntimeSubnetIndex(env)))
 	setEnvIfEmpty(constants.EnvRuntimeNodeIP, fmt.Sprintf("172.%d.0.10", envRuntimeSubnetIndex(env)))
 	setEnvIfEmpty(constants.EnvLambdaNetwork, fmt.Sprintf("esb_int_%s", env))
@@ -213,7 +227,7 @@ func applyRegistryDefaults(mode string) {
 	}
 	normalized := strings.ToLower(strings.TrimSpace(mode))
 	if normalized == "" {
-		normalized = strings.ToLower(strings.TrimSpace(os.Getenv(constants.EnvESBMode)))
+		normalized = strings.ToLower(strings.TrimSpace(envutil.GetHostEnv(constants.HostSuffixMode)))
 	}
 	switch normalized {
 	case "containerd", "firecracker":
@@ -290,20 +304,18 @@ func applyGeneratorConfigEnv(generatorPath string) error {
 	return nil
 }
 
-// applyConfigDirEnv sets the ESB_CONFIG_DIR environment variable
+// applyConfigDirEnv sets the CONFIG_DIR environment variable
 // based on the discovered project structure.
 func applyConfigDirEnv(ctx state.Context, resolver func(string) (string, error)) {
-	if strings.TrimSpace(os.Getenv(constants.EnvESBConfigDir)) != "" {
-		return
-	}
-
 	_ = resolver
 
 	stagingAbs := staging.ConfigDir(ctx.ComposeProject, ctx.Env)
 	if _, err := os.Stat(stagingAbs); err != nil {
 		return
 	}
-	_ = os.Setenv(constants.EnvESBConfigDir, filepath.ToSlash(stagingAbs))
+	val := filepath.ToSlash(stagingAbs)
+	envutil.SetHostEnv(constants.HostSuffixConfigDir, val)
+	setEnvIfEmpty(constants.EnvConfigDir, val)
 }
 
 // setEnvIfEmpty sets an environment variable only if it's currently empty.

@@ -120,8 +120,10 @@ def main():
         pass
 
     # --- Global Reset & Warm-up ---
-    # Perform this once before any environment execution (unless we are in a sub-profile run)
-    if not args.profile:
+    # Perform this if we are in the main dispatcher process (not a parallel worker).
+    # This ensures generator.yml and project registration are in sync with the matrix
+    # even when running a single profile manually.
+    if os.environ.get("E2E_WORKER") != "1":
         warmup_environment(env_scenarios, matrix, esb_project, args)
 
     # --- Unified Execution Mode ---

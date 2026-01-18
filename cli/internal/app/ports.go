@@ -16,6 +16,7 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 	"github.com/poruru/edge-serverless-box/cli/internal/ui"
 )
@@ -104,7 +105,7 @@ func PrintDiscoveredPorts(out io.Writer, ports map[string]int) {
 
 func isKnownPort(key string) bool {
 	switch key {
-	case constants.EnvPortGatewayHTTPS, constants.EnvPortVictoriaLogs, constants.EnvPortDatabase, constants.EnvPortS3, constants.EnvPortS3Mgmt, constants.EnvPortRegistry, constants.EnvPortAgentCGRPC:
+	case constants.EnvPortGatewayHTTPS, constants.EnvPortVictoriaLogs, constants.EnvPortDatabase, constants.EnvPortS3, constants.EnvPortS3Mgmt, constants.EnvPortRegistry, constants.EnvPortAgentGRPC:
 		return true
 	}
 	return false
@@ -118,7 +119,7 @@ func printPort(console *ui.Console, ports map[string]int, key string) {
 	}
 }
 
-// savePorts writes the discovered ports to a JSON file in the ESB home directory.
+// savePorts writes the discovered ports to a JSON file in the project-specific data directory.
 // Returns the path to the saved file.
 func savePorts(env string, ports map[string]int) (string, error) {
 	home, err := resolveESBHome(env)
@@ -139,10 +140,10 @@ func savePorts(env string, ports map[string]int) (string, error) {
 	return path, nil
 }
 
-// resolveESBHome returns the ESB home directory for the given environment.
-// Uses ESB_HOME environment variable if set, otherwise ~/.esb/<env>.
+// resolveESBHome determines the base directory for project-specific data.
+// Uses brand-specific HOME environment variable if set, otherwise ~/.<brand>/<env>.
 func resolveESBHome(env string) (string, error) {
-	override := strings.TrimSpace(os.Getenv(constants.EnvESBHome))
+	override := strings.TrimSpace(envutil.GetHostEnv(constants.HostSuffixHome))
 	if override != "" {
 		return override, nil
 	}
@@ -171,7 +172,7 @@ func applyPortsToEnv(ports map[string]int) {
 		_ = os.Setenv(constants.EnvVictoriaLogsPort, strconv.Itoa(port))
 		_ = os.Setenv(constants.EnvVictoriaLogsURL, fmt.Sprintf("http://localhost:%d", port))
 	}
-	if port, ok := ports[constants.EnvPortAgentCGRPC]; ok {
+	if port, ok := ports[constants.EnvPortAgentGRPC]; ok {
 		_ = os.Setenv(constants.EnvAgentGrpcAddress, fmt.Sprintf("localhost:%d", port))
 	}
 }

@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
@@ -70,7 +72,7 @@ func runProjectList(_ CLI, _ Dependencies, out io.Writer) int {
 	sort.Strings(names)
 
 	appState, _ := state.ResolveAppState(state.AppStateOptions{
-		ProjectEnv: os.Getenv("ESB_PROJECT"),
+		ProjectEnv: envutil.GetHostEnv(constants.HostSuffixProject),
 		Projects:   cfg.Projects,
 	})
 	activeProject := appState.ActiveProject
@@ -177,7 +179,7 @@ func runProjectUse(cli CLI, deps Dependencies, out io.Writer) int {
 	}
 
 	fmt.Fprintf(os.Stderr, "Switched to project '%s'\n", projectName)
-	fmt.Fprintf(out, "export ESB_PROJECT=%s\n", projectName)
+	fmt.Fprintf(out, "export %s=%s\n", envutil.HostEnvKey(constants.HostSuffixProject), projectName)
 	return 0
 }
 
@@ -260,7 +262,7 @@ func runProjectAdd(cli CLI, deps Dependencies, out io.Writer) int {
 		// New project initialization (old esb init behavior)
 		template := cli.Template
 		if template == "" {
-			template = os.Getenv("ESB_TEMPLATE")
+			template = envutil.GetHostEnv(constants.HostSuffixTemplate)
 		}
 		if template == "" {
 			// 1. Try to auto-detect standard template files

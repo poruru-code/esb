@@ -18,8 +18,8 @@ log_error() {
 }
 
 setup_cgroupv2_delegation() {
-  if [ "${ESB_CGROUP_DELEGATION:-1}" = "0" ]; then
-    log_info "Cgroup delegation disabled (ESB_CGROUP_DELEGATION=0)"
+  if [ "${CGROUP_DELEGATION:-1}" = "0" ]; then
+    log_info "Cgroup delegation disabled (CGROUP_DELEGATION=0)"
     return 0
   fi
   if [ ! -f /sys/fs/cgroup/cgroup.controllers ]; then
@@ -28,12 +28,12 @@ setup_cgroupv2_delegation() {
   fi
 
   root_dir="/sys/fs/cgroup"
-  parent_name="${ESB_CGROUP_PARENT:-esb}"
-  leaf_name="${ESB_CGROUP_LEAF:-runtime-node}"
-  controllers="${ESB_CGROUP_CONTROLLERS:-cpu io memory pids}"
+  parent_name="${CGROUP_PARENT:-esb}"
+  leaf_name="${CGROUP_LEAF:-runtime-node}"
+  controllers="${CGROUP_CONTROLLERS:-cpu io memory pids}"
 
   if [ -z "$parent_name" ] || [ -z "$leaf_name" ]; then
-    log_error "ESB_CGROUP_PARENT and ESB_CGROUP_LEAF must be set"
+    log_error "CGROUP_PARENT and CGROUP_LEAF must be set"
     exit 1
   fi
 

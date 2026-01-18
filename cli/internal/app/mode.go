@@ -4,19 +4,21 @@
 package app
 
 import (
-	"os"
 	"strings"
+
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
 )
 
-// applyModeEnv sets the ESB_MODE environment variable if not already set.
+// applyModeEnv sets the mode environment variable if not already set.
 // This ensures consistent mode propagation across all CLI commands.
 func applyModeEnv(mode string) {
 	trimmed := strings.TrimSpace(mode)
 	if trimmed == "" {
 		return
 	}
-	if strings.TrimSpace(os.Getenv("ESB_MODE")) != "" {
+	if strings.TrimSpace(envutil.GetHostEnv(constants.HostSuffixMode)) != "" {
 		return
 	}
-	_ = os.Setenv("ESB_MODE", strings.ToLower(trimmed))
+	envutil.SetHostEnv(constants.HostSuffixMode, strings.ToLower(trimmed))
 }

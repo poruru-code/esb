@@ -6,7 +6,6 @@ from pathlib import Path
 from e2e.runner.utils import (
     BRAND_HOME_DIR,
     GO_CLI_ROOT,
-    apply_esb_aliases,
     build_esb_cmd,
     env_key,
 )
@@ -122,9 +121,6 @@ def resolve_esb_home(env_name: str) -> Path:
     prefixed_home = os.environ.get(env_key("HOME"))
     if prefixed_home:
         return Path(prefixed_home).expanduser()
-    esb_home = os.environ.get("ESB_HOME")
-    if esb_home:
-        return Path(esb_home).expanduser()
     return Path.home() / BRAND_HOME_DIR / env_name
 
 
@@ -138,7 +134,6 @@ def load_ports(env_name: str) -> dict[str, int]:
 def apply_ports_to_env(ports: dict[str, int]) -> None:
     for env_var, port in ports.items():
         os.environ[env_var] = str(port)
-    apply_esb_aliases(os.environ)
 
     gateway_key = env_key("PORT_GATEWAY_HTTPS")
     if gateway_key in ports:

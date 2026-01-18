@@ -1,6 +1,6 @@
 // Where: cli/internal/app/project_resolver.go
 // What: Resolve project directory from CLI flags and global config.
-// Why: Ensure commands honor --template, ESB_PROJECT, and recent projects.
+// Why: Ensure commands honor --template, project environment variable, and recent projects.
 package app
 
 import (
@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
@@ -20,7 +22,7 @@ type projectSelection struct {
 }
 
 // resolveProjectSelection determines the project directory based on CLI flags,
-// ESB_PROJECT, or the most recently used project.
+// project environment variable, or the most recently used project.
 func resolveProjectSelection(cli CLI, _ Dependencies, opts resolveOptions) (projectSelection, error) {
 	if strings.TrimSpace(cli.Template) != "" {
 		absTemplate, err := filepath.Abs(cli.Template)
@@ -42,7 +44,7 @@ func resolveProjectSelection(cli CLI, _ Dependencies, opts resolveOptions) (proj
 	}
 
 	appState, err := state.ResolveAppState(state.AppStateOptions{
-		ProjectEnv:  os.Getenv("ESB_PROJECT"),
+		ProjectEnv:  envutil.GetHostEnv(constants.HostSuffixProject),
 		Projects:    cfg.Projects,
 		Force:       opts.Force,
 		Interactive: opts.Interactive,

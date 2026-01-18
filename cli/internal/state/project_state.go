@@ -1,6 +1,6 @@
 // Where: cli/internal/state/project_state.go
 // What: Environment selection helpers for a project.
-// Why: Resolve ESB_ENV, last_env, and single-environment defaults consistently.
+// Why: Resolve brand-prefixed ENV, last_env, and single-environment defaults consistently.
 package state
 
 import (
@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
 )
 
 // ProjectState holds environment selection results.
@@ -58,7 +60,8 @@ func ResolveProjectState(opts ProjectStateOptions) (ProjectState, error) {
 		if envs.Has(envVar) {
 			return ProjectState{HasEnvironments: true, ActiveEnv: envVar, GeneratorValid: true}, nil
 		}
-		allowed, err := confirmUnset("ESB_ENV", envVar, AppStateOptions{
+		key := envutil.HostEnvKey(constants.HostSuffixEnv)
+		allowed, err := confirmUnset(key, envVar, AppStateOptions{
 			Force:       opts.Force,
 			Interactive: opts.Interactive,
 			Prompt:      opts.Prompt,
@@ -67,9 +70,9 @@ func ResolveProjectState(opts ProjectStateOptions) (ProjectState, error) {
 			return ProjectState{}, err
 		}
 		if !allowed {
-			return ProjectState{}, fmt.Errorf("ESB_ENV %q not found", envVar)
+			return ProjectState{}, fmt.Errorf("%s %q not found", key, envVar)
 		}
-		_ = os.Unsetenv("ESB_ENV")
+		_ = os.Unsetenv(key)
 	}
 
 	lastEnv := strings.TrimSpace(opts.Config.App.LastEnv)

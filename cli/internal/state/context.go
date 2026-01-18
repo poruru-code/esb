@@ -58,11 +58,18 @@ func ResolveContext(projectDir, env string) (Context, error) {
 	}
 	outputDir = filepath.Clean(outputDir)
 
-	projectName := strings.ToLower(cfg.App.Name)
-	if projectName == "" {
-		projectName = "esb"
+	// Branding: Prioritize CLI_CMD from environment, then generator.yml, then fallback
+	brandName := strings.ToLower(os.Getenv("CLI_CMD"))
+	if brandName == "" {
+		brandName = strings.ToLower(cfg.App.Name)
 	}
-	composeProject := fmt.Sprintf("%s-%s", projectName, strings.ToLower(env))
+	if brandName == "" {
+		brandName = "esb" // Ultimate fallback
+	}
+
+	// Compose project name should skip prefix-less PROJECT_NAME set by applyRuntimeEnv
+	// and instead use {brand}-{env} format.
+	composeProject := fmt.Sprintf("%s-%s", brandName, strings.ToLower(env))
 	mode, _ := cfg.Environments.Mode(env)
 
 	return Context{

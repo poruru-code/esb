@@ -11,8 +11,9 @@ import (
 	"sync"
 	"text/template"
 
+	"github.com/poruru/edge-serverless-box/meta"
+
 	"github.com/Masterminds/sprig/v3"
-	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
 )
 
@@ -77,7 +78,7 @@ func RenderFunctionsYml(functions []FunctionSpec, registry, tag string) (string,
 	data := functionsTemplateData{
 		Registry:  registry,
 		Tag:       tag,
-		EnvPrefix: constants.BrandingEnvPrefix,
+		EnvPrefix: meta.EnvPrefix,
 	}
 	for _, fn := range functions {
 		hasSchedules := false

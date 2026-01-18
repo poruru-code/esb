@@ -15,10 +15,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/poruru-code/aws-sam-parser-go/schema"
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
 )
 
 func traceProvisionerOp(format string, args ...any) {
-	if strings.TrimSpace(os.Getenv("ESB_PROVISIONER_TRACE")) == "" {
+	if strings.TrimSpace(envutil.GetHostEnv(constants.HostSuffixProvisionerTrace)) == "" {
 		return
 	}
 	fmt.Fprintf(os.Stderr, "[provisioner] "+format+"\n", args...)

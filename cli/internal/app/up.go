@@ -111,7 +111,7 @@ func runUp(cli CLI, deps Dependencies, out io.Writer) int {
 	// Provision resources
 	content, err := os.ReadFile(templatePath)
 	if err != nil {
-		return exitWithError(out, fmt.Errorf("failed to read template: %w", err)	)
+		return exitWithError(out, fmt.Errorf("failed to read template: %w", err))
 	}
 
 	if deps.Parser == nil {
