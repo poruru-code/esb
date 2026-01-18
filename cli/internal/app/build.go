@@ -6,22 +6,14 @@ package app
 import (
 	"fmt"
 	"io"
-)
 
-// BuildRequest contains parameters for a build operation.
-// It specifies the project location, SAM template, environment, and cache options.
-type BuildRequest struct {
-	ProjectDir   string
-	TemplatePath string
-	Env          string
-	NoCache      bool
-	Verbose      bool
-}
+	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
+)
 
 // Builder defines the interface for building Lambda function images.
 // Implementations generate Dockerfiles and build container images.
 type Builder interface {
-	Build(request BuildRequest) error
+	Build(request manifest.BuildRequest) error
 }
 
 // runBuild executes the 'build' command which generates Dockerfiles
@@ -42,7 +34,7 @@ func runBuild(cli CLI, deps Dependencies, out io.Writer) int {
 
 	templatePath := resolvedTemplatePath(ctxInfo)
 
-	request := BuildRequest{
+	request := manifest.BuildRequest{
 		ProjectDir:   ctx.ProjectDir,
 		TemplatePath: templatePath,
 		Env:          ctxInfo.Env,

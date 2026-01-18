@@ -8,11 +8,12 @@ import (
 
 	samparser "github.com/poruru-code/aws-sam-parser-go/parser"
 	"github.com/poruru-code/aws-sam-parser-go/schema"
+	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
 )
 
 type ParseResult struct {
 	Functions []FunctionSpec
-	Resources ResourcesSpec
+	Resources manifest.ResourcesSpec
 }
 
 type FunctionSpec struct {
@@ -27,7 +28,7 @@ type FunctionSpec struct {
 	Environment             map[string]string
 	Events                  []EventSpec
 	Scaling                 ScalingSpec
-	Layers                  []LayerSpec
+	Layers                  []manifest.LayerSpec
 	Architectures           []string
 	RuntimeManagementConfig RuntimeManagementConfig
 }
@@ -45,34 +46,10 @@ type ScalingSpec struct {
 	MinCapacity *int
 }
 
-type LayerSpec struct {
-	Name                    string
-	ContentURI              string
-	CompatibleArchitectures []string
-}
+// Moved to manifest package
 
 type RuntimeManagementConfig struct {
 	UpdateRuntimeOn string
-}
-
-type DynamoDBSpec struct {
-	TableName              string
-	KeySchema              []schema.AWSDynamoDBTableKeySchema
-	AttributeDefinitions   []schema.AWSDynamoDBTableAttributeDefinition
-	GlobalSecondaryIndexes []schema.AWSDynamoDBTableGlobalSecondaryIndex
-	BillingMode            string
-	ProvisionedThroughput  *schema.AWSDynamoDBTableProvisionedThroughput
-}
-
-type S3Spec struct {
-	BucketName             string
-	LifecycleConfiguration *schema.AWSS3BucketLifecycleConfiguration
-}
-
-type ResourcesSpec struct {
-	DynamoDB []DynamoDBSpec
-	S3       []S3Spec
-	Layers   []LayerSpec
 }
 
 func ParseSAMTemplate(content string, parameters map[string]string) (ParseResult, error) {

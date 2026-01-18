@@ -13,6 +13,7 @@ import (
 
 	"github.com/Masterminds/sprig/v3"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
 )
 
 const defaultSitecustomizeSource = "cli/internal/generator/assets/site-packages/sitecustomize.py"
@@ -154,7 +155,7 @@ type dockerfileTemplateData struct {
 	CodeURI             string
 	Handler             string
 	HasRequirements     bool
-	Layers              []LayerSpec
+	Layers              []manifest.LayerSpec
 	PythonVersion       string
 }
 

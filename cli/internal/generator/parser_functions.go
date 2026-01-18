@@ -9,12 +9,13 @@ import (
 
 	samparser "github.com/poruru-code/aws-sam-parser-go/parser"
 	"github.com/poruru-code/aws-sam-parser-go/schema"
+	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
 )
 
 func parseFunctions(
 	resources map[string]any,
 	defaults functionDefaults,
-	layerMap map[string]LayerSpec,
+	layerMap map[string]manifest.LayerSpec,
 ) []FunctionSpec {
 	functions := make([]FunctionSpec, 0)
 	for logicalID, value := range resources {
@@ -189,12 +190,12 @@ func parseScaling(props map[string]any) ScalingSpec {
 	return scaling
 }
 
-func collectLayers(raw any, layerMap map[string]LayerSpec) []LayerSpec {
+func collectLayers(raw any, layerMap map[string]manifest.LayerSpec) []manifest.LayerSpec {
 	refs := extractLayerRefs(raw)
 	if len(refs) == 0 {
 		return nil
 	}
-	layers := make([]LayerSpec, 0, len(refs))
+	layers := make([]manifest.LayerSpec, 0, len(refs))
 	for _, ref := range refs {
 		if spec, ok := layerMap[ref]; ok {
 			layers = append(layers, spec)

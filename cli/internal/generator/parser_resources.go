@@ -8,11 +8,12 @@ import (
 
 	samparser "github.com/poruru-code/aws-sam-parser-go/parser"
 	"github.com/poruru-code/aws-sam-parser-go/schema"
+	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
 )
 
-func parseLayerResources(resources map[string]any) (map[string]LayerSpec, []LayerSpec) {
-	layerMap := map[string]LayerSpec{}
-	var layers []LayerSpec
+func parseLayerResources(resources map[string]any) (map[string]manifest.LayerSpec, []manifest.LayerSpec) {
+	layerMap := map[string]manifest.LayerSpec{}
+	var layers []manifest.LayerSpec
 
 	for logicalID, resource := range resources {
 		m := asMap(resource)
@@ -34,7 +35,7 @@ func parseLayerResources(resources map[string]any) (map[string]LayerSpec, []Laye
 			}
 		}
 
-		spec := LayerSpec{
+		spec := manifest.LayerSpec{
 			Name:                    layerName,
 			ContentURI:              contentURI,
 			CompatibleArchitectures: compatibleArchs,
@@ -46,8 +47,8 @@ func parseLayerResources(resources map[string]any) (map[string]LayerSpec, []Laye
 	return layerMap, layers
 }
 
-func parseOtherResources(resources map[string]any) ResourcesSpec {
-	parsed := ResourcesSpec{}
+func parseOtherResources(resources map[string]any) manifest.ResourcesSpec {
+	parsed := manifest.ResourcesSpec{}
 
 	for logicalID, value := range resources {
 		resource := asMap(value)
@@ -69,7 +70,7 @@ func parseOtherResources(resources map[string]any) ResourcesSpec {
 				fmt.Printf("Warning: failed to map DynamoDB table %s: %v\n", logicalID, err)
 			}
 
-			parsed.DynamoDB = append(parsed.DynamoDB, DynamoDBSpec{
+			parsed.DynamoDB = append(parsed.DynamoDB, manifest.DynamoDBSpec{
 				TableName:              tableName,
 				KeySchema:              tableProps.KeySchema,
 				AttributeDefinitions:   tableProps.AttributeDefinitions,
@@ -85,7 +86,7 @@ func parseOtherResources(resources map[string]any) ResourcesSpec {
 				fmt.Printf("Warning: failed to map S3 bucket %s: %v\n", logicalID, err)
 			}
 
-			parsed.S3 = append(parsed.S3, S3Spec{
+			parsed.S3 = append(parsed.S3, manifest.S3Spec{
 				BucketName:             bucketName,
 				LifecycleConfiguration: s3Props.LifecycleConfiguration,
 			})

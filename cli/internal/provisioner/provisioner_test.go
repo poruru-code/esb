@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/poruru-code/aws-sam-parser-go/schema"
-	"github.com/poruru/edge-serverless-box/cli/internal/generator"
+	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
 )
 
 type fakePortResolver struct {
@@ -114,7 +114,7 @@ func (f *fakeS3) PutBucketLifecycleConfiguration(_ context.Context, name string,
 
 func TestProvisionDynamoCreatesWhenMissing(t *testing.T) {
 	client := &fakeDynamo{existing: []string{}}
-	tables := []generator.DynamoDBSpec{
+	tables := []manifest.DynamoDBSpec{
 		{
 			TableName: "test-table",
 			KeySchema: []schema.AWSDynamoDBTableKeySchema{
@@ -140,7 +140,7 @@ func TestProvisionDynamoCreatesWhenMissing(t *testing.T) {
 
 func TestProvisionDynamoSkipsExisting(t *testing.T) {
 	client := &fakeDynamo{existing: []string{"test-table"}}
-	tables := []generator.DynamoDBSpec{
+	tables := []manifest.DynamoDBSpec{
 		{TableName: "test-table"},
 	}
 
@@ -154,7 +154,7 @@ func TestProvisionDynamoSkipsExisting(t *testing.T) {
 
 func TestProvisionS3CreatesWhenMissing(t *testing.T) {
 	client := &fakeS3{existing: []string{}}
-	buckets := []generator.S3Spec{
+	buckets := []manifest.S3Spec{
 		{BucketName: "test-bucket"},
 	}
 
@@ -168,7 +168,7 @@ func TestProvisionS3CreatesWhenMissing(t *testing.T) {
 
 func TestProvisionS3SkipsExisting(t *testing.T) {
 	client := &fakeS3{existing: []string{"test-bucket"}}
-	buckets := []generator.S3Spec{
+	buckets := []manifest.S3Spec{
 		{BucketName: "test-bucket"},
 	}
 

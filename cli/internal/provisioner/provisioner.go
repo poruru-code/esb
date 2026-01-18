@@ -8,12 +8,10 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
-	"github.com/poruru/edge-serverless-box/cli/internal/generator"
+	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
 )
 
 const (
@@ -21,23 +19,10 @@ const (
 	defaultS3Port     = 9000
 )
 
-type Request struct {
-	TemplatePath   string
-	ProjectDir     string
-	Env            string
-	ComposeProject string
-	Mode           string
-}
-
-type Provisioner interface {
-	Provision(request Request) error
-}
-
 type Runner struct {
 	Out          io.Writer
 	Clients      ClientFactory
 	PortResolver PortResolver
-	Parser       generator.Parser
 }
 
 func New(client compose.DockerClient) *Runner {
@@ -45,16 +30,14 @@ func New(client compose.DockerClient) *Runner {
 		Out:          os.Stdout,
 		Clients:      awsClientFactory{},
 		PortResolver: dockerPortResolver{Client: client},
-		Parser:       generator.DefaultParser{},
 	}
 }
 
-func (r *Runner) Provision(request Request) error {
+// Apply implements app.Provisioner interface.
+// It applies the desired state defined in ResourcesSpec to the local environment.
+func (r *Runner) Apply(ctx context.Context, resources manifest.ResourcesSpec, composeProject string) error {
 	if r == nil {
 		return fmt.Errorf("provisioner is nil")
-	}
-	if strings.TrimSpace(request.TemplatePath) == "" {
-		return fmt.Errorf("template path is required")
 	}
 
 	out := r.Out
@@ -65,37 +48,16 @@ func (r *Runner) Provision(request Request) error {
 	if clients == nil {
 		return fmt.Errorf("client factory not configured")
 	}
-	parser := r.Parser
-	if parser == nil {
-		parser = generator.DefaultParser{}
-	}
 
-	templatePath, err := filepath.Abs(request.TemplatePath)
-	if err != nil {
-		return err
-	}
-	if _, err := os.Stat(templatePath); err != nil {
-		return fmt.Errorf("template not found: %w", err)
-	}
-
-	content, err := os.ReadFile(templatePath)
-	if err != nil {
-		return err
-	}
-
-	parsed, err := parser.Parse(string(content), nil)
-	if err != nil {
-		return err
-	}
-
-	if len(parsed.Resources.DynamoDB) == 0 && len(parsed.Resources.S3) == 0 {
+	if len(resources.DynamoDB) == 0 && len(resources.S3) == 0 {
 		return nil
 	}
 
-	ctx := context.Background()
-	composeProject := normalizeComposeProject(request.ComposeProject, request.Env)
+	if composeProject == "" {
+		composeProject = "esb"
+	}
 
-	if len(parsed.Resources.DynamoDB) > 0 {
+	if len(resources.DynamoDB) > 0 {
 		port, ok := resolvePort(
 			ctx,
 			constants.EnvPortDatabase,
@@ -111,12 +73,12 @@ func (r *Runner) Provision(request Request) error {
 			if err != nil {
 				fmt.Fprintf(out, "skipping DynamoDB provisioning: %v\n", err)
 			} else {
-				provisionDynamo(ctx, client, parsed.Resources.DynamoDB, out)
+				provisionDynamo(ctx, client, resources.DynamoDB, out)
 			}
 		}
 	}
 
-	if len(parsed.Resources.S3) > 0 {
+	if len(resources.S3) > 0 {
 		port, ok := resolvePort(
 			ctx,
 			constants.EnvPortS3,
@@ -132,20 +94,10 @@ func (r *Runner) Provision(request Request) error {
 			if err != nil {
 				fmt.Fprintf(out, "skipping S3 provisioning: %v\n", err)
 			} else {
-				provisionS3(ctx, client, parsed.Resources.S3, out)
+				provisionS3(ctx, client, resources.S3, out)
 			}
 		}
 	}
 
 	return nil
-}
-
-func normalizeComposeProject(explicit, env string) string {
-	if strings.TrimSpace(explicit) != "" {
-		return explicit
-	}
-	if strings.TrimSpace(env) == "" {
-		return "esb"
-	}
-	return fmt.Sprintf("esb-%s", strings.ToLower(env))
 }

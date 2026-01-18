@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"unicode"
+
+	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
 )
 
 type stageContext struct {
@@ -82,12 +84,12 @@ func stageFunction(fn FunctionSpec, ctx stageContext) (stagedFunction, error) {
 
 // stageLayers stages each referenced layer inside the function directory,
 // applying smart nesting for Python runtimes and sanitizing names.
-func stageLayers(layers []LayerSpec, ctx stageContext, functionName, functionDir, runtime string) ([]LayerSpec, error) {
+func stageLayers(layers []manifest.LayerSpec, ctx stageContext, functionName, functionDir, runtime string) ([]manifest.LayerSpec, error) {
 	if len(layers) == 0 {
 		return nil, nil
 	}
 
-	staged := make([]LayerSpec, 0, len(layers))
+	staged := make([]manifest.LayerSpec, 0, len(layers))
 	layersDir := filepath.Join(functionDir, "layers")
 	for _, layer := range layers {
 		source := resolveResourcePath(ctx.BaseDir, layer.ContentURI)
@@ -175,7 +177,7 @@ func resolveSitecustomizeSource(ctx stageContext) string {
 }
 
 // layerTargetName derives a filesystem-safe directory name for a layer.
-func layerTargetName(layer LayerSpec, source string) string {
+func layerTargetName(layer manifest.LayerSpec, source string) string {
 	if sanitized := sanitizeLayerName(layer.Name); sanitized != "" {
 		return sanitized
 	}
