@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
+	"github.com/poruru/edge-serverless-box/meta"
 )
 
 // GenerateOptions configures Generator.GenerateFiles behavior.
@@ -227,7 +228,7 @@ func resolveConfigPath(explicit, baseDir, outputDir, name string) string {
 func normalizeOutputDir(outputDir string) string {
 	trimmed := strings.TrimRight(strings.TrimSpace(outputDir), "/\\")
 	if trimmed == "" {
-		return ".esb"
+		return meta.OutputDir
 	}
 	return trimmed
 }

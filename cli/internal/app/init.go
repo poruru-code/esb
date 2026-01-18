@@ -12,6 +12,7 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
+	"github.com/poruru/edge-serverless-box/meta"
 	"gopkg.in/yaml.v3"
 )
 
@@ -143,7 +144,7 @@ func buildGeneratorConfig(templatePath string, envs config.Environments, project
 		Environments: envs,
 		Paths: config.PathsConfig{
 			SamTemplate: relTemplate,
-			OutputDir:   ".esb/",
+			OutputDir:   meta.OutputDir + "/",
 		},
 		Parameters: userParams,
 	}

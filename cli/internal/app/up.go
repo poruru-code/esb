@@ -88,6 +88,7 @@ func runUp(cli CLI, deps Dependencies, out io.Writer) int {
 
 		request := manifest.BuildRequest{
 			ProjectDir:   ctx.ProjectDir,
+			ProjectName:  ctx.ComposeProject,
 			TemplatePath: templatePath,
 			Env:          ctxInfo.Env,
 		}

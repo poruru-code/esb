@@ -20,6 +20,7 @@ const (
 	EnvContainerRegistry = "CONTAINER_REGISTRY"
 	EnvConfigDir         = "CONFIG_DIR"
 	EnvImageTag          = "IMAGE_TAG"
+	EnvRootCAMountID     = "ROOT_CA_MOUNT_ID"
 
 	// Host variable suffixes (used with envutil.HostEnvKey)
 	HostSuffixEnv              = "ENV"

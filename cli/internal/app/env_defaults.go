@@ -17,6 +17,7 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
 	"github.com/poruru/edge-serverless-box/cli/internal/staging"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
+	"github.com/poruru/edge-serverless-box/meta"
 )
 
 var defaultPorts = map[string]int{
@@ -63,9 +64,34 @@ func applyRuntimeEnv(ctx state.Context, resolver func(string) (string, error)) {
 
 	_ = applyGeneratorConfigEnv(ctx.GeneratorPath)
 	applyConfigDirEnv(ctx, resolver)
+	applyBrandingEnv(ctx)
 	applyProxyDefaults()
 	if os.Getenv("DOCKER_BUILDKIT") == "" {
 		_ = os.Setenv("DOCKER_BUILDKIT", "1")
+	}
+}
+
+// applyBrandingEnv synchronizes branding constants from the meta package
+// to environment variables used by Docker Compose and scripts.
+func applyBrandingEnv(_ state.Context) {
+	_ = os.Setenv(constants.EnvRootCAMountID, meta.RootCAMountID)
+	setEnvIfEmpty("ROOT_CA_CERT_FILENAME", meta.RootCACertFilename)
+	_ = os.Setenv("ENV_PREFIX", meta.EnvPrefix)
+	_ = os.Setenv("CLI_CMD", meta.Slug)
+
+	homeDirName := meta.HomeDir
+	if !strings.HasPrefix(homeDirName, ".") {
+		homeDirName = "." + homeDirName
+	}
+	home := os.Getenv("HOME")
+	certDir := filepath.Join(home, homeDirName, "certs")
+	setEnvIfEmpty("CERT_DIR", certDir)
+
+	// Calculate fingerprint for build cache invalidation if CA changes
+	caPath := filepath.Join(certDir, "rootCA.crt")
+	if data, err := os.ReadFile(caPath); err == nil {
+		fp := fmt.Sprintf("%x", md5.Sum(data))
+		_ = os.Setenv("ROOT_CA_FINGERPRINT", fp)
 	}
 }
 

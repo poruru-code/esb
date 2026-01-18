@@ -140,13 +140,10 @@ def warmup_environment(env_scenarios: dict, matrix: list[dict], esb_project: str
     # We use subprocess directly to call go run ... project add
     # Assuming run_esb helper logic or direct call
     # Here we replicate the call from original script
-    GO_CLI_ROOT = PROJECT_ROOT / "cli"
+    # Register ESB project (this generates generator.yml)
     project_name = os.environ.get(env_key("PROJECT"), esb_project or BRAND_SLUG)
-    subprocess.run(
+    run_esb(
         [
-            "go",
-            "run",
-            "./cmd/esb",
             "project",
             "add",
             ".",
@@ -156,9 +153,7 @@ def warmup_environment(env_scenarios: dict, matrix: list[dict], esb_project: str
             env_list,
             "--name",
             project_name,
-        ],
-        cwd=GO_CLI_ROOT,
-        check=True,
+        ]
     )
 
 
@@ -501,7 +496,7 @@ def run_profiles_with_executor(
             try:
                 returncode, output = future.result()
                 success = returncode == 0
-                failed_list = [] if success else [f"Environment {profile_name}"]
+                failed_list = [] if success else [profile_name]
 
                 prefix = "[PARALLEL]" if max_workers > 1 else "[MATRIX]"
 

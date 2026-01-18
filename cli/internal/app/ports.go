@@ -19,6 +19,7 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 	"github.com/poruru/edge-serverless-box/cli/internal/ui"
+	"github.com/poruru/edge-serverless-box/meta"
 )
 
 // PortDiscoverer defines the interface for discovering dynamically assigned ports
@@ -155,7 +156,11 @@ func resolveESBHome(env string) (string, error) {
 	if name == "" {
 		name = "default"
 	}
-	return filepath.Join(home, ".esb", name), nil
+	homeDirName := meta.HomeDir
+	if !strings.HasPrefix(homeDirName, ".") {
+		homeDirName = "." + homeDirName
+	}
+	return filepath.Join(home, homeDirName, name), nil
 }
 
 // applyPortsToEnv sets environment variables for discovered ports,

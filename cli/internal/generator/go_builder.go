@@ -132,11 +132,17 @@ func (b *GoBuilder) Build(request manifest.BuildRequest) error {
 		fmt.Println("Done")
 	}
 
-	projectName := strings.ToLower(cfg.App.Name)
-	if projectName == "" {
-		projectName = meta.Slug
+	composeProject := request.ProjectName
+	if composeProject == "" {
+		brandName := strings.ToLower(cfg.App.Name)
+		if brandName == "" {
+			brandName = strings.ToLower(os.Getenv("CLI_CMD"))
+		}
+		if brandName == "" {
+			brandName = meta.Slug
+		}
+		composeProject = fmt.Sprintf("%s-%s", brandName, strings.ToLower(request.Env))
 	}
-	composeProject := fmt.Sprintf("%s-%s", projectName, strings.ToLower(request.Env))
 
 	if err := stageConfigFiles(cfg.Paths.OutputDir, repoRoot, composeProject, request.Env); err != nil {
 		return err

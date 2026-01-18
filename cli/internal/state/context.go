@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
+	"github.com/poruru/edge-serverless-box/meta"
 )
 
 type Context struct {
@@ -58,10 +59,10 @@ func ResolveContext(projectDir, env string) (Context, error) {
 	}
 	outputDir = filepath.Clean(outputDir)
 
-	// Branding: Prioritize CLI_CMD from environment, then generator.yml, then fallback
-	brandName := strings.ToLower(os.Getenv("CLI_CMD"))
+	// Branding: Prioritize generator.yml, then CLI_CMD from environment, then fallback
+	brandName := strings.ToLower(cfg.App.Name)
 	if brandName == "" {
-		brandName = strings.ToLower(cfg.App.Name)
+		brandName = strings.ToLower(os.Getenv("CLI_CMD"))
 	}
 	if brandName == "" {
 		brandName = "esb" // Ultimate fallback
@@ -87,7 +88,7 @@ func ResolveContext(projectDir, env string) (Context, error) {
 func normalizeOutputDir(outputDir string) string {
 	trimmed := strings.TrimRight(outputDir, "/\\")
 	if trimmed == "" {
-		return ".esb"
+		return meta.OutputDir
 	}
 	return trimmed
 }

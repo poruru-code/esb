@@ -90,9 +90,6 @@ E2E_STATE_ROOT = PROJECT_ROOT / "e2e" / "fixtures" / BRAND_OUTPUT_DIR
 def env_key(suffix: str) -> str:
     # Transitional logic: some variables no longer use prefixes
     prefix_less = {
-        "ENV",
-        "MODE",
-        "IMAGE_TAG",
         "DATA_PLANE_HOST",
         "PORT_GATEWAY_HTTPS",
         "PORT_GATEWAY_HTTP",
@@ -117,7 +114,10 @@ def resolve_env_file_path(env_file: Optional[str]) -> Optional[str]:
 
 
 def build_esb_cmd(args: List[str], env_file: Optional[str]) -> List[str]:
-    base_cmd = ["go", "run", "./cmd/esb"]
+    # Use the compiled binary from the path (installed via mise setup)
+    defaults = _read_defaults_env()
+    cli_cmd = defaults.get("CLI_CMD", "esb")
+    base_cmd = [cli_cmd]
     env_file_path = resolve_env_file_path(env_file)
     if env_file_path:
         base_cmd.extend(["--env-file", env_file_path])
@@ -136,4 +136,6 @@ def run_esb(
     cmd = build_esb_cmd(args, env_file)
     if verbose:
         print(f"Running: {' '.join(cmd)}")
-    return subprocess.run(cmd, cwd=GO_CLI_ROOT, check=check, stdin=subprocess.DEVNULL)
+
+    # Use shell=False and pass the command as a list to rely on PATH
+    return subprocess.run(cmd, check=check, stdin=subprocess.DEVNULL)
