@@ -4,13 +4,16 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	samparser "github.com/poruru-code/aws-sam-parser-go/parser"
 )
 
-func TestParserContext_Resolve(t *testing.T) {
-	ctx := NewParserContext(map[string]string{
+func TestIntrinsicResolver_Resolve(t *testing.T) {
+	resolver := NewIntrinsicResolver(map[string]string{
 		"MyParam": "Value1",
 		"Stage":   "prod",
 	})
+	ctx := &samparser.Context{MaxDepth: maxResolveDepth}
 
 	tests := []struct {
 		name  string
@@ -103,18 +106,22 @@ func TestParserContext_Resolve(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := ctx.resolve(tt.input, 0); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("resolve() = %v, want %v", got, tt.want)
+			got, err := samparser.ResolveAll(ctx, tt.input, resolver)
+			if err != nil {
+				t.Fatalf("ResolveAll error: %v", err)
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("ResolveAll() = %v, want %v", got, tt.want)
 			}
 		})
 	}
 }
 
-func TestParserContext_Conditions(t *testing.T) {
-	ctx := NewParserContext(map[string]string{
+func TestIntrinsicResolver_Conditions(t *testing.T) {
+	resolver := NewIntrinsicResolver(map[string]string{
 		"Env": "prod",
 	})
-	ctx.RawConditions = map[string]any{
+	resolver.RawConditions = map[string]any{
 		"IsProd": true,
 	}
 
@@ -156,12 +163,20 @@ func TestParserContext_Conditions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if strings.HasPrefix(tt.name, "equals") {
-				if got := ctx.EvaluateCondition(tt.input); got != tt.want.(bool) {
+				if got := resolver.EvaluateCondition(tt.input); got != tt.want.(bool) {
 					t.Errorf("EvaluateCondition() = %v, want %v", got, tt.want)
 				}
 			} else {
-				if got := ctx.resolve(tt.input, 0); !reflect.DeepEqual(got, tt.want) {
-					t.Errorf("resolve() = %v, want %v", got, tt.want)
+				got, err := samparser.ResolveAll(
+					&samparser.Context{MaxDepth: maxResolveDepth},
+					tt.input,
+					resolver,
+				)
+				if err != nil {
+					t.Fatalf("ResolveAll error: %v", err)
+				}
+				if !reflect.DeepEqual(got, tt.want) {
+					t.Errorf("ResolveAll() = %v, want %v", got, tt.want)
 				}
 			}
 		})

@@ -64,8 +64,8 @@ flowchart TD
 
 ## Schema 追加・更新手順
 
-1. `cli/internal/generator/schema/sam.schema.json` に必要なフィールド/定義を追加し、`sam.schema.json` の `$ref` 参照を使って `sam_generated.go` を再生成（`go-jsonschema` を使用）。  
-2. `sam_generated.go` を再生成後、`Parser` 側（`parser.go`）で新しいプロパティを `FunctionSpec` 等にマッピング。数値/文字列混在は `asString`/`asIntPointer` で正規化。  
+1. `aws-sam-parser-go/tools/schema-gen/sam.schema.json` または `extensions/` を更新し、`generate.py` で `aws-sam-parser-go/schema/sam_generated.go` を再生成（`go-json-schema-generate` を使用）。  
+2. 生成後、ESB 側でモジュールのバージョン（または `replace`）を更新し、必要であれば `parser.go` で新しいプロパティを `FunctionSpec` 等にマッピング。数値/文字列混在は `asString`/`asIntPointer` で正規化。  
 3. `validator.go` で `gojsonschema` を使ったバリデーションを追加し、`.tmp/template.yml` や `e2e/fixtures/template.yaml` などで `validateSAMTemplate` テストを回して新しいフィールドを含むか確認。  
 4. `cli/internal/generator/templates` の Dockerfile/functions/routing テンプレートに必要な変数（`Functions`, `Events`）を追加し、`renderer.go` がロジックを反映。`renderer_test.go` を用意して YAML 出力を検証。  
 5. このドキュメントや `docs/generator-architecture.md` を更新し、新しいフィールド一覧と検証手順を記録。E2E を `uv run python e2e/run_tests.py --reset --parallel` で再実行して生成/Compose が通ることを確認。
