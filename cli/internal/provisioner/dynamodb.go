@@ -9,8 +9,8 @@ import (
 	"io"
 	"strings"
 
+	"github.com/poruru-code/aws-sam-parser-go/schema"
 	"github.com/poruru/edge-serverless-box/cli/internal/generator"
-	"github.com/poruru/edge-serverless-box/cli/internal/generator/schema"
 )
 
 type DynamoDBAPI interface {

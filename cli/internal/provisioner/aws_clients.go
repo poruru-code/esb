@@ -14,7 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/poruru/edge-serverless-box/cli/internal/generator/schema"
+	"github.com/poruru-code/aws-sam-parser-go/schema"
 )
 
 func traceProvisionerOp(format string, args ...any) {

@@ -5,7 +5,7 @@
 python = "3.12"
 go = "1.25.1"
 uv = "0.8.13"
-lefthook = "latest"
+lefthook = "2.0.15"
 mkcert = "1.4.4"
  
 # Go tooling (installed via go install)

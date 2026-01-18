@@ -369,8 +369,7 @@ Resources:
 }
 
 func TestResolveIntrinsicSubstitution(t *testing.T) {
-	ctx := NewParserContext(map[string]string{"Prefix": "prod"})
-	value := ctx.resolveIntrinsic("func-${Prefix}")
+	value := resolveIntrinsicWithParams(map[string]string{"Prefix": "prod"}, "func-${Prefix}")
 	if value != "func-prod" {
 		t.Fatalf("unexpected substitution: %s", value)
 	}

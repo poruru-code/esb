@@ -6,7 +6,8 @@ package generator
 import (
 	"fmt"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/generator/schema"
+	samparser "github.com/poruru-code/aws-sam-parser-go/parser"
+	"github.com/poruru-code/aws-sam-parser-go/schema"
 )
 
 type ParseResult struct {
@@ -79,7 +80,7 @@ func ParseSAMTemplate(content string, parameters map[string]string) (ParseResult
 		parameters = map[string]string{}
 	}
 
-	data, err := decodeYAML(content)
+	data, err := samparser.DecodeYAML(content)
 	if err != nil {
 		return ParseResult{}, err
 	}
@@ -91,26 +92,39 @@ func ParseSAMTemplate(content string, parameters map[string]string) (ParseResult
 		mergedParams[k] = v
 	}
 
-	pCtx := NewParserContext(mergedParams)
-	pCtx.RawConditions = asMap(data["Conditions"])
+	resolver := NewIntrinsicResolver(mergedParams)
+	resolver.RawConditions = asMap(data["Conditions"])
+
+	resolvedAny, err := samparser.ResolveAll(
+		&samparser.Context{MaxDepth: maxResolveDepth},
+		data,
+		resolver,
+	)
+	if err != nil {
+		return ParseResult{}, err
+	}
+	resolved := asMap(resolvedAny)
+	if resolved == nil {
+		return ParseResult{}, fmt.Errorf("unexpected yaml root")
+	}
 
 	var template schema.SamModel
-	if err := pCtx.mapToStruct(data, &template); err != nil {
+	if err := samparser.Decode(resolved, &template, nil); err != nil {
 		return ParseResult{}, err
 	}
 
-	if asMap(data["Resources"]) == nil {
+	if asMap(resolved["Resources"]) == nil {
 		return ParseResult{}, nil
 	}
 
-	functionGlobals := extractFunctionGlobals(data)
-	defaults := parseFunctionDefaults(functionGlobals, pCtx)
+	functionGlobals := extractFunctionGlobals(resolved)
+	defaults := parseFunctionDefaults(functionGlobals)
 
-	layerMap, layers := parseLayerResources(template.Resources, pCtx)
-	parsedResources := parseOtherResources(template.Resources, pCtx)
+	layerMap, layers := parseLayerResources(template.Resources)
+	parsedResources := parseOtherResources(template.Resources)
 	parsedResources.Layers = layers
 
-	functions := parseFunctions(template.Resources, defaults, layerMap, pCtx)
+	functions := parseFunctions(template.Resources, defaults, layerMap)
 
 	return ParseResult{Functions: functions, Resources: parsedResources}, nil
 }

@@ -38,7 +38,7 @@ func extractFunctionGlobals(data map[string]any) map[string]any {
 	return asMap(globals["Function"])
 }
 
-func parseFunctionDefaults(functionGlobals map[string]any, ctx *ParserContext) functionDefaults {
+func parseFunctionDefaults(functionGlobals map[string]any) functionDefaults {
 	defaults := functionDefaults{
 		Runtime:             DefaultLambdaRuntime,
 		Handler:             DefaultLambdaHandler,
@@ -52,31 +52,31 @@ func parseFunctionDefaults(functionGlobals map[string]any, ctx *ParserContext) f
 	}
 
 	if val := functionGlobals["Runtime"]; val != nil {
-		defaults.Runtime = ctx.asString(val)
+		defaults.Runtime = asString(val)
 	}
 	if val := functionGlobals["Handler"]; val != nil {
-		defaults.Handler = ctx.asString(val)
+		defaults.Handler = asString(val)
 	}
 	if val := functionGlobals["Timeout"]; val != nil {
-		defaults.Timeout = ctx.asInt(val)
+		defaults.Timeout = asInt(val)
 	}
 	if val := functionGlobals["MemorySize"]; val != nil {
-		defaults.Memory = ctx.asInt(val)
+		defaults.Memory = asInt(val)
 	}
-	if layers := ctx.asSlice(functionGlobals["Layers"]); layers != nil {
+	if layers := asSlice(functionGlobals["Layers"]); layers != nil {
 		defaults.Layers = layers
 	}
-	if archs := ctx.asSlice(functionGlobals["Architectures"]); archs != nil {
+	if archs := asSlice(functionGlobals["Architectures"]); archs != nil {
 		for _, a := range archs {
-			defaults.Architectures = append(defaults.Architectures, ctx.asString(a))
+			defaults.Architectures = append(defaults.Architectures, asString(a))
 		}
 	}
 	defaults.RuntimeManagement = functionGlobals["RuntimeManagementConfig"]
 
-	if env := ctx.asMap(functionGlobals["Environment"]); env != nil {
-		if vars := ctx.asMap(env["Variables"]); vars != nil {
+	if env := asMap(functionGlobals["Environment"]); env != nil {
+		if vars := asMap(env["Variables"]); vars != nil {
 			for key, value := range vars {
-				defaults.EnvironmentDefaults[key] = ctx.asString(value)
+				defaults.EnvironmentDefaults[key] = asString(value)
 			}
 		}
 	}
@@ -86,23 +86,23 @@ func parseFunctionDefaults(functionGlobals map[string]any, ctx *ParserContext) f
 
 // Resolution helpers for standard AWS/SAM conventions
 
-func ResolveTableName(props map[string]any, logicalID string, ctx *ParserContext) string {
-	return ctx.asStringDefault(props["TableName"], logicalID)
+func ResolveTableName(props map[string]any, logicalID string) string {
+	return asStringDefault(props["TableName"], logicalID)
 }
 
-func ResolveS3BucketName(props map[string]any, logicalID string, ctx *ParserContext) string {
+func ResolveS3BucketName(props map[string]any, logicalID string) string {
 	// S3 bucket names are typically lowercase in SAM if not specified
-	return ctx.asStringDefault(props["BucketName"], strings.ToLower(logicalID))
+	return asStringDefault(props["BucketName"], strings.ToLower(logicalID))
 }
 
-func ResolveFunctionName(nameInProps any, logicalID string, ctx *ParserContext) string {
-	return ctx.asStringDefault(nameInProps, logicalID)
+func ResolveFunctionName(nameInProps any, logicalID string) string {
+	return asStringDefault(nameInProps, logicalID)
 }
 
-func ResolveCodeURI(uriInProps any, ctx *ParserContext) string {
-	return ctx.asStringDefault(uriInProps, DefaultCodeURI)
+func ResolveCodeURI(uriInProps any) string {
+	return asStringDefault(uriInProps, DefaultCodeURI)
 }
 
-func ResolveBillingMode(props map[string]any, ctx *ParserContext) string {
-	return ctx.asStringDefault(props["BillingMode"], DefaultBillingMode)
+func ResolveBillingMode(props map[string]any) string {
+	return asStringDefault(props["BillingMode"], DefaultBillingMode)
 }
