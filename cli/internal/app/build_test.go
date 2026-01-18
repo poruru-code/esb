@@ -11,14 +11,15 @@ import (
 	"testing"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
 )
 
 type fakeBuilder struct {
-	requests []BuildRequest
+	requests []manifest.BuildRequest
 	err      error
 }
 
-func (f *fakeBuilder) Build(req BuildRequest) error {
+func (f *fakeBuilder) Build(req manifest.BuildRequest) error {
 	f.requests = append(f.requests, req)
 	return f.err
 }

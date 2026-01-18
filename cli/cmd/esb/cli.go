@@ -4,7 +4,6 @@
 package main
 
 import (
-	"fmt"
 	"io"
 	"os"
 
@@ -45,36 +44,14 @@ func buildDependencies() (app.Dependencies, io.Closer, error) {
 		Logger:          app.NewLogger(client, config.ResolveRepoRoot),
 		PortDiscoverer:  app.NewPortDiscoverer(),
 		Waiter:          app.NewGatewayWaiter(),
-		Provisioner:     provisionerAdapter{runner: provisioner.New(client)},
+		Provisioner:     provisioner.New(client),
+		Parser:          generator.DefaultParser{},
 		Pruner:          app.NewPruner(client),
 		Prompter:        app.HuhPrompter{},
 		RepoResolver:    config.ResolveRepoRoot,
 	}
 
 	return deps, asCloser(client), nil
-}
-
-// provisionerAdapter wraps the provisioner.Runner to implement the app.Provisioner interface.
-// This adapter translates between the application-level ProvisionRequest and
-// the lower-level provisioner.Request.
-type provisionerAdapter struct {
-	runner *provisioner.Runner
-}
-
-// Provision executes the provisioning workflow by delegating to the underlying runner.
-// It converts the application-level request to a provisioner-specific request and
-// returns any error encountered during the provisioning process.
-func (p provisionerAdapter) Provision(request app.ProvisionRequest) error {
-	if p.runner == nil {
-		return fmt.Errorf("provisioner is nil")
-	}
-	return p.runner.Provision(provisioner.Request{
-		TemplatePath:   request.TemplatePath,
-		ProjectDir:     request.ProjectDir,
-		Env:            request.Env,
-		ComposeProject: request.ComposeProject,
-		Mode:           request.Mode,
-	})
 }
 
 // warnf writes a warning message to stderr.

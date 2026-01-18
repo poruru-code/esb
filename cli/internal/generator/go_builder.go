@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/app"
 	"github.com/poruru/edge-serverless-box/cli/internal/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 )
 
@@ -34,7 +34,7 @@ func NewGoBuilder() *GoBuilder {
 	}
 }
 
-func (b *GoBuilder) Build(request app.BuildRequest) error {
+func (b *GoBuilder) Build(request manifest.BuildRequest) error {
 	if b == nil {
 		return fmt.Errorf("builder is nil")
 	}

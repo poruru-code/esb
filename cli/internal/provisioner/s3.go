@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/poruru-code/aws-sam-parser-go/schema"
-	"github.com/poruru/edge-serverless-box/cli/internal/generator"
+	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
 )
 
 type S3API interface {
@@ -19,7 +19,7 @@ type S3API interface {
 	PutBucketLifecycleConfiguration(ctx context.Context, name string, config *schema.AWSS3BucketLifecycleConfiguration) error
 }
 
-func provisionS3(ctx context.Context, client S3API, buckets []generator.S3Spec, out io.Writer) {
+func provisionS3(ctx context.Context, client S3API, buckets []manifest.S3Spec, out io.Writer) {
 	if client == nil || len(buckets) == 0 {
 		return
 	}

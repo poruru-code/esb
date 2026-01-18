@@ -13,6 +13,7 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/joho/godotenv"
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/generator"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 	"github.com/poruru/edge-serverless-box/cli/internal/version"
 )
@@ -43,6 +44,7 @@ type Dependencies struct {
 	PortDiscoverer  PortDiscoverer
 	Waiter          GatewayWaiter
 	Provisioner     Provisioner
+	Parser          generator.Parser
 	Pruner          Pruner
 	Now             func() time.Time
 	Prompter        Prompter

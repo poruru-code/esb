@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"gopkg.in/yaml.v3"
+	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
 )
 
 func TestRenderDockerfileSimple(t *testing.T) {
@@ -46,7 +47,7 @@ func TestRenderDockerfileWithRequirementsAndLayers(t *testing.T) {
 		Handler:         "lambda_function.lambda_handler",
 		Runtime:         "python3.12",
 		HasRequirements: true,
-		Layers: []LayerSpec{
+		Layers: []manifest.LayerSpec{
 			{Name: "common-layer", ContentURI: "functions/lambda-hello/layers/common"},
 		},
 	}
