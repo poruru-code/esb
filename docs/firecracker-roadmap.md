@@ -295,7 +295,7 @@ sudo firecracker-ctr --address /run/firecracker-containerd/containerd.sock \
 
 **想定 API（Agent 側, gRPC）**
 - `InvokeWorkerRequest`:
-  - `worker_id`（または `ip_address` + `port`）
+  - `container_id`
   - `function_name`
   - `payload`（bytes）
   - `timeout_ms`

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
@@ -17,7 +18,8 @@ import (
 
 type AgentServer struct {
 	pb.UnimplementedAgentServiceServer
-	runtime runtime.ContainerRuntime
+	runtime     runtime.ContainerRuntime
+	workerCache sync.Map // map[containerID]runtime.WorkerInfo
 }
 
 func NewAgentServer(rt runtime.ContainerRuntime) *AgentServer {
@@ -40,6 +42,8 @@ func (s *AgentServer) EnsureContainer(ctx context.Context, req *pb.EnsureContain
 		return nil, status.Errorf(codes.Internal, "failed to ensure container: %v", err)
 	}
 
+	s.workerCache.Store(info.ID, *info)
+
 	return &pb.WorkerInfo{
 		Id:        info.ID,
 		IpAddress: info.IPAddress,
@@ -48,11 +52,20 @@ func (s *AgentServer) EnsureContainer(ctx context.Context, req *pb.EnsureContain
 }
 
 func (s *AgentServer) InvokeWorker(ctx context.Context, req *pb.InvokeWorkerRequest) (*pb.InvokeWorkerResponse, error) {
-	if req.IpAddress == "" {
-		return nil, status.Error(codes.InvalidArgument, "ip_address is required")
+	if req.ContainerId == "" {
+		return nil, status.Error(codes.InvalidArgument, "container_id is required")
 	}
 
-	port := req.Port
+	workerValue, ok := s.workerCache.Load(req.ContainerId)
+	if !ok {
+		return nil, status.Error(codes.NotFound, "container_id not found")
+	}
+	worker := workerValue.(runtime.WorkerInfo)
+	if worker.IPAddress == "" {
+		return nil, status.Error(codes.FailedPrecondition, "container ip_address is empty")
+	}
+
+	port := worker.Port
 	if port == 0 {
 		port = 8080
 	}
@@ -70,7 +83,7 @@ func (s *AgentServer) InvokeWorker(ctx context.Context, req *pb.InvokeWorkerRequ
 		timeout = 30 * time.Second
 	}
 
-	url := fmt.Sprintf("http://%s:%d%s", req.IpAddress, port, path)
+	url := fmt.Sprintf("http://%s:%d%s", worker.IPAddress, port, path)
 
 	reqCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -143,6 +156,8 @@ func (s *AgentServer) DestroyContainer(ctx context.Context, req *pb.DestroyConta
 	if err := s.runtime.Destroy(ctx, req.ContainerId); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to destroy container: %v", err)
 	}
+
+	s.workerCache.Delete(req.ContainerId)
 
 	return &pb.DestroyContainerResponse{
 		Success: true,

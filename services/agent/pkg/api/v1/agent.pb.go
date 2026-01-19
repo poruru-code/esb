@@ -424,8 +424,7 @@ func (x *WorkerInfo) GetPort() int32 {
 
 type InvokeWorkerRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	IpAddress     string                 `protobuf:"bytes,1,opt,name=ip_address,json=ipAddress,proto3" json:"ip_address,omitempty"`
-	Port          int32                  `protobuf:"varint,2,opt,name=port,proto3" json:"port,omitempty"`
+	ContainerId   string                 `protobuf:"bytes,7,opt,name=container_id,json=containerId,proto3" json:"container_id,omitempty"`
 	Path          string                 `protobuf:"bytes,3,opt,name=path,proto3" json:"path,omitempty"`
 	Payload       []byte                 `protobuf:"bytes,4,opt,name=payload,proto3" json:"payload,omitempty"`
 	Headers       map[string]string      `protobuf:"bytes,5,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
@@ -464,18 +463,11 @@ func (*InvokeWorkerRequest) Descriptor() ([]byte, []int) {
 	return file_agent_proto_rawDescGZIP(), []int{8}
 }
 
-func (x *InvokeWorkerRequest) GetIpAddress() string {
+func (x *InvokeWorkerRequest) GetContainerId() string {
 	if x != nil {
-		return x.IpAddress
+		return x.ContainerId
 	}
 	return ""
-}
-
-func (x *InvokeWorkerRequest) GetPort() int32 {
-	if x != nil {
-		return x.Port
-	}
-	return 0
 }
 
 func (x *InvokeWorkerRequest) GetPath() string {
@@ -983,11 +975,9 @@ const file_agent_proto_rawDesc = "" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1d\n" +
 	"\n" +
 	"ip_address\x18\x03 \x01(\tR\tipAddress\x12\x12\n" +
-	"\x04port\x18\x04 \x01(\x05R\x04port\"\x9b\x02\n" +
-	"\x13InvokeWorkerRequest\x12\x1d\n" +
-	"\n" +
-	"ip_address\x18\x01 \x01(\tR\tipAddress\x12\x12\n" +
-	"\x04port\x18\x02 \x01(\x05R\x04port\x12\x12\n" +
+	"\x04port\x18\x04 \x01(\x05R\x04port\"\xa9\x02\n" +
+	"\x13InvokeWorkerRequest\x12!\n" +
+	"\fcontainer_id\x18\a \x01(\tR\vcontainerId\x12\x12\n" +
 	"\x04path\x18\x03 \x01(\tR\x04path\x12\x18\n" +
 	"\apayload\x18\x04 \x01(\fR\apayload\x12H\n" +
 	"\aheaders\x18\x05 \x03(\v2..esb.agent.v1.InvokeWorkerRequest.HeadersEntryR\aheaders\x12\x1d\n" +
@@ -995,7 +985,8 @@ const file_agent_proto_rawDesc = "" +
 	"timeout_ms\x18\x06 \x01(\x05R\ttimeoutMs\x1a:\n" +
 	"\fHeadersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xd2\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x01\x10\x02J\x04\b\x02\x10\x03R\n" +
+	"ip_addressR\x04port\"\xd2\x01\n" +
 	"\x14InvokeWorkerResponse\x12\x1f\n" +
 	"\vstatus_code\x18\x01 \x01(\x05R\n" +
 	"statusCode\x12I\n" +
@@ -1084,7 +1075,6 @@ var (
 		nil,                                 // 18: esb.agent.v1.InvokeWorkerResponse.HeadersEntry
 	}
 )
-
 var file_agent_proto_depIdxs = []int32{
 	16, // 0: esb.agent.v1.EnsureContainerRequest.env:type_name -> esb.agent.v1.EnsureContainerRequest.EnvEntry
 	17, // 1: esb.agent.v1.InvokeWorkerRequest.headers:type_name -> esb.agent.v1.InvokeWorkerRequest.HeadersEntry

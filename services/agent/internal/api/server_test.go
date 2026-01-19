@@ -2,7 +2,12 @@ package api_test
 
 import (
 	"context"
+	"io"
 	"net"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strconv"
 	"testing"
 	"time"
 
@@ -12,7 +17,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 )
 
@@ -169,6 +176,94 @@ func TestDestroyContainer(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, resp.Success)
 	mockRT.AssertExpectations(t)
+}
+
+func TestInvokeWorkerRequiresContainerID(t *testing.T) {
+	mockRT := new(MockRuntime)
+	conn := initServer(t, mockRT)
+	defer conn.Close()
+
+	client := pb.NewAgentServiceClient(conn)
+
+	_, err := client.InvokeWorker(context.Background(), &pb.InvokeWorkerRequest{})
+	assert.Error(t, err)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+}
+
+func TestInvokeWorkerUsesCachedWorker(t *testing.T) {
+	mockRT := new(MockRuntime)
+	conn := initServer(t, mockRT)
+	defer conn.Close()
+
+	client := pb.NewAgentServiceClient(conn)
+
+	var gotPath string
+	var gotHeader string
+	var gotBody string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotHeader = r.Header.Get("X-Test")
+		body, err := io.ReadAll(r.Body)
+		if err == nil {
+			gotBody = string(body)
+		}
+		w.Header().Set("X-From", "worker")
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer server.Close()
+
+	parsedURL, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatalf("parse server url: %v", err)
+	}
+	host, portStr, err := net.SplitHostPort(parsedURL.Host)
+	if err != nil {
+		t.Fatalf("split host port: %v", err)
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		t.Fatalf("parse port: %v", err)
+	}
+
+	fnName := "test-func"
+	image := "test-image"
+	var env map[string]string
+	expectedWorker := &runtime.WorkerInfo{
+		ID:        "container-123",
+		IPAddress: host,
+		Port:      port,
+	}
+
+	mockRT.On("Ensure", mock.Anything, runtime.EnsureRequest{
+		FunctionName: fnName,
+		Image:        image,
+		Env:          env,
+	}).Return(expectedWorker, nil)
+
+	_, err = client.EnsureContainer(context.Background(), &pb.EnsureContainerRequest{
+		FunctionName: fnName,
+		Image:        image,
+		Env:          env,
+	})
+	assert.NoError(t, err)
+
+	resp, err := client.InvokeWorker(context.Background(), &pb.InvokeWorkerRequest{
+		ContainerId: expectedWorker.ID,
+		Path:        "invoke",
+		Payload:     []byte("hello"),
+		Headers: map[string]string{
+			"X-Test": "value",
+		},
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, int32(http.StatusAccepted), resp.StatusCode)
+	assert.Equal(t, "ok", string(resp.Body))
+	assert.Equal(t, "worker", resp.Headers["X-From"])
+	assert.Equal(t, "/invoke", gotPath)
+	assert.Equal(t, "value", gotHeader)
+	assert.Equal(t, "hello", gotBody)
 }
 
 func TestPauseContainer(t *testing.T) {
