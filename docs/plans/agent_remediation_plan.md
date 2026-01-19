@@ -30,6 +30,7 @@
 - Proposed change: mTLS またはトークン認証を導入し、reflection は `AGENT_GRPC_REFLECTION=1` の時のみ有効化。
 - Acceptance: 認証なしの接続が拒否され、reflection がデフォルトで無効。
 - Tests/Docs: gRPC 接続テスト追加、認証/証明書の設定手順をドキュメント化。
+- Status: Done（mTLS 有効時のクライアント証明書必須化 + reflection のデフォルト無効化）
 
 ### P1-3: GC の対象限定と CNI Cleanup（High）
 - Rationale: GC が名前空間内全削除 + CNI Remove 未実行は誤削除/残留状態を引き起こす。

@@ -86,6 +86,37 @@ Gateway が正常終了 (SIGTERM) する際、管理下の全コンテナに対�
 
 オートスケーリングの挙動は環境変数と `template.yaml` で制御します。
 
+## 監視 (Pool Metrics API)
+
+Gateway のプール状態は `/metrics/pools` で取得できます（認証必須）。runtime に依存せず、関数ごとのプール統計を返します。
+
+```
+GET /metrics/pools
+```
+
+レスポンス例（抜粋）:
+
+```json
+{
+  "pools": [
+    {
+      "function_name": "lambda-echo",
+      "total_workers": 1,
+      "idle": 0,
+      "busy": 1,
+      "provisioning": 0,
+      "max_capacity": 1,
+      "min_capacity": 0,
+      "acquire_timeout": 30.0
+    }
+  ],
+  "collected_at": "2026-01-20T03:20:00Z"
+}
+```
+
+> [!NOTE]
+> `/metrics/containers` は Agent runtime のメトリクスに依存します。Docker runtime では `501` になる場合があります。
+
 ### SAM テンプレート設定
 
 `AWS::Serverless::Function` の `ReservedConcurrentExecutions` プロパティが、その関数の最大同時実行数（プールのキャパシティ）として使用されます。

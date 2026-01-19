@@ -66,6 +66,10 @@ services:
       - ${CERT_DIR:-~/.esb/certs}:/app/config/ssl:ro
     environment:
       - AGENT_RUNTIME=containerd
+      - AGENT_GRPC_TLS_ENABLED=1
+      - AGENT_GRPC_CERT_PATH=/app/config/ssl/server.crt
+      - AGENT_GRPC_KEY_PATH=/app/config/ssl/server.key
+      - AGENT_GRPC_CA_CERT_PATH=/app/config/ssl/rootCA.crt
       # No Firecracker shim - use default containerd runtime
       - CONTAINER_REGISTRY=registry:5010
       - CONTAINERS_NETWORK=${NETWORK_EXTERNAL:-${PROJECT_NAME:-undefined}-external}
@@ -87,6 +91,10 @@ services:
     environment:
       # Connect to Agent (same network namespace)
       - AGENT_GRPC_ADDRESS=localhost:50051
+      - AGENT_GRPC_TLS_ENABLED=1
+      - AGENT_GRPC_TLS_CA_CERT_PATH=/app/config/ssl/rootCA.crt
+      - AGENT_GRPC_TLS_CERT_PATH=/app/config/ssl/client.crt
+      - AGENT_GRPC_TLS_KEY_PATH=/app/config/ssl/client.key
       # Gateway URL accessible from CNI subnet
       - GATEWAY_INTERNAL_URL=https://${DATA_PLANE_HOST:-10.88.0.1}:8443
       # Data Plane Host (for constructing S3/DB endpoints in code)

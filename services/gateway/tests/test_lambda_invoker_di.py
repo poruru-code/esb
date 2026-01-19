@@ -185,6 +185,7 @@ async def test_lambda_invoker_always_uses_pool_backend():
         mock_config.LAMBDA_INVOKE_TIMEOUT = 30
         mock_config.LAMBDA_PORT = 8080
         mock_config.AGENT_GRPC_ADDRESS = "test-agent:50051"
+        mock_config.AGENT_GRPC_TLS_ENABLED = False
         mock_config.DEFAULT_MAX_CAPACITY = 10
         mock_config.DEFAULT_MIN_CAPACITY = 0
         mock_config.POOL_ACQUIRE_TIMEOUT = 30.0

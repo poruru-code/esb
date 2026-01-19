@@ -68,6 +68,11 @@ services:
       - AGENT_RUNTIME=containerd
       - CONTAINERD_RUNTIME=aws.firecracker
       - CONTAINER_REGISTRY=registry:5010
+      # mTLS (disabled for Firecracker mode)
+      # - AGENT_GRPC_TLS_ENABLED=1
+      # - AGENT_GRPC_CERT_PATH=/app/config/ssl/server.crt
+      # - AGENT_GRPC_KEY_PATH=/app/config/ssl/server.key
+      # - AGENT_GRPC_CA_CERT_PATH=/app/config/ssl/rootCA.crt
 
   # ------------------------------------------
   # 3. Gateway Wiring (WireGuard for FC Mode)
@@ -98,6 +103,11 @@ services:
     environment:
       # Connect to Runtime Node (Host of Agent)
       - AGENT_GRPC_ADDRESS=runtime-node:50051
+      # mTLS (disabled for Firecracker mode)
+      # - AGENT_GRPC_TLS_ENABLED=1
+      # - AGENT_GRPC_TLS_CA_CERT_PATH=/app/config/ssl/rootCA.crt
+      # - AGENT_GRPC_TLS_CERT_PATH=/app/config/ssl/client.crt
+      # - AGENT_GRPC_TLS_KEY_PATH=/app/config/ssl/client.key
       # WireGuard endpoint for Lambda -> Gateway
       - GATEWAY_INTERNAL_URL=https://10.99.0.1:8443
       - IMAGE_TAG=${IMAGE_TAG:-}

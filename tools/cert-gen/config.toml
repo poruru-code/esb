@@ -6,12 +6,15 @@
 [certificate]
 filename_cert = "server.crt"
 filename_key = "server.key"
+filename_client_cert = "client.crt"
+filename_client_key = "client.key"
 
 [hosts]
 domains = [
     "localhost",
     "registry",
     "gateway",
+    "agent",
     "host.docker.internal"
 ]
 ips = [
@@ -20,3 +23,10 @@ ips = [
     "10.99.0.1"
 ]
 include_local_ip = true
+
+[client_hosts]
+domains = [
+    "gateway"
+]
+ips = []
+include_local_ip = false

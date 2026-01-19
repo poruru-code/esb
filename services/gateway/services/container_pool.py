@@ -203,10 +203,15 @@ class ContainerPool:
     @property
     def stats(self) -> dict:
         """Pool statistics."""
+        total_workers = len(self._all_workers)
+        idle_workers = len(self._idle_workers)
         return {
             "function_name": self.function_name,
-            "total_workers": len(self._all_workers),
-            "idle": len(self._idle_workers),
+            "total_workers": total_workers,
+            "idle": idle_workers,
+            "busy": max(0, total_workers - idle_workers),
             "provisioning": self._provisioning_count,
             "max_capacity": self.max_capacity,
+            "min_capacity": self.min_capacity,
+            "acquire_timeout": self.acquire_timeout,
         }
