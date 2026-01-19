@@ -78,6 +78,59 @@ async def test_lambda_invoker_invoke_flow():
 
 
 @pytest.mark.asyncio
+async def test_lambda_invoker_retries_on_connect_error():
+    """Retry once on connection error and switch workers."""
+    import httpx
+
+    client = AsyncMock()
+    registry = MagicMock(spec=FunctionRegistry)
+    backend = AsyncMock()
+    config = GatewayConfig()
+
+    invoker = LambdaInvoker(client, registry, config, backend)
+
+    function_name = "test-func"
+    payload = b"{}"
+
+    registry.get_function_config.return_value = FunctionEntity(
+        name=function_name,
+        image="test-image",
+        environment={"VAR": "VAL"},
+    )
+
+    worker1 = MagicMock()
+    worker1.ip_address = "10.0.0.1"
+    worker1.port = 8080
+    worker2 = MagicMock()
+    worker2.ip_address = "10.0.0.2"
+    worker2.port = 8080
+    backend.acquire_worker.side_effect = [worker1, worker2]
+
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.content = b'{"statusCode": 200, "body": "OK"}'
+    mock_response.json.return_value = {"statusCode": 200, "body": "OK"}
+    mock_response.headers = {}
+
+    request = httpx.Request(
+        "POST", "http://10.0.0.1:8080/2015-03-31/functions/function/invocations"
+    )
+    client.post.side_effect = [
+        httpx.ConnectError("Connection failed", request=request),
+        mock_response,
+    ]
+
+    result = await invoker.invoke_function(function_name, payload)
+
+    assert result.success is True
+    assert backend.acquire_worker.call_count == 2
+    backend.evict_worker.assert_awaited_once_with(function_name, worker1)
+    backend.release_worker.assert_awaited_once_with(function_name, worker2)
+    assert client.post.call_args_list[0][0][0].startswith("http://10.0.0.1:")
+    assert client.post.call_args_list[1][0][0].startswith("http://10.0.0.2:")
+
+
+@pytest.mark.asyncio
 async def test_lambda_invoker_logging_on_error():
     """Test LambdaInvoker logs errors with extra context"""
     import httpx
