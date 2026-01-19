@@ -167,6 +167,21 @@ def ensure_user_ownership(output_dir: str) -> None:
     attempt_fix_permissions(expanded)
 
 
+def load_env_defaults(root: Path) -> dict[str, str]:
+    """Read branding defaults from config/defaults.env"""
+    path = root / "config" / "defaults.env"
+    if not path.exists():
+        return {}
+    defaults = {}
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        defaults[key.strip()] = value.strip()
+    return defaults
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate development certificates using mkcert")
     parser.add_argument(
@@ -180,12 +195,29 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     repo_root = resolve_repo_root()
+    defaults = load_env_defaults(repo_root)
+    cli_cmd = defaults.get("CLI_CMD", "esb")
+
     config_path = Path(args.config)
     if not config_path.is_absolute():
         config_path = repo_root / config_path
-    config = toml.load(config_path)
+
+    config = {}
+    if config_path.exists():
+        config = toml.load(config_path)
+
     cert_cfg = config.get("certificate", {})
-    output_dir = os.path.expanduser(cert_cfg.get("output_dir", DEFAULT_CERT_OUTPUT_DIR))
+
+    # Derivation logic for output_dir:
+    # 1. Flag (future)
+    # 2. config.toml [certificate] output_dir
+    # 3. Dynamic branding: ~/.{CLI_CMD}/certs
+    # 4. Fallback: ~/.local/share/certs
+    output_dir = cert_cfg.get("output_dir")
+    if not output_dir:
+        output_dir = f"~/.{cli_cmd}/certs"
+
+    output_dir = os.path.expanduser(output_dir)
 
     # Force CAROOT to follow branding output_dir to avoid stale env vars.
     if os.environ.get("CAROOT") and os.environ["CAROOT"] != output_dir:

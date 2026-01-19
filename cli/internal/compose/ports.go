@@ -66,7 +66,7 @@ var DefaultPortMappings = []PortMapping{
 		Modes:         []string{ModeContainerd, ModeFirecracker},
 	},
 	{
-		EnvVar:        constants.EnvPortAgentCGRPC,
+		EnvVar:        constants.EnvPortAgentGRPC,
 		Service:       "runtime-node",
 		ContainerPort: 50051,
 		Modes:         []string{ModeContainerd, ModeFirecracker},

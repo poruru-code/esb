@@ -43,7 +43,7 @@ class GrpcProvisionClient:
         env["AWS_REGION"] = env.get("AWS_REGION", "ap-northeast-1")
 
         # Data Plane Host (fallback for Containerd mode)
-        data_plane_host = getattr(config, "ESB_DATA_PLANE_HOST", "10.88.0.1")
+        data_plane_host = getattr(config, "DATA_PLANE_HOST", "10.88.0.1")
 
         # 1. VictoriaLogs (CloudWatch Logs)
         vl_url = getattr(config, "GATEWAY_VICTORIALOGS_URL", "")

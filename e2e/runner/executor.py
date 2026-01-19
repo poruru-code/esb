@@ -18,7 +18,6 @@ from e2e.runner.utils import (
     BRAND_SLUG,
     E2E_STATE_ROOT,
     PROJECT_ROOT,
-    apply_esb_aliases,
     env_key,
     run_esb,
 )
@@ -34,9 +33,9 @@ COLORS = [
 COLOR_RESET = "\033[0m"
 
 
-def thorough_cleanup(env_name: str, esb_project: str):
+def thorough_cleanup(env_name: str):
     """Exhaustively remove Docker resources associated with an environment."""
-    project_label = f"{esb_project}-{env_name}"
+    project_label = f"{BRAND_SLUG}-{env_name}"
 
     # 1. Containers
     container_filters = [
@@ -96,7 +95,7 @@ def thorough_cleanup(env_name: str, esb_project: str):
     # Run it manually or via a post-test cleanup script instead.
 
 
-def warmup_environment(env_scenarios: dict, matrix: list[dict], esb_project: str, args):
+def warmup_environment(env_scenarios: dict, matrix: list[dict], args):
     """
     Perform global reset and warm-up actions.
     This includes cleaning up old artifacts and registering the ESB project
@@ -141,13 +140,10 @@ def warmup_environment(env_scenarios: dict, matrix: list[dict], esb_project: str
     # We use subprocess directly to call go run ... project add
     # Assuming run_esb helper logic or direct call
     # Here we replicate the call from original script
-    GO_CLI_ROOT = PROJECT_ROOT / "cli"
-    project_name = os.environ.get(env_key("PROJECT"), esb_project or BRAND_SLUG)
-    subprocess.run(
+    # Register ESB project (this generates generator.yml)
+    project_name = os.environ.get(env_key("PROJECT"), BRAND_SLUG)
+    run_esb(
         [
-            "go",
-            "run",
-            "./cmd/esb",
             "project",
             "add",
             ".",
@@ -157,9 +153,7 @@ def warmup_environment(env_scenarios: dict, matrix: list[dict], esb_project: str
             env_list,
             "--name",
             project_name,
-        ],
-        cwd=GO_CLI_ROOT,
-        check=True,
+        ]
     )
 
 
@@ -205,7 +199,6 @@ def run_scenario(args, scenario):
     env["VICTORIALOGS_URL"] = f"http://localhost:{env['VICTORIALOGS_PORT']}"
     env["AGENT_GRPC_ADDRESS"] = f"localhost:{env.get(env_key('PORT_AGENT_GRPC'), '50051')}"
     env[env_key("PROJECT_NAME")] = f"{project_name}-{env_name}"
-    apply_esb_aliases(env)
 
     # Merge scenario-specific environment variables
     env.update(env_vars_override)
@@ -218,7 +211,7 @@ def run_scenario(args, scenario):
         if do_reset:
             print(f"➜ Resetting environment: {env_name}")
             # 2.1 Thorough Docker cleanup for this environment
-            thorough_cleanup(env_name, project_name)
+            thorough_cleanup(env_name)
 
             # 2.2 Clean artifact directory for this environment
             env_state_dir = E2E_STATE_ROOT / env_name
@@ -287,7 +280,6 @@ def run_scenario(args, scenario):
             agent_key = env_key("PORT_AGENT_GRPC")
             if agent_key in ports:
                 env["AGENT_GRPC_ADDRESS"] = f"localhost:{ports[agent_key]}"
-            apply_esb_aliases(env)
 
         apply_gateway_env_from_container(env, env_file)
 
@@ -345,7 +337,7 @@ def run_profile_subprocess(
     env = os.environ.copy()
     env["TERM"] = "dumb"
     env[env_key("INTERACTIVE")] = "0"
-    apply_esb_aliases(env)
+    env["E2E_WORKER"] = "1"
 
     process = subprocess.Popen(
         cmd,
@@ -504,7 +496,7 @@ def run_profiles_with_executor(
             try:
                 returncode, output = future.result()
                 success = returncode == 0
-                failed_list = [] if success else [f"Environment {profile_name}"]
+                failed_list = [] if success else [profile_name]
 
                 prefix = "[PARALLEL]" if max_workers > 1 else "[MATRIX]"
 

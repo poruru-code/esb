@@ -5,6 +5,7 @@ package containerd
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"log"
 	"os"
@@ -141,30 +142,20 @@ func mapTaskState(status containerd.ProcessStatus) string {
 }
 
 // extractFunctionName extracts function name from container ID.
-// Format: esb-{env}-{func}-{uuid}
+// Format: esb-{env}-{func}-{id}
 func extractFunctionName(containerID, env string) string {
 	prefix := fmt.Sprintf("esb-%s-", env)
 	if !strings.HasPrefix(containerID, prefix) {
 		return ""
 	}
 	trimmed := strings.TrimPrefix(containerID, prefix)
-	// Remaining: {func}-{uuid}
-	// UUID has dashes, but usually function name doesn't have double dashes or is separated by last dash?
-	// Actually UUID format is 8-4-4-4-12.
-	// Function name might contain dashes.
-	// Strategy: Split by dash, remove last 5 parts? (uuid has 5 parts usually: 8-4-4-4-12)
-	// But simple uuid.New().String()
-	// Let's rely on LastIndex of specific pattern or just assume last part is UUID if it wasn't split by dashes?
-	// Wait, containerID generation: fmt.Sprintf("esb-%s-%s-%s", r.env, req.FunctionName, uuid.New().String())
-	// So it is {prefix}{func}-{uuid}
-	// If func has dashes, it's ambiguous if we parse from string.
-	// Ideally we rely on labels. This logic is fallback.
-	// Let's do a best effort: Remove the last 36+ chars (UUID length + dash)?
-	// UUID string length is 36. "-UUID" is 37 chars.
-	if len(trimmed) < 37 {
+	// Remaining: {func}-{id}
+	// The id is an 8-character hex string (added in Phase 2 refactor).
+	if len(trimmed) < 9 { // Minimum: {f}-{12345678}
 		return ""
 	}
-	return trimmed[:len(trimmed)-37]
+	// Last 8 characters + dash = 9 characters to remove.
+	return trimmed[:len(trimmed)-9]
 }
 
 func extractTaskMetrics(metric *types.Metric) (uint64, uint64, uint64, uint64, error) {
@@ -240,8 +231,11 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 		}
 	}
 
-	// Phase 7: Use new container name format: esb-{env}-{func}-{uuid}
-	containerID := fmt.Sprintf("esb-%s-%s-%s", r.env, req.FunctionName, uuid.New().String())
+	// Phase 7: Use new container name format: esb-{env}-{func}-{id}
+	// id is a 4-byte hex string (8 characters) to keep names short.
+	u := uuid.New()
+	id := hex.EncodeToString(u[:4])
+	containerID := fmt.Sprintf("esb-%s-%s-%s", r.env, req.FunctionName, id)
 
 	// 1. Ensure image (only for Cold Start)
 	imgObj, err := r.ensureImage(ctx, image)

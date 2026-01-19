@@ -24,7 +24,7 @@ func buildImageFingerprint(outputDir, composeProject, env, baseImageID string, f
 	stageKey := staging.CacheKey(composeProject, env)
 	seed := fmt.Sprintf("%s:%s:%s", stageKey, strings.TrimSpace(baseImageID), outputHash)
 	sum := sha256.Sum256([]byte(seed))
-	return hex.EncodeToString(sum[:]), nil
+	return hex.EncodeToString(sum[:4]), nil
 }
 
 func outputFingerprint(outputDir string, functions []FunctionSpec) (string, error) {
@@ -97,5 +97,5 @@ func hashPaths(baseDir string, paths []string) (string, error) {
 		}
 		_, _ = hasher.Write([]byte{0})
 	}
-	return hex.EncodeToString(hasher.Sum(nil)), nil
+	return hex.EncodeToString(hasher.Sum(nil)[:4]), nil
 }

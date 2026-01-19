@@ -4,9 +4,12 @@
 package state
 
 import (
+	"os"
 	"testing"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
 )
 
 func TestResolveProjectStateUsesEnvFlag(t *testing.T) {
@@ -46,6 +49,29 @@ func TestResolveProjectStateUsesLastEnv(t *testing.T) {
 	}
 	if state.ActiveEnv != "staging" {
 		t.Fatalf("unexpected env: %s", state.ActiveEnv)
+	}
+}
+
+func TestResolveProjectStateForceUnsetsInvalidEnv(t *testing.T) {
+	key := envutil.HostEnvKey(constants.HostSuffixEnv)
+	t.Setenv(key, "missing")
+	opts := ProjectStateOptions{
+		EnvVar: os.Getenv(key),
+		Config: config.GeneratorConfig{
+			Environments: config.Environments{{Name: "prod"}},
+		},
+		Force: true,
+	}
+
+	state, err := ResolveProjectState(opts)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if state.ActiveEnv != "prod" {
+		t.Fatalf("unexpected env: %s", state.ActiveEnv)
+	}
+	if got := os.Getenv(key); got != "" {
+		t.Fatalf("expected %s to be unset, got %q", key, got)
 	}
 }
 

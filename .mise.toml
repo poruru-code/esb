@@ -16,7 +16,7 @@ mkcert = "1.4.4"
 
 [env]
 _.path = ["~/.local/bin"]
-BRANDING_CLI_NAME = "esb"
+# CLI_CMD is read from config/defaults.env at runtime
  
 [tasks.setup]
 description = "Install dependencies and enable git hooks"
@@ -24,7 +24,7 @@ run = [
   "uv sync --all-extras",
   "lefthook install",
   "mise run build-cli",
-  "esb config set-repo .",
+  "bash -lc 'source ./config/defaults.env && ${CLI_CMD} config set-repo .'",
   "mise run setup:certs",
 ]
 
@@ -36,11 +36,12 @@ run = "uv run python tools/cert-gen/generate.py"
 description = "Build CLI to ~/.local/bin"
 dir = "cli"
 run = [
-  "bash -lc 'if [ -f ../.branding.env ]; then . ../.branding.env; fi; go build -o ~/.local/bin/${BRANDING_CLI_NAME} ./cmd/esb'",
-  "bash -lc 'if [ -f ../.branding.env ]; then . ../.branding.env; fi; mkdir -p ~/.local/share/bash-completion/completions && ~/.local/bin/${BRANDING_CLI_NAME} completion bash > ~/.local/share/bash-completion/completions/${BRANDING_CLI_NAME}'",
+  "bash -lc 'source ../config/defaults.env && go build -o ~/.local/bin/${CLI_CMD} ./cmd/esb'",
+  "bash -lc 'source ../config/defaults.env && mkdir -p ~/.local/share/bash-completion/completions && ~/.local/bin/${CLI_CMD} completion bash > ~/.local/share/bash-completion/completions/${CLI_CMD}'",
 ]
 
 [tasks.dev-cli]
 description = "Watch and rebuild CLI on changes"
 dir = "cli"
 run = "air"
+

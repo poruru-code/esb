@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -62,7 +63,9 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 	}
 
 	// Phase 7: Use new container name format: esb-{env}-{func}-{uuid}
-	containerName := fmt.Sprintf("esb-%s-%s-%s", r.env, req.FunctionName, uuid.New().String())
+	u := uuid.New()
+	id := hex.EncodeToString(u[:4])
+	containerName := fmt.Sprintf("esb-%s-%s-%s", r.env, req.FunctionName, id)
 
 	// Phase 5 Step 0: Pull image from registry if set
 	registry := os.Getenv("CONTAINER_REGISTRY")

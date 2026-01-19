@@ -10,10 +10,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/poruru/edge-serverless-box/meta"
+
 	"github.com/poruru/edge-serverless-box/cli/internal/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
-	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
 )
 
 type GoBuilder struct {
@@ -130,11 +132,17 @@ func (b *GoBuilder) Build(request manifest.BuildRequest) error {
 		fmt.Println("Done")
 	}
 
-	projectName := strings.ToLower(cfg.App.Name)
-	if projectName == "" {
-		projectName = constants.BrandingSlug
+	composeProject := request.ProjectName
+	if composeProject == "" {
+		brandName := strings.ToLower(cfg.App.Name)
+		if brandName == "" {
+			brandName = strings.ToLower(os.Getenv("CLI_CMD"))
+		}
+		if brandName == "" {
+			brandName = meta.Slug
+		}
+		composeProject = fmt.Sprintf("%s-%s", brandName, strings.ToLower(request.Env))
 	}
-	composeProject := fmt.Sprintf("%s-%s", projectName, strings.ToLower(request.Env))
 
 	if err := stageConfigFiles(cfg.Paths.OutputDir, repoRoot, composeProject, request.Env); err != nil {
 		return err
@@ -207,7 +215,7 @@ func (b *GoBuilder) Build(request manifest.BuildRequest) error {
 	if !request.Verbose {
 		fmt.Print("➜ Building OS base image... ")
 	}
-	osBaseTag := fmt.Sprintf("%s-os-base:latest", constants.BrandingImagePrefix)
+	osBaseTag := fmt.Sprintf("%s-os-base:latest", meta.ImagePrefix)
 	if err := withBuildLock("os-base", func() error {
 		if !request.NoCache && dockerImageHasLabelValue(context.Background(), b.Runner, repoRoot, osBaseTag, compose.ESBCAFingerprintLabel, rootFingerprint) {
 			if request.Verbose {
@@ -243,7 +251,7 @@ func (b *GoBuilder) Build(request manifest.BuildRequest) error {
 	if !request.Verbose {
 		fmt.Print("➜ Building Python base image... ")
 	}
-	pythonBaseTag := fmt.Sprintf("%s-python-base:latest", constants.BrandingImagePrefix)
+	pythonBaseTag := fmt.Sprintf("%s-python-base:latest", meta.ImagePrefix)
 	if err := withBuildLock("python-base", func() error {
 		if !request.NoCache && dockerImageHasLabelValue(context.Background(), b.Runner, repoRoot, pythonBaseTag, compose.ESBCAFingerprintLabel, rootFingerprint) {
 			if request.Verbose {

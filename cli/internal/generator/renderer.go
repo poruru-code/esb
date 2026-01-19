@@ -11,8 +11,9 @@ import (
 	"sync"
 	"text/template"
 
+	"github.com/poruru/edge-serverless-box/meta"
+
 	"github.com/Masterminds/sprig/v3"
-	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
 )
 
@@ -50,9 +51,10 @@ func RenderDockerfile(
 		sitecustomize = defaultSitecustomizeSource
 	}
 
-	baseImage := "esb-lambda-base:" + tag
+	lambdaBase := meta.ImagePrefix + "-lambda-base"
+	baseImage := lambdaBase + ":" + tag
 	if registry != "" {
-		baseImage = fmt.Sprintf("%s/esb-lambda-base:%s", registry, tag)
+		baseImage = fmt.Sprintf("%s/%s:%s", registry, lambdaBase, tag)
 	}
 
 	data := dockerfileTemplateData{
@@ -77,7 +79,7 @@ func RenderFunctionsYml(functions []FunctionSpec, registry, tag string) (string,
 	data := functionsTemplateData{
 		Registry:  registry,
 		Tag:       tag,
-		EnvPrefix: constants.BrandingEnvPrefix,
+		EnvPrefix: meta.EnvPrefix,
 	}
 	for _, fn := range functions {
 		hasSchedules := false

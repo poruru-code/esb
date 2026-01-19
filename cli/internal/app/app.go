@@ -75,21 +75,21 @@ type VersionCmd struct{}
 
 type (
 	StopCmd struct {
-		Force bool `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
+		Force bool `help:"Auto-unset invalid project/environment variables"`
 	}
 	LogsCmd struct {
 		Service    string `arg:"" optional:"" help:"Service name (default: all)"`
 		Follow     bool   `short:"f" help:"Follow logs"`
 		Tail       int    `help:"Tail the latest N lines"`
 		Timestamps bool   `help:"Show timestamps"`
-		Force      bool   `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
+		Force      bool   `help:"Auto-unset invalid project/environment variables"`
 	}
 )
 
 type BuildCmd struct {
 	NoCache bool `name:"no-cache" help:"Do not use cache when building images"`
 	Verbose bool `short:"v" help:"Enable verbose output"`
-	Force   bool `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
+	Force   bool `help:"Auto-unset invalid project/environment variables"`
 }
 type UpCmd struct {
 	Build  bool `help:"Rebuild before starting"`
@@ -97,18 +97,18 @@ type UpCmd struct {
 	Yes    bool `short:"y" help:"Skip confirmation prompt for --reset"`
 	Detach bool `short:"d" default:"true" help:"Run in background"`
 	Wait   bool `short:"w" help:"Wait for gateway ready"`
-	Force  bool `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
+	Force  bool `help:"Auto-unset invalid project/environment variables"`
 }
 type DownCmd struct {
 	Volumes bool `short:"v" help:"Remove named volumes"`
-	Force   bool `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
+	Force   bool `help:"Auto-unset invalid project/environment variables"`
 }
 type PruneCmd struct {
 	Yes     bool `short:"y" help:"Skip confirmation prompt"`
 	All     bool `short:"a" help:"Remove all unused images (not just dangling)"`
 	Volumes bool `help:"Remove unused volumes"`
 	Hard    bool `help:"Also remove generator.yml"`
-	Force   bool `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
+	Force   bool `help:"Auto-unset invalid project/environment variables"`
 }
 
 // Run is the main entry point for CLI command execution.

@@ -40,6 +40,7 @@ type LayerSpec struct {
 // BuildRequest contains parameters for a build operation.
 type BuildRequest struct {
 	ProjectDir   string
+	ProjectName  string
 	TemplatePath string
 	Env          string
 	NoCache      bool

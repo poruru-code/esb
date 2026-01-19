@@ -2,7 +2,7 @@ import sys
 
 import yaml
 
-from e2e.runner.utils import PROJECT_ROOT
+from e2e.runner.utils import BRAND_SLUG, PROJECT_ROOT
 
 
 def load_test_matrix() -> dict:
@@ -14,16 +14,10 @@ def load_test_matrix() -> dict:
     with open(matrix_file, "r") as f:
         config_matrix = yaml.safe_load(f)
 
-    if not config_matrix.get("esb_project"):
-        print("[ERROR] esb_project is required in test_matrix.yaml.")
-        sys.exit(1)
-
     return config_matrix
 
 
-def build_env_scenarios(
-    matrix: list, suites: dict, esb_project: str, profile_filter: str = None
-) -> dict:
+def build_env_scenarios(matrix: list, suites: dict, profile_filter: str | None = None) -> dict:
     env_scenarios = {}
 
     for entry in matrix:
@@ -41,7 +35,7 @@ def build_env_scenarios(
                 "name": f"Combined Scenarios for {env_name}",
                 "env_file": entry.get("env_file"),
                 "esb_env": env_name,
-                "esb_project": esb_project,
+                "esb_project": BRAND_SLUG,
                 "env_vars": entry.get("env_vars", {}),
                 "targets": [],
                 "exclude": [],

@@ -5,8 +5,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
 
-import toml
-
 _SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 _ENV_PREFIX_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
 
@@ -37,9 +35,9 @@ def _normalize_env_prefix(value: str) -> str:
     return cleaned
 
 
-def _build_branding(brand: str) -> BrandingLite:
-    slug = _normalize_slug(brand)
-    env_prefix = _normalize_env_prefix(brand)
+def _build_branding(project_name: str) -> BrandingLite:
+    slug = _normalize_slug(project_name)
+    env_prefix = _normalize_env_prefix(project_name)
     paths = {
         "home_dir": f".{slug}",
         "output_dir": f".{slug}",
@@ -47,32 +45,38 @@ def _build_branding(brand: str) -> BrandingLite:
     return BrandingLite(env_prefix=env_prefix, slug=slug, paths=paths)
 
 
-def _load_slug_from_cert_config() -> str | None:
-    config_path = PROJECT_ROOT / "tools" / "cert-gen" / "config.toml"
-    if not config_path.exists():
-        return None
-    config = toml.load(config_path)
-    output_dir = str(config.get("certificate", {}).get("output_dir", "")).strip()
-    if not output_dir:
-        return None
-    expanded = Path(os.path.expanduser(output_dir))
-    if expanded.name != "certs":
-        return None
-    parent_name = expanded.parent.name
-    if not parent_name.startswith(".") or len(parent_name) <= 1:
-        return None
-    slug = parent_name[1:]
-    return slug if _SLUG_RE.fullmatch(slug) else None
+def _read_defaults_env() -> dict[str, str]:
+    """Read all key-values from config/defaults.env."""
+    defaults_path = PROJECT_ROOT / "config" / "defaults.env"
+    if not defaults_path.exists():
+        return {}
+
+    values = {}
+    for line in defaults_path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        values[key.strip()] = value.strip()
+    return values
 
 
 def load_branding():
-    slug = _load_slug_from_cert_config()
-    if slug:
-        return _build_branding(slug)
+    """Load branding configuration from config/defaults.env and inject into os.environ."""
+    defaults = _read_defaults_env()
 
-    raise RuntimeError(
-        "Branding config not found. Ensure tools/cert-gen/config.toml uses ~/.<slug>/certs."
-    )
+    # Inject into os.environ so child processes (CLI, Docker) inherit them
+    for k, v in defaults.items():
+        if k not in os.environ:
+            os.environ[k] = v
+
+    project_name = defaults.get("CLI_CMD")
+    if project_name:
+        return _build_branding(project_name)
+
+    raise RuntimeError("Branding config not found. Ensure config/defaults.env contains CLI_CMD.")
 
 
 BRANDING = load_branding()
@@ -84,19 +88,20 @@ E2E_STATE_ROOT = PROJECT_ROOT / "e2e" / "fixtures" / BRAND_OUTPUT_DIR
 
 
 def env_key(suffix: str) -> str:
+    # Transitional logic: some variables no longer use prefixes
+    prefix_less = {
+        "DATA_PLANE_HOST",
+        "PORT_GATEWAY_HTTPS",
+        "PORT_GATEWAY_HTTP",
+        "PORT_AGENT_GRPC",
+        "PORT_VICTORIALOGS",
+        "PORT_REGISTRY",
+        "PORT_DATABASE",
+        "PORT_S3",
+    }
+    if suffix in prefix_less:
+        return suffix
     return f"{ENV_PREFIX}_{suffix}"
-
-
-def apply_esb_aliases(env: dict[str, str]) -> None:
-    """Expose ESB_* aliases for tests when the brand prefix differs."""
-    if ENV_PREFIX == "ESB":
-        return
-    prefix = f"{ENV_PREFIX}_"
-    for key, value in list(env.items()):
-        if not key.startswith(prefix):
-            continue
-        esb_key = f"ESB_{key[len(prefix) :]}"
-        env.setdefault(esb_key, value)
 
 
 def resolve_env_file_path(env_file: Optional[str]) -> Optional[str]:
@@ -109,7 +114,10 @@ def resolve_env_file_path(env_file: Optional[str]) -> Optional[str]:
 
 
 def build_esb_cmd(args: List[str], env_file: Optional[str]) -> List[str]:
-    base_cmd = ["go", "run", "./cmd/esb"]
+    # Use the compiled binary from the path (installed via mise setup)
+    defaults = _read_defaults_env()
+    cli_cmd = defaults.get("CLI_CMD", "esb")
+    base_cmd = [cli_cmd]
     env_file_path = resolve_env_file_path(env_file)
     if env_file_path:
         base_cmd.extend(["--env-file", env_file_path])
@@ -128,4 +136,6 @@ def run_esb(
     cmd = build_esb_cmd(args, env_file)
     if verbose:
         print(f"Running: {' '.join(cmd)}")
-    return subprocess.run(cmd, cwd=GO_CLI_ROOT, check=check, stdin=subprocess.DEVNULL)
+
+    # Use shell=False and pass the command as a list to rely on PATH
+    return subprocess.run(cmd, check=check, stdin=subprocess.DEVNULL)

@@ -10,6 +10,9 @@ import (
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
+	"github.com/poruru/edge-serverless-box/meta"
 	"gopkg.in/yaml.v3"
 )
 
@@ -141,7 +144,7 @@ func buildGeneratorConfig(templatePath string, envs config.Environments, project
 		Environments: envs,
 		Paths: config.PathsConfig{
 			SamTemplate: relTemplate,
-			OutputDir:   ".esb/",
+			OutputDir:   meta.OutputDir + "/",
 		},
 		Parameters: userParams,
 	}
@@ -227,10 +230,10 @@ func splitEnvMode(value string) (string, string) {
 	return name, strings.TrimSpace(parts[1])
 }
 
-// defaultMode returns the default container runtime mode from ESB_MODE
-// environment variable, falling back to "docker" if not set.
+// defaultMode returns the default container runtime mode from host environment variable,
+// falling back to "docker" if not set.
 func defaultMode() string {
-	mode := strings.TrimSpace(strings.ToLower(os.Getenv("ESB_MODE")))
+	mode := strings.TrimSpace(strings.ToLower(envutil.GetHostEnv(constants.HostSuffixMode)))
 	if mode == "" {
 		return "docker"
 	}

@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
 )
 
 func TestResolveAppStateUsesEnvVar(t *testing.T) {
@@ -63,13 +65,14 @@ func TestResolveAppStateErrorsWithoutRecentProject(t *testing.T) {
 }
 
 func TestResolveAppStateForceUnsetsInvalidEnv(t *testing.T) {
-	t.Setenv("ESB_PROJECT", "missing")
+	key := envutil.HostEnvKey(constants.HostSuffixProject)
+	t.Setenv(key, "missing")
 	projects := map[string]config.ProjectEntry{
 		"alpha": {Path: "/projects/alpha", LastUsed: "2026-01-01T00:00:00Z"},
 	}
 
 	state, err := ResolveAppState(AppStateOptions{
-		ProjectEnv: os.Getenv("ESB_PROJECT"),
+		ProjectEnv: os.Getenv(key),
 		Projects:   projects,
 		Force:      true,
 	})
@@ -79,7 +82,7 @@ func TestResolveAppStateForceUnsetsInvalidEnv(t *testing.T) {
 	if state.ActiveProject != "alpha" {
 		t.Fatalf("unexpected project: %s", state.ActiveProject)
 	}
-	if got := os.Getenv("ESB_PROJECT"); got != "" {
-		t.Fatalf("expected ESB_PROJECT to be unset, got %q", got)
+	if got := os.Getenv(key); got != "" {
+		t.Fatalf("expected %s to be unset, got %q", key, got)
 	}
 }

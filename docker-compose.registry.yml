@@ -3,12 +3,12 @@
 services:
   registry:
     image: registry:2
-    container_name: ${ESB_PROJECT_NAME:-esb}-registry
+    container_name: ${PROJECT_NAME:-esb}-registry
     ports:
-      - "${ESB_PORT_REGISTRY:-0}:5010" # Registry API (pushes from host)
+      - "${PORT_REGISTRY:-0}:5010" # Registry API (pushes from host)
     volumes:
       - registry_data:/var/lib/registry
-      - ${ESB_CERT_DIR:-~/.esb/certs}:/certs:ro
+      - ${CERT_DIR:-~/.esb/certs}:/certs:ro
     environment:
       REGISTRY_HTTP_ADDR: 0.0.0.0:5010
       REGISTRY_HTTP_TLS_CERTIFICATE: /certs/server.crt

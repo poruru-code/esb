@@ -6,9 +6,10 @@ package app
 import (
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
@@ -133,7 +134,7 @@ func resolveCommandContext(cli CLI, deps Dependencies, opts resolveOptions) (com
 	}
 	envState, err := state.ResolveProjectState(state.ProjectStateOptions{
 		EnvFlag:         cli.EnvFlag,
-		EnvVar:          os.Getenv("ESB_ENV"),
+		EnvVar:          envutil.GetHostEnv(constants.HostSuffixEnv),
 		Config:          project.Generator,
 		Force:           opts.Force,
 		Interactive:     opts.Interactive,

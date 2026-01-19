@@ -10,6 +10,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
 )
 
 const (
@@ -139,7 +142,7 @@ func ResolveComposeFiles(rootDir, mode, target string) ([]string, error) {
 	return files, nil
 }
 
-// resolveMode normalizes the mode string, falling back to ESB_MODE env
+// resolveMode normalizes the mode string, falling back to brand-prefixed MODE env
 // variable or "docker" default.
 func resolveMode(mode string) string {
 	normalized := strings.ToLower(strings.TrimSpace(mode))
@@ -147,7 +150,7 @@ func resolveMode(mode string) string {
 	case ModeContainerd, ModeDocker, ModeFirecracker:
 		return normalized
 	}
-	env := strings.ToLower(strings.TrimSpace(os.Getenv("ESB_MODE")))
+	env := strings.ToLower(strings.TrimSpace(envutil.GetHostEnv(constants.HostSuffixMode)))
 	switch env {
 	case ModeContainerd, ModeDocker, ModeFirecracker:
 		return env

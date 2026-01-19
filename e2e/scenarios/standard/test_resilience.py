@@ -40,7 +40,7 @@ def build_control_compose_command(
         PROJECT_ROOT / "docker-compose.worker.yml",
     ]
 
-    mode = (mode or os.getenv("ESB_MODE") or "docker").lower()
+    mode = (mode or os.getenv("MODE") or "docker").lower()
     if mode == "firecracker":
         mode_files = [
             PROJECT_ROOT / "docker-compose.registry.yml",
@@ -87,10 +87,10 @@ class TestResilience:
         # 2. Restart Manager/Agent container.
         print(f"Step 2: Restarting {service_to_restart} container...")
 
-        project_name = os.getenv("ESB_PROJECT_NAME")
+        project_name = os.getenv("PROJECT_NAME")
         cmd = build_control_compose_command(
             ["restart", service_to_restart],
-            mode=os.getenv("ESB_MODE"),
+            mode=os.getenv("MODE"),
             project_name=project_name,
         )
 

@@ -7,16 +7,20 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
 )
 
 // ResolveRepoRoot determines the ESB repository root path.
 // Priority:
-// 1. ESB_REPO environment variable (validated as root or searched upward)
+// 1. Brand-prefixed REPO environment variable (validated as root or searched upward)
 // 2. Upward search for docker-compose.yml from startDir
 // 3. repo_path in global config (~/.esb/config.yaml) (validated as root or searched upward)
 func ResolveRepoRoot(startDir string) (string, error) {
 	// 1. Try environment variable
-	if repo := os.Getenv("ESB_REPO"); repo != "" {
+	if repo := strings.TrimSpace(envutil.GetHostEnv(constants.HostSuffixRepo)); repo != "" {
 		if root, ok := findRepoRoot(repo); ok {
 			return root, nil
 		}
@@ -38,7 +42,7 @@ func ResolveRepoRoot(startDir string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("ESB repository root not found. Please run 'esb config set-repo <path>' or set ESB_REPO.") //nolint:revive
+	return "", fmt.Errorf("repository root not found. Please run 'esb config set-repo <path>' or set %s.", envutil.HostEnvKey(constants.HostSuffixRepo)) //nolint:revive
 }
 
 // ResolveRepoRootFromPath determines the ESB repository root path using only the supplied path.

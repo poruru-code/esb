@@ -15,9 +15,6 @@ suites:
       - "e2e/scenarios/standard/"
     exclude: []
 
-# ESB-managed project name
-esb_project: "esb"
-
 matrix:
   - esb_env: e2e-docker
     env_file: "e2e/environments/.env.docker"

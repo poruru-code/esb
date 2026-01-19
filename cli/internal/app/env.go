@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
 )
 
 // EnvCmd groups all environment management subcommands including
@@ -25,24 +27,24 @@ type EnvCmd struct {
 
 type (
 	EnvListCmd struct {
-		Force bool `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
+		Force bool `help:"Auto-unset invalid project/environment variables"`
 	}
 	EnvAddCmd struct {
 		Name  string `arg:"" optional:"" help:"Environment name (interactive if omitted)"`
-		Force bool   `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
+		Force bool   `help:"Auto-unset invalid project/environment variables"`
 	}
 	EnvUseCmd struct {
 		Name  string `arg:"" optional:"" help:"Environment name (interactive if omitted)"`
-		Force bool   `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
+		Force bool   `help:"Auto-unset invalid project/environment variables"`
 	}
 	EnvRemoveCmd struct {
 		Name  string `arg:"" optional:"" help:"Environment name"`
-		Force bool   `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
+		Force bool   `help:"Auto-unset invalid project/environment variables"`
 	}
 	EnvVarCmd struct {
 		Service string `arg:"" optional:"" help:"Service name (interactive if omitted)"`
 		Format  string `name:"format" enum:"plain,json,export" default:"plain" help:"Output format"`
-		Force   bool   `help:"Auto-unset invalid ESB_PROJECT/ESB_ENV"`
+		Force   bool   `help:"Auto-unset invalid project/environment variables"`
 	}
 )
 
@@ -271,7 +273,7 @@ func runEnvUse(cli CLI, deps Dependencies, out io.Writer) int {
 	}
 
 	fmt.Fprintf(os.Stderr, "Switched to '%s:%s'\n", ctx.Project.Name, name)
-	fmt.Fprintf(out, "export ESB_ENV=%s\n", name)
+	fmt.Fprintf(out, "export %s=%s\n", envutil.HostEnvKey(constants.HostSuffixEnv), name)
 	return 0
 }
 

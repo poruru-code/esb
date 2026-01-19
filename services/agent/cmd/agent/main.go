@@ -1,6 +1,3 @@
-// Where: services/agent/cmd/agent/main.go
-// What: Bootstrap the agent runtime and CNI setup.
-// Why: Keep startup wiring and env-driven networking behavior centralized.
 package main
 
 import (
@@ -10,14 +7,15 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 
 	"github.com/containerd/containerd"
 	"github.com/containerd/go-cni"
 	"github.com/docker/docker/client"
+	"github.com/poruru/edge-serverless-box/meta"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/api"
+	cni_gen "github.com/poruru/edge-serverless-box/services/agent/internal/cni"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
 	agentContainerd "github.com/poruru/edge-serverless-box/services/agent/internal/runtime/containerd"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime/docker"
@@ -44,7 +42,7 @@ func main() {
 	log.Printf("Target Network: %s", networkID)
 
 	// Phase 7: Environment Isolation
-	esbEnv := os.Getenv(runtime.BrandingEnvVarEnv)
+	esbEnv := os.Getenv(meta.EnvVarEnv)
 	if esbEnv == "" {
 		esbEnv = "default"
 	}
@@ -63,9 +61,6 @@ func main() {
 		if err != nil {
 			log.Fatalf("Failed to create containerd client: %v", err)
 		}
-		// Clean up containerd client on exit
-		// Note: rt.Close() currently calls client.Close() so we might explicitly handle it via rt
-		// But verify if wrapper handles it.
 
 		wrappedClient := &agentContainerd.ClientWrapper{Client: c}
 
@@ -74,21 +69,16 @@ func main() {
 			cniConfDir = "/etc/cni/net.d"
 		}
 
-		cniConfFile := os.Getenv("CNI_CONF_FILE")
-		if cniConfFile == "" {
-			cniConfFile = fmt.Sprintf("%s/10-%s.conflist", cniConfDir, runtime.BrandingSlug)
+		cniSubnet := strings.TrimSpace(os.Getenv("CNI_SUBNET"))
+
+		// Dynamically generate CNI configuration based on branding constants
+		if err := cni_gen.GenerateConfig(cniConfDir, cniSubnet); err != nil {
+			log.Printf("WARN: Failed to generate dynamic CNI config: %v", err)
 		}
 
-		cniSubnet := strings.TrimSpace(os.Getenv("CNI_SUBNET"))
-		if cniSubnet != "" {
-			overriddenConfFile, err := prepareCNIConfig(cniConfFile, cniSubnet)
-			if err != nil {
-				log.Printf("WARN: failed to apply CNI_SUBNET=%s: %v", cniSubnet, err)
-			} else {
-				cniConfFile = overriddenConfFile
-				cniConfDir = filepath.Dir(overriddenConfFile)
-				log.Printf("CNI subnet override applied: %s", cniSubnet)
-			}
+		cniConfFile := os.Getenv("CNI_CONF_FILE")
+		if cniConfFile == "" {
+			cniConfFile = fmt.Sprintf("%s/10-%s.conflist", cniConfDir, meta.RuntimeCNIName)
 		}
 
 		cniBinDir := os.Getenv("CNI_BIN_DIR")
@@ -111,8 +101,7 @@ func main() {
 		}
 
 		// 2. Create Runtime with CNI networking
-		// Phase 7: Use stable namespace to match cgroup delegation.
-		namespace := runtime.BrandingRuntimeNamespace
+		namespace := meta.RuntimeNamespace
 		rt = agentContainerd.NewRuntime(wrappedClient, cniPlugin, namespace, esbEnv)
 		log.Printf("Runtime: containerd (initialized with CNI, namespace=%s)", namespace)
 
@@ -124,24 +113,10 @@ func main() {
 		if err != nil {
 			log.Fatalf("Failed to create Docker client: %v", err)
 		}
-		// Docker client close is handled by rt.Close() or manually here?
-		// docker.NewRuntime takes *client.Client.
-		// runtime.docker.Runtime implementation of Close() should close the client?
-		// Looking at usage in previous main.go, it deferred dockerCli.Close().
-		// Let's keep it safe.
-		// However, if rt.Close() closes it, double close might be issue or harmless.
-		// Check docker runtime implementation if possible, or just don't close here and let rt handle it.
-		// For now, let's assume we pass ownership or rt doesn't close it.
-		// In previous code: defer dockerCli.Close() and defer rt.Close().
-		// So we should close dockerCli?
-		// But rt is interface.
 
-		// To be cleaner:
-		// To be cleaner:
 		rt = docker.NewRuntime(dockerCli, networkID, esbEnv)
 		log.Println("Runtime: docker (initialized)")
 
-		// Note: previous code verified docker connection here.
 		ctx := context.Background()
 		info, err := dockerCli.Info(ctx)
 		if err != nil {

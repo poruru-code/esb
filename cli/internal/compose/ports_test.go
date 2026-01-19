@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 )
 
 type fakeOutputRunner struct {
@@ -58,10 +60,10 @@ func TestDiscoverPortsFiltersByMode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("discover ports: %v", err)
 	}
-	if ports["ESB_PORT_GATEWAY_HTTPS"] != 10443 {
-		t.Fatalf("unexpected gateway port: %d", ports["ESB_PORT_GATEWAY_HTTPS"])
+	if ports[constants.EnvPortGatewayHTTPS] != 10443 {
+		t.Fatalf("unexpected gateway port: %d", ports[constants.EnvPortGatewayHTTPS])
 	}
-	if ports["ESB_PORT_VICTORIALOGS"] != 19428 {
-		t.Fatalf("unexpected victorialogs port: %d", ports["ESB_PORT_VICTORIALOGS"])
+	if ports[constants.EnvPortVictoriaLogs] != 19428 {
+		t.Fatalf("unexpected victorialogs port: %d", ports[constants.EnvPortVictoriaLogs])
 	}
 }

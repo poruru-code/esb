@@ -15,17 +15,18 @@ jobs:
   image-checks:
     runs-on: ubuntu-latest
     env:
-      ESB_CERT_DIR: ${{ github.workspace }}/.esb/certs
+      IMAGE_PREFIX: esb
+      CERT_DIR: ${{ github.workspace }}/.esb/certs
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Prepare Root CA (CI)
         run: |
-          mkdir -p "${ESB_CERT_DIR}"
+          mkdir -p "${CERT_DIR}"
           openssl req -x509 -newkey rsa:2048 -nodes \
-            -keyout "${ESB_CERT_DIR}/rootCA-key.pem" \
-            -out "${ESB_CERT_DIR}/rootCA.crt" \
+            -keyout "${CERT_DIR}/rootCA-key.pem" \
+            -out "${CERT_DIR}/rootCA.crt" \
             -days 365 \
             -subj "/CN=esb-ci"
 

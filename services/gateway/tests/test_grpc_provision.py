@@ -60,7 +60,7 @@ async def test_provision_success(grpc_client, mock_stub, mock_registry):
         mock_config.GATEWAY_VICTORIALOGS_URL = "http://victorialogs:8428"
         mock_config.DYNAMODB_ENDPOINT = ""
         mock_config.S3_ENDPOINT = ""
-        mock_config.ESB_DATA_PLANE_HOST = "10.88.0.1"
+        mock_config.DATA_PLANE_HOST = "10.88.0.1"
 
         # 2. Call
         workers = await grpc_client.provision("my-func")
@@ -99,7 +99,7 @@ async def test_provision_fallback_containerd(grpc_client, mock_stub, mock_regist
     mock_response = agent_pb2.WorkerInfo(id="w1", name="w1", ip_address="1.2.3.4", port=8080)
     mock_stub.EnsureContainer = AsyncMock(return_value=mock_response)
 
-    # Mock empty endpoints but valid ESB_DATA_PLANE_HOST
+    # Mock empty endpoints but valid DATA_PLANE_HOST
     with (
         patch("services.gateway.config.config") as mock_config,
         patch.object(grpc_client, "_wait_for_readiness", new_callable=AsyncMock),
@@ -108,7 +108,7 @@ async def test_provision_fallback_containerd(grpc_client, mock_stub, mock_regist
         mock_config.DYNAMODB_ENDPOINT = ""
         mock_config.GATEWAY_VICTORIALOGS_URL = ""
         mock_config.VICTORIALOGS_URL = ""  # Host URL ignored in fallback
-        mock_config.ESB_DATA_PLANE_HOST = "10.99.99.99"  # Custom Data Plane Host
+        mock_config.DATA_PLANE_HOST = "10.99.99.99"  # Custom Data Plane Host
 
         # 2. Call
         await grpc_client.provision("my-func")
@@ -117,7 +117,7 @@ async def test_provision_fallback_containerd(grpc_client, mock_stub, mock_regist
         args, _ = mock_stub.EnsureContainer.call_args
         env = args[0].env
 
-        # derived from ESB_DATA_PLANE_HOST
+        # derived from DATA_PLANE_HOST
         assert env["AWS_ENDPOINT_URL_S3"] == "http://10.99.99.99:9000"
         assert env["AWS_ENDPOINT_URL_DYNAMODB"] == "http://10.99.99.99:8000"
         assert env["AWS_ENDPOINT_URL_CLOUDWATCH_LOGS"] == "http://10.99.99.99:9428"

@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/meta"
 )
 
 // ComposeProjectKey returns a filesystem-safe staging key for the provided
@@ -21,9 +21,9 @@ func ComposeProjectKey(composeProject, env string) string {
 		return key
 	}
 	if env = strings.TrimSpace(env); env != "" {
-		return fmt.Sprintf("%s-%s", constants.BrandingSlug, strings.ToLower(env))
+		return fmt.Sprintf("%s-%s", meta.Slug, strings.ToLower(env))
 	}
-	return constants.BrandingSlug
+	return meta.Slug
 }
 
 // CacheKey returns a stable key for staging caches based on project + env.
@@ -44,13 +44,13 @@ func stageKey(composeProject, env string) string {
 // RootDir returns the absolute cache root for staging assets.
 func RootDir() string {
 	if xdg := strings.TrimSpace(os.Getenv("XDG_CACHE_HOME")); xdg != "" {
-		return filepath.Join(xdg, constants.BrandingSlug, "staging")
+		return filepath.Join(xdg, meta.Slug, "staging")
 	}
 	home, err := os.UserHomeDir()
 	if err != nil || strings.TrimSpace(home) == "" {
-		return filepath.Join(fmt.Sprintf(".%s", constants.BrandingSlug), ".cache", "staging")
+		return filepath.Join(fmt.Sprintf(".%s", meta.Slug), ".cache", "staging")
 	}
-	return filepath.Join(home, fmt.Sprintf(".%s", constants.BrandingSlug), ".cache", "staging")
+	return filepath.Join(home, fmt.Sprintf(".%s", meta.Slug), ".cache", "staging")
 }
 
 // BaseDir returns the absolute staging directory for a project/env combination.
