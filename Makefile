@@ -19,8 +19,8 @@ CST_CONFIG_DIR := config/container-structure-test
 
 OS_BASE_IMAGE ?= $(IMAGE_PREFIX)-os-base:latest
 PYTHON_BASE_IMAGE ?= $(IMAGE_PREFIX)-python-base:latest
-GATEWAY_IMAGE ?= gateway-api:latest
-GATEWAY_FC_IMAGE ?= gateway-api-fc:latest
+GATEWAY_IMAGE ?= $(IMAGE_PREFIX)-gateway:latest
+GATEWAY_FC_IMAGE ?= $(IMAGE_PREFIX)-gateway-firecracker:latest
 AGENT_IMAGE ?= $(IMAGE_PREFIX)-agent:latest
 RUNTIME_NODE_IMAGE ?= $(IMAGE_PREFIX)-runtime-node:latest
 RUNTIME_NODE_FC_IMAGE ?= $(IMAGE_PREFIX)-runtime-node-firecracker:latest

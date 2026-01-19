@@ -15,6 +15,7 @@ jobs:
   image-checks:
     runs-on: ubuntu-latest
     env:
+      IMAGE_PREFIX: esb
       CERT_DIR: ${{ github.workspace }}/.esb/certs
     steps:
       - name: Checkout
