@@ -12,7 +12,7 @@ import urllib3
 from e2e.runner.cli import parse_args
 from e2e.runner.config import build_env_scenarios, load_test_matrix
 from e2e.runner.executor import run_profiles_with_executor, run_scenario, warmup_environment
-from e2e.runner.utils import GO_CLI_ROOT, PROJECT_ROOT
+from e2e.runner.utils import BRAND_SLUG, GO_CLI_ROOT, PROJECT_ROOT
 
 
 def print_tail_logs(failed_entries: list[str], *, lines: int = 40) -> None:
@@ -71,7 +71,6 @@ def main():
     # --- Load Test Matrix ---
     config_matrix = load_test_matrix()
     suites = config_matrix.get("suites", {})
-    esb_project = config_matrix.get("esb_project")
     matrix = config_matrix.get("matrix", [])
 
     # --- Single Target Mode (Legacy/Debug) ---
@@ -93,7 +92,7 @@ def main():
             "name": f"User-Specified on {args.profile}",
             "env_file": env_entry.get("env_file"),
             "esb_env": args.profile,
-            "esb_project": esb_project,
+            "esb_project": BRAND_SLUG,
             "env_vars": env_entry.get("env_vars", {}),
             "targets": [args.test_target],
             "exclude": [],
@@ -112,7 +111,7 @@ def main():
     # If args.profile is set, build_env_scenarios filters internally or we can pass a filter?
     # Actually build_env_scenarios builds everything, we filter later.
     # To optimize, let's update build_env_scenarios to accept a filter or filter here.
-    env_scenarios = build_env_scenarios(matrix, suites, esb_project, profile_filter=args.profile)
+    env_scenarios = build_env_scenarios(matrix, suites, profile_filter=args.profile)
 
     if not env_scenarios and args.profile:
         # If profile was requested but not found via build_env_scenarios (unlikely if logic is correct)
@@ -124,7 +123,7 @@ def main():
     # This ensures generator.yml and project registration are in sync with the matrix
     # even when running a single profile manually.
     if os.environ.get("E2E_WORKER") != "1":
-        warmup_environment(env_scenarios, matrix, esb_project, args)
+        warmup_environment(env_scenarios, matrix, args)
 
     # --- Unified Execution Mode ---
 

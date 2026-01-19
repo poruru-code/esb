@@ -504,7 +504,7 @@ func resolveRootCAFingerprint() (string, error) {
 		return "", fmt.Errorf("read root CA: %w", err)
 	}
 	sum := sha256.Sum256(data)
-	return hex.EncodeToString(sum[:]), nil
+	return hex.EncodeToString(sum[:4]), nil
 }
 
 func expandHome(path string) string {

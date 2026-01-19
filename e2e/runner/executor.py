@@ -33,9 +33,9 @@ COLORS = [
 COLOR_RESET = "\033[0m"
 
 
-def thorough_cleanup(env_name: str, esb_project: str):
+def thorough_cleanup(env_name: str):
     """Exhaustively remove Docker resources associated with an environment."""
-    project_label = f"{esb_project}-{env_name}"
+    project_label = f"{BRAND_SLUG}-{env_name}"
 
     # 1. Containers
     container_filters = [
@@ -95,7 +95,7 @@ def thorough_cleanup(env_name: str, esb_project: str):
     # Run it manually or via a post-test cleanup script instead.
 
 
-def warmup_environment(env_scenarios: dict, matrix: list[dict], esb_project: str, args):
+def warmup_environment(env_scenarios: dict, matrix: list[dict], args):
     """
     Perform global reset and warm-up actions.
     This includes cleaning up old artifacts and registering the ESB project
@@ -141,7 +141,7 @@ def warmup_environment(env_scenarios: dict, matrix: list[dict], esb_project: str
     # Assuming run_esb helper logic or direct call
     # Here we replicate the call from original script
     # Register ESB project (this generates generator.yml)
-    project_name = os.environ.get(env_key("PROJECT"), esb_project or BRAND_SLUG)
+    project_name = os.environ.get(env_key("PROJECT"), BRAND_SLUG)
     run_esb(
         [
             "project",
@@ -211,7 +211,7 @@ def run_scenario(args, scenario):
         if do_reset:
             print(f"➜ Resetting environment: {env_name}")
             # 2.1 Thorough Docker cleanup for this environment
-            thorough_cleanup(env_name, project_name)
+            thorough_cleanup(env_name)
 
             # 2.2 Clean artifact directory for this environment
             env_state_dir = E2E_STATE_ROOT / env_name

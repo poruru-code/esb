@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
+	"github.com/poruru/edge-serverless-box/meta"
 	"gopkg.in/yaml.v3"
 )
 
@@ -26,8 +27,9 @@ func TestRenderDockerfileSimple(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if !strings.Contains(content, "FROM esb-lambda-base:latest") {
-		t.Fatalf("unexpected base image: %s", content)
+	expectedBase := "FROM " + meta.ImagePrefix + "-lambda-base:latest"
+	if !strings.Contains(content, expectedBase) {
+		t.Fatalf("unexpected base image, expected %s, got: %s", expectedBase, content)
 	}
 	if !strings.Contains(content, "COPY cli/internal/generator/assets/site-packages/sitecustomize.py") {
 		t.Fatalf("expected sitecustomize copy")

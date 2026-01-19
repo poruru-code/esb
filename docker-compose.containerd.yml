@@ -9,7 +9,7 @@ services:
       context: services/runtime-node
       dockerfile: Dockerfile
       args:
-        OS_BASE_IMAGE: esb-os-base:latest
+        OS_BASE_IMAGE: ${IMAGE_PREFIX:-undefined}-os-base:latest
     container_name: ${PROJECT_NAME:-undefined}-runtime-node
     entrypoint: /entrypoint.containerd.sh
     privileged: true

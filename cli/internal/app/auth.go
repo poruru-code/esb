@@ -10,6 +10,7 @@ import (
 	"os"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/ui"
+	"github.com/poruru/edge-serverless-box/meta"
 )
 
 // AuthCredentials holds the authentication configuration that was either
@@ -33,13 +34,13 @@ func EnsureAuthCredentials() AuthCredentials {
 
 	// Fixed usernames
 	if os.Getenv("AUTH_USER") == "" {
-		os.Setenv("AUTH_USER", "esb")
+		os.Setenv("AUTH_USER", meta.Slug)
 		generated = true
 	}
 	creds.AuthUser = os.Getenv("AUTH_USER")
 
 	if os.Getenv("RUSTFS_ACCESS_KEY") == "" {
-		os.Setenv("RUSTFS_ACCESS_KEY", "esb")
+		os.Setenv("RUSTFS_ACCESS_KEY", meta.Slug)
 		generated = true
 	}
 	creds.RustfsAccessKey = os.Getenv("RUSTFS_ACCESS_KEY")

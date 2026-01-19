@@ -51,9 +51,10 @@ func RenderDockerfile(
 		sitecustomize = defaultSitecustomizeSource
 	}
 
-	baseImage := "esb-lambda-base:" + tag
+	lambdaBase := meta.ImagePrefix + "-lambda-base"
+	baseImage := lambdaBase + ":" + tag
 	if registry != "" {
-		baseImage = fmt.Sprintf("%s/esb-lambda-base:%s", registry, tag)
+		baseImage = fmt.Sprintf("%s/%s:%s", registry, lambdaBase, tag)
 	}
 
 	data := dockerfileTemplateData{

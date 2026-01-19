@@ -32,9 +32,8 @@ func TestRuntime_Ensure_NewContainer(t *testing.T) {
 	// 3. NewContainer
 	mockContainer := new(MockContainer)
 	// ID generation uses timestamp, so match prefix
-	// Expected: esb-test-env-test-func-{uuid}
+	// Expected: esb-test-env-test-func-{id} (id is 8 chars)
 	mockCli.On("NewContainer", mock.Anything, mock.MatchedBy(func(id string) bool {
-		// Just check it's a string, or check prefix
 		// return strings.HasPrefix(id, "esb-test-env-")
 		return len(id) > 0
 	}), mock.Anything).Return(mockContainer, nil)
