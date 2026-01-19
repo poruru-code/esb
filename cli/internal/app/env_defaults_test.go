@@ -149,3 +149,29 @@ func containsTarget(s, target string) bool {
 	}
 	return false
 }
+
+func TestApplyEnvironmentDefaultsSetsImagePrefix(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv(envutil.HostEnvKey(constants.HostSuffixEnv), "")
+	t.Setenv(constants.EnvImagePrefix, "")
+	t.Setenv("IMAGE_PREFIX", "")
+
+	applyEnvironmentDefaults("default", "docker", meta.Slug+"-default")
+
+	if got := os.Getenv(constants.EnvImagePrefix); got != meta.Slug+"-default" {
+		t.Fatalf("unexpected image prefix: got %q, want %q", got, meta.Slug+"-default")
+	}
+}
+
+func TestApplyEnvironmentDefaultsRespectsExternalImagePrefix(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv(envutil.HostEnvKey(constants.HostSuffixEnv), "")
+	t.Setenv(constants.EnvImagePrefix, "")
+	t.Setenv("IMAGE_PREFIX", "custom-prefix")
+
+	applyEnvironmentDefaults("default", "docker", meta.Slug+"-default")
+
+	if got := os.Getenv(constants.EnvImagePrefix); got != "custom-prefix" {
+		t.Fatalf("unexpected image prefix: got %q, want %q", got, "custom-prefix")
+	}
+}

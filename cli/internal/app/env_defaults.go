@@ -55,7 +55,11 @@ func applyRuntimeEnv(ctx state.Context, resolver func(string) (string, error)) {
 	if os.Getenv(constants.EnvProjectName) == "" {
 		_ = os.Setenv(constants.EnvProjectName, ctx.ComposeProject)
 	}
-	setEnvIfEmpty(constants.EnvImagePrefix, os.Getenv("IMAGE_PREFIX"))
+	imagePrefix := os.Getenv(constants.EnvImagePrefix)
+	if imagePrefix == "" {
+		imagePrefix = ctx.ComposeProject
+	}
+	setEnvIfEmpty(constants.EnvImagePrefix, imagePrefix)
 
 	applyPortDefaults(env)
 	applySubnetDefaults(env)
