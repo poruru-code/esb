@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/meta"
@@ -18,21 +19,28 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
 )
 
-type GoBuilder struct {
-	Runner        compose.CommandRunner
-	ComposeRunner compose.CommandRunner
-	BuildCompose  func(ctx context.Context, runner compose.CommandRunner, opts compose.BuildOptions) error
-	Generate      func(cfg config.GeneratorConfig, opts GenerateOptions) ([]FunctionSpec, error)
-	FindRepoRoot  func(start string) (string, error)
+// PortDiscoverer defines the interface for discovering dynamically assigned ports.
+type PortDiscoverer interface {
+	Discover(ctx context.Context, rootDir, project, mode string) (map[string]int, error)
 }
 
-func NewGoBuilder() *GoBuilder {
+type GoBuilder struct {
+	Runner         compose.CommandRunner
+	ComposeRunner  compose.CommandRunner
+	PortDiscoverer PortDiscoverer
+	BuildCompose   func(ctx context.Context, runner compose.CommandRunner, opts compose.BuildOptions) error
+	Generate       func(cfg config.GeneratorConfig, opts GenerateOptions) ([]FunctionSpec, error)
+	FindRepoRoot   func(start string) (string, error)
+}
+
+func NewGoBuilder(discoverer PortDiscoverer) *GoBuilder {
 	return &GoBuilder{
-		Runner:        compose.ExecRunner{},
-		ComposeRunner: compose.ExecRunner{},
-		BuildCompose:  compose.BuildProject,
-		Generate:      GenerateFiles,
-		FindRepoRoot:  findRepoRoot,
+		Runner:         compose.ExecRunner{},
+		ComposeRunner:  compose.ExecRunner{},
+		PortDiscoverer: discoverer,
+		BuildCompose:   compose.BuildProject,
+		Generate:       GenerateFiles,
+		FindRepoRoot:   findRepoRoot,
 	}
 }
 
@@ -171,6 +179,21 @@ func (b *GoBuilder) Build(request manifest.BuildRequest) error {
 			mode,
 		); err != nil {
 			return err
+		}
+
+		// Discover the dynamically assigned registry port
+		discovered, err := b.PortDiscoverer.Discover(context.Background(), repoRoot, composeProject, mode)
+		if err != nil {
+			return fmt.Errorf("discover registry port: %w", err)
+		}
+		if port, ok := discovered[constants.EnvPortRegistry]; ok {
+			registry.External = fmt.Sprintf("localhost:%d", port)
+			_ = os.Setenv(constants.EnvPortRegistry, strconv.Itoa(port))
+			if request.Verbose {
+				fmt.Printf("Discovered registry port: %d\n", port)
+			}
+		} else {
+			return fmt.Errorf("registry port not discovered")
 		}
 	}
 

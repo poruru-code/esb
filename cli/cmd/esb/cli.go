@@ -33,16 +33,17 @@ func buildDependencies() (app.Dependencies, io.Closer, error) {
 		return app.Dependencies{}, nil, err
 	}
 
+	portDiscoverer := app.NewPortDiscoverer()
 	deps := app.Dependencies{
 		ProjectDir:      projectDir,
 		Out:             os.Stdout,
 		DetectorFactory: app.NewDetectorFactory(client, warnf),
-		Builder:         generator.NewGoBuilder(),
+		Builder:         generator.NewGoBuilder(portDiscoverer),
 		Downer:          app.NewDowner(client),
 		Upper:           app.NewUpper(config.ResolveRepoRoot),
 		Stopper:         app.NewStopper(config.ResolveRepoRoot),
 		Logger:          app.NewLogger(client, config.ResolveRepoRoot),
-		PortDiscoverer:  app.NewPortDiscoverer(),
+		PortDiscoverer:  portDiscoverer,
 		Waiter:          app.NewGatewayWaiter(),
 		Provisioner:     provisioner.New(client),
 		Parser:          generator.DefaultParser{},
