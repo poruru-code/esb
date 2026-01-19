@@ -378,7 +378,7 @@ async def list_container_metrics(user_id: UserIdDep, pool_manager: PoolManagerDe
 async def list_pool_metrics(user_id: UserIdDep, pool_manager: PoolManagerDep):
     """Gateway のプール統計を返す (runtime 非依存)."""
     return {
-        "pools": pool_manager.get_pool_stats(),
+        "pools": await pool_manager.get_pool_stats(),
         "collected_at": datetime.now(timezone.utc).isoformat(),
     }
 

@@ -10,7 +10,7 @@ from typing import Callable, Iterable, Optional
 
 import requests
 
-from e2e.conftest import GATEWAY_URL, VERIFY_SSL
+from e2e.conftest import DEFAULT_REQUEST_TIMEOUT, GATEWAY_URL, VERIFY_SSL
 
 
 def _fetch_pool_metrics(auth_token: str) -> dict:
@@ -19,6 +19,7 @@ def _fetch_pool_metrics(auth_token: str) -> dict:
         f"{GATEWAY_URL}/metrics/pools",
         headers=headers,
         verify=VERIFY_SSL,
+        timeout=DEFAULT_REQUEST_TIMEOUT,
     )
     response.raise_for_status()
     return response.json()
