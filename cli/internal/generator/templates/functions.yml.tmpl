@@ -10,7 +10,7 @@ defaults:
     AWS_DEFAULT_REGION: "ap-northeast-1"
   scaling:
     idle_timeout: 300
-    acquire_timeout: 5.0
+    acquire_timeout: 30.0
 
 functions:
 {{- range .Functions }}
