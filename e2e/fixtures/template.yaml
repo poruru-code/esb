@@ -130,6 +130,7 @@ Resources:
     Properties:
       FunctionName: lambda-scaling
       CodeUri: functions/scaling/
+      ReservedConcurrentExecutions: 3
       Events:
         ScalingApi:
           Type: Api

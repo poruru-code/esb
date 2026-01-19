@@ -133,8 +133,10 @@ class TestLambdaInvokerPoolMode:
             backend=mock_pool_manager,
         )
 
-        with pytest.raises(Exception):  # LambdaExecutionError or ConnectError
-            await invoker.invoke_function("hello-world", b"{}")
+        result = await invoker.invoke_function("hello-world", b"{}")
+
+        assert result.success is False
+        assert result.status_code == 502
 
         # Worker should be evicted (self-healing behavior restored)
         mock_pool_manager.evict_worker.assert_called_once_with("hello-world", worker)

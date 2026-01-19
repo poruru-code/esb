@@ -10,11 +10,12 @@ Note:
 
 import logging
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import yaml
 
-from ..config import config
+from services.gateway.config import config
+from services.gateway.models.function import FunctionEntity
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +61,7 @@ class RouteMatcher:
 
     def match_route(
         self, request_path: str, request_method: str
-    ) -> Tuple[Optional[str], Dict[str, str], Optional[str], Dict[str, Any]]:
+    ) -> Tuple[Optional[str], Dict[str, str], Optional[str], Union[FunctionEntity, Dict[str, Any]]]:
         """
         Resolve the target container from request path and method.
 

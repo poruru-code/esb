@@ -6,7 +6,6 @@ import respx
 
 from services.common.models.internal import WorkerInfo
 from services.gateway.config import GatewayConfig
-from services.gateway.core.exceptions import LambdaExecutionError
 from services.gateway.services.function_registry import FunctionRegistry
 from services.gateway.services.lambda_invoker import LambdaInvoker
 
@@ -14,7 +13,7 @@ from services.gateway.services.lambda_invoker import LambdaInvoker
 @pytest.fixture
 def mock_registry():
     registry = MagicMock(spec=FunctionRegistry)
-    registry.get_function_config.return_value = {"image": "hello-world", "environment": {}}
+    registry.get_function_config.return_value = MagicMock()
     return registry
 
 
@@ -61,15 +60,16 @@ async def test_invoker_circuit_breaker_opens(mock_registry, mock_backend, gatewa
 
         # CircuitBreaker opens after 5 failures (default).
         for _ in range(5):
-            with pytest.raises(LambdaExecutionError):
-                await invoker.invoke_function(function_name, b"{}")
+            result = await invoker.invoke_function(function_name, b"{}")
+            assert result.success is False
+            assert result.error is not None
+            assert "Server Error" in result.error
 
-        # 6th call triggers CircuitBreakerOpenError wrapped in LambdaExecutionError.
-        with pytest.raises(LambdaExecutionError) as exc:
-            await invoker.invoke_function(function_name, b"{}")
-
-        # Ensure it is open.
-        assert "Circuit Breaker Open" in str(exc.value)
+        # 6th call triggers CircuitBreakerOpenError handled in LambdaInvoker.
+        result = await invoker.invoke_function(function_name, b"{}")
+        assert result.success is False
+        assert result.error is not None
+        assert "Circuit is open" in result.error
 
 
 @pytest.mark.asyncio
@@ -96,15 +96,13 @@ async def test_invoker_per_function_breaker(mock_registry, mock_backend, gateway
 
         # Open the circuit for func-1.
         for _ in range(5):
-            try:
-                await invoker.invoke_function(f1, b"{}")
-            except Exception:
-                pass
+            await invoker.invoke_function(f1, b"{}")
 
         # func-1 should be open.
-        with pytest.raises(LambdaExecutionError) as exc:
-            await invoker.invoke_function(f1, b"{}")
-        assert "Circuit Breaker Open" in str(exc.value)
+        result = await invoker.invoke_function(f1, b"{}")
+        assert result.success is False
+        assert result.error is not None
+        assert "Circuit is open" in result.error
 
         # func-2 should work normally.
         resp = await invoker.invoke_function(f2, b"{}")

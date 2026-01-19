@@ -1,6 +1,7 @@
 import os
 import sys
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from starlette.testclient import TestClient
@@ -11,7 +12,6 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 # Set Mock Environment Variables for Testing
-# These must be set before 'services.gateway.config' is imported by any test
 os.environ.setdefault("GATEWAY_INTERNAL_URL", "http://test-gateway:8000")
 os.environ.setdefault("JWT_SECRET_KEY", "test-secret-key-must-be-very-long-for-security")
 os.environ.setdefault("X_API_KEY", "test-api-key")
@@ -20,15 +20,23 @@ os.environ.setdefault("AUTH_PASS", "test-pass")
 os.environ.setdefault("CONTAINERS_NETWORK", "test-net")
 os.environ.setdefault("LAMBDA_NETWORK", "test-lambda-net")
 
-# You can also add shared fixtures here if needed
-
 
 @pytest.fixture
 def main_app():
     # Lazy import to ensure env vars are set first
-    from services.gateway.main import app
+    # Patch grpc and lifespan-related blocking calls
+    with (
+        patch("grpc.aio.insecure_channel"),
+        patch(
+            "services.gateway.services.pool_manager.PoolManager.cleanup_all_containers",
+            return_value=0,
+        ),
+        patch("services.gateway.services.janitor.HeartbeatJanitor.start", new_callable=AsyncMock),
+        patch("services.gateway.services.scheduler.SchedulerService.start", new_callable=AsyncMock),
+    ):
+        from services.gateway.main import app
 
-    return app
+        yield app
 
 
 @pytest.fixture

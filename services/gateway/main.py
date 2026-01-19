@@ -6,14 +6,12 @@ requests to Lambda RIE containers based on routing.yml.
 """
 
 import asyncio
-import json
 import logging
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Optional
 
-import httpx
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
@@ -22,11 +20,11 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from services.common.core.http_client import HttpClientFactory
 
 from .api.deps import (
-    EventBuilderDep,
     FunctionRegistryDep,
+    InputContextDep,
     LambdaInvokerDep,
-    LambdaTargetDep,
     PoolManagerDep,
+    ProcessorDep,
     UserIdDep,
 )
 from .config import config
@@ -44,12 +42,14 @@ from .core.logging_config import setup_logging
 from .core.security import create_access_token
 from .core.utils import parse_lambda_response
 from .models import AuthenticationResult, AuthRequest, AuthResponse
+from .models.function import FunctionEntity
 
 # Services Imports
 from .services.function_registry import FunctionRegistry
 from .services.janitor import HeartbeatJanitor
 from .services.lambda_invoker import LambdaInvoker
 from .services.pool_manager import PoolManager
+from .services.processor import GatewayRequestProcessor
 from .services.route_matcher import RouteMatcher
 from .services.scheduler import SchedulerService
 
@@ -81,22 +81,9 @@ async def lifespan(app: FastAPI):
     route_matcher.load_routing_config()
 
     # === Auto-Scaling: Pool Initialization ===
-    def config_loader(function_name: str):
+    def config_loader(function_name: str) -> Optional[FunctionEntity]:
         """Load scaling config for a function"""
-        func_config = function_registry.get_function_config(function_name) or {}
-        return {
-            "scaling": {
-                "max_capacity": func_config.get("scaling", {}).get(
-                    "max_capacity", config.DEFAULT_MAX_CAPACITY
-                ),
-                "min_capacity": func_config.get("scaling", {}).get(
-                    "min_capacity", config.DEFAULT_MIN_CAPACITY
-                ),
-                "acquire_timeout": func_config.get("scaling", {}).get(
-                    "acquire_timeout", config.POOL_ACQUIRE_TIMEOUT
-                ),
-            }
-        }
+        return function_registry.get_function_config(function_name)
 
     logger.info(f"Initializing Gateway with Go Agent gRPC Backend: {config.AGENT_GRPC_ADDRESS}")
 
@@ -167,6 +154,7 @@ async def lifespan(app: FastAPI):
     app.state.route_matcher = route_matcher
     app.state.lambda_invoker = lambda_invoker
     app.state.event_builder = V1ProxyEventBuilder()
+    app.state.processor = GatewayRequestProcessor(lambda_invoker, app.state.event_builder)
     app.state.pool_manager = pool_manager
     app.state.scheduler = scheduler
 
@@ -430,18 +418,22 @@ async def invoke_lambda_api(
                 timeout=config.LAMBDA_INVOKE_TIMEOUT,
             )
             return Response(status_code=202, content=b"", media_type="application/json")
-        else:
-            # Sync invoke: wait for the result.
-            resp = await invoker.invoke_function(
-                function_name, body, timeout=config.LAMBDA_INVOKE_TIMEOUT
-            )
-            # Pass through the RIE response to the client (boto3).
-            return Response(
-                content=resp.content,
-                status_code=resp.status_code,
-                headers=dict(resp.headers),
-                media_type="application/json",
-            )
+
+        # Sync invoke: wait for the result.
+        result = await invoker.invoke_function(
+            function_name, body, timeout=config.LAMBDA_INVOKE_TIMEOUT
+        )
+
+        if not result.success:
+            return JSONResponse(status_code=result.status_code, content={"message": result.error})
+
+        # Pass through the RIE response to the client (boto3).
+        return Response(
+            content=result.payload,
+            status_code=result.status_code,
+            headers=result.headers,
+            media_type="application/json",
+        )
     except ContainerStartError as e:
         return JSONResponse(status_code=503, content={"message": str(e)})
     except LambdaExecutionError as e:
@@ -450,84 +442,49 @@ async def invoke_lambda_api(
 
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
 async def gateway_handler(
-    request: Request,
-    path: str,
-    user_id: UserIdDep,
-    target: LambdaTargetDep,
-    event_builder: EventBuilderDep,
-    invoker: LambdaInvokerDep,
+    context: InputContextDep,
+    processor: ProcessorDep,
 ):
     """
-    Catch-all route: forward to Lambda RIE based on routing.yml.
-
-    Authentication and routing resolution are handled via DI.
+    Catch-all route: process request via GatewayRequestProcessor.
     """
-    # Build Event and Invoke Lambda
-    try:
-        body = await request.body()
-        event = await event_builder.build(
-            request=request,
-            body=body,
-            user_id=user_id,
-            path_params=target.path_params,
-            route_path=target.route_path,
-        )
+    result = await processor.process_request(context)
 
-        # Invoke Lambda via LambdaInvoker (handles container ensure & RIE req)
-        payload = json.dumps(event).encode("utf-8")
-        lambda_response = await invoker.invoke_function(
-            target.container_name, payload, timeout=config.LAMBDA_INVOKE_TIMEOUT
-        )
-
-        # Transform response.
-        result = parse_lambda_response(lambda_response)
-        if "raw_content" in result:
-            return Response(
-                content=result["raw_content"],
-                status_code=result["status_code"],
-                headers=result["headers"],
-            )
-        if config.LOG_PAYLOADS:
-            try:
-                # Limit body log size (e.g. 1KB) to avoid flooding
-                req_body_str = body.decode("utf-8", errors="replace")[:2048]
-                logger.info(
-                    f"Payload Log: {target.container_name}",
-                    extra={
-                        "request_body": req_body_str,
-                        # Response is already parsed in 'result' (dict or bytes)
-                        "response_body": str(result.get("content", result.get("raw_content", "")))[
-                            :2048
-                        ],
-                    },
-                )
-            except Exception as e:
-                logger.warning(f"Failed to log payloads: {e}")
-
+    if not result.success:
         return JSONResponse(
-            status_code=result["status_code"], content=result["content"], headers=result["headers"]
+            status_code=result.status_code,
+            content={"message": result.error},
         )
 
-    except httpx.RequestError as e:
-        # Invalidate cache on Lambda connection failure.
-        # Next request re-queries the orchestrator and restarts the container.
-        logger.error(
-            f"Lambda connection failed for {target.container_name}",
-            extra={
-                "container_name": target.container_name,
-                "port": config.LAMBDA_PORT,
-                "timeout": config.LAMBDA_INVOKE_TIMEOUT,
-                "error_type": type(e).__name__,
-                "error_detail": str(e),
-            },
-            exc_info=True,
+    # Transform response.
+    parsed_result = parse_lambda_response(result)
+
+    if "raw_content" in parsed_result:
+        response = Response(
+            content=parsed_result["raw_content"],
+            status_code=parsed_result["status_code"],
+            # Initial headers (single values)
+            headers=parsed_result["headers"],
         )
-        # LambdaInvoker might have already logged, but we keep this for gateway context
-        return JSONResponse(status_code=502, content={"message": "Bad Gateway"})
-    except ContainerStartError as e:
-        return JSONResponse(status_code=503, content={"message": str(e)})
-    except LambdaExecutionError as e:
-        return JSONResponse(status_code=502, content={"message": str(e)})
+    else:
+        response = JSONResponse(
+            status_code=parsed_result["status_code"],
+            content=parsed_result["content"],
+            headers=parsed_result["headers"],
+        )
+
+    # Apply multi-value headers (e.g. Set-Cookie)
+    # Note: parsed_result["multi_headers"] should contain lists of strings
+    if "multi_headers" in parsed_result:
+        for key, values in parsed_result["multi_headers"].items():
+            # multi_headers supersedes single headers.
+            # Remove any potentially partial value set by 'headers' init.
+            if key in response.headers:
+                del response.headers[key]
+            for v in values:
+                response.headers.append(key, v)
+
+    return response
 
 
 if __name__ == "__main__":

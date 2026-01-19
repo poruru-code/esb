@@ -9,16 +9,18 @@ from typing import Annotated, Optional
 from fastapi import Depends, Header, HTTPException, Request
 from httpx import AsyncClient
 
-from ..client import OrchestratorClient
-from ..config import config
-from ..core.event_builder import EventBuilder
-from ..core.security import verify_token
-from ..models import TargetFunction
-from ..services.container_cache import ContainerHostCache
-from ..services.function_registry import FunctionRegistry
-from ..services.lambda_invoker import LambdaInvoker
-from ..services.pool_manager import PoolManager
-from ..services.route_matcher import RouteMatcher
+from services.gateway.client import OrchestratorClient
+from services.gateway.config import config
+from services.gateway.core.event_builder import EventBuilder
+from services.gateway.core.security import verify_token
+from services.gateway.models import TargetFunction
+from services.gateway.models.context import InputContext
+from services.gateway.services.container_cache import ContainerHostCache
+from services.gateway.services.function_registry import FunctionRegistry
+from services.gateway.services.lambda_invoker import LambdaInvoker
+from services.gateway.services.pool_manager import PoolManager
+from services.gateway.services.processor import GatewayRequestProcessor
+from services.gateway.services.route_matcher import RouteMatcher
 
 # ==========================================
 # 1. Service Accessors
@@ -49,6 +51,10 @@ def get_pool_manager(request: Request) -> PoolManager:
     return request.app.state.pool_manager
 
 
+def get_processor(request: Request) -> GatewayRequestProcessor:
+    return request.app.state.processor
+
+
 def get_orchestrator_client(request: Request) -> OrchestratorClient:
     client = getattr(request.app.state, "orchestrator_client", None)
     if client:
@@ -71,6 +77,7 @@ LambdaInvokerDep = Annotated[LambdaInvoker, Depends(get_lambda_invoker)]
 HttpClientDep = Annotated[AsyncClient, Depends(get_http_client)]
 EventBuilderDep = Annotated[EventBuilder, Depends(get_event_builder)]
 PoolManagerDep = Annotated[PoolManager, Depends(get_pool_manager)]
+ProcessorDep = Annotated[GatewayRequestProcessor, Depends(get_processor)]
 
 
 # ==========================================
@@ -136,3 +143,35 @@ async def resolve_lambda_target(request: Request, route_matcher: RouteMatcherDep
 # Logic Dependency Type Aliases
 UserIdDep = Annotated[str, Depends(verify_authorization)]
 LambdaTargetDep = Annotated[TargetFunction, Depends(resolve_lambda_target)]
+
+
+async def resolve_input_context(
+    request: Request,
+    user_id: UserIdDep,
+    target: LambdaTargetDep,
+) -> InputContext:
+    """
+    Build InputContext from FastAPI request and resolved target.
+    This effectively decouples the route handler from the Request object.
+    """
+    body = await request.body()
+    return InputContext(
+        function_name=target.container_name,
+        method=request.method,
+        path=str(request.url.path),
+        headers=dict(request.headers),
+        multi_headers={k: request.headers.getlist(k) for k in request.headers.keys()},
+        query_params=dict(request.query_params),
+        multi_query_params={
+            k: request.query_params.getlist(k) for k in request.query_params.keys()
+        },
+        body=body,
+        user_id=user_id,
+        path_params=target.path_params,
+        route_path=target.route_path,
+        timeout=config.LAMBDA_INVOKE_TIMEOUT,
+    )
+
+
+# Logic Dependency Type Aliases (continued)
+InputContextDep = Annotated[InputContext, Depends(resolve_input_context)]
