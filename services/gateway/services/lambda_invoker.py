@@ -17,11 +17,9 @@ import httpx
 from services.common.core.request_context import get_trace_id
 from services.common.models.internal import WorkerInfo
 from services.gateway.config import GatewayConfig
-from services.gateway.core.circuit_breaker import CircuitBreaker, CircuitBreakerOpenError
-from services.gateway.core.exceptions import (
-    ContainerStartError,
-    LambdaExecutionError,
-)
+from services.gateway.core.circuit_breaker import CircuitBreaker
+from services.gateway.core.exceptions import ContainerStartError
+from services.gateway.models.result import InvocationResult
 from services.gateway.services.agent_invoke import AgentInvokeClient
 from services.gateway.services.function_registry import FunctionRegistry
 
@@ -87,173 +85,158 @@ class LambdaInvoker:
 
     async def invoke_function(
         self, function_name: str, payload: bytes, timeout: int | float = 300
-    ) -> httpx.Response:
-        """Invoke the specified Lambda."""
-        func_config = self.registry.get_function_config(function_name)
-        if not func_config:
-            raise LambdaExecutionError(function_name, "Function not found in registry")
+    ) -> InvocationResult:
+        """
+        Invoke the specified Lambda using the composed method pattern.
+        """
+        func_entity = self.registry.get_function_config(function_name)
+        if not func_entity:
+            # Fallback for 404
+            return InvocationResult(
+                success=False, status_code=404, error=f"Function {function_name} not found"
+            )
 
-        # Circuit Breaker (State management is done inside breaker.call)
         breaker = self._get_breaker(function_name)
-
-        # Trace ID Propagation
         trace_id = get_trace_id()
-        logger.debug(f"Trace ID in Invoker: {trace_id}")
-
         worker: Optional[WorkerInfo] = None
+        worker_evicted = False
+
         try:
-            # 1. Acquire worker from backend (strategy pattern).
-            try:
-                worker = await self.backend.acquire_worker(function_name)
-                host = worker.ip_address
-                port = worker.port or self.config.LAMBDA_PORT
-            except Exception as e:
-                raise ContainerStartError(function_name, e) from e
+            # 1. Resource Acquisition
+            worker = await self._acquire_worker(function_name)
 
-            if self.agent_invoker and breaker.state == "OPEN":
-                if isinstance(breaker.last_error, (grpc.aio.AioRpcError, httpx.ConnectError)):  # ty: ignore[possibly-missing-attribute]  # grpc.aio not in stubs
-                    breaker.state = "HALF_OPEN"
-                    logger.info(
-                        "Circuit breaker forced to HALF_OPEN after worker acquisition",
-                        extra={"function_name": function_name},
-                    )
+            # 2. Execution with Resilience
+            async def do_invoke() -> InvocationResult:
+                headers = self._prepare_headers(trace_id)
+                response = await self._execute_call(worker, payload, headers, timeout)
+                return self._process_response(response)
 
-            # 2. POST to Lambda RIE
-            rie_url = f"http://{host}:{port}/2015-03-31/functions/function/invocations"
-            logger.info(f"Invoking {function_name} at {rie_url} (trace_id: {trace_id})")
+            return await breaker.call(do_invoke)
 
-            # 3. Execute request via breaker.
-            async def do_post():
-                headers = {"Content-Type": "application/json"}
-                if trace_id:
-                    headers["X-Amzn-Trace-Id"] = trace_id
-                    # RIE workaround: embed Trace ID in ClientContext.
-                    client_context = {"custom": {"trace_id": trace_id}}
-                    json_ctx = json.dumps(client_context)
-                    b64_ctx = base64.b64encode(json_ctx.encode("utf-8")).decode("utf-8")
-                    headers["X-Amz-Client-Context"] = b64_ctx
-
-                logger.debug(f"Sending request to RIE with headers: {headers}")
-
-                if self.agent_invoker:
-                    response = await self.agent_invoker.invoke(
-                        worker=worker,  # ty: ignore[invalid-argument-type]  # worker narrowed in try block
-                        payload=payload,
-                        headers=headers,
-                        timeout=timeout,
-                    )
-                else:
-                    response = await self.client.post(
-                        rie_url,
-                        content=payload,
-                        headers=headers,
-                        timeout=timeout,
-                    )
-
-                # Determine whether the response counts as a failure.
-                is_failure = False
-                if response.status_code >= 500:
-                    is_failure = True
-                elif response.headers.get("X-Amz-Function-Error"):
-                    is_failure = True
-                elif response.status_code == 200:
-                    try:
-                        if len(response.content) < 1024 * 10:
-                            data = response.json()
-                            if isinstance(data, dict) and (
-                                "errorType" in data or "errorMessage" in data
-                            ):
-                                is_failure = True
-                    except (ValueError, json.JSONDecodeError):
-                        pass
-
-                if is_failure:
-                    if response.status_code >= 400:
-                        response.raise_for_status()
-                    else:
-                        raise httpx.HTTPStatusError(
-                            f"Lambda Logical Error: {response.text[:100]}",
-                            request=response.request,
-                            response=response,
-                        )
-
-                return response
-
-            result = await breaker.call(do_post)
-            return result
-
-        except CircuitBreakerOpenError as e:
-            logger.error(f"Circuit breaker open for {function_name}: {e}")
-            raise LambdaExecutionError(function_name, "Circuit Breaker Open") from e
-        except grpc.aio.AioRpcError as e:  # ty: ignore[possibly-missing-attribute]  # grpc.aio not in stubs
-            # Observability: Capture details for debugging
-            logger.error(
-                f"Lambda invocation failed for function '{function_name}': {e}",
-                extra={
-                    "function_name": function_name,
-                    "target_url": rie_url,
-                    "worker_id": worker.id if worker else "N/A",
-                    "worker_ip": worker.ip_address if worker else "N/A",
-                    "error_type": type(e).__name__,
-                    "error_detail": str(e),
-                },
-            )
-            # Self-Healing: Evict dead worker on gRPC error
-            if worker is not None:
-                await self.backend.evict_worker(function_name, worker)
-                worker = None  # prevent release in finally
-            raise LambdaExecutionError(function_name, e) from e
-        except httpx.ConnectError as e:
-            # Observability: Capture details for debugging
-            logger.error(
-                f"Lambda invocation failed for function '{function_name}': {e}",
-                extra={
-                    "function_name": function_name,
-                    "target_url": rie_url,
-                    "worker_id": worker.id if worker else "N/A",
-                    "worker_ip": worker.ip_address if worker else "N/A",
-                    "error_type": type(e).__name__,
-                    "error_detail": str(e),
-                },
-            )
-            # Self-Healing: Evict dead worker on connection error
-            if worker is not None:
-                await self.backend.evict_worker(function_name, worker)
-                worker = None  # prevent release in finally
-            raise LambdaExecutionError(function_name, e) from e
-        except (httpx.RequestError, httpx.HTTPStatusError) as e:
-            logger.error(
-                f"Lambda invocation failed for function '{function_name}': {e}",
-                extra={
-                    "function_name": function_name,
-                    "target_url": rie_url,
-                    "worker_id": worker.id if worker else "N/A",
-                    "worker_ip": worker.ip_address if worker else "N/A",
-                    "error_type": type(e).__name__,
-                    "error_detail": str(e),
-                },
-            )
-            raise LambdaExecutionError(function_name, e) from e
         except Exception as e:
-            logger.exception(
-                f"Unexpected error during invocation of {function_name}: {e}",
-                extra={
-                    "function_name": function_name,
-                    "target_url": rie_url if "rie_url" in locals() else "N/A",
-                    "worker_id": worker.id if worker else "N/A",
-                    "worker_ip": worker.ip_address if worker else "N/A",
-                    "error_type": type(e).__name__,
-                    "error_detail": str(e),
-                },
-            )
-            raise LambdaExecutionError(function_name, e) from e
+            result, evicted = await self._handle_error(e, worker, function_name)
+            worker_evicted = evicted
+            return result
         finally:
-            # Always return to pool (worker=None if evicted).
-            if worker is not None:
-                try:
-                    await self.backend.release_worker(function_name, worker)
-                except Exception as e:
-                    logger.error(f"Failed to release worker for {function_name}: {e}")
+            if worker and not worker_evicted:
+                await self._release_worker(function_name, worker)
+
+    async def _acquire_worker(self, function_name: str) -> WorkerInfo:
+        """Acquire a worker from the backend."""
+        try:
+            return await self.backend.acquire_worker(function_name)
+        except Exception as e:
+            raise ContainerStartError(function_name, e) from e
+
+    def _prepare_headers(self, trace_id: Optional[str]) -> Dict[str, str]:
+        """Prepare RIE compatible headers."""
+        headers = {"Content-Type": "application/json"}
+        if trace_id:
+            headers["X-Amzn-Trace-Id"] = trace_id
+            # RIE workaround: embed Trace ID in ClientContext
+            client_context = {"custom": {"trace_id": trace_id}}
+            json_ctx = json.dumps(client_context)
+            b64_ctx = base64.b64encode(json_ctx.encode("utf-8")).decode("utf-8")
+            headers["X-Amz-Client-Context"] = b64_ctx
+        return headers
+
+    async def _execute_call(
+        self, worker: WorkerInfo, payload: bytes, headers: Dict[str, str], timeout: float
+    ) -> httpx.Response:
+        """Directly POST to the worker (RIE or Agent)."""
+        if self.agent_invoker:
+            return await self.agent_invoker.invoke(
+                worker=worker, payload=payload, headers=headers, timeout=timeout
+            )
+
+        host = worker.ip_address
+        port = worker.port or self.config.LAMBDA_PORT
+        rie_url = f"http://{host}:{port}/2015-03-31/functions/function/invocations"
+        return await self.client.post(rie_url, content=payload, headers=headers, timeout=timeout)
+
+    def _process_response(self, response: httpx.Response) -> InvocationResult:
+        """Transform HTTP response into InvocationResult and detect logical errors."""
+        is_failure = False
+        error_msg = None
+
+        if response.status_code >= 500:
+            is_failure = True
+            error_msg = f"Server Error: {response.status_code}"
+        elif response.headers.get("X-Amz-Function-Error"):
+            is_failure = True
+            error_msg = f"Function Error: {response.headers.get('X-Amz-Function-Error')}"
+        elif response.status_code == 200:
+            # Check for logical errors in 200 OK (unhandled exceptions in Lambda)
+            try:
+                if len(response.content) < 10240:  # 10KB sanity check
+                    data = response.json()
+                    if isinstance(data, dict) and ("errorType" in data or "errorMessage" in data):
+                        is_failure = True
+                        error_msg = data.get("errorMessage", data.get("errorType"))
+            except (ValueError, json.JSONDecodeError):
+                pass
+
+        if is_failure:
+            # We raise here because the circuit breaker needs an exception to count failures.
+            # InvocationResult itself can represent failure, but breaker.call expects Exception.
+            # However, for consistency with the new pattern, we can also return it if NOT
+            # using breaker.
+            # But the plan says: "breaker needs it".
+            raise httpx.HTTPStatusError(
+                f"Lambda Logic Error: {error_msg}",
+                request=response.request,
+                response=response,
+            )
+
+        return InvocationResult(
+            success=True,
+            status_code=response.status_code,
+            payload=response.content,
+            headers=dict(response.headers),
+            multi_headers={k: response.headers.get_list(k) for k in response.headers.keys()},
+        )
+
+    async def _handle_error(
+        self, e: Exception, worker: Optional[WorkerInfo], function_name: str
+    ) -> tuple[InvocationResult, bool]:
+        """Centralized error handling with self-healing."""
+        logger.error(
+            f"Invocation error for {function_name}: {e}",
+            extra={
+                "function_name": function_name,
+                "error_type": type(e).__name__,
+                "error_detail": str(e),
+                "worker_id": worker.id if worker else None,
+                "target_url": f"http://{worker.ip_address}:{worker.port}" if worker else None,
+            },
+        )
+
+        worker_evicted = False
+        # Self-healing: Evict worker on connection or infrastructure errors
+        if isinstance(e, (httpx.ConnectError, grpc.aio.AioRpcError)) and worker:  # ty: ignore[possibly-missing-attribute]
+            await self.backend.evict_worker(function_name, worker)
+            worker_evicted = True
+
+        is_retryable = isinstance(e, (httpx.ConnectError, ContainerStartError))
+
+        return (
+            InvocationResult(
+                success=False,
+                status_code=502 if not isinstance(e, ContainerStartError) else 503,
+                error=str(e),
+                is_retryable=is_retryable,
+            ),
+            worker_evicted,
+        )
+
+    async def _release_worker(self, function_name: str, worker: WorkerInfo):
+        """Release worker back to pool."""
+        try:
+            # If the worker was evicted in _handle_error, this will be bypassed
+            # if we manage the local 'worker' variable correctly in invoke_function.
+            await self.backend.release_worker(function_name, worker)
+        except Exception as e:
+            logger.error(f"Failed to release worker for {function_name}: {e}")
 
     def _get_breaker(self, function_name: str) -> CircuitBreaker:
         """Get or create a circuit breaker per function."""

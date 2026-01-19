@@ -29,10 +29,10 @@ def test_function_registry_load_success(mock_functions_yaml):
             config = registry.get_function_config("test-func")
 
             assert config is not None
-            assert config["image"] == "test-image:latest"
+            assert config.image == "test-image:latest"
             # Verify environment merging logic
-            assert config["environment"]["GLOBAL_ENV"] == "true"
-            assert config["environment"]["FUNC_ENV"] == "123"
+            assert config.environment["GLOBAL_ENV"] == "true"
+            assert config.environment["FUNC_ENV"] == "123"
 
 
 def test_function_registry_get_nonexistent():

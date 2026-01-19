@@ -1,9 +1,9 @@
 from unittest.mock import patch
 
 import pytest
-from fastapi import Request
 
 from services.gateway.core.event_builder import V1ProxyEventBuilder
+from services.gateway.models.context import InputContext
 
 
 @pytest.mark.asyncio
@@ -12,42 +12,37 @@ async def test_v1_event_builder_build():
     # Arrange
     builder = V1ProxyEventBuilder()
 
-    # Mock Request
-    scope = {
-        "type": "http",
-        "http_version": "1.1",
-        "method": "POST",
-        "path": "/test/path",
-        "query_string": b"foo=bar",
-        "headers": [
-            (b"content-type", b"application/json"),
-            (b"user-agent", b"test-agent"),
-            (b"x-amzn-trace-id", b"Root=1-12345678-abcdef0123456789abcdef01;Sampled=1"),
-        ],
-        "client": ("127.0.0.1", 12345),
-    }
-    request = Request(scope)
-
-    body = b'{"key": "value"}'
-    user_id = "test-user"
-    path_params = {"id": "123"}
-    route_path = "/test/{id}"
+    context = InputContext(
+        function_name="test-function",
+        method="POST",
+        path="/test/path",
+        headers={
+            "content-type": "application/json",
+            "user-agent": "test-agent",
+            "x-amzn-trace-id": "Root=1-12345678-abcdef0123456789abcdef01;Sampled=1",
+        },
+        multi_headers={
+            "content-type": ["application/json"],
+            "user-agent": ["test-agent"],
+            "x-amzn-trace-id": ["Root=1-12345678-abcdef0123456789abcdef01;Sampled=1"],
+        },
+        query_params={"foo": "bar"},
+        multi_query_params={"foo": ["bar"]},
+        body=b'{"key": "value"}',
+        user_id="test-user",
+        path_params={"id": "123"},
+        route_path="/test/{id}",
+    )
 
     # Act
     with patch(
         "services.gateway.core.event_builder.get_request_id",
         return_value="req-uuid-1234",
     ):
-        event = await builder.build(
-            request=request,
-            body=body,
-            user_id=user_id,
-            path_params=path_params,
-            route_path=route_path,
-        )
+        event = builder.build(context=context)
 
     # Assert
-    assert event["resource"] == route_path
+    assert event["resource"] == "/test/{id}"
     assert event["path"] == "/test/path"
     assert event["httpMethod"] == "POST"
     assert event["headers"]["content-type"] == "application/json"
@@ -58,31 +53,29 @@ async def test_v1_event_builder_build():
     assert event["isBase64Encoded"] is False
 
     # Context checks
-    context = event["requestContext"]
-    assert context["requestId"] == "req-uuid-1234"
-    assert context["identity"]["sourceIp"] == "127.0.0.1"
-    assert context["authorizer"]["claims"]["cognito:username"] == user_id
+    context_data = event["requestContext"]
+    assert context_data["requestId"] == "req-uuid-1234"
+    assert context_data["authorizer"]["claims"]["cognito:username"] == "test-user"
 
 
 @pytest.mark.asyncio
 async def test_event_builder_uses_generated_request_id():
     """Ensure the Event Builder uses the Request ID from context."""
-    from unittest.mock import MagicMock
-
     from services.common.core import request_context
 
     # Arrange
     builder = V1ProxyEventBuilder()
-    request = MagicMock(spec=Request)
-    request.url.path = "/test"
-    request.method = "GET"
-    request.headers = MagicMock()
-    request.headers.keys.return_value = []  # keys() iterator
-    request.headers.getlist.return_value = []
-    request.headers.get.return_value = "gzip"  # for content-encoding check
-    request.query_params = {}
-    request.client.host = "1.2.3.4"
-    request.scope = {"http_version": "1.1"}
+
+    context = InputContext(
+        function_name="test",
+        method="GET",
+        path="/test",
+        headers={},
+        multi_headers={},
+        query_params={},
+        multi_query_params={},
+        body=b"",
+    )
 
     # Set context.
     trace_id_str = "Root=1-abc-123;Sampled=1"
@@ -94,7 +87,7 @@ async def test_event_builder_uses_generated_request_id():
     req_id_str = request_context.generate_request_id()
 
     # Act
-    event = await builder.build(request, b"")
+    event = builder.build(context)
 
     # Assert
     # requestContext.requestId should match the generated ID, NOT the Trace ID root
@@ -106,13 +99,25 @@ async def test_event_builder_uses_generated_request_id():
 async def test_v1_event_builder_binary_body():
     """Test V1ProxyEventBuilder with binary body"""
     builder = V1ProxyEventBuilder()
-    scope = {"type": "http", "headers": [], "path": "/path", "query_string": b"", "method": "POST"}
-    request = Request(scope)
 
     # Binary data that fails utf-8 decode
     body = b"\x80\xff"
 
-    event = await builder.build(request, body, user_id="user", path_params={}, route_path="/path")
+    context = InputContext(
+        function_name="test",
+        method="POST",
+        path="/path",
+        headers={},
+        multi_headers={},
+        query_params={},
+        multi_query_params={},
+        body=body,
+        user_id="user",
+        path_params={},
+        route_path="/path",
+    )
+
+    event = builder.build(context)
 
     assert event["isBase64Encoded"] is True
     assert event["body"] is not None

@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from services.gateway.config import GatewayConfig
+from services.gateway.models.function import FunctionEntity
 from services.gateway.services.function_registry import FunctionRegistry
 from services.gateway.services.lambda_invoker import LambdaInvoker
 
@@ -39,10 +40,11 @@ async def test_lambda_invoker_invoke_flow():
     payload = b"{}"
 
     # Mock Registry
-    registry.get_function_config.return_value = {
-        "image": "test-image",
-        "environment": {"VAR": "VAL"},
-    }
+    registry.get_function_config.return_value = FunctionEntity(
+        name=function_name,
+        image="test-image",
+        environment={"VAR": "VAL"},
+    )
 
     # Mock Backend
     mock_worker = MagicMock()
@@ -80,8 +82,6 @@ async def test_lambda_invoker_logging_on_error():
     """Test LambdaInvoker logs errors with extra context"""
     import httpx
 
-    from services.gateway.core.exceptions import LambdaExecutionError
-
     client = AsyncMock()
     registry = MagicMock(spec=FunctionRegistry)
     backend = AsyncMock()
@@ -90,7 +90,9 @@ async def test_lambda_invoker_logging_on_error():
     invoker = LambdaInvoker(client, registry, config, backend)
 
     # Setup mocks
-    registry.get_function_config.return_value = {"image": "img", "environment": {}}
+    registry.get_function_config.return_value = FunctionEntity(
+        name="error-func", image="img", environment={}
+    )
     mock_worker = MagicMock()
     mock_worker.ip_address = "host"
     mock_worker.port = 8080
@@ -98,8 +100,8 @@ async def test_lambda_invoker_logging_on_error():
     client.post.side_effect = httpx.RequestError("Connection failed")
 
     with patch("services.gateway.services.lambda_invoker.logger") as mock_logger:
-        with pytest.raises(LambdaExecutionError):
-            await invoker.invoke_function("error-func", b"{}")
+        result = await invoker.invoke_function("error-func", b"{}")
+        assert result.success is False
 
         mock_logger.error.assert_called_once()
         call_args = mock_logger.error.call_args

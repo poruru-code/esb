@@ -11,6 +11,7 @@ import logging
 from typing import Any, Callable, Dict, List, Optional, Set
 
 from services.common.models.internal import WorkerInfo
+from services.gateway.models.function import FunctionEntity
 
 from .container_pool import ContainerPool
 
@@ -28,14 +29,14 @@ class PoolManager:
     def __init__(
         self,
         provision_client: Any,
-        config_loader: Callable[[str], Dict[str, Any]],
+        config_loader: Callable[[str], Optional[FunctionEntity]],
         pause_enabled: bool = False,
         pause_idle_seconds: float = 0.0,
     ):
         """
         Args:
             provision_client: client that sends provision requests to the Manager
-            config_loader: callback to fetch config by function name (function_name -> config dict)
+            config_loader: callback to fetch config by function name (returns FunctionEntity)
         """
         self._pools: Dict[str, ContainerPool] = {}
         self._lock = asyncio.Lock()
@@ -66,13 +67,23 @@ class PoolManager:
         if function_name not in self._pools:
             async with self._lock:
                 if function_name not in self._pools:
-                    config = self.config_loader(function_name)
-                    scaling = config.get("scaling", {})
+                    func_entity = self.config_loader(function_name)
+                    if not func_entity:
+                        # Fallback for dynamic/unregistered functions if necessary,
+                        # but usually they must be in registry.
+                        logger.warning(f"No config found for {function_name}, using defaults")
+                        max_cap, min_cap, acq_to = 1, 0, 30.0
+                    else:
+                        scaling = func_entity.scaling
+                        max_cap = scaling.max_capacity
+                        min_cap = scaling.min_capacity
+                        acq_to = scaling.acquire_timeout
+
                     self._pools[function_name] = ContainerPool(
                         function_name=function_name,
-                        max_capacity=scaling.get("max_capacity", 1),
-                        min_capacity=scaling.get("min_capacity", 0),
-                        acquire_timeout=scaling.get("acquire_timeout", 5.0),
+                        max_capacity=max_cap,
+                        min_capacity=min_cap,
+                        acquire_timeout=acq_to,
                     )
                     logger.info(
                         f"Created pool for {function_name}: "

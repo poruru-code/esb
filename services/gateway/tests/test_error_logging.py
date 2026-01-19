@@ -105,6 +105,12 @@ async def test_lambda_connection_error_logged_at_error_level(caplog):
     app.dependency_overrides[get_http_client] = lambda: mock_client
     app.dependency_overrides[get_orchestrator_client] = lambda: mock_manager
     app.dependency_overrides[get_lambda_invoker] = lambda: invoker
+    from services.gateway.api.deps import get_processor
+    from services.gateway.services.processor import GatewayRequestProcessor
+
+    app.dependency_overrides[get_processor] = lambda: GatewayRequestProcessor(
+        invoker, app.state.event_builder
+    )
     app.dependency_overrides[verify_authorization] = lambda: "test-user"
     app.dependency_overrides[resolve_lambda_target] = lambda: TargetFunction(
         container_name="test-container",
@@ -133,7 +139,7 @@ async def test_lambda_connection_error_logged_at_error_level(caplog):
     assert any(
         record.levelname == "ERROR"
         and record.name == "gateway.lambda_invoker"
-        and "Lambda invocation failed" in record.message
+        and "Invocation error for" in record.message
         for record in caplog.records
     ), "Lambda connection error should be logged at ERROR level"
 
@@ -170,6 +176,12 @@ async def test_lambda_connection_error_includes_detailed_info(caplog):
     app.dependency_overrides[get_http_client] = lambda: mock_client
     app.dependency_overrides[get_orchestrator_client] = lambda: mock_manager
     app.dependency_overrides[get_lambda_invoker] = lambda: invoker
+    from services.gateway.api.deps import get_processor
+    from services.gateway.services.processor import GatewayRequestProcessor
+
+    app.dependency_overrides[get_processor] = lambda: GatewayRequestProcessor(
+        invoker, app.state.event_builder
+    )
     app.dependency_overrides[verify_authorization] = lambda: "test-user"
     app.dependency_overrides[resolve_lambda_target] = lambda: TargetFunction(
         container_name="test-container",

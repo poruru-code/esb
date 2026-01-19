@@ -9,8 +9,14 @@ from services.gateway.services.pool_manager import PoolManager
 @pytest.mark.asyncio
 async def test_pm_sync_with_manager():
     """Test sync_with_manager (Phase 5)"""
+    from services.gateway.models.function import FunctionEntity, ScalingConfig
+
     mock_client = AsyncMock()
-    mock_loader = MagicMock(return_value={"scaling": {"max_capacity": 5}})
+    mock_loader = MagicMock(
+        return_value=FunctionEntity(
+            name="func1", image="img", scaling=ScalingConfig(max_capacity=5)
+        )
+    )
     pm = PoolManager(mock_client, mock_loader)
 
     # Mock list_containers response

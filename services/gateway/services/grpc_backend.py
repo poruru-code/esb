@@ -85,8 +85,8 @@ class GrpcBackend:
         if self.function_registry:
             func_config = self.function_registry.get_function_config(function_name)
             if func_config:
-                env = func_config.get("environment", {})
-                image = func_config.get("image", "")
+                env = func_config.environment
+                image = func_config.image
 
         req = agent_pb2.EnsureContainerRequest(  # type: ignore[attr-defined]
             function_name=function_name,

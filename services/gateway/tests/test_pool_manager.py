@@ -8,6 +8,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from services.gateway.models.function import FunctionEntity, ScalingConfig
+
 
 class TestPoolManagerBasics:
     """Basic tests for PoolManager creation and pool access"""
@@ -24,12 +26,11 @@ class TestPoolManagerBasics:
         """Mock config loader that returns scaling settings"""
 
         def loader(function_name):
-            return {
-                "scaling": {
-                    "max_capacity": 3,
-                    "min_capacity": 0,
-                }
-            }
+            return FunctionEntity(
+                name=function_name,
+                image="img",
+                scaling=ScalingConfig(max_capacity=3, min_capacity=0),
+            )
 
         return loader
 
@@ -90,12 +91,11 @@ class TestPoolManagerAcquireRelease:
     @pytest.fixture
     def mock_config_loader(self):
         def loader(function_name):
-            return {
-                "scaling": {
-                    "max_capacity": 2,
-                    "min_capacity": 0,
-                }
-            }
+            return FunctionEntity(
+                name=function_name,
+                image="img",
+                scaling=ScalingConfig(max_capacity=2, min_capacity=0),
+            )
 
         return loader
 
@@ -158,12 +158,11 @@ class TestPoolManagerHeartbeat:
     @pytest.fixture
     def mock_config_loader(self):
         def loader(function_name):
-            return {
-                "scaling": {
-                    "max_capacity": 5,
-                    "min_capacity": 0,
-                }
-            }
+            return FunctionEntity(
+                name=function_name,
+                image="img",
+                scaling=ScalingConfig(max_capacity=5, min_capacity=0),
+            )
 
         return loader
 

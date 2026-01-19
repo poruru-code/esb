@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from services.gateway.models.function import FunctionEntity
 from services.gateway.pb import agent_pb2
 
 # Mock environment
@@ -18,10 +19,11 @@ def mock_stub():
 @pytest.fixture
 def mock_registry():
     registry = MagicMock()
-    registry.get_function_config.return_value = {
-        "image": "test-image:latest",
-        "environment": {"KEY": "VALUE"},
-    }
+    registry.get_function_config.return_value = FunctionEntity(
+        name="test-func",
+        image="test-image:latest",
+        environment={"KEY": "VALUE"},
+    )
     return registry
 
 
@@ -36,12 +38,13 @@ def grpc_client(mock_stub, mock_registry):
 async def test_provision_success(grpc_client, mock_stub, mock_registry):
     """Test successful provision with env var injection"""
     # 1. Setup mock
-    mock_registry.get_function_config.return_value = {
-        "image": "my-func:latest",
-        "environment": {"USER_VAR": "val"},
-        "memory_size": 256,
-        "timeout": 60,
-    }
+    mock_registry.get_function_config.return_value = FunctionEntity(
+        name="my-func",
+        image="my-func:latest",
+        environment={"USER_VAR": "val"},
+        memory_size=256,
+        timeout=60,
+    )
 
     mock_response = agent_pb2.WorkerInfo(
         id="worker-1",
@@ -91,10 +94,11 @@ async def test_provision_success(grpc_client, mock_stub, mock_registry):
 async def test_provision_fallback_containerd(grpc_client, mock_stub, mock_registry):
     """Test fallback logic when endpoints are not set (Containerd mode)."""
     # 1. Setup mock
-    mock_registry.get_function_config.return_value = {
-        "image": "my-func:latest",
-        "environment": {},
-    }
+    mock_registry.get_function_config.return_value = FunctionEntity(
+        name="my-func",
+        image="my-func:latest",
+        environment={},
+    )
 
     mock_response = agent_pb2.WorkerInfo(id="w1", name="w1", ip_address="1.2.3.4", port=8080)
     mock_stub.EnsureContainer = AsyncMock(return_value=mock_response)

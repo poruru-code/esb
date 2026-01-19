@@ -27,15 +27,14 @@ class GrpcProvisionClient:
     async def provision(self, function_name: str) -> List[WorkerInfo]:
         """Provision a container via gRPC Agent and return WorkerInfo list"""
         func_config = self.function_registry.get_function_config(function_name)
-        func_config = self.function_registry.get_function_config(function_name)
-        image = func_config.get("image") if func_config else None
+        image = func_config.image if func_config else None
 
         logger.info(f"Provisioning via gRPC Agent: {function_name}")
 
         from services.gateway.config import ServiceDefaults, config
 
         # Base env from function config
-        env = dict(func_config.get("environment", {})) if func_config else {}
+        env = dict(func_config.environment) if func_config else {}
 
         # Inject RIE & Observability Variables
         env["AWS_LAMBDA_FUNCTION_NAME"] = function_name
@@ -85,10 +84,10 @@ class GrpcProvisionClient:
 
         # Inject Timeout & Memory from config
         if func_config:
-            if "timeout" in func_config:
-                env["AWS_LAMBDA_FUNCTION_TIMEOUT"] = str(func_config["timeout"])
-            if "memory_size" in func_config:
-                env["AWS_LAMBDA_FUNCTION_MEMORY_SIZE"] = str(func_config["memory_size"])
+            if func_config.timeout:
+                env["AWS_LAMBDA_FUNCTION_TIMEOUT"] = str(func_config.timeout)
+            if func_config.memory_size:
+                env["AWS_LAMBDA_FUNCTION_MEMORY_SIZE"] = str(func_config.memory_size)
 
         logger.warning(f"DEBUG Provisioning Env: {env}")
 

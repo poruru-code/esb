@@ -4,26 +4,23 @@ import uuid
 from abc import ABC, abstractmethod
 from typing import Any, Dict
 
-from fastapi import Request
-
 from services.common.core.request_context import get_request_id
-
-from ..models.aws_v1 import (
+from services.gateway.models.aws_v1 import (
     ApiGatewayAuthorizer,
     ApiGatewayIdentity,
     APIGatewayProxyEvent,
     ApiGatewayRequestContext,
 )
+from services.gateway.models.context import InputContext
 
 logger = logging.getLogger("gateway.event_builder")
 
 
 class EventBuilder(ABC):
     @abstractmethod
-    async def build(self, request: Request, body: bytes, **kwargs) -> Dict[str, Any]:
+    def build(self, context: InputContext) -> Dict[str, Any]:
         """
-        Build an event dictionary from a FastAPI Request.
-        kwargs can contain user_id, path_params, route_path, etc.
+        Build an event dictionary from an InputContext.
         """
         pass
 
@@ -31,16 +28,17 @@ class EventBuilder(ABC):
 class V1ProxyEventBuilder(EventBuilder):
     """API Gateway V1 (REST API) compatible event builder."""
 
-    async def build(self, request: Request, body: bytes, **kwargs) -> Dict[str, Any]:
+    def build(self, context: InputContext) -> Dict[str, Any]:
         """
-        Build an API Gateway Lambda Proxy Integration-compatible event object.
+        Build an API Gateway Lambda Proxy Integration-compatible event object from context.
         """
-        user_id = kwargs.get("user_id", "anonymous")
-        path_params = kwargs.get("path_params", {})
-        route_path = kwargs.get("route_path", str(request.url.path))
+        user_id = context.user_id or "anonymous"
+        path_params = context.path_params
+        route_path = context.route_path or context.path
+        body = context.body
 
         # Check if gzip-compressed.
-        is_base64 = "gzip" in request.headers.get("content-encoding", "").lower()
+        is_base64 = "gzip" in context.headers.get("content-encoding", "").lower()
 
         # Process body.
         if is_base64:
@@ -52,40 +50,22 @@ class V1ProxyEventBuilder(EventBuilder):
                 body_content = base64.b64encode(body).decode("utf-8")
                 is_base64 = True
 
-        # Query parameters.
-        query_params: Dict[str, str] = {}
-        multi_query_params: Dict[str, list] = {}
-        if request.query_params:
-            for key in request.query_params.keys():
-                values = request.query_params.getlist(key)
-                query_params[key] = values[-1] if values else ""
-                multi_query_params[key] = values
+        # Query parameters standardizing (V1 expected multiValue support).
+        query_params: Dict[str, str] = context.query_params
+        multi_query_params = context.multi_query_params
 
-        # Headers.
-        headers: Dict[str, str] = {}
-        multi_headers: Dict[str, list] = {}
-        for key in request.headers.keys():
-            values = request.headers.getlist(key)
-            headers[key] = values[-1] if values else ""
-            multi_headers[key] = values
+        # Headers standardizing.
+        headers: Dict[str, str] = context.headers
+        multi_headers = context.multi_headers
 
         # Get RequestID (from context).
-        aws_request_id = get_request_id()
-
-        # Fallback (middleware should usually generate it).
-        if not aws_request_id:
-            aws_request_id = str(uuid.uuid4())
-
-        # Get HTTP version.
-        http_version = (
-            request.scope.get("http_version", "1.1") if hasattr(request, "scope") else "1.1"
-        )
+        aws_request_id = get_request_id() or str(uuid.uuid4())
 
         # Build event using Pydantic models.
         event_model = APIGatewayProxyEvent(
             resource=route_path,
-            path=str(request.url.path),
-            httpMethod=request.method,
+            path=context.path,
+            httpMethod=context.method,
             headers=headers,
             multiValueHeaders=multi_headers,
             queryStringParameters=query_params if query_params else None,
@@ -93,17 +73,17 @@ class V1ProxyEventBuilder(EventBuilder):
             pathParameters=path_params if path_params else None,
             requestContext=ApiGatewayRequestContext(
                 identity=ApiGatewayIdentity(
-                    sourceIp=request.client.host if request.client else "unknown",
-                    userAgent=request.headers.get("user-agent"),
+                    sourceIp=context.headers.get("x-forwarded-for", "unknown"),
+                    userAgent=context.headers.get("user-agent"),
                 ),
                 authorizer=ApiGatewayAuthorizer(
                     claims={"cognito:username": user_id, "username": user_id},
-                    cognito_username=user_id,  # type: ignore[unknown-argument]  # pydantic Field alias
+                    cognito_username=user_id,  # type: ignore[unknown-argument]
                 ),
                 requestId=aws_request_id,
-                path=str(request.url.path),
+                path=context.path,
                 stage="prod",
-                protocol=f"HTTP/{http_version}",
+                protocol="HTTP/1.1",  # Simplified
             ),
             body=body_content if body_content else None,
             isBase64Encoded=is_base64,

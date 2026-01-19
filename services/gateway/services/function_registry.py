@@ -12,7 +12,8 @@ from typing import Any, Dict, Optional
 
 import yaml
 
-from ..config import config
+from services.gateway.config import config
+from services.gateway.models.function import FunctionEntity
 
 logger = logging.getLogger("gateway.function_registry")
 
@@ -60,34 +61,33 @@ class FunctionRegistry:
 
         return self._registry
 
-    def get_function_config(self, function_name: str) -> Optional[Dict[str, Any]]:
+    def get_function_config(self, function_name: str) -> Optional[FunctionEntity]:
         """
         Get configuration by function name.
 
-        Merge default environment variables into function-specific settings.
+        Merge default environment variables and scaling settings into function-specific settings.
 
         Args:
             function_name: function name (container name)
 
         Returns:
-            Function config (with defaults merged), or None if missing
+            FunctionEntity (with defaults merged), or None if missing
         """
         if function_name not in self._registry:
             return None
 
         func_config = self._registry[function_name] or {}
 
-        # Merge default and function-specific environment variables.
-        merged_env = {}
-        default_env = self._defaults.get("environment", {})
-        func_env = func_config.get("environment", {})
+        # Merge defaults (environment & scaling).
+        merged_env = dict(self._defaults.get("environment", {}))
+        merged_env.update(func_config.get("environment", {}))
 
-        # Merge defaults first, then function-specific (function wins).
-        merged_env.update(default_env)
-        merged_env.update(func_env)
+        merged_scaling = dict(self._defaults.get("scaling", {}))
+        merged_scaling.update(func_config.get("scaling", {}))
 
-        # Build result.
-        result = dict(func_config)
-        result["environment"] = merged_env
+        # Build data for entity.
+        data = dict(func_config)
+        data["environment"] = merged_env
+        data["scaling"] = merged_scaling
 
-        return result
+        return FunctionEntity.from_dict(function_name, data)

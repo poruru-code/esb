@@ -24,12 +24,16 @@ async def test_circuit_breaker_on_rie_200_error_FINAL():
 
     mock_client = httpx.AsyncClient()
     registry = MagicMock()  # It's used synchronously in LambdaInvoker
-    registry.get_function_config.return_value = {"image": "test", "environment": {}}
+    from services.gateway.models.function import FunctionEntity
+
+    registry.get_function_config.return_value = FunctionEntity(
+        name="test", image="test", environment={}
+    )
 
     from services.common.models.internal import WorkerInfo
 
     backend = AsyncMock()
-    mock_worker = WorkerInfo(id="w1", name="w1", ip_address="localhost")
+    mock_worker = WorkerInfo(id="w1", name="w1", ip_address="localhost", port=9000)
     backend.acquire_worker.return_value = mock_worker
     backend.release_worker = AsyncMock()
     backend.evict_worker = AsyncMock()
@@ -47,22 +51,20 @@ async def test_circuit_breaker_on_rie_200_error_FINAL():
             return_value=httpx.Response(200, json=error_body)
         )
 
-        # First request (200 Error) -> should count as failure.
-        with pytest.raises(Exception):
-            await invoker.invoke_function("test-func", b"{}")
+        # First request (200 Error) -> should result in failure result.
+        result1 = await invoker.invoke_function("test-func", b"{}")
+        assert result1.success is False
 
-        # Second request -> failure counted, circuit should open.
-        with pytest.raises(Exception):
-            await invoker.invoke_function("test-func", b"{}")
+        # Second request -> failure result.
+        result2 = await invoker.invoke_function("test-func", b"{}")
+        assert result2.success is False
 
         # Third request -> CircuitBreakerOpenError expected due to open circuit.
-        # LambdaInvoker wraps it into LambdaExecutionError.
-        from services.gateway.core.exceptions import LambdaExecutionError
-
-        with pytest.raises(LambdaExecutionError) as excinfo:
-            await invoker.invoke_function("test-func", b"{}")
-
-        assert "Circuit Breaker Open" in str(excinfo.value)
+        # LambdaInvoker returns a failure result with specific error message
+        result3 = await invoker.invoke_function("test-func", b"{}")
+        assert result3.success is False
+        assert result3.error is not None
+        assert "Circuit is open" in result3.error
         print("\n✅ Circuit Breaker validated with logical 200 errors!")
 
 
