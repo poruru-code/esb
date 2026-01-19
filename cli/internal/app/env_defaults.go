@@ -9,7 +9,6 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
@@ -20,15 +19,15 @@ import (
 	"github.com/poruru/edge-serverless-box/meta"
 )
 
-var defaultPorts = map[string]int{
-	constants.EnvPortGatewayHTTPS: 443,
-	constants.EnvPortGatewayHTTP:  80,
-	constants.EnvPortAgentGRPC:    50051,
-	constants.EnvPortS3:           9000,
-	constants.EnvPortS3Mgmt:       9001,
-	constants.EnvPortDatabase:     8001,
-	constants.EnvPortRegistry:     5010,
-	constants.EnvPortVictoriaLogs: 9428,
+var defaultPorts = []string{
+	constants.EnvPortGatewayHTTPS,
+	constants.EnvPortGatewayHTTP,
+	constants.EnvPortAgentGRPC,
+	constants.EnvPortS3,
+	constants.EnvPortS3Mgmt,
+	constants.EnvPortDatabase,
+	constants.EnvPortRegistry,
+	constants.EnvPortVictoriaLogs,
 }
 
 // applyRuntimeEnv sets all environment variables required for running commands,
@@ -221,14 +220,14 @@ func applyEnvironmentDefaults(envName, mode, composeProject string) {
 
 // applyPortDefaults sets default port environment variables with an offset
 // calculated from a hash of the environment name. Skips already-set variables.
-func applyPortDefaults(env string) {
-	offset := envPortOffset(env)
-	for key, base := range defaultPorts {
-		if value := strings.TrimSpace(os.Getenv(key)); value != "" && value != "0" {
+// applyPortDefaults sets all registered port environment variables to "0" if they
+// are currently empty. This enables true dynamic port discovery by Docker Compose.
+func applyPortDefaults(_ string) {
+	for _, key := range defaultPorts {
+		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
 			continue
 		}
-		port := base + offset
-		_ = os.Setenv(key, strconv.Itoa(port))
+		_ = os.Setenv(key, "0")
 	}
 }
 
@@ -259,19 +258,6 @@ func applyRegistryDefaults(mode string) {
 	case "containerd", "firecracker":
 		_ = os.Setenv(constants.EnvContainerRegistry, "registry:5010")
 	}
-}
-
-// envPortOffset calculates a port offset for the given environment name.
-// Returns 0 for "default", otherwise a hash-based offset in hundreds.
-func envPortOffset(env string) int {
-	if env == "default" {
-		return 0
-	}
-	offset := hashMod(env, 50) * 100
-	if offset == 0 {
-		offset = 1000
-	}
-	return offset
 }
 
 // envExternalSubnetIndex returns the third octet for the external subnet.

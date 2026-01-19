@@ -17,7 +17,15 @@ type fakeOutputRunner struct {
 	outputs map[string]string
 }
 
-func (f fakeOutputRunner) Output(_ context.Context, _, _ string, args ...string) ([]byte, error) {
+func (f fakeOutputRunner) Run(_ context.Context, _, _ string, _ ...string) error {
+	return nil
+}
+
+func (f fakeOutputRunner) RunQuiet(_ context.Context, _, _ string, _ ...string) error {
+	return nil
+}
+
+func (f fakeOutputRunner) RunOutput(_ context.Context, _, _ string, args ...string) ([]byte, error) {
 	if len(args) < 4 {
 		return nil, errors.New("invalid args")
 	}

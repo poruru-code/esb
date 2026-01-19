@@ -25,12 +25,12 @@ import (
 // PortDiscoverer defines the interface for discovering dynamically assigned ports
 // from running Docker Compose services.
 type PortDiscoverer interface {
-	Discover(ctx state.Context) (map[string]int, error)
+	Discover(ctx context.Context, rootDir, project, mode string) (map[string]int, error)
 }
 
 // composePortDiscoverer implements PortDiscoverer using Docker Compose port command.
 type composePortDiscoverer struct {
-	runner compose.CommandOutputer
+	runner compose.CommandRunner
 }
 
 // NewPortDiscoverer creates a PortDiscoverer that uses Docker Compose
@@ -41,21 +41,17 @@ func NewPortDiscoverer() PortDiscoverer {
 
 // Discover queries Docker Compose for the host ports of running services
 // and returns a map of environment variable names to port numbers.
-func (d composePortDiscoverer) Discover(ctx state.Context) (map[string]int, error) {
+func (d composePortDiscoverer) Discover(ctx context.Context, rootDir, project, mode string) (map[string]int, error) {
 	if d.runner == nil {
 		return nil, fmt.Errorf("port discovery runner not configured")
 	}
-	rootDir, err := config.ResolveRepoRoot(ctx.ProjectDir)
-	if err != nil {
-		return nil, err
-	}
 	opts := compose.PortDiscoveryOptions{
 		RootDir: rootDir,
-		Project: ctx.ComposeProject,
-		Mode:    ctx.Mode,
+		Project: project,
+		Mode:    mode,
 		Target:  "control",
 	}
-	return compose.DiscoverPorts(context.Background(), d.runner, opts)
+	return compose.DiscoverPorts(ctx, d.runner, opts)
 }
 
 // DiscoverAndPersistPorts discovers running service ports and persists them
@@ -64,7 +60,12 @@ func DiscoverAndPersistPorts(ctx state.Context, discoverer PortDiscoverer, out i
 	if discoverer == nil {
 		return nil
 	}
-	ports, err := discoverer.Discover(ctx)
+	rootDir, err := config.ResolveRepoRoot(ctx.ProjectDir)
+	if err != nil {
+		fmt.Fprintln(out, err)
+		return nil
+	}
+	ports, err := discoverer.Discover(context.Background(), rootDir, ctx.ComposeProject, ctx.Mode)
 	if err != nil {
 		fmt.Fprintln(out, err)
 		return nil

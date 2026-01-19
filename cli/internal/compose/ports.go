@@ -6,17 +6,11 @@ package compose
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"strconv"
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 )
-
-// CommandOutputer defines the interface for executing commands and capturing output.
-type CommandOutputer interface {
-	Output(ctx context.Context, dir, name string, args ...string) ([]byte, error)
-}
 
 // PortMapping defines a mapping from container port to environment variable name.
 type PortMapping struct {
@@ -73,16 +67,11 @@ var DefaultPortMappings = []PortMapping{
 	},
 }
 
-// Output executes a command and returns its combined stdout/stderr.
-func (ExecRunner) Output(ctx context.Context, dir, name string, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, name, args...)
-	cmd.Dir = dir
-	return cmd.CombinedOutput()
-}
+// ExecRunner is implemented in up.go.
 
 // DiscoverPorts queries docker compose port for each mapping and returns
 // the discovered host ports as a map of environment variable names to ports.
-func DiscoverPorts(ctx context.Context, runner CommandOutputer, opts PortDiscoveryOptions) (map[string]int, error) {
+func DiscoverPorts(ctx context.Context, runner CommandRunner, opts PortDiscoveryOptions) (map[string]int, error) {
 	if runner == nil {
 		return nil, fmt.Errorf("command runner is nil")
 	}
@@ -103,7 +92,7 @@ func DiscoverPorts(ctx context.Context, runner CommandOutputer, opts PortDiscove
 		if !modeAllowed(mode, mapping.Modes) {
 			continue
 		}
-		output, err := runner.Output(ctx, opts.RootDir, "docker", append(args, "port", mapping.Service, fmt.Sprintf("%d", mapping.ContainerPort))...)
+		output, err := runner.RunOutput(ctx, opts.RootDir, "docker", append(args, "port", mapping.Service, fmt.Sprintf("%d", mapping.ContainerPort))...)
 		if err != nil {
 			continue
 		}

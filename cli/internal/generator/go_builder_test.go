@@ -71,11 +71,17 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 
 	dockerRunner := &recordRunner{}
 	composeRunner := &recordRunner{}
+	portDiscoverer := &mockPortDiscoverer{
+		ports: map[string]int{
+			constants.EnvPortRegistry: 5010,
+		},
+	}
 	var buildOpts compose.BuildOptions
 
 	builder := &GoBuilder{
-		Runner:        dockerRunner,
-		ComposeRunner: composeRunner,
+		Runner:         dockerRunner,
+		ComposeRunner:  composeRunner,
+		PortDiscoverer: portDiscoverer,
 		BuildCompose: func(_ context.Context, _ compose.CommandRunner, opts compose.BuildOptions) error {
 			buildOpts = opts
 			return nil
@@ -243,10 +249,16 @@ func TestGoBuilderBuildFirecrackerBuildsServiceImages(t *testing.T) {
 
 	dockerRunner := &recordRunner{}
 	composeRunner := &recordRunner{}
+	portDiscoverer := &mockPortDiscoverer{
+		ports: map[string]int{
+			constants.EnvPortRegistry: 5010,
+		},
+	}
 	setupRootCA(t)
 	builder := &GoBuilder{
-		Runner:        dockerRunner,
-		ComposeRunner: composeRunner,
+		Runner:         dockerRunner,
+		ComposeRunner:  composeRunner,
+		PortDiscoverer: portDiscoverer,
 		BuildCompose: func(_ context.Context, _ compose.CommandRunner, _ compose.BuildOptions) error {
 			return nil
 		},
@@ -274,6 +286,15 @@ func TestGoBuilderBuildFirecrackerBuildsServiceImages(t *testing.T) {
 type recordRunner struct {
 	calls []commandCall
 	err   error
+}
+
+type mockPortDiscoverer struct {
+	ports map[string]int
+	err   error
+}
+
+func (m *mockPortDiscoverer) Discover(_ context.Context, _, _, _ string) (map[string]int, error) {
+	return m.ports, m.err
 }
 
 type commandCall struct {

@@ -37,16 +37,16 @@ func TestApplyEnvironmentDefaultsSetsDefaults(t *testing.T) {
 	if got := os.Getenv(constants.EnvImageTag); got != "docker" {
 		t.Fatalf("unexpected image tag: %s", got)
 	}
-	if got := os.Getenv(constants.EnvPortGatewayHTTPS); got != "443" {
+	if got := os.Getenv(constants.EnvPortGatewayHTTPS); got != "0" {
 		t.Fatalf("unexpected gateway https port: %s", got)
 	}
-	if got := os.Getenv(constants.EnvPortGatewayHTTP); got != "80" {
+	if got := os.Getenv(constants.EnvPortGatewayHTTP); got != "0" {
 		t.Fatalf("unexpected gateway http port: %s", got)
 	}
-	if got := os.Getenv(constants.EnvPortAgentGRPC); got != "50051" {
+	if got := os.Getenv(constants.EnvPortAgentGRPC); got != "0" {
 		t.Fatalf("unexpected agent grpc port: %s", got)
 	}
-	if got := os.Getenv(constants.EnvPortRegistry); got != "5010" {
+	if got := os.Getenv(constants.EnvPortRegistry); got != "0" {
 		t.Fatalf("unexpected registry port: %s", got)
 	}
 	if got := os.Getenv(constants.EnvSubnetExternal); got != "172.50.0.0/16" {
@@ -105,7 +105,7 @@ func TestApplyEnvironmentDefaultsSetsRegistryForContainerd(t *testing.T) {
 	}
 }
 
-func TestApplyEnvironmentDefaultsReplacesZeroPorts(t *testing.T) {
+func TestApplyEnvironmentDefaultsRespectsZeroPorts(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv(envutil.HostEnvKey(constants.HostSuffixEnv), "")
 	t.Setenv(constants.EnvPortGatewayHTTPS, "0")
@@ -113,10 +113,10 @@ func TestApplyEnvironmentDefaultsReplacesZeroPorts(t *testing.T) {
 
 	applyEnvironmentDefaults("default", "docker", meta.Slug+"-default")
 
-	if got := os.Getenv(constants.EnvPortGatewayHTTPS); got != "443" {
+	if got := os.Getenv(constants.EnvPortGatewayHTTPS); got != "0" {
 		t.Fatalf("unexpected gateway https port: %s", got)
 	}
-	if got := os.Getenv(constants.EnvPortDatabase); got != "8001" {
+	if got := os.Getenv(constants.EnvPortDatabase); got != "0" {
 		t.Fatalf("unexpected database port: %s", got)
 	}
 }
