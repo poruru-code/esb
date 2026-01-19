@@ -4,7 +4,7 @@
 
 ARG IMAGE_PREFIX=esb
 ARG DEBIAN_VERSION=bookworm
-ARG OS_BASE_IMAGE=${IMAGE_PREFIX}-os-base:latest
+ARG OS_BASE_IMAGE=esb-os-base:latest
 
 FROM ${OS_BASE_IMAGE}
 

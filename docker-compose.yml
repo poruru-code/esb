@@ -7,7 +7,7 @@ services:
   # ============================================
   os-base:
     env_file: config/defaults.env
-    image: ${IMAGE_PREFIX:-undefined}-os-base:latest
+    image: esb-os-base:latest
     build:
       context: .
       dockerfile: services/common/Dockerfile.os-base
@@ -21,7 +21,7 @@ services:
 
   python-base:
     env_file: config/defaults.env
-    image: ${IMAGE_PREFIX:-undefined}-python-base:latest
+    image: esb-python-base:latest
     build:
       context: .
       dockerfile: services/common/Dockerfile.python-base
