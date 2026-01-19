@@ -38,6 +38,7 @@
 - Proposed change: `LabelCreatedBy`/`esb-{env}-` で対象を限定し、タスクが存在する場合は `cni.Remove` を必ず実行する。
 - Acceptance: GC 実行後に対象外コンテナは残り、CNI 残留が発生しない。
 - Tests/Docs: GC 対象フィルタのユニットテスト、運用手順の更新。
+- Status: Done（LabelCreatedBy + LabelEsbEnv の必須化、GC 時の CNI Remove 追加、UT 更新）
 
 ### P2-1: Image 取得エラーの判別（High）
 - Rationale: `GetImage` のエラー種別を判別せず Pull するため、権限/通信/namespace の原因が隠蔽される。
