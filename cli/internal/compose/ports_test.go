@@ -75,3 +75,54 @@ func TestDiscoverPortsFiltersByMode(t *testing.T) {
 		t.Fatalf("unexpected victorialogs port: %d", ports[constants.EnvPortVictoriaLogs])
 	}
 }
+
+func TestDiscoverPortsIgnoresZeroPort(t *testing.T) {
+	rootDir := t.TempDir()
+	// Create all potential compose files that might be looked up
+	for _, name := range []string{
+		"docker-compose.yml",
+		"docker-compose.worker.yml",
+		"docker-compose.containerd.yml",
+		"docker-compose.registry.yml",
+	} {
+		if err := os.WriteFile(filepath.Join(rootDir, name), []byte("test"), 0o644); err != nil {
+			t.Fatalf("write compose file: %v", err)
+		}
+	}
+
+	runner := fakeOutputRunner{
+		outputs: map[string]string{
+			"registry:5010": "0.0.0.0:0",
+		},
+	}
+
+	ports, err := DiscoverPorts(context.Background(), runner, PortDiscoveryOptions{
+		RootDir: rootDir,
+		Project: "esb-test",
+		Mode:    "containerd",
+		Target:  "control",
+		Mappings: []PortMapping{
+			{
+				EnvVar:        constants.EnvPortRegistry,
+				Service:       "registry",
+				ContainerPort: 5010,
+				Modes:         []string{"containerd"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("discover ports: %v", err)
+	}
+
+	// This is the bug reproduction: currently it accepts 0.
+	// We Assert that we DON'T want it to return 0.
+	// So if this test fails (returns 0), we know the bug exists.
+	// However, to follow TDD, I should write the test expecting the CORRECT behavior (not having the port),
+	// and observe it failing if the bug exists.
+
+	if val, ok := ports[constants.EnvPortRegistry]; ok {
+		if val == 0 {
+			t.Fatalf("expected port 0 to be ignored, but got 0")
+		}
+	}
+}

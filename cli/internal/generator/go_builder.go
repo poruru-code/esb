@@ -108,6 +108,61 @@ func (b *GoBuilder) Build(request manifest.BuildRequest) error {
 	}
 	cfg.Paths.OutputDir = filepath.Join(outputBase, request.Env)
 
+	composeProject := request.ProjectName
+	if composeProject == "" {
+		brandName := strings.ToLower(cfg.App.Name)
+		if brandName == "" {
+			brandName = strings.ToLower(os.Getenv("CLI_CMD"))
+		}
+		if brandName == "" {
+			brandName = meta.Slug
+		}
+		composeProject = fmt.Sprintf("%s-%s", brandName, strings.ToLower(request.Env))
+	}
+
+	applyBuildEnv(request.Env, composeProject)
+	imageLabels := brandingImageLabels(composeProject, request.Env)
+	rootFingerprint, err := resolveRootCAFingerprint()
+	if err != nil {
+		return err
+	}
+	if os.Getenv(constants.BuildArgCAFingerprint) == "" {
+		_ = os.Setenv(constants.BuildArgCAFingerprint, rootFingerprint)
+	}
+	baseImageLabels := make(map[string]string, len(imageLabels)+1)
+	for key, value := range imageLabels {
+		baseImageLabels[key] = value
+	}
+	baseImageLabels[compose.ESBCAFingerprintLabel] = rootFingerprint
+
+	// Discover registry port first so we can use it in generation
+	if registry.External != "" {
+		if err := ensureRegistryRunning(
+			context.Background(),
+			b.ComposeRunner,
+			repoRoot,
+			composeProject,
+			mode,
+		); err != nil {
+			return err
+		}
+
+		// Discover the dynamically assigned registry port
+		discovered, err := b.PortDiscoverer.Discover(context.Background(), repoRoot, composeProject, mode)
+		if err != nil {
+			return fmt.Errorf("discover registry port: %w", err)
+		}
+		if port, ok := discovered[constants.EnvPortRegistry]; ok {
+			registry.External = fmt.Sprintf("localhost:%d", port)
+			_ = os.Setenv(constants.EnvPortRegistry, strconv.Itoa(port))
+			if request.Verbose {
+				fmt.Printf("Discovered registry port: %d\n", port)
+			}
+		} else {
+			return fmt.Errorf("registry port not discovered")
+		}
+	}
+
 	if request.Verbose {
 		fmt.Println("Generating files...")
 		fmt.Printf("Using Template: %s\n", templatePath)
@@ -140,65 +195,8 @@ func (b *GoBuilder) Build(request manifest.BuildRequest) error {
 		fmt.Println("Done")
 	}
 
-	composeProject := request.ProjectName
-	if composeProject == "" {
-		brandName := strings.ToLower(cfg.App.Name)
-		if brandName == "" {
-			brandName = strings.ToLower(os.Getenv("CLI_CMD"))
-		}
-		if brandName == "" {
-			brandName = meta.Slug
-		}
-		composeProject = fmt.Sprintf("%s-%s", brandName, strings.ToLower(request.Env))
-	}
-
 	if err := stageConfigFiles(cfg.Paths.OutputDir, repoRoot, composeProject, request.Env); err != nil {
 		return err
-	}
-	applyBuildEnv(request.Env, composeProject)
-	imageLabels := brandingImageLabels(composeProject, request.Env)
-	rootFingerprint, err := resolveRootCAFingerprint()
-	if err != nil {
-		return err
-	}
-	if os.Getenv(constants.BuildArgCAFingerprint) == "" {
-		_ = os.Setenv(constants.BuildArgCAFingerprint, rootFingerprint)
-	}
-	baseImageLabels := make(map[string]string, len(imageLabels)+1)
-	for key, value := range imageLabels {
-		baseImageLabels[key] = value
-	}
-	baseImageLabels[compose.ESBCAFingerprintLabel] = rootFingerprint
-
-	if registry.External != "" {
-		if err := ensureRegistryRunning(
-			context.Background(),
-			b.ComposeRunner,
-			repoRoot,
-			composeProject,
-			mode,
-		); err != nil {
-			return err
-		}
-
-		// Discover the dynamically assigned registry port
-		discovered, err := b.PortDiscoverer.Discover(context.Background(), repoRoot, composeProject, mode)
-		if err != nil {
-			return fmt.Errorf("discover registry port: %w", err)
-		}
-		if port, ok := discovered[constants.EnvPortRegistry]; ok {
-			registry.External = fmt.Sprintf("localhost:%d", port)
-			_ = os.Setenv(constants.EnvPortRegistry, strconv.Itoa(port))
-			if request.Verbose {
-				fmt.Printf("Discovered registry port: %d\n", port)
-			}
-		} else {
-			return fmt.Errorf("registry port not discovered")
-		}
-	}
-
-	if !request.Verbose {
-		fmt.Println("Done")
 	}
 
 	if !request.Verbose {

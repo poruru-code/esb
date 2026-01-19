@@ -105,7 +105,7 @@ func DiscoverPorts(ctx context.Context, runner CommandRunner, opts PortDiscovery
 			continue
 		}
 		port, err := strconv.Atoi(raw[idx+1:])
-		if err != nil {
+		if err != nil || port == 0 {
 			continue
 		}
 		ports[mapping.EnvVar] = port
