@@ -2,7 +2,7 @@
 # Keeps base image naming aligned with branding defaults via ARG.
 
 ARG IMAGE_PREFIX=esb
-ARG OS_BASE_IMAGE=${IMAGE_PREFIX}-os-base:latest
+ARG OS_BASE_IMAGE=esb-os-base:latest
 
 # Builder Stage
 FROM golang:1.25.1-bookworm@sha256:c423747fbd96fd8f0b1102d947f51f9b266060217478e5f9bf86f145969562ee AS builder
