@@ -16,7 +16,7 @@ esb info
 
 ## 実装詳細
 
-コマンドのロジックは `cli/internal/app/info.go` に実装されています。
+コマンドのロジックは `cli/internal/app/info.go` に実装されています。`DetectorFactory` から `StateDetector` を生成し、Docker/ファイルシステムを照会して状態を判定します。
 
 ### 表示情報
 
@@ -37,7 +37,7 @@ esb info
 1. **グローバル設定読み込み**: `~/.config/esb/config.yaml` を検証します。
 2. **プロジェクト解決**: アクティブなプロジェクトを特定します。
 3. **状態検出**:
-   - `StateDetector` を使用してDockerおよびファイルシステムをクエリします。
+   - `DetectorFactory` から `StateDetector` を構築し、Dockerおよびファイルシステムをクエリします。
    - コンテキストが不足している場合は「未初期化」、設定済みの場合はリアルタイムのステータスを報告します。
 
 ## フローチャート

@@ -20,12 +20,12 @@ esb down [flags]
 
 ## 実装詳細
 
-コマンドのロジックは `cli/internal/app/down.go` に実装されています。
+CLIアダプタは `cli/internal/app/down.go`、オーケストレーションは `cli/internal/workflows/down.go` が担当します。
 
 ### ロジックフロー
 
 1. **コンテキスト解決**: アクティブな環境に基づいてDocker Composeのプロジェクト名を特定します。
-2. **コマンド実行**: `Downer.Down` メソッドを呼び出します。
+2. **コマンド実行**: `DownWorkflow` が `Downer.Down` を呼び出します。
 3. **Dockerアクション**: `docker compose down` を実行します。`--volumes` が渡された場合、`-v` フラグを追加して関連ボリュームを削除します。
 
 ## フローチャート

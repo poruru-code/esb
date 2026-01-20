@@ -21,63 +21,63 @@ esb up [flags]
 | `--detach` | `-d` | コンテナをバックグラウンドで実行します (デフォルト: true)。 |
 | `--wait` | `-w` | ゲートウェイの準備完了を待機します。 |
 | `--env-file` | | カスタム `.env` ファイルへのパスを指定します。 |
+| `--force` | | 無効な `ESB_PROJECT`/`ESB_ENV` 環境変数を自動的に解除します。 |
 
 ## 実装詳細
 
-コマンドのロジックは `cli/internal/app/up.go` に実装されています。`Upper`, `Builder`, `Downer`, `Provisioner`, `PortDiscoverer` といった複数のインターフェースに依存する高レベルなオーケストレーターとして機能します。
+CLIアダプタは `cli/internal/app/up.go`、オーケストレーションは `cli/internal/workflows/up.go` が担当します。ワークフローは `Upper`, `Builder`, `Downer`, `Provisioner`, `PortPublisher`, `CredentialManager`, `TemplateLoader/Parser`, `GatewayWaiter`, `RuntimeEnvApplier` などの `ports` を通じて実行されます。
 
 ### ワークフローステップ
 
 1. **コンテキスト解決**: アクティブな環境とプロジェクトルートを決定します。
-2. **リセット (オプション)**: `--reset` が指定された場合、ボリューム削除を有効にして `Downer.Down` を呼び出します。
-3. **認証**: `auth.json` の存在を確認し、不足している場合はデフォルトの認証情報を生成します。
-4. **ビルド (オプション)**: `--build` または `--reset` が指定された場合、`Builder` を呼び出してイメージを再生成します。
-5. **Docker Compose Up**: `Upper.Up` を呼び出してコンテナ (Gateway, Agentなど) を起動します。
-6. **ポート検出**: 動的に割り当てられたポートがあればスキャンし、永続化します。
-7. **プロビジョニング**: `template.yaml` を解析し、`Provisioner` を介してローカルリソース (テーブル、バケット) を設定します。
-8. **待機 (オプション)**: `--wait` が指定された場合、Gatewayのヘルスエンドポイントが準備完了になるまでポーリングします。
-9. **完了表示**: 成功メッセージと発見されたポート（🔌）、認証情報（🔑）を表示します。
+2. **ランタイム環境適用**: `RuntimeEnvApplier` が `ESB_*` 変数を適用します。
+3. **リセット (オプション)**: `--reset` が指定された場合、ボリューム削除を有効にして `Downer.Down` を呼び出します。
+4. **認証**: `CredentialManager` が不足している認証情報を生成します。
+5. **ビルド (オプション)**: `--build` または `--reset` が指定された場合、`Builder` を呼び出してイメージを再生成します。
+6. **Docker Compose Up**: `Upper.Up` を呼び出してコンテナ (Gateway, Agentなど) を起動します。
+7. **ポート検出**: `PortPublisher` が動的ポートをスキャン・永続化します。
+8. **プロビジョニング**: `TemplateLoader`/`TemplateParser` で `template.yaml` を解析し、`Provisioner` を介してローカルリソース (テーブル、バケット) を設定します。
+9. **待機 (オプション)**: `--wait` が指定された場合、Gatewayのヘルスエンドポイントが準備完了になるまでポーリングします。
+10. **完了表示**: 成功メッセージと発見されたポート（🔌）、認証情報（🔑）を表示します。
 
 ## シーケンス図
 
 ```mermaid
 sequenceDiagram
     participant CLI as esb up
+    participant WF as UpWorkflow
     participant Downer as Downer
     participant Builder as Builder
     participant Upper as Upper (Compose)
-    participant Docker as Docker Daemon
     participant Provisioner as Provisioner
     participant Waiter as GatewayWaiter
 
-    CLI->>CLI: コンテキスト解決
+    CLI->>CLI: コンテキスト解決 & プロンプト
+    CLI->>WF: Run(UpRequest)
 
     opt --reset
-        CLI->>Downer: Down(volumes=true)
-        Downer->>Docker: コンテナ停止 & ボリューム削除
+        WF->>Downer: Down(volumes=true)
     end
 
-    CLI->>CLI: 認証情報の確認 (EnsureAuthCredentials)
+    WF->>WF: 認証情報の確認 (CredentialManager)
 
     opt --build OR --reset
-        CLI->>Builder: Build(BuildRequest)
+        WF->>Builder: Build(BuildRequest)
     end
 
-    CLI->>Upper: Up(UpRequest)
-    Upper->>Docker: compose up -d
+    WF->>Upper: Up(UpRequest)
 
-    CLI->>CLI: ポート検出と保存 (DiscoverAndPersistPorts)
+    WF->>WF: ポート検出と保存 (PortPublisher)
 
-    CLI->>Provisioner: Provision(ProvisionRequest)
+    WF->>Provisioner: Apply(ProvisionRequest)
     Provisioner->>Provisioner: SAMテンプレート解析
-    Provisioner->>Docker: DynamoDB/S3設定 (AWS SDK)
 
     opt --wait
-        CLI->>Waiter: Wait(Context)
+        WF->>Waiter: Wait(Context)
         loop 準備完了まで
-            Waiter->>Docker: ヘルスチェック
+            Waiter->>Waiter: ヘルスチェック
         end
     end
 
-    CLI-->>CLI: 成功メッセージ (🎉) & ポート表示 (🔌)
+    WF-->>CLI: 成功メッセージ (🎉) & ポート表示 (🔌)
 ```

@@ -28,7 +28,7 @@ esb logs [service] [flags]
 
 ## 実装詳細
 
-コマンドのロジックは `cli/internal/app/logs.go` に実装されています。
+CLIアダプタは `cli/internal/app/logs.go`、オーケストレーションは `cli/internal/workflows/logs.go` が担当します。
 
 ### 主要コンポーネント
 
@@ -44,13 +44,14 @@ esb logs [service] [flags]
      - `Logger.ListServices` をクエリします。
      - `Prompter` を介してリストを表示します。
      - 選択結果で `req.Service` を更新します。
-3. **ログ取得**: `Logger.Logs(req)` を呼び出します。これは通常 `docker compose logs` をラップします。
+3. **ログ取得**: `LogsWorkflow` が `Logger.Logs(req)` を呼び出します。これは通常 `docker compose logs` をラップします。
 
 ## シーケンス図
 
 ```mermaid
 sequenceDiagram
     participant CLI as esb logs
+    participant WF as LogsWorkflow
     participant Logger as Logger
     participant Docker as Docker Daemon
     participant User as ユーザー
@@ -66,7 +67,8 @@ sequenceDiagram
         User-->>CLI: 選択されたサービス
     end
 
-    CLI->>Logger: Logs(req)
+    CLI->>WF: Run(LogsRequest)
+    WF->>Logger: Logs(req)
     Logger->>Docker: docker compose logs [options] [service]
 
     loop ストリーミング

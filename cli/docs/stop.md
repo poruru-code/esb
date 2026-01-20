@@ -19,7 +19,7 @@ esb stop [flags]
 
 ## 実装詳細
 
-コマンドのロジックは `cli/internal/app/stop.go` に実装されています。
+CLIアダプタは `cli/internal/app/stop.go`、オーケストレーションは `cli/internal/workflows/stop.go` が担当します。
 
 ### `down` との違い
 
@@ -29,7 +29,7 @@ esb stop [flags]
 ### ロジックフロー
 
 1. **コンテキスト解決**: Docker Composeのプロジェクト名を特定します。
-2. **コマンド実行**: `Stopper.Stop` を呼び出します。
+2. **コマンド実行**: `StopWorkflow` が `Stopper.Stop` を呼び出します。
 3. **Dockerアクション**: `docker compose stop` を実行します。
 
 ## フローチャート

@@ -2,7 +2,7 @@
 
 ## 概要
 
-Edge Serverless Box (ESB) CLIは、DockerとAWS SDKを使用してローカルのサーバーレス環境を管理するために設計されたGoベースのコマンドラインツールです。テスト容易性、モジュール性、および関心事の明確な分離を確保するために、階層化されたアーキテクチャを採用しています。
+Edge Serverless Box (ESB) CLIは、DockerとAWS SDKを使用してローカルのサーバーレス環境を管理するために設計されたGoベースのコマンドラインツールです。CLIアダプタ（入力/プロンプト）とワークフロー（オーケストレーション）、ポート（外部依存の抽象化）を分離した階層化アーキテクチャを採用しています。
 
 ## システムアーキテクチャ
 
@@ -12,31 +12,28 @@ Edge Serverless Box (ESB) CLIは、DockerとAWS SDKを使用してローカル�
 graph TD
     User[ユーザー] --> CLI[ESB CLI エントリーポイント]
 
-    subgraph "内部アプリケーションレイヤー"
-        CLI --> App["Appロジック (ディスパッチ)"]
-        App --> Dependencies[依存性注入]
-
-        Dependencies --> Builder[Builder]
-        Dependencies --> Provisioner[Provisioner]
-        Dependencies --> StateDetector[State Detector]
-        Dependencies --> ComposeAdapter[Compose Adapter]
+    subgraph "CLI レイヤー"
+        CLI --> App["CLI Adapter (入力/プロンプト)"]
+        App --> Workflows["Workflows (オーケストレーション)"]
+        Workflows --> Ports["Ports (外部依存の抽象化)"]
+        App --> ConfigFS["ファイルシステム (.env, config)"]
     end
 
     subgraph "外部システム"
+        Ports --> Builder[Go Builder]
+        Ports --> Compose[Docker Compose]
+        Ports --> Provisioner[Local AWS Provisioner]
         Builder --> Gen[コードジェネレーター]
-        ComposeAdapter --> Docker[Dockerデーモン]
+        Compose --> Docker[Dockerデーモン]
         Provisioner --> AWS["AWSローカルサービス (DynamoDB/S3)"]
-        App --> FS["ファイルシステム (.env, config)"]
     end
 
-    App -->|Read| FS
-    StateDetector -->|Query| Docker
-    StateDetector -->|Check| FS
+    App -->|Read/Write| ConfigFS
 ```
 
 ## 内部クラス構造
 
-CLIの中核は、必要なすべてのサービスを集約する `Dependencies` 構造体を中心に構築されています。これにより、テスト時のモック化が容易になります。
+CLIの中核は、共有の依存とコマンド別の依存を束ねる `Dependencies` 構造体を中心に構築されています。これにより、テスト時のモック化が容易になります。
 
 ```mermaid
 classDiagram
@@ -48,12 +45,45 @@ classDiagram
         +ProjectDir: string
         +Out: io.Writer
         +DetectorFactory: func
+        +Now: func
+        +Prompter: Prompter
+        +RepoResolver: func
+        +Build: BuildDeps
+        +Up: UpDeps
+        +Down: DownDeps
+        +Logs: LogsDeps
+        +Stop: StopDeps
+        +Prune: PruneDeps
+    }
+
+    class BuildDeps {
         +Builder: Builder
-        +Provisioner: Provisioner
-        +Downer: Downer
+    }
+
+    class UpDeps {
+        +Builder: Builder
         +Upper: Upper
-        +Stopper: Stopper
+        +Downer: Downer
+        +PortDiscoverer: PortDiscoverer
+        +Waiter: GatewayWaiter
+        +Provisioner: Provisioner
+        +Parser: Parser
+    }
+
+    class DownDeps {
+        +Downer: Downer
+    }
+
+    class LogsDeps {
         +Logger: Logger
+    }
+
+    class StopDeps {
+        +Stopper: Stopper
+    }
+
+    class PruneDeps {
+        +Pruner: Pruner
     }
 
     class App {
@@ -62,11 +92,11 @@ classDiagram
 
     class Provisioner {
         <<interface>>
-        +Provision(request)
+        +Apply(request)
     }
 
     class Runner {
-        +Provision(request)
+        +Apply(request)
     }
 
     class StateDetector {
@@ -79,8 +109,12 @@ classDiagram
     }
 
     CLI --> Dependencies
-    Dependencies --> Provisioner
-    Dependencies --> StateDetector
+    Dependencies --> BuildDeps
+    Dependencies --> UpDeps
+    Dependencies --> DownDeps
+    Dependencies --> LogsDeps
+    Dependencies --> StopDeps
+    Dependencies --> PruneDeps
     Runner ..|> Provisioner
     Detector ..|> StateDetector
 ```
@@ -127,4 +161,10 @@ stateDiagram-v2
 - `aws-sdk-go-v2` を使用したローカルコンテナとの通信。
 
 ### 3. Application Logic (`cli/internal/app`)
-各コマンド (`up`, `down`, `build` など) のビジネスロジックを含みます。CLIインターフェース (Kong) と内部アダプターの間の接着剤として機能します。
+各コマンド (`up`, `down`, `build`, `env`, `project` など) の入力解決・プロンプト処理を担うCLIアダプタです。実際のオーケストレーションは `cli/internal/workflows` に移り、外部依存は `cli/internal/ports` を介して呼び出します。
+
+### 4. Workflows (`cli/internal/workflows`)
+コマンドの手順をオーケストレーションする層です。`build`/`up`/`down`/`logs`/`stop`/`prune`/`env`/`project` の各ワークフローが、DTOを受け取り `ports` を通じて外部依存を呼び出します。
+
+### 5. Ports (`cli/internal/ports`)
+外部依存を抽象化するインターフェース群です。`Builder`/`Upper`/`Downer`/`Logger`/`Provisioner`/`RuntimeEnvApplier`/`UserInterface` などを提供し、ワークフローのテスト容易性を高めます。

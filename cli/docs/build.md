@@ -22,12 +22,15 @@ esb build [flags]
 
 ## 実装詳細
 
-コマンドのロジックは `cli/internal/app/build.go` に実装されており、主要な処理は `cli/internal/generator/go_builder.go` に委譲されます。
+CLIアダプタは `cli/internal/app/build.go` にあり、オーケストレーションは `cli/internal/workflows/build.go` が担当します。実際のビルド処理は `cli/internal/generator/go_builder.go` (GoBuilder) に委譲されます。
 
 ### 主要コンポーネント
 
-- **`BuildRequest`**: コマンドライン引数を保持する構造体。
-- **`GoBuilder`**: `Builder` インターフェースの実装。
+- **`BuildWorkflow`**: ランタイム環境適用とBuilder呼び出しを行うオーケストレーター。
+- **`BuildRequest`**: CLI から Workflow に渡される入力DTO。
+- **`RuntimeEnvApplier`**: `applyRuntimeEnv` を通じてESB環境変数を適用。
+- **`UserInterface`**: 成功メッセージの出力（互換のため `LegacyUI` を使用）。
+- **`GoBuilder`**: `ports.Builder` インターフェースの実装。
   - **`Generate`**: ビルド成果物 (Dockerfiles, ハンドララッパー) を `output/<env>/` に生成します。
   - **`BuildCompose`**: コントロールプレーンのイメージ (Gateway, Agent) をビルドします。
   - **`Runner`**: ベースイメージと関数イメージに対して `docker build` コマンドを実行します。
@@ -35,12 +38,13 @@ esb build [flags]
 ### ビルドロジック
 
 1. **コンテキスト解決**: プロジェクトディレクトリとアクティブな環境を決定します。
-2. **設定読み込み**: `generator.yml` を読み込み、関数のマッピングとパラメータを理解します。
-3. **コード生成**:
+2. **ランタイム環境適用**: `RuntimeEnvApplier` が `ESB_*` 変数を適用します。
+3. **設定読み込み**: `generator.yml` を読み込み、関数のマッピングとパラメータを理解します。
+4. **コード生成**:
    - `template.yaml` を解析します。
    - ボイラープレートコード (Python/Node.jsハンドラなど) とDockerfileを生成します。
    - `output/<env>/` に出力します。
-4. **イメージビルド**:
+5. **イメージビルド**:
    - ローカルレジストリが稼働していることを確認します (必要な場合)。
    - ベースイメージ (共有レイヤー) をビルドします。
    - 個別の関数イメージをビルドします。
@@ -52,12 +56,16 @@ esb build [flags]
 ```mermaid
 sequenceDiagram
     participant CLI as esb build
+    participant WF as BuildWorkflow
+    participant Env as RuntimeEnvApplier
     participant Builder as GoBuilder
     participant Generator as Code Generator
     participant Docker as Docker Daemon
     participant Registry as Local Registry
 
-    CLI->>Builder: Build(BuildRequest)
+    CLI->>WF: Run(BuildRequest)
+    WF->>Env: Apply(Context)
+    WF->>Builder: Build(BuildRequest)
     Builder->>Builder: generator.yml 読み込み
     Builder->>Generator: Generate(config, options)
     Generator-->>Builder: FunctionSpecs (関数リスト)
@@ -81,5 +89,6 @@ sequenceDiagram
     Builder->>Docker: コントロールプレーンのビルド (Gateway/Agent)
 
     Docker-->>Builder: 成功
-    Builder-->>CLI: 成功
+    Builder-->>WF: 成功
+    WF-->>CLI: 成功
 ```

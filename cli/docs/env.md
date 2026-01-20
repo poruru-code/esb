@@ -22,7 +22,7 @@ esb env [command] [flags]
 
 ## 実装詳細
 
-ロジックは `cli/internal/app/env.go`, `cli/internal/app/env_defaults.go`, `cli/internal/app/env_var.go` に分散されています。
+CLIアダプタは `cli/internal/app/env.go` と `cli/internal/app/env_var.go` にあり、環境管理のオーケストレーションは `cli/internal/workflows/env.go` が担当します。`env var` は引き続きアダプタ側で実装されています。
 
 ### 主要コンポーネント
 
@@ -32,7 +32,7 @@ esb env [command] [flags]
 
 ### 環境管理フロー
 
-1. **List**: `generator.yml` を読み込み、`StateDetector` を介して稼働状態を検出し、ステータステーブルを表示します。
+1. **List**: `generator.yml` を読み込み、`DetectorFactory` (StateDetector) を介して稼働状態を検出し、ステータスを表示します。
 2. **Add**: 新しいエントリを `generator.yml` に追加します。インタラクティブモードの場合、名前とモード（docker, containerd, firecracker）の入力を求めます。
 3. **Use**: `generator.yml` の `LastEnv` とグローバルプロジェクトレジストリを更新します。
 4. **Remove**: エントリを `generator.yml` から削除します。最後の環境の削除は防止されます。
