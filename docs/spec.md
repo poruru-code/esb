@@ -22,7 +22,7 @@ flowchart TD
         CoreDNS["CoreDNS (Sidecar)<br>(:53)"]
         RustFS["RustFS S3<br>(:9000)"]
         Console["RustFS Console<br>(:9001)"]
-        DB["ScyllaDB<br>(:8001)"]
+        DB["ScyllaDB<br>(:8000)"]
         Logs["VictoriaLogs<br>(:9428)"]
         
         Gateway -->|Pool Management| PoolManager["PoolManager"]
@@ -32,7 +32,7 @@ flowchart TD
         Lambda["Lambda microVM/Container<br>(Ephemeral)"]
     end
 
-    User -->|HTTP| Gateway
+    User -->|HTTPS| Gateway
     User -->|S3 API| RustFS
     User -->|Web UI| Console
     User -->|Dynamo API| DB
@@ -43,7 +43,7 @@ flowchart TD
     Gateway -->|AWS SDK| DB
     Gateway -->|HTTP| Lambda
     
-    Agent -->|containerd/CNI| Lambda
+    Agent -->|docker/containerd| Lambda
     Agent -.-|Pull (Containerd/FC only)| Registry["Registry"]
     
     Lambda -->|DNS Query| CoreDNS
