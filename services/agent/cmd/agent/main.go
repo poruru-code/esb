@@ -144,6 +144,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to initialize gRPC server options: %v", err)
 	}
+	if os.Getenv("AGENT_GRPC_TLS_ENABLED") != "1" {
+		log.Println("WARNING: gRPC TLS is disabled (AGENT_GRPC_TLS_ENABLED!=1). Use only in trusted networks.")
+	}
 	grpcServer := grpc.NewServer(grpcOptions...)
 	agentServer := api.NewAgentServer(rt)
 	pb.RegisterAgentServiceServer(grpcServer, agentServer)
