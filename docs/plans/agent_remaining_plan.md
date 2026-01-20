@@ -15,9 +15,10 @@
   - 反映先: `services/agent/cmd/agent/main.go`  
   - 決めること: 既定で mTLS を必須にするか、または既定 OFF + 強警告のまま継続するか。  
   - 受け入れ条件: 反射 API の有効/無効が環境変数で明確に制御でき、起動時の警告/ログが適切。
-- P1-2: `InvokeWorker` レスポンスのサイズ上限  
+- P1-2: `InvokeWorker` レスポンスのサイズ上限 ✅ **完了**
   - 反映先: `services/agent/internal/api/server.go`  
   - 受け入れ条件: 上限値が設定可能で、超過時は明確なエラーを返す。
+  - **実装済み**: `io.LimitReader` + `AGENT_INVOKE_MAX_RESPONSE_SIZE` 環境変数（デフォルト10MB）
 - P1-3: 资源制御（CPU/メモリ上限）  
   - 反映先: `services/agent/internal/runtime/containerd/*`, `services/agent/internal/runtime/docker/*`  
   - 受け入れ条件: デフォルト上限が設定可能で、無制限を選べる場合は明示設定が必要。
@@ -31,9 +32,10 @@
 - P2-1: Docker で IP 未確定時の扱い  
   - 反映先: `services/agent/internal/runtime/docker/runtime.go`  
   - 受け入れ条件: リトライ/待機/エラー返却が一貫し、呼び出し側が原因を判別できる。
-- P2-2: Pause/Resume 未実装の扱い  
+- P2-2: Pause/Resume 未実装の扱い ✅ **完了**
   - 反映先: `services/agent/internal/runtime/docker/runtime.go`, `services/agent/internal/api/server.go`  
   - 受け入れ条件: `codes.Unimplemented` を返し、クライアントが判別可能。
+  - **実装済み**: Docker runtime が `codes.Unimplemented` を返すよう変更
 - P2-3: コンテナ名のサニタイズ/衝突回避  
   - 反映先: `services/agent/internal/runtime/containerd/runtime.go`, `services/agent/internal/runtime/docker/runtime.go`  
   - 受け入れ条件: 名前制約に準拠し、表示名はラベルで保持できる。
@@ -59,9 +61,10 @@
 - P4-2: 設定デフォルトの一元管理  
   - 反映先: `services/agent/cmd/agent/main.go`, `services/agent/internal/api/server.go`  
   - 受け入れ条件: 既定値が一箇所に集約され、テストが簡潔。
-- P4-3: `PortAllocator` の削除または活用方針決定  
+- P4-3: `PortAllocator` の削除または活用方針決定 ✅ **完了**
   - 反映先: `services/agent/internal/runtime/containerd/port_allocator.go`  
   - 受け入れ条件: 未使用コードが残らない。
+  - **実装済み**: `port_allocator.go` および `port_allocator_test.go` を削除
 - P4-4: Docker `Metrics` の扱い  
   - 反映先: `services/agent/internal/runtime/interface.go`, `services/agent/internal/runtime/docker/runtime.go`  
   - 受け入れ条件: capability を明示 or Docker 側実装。

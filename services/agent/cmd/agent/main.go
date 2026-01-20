@@ -144,8 +144,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to initialize gRPC server options: %v", err)
 	}
-	if os.Getenv("AGENT_GRPC_TLS_ENABLED") != "1" {
-		log.Println("WARNING: gRPC TLS is disabled (AGENT_GRPC_TLS_ENABLED!=1). Use only in trusted networks.")
+	if os.Getenv("AGENT_GRPC_TLS_DISABLED") == "1" {
+		log.Println("WARNING: gRPC TLS is explicitly disabled (AGENT_GRPC_TLS_DISABLED=1). Use only in trusted networks.")
+	} else {
+		log.Println("gRPC TLS is enabled by default.")
 	}
 	grpcServer := grpc.NewServer(grpcOptions...)
 	agentServer := api.NewAgentServer(rt)
@@ -183,7 +185,7 @@ func isReflectionEnabled() bool {
 }
 
 func grpcServerOptions() ([]grpc.ServerOption, error) {
-	if os.Getenv("AGENT_GRPC_TLS_ENABLED") != "1" {
+	if os.Getenv("AGENT_GRPC_TLS_DISABLED") == "1" {
 		return nil, nil
 	}
 
