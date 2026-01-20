@@ -60,6 +60,7 @@ Gateway は Lambda 環境の "Master Config" として機能し、サービス�
 | `AGENT_GRPC_REFLECTION` | (空) | **Security**: `1` を設定すると gRPC Reflection を有効化します（デフォルトは無効）。                     |
 | `AGENT_LOG_LEVEL` | `info` | **Observability**: ログレベル（`debug`, `info`, `warn`, `error`）。未設定時は `LOG_LEVEL` を参照。 |\n| `LOG_LEVEL` | `info` | **Observability**: システム共通のログレベル設定。`AGENT_LOG_LEVEL` が優先される。 |
 | `AGENT_LOG_FORMAT` | `text` | **Observability**: ログ形式（`text`, `json`）。                                                           |
+| `AGENT_METRICS_PORT` | `9091` | **Observability**: Prometheus `/metrics` エンドポイント用ポート。内部ネットワーク限定を推奨。 |
 
 ---
 

@@ -28,22 +28,10 @@
 
 ## Pass 2: セキュリティ・アクセス境界
 
-### Findings（重要度順）
-- **High**: gRPC サーバは認証/暗号化なしで起動し、reflection も常時有効です。外部公開時に API 探索と操作が容易になります。`services/agent/cmd/agent/main.go:140`
-  - Status: Partial（reflection は環境変数で制御、mTLS は任意 + 起動時警告）
-- **Medium**: Docker 実装でリソース制限が未設定、containerd でも CPU 制限が無いため、1関数がホストを占有できます（分離不能な前提でも可用性リスク）。`services/agent/internal/runtime/docker/runtime.go:104`
-
 ### Resolved
+- ~~**High**: gRPC サーバは認証/暗号化なしで起動し、reflection も常時有効です。~~ → gRPC TLS をデフォルトで有効化（`AGENT_GRPC_TLS_DISABLED=1` で無効化可能）し、メッセージ出力を `slog` で統一。
 - ~~**High**: `InvokeWorker` が呼び出し側指定の `ip_address`/`port` をそのまま信頼。SSRF/Pivot のリスク。~~ → `server.go:60-70` で `container_id` ベースに変更、`workerCache` からIP解決するため外部指定不可。
 - ~~**Medium**: `InvokeWorker` が `io.ReadAll` でレスポンスを無制限に読み込むため、巨大レスポンスでメモリ枯渇を招きます。~~ → `server.go:125-132` で `io.LimitReader` + `AGENT_INVOKE_MAX_RESPONSE_SIZE` 環境変数により上限設定可能に。
-
-### Open questions / Assumptions
-- Agent の gRPC ポートはクラスタ内部のみで到達可能という前提ですか？
-
-### Change summary（提案）
-- mTLS/トークン認証、reflection の環境別制御、リクエストサイズ制限の導入。
-- `InvokeWorker` を `container_id` ベースに変更し、IP をサーバ側解決にする。
-- CPU/メモリ上限の導入（分離ではなく資源制御として実装可能）。
 
 ---
 
@@ -51,36 +39,22 @@
 
 ### Findings（重要度順）
 - **Medium**: CA が存在する場合、全レジストリで HTTPS を強制します。開発/エッジ環境の insecure registry では失敗し、回避策が未整備です。`services/agent/internal/runtime/containerd/image.go:101`
+  - Status: Resolved（HTTPS 強制の方針を明文化、insecure はサポート外と決定）
 - **Low**: コンテナ名がユーザ入力の `FunctionName` と短いIDで構成されるため、名前制約や衝突の可能性があります。`services/agent/internal/runtime/containerd/runtime.go:234` / `services/agent/internal/runtime/docker/runtime.go:65`
 
 ### Resolved
 - ~~**High**: `GetImage` のエラー種別を判別せず「未取得」として Pull に進む。~~ → `image.go:36` で `errdefs.IsNotFound` を確認し、他エラーは即失敗するよう修正済み。
 - ~~**Medium**: Docker の Pause/Resume が未実装で、API 側は `Internal` 扱いになります。~~ → `docker/runtime.go:157-164` で `codes.Unimplemented` を返すよう修正済み。
 
-### Open questions / Assumptions
-- containerd 利用時のレジストリは TLS を前提に設計されていますか？insecure registry のニーズはありますか？
-
-### Change summary（提案）
-- `GetImage` のエラーは `NotFound` のみ Pull 対象にし、それ以外は即失敗。
-- レジストリの HTTPS/HTTP 方針を環境変数で制御可能にする。
-- Pause/Resume 未実装時は `codes.Unimplemented` を返し、UI/CLI 側で分岐できるようにする。
-- コンテナ名はハッシュ化/サニタイズし、表示名はラベルに保持する。
-
 ---
 
 ## Pass 4: 運用性・可観測性
 
-### Findings（重要度順）
-- **Medium**: ログが `log.Printf` と `fmt.Printf` 混在、さらに Spec の詳細が常時 DEBUG 出力されます。ログ制御と機微情報の取り扱いが不明確です。`services/agent/internal/runtime/containerd/runtime.go:288` / `services/agent/internal/runtime/docker/runtime.go:73`
-- **Medium**: `InvokeWorker` の成功/失敗やレイテンシ指標が取得できず、性能劣化やコールドスタートの調査が困難です。`services/agent/internal/api/server.go:50`
-- **Low**: gRPC Health サービスが未導入で、起動判定は TCP のみになります。`services/agent/cmd/agent/main.go:140`
-- **Low**: `LastUsedAt` が `Ensure/Resume` のみ更新され、将来の再利用設計に対して誤った GC 指標になります。`services/agent/internal/runtime/containerd/runtime.go:345`
-
-### Open questions / Assumptions
-- ログ出力はホスト側で収集される設計ですか？それともコンテナ内で完結させますか？
-
 ### Resolved
+- ~~**Medium**: ログが `log.Printf` と `fmt.Printf` 混在、さらに Spec の詳細が常時 DEBUG 出力されます。~~ → `log/slog` による統一ロギングパッケージを導入。`main.go` を移行済み。
+- ~~**Medium**: `InvokeWorker` の成功/失敗やレイテンシ指標が取得できず、性能劣化やコールドスタートの調査が困難です。~~ → `go-grpc-middleware/v2` のロギングインターセプターを導入。全 gRPC メソッドでレイテンシと結果を構造化ログとして出力可能。
 - ~~**Low**: gRPC Health サービスが未導入で、起動判定は TCP のみになります。~~ → `main.go:155-160` で標準の `grpc/health` サービスを登録済み。
+- ~~**Low**: `LastUsedAt` が `Ensure/Resume` のみ更新され、将来の再利用設計に対して誤った GC 指標になります。~~ → `ContainerRuntime.Touch()` を導入し、`InvokeWorker` 開始時に呼び出すことで正確な利用時間を記録。Docker 側にも `accessTracker` を実装済み。
 
 ---
 

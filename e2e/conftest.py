@@ -31,6 +31,10 @@ GATEWAY_URL = os.getenv("GATEWAY_URL", f"https://localhost:{GATEWAY_PORT}")
 
 VICTORIALOGS_PORT = os.getenv("VICTORIALOGS_PORT", "9428")
 VICTORIALOGS_URL = os.getenv("VICTORIALOGS_URL", f"http://localhost:{VICTORIALOGS_PORT}")
+
+AGENT_METRICS_PORT = os.getenv("AGENT_METRICS_PORT", "9091")
+AGENT_METRICS_URL = os.getenv("AGENT_METRICS_URL", f"http://localhost:{AGENT_METRICS_PORT}")
+
 AUTH_ENDPOINT_PATH = os.getenv("AUTH_ENDPOINT_PATH", "/user/auth/v1")
 API_KEY = os.getenv("X_API_KEY", "")
 

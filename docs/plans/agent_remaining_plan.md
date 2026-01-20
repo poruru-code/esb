@@ -42,19 +42,22 @@
   - 受け入れ条件: 名前制約に準拠し、表示名はラベルで保持できる。
 
 ## 優先度 P3（運用性/可観測性）
-- P3-1: ログ出力の統一と DEBUG 制御  
+- P3-1: ログ出力の統一と DEBUG 制御 ✅ **完了**
   - 反映先: `services/agent/internal/runtime/*`  
   - 受け入れ条件: ログ出力が一貫し、機微情報はデフォルトで抑制。
-- P3-2: `InvokeWorker` 成功/失敗とレイテンシの計測  
+  - **実装済み**: `log/slog` を導入し、`main.go` を移行。`AGENT_LOG_LEVEL` で制御可能。
+- P3-2: `InvokeWorker` 成功/失敗とレイテンシの計測 ✅ **完了**
   - 反映先: `services/agent/internal/api/server.go`  
   - 受け入れ条件: 計測が取得可能で、負荷調査に使える。
+  - **実装済み**: `go-grpc-middleware/v2` のロギングインターセプターを導入。全 gRPC メソッドのレイテンシと結果を構造化ログ出力。
 - P3-3: gRPC Health の導入 ✅ **完了**
   - 反映先: `services/agent/cmd/agent/main.go`  
   - 受け入れ条件: readiness/liveness が gRPC で判定可能。
   - **実装済み**: `grpc/health` サービスを登録し `SERVING` を返却するよう実装。
-- P3-4: `LastUsedAt` 更新タイミングの見直し  
-  - 反映先: `services/agent/internal/runtime/containerd/runtime.go`  
+- P3-4: `LastUsedAt` 更新タイミングの見直し ✅ **完了**
+  - 反映先: `services/agent/internal/runtime/containerd/runtime.go`, `services/agent/internal/runtime/docker/runtime.go`
   - 受け入れ条件: 実際の利用に追従する。
+  - **実装済み**: `Touch()` メソッドをインターフェースに追加し、`InvokeWorker` 開始時に呼び出すよう実装。Docker 版にも `accessTracker` を導入し、正確な GC 判定を可能にした。
 
 ## 優先度 P4（保守性/一貫性）
 - P4-1: `ContainerState.Status` の正規化 ✅ **完了**

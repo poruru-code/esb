@@ -5,6 +5,8 @@ services:
   # ------------------------------------------
   agent:
     env_file: config/defaults.env
+    ports:
+      - "${PORT_AGENT_METRICS:-9091}:9091"
     # Participate in Network Directly
     networks:
       - external_network
