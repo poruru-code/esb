@@ -203,8 +203,9 @@ func main() {
 		metricsPort = "9091" // Default port (avoid 9090 which is Prometheus default)
 	}
 	metricsServer := &http.Server{
-		Addr:    ":" + metricsPort,
-		Handler: promhttp.Handler(),
+		Addr:              ":" + metricsPort,
+		Handler:           promhttp.Handler(),
+		ReadHeaderTimeout: 5 * time.Second, // Slowloris attack protection
 	}
 	go func() {
 		slog.Info("Starting Prometheus metrics server", "port", metricsPort)
