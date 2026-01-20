@@ -49,11 +49,11 @@ func (r *recordEnvApplier) Apply(ctx state.Context) {
 }
 
 type recordBuilder struct {
-	requests []manifest.BuildRequest
+	requests []generator.BuildRequest
 	err      error
 }
 
-func (r *recordBuilder) Build(req manifest.BuildRequest) error {
+func (r *recordBuilder) Build(req generator.BuildRequest) error {
 	r.requests = append(r.requests, req)
 	return r.err
 }

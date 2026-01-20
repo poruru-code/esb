@@ -6,7 +6,7 @@ package workflows
 import (
 	"fmt"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
+	"github.com/poruru/edge-serverless-box/cli/internal/generator"
 	"github.com/poruru/edge-serverless-box/cli/internal/ports"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
@@ -45,7 +45,7 @@ func (w BuildWorkflow) Run(req BuildRequest) error {
 		w.EnvApplier.Apply(req.Context)
 	}
 
-	buildRequest := manifest.BuildRequest{
+	buildRequest := generator.BuildRequest{
 		ProjectDir:   req.Context.ProjectDir,
 		ProjectName:  req.Context.ComposeProject,
 		TemplatePath: req.TemplatePath,

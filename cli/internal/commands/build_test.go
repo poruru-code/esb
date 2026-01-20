@@ -13,15 +13,15 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
-	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
+	"github.com/poruru/edge-serverless-box/cli/internal/generator"
 )
 
 type fakeBuilder struct {
-	requests []manifest.BuildRequest
+	requests []generator.BuildRequest
 	err      error
 }
 
-func (f *fakeBuilder) Build(req manifest.BuildRequest) error {
+func (f *fakeBuilder) Build(req generator.BuildRequest) error {
 	f.requests = append(f.requests, req)
 	return f.err
 }

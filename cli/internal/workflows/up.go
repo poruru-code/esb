@@ -10,7 +10,7 @@ import (
 	"sort"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
-	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
+	"github.com/poruru/edge-serverless-box/cli/internal/generator"
 	"github.com/poruru/edge-serverless-box/cli/internal/ports"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
@@ -97,7 +97,7 @@ func (w UpWorkflow) Run(req UpRequest) (UpResult, error) {
 		if w.Builder == nil {
 			return result, errors.New("builder not configured")
 		}
-		if err := w.Builder.Build(manifest.BuildRequest{
+		if err := w.Builder.Build(generator.BuildRequest{
 			ProjectDir:   req.Context.ProjectDir,
 			ProjectName:  req.Context.ComposeProject,
 			TemplatePath: req.TemplatePath,

@@ -471,11 +471,11 @@ func TestRunUpMissingProvisioner(t *testing.T) {
 }
 
 type fakeUpBuilder struct {
-	requests []manifest.BuildRequest
+	requests []generator.BuildRequest
 	err      error
 }
 
-func (f *fakeUpBuilder) Build(request manifest.BuildRequest) error {
+func (f *fakeUpBuilder) Build(request generator.BuildRequest) error {
 	f.requests = append(f.requests, request)
 	return f.err
 }

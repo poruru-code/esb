@@ -7,9 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	samparser "github.com/poruru-code/aws-sam-parser-go/parser"
-	"github.com/poruru-code/aws-sam-parser-go/schema"
 	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
+	"github.com/poruru/edge-serverless-box/cli/internal/sam"
 )
 
 func parseFunctions(
@@ -30,14 +29,14 @@ func parseFunctions(
 		}
 
 		// Parse strict properties using parser.Decode
-		var fnProps schema.SamtranslatorInternalSchemaSourceAwsServerlessFunctionProperties
-		if err := samparser.Decode(props, &fnProps, nil); err != nil {
+		fnProps, err := sam.DecodeFunctionProps(props)
+		if err != nil {
 			// Report error but continue with what we have
 			fmt.Printf("Warning: failed to map properties for function %s: %v\n", logicalID, err)
 		}
 
 		fnName := ResolveFunctionName(fnProps.FunctionName, logicalID)
-		codeURI := ResolveCodeURI(fnProps.CodeUri)
+		codeURI := ResolveCodeURI(fnProps.CodeURI)
 		codeURI = ensureTrailingSlash(codeURI)
 
 		handler := asStringDefault(fnProps.Handler, defaults.Handler)
@@ -48,9 +47,8 @@ func parseFunctions(
 		envVars := mergeEnv(defaults.EnvironmentDefaults, props)
 
 		if fnProps.Events != nil {
-			eventsRaw := make(map[string]any)
-			// Map to direct map to support parseEvents
-			if err := samparser.Decode(fnProps.Events, &eventsRaw, nil); err == nil {
+			eventsRaw, err := sam.DecodeMap(fnProps.Events)
+			if err == nil {
 				fnProps.Events = eventsRaw
 			}
 		}
@@ -67,8 +65,7 @@ func parseFunctions(
 				scalingInput["ProvisionedConcurrencyConfig"] = pMap
 			} else {
 				// Try converting if it's map[interface{}]interface{} or other json types
-				var converted map[string]any
-				if err := samparser.Decode(fnProps.ProvisionedConcurrencyConfig, &converted, nil); err == nil {
+				if converted, err := sam.DecodeMap(fnProps.ProvisionedConcurrencyConfig); err == nil {
 					scalingInput["ProvisionedConcurrencyConfig"] = converted
 				}
 			}

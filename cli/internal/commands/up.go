@@ -13,9 +13,9 @@ import (
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/cli/internal/generator"
 	"github.com/poruru/edge-serverless-box/cli/internal/helpers"
 	"github.com/poruru/edge-serverless-box/cli/internal/interaction"
-	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
 	"github.com/poruru/edge-serverless-box/cli/internal/ports"
 )
 
@@ -129,7 +129,7 @@ func (c *upCommand) Run(ctxInfo commandContext, flags UpCmd, envFile string) err
 		if c.builder == nil {
 			return errors.New("builder not configured")
 		}
-		if err := c.builder.Build(manifest.BuildRequest{
+		if err := c.builder.Build(generator.BuildRequest{
 			ProjectDir:   ctxInfo.Context.ProjectDir,
 			ProjectName:  ctxInfo.Context.ComposeProject,
 			TemplatePath: resolvedTemplatePath(ctxInfo),

@@ -15,7 +15,6 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
-	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
 	"github.com/poruru/edge-serverless-box/cli/internal/staging"
 )
 
@@ -96,7 +95,7 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	t.Setenv(constants.EnvImageTag, "")
 
 	setupRootCA(t)
-	request := manifest.BuildRequest{
+	request := BuildRequest{
 		ProjectDir:   projectDir,
 		TemplatePath: templatePath,
 		Env:          "staging",
@@ -266,7 +265,7 @@ func TestGoBuilderBuildFirecrackerBuildsServiceImages(t *testing.T) {
 		FindRepoRoot: func(string) (string, error) { return repoRoot, nil },
 	}
 
-	request := manifest.BuildRequest{
+	request := BuildRequest{
 		ProjectDir:   projectDir,
 		TemplatePath: templatePath,
 		Env:          "prod",

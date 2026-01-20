@@ -9,7 +9,6 @@ import (
 	"io"
 	"strings"
 
-	"github.com/poruru-code/aws-sam-parser-go/schema"
 	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
 )
 
@@ -133,7 +132,7 @@ func buildDynamoCreateInput(table manifest.DynamoDBSpec) (DynamoCreateInput, err
 	}, nil
 }
 
-func parseKeySchema(items []schema.AWSDynamoDBTableKeySchema) ([]KeySchemaElement, error) {
+func parseKeySchema(items []manifest.DynamoDBKeySchema) ([]KeySchemaElement, error) {
 	if len(items) == 0 {
 		return nil, nil
 	}
@@ -146,7 +145,7 @@ func parseKeySchema(items []schema.AWSDynamoDBTableKeySchema) ([]KeySchemaElemen
 	return out, nil
 }
 
-func parseAttributeDefinitions(items []schema.AWSDynamoDBTableAttributeDefinition) ([]AttributeDefinition, error) {
+func parseAttributeDefinitions(items []manifest.DynamoDBAttributeDefinition) ([]AttributeDefinition, error) {
 	if len(items) == 0 {
 		return nil, nil
 	}
@@ -159,7 +158,7 @@ func parseAttributeDefinitions(items []schema.AWSDynamoDBTableAttributeDefinitio
 	return out, nil
 }
 
-func parseProvisionedThroughput(item *schema.AWSDynamoDBTableProvisionedThroughput, billingMode string) (*ProvisionedThroughput, error) {
+func parseProvisionedThroughput(item *manifest.DynamoDBProvisionedThroughput, billingMode string) (*ProvisionedThroughput, error) {
 	if strings.EqualFold(billingMode, "PAY_PER_REQUEST") {
 		return nil, nil
 	}
@@ -188,7 +187,7 @@ func parseProvisionedThroughput(item *schema.AWSDynamoDBTableProvisionedThroughp
 	}, nil
 }
 
-func parseGlobalSecondaryIndexes(items []schema.AWSDynamoDBTableGlobalSecondaryIndex, billingMode string) ([]GlobalSecondaryIndex, error) {
+func parseGlobalSecondaryIndexes(items []manifest.DynamoDBGlobalSecondaryIndex, billingMode string) ([]GlobalSecondaryIndex, error) {
 	if len(items) == 0 {
 		return nil, nil
 	}
@@ -217,7 +216,7 @@ func parseGlobalSecondaryIndexes(items []schema.AWSDynamoDBTableGlobalSecondaryI
 	return out, nil
 }
 
-func parseProjection(item *schema.AWSDynamoDBTableProjection) (Projection, error) {
+func parseProjection(item *manifest.DynamoDBProjection) (Projection, error) {
 	if item == nil {
 		return Projection{}, nil
 	}

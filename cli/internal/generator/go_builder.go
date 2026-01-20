@@ -16,7 +16,6 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
-	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
 )
 
 // PortDiscoverer defines the interface for discovering dynamically assigned ports.
@@ -44,7 +43,7 @@ func NewGoBuilder(discoverer PortDiscoverer) *GoBuilder {
 	}
 }
 
-func (b *GoBuilder) Build(request manifest.BuildRequest) error {
+func (b *GoBuilder) Build(request BuildRequest) error {
 	if b == nil {
 		return fmt.Errorf("builder is nil")
 	}

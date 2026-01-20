@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	samparser "github.com/poruru-code/aws-sam-parser-go/parser"
+	"github.com/poruru/edge-serverless-box/cli/internal/sam"
 )
 
 func TestIntrinsicResolver_Resolve(t *testing.T) {
@@ -13,7 +13,7 @@ func TestIntrinsicResolver_Resolve(t *testing.T) {
 		"MyParam": "Value1",
 		"Stage":   "prod",
 	})
-	ctx := &samparser.Context{MaxDepth: maxResolveDepth}
+	ctx := &sam.Context{MaxDepth: maxResolveDepth}
 
 	tests := []struct {
 		name  string
@@ -106,7 +106,7 @@ func TestIntrinsicResolver_Resolve(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := samparser.ResolveAll(ctx, tt.input, resolver)
+			got, err := sam.ResolveAll(ctx, tt.input, resolver)
 			if err != nil {
 				t.Fatalf("ResolveAll error: %v", err)
 			}
@@ -167,8 +167,8 @@ func TestIntrinsicResolver_Conditions(t *testing.T) {
 					t.Errorf("EvaluateCondition() = %v, want %v", got, tt.want)
 				}
 			} else {
-				got, err := samparser.ResolveAll(
-					&samparser.Context{MaxDepth: maxResolveDepth},
+				got, err := sam.ResolveAll(
+					&sam.Context{MaxDepth: maxResolveDepth},
 					tt.input,
 					resolver,
 				)

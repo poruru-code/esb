@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"testing"
 
-	samparser "github.com/poruru-code/aws-sam-parser-go/parser"
+	"github.com/poruru/edge-serverless-box/cli/internal/sam"
 )
 
 func TestIntrinsicResolver_Conditions_Advanced(t *testing.T) {
@@ -86,10 +86,10 @@ func TestIntrinsicResolver_Warnings(t *testing.T) {
 
 func TestIntrinsicResolver_IntrinsicsErrors(t *testing.T) {
 	resolver := NewIntrinsicResolver(nil)
-	ctx := &samparser.Context{MaxDepth: maxResolveDepth}
+	ctx := &sam.Context{MaxDepth: maxResolveDepth}
 
 	input := map[string]any{"Fn::Join": "invalid"}
-	resolved, err := samparser.ResolveAll(ctx, input, resolver)
+	resolved, err := sam.ResolveAll(ctx, input, resolver)
 	if err != nil {
 		t.Fatalf("ResolveAll error: %v", err)
 	}
