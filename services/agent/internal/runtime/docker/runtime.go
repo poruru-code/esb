@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,7 +17,10 @@ import (
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/go-connections/nat"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/poruru/edge-serverless-box/services/agent/internal/config"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // Client defines the subset of Docker API used by Agent.
@@ -31,9 +35,10 @@ type Client interface {
 }
 
 type Runtime struct {
-	client    Client
-	networkID string
-	env       string
+	client        Client
+	networkID     string
+	env           string
+	accessTracker sync.Map // map[containerID]time.Time - tracks last access time
 }
 
 // NewRuntime creates a new Docker runtime.
@@ -54,6 +59,9 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 	if imageName == "" {
 		// Phase 5 Step 0: Support container registry
 		registry := os.Getenv("CONTAINER_REGISTRY")
+		if registry == "" {
+			registry = config.DefaultContainerRegistry
+		}
 		if registry != "" {
 			imageName = fmt.Sprintf("%s/%s:latest", registry, req.FunctionName)
 		} else {
@@ -69,6 +77,9 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 
 	// Phase 5 Step 0: Pull image from registry if set
 	registry := os.Getenv("CONTAINER_REGISTRY")
+	if registry == "" {
+		registry = config.DefaultContainerRegistry
+	}
 	if registry != "" {
 		fmt.Printf("[Agent] Pulling image %s...\n", imageName)
 		pullReader, err := r.client.ImagePull(ctx, imageName, image.PullOptions{})
@@ -122,25 +133,46 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 		return nil, fmt.Errorf("failed to start container: %w", err)
 	}
 
-	info, err := r.client.ContainerInspect(ctx, containerID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to inspect container: %w", err)
-	}
+	// Record initial access time
+	r.accessTracker.Store(containerID, time.Now())
 
-	ip := ""
-	if info.NetworkSettings != nil && info.NetworkSettings.Networks != nil {
-		if netData, ok := info.NetworkSettings.Networks[r.networkID]; ok {
-			ip = netData.IPAddress
+	// Retry IP resolution with exponential backoff
+	var ip string
+	maxRetries := 5
+	for i := 0; i < maxRetries; i++ {
+		info, err := r.client.ContainerInspect(ctx, containerID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to inspect container: %w", err)
 		}
-	}
 
-	if ip == "" && info.NetworkSettings != nil {
-		for _, netData := range info.NetworkSettings.Networks {
-			if netData.IPAddress != "" {
+		if info.NetworkSettings != nil && info.NetworkSettings.Networks != nil {
+			if netData, ok := info.NetworkSettings.Networks[r.networkID]; ok && netData.IPAddress != "" {
 				ip = netData.IPAddress
 				break
 			}
+			for _, netData := range info.NetworkSettings.Networks {
+				if netData.IPAddress != "" {
+					ip = netData.IPAddress
+					break
+				}
+			}
 		}
+
+		if ip != "" {
+			break
+		}
+
+		if i < maxRetries-1 {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(time.Duration(100*(1<<i)) * time.Millisecond): // 100ms, 200ms, 400ms, 800ms, 1.6s
+			}
+		}
+	}
+
+	if ip == "" {
+		return nil, fmt.Errorf("container %s started but IP address not available after %d retries", containerID, maxRetries)
 	}
 
 	return &runtime.WorkerInfo{
@@ -151,17 +183,25 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 }
 
 func (r *Runtime) Destroy(ctx context.Context, id string) error {
-	return r.client.ContainerRemove(ctx, id, container.RemoveOptions{Force: true})
+	if err := r.client.ContainerRemove(ctx, id, container.RemoveOptions{Force: true}); err != nil {
+		return fmt.Errorf("failed to remove container: %w", err)
+	}
+	r.accessTracker.Delete(id)
+	return nil
+}
+
+func (r *Runtime) Touch(id string) {
+	r.accessTracker.Store(id, time.Now())
 }
 
 func (r *Runtime) Suspend(_ context.Context, _ string) error {
 	// We could call Docker's Pause, but Phase 2's main focus is containerd.
 	// For Docker, keep it simplified or unimplemented, but return a stub or error for compatibility.
-	return fmt.Errorf("pause not implemented for docker runtime")
+	return status.Error(codes.Unimplemented, "pause not implemented for docker runtime")
 }
 
 func (r *Runtime) Resume(_ context.Context, _ string) error {
-	return fmt.Errorf("resume not implemented for docker runtime")
+	return status.Error(codes.Unimplemented, "resume not implemented for docker runtime")
 }
 
 func (r *Runtime) Close() error {
@@ -197,9 +237,12 @@ func (r *Runtime) List(ctx context.Context) ([]runtime.ContainerState, error) {
 			continue
 		}
 
-		// Docker API doesn't provide precise last_used_at.
-		// For Phase 1/3, we use Created time as a base.
+		// For Phase 1/3, we use Created time as a base, but check accessTracker.
 		createdTime := time.Unix(c.Created, 0)
+		lastUsedAt := createdTime
+		if val, ok := r.accessTracker.Load(c.ID); ok {
+			lastUsedAt = val.(time.Time)
+		}
 
 		// Docker names start with /
 		name := ""
@@ -215,8 +258,8 @@ func (r *Runtime) List(ctx context.Context) ([]runtime.ContainerState, error) {
 		states = append(states, runtime.ContainerState{
 			ID:            c.ID,
 			FunctionName:  funcName,
-			Status:        c.State, // "running", "exited", etc.
-			LastUsedAt:    createdTime,
+			Status:        normalizeDockerStatus(c.State),
+			LastUsedAt:    lastUsedAt,
 			ContainerName: name,
 			CreatedAt:     createdTime, // Container creation time from Docker API
 			IPAddress:     ipAddress,
@@ -251,4 +294,17 @@ func (r *Runtime) resolveContainerIP(ctx context.Context, containerID string) (s
 
 func (r *Runtime) Metrics(_ context.Context, _ string) (*runtime.ContainerMetrics, error) {
 	return nil, fmt.Errorf("metrics not implemented for docker runtime")
+}
+
+func normalizeDockerStatus(state string) string {
+	switch state {
+	case "running":
+		return runtime.StatusRunning
+	case "paused":
+		return runtime.StatusPaused
+	case "exited", "dead":
+		return runtime.StatusStopped
+	default:
+		return runtime.StatusUnknown
+	}
 }

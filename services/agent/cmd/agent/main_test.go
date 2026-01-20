@@ -27,17 +27,17 @@ func TestIsReflectionEnabled(t *testing.T) {
 }
 
 func TestGrpcServerOptions_Disabled(t *testing.T) {
-	t.Setenv("AGENT_GRPC_TLS_ENABLED", "")
+	t.Setenv("AGENT_GRPC_TLS_DISABLED", "1")
 
 	opts, err := grpcServerOptions()
 	assert.NoError(t, err)
 	assert.Nil(t, opts)
 }
 
-func TestGrpcServerOptions_Enabled(t *testing.T) {
+func TestGrpcServerOptions_EnabledByDefault(t *testing.T) {
 	certPath, keyPath, caPath := writeTestCerts(t)
 
-	t.Setenv("AGENT_GRPC_TLS_ENABLED", "1")
+	t.Setenv("AGENT_GRPC_TLS_DISABLED", "")
 	t.Setenv("AGENT_GRPC_CERT_PATH", certPath)
 	t.Setenv("AGENT_GRPC_KEY_PATH", keyPath)
 	t.Setenv("AGENT_GRPC_CA_CERT_PATH", caPath)

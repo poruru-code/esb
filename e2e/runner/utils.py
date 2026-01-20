@@ -98,6 +98,7 @@ def env_key(suffix: str) -> str:
         "PORT_REGISTRY",
         "PORT_DATABASE",
         "PORT_S3",
+        "PORT_AGENT_METRICS",
     }
     if suffix in prefix_less:
         return suffix

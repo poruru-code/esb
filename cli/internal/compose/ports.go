@@ -65,6 +65,18 @@ var DefaultPortMappings = []PortMapping{
 		ContainerPort: 50051,
 		Modes:         []string{ModeContainerd, ModeFirecracker},
 	},
+	{
+		EnvVar:        constants.EnvPortAgentMetrics,
+		Service:       "agent",
+		ContainerPort: 9091,
+		Modes:         []string{ModeDocker},
+	},
+	{
+		EnvVar:        constants.EnvPortAgentMetrics,
+		Service:       "runtime-node",
+		ContainerPort: 9091,
+		Modes:         []string{ModeContainerd},
+	},
 }
 
 // ExecRunner is implemented in up.go.

@@ -210,8 +210,9 @@ func TestRuntime_List(t *testing.T) {
 	assert.Len(t, states, 2)
 	assert.Equal(t, "id-1", states[0].ID)
 	assert.Equal(t, "func-1", states[0].FunctionName)
-	assert.Equal(t, "running", states[0].Status)
+	assert.Equal(t, runtime.StatusRunning, states[0].Status)
 	assert.Equal(t, "id-2", states[1].ID)
+	assert.Equal(t, runtime.StatusStopped, states[1].Status)
 
 	mockClient.AssertExpectations(t)
 }

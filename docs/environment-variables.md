@@ -1,8 +1,3 @@
-<!--
-Where: docs/environment-variables.md
-What: Environment variable reference and propagation flow.
-Why: Trace how configuration moves from Host -> Compose -> Services -> Lambda Workers.
--->
 # 環境変数と構成の伝播 (Variable Propagation)
 
 ## 概要
@@ -54,7 +49,13 @@ Gateway は Lambda 環境の "Master Config" として機能し、サービス�
 | `CNI_DNS_SERVER`     | (任意)                    | **Networking**: ワーカー DNS の明示的なネームサーバー。未指定時は `CNI_GW_IP` または `10.88.0.1`。     |
 | `CNI_SUBNET`         | (任意)                    | **Networking**: CNI のサブネット範囲。IPAM の subnet/range に反映される。                             |
 | `CNI_NET_DIR`        | `/var/lib/cni/networks`   | **Networking**: CNI IP 割り当てファイルの保存先。Agent が `List` 時に IP を再解決する際に参照する。     |
-| `CONTAINER_REGISTRY` | (任意)                    | **Distribution**: Containerd/FC モードでイメージをプルするレジストリのアドレス。                       |
+| `CONTAINER_REGISTRY` | (任意)                    | **Distribution**: Containerd/FC モードでイメージをプルするレジストリのアドレス。HTTPS が必須（Insecure は非サポート）。 |
+| `AGENT_INVOKE_MAX_RESPONSE_SIZE` | `10485760` (10MB) | **Security**: `InvokeWorker` レスポンスの最大サイズ制限（バイト）。                                   |
+| `AGENT_GRPC_TLS_DISABLED` | (空) | **Security**: `1` を設定すると gRPC TLS を無効化します（デフォルトは有効）。                             |
+| `AGENT_GRPC_REFLECTION` | (空) | **Security**: `1` を設定すると gRPC Reflection を有効化します（デフォルトは無効）。                     |
+| `AGENT_LOG_LEVEL` | `info` | **Observability**: ログレベル（`debug`, `info`, `warn`, `error`）。未設定時は `LOG_LEVEL` を参照。 |\n| `LOG_LEVEL` | `info` | **Observability**: システム共通のログレベル設定。`AGENT_LOG_LEVEL` が優先される。 |
+| `AGENT_LOG_FORMAT` | `text` | **Observability**: ログ形式（`text`, `json`）。                                                           |
+| `AGENT_METRICS_PORT` | `9091` | **Observability**: Prometheus `/metrics` エンドポイント用ポート。内部ネットワーク限定を推奨。 |
 
 ---
 
@@ -99,3 +100,9 @@ environment:
   - CNI_GW_IP=${DATA_PLANE_HOST:-10.88.0.1}
   # 注意: 以前の DNAT_S3_IP, DNAT_DB_IP 等は CoreDNS 移行に伴い廃止されました。
 ```
+
+### 注意事項
+
+- **gRPC セキュリティ**: デフォルトで mTLS が有効です。証明書は `/app/config/ssl/` 配下の `server.crt`/`server.key` および `RootCA` (meta.RootCACertPath) を参照します。
+- **イメージプル**: Insecure Registry (HTTP) はサポートされていません。常に HTTPS / mTLS (CA) 接続が試行されます。
+- **Metrics (Docker モード)**: Docker 実行時の `GetContainerMetrics` は現在サポートされておらず、エラーとなります。Metrics を利用する場合は containerd/firecracker モードを使用してください。

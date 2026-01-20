@@ -32,15 +32,13 @@ import (
 	"github.com/containerd/typeurl/v2"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/poruru/edge-serverless-box/meta"
+	"github.com/poruru/edge-serverless-box/services/agent/internal/config"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
 )
 
 const (
-	runtimeFirecracker   = "aws.firecracker"
-	snapshotterOverlay   = "overlayfs"
-	snapshotterDevmapper = "devmapper"
-	defaultCNIDNSServer  = "10.88.0.1"
-	resolvConfMountPath  = "/run/containerd/esb/resolv.conf"
+	runtimeFirecracker  = "aws.firecracker"
+	resolvConfMountPath = "/run/containerd/esb/resolv.conf"
 )
 
 type Runtime struct {
@@ -68,9 +66,9 @@ func resolveSnapshotter() string {
 	}
 	runtimeName := strings.TrimSpace(os.Getenv("CONTAINERD_RUNTIME"))
 	if runtimeName == runtimeFirecracker {
-		return snapshotterDevmapper
+		return config.DefaultSnapshotterDevmapper
 	}
-	return snapshotterOverlay
+	return config.DefaultSnapshotterOverlay
 }
 
 func resolveCNIDNSServer() string {
@@ -80,14 +78,14 @@ func resolveCNIDNSServer() string {
 	if value := strings.TrimSpace(os.Getenv("CNI_GW_IP")); value != "" {
 		return value
 	}
-	return defaultCNIDNSServer
+	return config.DefaultCNIDNSServer
 }
 
 func resolveCNINetDir() string {
 	if value := strings.TrimSpace(os.Getenv("CNI_NET_DIR")); value != "" {
 		return value
 	}
-	return "/var/lib/cni/networks"
+	return "/var/lib/cni/networks" // Standard CNI path, no constant for this as it's not esb-specific
 }
 
 func (r *Runtime) resolveCNINetworkName() string {
@@ -247,6 +245,9 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 	if image == "" {
 		// Phase 5 Step 0: Support container registry
 		registry := os.Getenv("CONTAINER_REGISTRY")
+		if registry == "" {
+			registry = config.DefaultContainerRegistry
+		}
 		if registry != "" {
 			image = fmt.Sprintf("%s/%s:latest", registry, req.FunctionName)
 		} else {
@@ -502,6 +503,10 @@ func (r *Runtime) Resume(ctx context.Context, id string) error {
 	return nil
 }
 
+func (r *Runtime) Touch(id string) {
+	r.accessTracker.Store(id, time.Now())
+}
+
 func (r *Runtime) Close() error {
 	if r.client != nil {
 		return r.client.Close()
@@ -614,24 +619,24 @@ func (r *Runtime) List(ctx context.Context) ([]runtime.ContainerState, error) {
 		}
 
 		// Get task status
-		status := "UNKNOWN"
+		status := runtime.StatusUnknown
 		task, err := c.Task(ctx, nil)
 		if err == nil {
 			s, err := task.Status(ctx)
 			if err == nil {
 				switch s.Status {
 				case containerd.Running:
-					status = "RUNNING"
+					status = runtime.StatusRunning
 				case containerd.Paused:
-					status = "PAUSED"
+					status = runtime.StatusPaused
 				case containerd.Stopped:
-					status = "STOPPED"
+					status = runtime.StatusStopped
 				default:
-					status = "UNKNOWN"
+					status = runtime.StatusUnknown
 				}
 			}
 		} else {
-			status = "STOPPED" // No task means container is stopped
+			status = runtime.StatusStopped // No task means container is stopped
 		}
 
 		// Get last access time from tracker

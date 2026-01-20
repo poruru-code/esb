@@ -3,7 +3,11 @@
 // Why: Ensure firecracker defaults to devmapper while allowing overrides.
 package containerd
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/poruru/edge-serverless-box/services/agent/internal/config"
+)
 
 func TestResolveSnapshotter_Override(t *testing.T) {
 	t.Setenv("CONTAINERD_SNAPSHOTTER", "native")
@@ -18,8 +22,8 @@ func TestResolveSnapshotter_FirecrackerDefault(t *testing.T) {
 	t.Setenv("CONTAINERD_SNAPSHOTTER", "")
 	t.Setenv("CONTAINERD_RUNTIME", runtimeFirecracker)
 
-	if got := resolveSnapshotter(); got != snapshotterDevmapper {
-		t.Fatalf("expected firecracker snapshotter %q, got %q", snapshotterDevmapper, got)
+	if got := resolveSnapshotter(); got != config.DefaultSnapshotterDevmapper {
+		t.Fatalf("expected firecracker snapshotter %q, got %q", config.DefaultSnapshotterDevmapper, got)
 	}
 }
 
@@ -27,7 +31,7 @@ func TestResolveSnapshotter_DefaultOverlay(t *testing.T) {
 	t.Setenv("CONTAINERD_SNAPSHOTTER", "")
 	t.Setenv("CONTAINERD_RUNTIME", "")
 
-	if got := resolveSnapshotter(); got != snapshotterOverlay {
-		t.Fatalf("expected default snapshotter %q, got %q", snapshotterOverlay, got)
+	if got := resolveSnapshotter(); got != config.DefaultSnapshotterOverlay {
+		t.Fatalf("expected default snapshotter %q, got %q", config.DefaultSnapshotterOverlay, got)
 	}
 }

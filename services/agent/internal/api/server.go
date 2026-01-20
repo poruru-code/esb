@@ -7,10 +7,13 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/containerd/containerd/errdefs"
+	"github.com/poruru/edge-serverless-box/services/agent/internal/config"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
 	pb "github.com/poruru/edge-serverless-box/services/agent/pkg/api/v1"
 	"google.golang.org/grpc/codes"
@@ -19,13 +22,22 @@ import (
 
 type AgentServer struct {
 	pb.UnimplementedAgentServiceServer
-	runtime     runtime.ContainerRuntime
-	workerCache sync.Map // map[containerID]runtime.WorkerInfo
+	runtime         runtime.ContainerRuntime
+	workerCache     sync.Map // map[containerID]runtime.WorkerInfo
+	maxResponseSize int64
 }
 
 func NewAgentServer(rt runtime.ContainerRuntime) *AgentServer {
+	maxSize := int64(config.DefaultMaxResponseSize)
+	if envVal := os.Getenv("AGENT_INVOKE_MAX_RESPONSE_SIZE"); envVal != "" {
+		if val, err := strconv.ParseInt(envVal, 10, 64); err == nil && val > 0 {
+			maxSize = val
+		}
+	}
+
 	return &AgentServer{
-		runtime: rt,
+		runtime:         rt,
+		maxResponseSize: maxSize,
 	}
 }
 
@@ -56,6 +68,8 @@ func (s *AgentServer) InvokeWorker(ctx context.Context, req *pb.InvokeWorkerRequ
 	if req.ContainerId == "" {
 		return nil, status.Error(codes.InvalidArgument, "container_id is required")
 	}
+
+	s.runtime.Touch(req.ContainerId)
 
 	workerValue, ok := s.workerCache.Load(req.ContainerId)
 	if !ok {
@@ -122,9 +136,12 @@ func (s *AgentServer) InvokeWorker(ctx context.Context, req *pb.InvokeWorkerRequ
 		resp, err := client.Do(httpReq)
 		if err == nil {
 			defer resp.Body.Close()
-			body, readErr := io.ReadAll(resp.Body)
+			body, readErr := io.ReadAll(io.LimitReader(resp.Body, s.maxResponseSize+1))
 			if readErr != nil {
 				return nil, status.Errorf(codes.Internal, "failed to read response body: %v", readErr)
+			}
+			if int64(len(body)) > s.maxResponseSize {
+				return nil, status.Errorf(codes.ResourceExhausted, "response body too large (limit %d bytes)", s.maxResponseSize)
 			}
 
 			headers := make(map[string]string, len(resp.Header))

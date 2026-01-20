@@ -1,8 +1,3 @@
-<!--
-Where: docs/spec.md
-What: System specification and deployment overview.
-Why: Provide a stable reference for ESB components and deployment models.
--->
 # システム仕様書
 
 ## 1. 概要
@@ -18,8 +13,9 @@ flowchart TD
     
     subgraph Host ["Host OS"]
         Gateway["Gateway API<br>(443 -> 8443)"]
-        Agent["Go Agent (gRPC)<br>(:50051)"]
+        Agent["Go Agent (gRPC)<br>(:50051, :9091)"]
         CoreDNS["CoreDNS (Sidecar)<br>(:53)"]
+        Prometheus["Prometheus<br>(External/Optional)"]
         RustFS["RustFS S3<br>(:9000)"]
         Console["RustFS Console<br>(:9001)"]
         DB["ScyllaDB<br>(:8000)"]
@@ -45,6 +41,7 @@ flowchart TD
     
     Agent -->|docker/containerd| Lambda
     Agent -.-|"Pull (Containerd/FC only)"| Registry["Registry"]
+    Agent -.->|Scrape| Prometheus
     
     Lambda -->|DNS Query| CoreDNS
     CoreDNS -->|Resolve| RustFS
@@ -96,6 +93,9 @@ services/gateway/
     - `DestroyContainer`: コンテナ削除
     - `ListContainers`: 稼働中コンテナの状態取得（Janitor が利用）
     - `PauseContainer` / `ResumeContainer`: 将来的なウォームスタート向けの操作（未使用）
+- **Observability**:
+    - **Metrics**: `/metrics` エンドポイントをポート `9091` (デフォルト) で公開。Go 標準メトリクスおよび gRPC インターセプターを介したリクエスト統計を出力。
+    - **Logging**: `slog` を使用した構造化ログ（JSON/Text）。`AGENT_LOG_LEVEL` で制御可能。
 
 ### 2.3 CoreDNS (Sidecar)
 - **役割**: Lambda microVM/コンテナからの DNS クエリを解決し、論理名（`s3-storage`, `database` 等）を適切な IP へマッピングします。
@@ -131,6 +131,7 @@ Gateway は external_network 上で起動し、コンテナ内 `8443` をホス�
 | RustFS API     | 9000             | 9000             | `http://localhost:9000`       | HTTP                |
 | RustFS Console | 9001             | 9001             | `http://localhost:9001`       | HTTP                |
 | ScyllaDB       | 8000             | 8000             | `http://localhost:8000`       | HTTP (DynamoDB API) |
+| Agent Metrics  | 9091             | 9091             | `http://<compute-host>:9091/metrics` | HTTP (Prometheus)   |
 | VictoriaLogs   | 9428             | 9428             | `http://localhost:9428`       | HTTP                |
 
 補足:
