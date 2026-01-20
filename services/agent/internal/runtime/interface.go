@@ -5,6 +5,13 @@ import (
 	"time"
 )
 
+const (
+	StatusRunning = "RUNNING"
+	StatusPaused  = "PAUSED"
+	StatusStopped = "STOPPED"
+	StatusUnknown = "UNKNOWN"
+)
+
 // EnsureRequest represents the parameters for ensuring a container is running.
 type EnsureRequest struct {
 	FunctionName string

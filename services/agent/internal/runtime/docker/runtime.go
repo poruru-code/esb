@@ -124,25 +124,43 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 		return nil, fmt.Errorf("failed to start container: %w", err)
 	}
 
-	info, err := r.client.ContainerInspect(ctx, containerID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to inspect container: %w", err)
-	}
-
-	ip := ""
-	if info.NetworkSettings != nil && info.NetworkSettings.Networks != nil {
-		if netData, ok := info.NetworkSettings.Networks[r.networkID]; ok {
-			ip = netData.IPAddress
+	// Retry IP resolution with exponential backoff
+	var ip string
+	maxRetries := 5
+	for i := 0; i < maxRetries; i++ {
+		info, err := r.client.ContainerInspect(ctx, containerID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to inspect container: %w", err)
 		}
-	}
 
-	if ip == "" && info.NetworkSettings != nil {
-		for _, netData := range info.NetworkSettings.Networks {
-			if netData.IPAddress != "" {
+		if info.NetworkSettings != nil && info.NetworkSettings.Networks != nil {
+			if netData, ok := info.NetworkSettings.Networks[r.networkID]; ok && netData.IPAddress != "" {
 				ip = netData.IPAddress
 				break
 			}
+			for _, netData := range info.NetworkSettings.Networks {
+				if netData.IPAddress != "" {
+					ip = netData.IPAddress
+					break
+				}
+			}
 		}
+
+		if ip != "" {
+			break
+		}
+
+		if i < maxRetries-1 {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(time.Duration(100*(1<<i)) * time.Millisecond): // 100ms, 200ms, 400ms, 800ms, 1.6s
+			}
+		}
+	}
+
+	if ip == "" {
+		return nil, fmt.Errorf("container %s started but IP address not available after %d retries", containerID, maxRetries)
 	}
 
 	return &runtime.WorkerInfo{
@@ -217,7 +235,7 @@ func (r *Runtime) List(ctx context.Context) ([]runtime.ContainerState, error) {
 		states = append(states, runtime.ContainerState{
 			ID:            c.ID,
 			FunctionName:  funcName,
-			Status:        c.State, // "running", "exited", etc.
+			Status:        normalizeDockerStatus(c.State),
 			LastUsedAt:    createdTime,
 			ContainerName: name,
 			CreatedAt:     createdTime, // Container creation time from Docker API
@@ -253,4 +271,17 @@ func (r *Runtime) resolveContainerIP(ctx context.Context, containerID string) (s
 
 func (r *Runtime) Metrics(_ context.Context, _ string) (*runtime.ContainerMetrics, error) {
 	return nil, fmt.Errorf("metrics not implemented for docker runtime")
+}
+
+func normalizeDockerStatus(state string) string {
+	switch state {
+	case "running":
+		return runtime.StatusRunning
+	case "paused":
+		return runtime.StatusPaused
+	case "exited", "dead":
+		return runtime.StatusStopped
+	default:
+		return runtime.StatusUnknown
+	}
 }

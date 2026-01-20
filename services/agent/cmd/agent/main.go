@@ -24,6 +24,8 @@ import (
 	pb "github.com/poruru/edge-serverless-box/services/agent/pkg/api/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/health"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
 )
 
@@ -152,6 +154,12 @@ func main() {
 	grpcServer := grpc.NewServer(grpcOptions...)
 	agentServer := api.NewAgentServer(rt)
 	pb.RegisterAgentServiceServer(grpcServer, agentServer)
+
+	// Register gRPC health service
+	healthServer := health.NewServer()
+	healthpb.RegisterHealthServer(grpcServer, healthServer)
+	healthServer.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
+	healthServer.SetServingStatus("agent.v1.AgentService", healthpb.HealthCheckResponse_SERVING)
 
 	if isReflectionEnabled() {
 		// Enable reflection for debugging (grpcurl etc.)

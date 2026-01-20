@@ -29,9 +29,10 @@
   - 受け入れ条件: 期待したレジストリ接続方式が選択できる。
 
 ## 優先度 P2（互換性/実行時安定）
-- P2-1: Docker で IP 未確定時の扱い  
+- P2-1: Docker で IP 未確定時の扱い ✅ **完了**
   - 反映先: `services/agent/internal/runtime/docker/runtime.go`  
   - 受け入れ条件: リトライ/待機/エラー返却が一貫し、呼び出し側が原因を判別できる。
+  - **実装済み**: 指数バックオフ付きリトライ（5回、100ms〜1.6s）、IP未取得時は明示的エラー
 - P2-2: Pause/Resume 未実装の扱い ✅ **完了**
   - 反映先: `services/agent/internal/runtime/docker/runtime.go`, `services/agent/internal/api/server.go`  
   - 受け入れ条件: `codes.Unimplemented` を返し、クライアントが判別可能。
@@ -47,17 +48,19 @@
 - P3-2: `InvokeWorker` 成功/失敗とレイテンシの計測  
   - 反映先: `services/agent/internal/api/server.go`  
   - 受け入れ条件: 計測が取得可能で、負荷調査に使える。
-- P3-3: gRPC Health の導入  
+- P3-3: gRPC Health の導入 ✅ **完了**
   - 反映先: `services/agent/cmd/agent/main.go`  
   - 受け入れ条件: readiness/liveness が gRPC で判定可能。
+  - **実装済み**: `grpc/health` サービスを登録し `SERVING` を返却するよう実装。
 - P3-4: `LastUsedAt` 更新タイミングの見直し  
   - 反映先: `services/agent/internal/runtime/containerd/runtime.go`  
   - 受け入れ条件: 実際の利用に追従する。
 
 ## 優先度 P4（保守性/一貫性）
-- P4-1: `ContainerState.Status` の正規化  
+- P4-1: `ContainerState.Status` の正規化 ✅ **完了**
   - 反映先: `services/agent/internal/runtime/interface.go` + runtime 実装  
-  - 受け入れ条件: 上位ロジックが status を誤解しない。
+  - 受け入れ条件: どの runtime でも共通の定数（`RUNNING`, `STOPPED` 等）を返すように統一。
+  - **実装済み**: `interface.go` に共通定数を定義し、Docker/Containerd 双方の `List` 実装でマッピングするように修正。
 - P4-2: 設定デフォルトの一元管理  
   - 反映先: `services/agent/cmd/agent/main.go`, `services/agent/internal/api/server.go`  
   - 受け入れ条件: 既定値が一箇所に集約され、テストが簡潔。

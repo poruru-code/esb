@@ -8,12 +8,13 @@
 ## Pass 1: 正確性・ライフサイクル
 
 ### Findings（重要度順）
-- **Medium**: Docker ルートで IP が確定しない場合でも空の `IPAddress` を返すため、呼び出し側は失敗原因が不明になります。再試行や待機、もしくはエラー返却が必要です。`services/agent/internal/runtime/docker/runtime.go:130-144`
+（なし）
 
 ### Resolved
 - ~~**Critical**: `CNI_SUBNET` 指定時に `ipam.Subnet` が更新されず、`rangeStart/End` だけが上書きされるため、IPAM の整合性が崩れる可能性があります。~~ → `generator.go:73` で `ipam.Subnet = cidr.String()` に修正済み。
 - ~~**High**: GC が名前空間内の全コンテナを無条件に削除します。~~ → `gc.go:71-76` で `LabelCreatedBy` + `LabelEsbEnv` によるフィルタリング実装済み。
 - ~~**High**: GC で CNI の `Remove` が呼ばれず、IPAM 予約やiptablesが残留。~~ → `gc.go:40` で `r.removeCNI()` を呼び出し済み。
+- ~~**Medium**: Docker ルートで IP が確定しない場合でも空の `IPAddress` を返すため、呼び出し側は失敗原因が不明になります。~~ → `docker/runtime.go:127-169` で指数バックオフ付きリトライ（5回）を実装。IP 未取得時は明示的エラーを返却。
 
 ### Open questions / Assumptions
 - 名前空間 `meta.RuntimeNamespace` は ESB 専用という前提で設計されていますか？共用の場合は GC の削除対象を必ず限定する必要があります。
@@ -78,22 +79,20 @@
 ### Open questions / Assumptions
 - ログ出力はホスト側で収集される設計ですか？それともコンテナ内で完結させますか？
 
-### Change summary（提案）
-- ログ出力を統一（構造化 or 一貫した logger）し、DEBUG は環境変数で制御。
-- Invoke の計測（開始/終了、リトライ回数、ステータス）を追加。
-- gRPC Health を導入して readiness/liveness を明確化。
+### Resolved
+- ~~**Low**: gRPC Health サービスが未導入で、起動判定は TCP のみになります。~~ → `main.go:155-160` で標準の `grpc/health` サービスを登録済み。
 
 ---
 
 ## Pass 5: 保守性・一貫性
 
 ### Findings（重要度順）
-- **Medium**: `ContainerState.Status` の意味が runtime により異なります（containerd は `RUNNING`、docker は `running` など）。上位のGC/監視が誤解する可能性があります。`services/agent/internal/runtime/interface.go:23` / `services/agent/internal/runtime/containerd/runtime.go:131` / `services/agent/internal/runtime/docker/runtime.go:213`
 - **Medium**: 設定値のデフォルトが `main.go` と `server.go` に散在し、テストや変更が難しくなっています。`services/agent/cmd/agent/main.go:30` / `services/agent/internal/api/server.go:68`
 - **Low**: `Metrics` が Docker で未実装のままインタフェースに含まれており、利用側が runtime 特性を知る必要があります。`services/agent/internal/runtime/interface.go:43` / `services/agent/internal/runtime/docker/runtime.go:225`
 
 ### Resolved
 - ~~**Low**: `PortAllocator` は実利用箇所がなく、未使用コードとして保守コストを増やしています。~~ → `port_allocator.go` および `port_allocator_test.go` を削除済み。
+- ~~**Medium**: `ContainerState.Status` の意味が runtime により異なります。~~ → `runtime/interface.go` に共通定数（`RUNNING`, `PAUSED` 等）を定義し、両 runtime で正規化して返却するように修正。
 
 ### Open questions / Assumptions
 - 上位コンポーネントは status 値をどの程度解釈していますか？

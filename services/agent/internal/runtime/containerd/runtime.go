@@ -614,24 +614,24 @@ func (r *Runtime) List(ctx context.Context) ([]runtime.ContainerState, error) {
 		}
 
 		// Get task status
-		status := "UNKNOWN"
+		status := runtime.StatusUnknown
 		task, err := c.Task(ctx, nil)
 		if err == nil {
 			s, err := task.Status(ctx)
 			if err == nil {
 				switch s.Status {
 				case containerd.Running:
-					status = "RUNNING"
+					status = runtime.StatusRunning
 				case containerd.Paused:
-					status = "PAUSED"
+					status = runtime.StatusPaused
 				case containerd.Stopped:
-					status = "STOPPED"
+					status = runtime.StatusStopped
 				default:
-					status = "UNKNOWN"
+					status = runtime.StatusUnknown
 				}
 			}
 		} else {
-			status = "STOPPED" // No task means container is stopped
+			status = runtime.StatusStopped // No task means container is stopped
 		}
 
 		// Get last access time from tracker
