@@ -16,7 +16,7 @@ esb info
 
 ## 実装詳細
 
-コマンドのロジックは `cli/internal/commands/info.go` に実装されています。`DetectorFactory` から `StateDetector` を生成し、Docker/ファイルシステムを照会して状態を判定します。
+コマンドのロジックは `cli/internal/commands/info.go` に実装されています。`DetectorFactory` が利用可能な場合のみ `StateDetector` を生成し、Docker/ファイルシステムを照会して状態を判定します。軽量コマンドでは Docker 初期化を省略するため、状態が `unknown` になることがあります。
 
 ### 表示情報
 
@@ -29,16 +29,16 @@ esb info
    - 出力ディレクトリ。
 4. **Environment**:
    - アクティブな環境名とモード (例: `local (docker)`)。
-   - **State**: `StateDetector` を介して導出された状態 (例: `running`, `stopped`, `built`)。
+   - **State**: `StateDetector` を介して導出された状態 (例: `running`, `stopped`, `built`)。Docker 未初期化時は `unknown`。
    - Composeプロジェクト名 (`esb-local`)。
 
 ### ロジックフロー
 
-1. **グローバル設定読み込み**: `~/.config/esb/config.yaml` を検証します。
+1. **グローバル設定読み込み**: `~/.esb/config.yaml` を検証します（`ESB_CONFIG_PATH`/`ESB_CONFIG_HOME` があれば優先）。
 2. **プロジェクト解決**: アクティブなプロジェクトを特定します。
 3. **状態検出**:
-   - `DetectorFactory` から `StateDetector` を構築し、Dockerおよびファイルシステムをクエリします。
-   - コンテキストが不足している場合は「未初期化」、設定済みの場合はリアルタイムのステータスを報告します。
+   - `DetectorFactory` がある場合にのみ `StateDetector` を構築し、Dockerおよびファイルシステムをクエリします。
+   - Docker 初期化が省略された場合は `unknown` を表示します。
 
 ## フローチャート
 

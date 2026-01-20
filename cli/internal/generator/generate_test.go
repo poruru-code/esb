@@ -291,6 +291,74 @@ func TestGenerateFilesLayerNesting(t *testing.T) {
 	}
 }
 
+func TestGenerateFilesIntegrationOutputs(t *testing.T) {
+	root := t.TempDir()
+	templatePath := filepath.Join(root, "template.yaml")
+	writeTestFile(t, templatePath, `
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Resources:
+  HelloFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lambda-hello
+      CodeUri: functions/hello/
+      Handler: app.handler
+      Runtime: python3.12
+      Timeout: 10
+      MemorySize: 256
+      Environment:
+        Variables:
+          S3_ENDPOINT: http://esb-storage:9000
+      Events:
+        HelloApi:
+          Type: Api
+          Properties:
+            Path: /api/hello
+            Method: post
+        Nightly:
+          Type: Schedule
+          Properties:
+            Schedule: rate(5 minutes)
+`)
+
+	funcDir := filepath.Join(root, "functions", "hello")
+	mustMkdirAll(t, funcDir)
+	writeTestFile(t, filepath.Join(funcDir, "app.py"), "print('hello')")
+
+	cfg := config.GeneratorConfig{
+		Paths: config.PathsConfig{
+			SamTemplate: "template.yaml",
+			OutputDir:   "out/",
+		},
+	}
+	functions, err := GenerateFiles(cfg, GenerateOptions{ProjectRoot: root})
+	if err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	if len(functions) != 1 {
+		t.Fatalf("expected 1 function, got %d", len(functions))
+	}
+
+	expectedFunctions, err := RenderFunctionsYml(functions, "", "latest")
+	if err != nil {
+		t.Fatalf("RenderFunctionsYml: %v", err)
+	}
+	expectedRouting, err := RenderRoutingYml(functions)
+	if err != nil {
+		t.Fatalf("RenderRoutingYml: %v", err)
+	}
+
+	functionsYml := filepath.Join(root, "out", "config", "functions.yml")
+	routingYml := filepath.Join(root, "out", "config", "routing.yml")
+	if got := readFile(t, functionsYml); got != expectedFunctions {
+		t.Fatalf("functions.yml mismatch")
+	}
+	if got := readFile(t, routingYml); got != expectedRouting {
+		t.Fatalf("routing.yml mismatch")
+	}
+}
+
 func writeTestFile(t *testing.T, path, content string) {
 	t.Helper()
 	mustMkdirAll(t, filepath.Dir(path))

@@ -27,11 +27,11 @@ CLIアダプタは `cli/internal/commands/build.go` にあり、オーケスト�
 ### 主要コンポーネント
 
 - **`BuildWorkflow`**: ランタイム環境適用とBuilder呼び出しを行うオーケストレーター。
-- **`BuildRequest`**: CLI から Workflow に渡される入力DTO。
+- **`BuildRequest`**: CLI から Workflow に渡される入力DTO（Workflow 内で `generator.BuildRequest` に変換）。
 - **`RuntimeEnvApplier`**: `applyRuntimeEnv` を通じてESB環境変数を適用。
 - **`UserInterface`**: 成功メッセージの出力（互換のため `LegacyUI` を使用）。
 - **`GoBuilder`**: `ports.Builder` インターフェースの実装。
-  - **`Generate`**: ビルド成果物 (Dockerfiles, ハンドララッパー) を `output/<env>/` に生成します。
+  - **`Generate`**: ビルド成果物 (Dockerfile, `functions.yml`, `routing.yml`) を出力ディレクトリに生成します。
   - **`BuildCompose`**: コントロールプレーンのイメージ (Gateway, Agent) をビルドします。
   - **`Runner`**: ベースイメージと関数イメージに対して `docker build` コマンドを実行します。
 
@@ -42,8 +42,8 @@ CLIアダプタは `cli/internal/commands/build.go` にあり、オーケスト�
 3. **設定読み込み**: `generator.yml` を読み込み、関数のマッピングとパラメータを理解します。
 4. **コード生成**:
    - `template.yaml` を解析します。
-   - ボイラープレートコード (Python/Node.jsハンドラなど) とDockerfileを生成します。
-   - `output/<env>/` に出力します。
+   - Dockerfile と `functions.yml` / `routing.yml` を生成します。
+   - 出力ディレクトリ（`output/<env>/` もしくは設定されたパス）に出力します。
 5. **イメージビルド**:
    - ローカルレジストリが稼働していることを確認します (必要な場合)。
    - ベースイメージ (共有レイヤー) をビルドします。

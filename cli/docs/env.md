@@ -32,7 +32,7 @@ CLIアダプタは `cli/internal/commands/env.go` と `cli/internal/commands/env
 
 ### 環境管理フロー
 
-1. **List**: `generator.yml` を読み込み、`DetectorFactory` (StateDetector) を介して稼働状態を検出し、ステータスを表示します。
+1. **List**: `generator.yml` を読み込み、`DetectorFactory` (StateDetector) が利用できる場合のみ稼働状態を検出します。Docker 初期化が省略された場合は `unknown` を表示します。
 2. **Add**: 新しいエントリを `generator.yml` に追加します。インタラクティブモードの場合、名前とモード（docker, containerd, firecracker）の入力を求めます。
 3. **Use**: `generator.yml` の `LastEnv` とグローバルプロジェクトレジストリを更新します。
 4. **Remove**: エントリを `generator.yml` から削除します。最後の環境の削除は防止されます。

@@ -12,7 +12,7 @@
 - 入力テンプレートの受け取りとエラーハンドリング
 - パラメータの優先順位ルールの適用
 - Intrinsic 解決ポリシー（ESB 仕様）の実装
-- 生成された SAM 型から ESB Spec への変換
+- SAM 型から ESB 内部 Spec（`manifest`）への変換
 - ESB 固有のデフォルト値や命名規約の適用
 
 ### aws-sam-parser-go（外部ライブラリ）
@@ -25,12 +25,12 @@
 
 ```mermaid
 graph TD
-    A[template.yaml] --> B[parser.DecodeYAML]
+    A[template.yaml] --> B[sam.DecodeYAML]
     B --> C[normalized map]
-    C --> D[parser.ResolveAll + ESB IntrinsicResolver]
-    D --> E[parser.Decode -> schema.SamModel]
-    E --> F[ESB: Spec 生成 + デフォルト適用]
-    F --> G[ESB 内部 Spec]
+    C --> D[sam.ResolveAll + ESB IntrinsicResolver]
+    D --> E[sam.DecodeTemplate]
+    E --> F[generator: Spec 生成 + デフォルト適用]
+    F --> G[manifest.ResourcesSpec]
 
     P1[CLI --parameter] --> P_MERGE{パラメータ統合}
     P2[template.yaml の Parameters.Default] --> P_MERGE
@@ -50,7 +50,22 @@ Intrinsic の解決は ESB 側の実装に閉じた仕様です。`aws-sam-parse
 ESB が特定のリソースを Spec 化する場合は、ESB 側に明示的な処理を追加します。
 
 - 実装場所: `cli/internal/generator/parser_resources.go`
-- `schema` の型は `aws-sam-parser-go` から提供されるため、ESB は依存モジュールを更新するだけで利用できます
+- `manifest` の内部型へ変換して保持するため、`schema` 依存は `cli/internal/sam` に集約されます
+
+## Generator / Manifest 境界
+
+### 役割
+- **generator**: SAMテンプレートを解析し、`FunctionSpec` と `manifest.ResourcesSpec` を生成。アセットのステージングと `functions.yml` / `routing.yml` / Dockerfile を出力。
+- **manifest**: `provisioner` が適用するリソースの意図を保持する純粋な内部型。
+
+### 依存方向
+- `generator` -> `manifest`（内部型のみ）
+- `provisioner` -> `manifest`
+- `generator` -> `sam`（外部 parser/schema の境界）
+
+### テスト観点
+- renderer のスナップショットで出力差分を検知
+- `GenerateFiles` の統合テストで template から出力までを確認
 
 ## テスト観点
 - ESB 側: テンプレート入力→Spec 変換の統合テストを重視

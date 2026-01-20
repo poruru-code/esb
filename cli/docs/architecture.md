@@ -2,7 +2,7 @@
 
 ## 概要
 
-Edge Serverless Box (ESB) CLIは、DockerとAWS SDKを使用してローカルのサーバーレス環境を管理するために設計されたGoベースのコマンドラインツールです。CLIアダプタ（入力/プロンプト）とワークフロー（オーケストレーション）、ポート（外部依存の抽象化）を分離した階層化アーキテクチャを採用しています。
+Edge Serverless Box (ESB) CLIは、DockerとAWS SDKを使用してローカルのサーバーレス環境を管理するために設計されたGoベースのコマンドラインツールです。CLIアダプタ（入力/プロンプト）とワークフロー（オーケストレーション）、ポート（外部依存の抽象化）を分離した階層化アーキテクチャを採用しています。Dockerクライアントはコマンドに応じて遅延初期化され、軽量コマンドでは初期化を省略します。
 
 ## システムアーキテクチャ
 
@@ -45,9 +45,13 @@ classDiagram
         +ProjectDir: string
         +Out: io.Writer
         +DetectorFactory: func
+        +DockerClientFactory: func
         +Now: func
         +Prompter: Prompter
         +RepoResolver: func
+        +GlobalConfigLoader: func
+        +ProjectConfigLoader: func
+        +ProjectDirFinder: func
         +Build: BuildDeps
         +Up: UpDeps
         +Down: DownDeps
@@ -65,6 +69,7 @@ classDiagram
         +Upper: Upper
         +Downer: Downer
         +PortDiscoverer: PortDiscoverer
+        +PortStateStore: StateStore
         +Waiter: GatewayWaiter
         +Provisioner: Provisioner
         +Parser: Parser
@@ -156,9 +161,9 @@ stateDiagram-v2
 
 ### 2. Provisioner (`cli/internal/provisioner`)
 ローカルAWSリソースのセットアップを処理します。
-- SAMテンプレート (`template.yaml`) の解析。
-- ローカルDynamoDBテーブルおよびS3バケットの設定。
+- `manifest.ResourcesSpec` を受け取り、ローカルDynamoDBテーブルおよびS3バケットを設定。
 - `aws-sdk-go-v2` を使用したローカルコンテナとの通信。
+SAMテンプレートの解析は `cli/internal/generator` + `cli/internal/sam` 側で実施されます。
 
 ### 3. Command Adapters (`cli/internal/commands`)
 各コマンド (`up`, `down`, `build`, `env`, `project` など) の入力解決を担うCLIアダプタです。実際のオーケストレーションは `cli/internal/workflows` に移り、外部依存は `cli/internal/ports` を介して呼び出します。共通処理は `cli/internal/helpers` に集約され、対話入力は `cli/internal/interaction` が担当します。
