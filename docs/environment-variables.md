@@ -58,6 +58,8 @@ Gateway は Lambda 環境の "Master Config" として機能し、サービス�
 | `AGENT_INVOKE_MAX_RESPONSE_SIZE` | `10485760` (10MB) | **Security**: `InvokeWorker` レスポンスの最大サイズ制限（バイト）。                                   |
 | `AGENT_GRPC_TLS_DISABLED` | (空) | **Security**: `1` を設定すると gRPC TLS を無効化します（デフォルトは有効）。                             |
 | `AGENT_GRPC_REFLECTION` | (空) | **Security**: `1` を設定すると gRPC Reflection を有効化します（デフォルトは無効）。                     |
+| `AGENT_LOG_LEVEL` | `info` | **Observability**: ログレベル（`debug`, `info`, `warn`, `error`）。                                       |
+| `AGENT_LOG_FORMAT` | `text` | **Observability**: ログ形式（`text`, `json`）。                                                           |
 
 ---
 

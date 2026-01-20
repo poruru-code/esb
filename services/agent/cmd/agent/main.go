@@ -5,7 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
 	"os"
 	"os/signal"
@@ -18,6 +18,7 @@ import (
 	"github.com/poruru/edge-serverless-box/meta"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/api"
 	cni_gen "github.com/poruru/edge-serverless-box/services/agent/internal/cni"
+	"github.com/poruru/edge-serverless-box/services/agent/internal/logger"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
 	agentContainerd "github.com/poruru/edge-serverless-box/services/agent/internal/runtime/containerd"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime/docker"
@@ -30,7 +31,8 @@ import (
 )
 
 func main() {
-	log.Println("Starting ESB Agent...")
+	logger.Init()
+	slog.Info("Starting ESB Agent...")
 
 	// Configuration
 	port := os.Getenv("PORT")
@@ -42,29 +44,30 @@ func main() {
 	networkID := os.Getenv("CONTAINERS_NETWORK")
 	if networkID == "" {
 		networkID = "bridge"
-		log.Println("WARNING: CONTAINERS_NETWORK not specified, defaulting to 'bridge'")
+		slog.Warn("CONTAINERS_NETWORK not specified, defaulting to 'bridge'")
 	}
-	log.Printf("Target Network: %s", networkID)
+	slog.Info("Target Network", "network", networkID)
 
 	// Phase 7: Environment Isolation
 	esbEnv := os.Getenv(meta.EnvVarEnv)
 	if esbEnv == "" {
 		esbEnv = "default"
 	}
-	log.Printf("ESB Environment: %s", esbEnv)
+	slog.Info("ESB Environment", "env", esbEnv)
 
 	// Initialize Runtime
 	var rt runtime.ContainerRuntime
 
 	runtimeType := os.Getenv("AGENT_RUNTIME")
 	if runtimeType == "containerd" {
-		log.Println("Initializing containerd Runtime...")
+		slog.Info("Initializing containerd Runtime...")
 
 		// 1. Initialize containerd client
 		// Assumes /run/containerd/containerd.sock is mounted
 		c, err := containerd.New("/run/containerd/containerd.sock")
 		if err != nil {
-			log.Fatalf("Failed to create containerd client: %v", err)
+			slog.Error("Failed to create containerd client", "error", err)
+			os.Exit(1)
 		}
 
 		wrappedClient := &agentContainerd.ClientWrapper{Client: c}
@@ -78,7 +81,7 @@ func main() {
 
 		// Dynamically generate CNI configuration based on branding constants
 		if err := cni_gen.GenerateConfig(cniConfDir, cniSubnet); err != nil {
-			log.Printf("WARN: Failed to generate dynamic CNI config: %v", err)
+			slog.Warn("Failed to generate dynamic CNI config", "error", err)
 		}
 
 		cniConfFile := os.Getenv("CNI_CONF_FILE")
@@ -98,36 +101,40 @@ func main() {
 			cni.WithMinNetworkCount(1),
 		)
 		if err != nil {
-			log.Fatalf("Failed to initialize CNI: %v", err)
+			slog.Error("Failed to initialize CNI", "error", err)
+			os.Exit(1)
 		}
 
 		if err := cniPlugin.Load(cni.WithConfListFile(cniConfFile)); err != nil {
-			log.Fatalf("Failed to load CNI config %s: %v", cniConfFile, err)
+			slog.Error("Failed to load CNI config", "file", cniConfFile, "error", err)
+			os.Exit(1)
 		}
 
 		// 2. Create Runtime with CNI networking
 		namespace := meta.RuntimeNamespace
 		rt = agentContainerd.NewRuntime(wrappedClient, cniPlugin, namespace, esbEnv)
-		log.Printf("Runtime: containerd (initialized with CNI, namespace=%s)", namespace)
+		slog.Info("Runtime initialized", "runtime", "containerd", "namespace", namespace)
 
 	} else {
-		log.Println("Initializing Docker Runtime...")
+		slog.Info("Initializing Docker Runtime...")
 
 		// Initialize Docker Client
 		dockerCli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 		if err != nil {
-			log.Fatalf("Failed to create Docker client: %v", err)
+			slog.Error("Failed to create Docker client", "error", err)
+			os.Exit(1)
 		}
 
 		rt = docker.NewRuntime(dockerCli, networkID, esbEnv)
-		log.Println("Runtime: docker (initialized)")
+		slog.Info("Runtime initialized", "runtime", "docker")
 
 		ctx := context.Background()
 		info, err := dockerCli.Info(ctx)
 		if err != nil {
-			log.Fatalf("Failed to connect to Docker daemon: %v", err)
+			slog.Error("Failed to connect to Docker daemon", "error", err)
+			os.Exit(1)
 		}
-		log.Printf("Connected to Docker (Version: %s)", info.ServerVersion)
+		slog.Info("Connected to Docker", "version", info.ServerVersion)
 	}
 
 	defer func() {
@@ -139,17 +146,19 @@ func main() {
 	// Initialize gRPC Server
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
 	if err != nil {
-		log.Fatalf("Failed to listen: %v", err)
+		slog.Error("Failed to listen", "port", port, "error", err)
+		os.Exit(1)
 	}
 
 	grpcOptions, err := grpcServerOptions()
 	if err != nil {
-		log.Fatalf("Failed to initialize gRPC server options: %v", err)
+		slog.Error("Failed to initialize gRPC server options", "error", err)
+		os.Exit(1)
 	}
 	if os.Getenv("AGENT_GRPC_TLS_DISABLED") == "1" {
-		log.Println("WARNING: gRPC TLS is explicitly disabled (AGENT_GRPC_TLS_DISABLED=1). Use only in trusted networks.")
+		slog.Warn("gRPC TLS is explicitly disabled (AGENT_GRPC_TLS_DISABLED=1). Use only in trusted networks.")
 	} else {
-		log.Println("gRPC TLS is enabled by default.")
+		slog.Info("gRPC TLS is enabled by default.")
 	}
 	grpcServer := grpc.NewServer(grpcOptions...)
 	agentServer := api.NewAgentServer(rt)
@@ -171,20 +180,21 @@ func main() {
 		sigCh := make(chan os.Signal, 1)
 		signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 		<-sigCh
-		log.Println("Received shutdown signal, cleaning up...")
+		slog.Info("Received shutdown signal, cleaning up...")
 
 		// Perform GC before shutdown
 		if err := rt.GC(context.Background()); err != nil {
-			log.Printf("Warning: GC during shutdown failed: %v", err)
+			slog.Warn("GC during shutdown failed", "error", err)
 		}
 
-		log.Println("Shutting down gRPC server...")
+		slog.Info("Shutting down gRPC server...")
 		grpcServer.GracefulStop()
 	}()
 
-	log.Printf("gRPC server listening on port %s", port)
+	slog.Info("gRPC server listening", "port", port)
 	if err := grpcServer.Serve(lis); err != nil {
-		log.Fatalf("Failed to serve: %v", err)
+		slog.Error("Failed to serve", "error", err)
+		os.Exit(1)
 	}
 }
 
