@@ -12,6 +12,7 @@ import (
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
+	"gopkg.in/yaml.v3"
 )
 
 type stubParser struct {
@@ -356,6 +357,71 @@ Resources:
 	}
 	if got := readFile(t, routingYml); got != expectedRouting {
 		t.Fatalf("routing.yml mismatch")
+	}
+}
+
+func TestGenerateFilesRendersRoutingEvents(t *testing.T) {
+	root := t.TempDir()
+	templatePath := filepath.Join(root, "template.yaml")
+	writeTestFile(t, templatePath, "Resources: {}")
+
+	funcDir := filepath.Join(root, "functions", "events")
+	mustMkdirAll(t, funcDir)
+	writeTestFile(t, filepath.Join(funcDir, "app.py"), "print('events')")
+
+	parser := &stubParser{
+		result: ParseResult{
+			Functions: []FunctionSpec{
+				{
+					Name:    "lambda-events",
+					Runtime: "python3.12",
+					CodeURI: "functions/events/",
+					Events: []EventSpec{
+						{
+							Path:   "/api/events",
+							Method: "POST",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	cfg := config.GeneratorConfig{
+		Paths: config.PathsConfig{
+			SamTemplate: "template.yaml",
+			OutputDir:   "out/",
+		},
+	}
+	if _, err := GenerateFiles(cfg, GenerateOptions{ProjectRoot: root, Parser: parser}); err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+
+	routingYml := filepath.Join(root, "out", "config", "routing.yml")
+	content := readFile(t, routingYml)
+
+	type route struct {
+		Path     string `yaml:"path"`
+		Method   string `yaml:"method"`
+		Function string `yaml:"function"`
+	}
+	var parsed struct {
+		Routes []route `yaml:"routes"`
+	}
+	if err := yaml.Unmarshal([]byte(content), &parsed); err != nil {
+		t.Fatalf("yaml unmarshal: %v", err)
+	}
+	if len(parsed.Routes) != 1 {
+		t.Fatalf("expected one route, got %d", len(parsed.Routes))
+	}
+	if parsed.Routes[0].Path != "/api/events" {
+		t.Fatalf("unexpected path: %s", parsed.Routes[0].Path)
+	}
+	if parsed.Routes[0].Function != "lambda-events" {
+		t.Fatalf("unexpected function: %s", parsed.Routes[0].Function)
+	}
+	if parsed.Routes[0].Method != "POST" {
+		t.Fatalf("unexpected method: %s", parsed.Routes[0].Method)
 	}
 }
 
