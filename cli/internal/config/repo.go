@@ -62,7 +62,7 @@ func findRepoRoot(path string) (string, bool) {
 	}
 
 	for {
-		if _, err := os.Stat(filepath.Join(dir, "docker-compose.yml")); err == nil {
+		if _, err := os.Stat(filepath.Join(dir, "compose", "base.yml")); err == nil {
 			return dir, true
 		}
 		parent := filepath.Dir(dir)

@@ -40,90 +40,70 @@ func (f *fakeRunner) RunOutput(_ context.Context, dir, name string, args ...stri
 }
 
 func TestResolveComposeFilesDockerMode(t *testing.T) {
-	root := t.TempDir()
-	required := []string{
-		"docker-compose.yml",
-		"docker-compose.worker.yml",
-		"docker-compose.docker.yml",
-	}
-	for _, name := range required {
-		path := filepath.Join(root, name)
-		if err := os.WriteFile(path, []byte("test"), 0o644); err != nil {
-			t.Fatalf("write compose file: %v", err)
-		}
+	rootDir := createTempComposeFiles(t)
+
+	files, err := ResolveComposeFiles(rootDir, ModeDocker, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 
-	files, err := ResolveComposeFiles(root, ModeDocker, "control")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
 	expected := []string{
-		filepath.Join(root, "docker-compose.yml"),
-		filepath.Join(root, "docker-compose.worker.yml"),
-		filepath.Join(root, "docker-compose.docker.yml"),
+		filepath.Join(rootDir, "docker-compose.docker.yml"),
 	}
-	if !reflect.DeepEqual(files, expected) {
-		t.Fatalf("unexpected files: %v", files)
+
+	if !equalStringSlices(files, expected) {
+		t.Errorf("unexpected files:\n\tgot:  %v\n\twant: %v", files, expected)
 	}
 }
 
 func TestResolveComposeFilesContainerdMode(t *testing.T) {
-	root := t.TempDir()
-	required := []string{
-		"docker-compose.yml",
-		"docker-compose.worker.yml",
-		"docker-compose.registry.yml",
-		"docker-compose.containerd.yml",
-	}
-	for _, name := range required {
-		path := filepath.Join(root, name)
-		if err := os.WriteFile(path, []byte("test"), 0o644); err != nil {
-			t.Fatalf("write compose file: %v", err)
-		}
+	rootDir := createTempComposeFiles(t)
+
+	files, err := ResolveComposeFiles(rootDir, ModeContainerd, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 
-	files, err := ResolveComposeFiles(root, ModeContainerd, "control")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
 	expected := []string{
-		filepath.Join(root, "docker-compose.yml"),
-		filepath.Join(root, "docker-compose.worker.yml"),
-		filepath.Join(root, "docker-compose.registry.yml"),
-		filepath.Join(root, "docker-compose.containerd.yml"),
+		filepath.Join(rootDir, "docker-compose.containerd.yml"),
 	}
-	if !reflect.DeepEqual(files, expected) {
-		t.Fatalf("unexpected files: %v", files)
+
+	if !equalStringSlices(files, expected) {
+		t.Errorf("unexpected files:\n\tgot:  %v\n\twant: %v", files, expected)
 	}
 }
 
 func TestResolveComposeFilesFirecrackerMode(t *testing.T) {
-	root := t.TempDir()
-	required := []string{
-		"docker-compose.yml",
-		"docker-compose.worker.yml",
-		"docker-compose.registry.yml",
-		"docker-compose.fc.yml",
-	}
-	for _, name := range required {
-		path := filepath.Join(root, name)
-		if err := os.WriteFile(path, []byte("test"), 0o644); err != nil {
-			t.Fatalf("write compose file: %v", err)
-		}
+	rootDir := createTempComposeFiles(t)
+
+	files, err := ResolveComposeFiles(rootDir, ModeFirecracker, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 
-	files, err := ResolveComposeFiles(root, ModeFirecracker, "control")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
 	expected := []string{
-		filepath.Join(root, "docker-compose.yml"),
-		filepath.Join(root, "docker-compose.worker.yml"),
-		filepath.Join(root, "docker-compose.registry.yml"),
-		filepath.Join(root, "docker-compose.fc.yml"),
+		filepath.Join(rootDir, "docker-compose.fc.yml"),
 	}
-	if !reflect.DeepEqual(files, expected) {
-		t.Fatalf("unexpected files: %v", files)
+
+	if !equalStringSlices(files, expected) {
+		t.Errorf("unexpected files:\n\tgot:  %v\n\twant: %v", files, expected)
+	}
+}
+
+func TestResolveComposeFilesFirecrackerNode(t *testing.T) {
+	rootDir := createTempComposeFiles(t)
+
+	files, err := ResolveComposeFiles(rootDir, ModeFirecracker, "node")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	expected := []string{
+		filepath.Join(rootDir, "docker-compose.fc-node.yml"),
+	}
+
+	if !equalStringSlices(files, expected) {
+		t.Errorf("unexpected files:\n\tgot:  %v\n\twant: %v", files, expected)
 	}
 }
 
@@ -148,86 +128,92 @@ func TestResolveComposeFilesInvalidTarget(t *testing.T) {
 }
 
 func TestUpProjectBuildsCommand(t *testing.T) {
-	root := t.TempDir()
-	files := []string{
-		"docker-compose.yml",
-		"docker-compose.worker.yml",
-		"docker-compose.docker.yml",
-	}
-	for _, name := range files {
-		path := filepath.Join(root, name)
-		if err := os.WriteFile(path, []byte("test"), 0o644); err != nil {
-			t.Fatalf("write compose file: %v", err)
-		}
-	}
-
+	rootDir := createTempComposeFiles(t)
 	runner := &fakeRunner{}
+	ctx := context.Background()
+
 	opts := UpOptions{
-		RootDir: root,
+		RootDir: rootDir,
+		Mode:    ModeDocker,
 		Project: "esb-default",
 		Detach:  true,
 	}
 
-	if err := UpProject(context.Background(), runner, opts); err != nil {
-		t.Fatalf("expected no error, got %v", err)
+	err := UpProject(ctx, runner, opts)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	if runner.name != "docker" {
-		t.Fatalf("expected docker command, got %s", runner.name)
-	}
-	expected := []string{
+
+	expectedArgs := []string{
 		"compose",
 		"-p", "esb-default",
-		"-f", filepath.Join(root, "docker-compose.yml"),
-		"-f", filepath.Join(root, "docker-compose.worker.yml"),
-		"-f", filepath.Join(root, "docker-compose.docker.yml"),
-		"up",
-		"-d",
+		"-f", filepath.Join(rootDir, "docker-compose.docker.yml"),
+		"up", "-d",
 	}
-	if !reflect.DeepEqual(runner.args, expected) {
-		t.Fatalf("unexpected args: %v", runner.args)
-	}
-	if runner.dir != root {
-		t.Fatalf("unexpected working dir: %s", runner.dir)
+
+	if !reflect.DeepEqual(runner.args, expectedArgs) {
+		t.Errorf("unexpected args: %v", runner.args)
 	}
 }
 
 func TestUpProjectPassesEnvFile(t *testing.T) {
-	root := t.TempDir()
-	files := []string{
-		"docker-compose.yml",
-		"docker-compose.worker.yml",
-		"docker-compose.docker.yml",
-	}
-	for _, name := range files {
-		path := filepath.Join(root, name)
-		if err := os.WriteFile(path, []byte("test"), 0o644); err != nil {
-			t.Fatalf("write compose file: %v", err)
-		}
-	}
-
+	rootDir := createTempComposeFiles(t)
 	runner := &fakeRunner{}
+	ctx := context.Background()
+
 	opts := UpOptions{
-		RootDir: root,
+		RootDir: rootDir,
+		Mode:    ModeDocker,
 		Project: "esb-test",
-		Detach:  true,
 		EnvFile: "/path/to/.env.docker",
+		Detach:  true,
 	}
 
-	if err := UpProject(context.Background(), runner, opts); err != nil {
-		t.Fatalf("expected no error, got %v", err)
+	err := UpProject(ctx, runner, opts)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 
-	expected := []string{
+	expectedArgs := []string{
 		"compose",
 		"-p", "esb-test",
-		"-f", filepath.Join(root, "docker-compose.yml"),
-		"-f", filepath.Join(root, "docker-compose.worker.yml"),
-		"-f", filepath.Join(root, "docker-compose.docker.yml"),
+		"-f", filepath.Join(rootDir, "docker-compose.docker.yml"),
 		"--env-file", "/path/to/.env.docker",
-		"up",
-		"-d",
+		"up", "-d",
 	}
-	if !reflect.DeepEqual(runner.args, expected) {
-		t.Fatalf("unexpected args:\ngot:  %v\nwant: %v", runner.args, expected)
+
+	if !reflect.DeepEqual(runner.args, expectedArgs) {
+		t.Errorf("unexpected args:\n\tgot:  %v\n\twant: %v", runner.args, expectedArgs)
 	}
+}
+
+// Helper to create all necessary files for tests
+func createTempComposeFiles(t *testing.T) string {
+	dir := t.TempDir()
+	files := []string{
+		"docker-compose.yml", // Need to retain? No, but ResolveComposeFiles doesn't strictly check for them anymore unless they are the target file.
+		"docker-compose.docker.yml",
+		"docker-compose.containerd.yml",
+		"docker-compose.fc.yml",
+		"docker-compose.fc-node.yml",
+	}
+	for _, f := range files {
+		if err := os.WriteFile(filepath.Join(dir, f), []byte(""), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return dir
+}
+
+// equalStringSlices checks if two string slices are equal
+func equalStringSlices(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }

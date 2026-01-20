@@ -33,8 +33,6 @@ func TestBuildProjectBuildsCommand(t *testing.T) {
 	expected := []string{
 		"compose",
 		"-p", "esb-default",
-		"-f", filepath.Join(root, "docker-compose.yml"),
-		"-f", filepath.Join(root, "docker-compose.worker.yml"),
 		"-f", filepath.Join(root, "docker-compose.docker.yml"),
 		"build",
 		"gateway",
@@ -72,9 +70,6 @@ func TestBuildProjectAddsRuntimeNodeForContainerd(t *testing.T) {
 	expected := []string{
 		"compose",
 		"-p", "esb-default",
-		"-f", filepath.Join(root, "docker-compose.yml"),
-		"-f", filepath.Join(root, "docker-compose.worker.yml"),
-		"-f", filepath.Join(root, "docker-compose.registry.yml"),
 		"-f", filepath.Join(root, "docker-compose.containerd.yml"),
 		"build",
 		"gateway",
@@ -110,9 +105,6 @@ func TestBuildProjectAddsRuntimeNodeForFirecracker(t *testing.T) {
 	expected := []string{
 		"compose",
 		"-p", "esb-default",
-		"-f", filepath.Join(root, "docker-compose.yml"),
-		"-f", filepath.Join(root, "docker-compose.worker.yml"),
-		"-f", filepath.Join(root, "docker-compose.registry.yml"),
 		"-f", filepath.Join(root, "docker-compose.fc.yml"),
 		"build",
 		"gateway",
@@ -148,8 +140,6 @@ func TestBuildProjectUsesNoCacheFlag(t *testing.T) {
 	expected := []string{
 		"compose",
 		"-p", "esb-default",
-		"-f", filepath.Join(root, "docker-compose.yml"),
-		"-f", filepath.Join(root, "docker-compose.worker.yml"),
 		"-f", filepath.Join(root, "docker-compose.docker.yml"),
 		"build",
 		"--no-cache",

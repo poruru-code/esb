@@ -105,41 +105,39 @@ func UpProject(ctx context.Context, runner CommandRunner, opts UpOptions) error 
 // ResolveComposeFiles returns the list of docker-compose files to use
 // based on the mode (docker/containerd/firecracker) and target.
 func ResolveComposeFiles(rootDir, mode, target string) ([]string, error) {
-	base := []string{
-		filepath.Join(rootDir, "docker-compose.yml"),
-		filepath.Join(rootDir, "docker-compose.worker.yml"),
-	}
+	var filename string
+	m := resolveMode(mode)
 
-	var extra []string
-	switch resolveMode(mode) {
+	switch m {
 	case ModeFirecracker:
-		extra = []string{
-			filepath.Join(rootDir, "docker-compose.registry.yml"),
-			filepath.Join(rootDir, "docker-compose.fc.yml"),
+		if target == "node" {
+			filename = "docker-compose.fc-node.yml"
+		} else {
+			filename = "docker-compose.fc.yml"
 		}
 	case ModeContainerd:
-		extra = []string{
-			filepath.Join(rootDir, "docker-compose.registry.yml"),
-			filepath.Join(rootDir, "docker-compose.containerd.yml"),
+		if target == "node" {
+			return nil, fmt.Errorf("target 'node' not supported for containerd mode (integrated)")
 		}
-	default:
-		extra = []string{
-			filepath.Join(rootDir, "docker-compose.docker.yml"),
+		filename = "docker-compose.containerd.yml"
+	default: // Docker
+		if target == "node" {
+			return nil, fmt.Errorf("target 'node' not supported for docker mode (integrated)")
 		}
+		filename = "docker-compose.docker.yml"
 	}
 
-	files := append(base, extra...)
-	for _, path := range files {
-		if _, err := os.Stat(path); err != nil {
-			return nil, fmt.Errorf("compose file not found: %s", path)
-		}
+	// Validate target
+	if target != "" && target != "control" && target != "node" {
+		return nil, fmt.Errorf("unsupported target: %s", target)
 	}
 
-	if target != "" && target != "control" {
-		return nil, fmt.Errorf("unsupported compose target: %s", target)
+	path := filepath.Join(rootDir, filename)
+	if _, err := os.Stat(path); err != nil {
+		return nil, fmt.Errorf("compose file not found: %s", path)
 	}
 
-	return files, nil
+	return []string{path}, nil
 }
 
 // resolveMode normalizes the mode string, falling back to brand-prefixed MODE env

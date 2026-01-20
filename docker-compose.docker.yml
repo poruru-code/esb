@@ -1,10 +1,13 @@
 
+include:
+  - compose/base.yml
+  - compose/worker.yml
+
 services:
   # ------------------------------------------
   # 1. Agent Wiring (Standalone)
   # ------------------------------------------
   agent:
-    env_file: config/defaults.env
     ports:
       - "${PORT_AGENT_METRICS:-0}:9091"
     # Participate in Network Directly

@@ -1,4 +1,9 @@
 
+include:
+  - compose/base.yml
+  - compose/worker.yml
+  - compose/registry.yml
+
 services:
   # ------------------------------------------
   # 1. Runtime Node (Containerd Host Container)

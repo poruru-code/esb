@@ -33,8 +33,6 @@ func TestStopProjectBuildsCommand(t *testing.T) {
 	expected := []string{
 		"compose",
 		"-p", "esb-default",
-		"-f", filepath.Join(root, "docker-compose.yml"),
-		"-f", filepath.Join(root, "docker-compose.worker.yml"),
 		"-f", filepath.Join(root, "docker-compose.docker.yml"),
 		"stop",
 	}
@@ -69,8 +67,6 @@ func TestLogsProjectBuildsCommand(t *testing.T) {
 	expected := []string{
 		"compose",
 		"-p", "esb-default",
-		"-f", filepath.Join(root, "docker-compose.yml"),
-		"-f", filepath.Join(root, "docker-compose.worker.yml"),
 		"-f", filepath.Join(root, "docker-compose.docker.yml"),
 		"logs",
 		"--follow",
