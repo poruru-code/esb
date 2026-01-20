@@ -7,6 +7,8 @@ import (
 
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/containers"
+	"github.com/containerd/go-cni"
+	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -47,11 +49,15 @@ func TestRuntime_List_ReturnsContainerStates(t *testing.T) {
 	mockContainer.On("Info", mock.Anything, mock.Anything).Return(containers.Container{
 		CreatedAt: time.Now(),
 		Labels: map[string]string{
-			"esb_function": "test-func",
+			runtime.LabelFunctionName: "test-func",
+			runtime.LabelCreatedBy:    runtime.ValueCreatedByAgent,
+			runtime.LabelEsbEnv:       "test-env",
 		},
 	}, nil)
 	mockContainer.On("Labels", mock.Anything).Return(map[string]string{
-		"esb_function": "test-func",
+		runtime.LabelFunctionName: "test-func",
+		runtime.LabelCreatedBy:    runtime.ValueCreatedByAgent,
+		runtime.LabelEsbEnv:       "test-env",
 	}, nil).Maybe()
 
 	mockTask := new(MockTask)
@@ -60,6 +66,11 @@ func TestRuntime_List_ReturnsContainerStates(t *testing.T) {
 
 	// Mock: One container exists
 	mockCli.On("Containers", mock.Anything, mock.Anything).Return([]containerd.Container{mockContainer}, nil)
+	mockCNI.On("GetConfig").Return(&cni.ConfigResult{
+		Networks: []*cni.ConfNetwork{
+			{Config: &cni.NetworkConfList{Name: "esb"}},
+		},
+	})
 
 	// Execute
 	states, err := rt.List(ctx)

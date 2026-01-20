@@ -104,6 +104,18 @@ class GatewayConfig(BaseAppConfig):
     AGENT_INVOKE_PROXY: bool = Field(
         default=False, description="Invoke workers via Agent (L7 proxy) instead of direct IP"
     )
+    AGENT_GRPC_TLS_ENABLED: bool = Field(
+        default=False, description="Enable mTLS for Agent gRPC connections"
+    )
+    AGENT_GRPC_TLS_CA_CERT_PATH: str = Field(
+        default="/app/config/ssl/rootCA.crt", description="Agent gRPC CA cert path"
+    )
+    AGENT_GRPC_TLS_CERT_PATH: str = Field(
+        default="/app/config/ssl/client.crt", description="Agent gRPC client cert path"
+    )
+    AGENT_GRPC_TLS_KEY_PATH: str = Field(
+        default="/app/config/ssl/client.key", description="Agent gRPC client key path"
+    )
 
     # FastAPI settings
     root_path: str = Field(default="", description="API root path (for proxy)")

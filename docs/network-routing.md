@@ -48,9 +48,57 @@
 ## 主要な環境変数と設定
 
 - **CNI_GW_IP** (既定: `10.88.0.1`): CNI ブリッジのゲートウェイ。CoreDNS の待ち受け IP としても利用される。
+- **CNI_DNS_SERVER** (任意): ワーカーの DNS 参照先。未指定時は `CNI_GW_IP` を使用。
+- **CNI_SUBNET** (任意): CNI ブリッジのサブネット。IPAM の subnet/range に反映される。
 - **ESB_CONTROL_HOST** (既定: `10.99.0.1`): リモートノードから見た制御プレーンの到達先 IP。
 - **DYNAMODB_ENDPOINT_HOST**: `database` (DNS で解決)
 - **S3_ENDPOINT_HOST**: `s3-storage` (DNS で解決)
+
+## CNI_SUBNET 変更時の推奨値（GW/DNS の関係）
+
+`CNI_SUBNET` を変更する場合は、CNI ブリッジの GW と DNS を同じサブネット内に揃えるのが安全です。
+
+- **推奨ルール**
+  - `CNI_SUBNET` はホスト/他ネットワークと重複しない RFC1918 の範囲を選ぶ。
+  - `CNI_GW_IP` は `CNI_SUBNET` 内の **先頭付近の固定 IP**（例: `.1`）にする。
+  - CoreDNS がバインドする IP と `CNI_GW_IP` は一致させる。
+  - `CNI_DNS_SERVER` は通常不要。明示する場合は `CNI_GW_IP` と同一にする。
+  - MASQUERADE のルールは新しいサブネットに合わせて更新する。
+
+- **例**
+  - `CNI_SUBNET=10.20.0.0/24`
+  - `CNI_GW_IP=10.20.0.1`
+  - `CNI_DNS_SERVER=10.20.0.1`（指定する場合）
+
+- **確認ポイント**
+  - `docker exec esb-runtime-node ip addr` でブリッジ IP が `CNI_GW_IP` になっている。
+  - `ctr -n esb task exec ... cat /etc/resolv.conf` で nameserver が `CNI_GW_IP` になっている。
+  - `iptables -t nat -S POSTROUTING` に `-s <CNI_SUBNET> ! -d <CNI_SUBNET> -j MASQUERADE` がある。
+
+## docker-compose 側の設定例
+
+`.env` または compose の `environment` に指定します。通常は `CNI_GW_IP` のみで十分です。
+
+```env
+# .env
+CNI_SUBNET=10.20.0.0/24
+CNI_GW_IP=10.20.0.1
+# CNI_DNS_SERVER=10.20.0.1  # 明示したい場合のみ
+```
+
+```yaml
+# docker-compose.containerd.yml (例)
+services:
+  runtime-node:
+    environment:
+      - CNI_SUBNET=${CNI_SUBNET:-10.88.0.0/16}
+      - CNI_GW_IP=${CNI_GW_IP:-10.88.0.1}
+  agent:
+    environment:
+      - CNI_SUBNET=${CNI_SUBNET:-10.88.0.0/16}
+      - CNI_GW_IP=${CNI_GW_IP:-10.88.0.1}
+      # - CNI_DNS_SERVER=${CNI_DNS_SERVER:-}  # 明示する場合のみ
+```
 
 ## Gateway 側 WireGuard プロキシ構成
 

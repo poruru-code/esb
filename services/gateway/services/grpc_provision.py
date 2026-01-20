@@ -89,7 +89,7 @@ class GrpcProvisionClient:
             if func_config.memory_size:
                 env["AWS_LAMBDA_FUNCTION_MEMORY_SIZE"] = str(func_config.memory_size)
 
-        logger.warning(f"DEBUG Provisioning Env: {env}")
+        logger.debug("Provisioning env prepared (keys=%s)", sorted(env.keys()))
 
         req = agent_pb2.EnsureContainerRequest(  # type: ignore[attr-defined]
             function_name=function_name,

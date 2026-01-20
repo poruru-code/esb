@@ -10,6 +10,7 @@ import time
 import requests
 
 from e2e.conftest import (
+    DEFAULT_REQUEST_TIMEOUT,
     GATEWAY_URL,
     VERIFY_SSL,
     call_api,
@@ -26,14 +27,50 @@ class TestMetricsAPI:
 
         headers = {"Authorization": f"Bearer {auth_token}"}
         expected_memory_max = 128 * 1024 * 1024
+        expected_pool_names = {"echo", "lambda-echo"}
+
+        pool_resp = requests.get(
+            f"{GATEWAY_URL}/metrics/pools",
+            headers=headers,
+            verify=VERIFY_SSL,
+            timeout=DEFAULT_REQUEST_TIMEOUT,
+        )
+        assert pool_resp.status_code == 200, (
+            f"Pool metrics API failed with {pool_resp.status_code}: {pool_resp.text}"
+        )
+        pool_data = pool_resp.json()
+        assert "pools" in pool_data
+        assert "collected_at" in pool_data
+
+        pool_entry = next(
+            (
+                item
+                for item in pool_data.get("pools", [])
+                if item.get("function_name") in expected_pool_names
+            ),
+            None,
+        )
+        assert pool_entry is not None
+        for field in (
+            "function_name",
+            "total_workers",
+            "idle",
+            "busy",
+            "provisioning",
+            "max_capacity",
+            "min_capacity",
+            "acquire_timeout",
+        ):
+            assert field in pool_entry
 
         metrics_entry = None
-        metrics_resp = None  # Initialize metrics_resp outside the loop
+        metrics_resp: requests.Response | None = None
         for _ in range(10):
             metrics_resp = requests.get(
                 f"{GATEWAY_URL}/metrics/containers",
                 headers=headers,
                 verify=VERIFY_SSL,
+                timeout=DEFAULT_REQUEST_TIMEOUT,
             )
 
             # Allow 200 OK or 501 Not Implemented (for Docker runtime)
@@ -71,6 +108,7 @@ class TestMetricsAPI:
             time.sleep(1)
 
         # If we got 200 OK, verify metrics content
+        assert metrics_resp is not None
         assert metrics_resp.status_code == 200, (
             f"Metrics API failed with {metrics_resp.status_code}: {metrics_resp.text}"
         )

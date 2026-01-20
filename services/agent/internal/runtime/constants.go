@@ -1,16 +1,17 @@
 package runtime
 
+import "github.com/poruru/edge-serverless-box/meta"
+
 const (
+	// LabelFunctionName is the label key for the function name.
+	LabelFunctionName = meta.RuntimeLabelFunction
 
-	// LabelFunctionName is the label key for the function name
-	LabelFunctionName = "esb_function"
+	// LabelCreatedBy is the label key for the creator identifier.
+	LabelCreatedBy = meta.RuntimeLabelCreatedBy
 
-	// LabelCreatedBy is the label key for the creator identifier
-	LabelCreatedBy = "created_by"
+	// ValueCreatedByAgent is the value for LabelCreatedBy.
+	ValueCreatedByAgent = meta.RuntimeLabelCreatedByValue
 
-	// ValueCreatedByAgent is the value for LabelCreatedBy
-	ValueCreatedByAgent = "esb-agent"
-
-	// LabelEsbEnv is the label key for the environment identifier
-	LabelEsbEnv = "esb_env"
+	// LabelEsbEnv is the label key for the environment identifier.
+	LabelEsbEnv = meta.RuntimeLabelEnv
 )

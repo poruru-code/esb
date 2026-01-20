@@ -28,6 +28,8 @@ type ContainerState struct {
 	LastUsedAt    time.Time // Last time this container was used
 	ContainerName string    // Actual docker/containerd name
 	CreatedAt     time.Time // Container creation time - used for grace period in Reconciliation
+	IPAddress     string    // Container IP (if available)
+	Port          int       // Container port (if available)
 }
 
 // ContainerMetrics represents resource usage stats for a container.

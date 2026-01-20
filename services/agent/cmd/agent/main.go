@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"log"
 	"net"
@@ -21,6 +23,7 @@ import (
 	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime/docker"
 	pb "github.com/poruru/edge-serverless-box/services/agent/pkg/api/v1"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/reflection"
 )
 
@@ -137,12 +140,21 @@ func main() {
 		log.Fatalf("Failed to listen: %v", err)
 	}
 
-	grpcServer := grpc.NewServer()
+	grpcOptions, err := grpcServerOptions()
+	if err != nil {
+		log.Fatalf("Failed to initialize gRPC server options: %v", err)
+	}
+	if os.Getenv("AGENT_GRPC_TLS_ENABLED") != "1" {
+		log.Println("WARNING: gRPC TLS is disabled (AGENT_GRPC_TLS_ENABLED!=1). Use only in trusted networks.")
+	}
+	grpcServer := grpc.NewServer(grpcOptions...)
 	agentServer := api.NewAgentServer(rt)
 	pb.RegisterAgentServiceServer(grpcServer, agentServer)
 
-	// Enable reflection for debugging (grpcurl etc.)
-	reflection.Register(grpcServer)
+	if isReflectionEnabled() {
+		// Enable reflection for debugging (grpcurl etc.)
+		reflection.Register(grpcServer)
+	}
 
 	// Signal handling for graceful shutdown
 	go func() {
@@ -164,4 +176,54 @@ func main() {
 	if err := grpcServer.Serve(lis); err != nil {
 		log.Fatalf("Failed to serve: %v", err)
 	}
+}
+
+func isReflectionEnabled() bool {
+	return os.Getenv("AGENT_GRPC_REFLECTION") == "1"
+}
+
+func grpcServerOptions() ([]grpc.ServerOption, error) {
+	if os.Getenv("AGENT_GRPC_TLS_ENABLED") != "1" {
+		return nil, nil
+	}
+
+	certPath := strings.TrimSpace(os.Getenv("AGENT_GRPC_CERT_PATH"))
+	if certPath == "" {
+		certPath = "/app/config/ssl/server.crt"
+	}
+	keyPath := strings.TrimSpace(os.Getenv("AGENT_GRPC_KEY_PATH"))
+	if keyPath == "" {
+		keyPath = "/app/config/ssl/server.key"
+	}
+	caPath := strings.TrimSpace(os.Getenv("AGENT_GRPC_CA_CERT_PATH"))
+	if caPath == "" {
+		caPath = meta.RootCACertPath
+	}
+
+	certificate, err := tls.LoadX509KeyPair(certPath, keyPath)
+	if err != nil {
+		return nil, fmt.Errorf("load server cert: %w", err)
+	}
+
+	caPEM, err := os.ReadFile(caPath)
+	if err != nil {
+		return nil, fmt.Errorf("read CA cert: %w", err)
+	}
+
+	caPool, err := x509.SystemCertPool()
+	if err != nil {
+		caPool = x509.NewCertPool()
+	}
+	if ok := caPool.AppendCertsFromPEM(caPEM); !ok {
+		return nil, fmt.Errorf("append CA cert failed")
+	}
+
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{certificate},
+		ClientCAs:    caPool,
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		MinVersion:   tls.VersionTLS12,
+	}
+
+	return []grpc.ServerOption{grpc.Creds(credentials.NewTLS(tlsConfig))}, nil
 }

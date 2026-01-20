@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/containerd/containerd/errdefs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -20,7 +21,7 @@ func TestRuntime_EnsureImage(t *testing.T) {
 	t.Setenv("CONTAINERD_SNAPSHOTTER", "devmapper")
 
 	// 1. Initial check: Image doesn't exist
-	mockCli.On("GetImage", mock.Anything, imageName).Return(nil, fmt.Errorf("not found"))
+	mockCli.On("GetImage", mock.Anything, imageName).Return(nil, errdefs.ErrNotFound)
 
 	// 2. Expect Pull to be called
 	mockImage := new(MockImage)
@@ -29,8 +30,6 @@ func TestRuntime_EnsureImage(t *testing.T) {
 		"Pull",
 		mock.Anything,
 		imageName,
-		mock.Anything,
-		mock.Anything,
 		mock.Anything,
 	).Return(mockImage, nil)
 
@@ -63,4 +62,21 @@ func TestRuntime_EnsureImage_UnpackWhenMissing(t *testing.T) {
 
 	mockCli.AssertExpectations(t)
 	mockImage.AssertExpectations(t)
+}
+
+func TestRuntime_EnsureImage_GetImageError(t *testing.T) {
+	mockCli := new(MockClient)
+	rt := NewRuntime(mockCli, nil, "esb", "test-env")
+	ctx := context.Background()
+	imageName := "alpine:latest"
+
+	getErr := fmt.Errorf("permission denied")
+	mockCli.On("GetImage", mock.Anything, imageName).Return(nil, getErr)
+
+	_, err := rt.ensureImage(ctx, imageName)
+	assert.Error(t, err)
+	assert.ErrorContains(t, err, "failed to get image")
+
+	mockCli.AssertNumberOfCalls(t, "Pull", 0)
+	mockCli.AssertExpectations(t)
 }

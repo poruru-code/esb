@@ -190,6 +190,13 @@ class PoolManager:
             result[fname] = pool.get_all_names()
         return result
 
+    async def get_pool_stats(self) -> List[Dict[str, object]]:
+        """Collect pool stats for external metrics."""
+        async with self._lock:
+            pools = list(self._pools.values())
+        stats = [pool.stats for pool in pools]
+        return sorted(stats, key=lambda item: str(item.get("function_name", "")))
+
     def _extract_function_name(self, name: str) -> Optional[str]:
         """
         Extract function name from container name.

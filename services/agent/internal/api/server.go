@@ -7,8 +7,10 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
+	"github.com/containerd/containerd/errdefs"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
 	pb "github.com/poruru/edge-serverless-box/services/agent/pkg/api/v1"
 	"google.golang.org/grpc/codes"
@@ -17,7 +19,8 @@ import (
 
 type AgentServer struct {
 	pb.UnimplementedAgentServiceServer
-	runtime runtime.ContainerRuntime
+	runtime     runtime.ContainerRuntime
+	workerCache sync.Map // map[containerID]runtime.WorkerInfo
 }
 
 func NewAgentServer(rt runtime.ContainerRuntime) *AgentServer {
@@ -40,6 +43,8 @@ func (s *AgentServer) EnsureContainer(ctx context.Context, req *pb.EnsureContain
 		return nil, status.Errorf(codes.Internal, "failed to ensure container: %v", err)
 	}
 
+	s.workerCache.Store(info.ID, *info)
+
 	return &pb.WorkerInfo{
 		Id:        info.ID,
 		IpAddress: info.IPAddress,
@@ -48,11 +53,26 @@ func (s *AgentServer) EnsureContainer(ctx context.Context, req *pb.EnsureContain
 }
 
 func (s *AgentServer) InvokeWorker(ctx context.Context, req *pb.InvokeWorkerRequest) (*pb.InvokeWorkerResponse, error) {
-	if req.IpAddress == "" {
-		return nil, status.Error(codes.InvalidArgument, "ip_address is required")
+	if req.ContainerId == "" {
+		return nil, status.Error(codes.InvalidArgument, "container_id is required")
 	}
 
-	port := req.Port
+	workerValue, ok := s.workerCache.Load(req.ContainerId)
+	if !ok {
+		if err := s.refreshWorkerCache(ctx); err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to refresh worker cache: %v", err)
+		}
+		workerValue, ok = s.workerCache.Load(req.ContainerId)
+		if !ok {
+			return nil, status.Error(codes.NotFound, "container_id not found")
+		}
+	}
+	worker := workerValue.(runtime.WorkerInfo)
+	if worker.IPAddress == "" {
+		return nil, status.Error(codes.FailedPrecondition, "container ip_address is empty")
+	}
+
+	port := worker.Port
 	if port == 0 {
 		port = 8080
 	}
@@ -70,7 +90,7 @@ func (s *AgentServer) InvokeWorker(ctx context.Context, req *pb.InvokeWorkerRequ
 		timeout = 30 * time.Second
 	}
 
-	url := fmt.Sprintf("http://%s:%d%s", req.IpAddress, port, path)
+	url := fmt.Sprintf("http://%s:%d%s", worker.IPAddress, port, path)
 
 	reqCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -141,12 +161,54 @@ func (s *AgentServer) DestroyContainer(ctx context.Context, req *pb.DestroyConta
 	}
 
 	if err := s.runtime.Destroy(ctx, req.ContainerId); err != nil {
+		if errdefs.IsNotFound(err) {
+			s.workerCache.Delete(req.ContainerId)
+			return &pb.DestroyContainerResponse{Success: true}, nil
+		}
 		return nil, status.Errorf(codes.Internal, "failed to destroy container: %v", err)
 	}
+
+	s.workerCache.Delete(req.ContainerId)
 
 	return &pb.DestroyContainerResponse{
 		Success: true,
 	}, nil
+}
+
+func (s *AgentServer) refreshWorkerCache(ctx context.Context) error {
+	containers, err := s.runtime.List(ctx)
+	if err != nil {
+		return err
+	}
+
+	active := make(map[string]runtime.WorkerInfo, len(containers))
+	for _, container := range containers {
+		if container.ID == "" || container.IPAddress == "" {
+			continue
+		}
+		port := container.Port
+		if port == 0 {
+			port = 8080
+		}
+		active[container.ID] = runtime.WorkerInfo{
+			ID:        container.ID,
+			IPAddress: container.IPAddress,
+			Port:      port,
+		}
+	}
+
+	s.workerCache.Range(func(key, _ any) bool {
+		if _, ok := active[key.(string)]; !ok {
+			s.workerCache.Delete(key)
+		}
+		return true
+	})
+
+	for id, info := range active {
+		s.workerCache.Store(id, info)
+	}
+
+	return nil
 }
 
 func (s *AgentServer) PauseContainer(ctx context.Context, req *pb.PauseContainerRequest) (*pb.PauseContainerResponse, error) {

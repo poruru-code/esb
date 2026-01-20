@@ -69,41 +69,61 @@ def install_root_ca(mkcert_path: str, output_dir: str):
         ensure_user_ownership(output_dir)
 
 
-def generate_cert(config, output_dir, mkcert_path: str):
-    cert_cfg = config.get("certificate", {})
-    host_cfg = config.get("hosts", {})
-
-    output_dir = os.path.expanduser(output_dir)
-    os.makedirs(output_dir, exist_ok=True)
-    if not os.access(output_dir, os.W_OK):
-        raise RuntimeError(
-            f"Certificate output directory is not writable: {output_dir}. "
-            "Fix ownership or permissions and retry."
-        )
-
-    cert_file = os.path.join(output_dir, cert_cfg.get("filename_cert", "server.crt"))
-    key_file = os.path.join(output_dir, cert_cfg.get("filename_key", "server.key"))
-
-    # ドメインとIPの収集
-    domains = host_cfg.get("domains", [])
-    ips = host_cfg.get("ips", [])
+def collect_hosts(host_cfg: dict, local_ip: str | None = None) -> tuple[list[str], list[str]]:
+    # Copy lists to avoid mutating TOML config structures.
+    domains = list(host_cfg.get("domains", []))
+    ips = list(host_cfg.get("ips", []))
 
     if host_cfg.get("include_local_ip", False):
-        local_ip = get_local_ip()
-        if local_ip not in ips and local_ip != "127.0.0.1":
+        if local_ip is None:
+            local_ip = get_local_ip()
+        if local_ip and local_ip != "127.0.0.1" and local_ip not in ips:
             ips.append(local_ip)
 
-    # mkcert引数構築
-    cmd = [mkcert_path, "-cert-file", cert_file, "-key-file", key_file]
+    return domains, ips
+
+
+def build_mkcert_command(
+    mkcert_path: str,
+    cert_file: str,
+    key_file: str,
+    domains: list[str],
+    ips: list[str],
+    extra_args: list[str] | None = None,
+) -> list[str]:
+    cmd = [mkcert_path]
+    if extra_args:
+        cmd.extend(extra_args)
+    cmd.extend(["-cert-file", cert_file, "-key-file", key_file])
     cmd.extend(domains)
     cmd.extend(ips)
+    return cmd
 
-    print(f"Generating certificates in {output_dir}...")
+
+def generate_cert(
+    cert_file: str,
+    key_file: str,
+    domains: list[str],
+    ips: list[str],
+    mkcert_path: str,
+    label: str,
+    extra_args: list[str] | None = None,
+) -> None:
+    output_dir = os.path.dirname(cert_file)
+    cmd = build_mkcert_command(mkcert_path, cert_file, key_file, domains, ips, extra_args)
+
+    print(f"Generating {label} certificate in {output_dir}...")
+    print(f"Certificate: {os.path.basename(cert_file)}")
     print(f"Domains: {domains}")
     print(f"IPs: {ips}")
 
     subprocess.check_call(cmd)
-    print("Certificate generation complete.")
+    print(f"{label.capitalize()} certificate generation complete.")
+
+
+def resolve_host_cfg(config: dict, key: str, fallback: dict) -> dict:
+    host_cfg = config.get(key)
+    return fallback if not host_cfg else host_cfg
 
 
 def resolve_repo_root() -> Path:
@@ -207,6 +227,7 @@ if __name__ == "__main__":
         config = toml.load(config_path)
 
     cert_cfg = config.get("certificate", {})
+    host_cfg = config.get("hosts", {})
 
     # Derivation logic for output_dir:
     # 1. Flag (future)
@@ -250,13 +271,36 @@ if __name__ == "__main__":
             print(f"Creating {root_ca_crt} from {root_ca_path}...")
             shutil.copy2(root_ca_path, root_ca_crt)
 
-    # Check and generate Server Certs
+    # Check and generate Server/Client Certs
     cert_file = os.path.join(output_dir, cert_cfg.get("filename_cert", "server.crt"))
     key_file = os.path.join(output_dir, cert_cfg.get("filename_key", "server.key"))
+    client_cert_file = os.path.join(output_dir, cert_cfg.get("filename_client_cert", "client.crt"))
+    client_key_file = os.path.join(output_dir, cert_cfg.get("filename_client_key", "client.key"))
+
+    server_domains, server_ips = collect_hosts(host_cfg)
+    client_host_cfg = resolve_host_cfg(config, "client_hosts", host_cfg)
+    client_domains, client_ips = collect_hosts(client_host_cfg)
 
     if args.force or not (os.path.exists(cert_file) and os.path.exists(key_file)):
-        generate_cert(config, output_dir, mkcert_path)
+        generate_cert(cert_file, key_file, server_domains, server_ips, mkcert_path, "server")
     else:
         print(
-            f"Certificates exist at {output_dir}. Skipping generation. Use --force to regenerate."
+            f"Server certificates exist at {output_dir}. "
+            "Skipping generation. Use --force to regenerate."
+        )
+
+    if args.force or not (os.path.exists(client_cert_file) and os.path.exists(client_key_file)):
+        generate_cert(
+            client_cert_file,
+            client_key_file,
+            client_domains,
+            client_ips,
+            mkcert_path,
+            "client",
+            extra_args=["-client"],
+        )
+    else:
+        print(
+            f"Client certificates exist at {output_dir}. "
+            "Skipping generation. Use --force to regenerate."
         )

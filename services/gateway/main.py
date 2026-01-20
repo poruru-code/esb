@@ -88,14 +88,13 @@ async def lifespan(app: FastAPI):
     logger.info(f"Initializing Gateway with Go Agent gRPC Backend: {config.AGENT_GRPC_ADDRESS}")
 
     # New ARCH: PoolManager -> GrpcProvisionClient -> Agent
-    import grpc
-
     from .pb import agent_pb2_grpc
     from .services.agent_invoke import AgentInvokeClient
+    from .services.grpc_channel import create_agent_channel
     from .services.grpc_provision import GrpcProvisionClient
 
     # shared channel for lifecycle and info
-    channel = grpc.aio.insecure_channel(config.AGENT_GRPC_ADDRESS)  # ty: ignore[possibly-missing-attribute]  # grpc.aio not in stubs
+    channel = create_agent_channel(config.AGENT_GRPC_ADDRESS, config)
     agent_stub = agent_pb2_grpc.AgentServiceStub(channel)
 
     grpc_provision_client = GrpcProvisionClient(
@@ -171,6 +170,14 @@ async def lifespan(app: FastAPI):
 
     if pool_manager:
         await pool_manager.shutdown_all()
+
+    if channel:
+        try:
+            close_result = channel.close()
+            if asyncio.iscoroutine(close_result):
+                await close_result
+        except Exception as e:
+            logger.warning("Failed to close gRPC channel: %s", e)
 
     logger.info("Gateway shutting down, closing http client.")
     await client.aclose()
@@ -373,6 +380,15 @@ async def list_container_metrics(user_id: UserIdDep, pool_manager: PoolManagerDe
         )
 
     return {"containers": metrics_list, "failures": failures}
+
+
+@app.get("/metrics/pools")
+async def list_pool_metrics(user_id: UserIdDep, pool_manager: PoolManagerDep):
+    """Gateway のプール統計を返す (runtime 非依存)."""
+    return {
+        "pools": await pool_manager.get_pool_stats(),
+        "collected_at": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 # ===========================================

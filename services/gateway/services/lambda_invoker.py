@@ -11,8 +11,9 @@ import logging
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Protocol
 
-import grpc
 import httpx
+from grpc import StatusCode
+from grpc.aio import AioRpcError
 
 from services.common.core.request_context import get_trace_id
 from services.common.models.internal import WorkerInfo
@@ -100,6 +101,7 @@ class LambdaInvoker:
         trace_id = get_trace_id()
         worker: Optional[WorkerInfo] = None
         worker_evicted = False
+        retry_attempted = False
 
         try:
             # 1. Resource Acquisition
@@ -107,9 +109,27 @@ class LambdaInvoker:
 
             # 2. Execution with Resilience
             async def do_invoke() -> InvocationResult:
+                nonlocal worker, worker_evicted, retry_attempted
                 headers = self._prepare_headers(trace_id)
-                response = await self._execute_call(worker, payload, headers, timeout)
-                return self._process_response(response)
+                try:
+                    if worker is None:
+                        raise RuntimeError("worker is not available for invocation") from None
+                    response = await self._execute_call(worker, payload, headers, timeout)
+                    return self._process_response(response)
+                except Exception as e:
+                    if retry_attempted or not self._should_retry(e):
+                        raise
+                    retry_attempted = True
+                    if worker:
+                        await self.backend.evict_worker(function_name, worker)
+                    worker_evicted = True
+                    worker = None
+                    worker = await self._acquire_worker(function_name)
+                    worker_evicted = False
+                    if worker is None:
+                        raise RuntimeError("worker is not available for invocation") from None
+                    response = await self._execute_call(worker, payload, headers, timeout)
+                    return self._process_response(response)
 
             return await breaker.call(do_invoke)
 
@@ -213,11 +233,13 @@ class LambdaInvoker:
 
         worker_evicted = False
         # Self-healing: Evict worker on connection or infrastructure errors
-        if isinstance(e, (httpx.ConnectError, grpc.aio.AioRpcError)) and worker:  # ty: ignore[possibly-missing-attribute]
+        if isinstance(e, (httpx.ConnectError, AioRpcError)) and worker:
             await self.backend.evict_worker(function_name, worker)
             worker_evicted = True
 
         is_retryable = isinstance(e, (httpx.ConnectError, ContainerStartError))
+        if isinstance(e, AioRpcError) and self._is_retryable_grpc_error(e):
+            is_retryable = True
 
         return (
             InvocationResult(
@@ -246,3 +268,18 @@ class LambdaInvoker:
                 recovery_timeout=self.config.CIRCUIT_BREAKER_RECOVERY_TIMEOUT,
             )
         return self.breakers[function_name]
+
+    def _should_retry(self, error: Exception) -> bool:
+        if isinstance(error, httpx.ConnectError):
+            return True
+        if isinstance(error, AioRpcError):
+            return self._is_retryable_grpc_error(error)
+        return False
+
+    @staticmethod
+    def _is_retryable_grpc_error(error: AioRpcError) -> bool:
+        return error.code() in {
+            StatusCode.UNAVAILABLE,
+            StatusCode.DEADLINE_EXCEEDED,
+            StatusCode.NOT_FOUND,
+        }

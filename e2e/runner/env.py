@@ -176,6 +176,14 @@ def apply_gateway_env_from_container(env: dict[str, str], env_file: str | None) 
         if value:
             env[key] = value
 
+    tls_enabled = gateway_env.get("AGENT_GRPC_TLS_ENABLED")
+    if tls_enabled:
+        env["AGENT_GRPC_TLS_ENABLED"] = tls_enabled
+        cert_dir = Path(os.environ.get("CERT_DIR", f"~/{BRAND_HOME_DIR}/certs")).expanduser()
+        env["AGENT_GRPC_TLS_CA_CERT_PATH"] = str(cert_dir / "rootCA.crt")
+        env["AGENT_GRPC_TLS_CERT_PATH"] = str(cert_dir / "client.crt")
+        env["AGENT_GRPC_TLS_KEY_PATH"] = str(cert_dir / "client.key")
+
 
 def ensure_firecracker_node_up() -> None:
     """Fail fast if compute services are not running in firecracker mode."""

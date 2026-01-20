@@ -27,12 +27,10 @@ class AgentInvokeClient:
         headers: Dict[str, str],
         timeout: float,
     ) -> httpx.Response:
-        port = worker.port or 8080
         timeout_ms = int(timeout * 1000) if timeout and timeout > 0 else 0
 
         req = agent_pb2.InvokeWorkerRequest(  # type: ignore[attr-defined]
-            ip_address=worker.ip_address,
-            port=port,
+            container_id=worker.id,
             path=self.path,
             payload=payload,
             headers=headers,
@@ -40,6 +38,7 @@ class AgentInvokeClient:
         )
 
         resp = await self.stub.InvokeWorker(req)
+        port = worker.port or 8080
         url = f"http://{worker.ip_address}:{port}{self.path}"
         request = httpx.Request("POST", url)
         return httpx.Response(

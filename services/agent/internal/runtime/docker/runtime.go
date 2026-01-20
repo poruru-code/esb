@@ -210,6 +210,8 @@ func (r *Runtime) List(ctx context.Context) ([]runtime.ContainerState, error) {
 			}
 		}
 
+		ipAddress, _ := r.resolveContainerIP(ctx, c.ID)
+
 		states = append(states, runtime.ContainerState{
 			ID:            c.ID,
 			FunctionName:  funcName,
@@ -217,9 +219,34 @@ func (r *Runtime) List(ctx context.Context) ([]runtime.ContainerState, error) {
 			LastUsedAt:    createdTime,
 			ContainerName: name,
 			CreatedAt:     createdTime, // Container creation time from Docker API
+			IPAddress:     ipAddress,
+			Port:          8080,
 		})
 	}
 	return states, nil
+}
+
+func (r *Runtime) resolveContainerIP(ctx context.Context, containerID string) (string, error) {
+	info, err := r.client.ContainerInspect(ctx, containerID)
+	if err != nil {
+		return "", err
+	}
+
+	ip := ""
+	if info.NetworkSettings != nil && info.NetworkSettings.Networks != nil {
+		if netData, ok := info.NetworkSettings.Networks[r.networkID]; ok {
+			ip = netData.IPAddress
+		}
+	}
+	if ip == "" && info.NetworkSettings != nil {
+		for _, netData := range info.NetworkSettings.Networks {
+			if netData.IPAddress != "" {
+				ip = netData.IPAddress
+				break
+			}
+		}
+	}
+	return ip, nil
 }
 
 func (r *Runtime) Metrics(_ context.Context, _ string) (*runtime.ContainerMetrics, error) {

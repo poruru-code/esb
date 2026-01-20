@@ -18,6 +18,11 @@ services:
       - PORT=50051
       - CONTAINER_REGISTRY=${CONTAINER_REGISTRY:-}
       - CNI_SUBNET=${CNI_SUBNET:-}
+      # mTLS (disabled; set in adapters as needed)
+      # - AGENT_GRPC_TLS_ENABLED=1
+      # - AGENT_GRPC_CERT_PATH=/app/config/ssl/server.crt
+      # - AGENT_GRPC_KEY_PATH=/app/config/ssl/server.key
+      # - AGENT_GRPC_CA_CERT_PATH=/app/config/ssl/rootCA.crt
       # Default: Overridden by Adapter
       - AGENT_RUNTIME=${AGENT_RUNTIME:-containerd}
       - CONTAINERS_NETWORK=${NETWORK_EXTERNAL:-${PROJECT_NAME:-undefined}-external}

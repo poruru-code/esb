@@ -77,6 +77,8 @@ Root CA はビルド時にイメージへ焼き込み、実行時に更新しま
 - **適用対象**: `esb-os-base` と `esb-python-base` の両方で同一の CA ストアを保持します。
 - **BuildKit 必須**: `docker build --secret` / `docker compose build` の build secrets を利用します。
 - **ローテーション**: CA を更新する場合はイメージを再ビルドします。
+- **mTLS クライアント証明書**: `tools/cert-gen/generate.py` が `client.crt`/`client.key`
+  を生成し、Gateway ↔ Agent の gRPC mTLS で利用します。
 
 ### 3.2 パッケージ管理 (`uv`)
 ビルドの高速化と再現性のために `uv` を採用しています。

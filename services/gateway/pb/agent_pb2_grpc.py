@@ -5,24 +5,23 @@ import grpc
 
 from . import agent_pb2 as agent__pb2
 
-GRPC_GENERATED_VERSION = "1.76.0"
+GRPC_GENERATED_VERSION = '1.76.0'
 GRPC_VERSION = grpc.__version__
 _version_not_supported = False
 
 try:
     from grpc._utilities import first_version_is_lower
-
     _version_not_supported = first_version_is_lower(GRPC_VERSION, GRPC_GENERATED_VERSION)
 except ImportError:
     _version_not_supported = True
 
 if _version_not_supported:
     raise RuntimeError(
-        f"The grpc package installed is at version {GRPC_VERSION},"
-        + " but the generated code in agent_pb2_grpc.py depends on"
-        + f" grpcio>={GRPC_GENERATED_VERSION}."
-        + f" Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}"
-        + f" or downgrade your generated code using grpcio-tools<={GRPC_VERSION}."
+        f'The grpc package installed is at version {GRPC_VERSION},'
+        + ' but the generated code in agent_pb2_grpc.py depends on'
+        + f' grpcio>={GRPC_GENERATED_VERSION}.'
+        + f' Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}'
+        + f' or downgrade your generated code using grpcio-tools<={GRPC_VERSION}.'
     )
 
 
@@ -36,161 +35,158 @@ class AgentServiceStub(object):
             channel: A grpc.Channel.
         """
         self.EnsureContainer = channel.unary_unary(
-            "/esb.agent.v1.AgentService/EnsureContainer",
-            request_serializer=agent__pb2.EnsureContainerRequest.SerializeToString,
-            response_deserializer=agent__pb2.WorkerInfo.FromString,
-            _registered_method=True,
-        )
+                '/esb.agent.v1.AgentService/EnsureContainer',
+                request_serializer=agent__pb2.EnsureContainerRequest.SerializeToString,
+                response_deserializer=agent__pb2.WorkerInfo.FromString,
+                _registered_method=True)
         self.DestroyContainer = channel.unary_unary(
-            "/esb.agent.v1.AgentService/DestroyContainer",
-            request_serializer=agent__pb2.DestroyContainerRequest.SerializeToString,
-            response_deserializer=agent__pb2.DestroyContainerResponse.FromString,
-            _registered_method=True,
-        )
+                '/esb.agent.v1.AgentService/DestroyContainer',
+                request_serializer=agent__pb2.DestroyContainerRequest.SerializeToString,
+                response_deserializer=agent__pb2.DestroyContainerResponse.FromString,
+                _registered_method=True)
         self.PauseContainer = channel.unary_unary(
-            "/esb.agent.v1.AgentService/PauseContainer",
-            request_serializer=agent__pb2.PauseContainerRequest.SerializeToString,
-            response_deserializer=agent__pb2.PauseContainerResponse.FromString,
-            _registered_method=True,
-        )
+                '/esb.agent.v1.AgentService/PauseContainer',
+                request_serializer=agent__pb2.PauseContainerRequest.SerializeToString,
+                response_deserializer=agent__pb2.PauseContainerResponse.FromString,
+                _registered_method=True)
         self.ResumeContainer = channel.unary_unary(
-            "/esb.agent.v1.AgentService/ResumeContainer",
-            request_serializer=agent__pb2.ResumeContainerRequest.SerializeToString,
-            response_deserializer=agent__pb2.ResumeContainerResponse.FromString,
-            _registered_method=True,
-        )
+                '/esb.agent.v1.AgentService/ResumeContainer',
+                request_serializer=agent__pb2.ResumeContainerRequest.SerializeToString,
+                response_deserializer=agent__pb2.ResumeContainerResponse.FromString,
+                _registered_method=True)
         self.ListContainers = channel.unary_unary(
-            "/esb.agent.v1.AgentService/ListContainers",
-            request_serializer=agent__pb2.ListContainersRequest.SerializeToString,
-            response_deserializer=agent__pb2.ListContainersResponse.FromString,
-            _registered_method=True,
-        )
+                '/esb.agent.v1.AgentService/ListContainers',
+                request_serializer=agent__pb2.ListContainersRequest.SerializeToString,
+                response_deserializer=agent__pb2.ListContainersResponse.FromString,
+                _registered_method=True)
         self.GetContainerMetrics = channel.unary_unary(
-            "/esb.agent.v1.AgentService/GetContainerMetrics",
-            request_serializer=agent__pb2.GetContainerMetricsRequest.SerializeToString,
-            response_deserializer=agent__pb2.GetContainerMetricsResponse.FromString,
-            _registered_method=True,
-        )
+                '/esb.agent.v1.AgentService/GetContainerMetrics',
+                request_serializer=agent__pb2.GetContainerMetricsRequest.SerializeToString,
+                response_deserializer=agent__pb2.GetContainerMetricsResponse.FromString,
+                _registered_method=True)
         self.InvokeWorker = channel.unary_unary(
-            "/esb.agent.v1.AgentService/InvokeWorker",
-            request_serializer=agent__pb2.InvokeWorkerRequest.SerializeToString,
-            response_deserializer=agent__pb2.InvokeWorkerResponse.FromString,
-            _registered_method=True,
-        )
+                '/esb.agent.v1.AgentService/InvokeWorker',
+                request_serializer=agent__pb2.InvokeWorkerRequest.SerializeToString,
+                response_deserializer=agent__pb2.InvokeWorkerResponse.FromString,
+                _registered_method=True)
 
 
 class AgentServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
 
     def EnsureContainer(self, request, context):
-        """Ensure a container and return connection info (start if missing, reuse if present)."""
+        """Ensure a container and return connection info (start if missing, reuse if present).
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details("Method not implemented!")
-        raise NotImplementedError("Method not implemented!")
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
 
     def DestroyContainer(self, request, context):
-        """Explicitly stop and remove a container."""
+        """Explicitly stop and remove a container.
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details("Method not implemented!")
-        raise NotImplementedError("Method not implemented!")
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
 
     def PauseContainer(self, request, context):
-        """Pause a container (for warm starts)."""
+        """Pause a container (for warm starts).
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details("Method not implemented!")
-        raise NotImplementedError("Method not implemented!")
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
 
     def ResumeContainer(self, request, context):
-        """Resume a container (for warm starts)."""
+        """Resume a container (for warm starts).
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details("Method not implemented!")
-        raise NotImplementedError("Method not implemented!")
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
 
     def ListContainers(self, request, context):
-        """Get state of all managed containers (Phase 3: Janitor)."""
+        """Get state of all managed containers (Phase 3: Janitor).
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details("Method not implemented!")
-        raise NotImplementedError("Method not implemented!")
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
 
     def GetContainerMetrics(self, request, context):
-        """コンテナのメトリクスを取得"""
+        """コンテナのメトリクスを取得
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details("Method not implemented!")
-        raise NotImplementedError("Method not implemented!")
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
 
     def InvokeWorker(self, request, context):
-        """L7 invoke proxy (Gateway -> Agent -> Worker)."""
+        """L7 invoke proxy (Gateway -> Agent -> Worker).
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details("Method not implemented!")
-        raise NotImplementedError("Method not implemented!")
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
 
 
 def add_AgentServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-        "EnsureContainer": grpc.unary_unary_rpc_method_handler(
-            servicer.EnsureContainer,
-            request_deserializer=agent__pb2.EnsureContainerRequest.FromString,
-            response_serializer=agent__pb2.WorkerInfo.SerializeToString,
-        ),
-        "DestroyContainer": grpc.unary_unary_rpc_method_handler(
-            servicer.DestroyContainer,
-            request_deserializer=agent__pb2.DestroyContainerRequest.FromString,
-            response_serializer=agent__pb2.DestroyContainerResponse.SerializeToString,
-        ),
-        "PauseContainer": grpc.unary_unary_rpc_method_handler(
-            servicer.PauseContainer,
-            request_deserializer=agent__pb2.PauseContainerRequest.FromString,
-            response_serializer=agent__pb2.PauseContainerResponse.SerializeToString,
-        ),
-        "ResumeContainer": grpc.unary_unary_rpc_method_handler(
-            servicer.ResumeContainer,
-            request_deserializer=agent__pb2.ResumeContainerRequest.FromString,
-            response_serializer=agent__pb2.ResumeContainerResponse.SerializeToString,
-        ),
-        "ListContainers": grpc.unary_unary_rpc_method_handler(
-            servicer.ListContainers,
-            request_deserializer=agent__pb2.ListContainersRequest.FromString,
-            response_serializer=agent__pb2.ListContainersResponse.SerializeToString,
-        ),
-        "GetContainerMetrics": grpc.unary_unary_rpc_method_handler(
-            servicer.GetContainerMetrics,
-            request_deserializer=agent__pb2.GetContainerMetricsRequest.FromString,
-            response_serializer=agent__pb2.GetContainerMetricsResponse.SerializeToString,
-        ),
-        "InvokeWorker": grpc.unary_unary_rpc_method_handler(
-            servicer.InvokeWorker,
-            request_deserializer=agent__pb2.InvokeWorkerRequest.FromString,
-            response_serializer=agent__pb2.InvokeWorkerResponse.SerializeToString,
-        ),
+            'EnsureContainer': grpc.unary_unary_rpc_method_handler(
+                    servicer.EnsureContainer,
+                    request_deserializer=agent__pb2.EnsureContainerRequest.FromString,
+                    response_serializer=agent__pb2.WorkerInfo.SerializeToString,
+            ),
+            'DestroyContainer': grpc.unary_unary_rpc_method_handler(
+                    servicer.DestroyContainer,
+                    request_deserializer=agent__pb2.DestroyContainerRequest.FromString,
+                    response_serializer=agent__pb2.DestroyContainerResponse.SerializeToString,
+            ),
+            'PauseContainer': grpc.unary_unary_rpc_method_handler(
+                    servicer.PauseContainer,
+                    request_deserializer=agent__pb2.PauseContainerRequest.FromString,
+                    response_serializer=agent__pb2.PauseContainerResponse.SerializeToString,
+            ),
+            'ResumeContainer': grpc.unary_unary_rpc_method_handler(
+                    servicer.ResumeContainer,
+                    request_deserializer=agent__pb2.ResumeContainerRequest.FromString,
+                    response_serializer=agent__pb2.ResumeContainerResponse.SerializeToString,
+            ),
+            'ListContainers': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListContainers,
+                    request_deserializer=agent__pb2.ListContainersRequest.FromString,
+                    response_serializer=agent__pb2.ListContainersResponse.SerializeToString,
+            ),
+            'GetContainerMetrics': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetContainerMetrics,
+                    request_deserializer=agent__pb2.GetContainerMetricsRequest.FromString,
+                    response_serializer=agent__pb2.GetContainerMetricsResponse.SerializeToString,
+            ),
+            'InvokeWorker': grpc.unary_unary_rpc_method_handler(
+                    servicer.InvokeWorker,
+                    request_deserializer=agent__pb2.InvokeWorkerRequest.FromString,
+                    response_serializer=agent__pb2.InvokeWorkerResponse.SerializeToString,
+            ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-        "esb.agent.v1.AgentService", rpc_method_handlers
-    )
+            'esb.agent.v1.AgentService', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers("esb.agent.v1.AgentService", rpc_method_handlers)
+    server.add_registered_method_handlers('esb.agent.v1.AgentService', rpc_method_handlers)
 
 
-# This class is part of an EXPERIMENTAL API.
+ # This class is part of an EXPERIMENTAL API.
 class AgentService(object):
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
-    def EnsureContainer(
-        request,
-        target,
-        options=(),
-        channel_credentials=None,
-        call_credentials=None,
-        insecure=False,
-        compression=None,
-        wait_for_ready=None,
-        timeout=None,
-        metadata=None,
-    ):
+    def EnsureContainer(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
         return grpc.experimental.unary_unary(
             request,
             target,
-            "/esb.agent.v1.AgentService/EnsureContainer",
+            '/esb.agent.v1.AgentService/EnsureContainer',
             agent__pb2.EnsureContainerRequest.SerializeToString,
             agent__pb2.WorkerInfo.FromString,
             options,
@@ -201,26 +197,23 @@ class AgentService(object):
             wait_for_ready,
             timeout,
             metadata,
-            _registered_method=True,
-        )
+            _registered_method=True)
 
     @staticmethod
-    def DestroyContainer(
-        request,
-        target,
-        options=(),
-        channel_credentials=None,
-        call_credentials=None,
-        insecure=False,
-        compression=None,
-        wait_for_ready=None,
-        timeout=None,
-        metadata=None,
-    ):
+    def DestroyContainer(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
         return grpc.experimental.unary_unary(
             request,
             target,
-            "/esb.agent.v1.AgentService/DestroyContainer",
+            '/esb.agent.v1.AgentService/DestroyContainer',
             agent__pb2.DestroyContainerRequest.SerializeToString,
             agent__pb2.DestroyContainerResponse.FromString,
             options,
@@ -231,26 +224,23 @@ class AgentService(object):
             wait_for_ready,
             timeout,
             metadata,
-            _registered_method=True,
-        )
+            _registered_method=True)
 
     @staticmethod
-    def PauseContainer(
-        request,
-        target,
-        options=(),
-        channel_credentials=None,
-        call_credentials=None,
-        insecure=False,
-        compression=None,
-        wait_for_ready=None,
-        timeout=None,
-        metadata=None,
-    ):
+    def PauseContainer(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
         return grpc.experimental.unary_unary(
             request,
             target,
-            "/esb.agent.v1.AgentService/PauseContainer",
+            '/esb.agent.v1.AgentService/PauseContainer',
             agent__pb2.PauseContainerRequest.SerializeToString,
             agent__pb2.PauseContainerResponse.FromString,
             options,
@@ -261,26 +251,23 @@ class AgentService(object):
             wait_for_ready,
             timeout,
             metadata,
-            _registered_method=True,
-        )
+            _registered_method=True)
 
     @staticmethod
-    def ResumeContainer(
-        request,
-        target,
-        options=(),
-        channel_credentials=None,
-        call_credentials=None,
-        insecure=False,
-        compression=None,
-        wait_for_ready=None,
-        timeout=None,
-        metadata=None,
-    ):
+    def ResumeContainer(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
         return grpc.experimental.unary_unary(
             request,
             target,
-            "/esb.agent.v1.AgentService/ResumeContainer",
+            '/esb.agent.v1.AgentService/ResumeContainer',
             agent__pb2.ResumeContainerRequest.SerializeToString,
             agent__pb2.ResumeContainerResponse.FromString,
             options,
@@ -291,26 +278,23 @@ class AgentService(object):
             wait_for_ready,
             timeout,
             metadata,
-            _registered_method=True,
-        )
+            _registered_method=True)
 
     @staticmethod
-    def ListContainers(
-        request,
-        target,
-        options=(),
-        channel_credentials=None,
-        call_credentials=None,
-        insecure=False,
-        compression=None,
-        wait_for_ready=None,
-        timeout=None,
-        metadata=None,
-    ):
+    def ListContainers(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
         return grpc.experimental.unary_unary(
             request,
             target,
-            "/esb.agent.v1.AgentService/ListContainers",
+            '/esb.agent.v1.AgentService/ListContainers',
             agent__pb2.ListContainersRequest.SerializeToString,
             agent__pb2.ListContainersResponse.FromString,
             options,
@@ -321,26 +305,23 @@ class AgentService(object):
             wait_for_ready,
             timeout,
             metadata,
-            _registered_method=True,
-        )
+            _registered_method=True)
 
     @staticmethod
-    def GetContainerMetrics(
-        request,
-        target,
-        options=(),
-        channel_credentials=None,
-        call_credentials=None,
-        insecure=False,
-        compression=None,
-        wait_for_ready=None,
-        timeout=None,
-        metadata=None,
-    ):
+    def GetContainerMetrics(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
         return grpc.experimental.unary_unary(
             request,
             target,
-            "/esb.agent.v1.AgentService/GetContainerMetrics",
+            '/esb.agent.v1.AgentService/GetContainerMetrics',
             agent__pb2.GetContainerMetricsRequest.SerializeToString,
             agent__pb2.GetContainerMetricsResponse.FromString,
             options,
@@ -351,26 +332,23 @@ class AgentService(object):
             wait_for_ready,
             timeout,
             metadata,
-            _registered_method=True,
-        )
+            _registered_method=True)
 
     @staticmethod
-    def InvokeWorker(
-        request,
-        target,
-        options=(),
-        channel_credentials=None,
-        call_credentials=None,
-        insecure=False,
-        compression=None,
-        wait_for_ready=None,
-        timeout=None,
-        metadata=None,
-    ):
+    def InvokeWorker(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
         return grpc.experimental.unary_unary(
             request,
             target,
-            "/esb.agent.v1.AgentService/InvokeWorker",
+            '/esb.agent.v1.AgentService/InvokeWorker',
             agent__pb2.InvokeWorkerRequest.SerializeToString,
             agent__pb2.InvokeWorkerResponse.FromString,
             options,
@@ -381,5 +359,4 @@ class AgentService(object):
             wait_for_ready,
             timeout,
             metadata,
-            _registered_method=True,
-        )
+            _registered_method=True)

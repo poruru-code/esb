@@ -10,6 +10,10 @@ services:
       - external_network
     environment:
       - AGENT_RUNTIME=docker
+      - AGENT_GRPC_TLS_ENABLED=1
+      - AGENT_GRPC_CERT_PATH=/app/config/ssl/server.crt
+      - AGENT_GRPC_KEY_PATH=/app/config/ssl/server.key
+      - AGENT_GRPC_CA_CERT_PATH=/app/config/ssl/rootCA.crt
       - CONTAINERS_NETWORK=${NETWORK_EXTERNAL:-${PROJECT_NAME:-undefined}-external}
       - ENV
       - HTTP_PROXY
@@ -35,6 +39,10 @@ services:
     environment:
       # Connect to Agent Directly
       - AGENT_GRPC_ADDRESS=agent:50051
+      - AGENT_GRPC_TLS_ENABLED=1
+      - AGENT_GRPC_TLS_CA_CERT_PATH=/app/config/ssl/rootCA.crt
+      - AGENT_GRPC_TLS_CERT_PATH=/app/config/ssl/client.crt
+      - AGENT_GRPC_TLS_KEY_PATH=/app/config/ssl/client.key
       - GATEWAY_INTERNAL_URL=https://gateway:8443
       # Docker Mode Endpoints (Explicit DNS)
       - S3_ENDPOINT=http://s3-storage:9000

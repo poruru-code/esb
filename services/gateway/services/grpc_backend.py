@@ -2,8 +2,10 @@ import logging
 from typing import List, Optional
 
 import grpc
+import grpc.aio as grpc_aio
 
 from services.common.models.internal import WorkerInfo
+from services.gateway.config import GatewayConfig
 from services.gateway.core.concurrency import ConcurrencyManager
 from services.gateway.core.exceptions import (
     ContainerStartError,
@@ -12,6 +14,7 @@ from services.gateway.core.exceptions import (
 )
 from services.gateway.pb import agent_pb2, agent_pb2_grpc
 from services.gateway.services.function_registry import FunctionRegistry
+from services.gateway.services.grpc_channel import create_agent_channel
 from services.gateway.services.lambda_invoker import WorkerState
 
 logger = logging.getLogger(__name__)
@@ -23,8 +26,12 @@ class GrpcBackend:
         agent_address: str,
         function_registry: Optional[FunctionRegistry] = None,
         concurrency_manager: Optional[ConcurrencyManager] = None,
+        config: Optional[GatewayConfig] = None,
     ):
-        self.channel = grpc.aio.insecure_channel(agent_address)  # type: ignore[possibly-missing-attribute]
+        if config:
+            self.channel = create_agent_channel(agent_address, config)
+        else:
+            self.channel = grpc_aio.insecure_channel(agent_address)
         self.stub = agent_pb2_grpc.AgentServiceStub(self.channel)
         self.function_registry = function_registry
         self.concurrency_manager = concurrency_manager
