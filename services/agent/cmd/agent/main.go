@@ -21,6 +21,7 @@ import (
 	"github.com/poruru/edge-serverless-box/meta"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/api"
 	cni_gen "github.com/poruru/edge-serverless-box/services/agent/internal/cni"
+	"github.com/poruru/edge-serverless-box/services/agent/internal/config"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/interceptor"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/logger"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
@@ -46,21 +47,21 @@ func main() {
 	// Configuration
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "50051"
+		port = config.DefaultPort
 	}
 
 	// Network Configuration
 	networkID := os.Getenv("CONTAINERS_NETWORK")
 	if networkID == "" {
-		networkID = "bridge"
-		slog.Warn("CONTAINERS_NETWORK not specified, defaulting to 'bridge'")
+		networkID = config.DefaultNetwork
+		slog.Warn("CONTAINERS_NETWORK not specified, defaulting", "network", networkID)
 	}
 	slog.Info("Target Network", "network", networkID)
 
 	// Phase 7: Environment Isolation
 	esbEnv := os.Getenv(meta.EnvVarEnv)
 	if esbEnv == "" {
-		esbEnv = "default"
+		esbEnv = config.DefaultEnv
 	}
 	slog.Info("ESB Environment", "env", esbEnv)
 
@@ -68,14 +69,22 @@ func main() {
 	var rt runtime.ContainerRuntime
 
 	runtimeType := os.Getenv("AGENT_RUNTIME")
+	if runtimeType == "" {
+		runtimeType = config.DefaultRuntime
+	}
+
 	if runtimeType == "containerd" {
 		slog.Info("Initializing containerd Runtime...")
 
 		// 1. Initialize containerd client
 		// Assumes /run/containerd/containerd.sock is mounted
-		c, err := containerd.New("/run/containerd/containerd.sock")
+		containerdSocket := os.Getenv("CONTAINERD_SOCKET")
+		if containerdSocket == "" {
+			containerdSocket = config.DefaultContainerdSocket
+		}
+		c, err := containerd.New(containerdSocket)
 		if err != nil {
-			slog.Error("Failed to create containerd client", "error", err)
+			slog.Error("Failed to create containerd client", "socket", containerdSocket, "error", err)
 			os.Exit(1)
 		}
 
@@ -83,7 +92,7 @@ func main() {
 
 		cniConfDir := os.Getenv("CNI_CONF_DIR")
 		if cniConfDir == "" {
-			cniConfDir = "/etc/cni/net.d"
+			cniConfDir = config.DefaultCNIConfDir
 		}
 
 		cniSubnet := strings.TrimSpace(os.Getenv("CNI_SUBNET"))
@@ -100,7 +109,7 @@ func main() {
 
 		cniBinDir := os.Getenv("CNI_BIN_DIR")
 		if cniBinDir == "" {
-			cniBinDir = "/opt/cni/bin"
+			cniBinDir = config.DefaultCNIBinDir
 		}
 
 		cniPlugin, err := cni.New(
@@ -164,7 +173,11 @@ func main() {
 		slog.Error("Failed to initialize gRPC server options", "error", err)
 		os.Exit(1)
 	}
-	if os.Getenv("AGENT_GRPC_TLS_DISABLED") == "1" {
+	grpcTLSDisabled := os.Getenv("AGENT_GRPC_TLS_DISABLED")
+	if grpcTLSDisabled == "" {
+		grpcTLSDisabled = config.DefaultGRPCTLSDisabled
+	}
+	if grpcTLSDisabled == "1" {
 		slog.Warn("gRPC TLS is explicitly disabled (AGENT_GRPC_TLS_DISABLED=1). Use only in trusted networks.")
 	} else {
 		slog.Info("gRPC TLS is enabled by default.")
@@ -200,12 +213,12 @@ func main() {
 	// Start Prometheus metrics server
 	metricsPort := os.Getenv("AGENT_METRICS_PORT")
 	if metricsPort == "" {
-		metricsPort = "9091" // Default port (avoid 9090 which is Prometheus default)
+		metricsPort = config.DefaultMetricsPort
 	}
 	metricsServer := &http.Server{
 		Addr:              ":" + metricsPort,
 		Handler:           promhttp.Handler(),
-		ReadHeaderTimeout: 5 * time.Second, // Slowloris attack protection
+		ReadHeaderTimeout: config.DefaultMetricsReadHeaderTimeout,
 	}
 	go func() {
 		slog.Info("Starting Prometheus metrics server", "port", metricsPort)
@@ -245,21 +258,29 @@ func main() {
 }
 
 func isReflectionEnabled() bool {
-	return os.Getenv("AGENT_GRPC_REFLECTION") == "1"
+	val := os.Getenv("AGENT_GRPC_REFLECTION")
+	if val == "" {
+		val = config.DefaultGRPCReflection
+	}
+	return val == "1"
 }
 
 func grpcServerOptions() ([]grpc.ServerOption, error) {
-	if os.Getenv("AGENT_GRPC_TLS_DISABLED") == "1" {
+	grpcTLSDisabled := os.Getenv("AGENT_GRPC_TLS_DISABLED")
+	if grpcTLSDisabled == "" {
+		grpcTLSDisabled = config.DefaultGRPCTLSDisabled
+	}
+	if grpcTLSDisabled == "1" {
 		return nil, nil
 	}
 
 	certPath := strings.TrimSpace(os.Getenv("AGENT_GRPC_CERT_PATH"))
 	if certPath == "" {
-		certPath = "/app/config/ssl/server.crt"
+		certPath = config.DefaultCertPath
 	}
 	keyPath := strings.TrimSpace(os.Getenv("AGENT_GRPC_KEY_PATH"))
 	if keyPath == "" {
-		keyPath = "/app/config/ssl/server.key"
+		keyPath = config.DefaultKeyPath
 	}
 	caPath := strings.TrimSpace(os.Getenv("AGENT_GRPC_CA_CERT_PATH"))
 	if caPath == "" {

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/containerd/containerd/errdefs"
+	"github.com/poruru/edge-serverless-box/services/agent/internal/config"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
 	pb "github.com/poruru/edge-serverless-box/services/agent/pkg/api/v1"
 	"google.golang.org/grpc/codes"
@@ -27,7 +28,7 @@ type AgentServer struct {
 }
 
 func NewAgentServer(rt runtime.ContainerRuntime) *AgentServer {
-	maxSize := int64(10 * 1024 * 1024) // Default 10MB
+	maxSize := int64(config.DefaultMaxResponseSize)
 	if envVal := os.Getenv("AGENT_INVOKE_MAX_RESPONSE_SIZE"); envVal != "" {
 		if val, err := strconv.ParseInt(envVal, 10, 64); err == nil && val > 0 {
 			maxSize = val

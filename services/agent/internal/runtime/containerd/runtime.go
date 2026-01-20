@@ -32,15 +32,13 @@ import (
 	"github.com/containerd/typeurl/v2"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/poruru/edge-serverless-box/meta"
+	"github.com/poruru/edge-serverless-box/services/agent/internal/config"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
 )
 
 const (
-	runtimeFirecracker   = "aws.firecracker"
-	snapshotterOverlay   = "overlayfs"
-	snapshotterDevmapper = "devmapper"
-	defaultCNIDNSServer  = "10.88.0.1"
-	resolvConfMountPath  = "/run/containerd/esb/resolv.conf"
+	runtimeFirecracker  = "aws.firecracker"
+	resolvConfMountPath = "/run/containerd/esb/resolv.conf"
 )
 
 type Runtime struct {
@@ -68,9 +66,9 @@ func resolveSnapshotter() string {
 	}
 	runtimeName := strings.TrimSpace(os.Getenv("CONTAINERD_RUNTIME"))
 	if runtimeName == runtimeFirecracker {
-		return snapshotterDevmapper
+		return config.DefaultSnapshotterDevmapper
 	}
-	return snapshotterOverlay
+	return config.DefaultSnapshotterOverlay
 }
 
 func resolveCNIDNSServer() string {
@@ -80,14 +78,14 @@ func resolveCNIDNSServer() string {
 	if value := strings.TrimSpace(os.Getenv("CNI_GW_IP")); value != "" {
 		return value
 	}
-	return defaultCNIDNSServer
+	return config.DefaultCNIDNSServer
 }
 
 func resolveCNINetDir() string {
 	if value := strings.TrimSpace(os.Getenv("CNI_NET_DIR")); value != "" {
 		return value
 	}
-	return "/var/lib/cni/networks"
+	return "/var/lib/cni/networks" // Standard CNI path, no constant for this as it's not esb-specific
 }
 
 func (r *Runtime) resolveCNINetworkName() string {
@@ -247,6 +245,9 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 	if image == "" {
 		// Phase 5 Step 0: Support container registry
 		registry := os.Getenv("CONTAINER_REGISTRY")
+		if registry == "" {
+			registry = config.DefaultContainerRegistry
+		}
 		if registry != "" {
 			image = fmt.Sprintf("%s/%s:latest", registry, req.FunctionName)
 		} else {

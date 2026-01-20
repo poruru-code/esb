@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+
+	"github.com/poruru/edge-serverless-box/services/agent/internal/config"
 )
 
 var defaultLogger *slog.Logger
@@ -18,7 +20,11 @@ func Init() {
 		levelStr = os.Getenv("LOG_LEVEL")
 	}
 	level := parseLevel(levelStr)
-	format := strings.ToLower(os.Getenv("AGENT_LOG_FORMAT"))
+	formatStr := os.Getenv("AGENT_LOG_FORMAT")
+	if formatStr == "" {
+		formatStr = config.DefaultLogFormat
+	}
+	format := strings.ToLower(formatStr)
 
 	opts := &slog.HandlerOptions{Level: level}
 
@@ -42,6 +48,9 @@ func parseLevel(s string) slog.Level {
 	case "error":
 		return slog.LevelError
 	default:
+		if s == "" {
+			return parseLevel(config.DefaultLogLevel)
+		}
 		return slog.LevelInfo
 	}
 }

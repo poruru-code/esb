@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/meta"
+	"github.com/poruru/edge-serverless-box/services/agent/internal/config"
 )
 
 type Plugin struct {
@@ -53,7 +54,7 @@ type Config struct {
 // GenerateConfig generates a CNI configuration file based on the provided subnet.
 // If subnet is empty, it uses the default configuration.
 func GenerateConfig(configDir, subnet string) error {
-	const defaultSubnet = "10.88.0.0/16"
+	defaultSubnet := config.DefaultCNISubnet
 	ipam := &IPAMConfig{
 		Type:   "host-local",
 		Subnet: defaultSubnet,
@@ -116,7 +117,7 @@ func GenerateConfig(configDir, subnet string) error {
 }
 
 func resolveDNSServer() string {
-	const defaultServer = "10.88.0.1"
+	defaultServer := config.DefaultCNIDNSServer
 	if value := strings.TrimSpace(os.Getenv("CNI_DNS_SERVER")); value != "" {
 		return value
 	}

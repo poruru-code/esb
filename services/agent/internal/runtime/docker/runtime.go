@@ -17,6 +17,7 @@ import (
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/go-connections/nat"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/poruru/edge-serverless-box/services/agent/internal/config"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -58,6 +59,9 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 	if imageName == "" {
 		// Phase 5 Step 0: Support container registry
 		registry := os.Getenv("CONTAINER_REGISTRY")
+		if registry == "" {
+			registry = config.DefaultContainerRegistry
+		}
 		if registry != "" {
 			imageName = fmt.Sprintf("%s/%s:latest", registry, req.FunctionName)
 		} else {
@@ -73,6 +77,9 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 
 	// Phase 5 Step 0: Pull image from registry if set
 	registry := os.Getenv("CONTAINER_REGISTRY")
+	if registry == "" {
+		registry = config.DefaultContainerRegistry
+	}
 	if registry != "" {
 		fmt.Printf("[Agent] Pulling image %s...\n", imageName)
 		pullReader, err := r.client.ImagePull(ctx, imageName, image.PullOptions{})

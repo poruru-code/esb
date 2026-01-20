@@ -1,8 +1,3 @@
-<!--
-Where: docs/downstream-branding-flow.md
-What: Pointer to downstream branding flow in tool repo.
-Why: Keep downstream operations documented where the tool lives.
--->
 # 下流リポジトリ運用フロー（移管）
 
 下流のブランディング手順は `esb-branding-tool` に統合しました。  

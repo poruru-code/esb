@@ -1,8 +1,3 @@
-<!--
-Where: docs/environment-variables.md
-What: Environment variable reference and propagation flow.
-Why: Trace how configuration moves from Host -> Compose -> Services -> Lambda Workers.
--->
 # 環境変数と構成の伝播 (Variable Propagation)
 
 ## 概要
