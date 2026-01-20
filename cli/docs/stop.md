@@ -19,7 +19,7 @@ esb stop [flags]
 
 ## 実装詳細
 
-CLIアダプタは `cli/internal/app/stop.go`、オーケストレーションは `cli/internal/workflows/stop.go` が担当します。
+CLIアダプタは `cli/internal/commands/stop.go`、オーケストレーションは `cli/internal/workflows/stop.go` が担当します。
 
 ### `down` との違い
 

@@ -22,6 +22,9 @@ Scope: introduce `workflows` + `ports` for `build`/`up` without behavior changes
 
 ```
 cli/internal/
+  commands/
+  helpers/
+  wire/
   workflows/
     build.go
     up.go
@@ -34,7 +37,8 @@ cli/internal/
     ui.go
 ```
 
-- `cli/internal/app`: remains CLI adapter and command dispatch for now.
+- `cli/internal/commands`: CLI adapter and command dispatch.
+- `cli/internal/helpers`: shared adapters and utilities for runtime env, ports, and credentials.
 - `cli/internal/workflows`: orchestration and policy (no prompts).
 - `cli/internal/ports`: small interfaces and request/result DTOs.
 

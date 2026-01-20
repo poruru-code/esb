@@ -4,13 +4,14 @@
 
 ## コンポーネント概要
 
-- `cli/cmd/esb`: `kong` ベースの CLI エントリポイント。`app.Run` を呼び出して依存 (`Dependencies`) を注入し、`build`/`up`/`down`/`logs`/`stop`/`prune`/`env`/`project` などのコマンドを実行します。
-- `cli/internal/app`: CLI アダプタ。`resolveCommandContext` による状態解決、対話型プロンプト、`.env` の読み込みなどを担い、`workflows` へ DTO を渡します。依存は `Dependencies` のコマンド別構造体で注入します。
+- `cli/cmd/esb`: `kong` ベースの CLI エントリポイント。`commands.Run` を呼び出して依存 (`Dependencies`) を注入し、`build`/`up`/`down`/`logs`/`stop`/`prune`/`env`/`project` などのコマンドを実行します。
+- `cli/internal/commands`: CLI アダプタ。`resolveCommandContext` による状態解決、対話型プロンプト、`.env` の読み込みなどを担い、`workflows` へ DTO を渡します。依存は `Dependencies` のコマンド別構造体で注入します。
+- `cli/internal/helpers`: `RuntimeEnvApplier` や `CredentialManager` などの共通アダプタを提供します。
 - `cli/internal/ports`: ワークフローが使うインタフェース群（Builder/Upper/Provisioner/RuntimeEnvApplier/UserInterface/DetectorFactory など）。
 - `cli/internal/workflows`: ビジネスロジックのオーケストレーション（`build`/`up`/`down`/`logs`/`stop`/`prune`/`env`/`project` を移行済み）。
 - `cli/internal/generator`: Parser/Renderer で `template.yaml` を `functions.yml`/`routing.yml`・Dockerfile に変換し、`go_builder` で Docker イメージや Compose 設定まで進みます。
 - `cli/internal/compose`: `docker compose` を呼び出すユーティリティで、`ResolveComposeFiles` により `docker-compose.yml` + mode 固有ファイルを選びます。
-- `cli/internal/state`: `generator.yml` や `global_config` を読み込んで `Context` を管理します。`applyRuntimeEnv` により、解決されたコンテキストに基づいた `ESB_` 環境変数の適用を一元的に行います。
+- `cli/internal/state`: `generator.yml` や `global_config` を読み込んで `Context` を管理します。`ESB_` 環境変数の適用は `cli/internal/helpers` の `RuntimeEnvApplier` が担います。
 
 ## クラス図
 
@@ -19,7 +20,7 @@ classDiagram
     class CLI {
         +Run
     }
-    class App {
+    class Commands {
         +runBuild/runUp (adapter)
         +runDown (legacy)
     }
@@ -46,8 +47,8 @@ classDiagram
         +Logs
     }
     class State
-    CLI --> App
-    App --> Workflows
+    CLI --> Commands
+    Commands --> Workflows
     Workflows --> Ports
     Ports --> Generator
     Ports --> Compose
@@ -88,7 +89,7 @@ flowchart TD
 1. Bootstrap: `~/.esb/config.yaml` を確実に作成 (`projects` + `last_used` を保持)。
 2. Project 選択: `--template` > `ESB_PROJECT` > `projects.last_used`。複数ある場合は対話型セレクタを表示。
 3. Env 選択: `--env` > `ESB_ENV` > `app.last_env`。複数ある場合は対話型セレクタを表示。
-4. Detector: `resolveCommandContext` で `Context` を解決し、`applyRuntimeEnv` で環境変数を適用後、各コマンドへ連携。
+4. Detector: `resolveCommandContext` で `Context` を解決し、`RuntimeEnvApplier` で環境変数を適用後、各コマンドへ連携。
 
 `esb project use` は `projects[*].last_used` を更新し、`esb env use` は `app.last_env` と `projects[*].last_used` を更新します。`export` 行は stdout、メッセージは stderr に出力されます。
 
@@ -120,6 +121,6 @@ stateDiagram-v2
     EnvSelected --> EnvSelected: esb env use (switch)
 ```
 
-Detector レイヤは `cli/internal/app/command_context.go` を起点に `resolveCommandContext` が解決し、Compose 操作へ引き継ぎます。
+Detector レイヤは `cli/internal/commands/command_context.go` を起点に `resolveCommandContext` が解決し、Compose 操作へ引き継ぎます。
 
 このドキュメントは `esb` CLI の開発者向けに、クラス図・処理フロー・スキーマ更新手順をまとめたものです。常に `cli/internal/generator`、`cli/internal/compose`、`cli/internal/state` が同期していることを意識して変更を加えてください。

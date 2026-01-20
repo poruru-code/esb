@@ -20,7 +20,7 @@ esb down [flags]
 
 ## 実装詳細
 
-CLIアダプタは `cli/internal/app/down.go`、オーケストレーションは `cli/internal/workflows/down.go` が担当します。
+CLIアダプタは `cli/internal/commands/down.go`、オーケストレーションは `cli/internal/workflows/down.go` が担当します。
 
 ### ロジックフロー
 

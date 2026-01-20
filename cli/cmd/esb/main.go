@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/app"
+	"github.com/poruru/edge-serverless-box/cli/internal/commands"
 	"github.com/poruru/edge-serverless-box/cli/internal/wire"
 )
 
@@ -23,5 +23,5 @@ func main() {
 		defer closer.Close()
 	}
 
-	os.Exit(app.Run(os.Args[1:], deps))
+	os.Exit(commands.Run(os.Args[1:], deps))
 }

@@ -7,10 +7,11 @@ import (
 	"io"
 	"os"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/app"
+	"github.com/poruru/edge-serverless-box/cli/internal/commands"
 	"github.com/poruru/edge-serverless-box/cli/internal/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/generator"
+	"github.com/poruru/edge-serverless-box/cli/internal/helpers"
 	"github.com/poruru/edge-serverless-box/cli/internal/provisioner"
 )
 
@@ -25,48 +26,48 @@ var (
 
 // BuildDependencies constructs CLI dependencies. It returns the dependencies
 // bundle, a closer for cleanup, and any initialization error.
-func BuildDependencies() (app.Dependencies, io.Closer, error) {
+func BuildDependencies() (commands.Dependencies, io.Closer, error) {
 	projectDir, err := Getwd()
 	if err != nil {
-		return app.Dependencies{}, nil, err
+		return commands.Dependencies{}, nil, err
 	}
 
 	client, err := NewDockerClient()
 	if err != nil {
-		return app.Dependencies{}, nil, err
+		return commands.Dependencies{}, nil, err
 	}
 
-	portDiscoverer := app.NewPortDiscoverer()
+	portDiscoverer := helpers.NewPortDiscoverer()
 	builder := generator.NewGoBuilder(portDiscoverer)
-	deps := app.Dependencies{
+	deps := commands.Dependencies{
 		ProjectDir:      projectDir,
 		Out:             Stdout,
-		DetectorFactory: app.NewDetectorFactory(client, warnf),
-		Prompter:        app.HuhPrompter{},
+		DetectorFactory: helpers.NewDetectorFactory(client, warnf),
+		Prompter:        commands.HuhPrompter{},
 		RepoResolver:    config.ResolveRepoRoot,
-		Build: app.BuildDeps{
+		Build: commands.BuildDeps{
 			Builder: builder,
 		},
-		Up: app.UpDeps{
+		Up: commands.UpDeps{
 			Builder:        builder,
-			Upper:          app.NewUpper(config.ResolveRepoRoot),
-			Downer:         app.NewDowner(client),
+			Upper:          helpers.NewUpper(config.ResolveRepoRoot),
+			Downer:         helpers.NewDowner(client),
 			PortDiscoverer: portDiscoverer,
-			Waiter:         app.NewGatewayWaiter(),
+			Waiter:         helpers.NewGatewayWaiter(),
 			Provisioner:    provisioner.New(client),
 			Parser:         generator.DefaultParser{},
 		},
-		Down: app.DownDeps{
-			Downer: app.NewDowner(client),
+		Down: commands.DownDeps{
+			Downer: helpers.NewDowner(client),
 		},
-		Logs: app.LogsDeps{
-			Logger: app.NewLogger(client, config.ResolveRepoRoot),
+		Logs: commands.LogsDeps{
+			Logger: helpers.NewLogger(client, config.ResolveRepoRoot),
 		},
-		Stop: app.StopDeps{
-			Stopper: app.NewStopper(config.ResolveRepoRoot),
+		Stop: commands.StopDeps{
+			Stopper: helpers.NewStopper(config.ResolveRepoRoot),
 		},
-		Prune: app.PruneDeps{
-			Pruner: app.NewPruner(client),
+		Prune: commands.PruneDeps{
+			Pruner: helpers.NewPruner(client),
 		},
 	}
 

@@ -20,7 +20,7 @@ esb completion [shell]
 
 ## 実装詳細
 
-コマンドのロジックは `cli/internal/app/completion.go` に実装されています。
+コマンドのロジックは `cli/internal/commands/completion.go` に実装されています。
 
 ### 動的補完ロジック
 

@@ -25,7 +25,7 @@ esb up [flags]
 
 ## 実装詳細
 
-CLIアダプタは `cli/internal/app/up.go`、オーケストレーションは `cli/internal/workflows/up.go` が担当します。ワークフローは `Upper`, `Builder`, `Downer`, `Provisioner`, `PortPublisher`, `CredentialManager`, `TemplateLoader/Parser`, `GatewayWaiter`, `RuntimeEnvApplier` などの `ports` を通じて実行されます。
+CLIアダプタは `cli/internal/commands/up.go`、オーケストレーションは `cli/internal/workflows/up.go` が担当します。ワークフローは `Upper`, `Builder`, `Downer`, `Provisioner`, `PortPublisher`, `CredentialManager`, `TemplateLoader/Parser`, `GatewayWaiter`, `RuntimeEnvApplier` などの `ports` を通じて実行されます。
 
 ### ワークフローステップ
 

@@ -22,7 +22,7 @@ esb project [command] [flags]
 
 ## 実装詳細
 
-CLIアダプタは `cli/internal/app/project.go` にあり、プロンプトや初期化処理を担当します。プロジェクト一覧/切り替え/削除/登録のオーケストレーションは `cli/internal/workflows/project.go` に移行されています。プロジェクト選択の解決は `cli/internal/app/project_resolver.go` が担います。
+CLIアダプタは `cli/internal/commands/project.go` にあり、プロンプトや初期化処理を担当します。プロジェクト一覧/切り替え/削除/登録のオーケストレーションは `cli/internal/workflows/project.go` に移行されています。プロジェクト選択の解決は `cli/internal/commands/project_resolver.go` が担います。
 
 ### 主要コンポーネント
 

@@ -12,7 +12,7 @@ Stages 0-6 are archived in `docs/reports/cli_optionb_migration_plan_archive.md`.
   - Introduce command-level constructors (`NewUpCmd`, `NewBuildCmd`, etc.) and remove nil-checked direct `Dependencies` access.
   - Add a `internal/wire` initializer so main only calls a single builder function.
 - **P1: Boundary cleanup**
-  - Split `internal/app` into command handlers vs shared helpers (e.g., `internal/commands`, `internal/helpers`).
+  - Split command handlers vs shared helpers (e.g., `internal/commands`, `internal/helpers`).
   - Extract prompt handling into a dedicated interaction layer; keep workflows free of interactive logic.
   - Replace remaining `fmt.Fprintln` output with `UserInterface` calls to unify output paths.
   - Centralize config/FS reads before workflow execution to reduce per-command I/O.
@@ -29,8 +29,8 @@ Stages 0-6 are archived in `docs/reports/cli_optionb_migration_plan_archive.md`.
   - 受け入れ条件: `cli/cmd/esb/main.go` のワイヤリング記述が大幅に縮小; 依存追加時は `internal/wire` のみ更新。
   - 現状: `cli/internal/wire` に依存構築ロジックを移設し、`main` は `wire.BuildDependencies()` を呼ぶだけになった。
 
-- **Task 7.3 (P1): app 層の分割**
-  - 作業: `internal/app` を `internal/commands`（コマンドハンドラ）と `internal/helpers`（共通処理）に整理する。
+- **Task 7.3 (P1): commands/helpers 分割**
+  - 作業: `internal/commands`（コマンドハンドラ）と `internal/helpers`（共通処理）の境界を整理する。
   - 受け入れ条件: コマンドエントリが `internal/commands` に集約され、ヘルパーは `internal/helpers` からのみ参照される。
 
 - **Task 7.4 (P1): Prompt/Interaction 分離**
@@ -39,7 +39,7 @@ Stages 0-6 are archived in `docs/reports/cli_optionb_migration_plan_archive.md`.
 
 - **Task 7.5 (P1): 出力統一**
   - 作業: `fmt.Fprintln` の残存箇所を `UserInterface` 経由へ移行する。
-  - 受け入れ条件: `cli/internal/app` から `fmt.Fprintln` の直書きが消える; 出力が UI で一元化。
+  - 受け入れ条件: `cli/internal/commands` から `fmt.Fprintln` の直書きが消える; 出力が UI で一元化。
 
 - **Task 7.6 (P1): Config/FS 依存の前段化**
   - 作業: 設定読み込み/FS 解決を workflow 前段へ集約し、コマンド内 I/O を削減する。

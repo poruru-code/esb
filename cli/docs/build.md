@@ -22,7 +22,7 @@ esb build [flags]
 
 ## 実装詳細
 
-CLIアダプタは `cli/internal/app/build.go` にあり、オーケストレーションは `cli/internal/workflows/build.go` が担当します。実際のビルド処理は `cli/internal/generator/go_builder.go` (GoBuilder) に委譲されます。
+CLIアダプタは `cli/internal/commands/build.go` にあり、オーケストレーションは `cli/internal/workflows/build.go` が担当します。実際のビルド処理は `cli/internal/generator/go_builder.go` (GoBuilder) に委譲されます。
 
 ### 主要コンポーネント
 

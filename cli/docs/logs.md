@@ -28,7 +28,7 @@ esb logs [service] [flags]
 
 ## 実装詳細
 
-CLIアダプタは `cli/internal/app/logs.go`、オーケストレーションは `cli/internal/workflows/logs.go` が担当します。
+CLIアダプタは `cli/internal/commands/logs.go`、オーケストレーションは `cli/internal/workflows/logs.go` が担当します。
 
 ### 主要コンポーネント
 

@@ -12,13 +12,13 @@ Why: Provide strict, evidence-based judgment with alternatives in three passes.
 
 ## 未解消事項（具体）
 
-**P0 (高)**: `Dependencies` 分割後も nil チェック運用が残り、欠落依存が実行時まで露見; 型安全性が弱い (`cli/internal/app/app.go`, `cli/internal/app/deps_split.go`)
+**P0 (高)**: `Dependencies` 分割後も nil チェック運用が残り、欠落依存が実行時まで露見; 型安全性が弱い (`cli/internal/commands/app.go`, `cli/internal/commands/deps_split.go`)
 **P0 (高)**: 依存の手動ワイヤリングがエントリポイントに集中し、初期化変更のコストが高い (`cli/cmd/esb/cli.go`, `cli/cmd/esb/main.go`)
-**P1 (中)**: `internal/app` にコマンド/テスト/ヘルパーが混在し、責務境界が曖昧; 変更影響が広い (`cli/internal/app`)
-**P1 (中)**: プロンプト/対話分岐がコマンド処理内に残り、非対話実行がフラグ前提 (`cli/internal/app/command_context.go`, `cli/internal/app/project.go`, `cli/internal/app/env.go`)
-**P1 (中)**: 出力が `fmt` と UI helper で混在し、出力仕様や将来の JSON 化が不安定 (`cli/internal/app/*.go`, `cli/internal/ui`, `cli/internal/ports/ui.go`)
-**P1 (中)**: グローバル設定/FS 依存がコマンド内に散在し、テスト/差分導入が高コスト (`cli/internal/app/project.go`, `cli/internal/app/env.go`)
-**P2 (低)**: `DiscoverAndPersistPorts` がグローバル関数として残存し、DI を迂回する副作用点が存在 (`cli/internal/app/ports.go`, `cli/internal/app/port_publisher.go`)
+**P1 (中)**: `internal/commands` と `internal/helpers` の境界がまだ曖昧で、周辺ロジックがコマンド側に残存; 変更影響が広い (`cli/internal/commands`, `cli/internal/helpers`)
+**P1 (中)**: プロンプト/対話分岐がコマンド処理内に残り、非対話実行がフラグ前提 (`cli/internal/commands/command_context.go`, `cli/internal/commands/project.go`, `cli/internal/commands/env.go`)
+**P1 (中)**: 出力が `fmt` と UI helper で混在し、出力仕様や将来の JSON 化が不安定 (`cli/internal/commands/*.go`, `cli/internal/ui`, `cli/internal/ports/ui.go`)
+**P1 (中)**: グローバル設定/FS 依存がコマンド内に散在し、テスト/差分導入が高コスト (`cli/internal/commands/project.go`, `cli/internal/commands/env.go`)
+**P2 (低)**: `DiscoverAndPersistPorts` がグローバル関数として残存し、DI を迂回する副作用点が存在 (`cli/internal/helpers/ports.go`, `cli/internal/helpers/port_publisher.go`)
 **P2 (低)**: 起動時に Docker クライアント初期化が走る構造が維持され、軽量コマンドでも初期化コストが発生し得る (`cli/cmd/esb/main.go`, `cli/internal/compose/client.go`)
 **P3 (低)**: generator の構造が Python 由来である点は検証不足のまま; 実害の証拠は薄いが保守性リスクは残る (`cli/internal/generator/generate.go`, `cli/internal/generator/go_builder.go`)
 
@@ -35,9 +35,9 @@ Why: Provide strict, evidence-based judgment with alternatives in three passes.
   - 中期: モジュール単位の factory を導入し、コマンド単位の組み替えが可能な構成に整理
 
 **P1 (中)**
-- **`internal/app` の混在**
-  - 短期: コマンドハンドラとヘルパーをサブパッケージへ分割 (`internal/commands`, `internal/helpers`)
-  - 中期: command 層と workflow 層の依存方向を固定し、app 層を縮小
+- **commands/helpers の境界曖昧**
+  - 短期: コマンドハンドラと共通処理の境界を `internal/commands`/`internal/helpers` で再整理
+  - 中期: command 層と workflow 層の依存方向を固定し、コマンド層を縮小
 - **プロンプト/対話分岐の混在**
   - 短期: プロンプト処理を `interaction` に集約し、`command_context` から分離
   - 中期: 入力解決を workflow 前の DTO 組み立て専用に切り出し、非対話の仕様を明文化

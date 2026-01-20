@@ -16,7 +16,7 @@ esb info
 
 ## 実装詳細
 
-コマンドのロジックは `cli/internal/app/info.go` に実装されています。`DetectorFactory` から `StateDetector` を生成し、Docker/ファイルシステムを照会して状態を判定します。
+コマンドのロジックは `cli/internal/commands/info.go` に実装されています。`DetectorFactory` から `StateDetector` を生成し、Docker/ファイルシステムを照会して状態を判定します。
 
 ### 表示情報
 

@@ -160,8 +160,8 @@ stateDiagram-v2
 - ローカルDynamoDBテーブルおよびS3バケットの設定。
 - `aws-sdk-go-v2` を使用したローカルコンテナとの通信。
 
-### 3. Application Logic (`cli/internal/app`)
-各コマンド (`up`, `down`, `build`, `env`, `project` など) の入力解決・プロンプト処理を担うCLIアダプタです。実際のオーケストレーションは `cli/internal/workflows` に移り、外部依存は `cli/internal/ports` を介して呼び出します。
+### 3. Command Adapters (`cli/internal/commands`)
+各コマンド (`up`, `down`, `build`, `env`, `project` など) の入力解決・プロンプト処理を担うCLIアダプタです。実際のオーケストレーションは `cli/internal/workflows` に移り、外部依存は `cli/internal/ports` を介して呼び出します。共通処理は `cli/internal/helpers` に集約されています。
 
 ### 4. Workflows (`cli/internal/workflows`)
 コマンドの手順をオーケストレーションする層です。`build`/`up`/`down`/`logs`/`stop`/`prune`/`env`/`project` の各ワークフローが、DTOを受け取り `ports` を通じて外部依存を呼び出します。

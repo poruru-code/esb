@@ -5,7 +5,7 @@ Why: Establish precise boundaries for workflow/ports refactor.
 -->
 # CLI Option B - Phase 1 Dependency Inventory (Up/Build)
 
-Scope: `cli/internal/app/runBuild`, `cli/internal/app/runUp`, and shared context/env setup.
+Scope: `cli/internal/commands/runBuild`, `cli/internal/commands/runUp`, and shared context/env setup.
 
 ## Current Execution Flows
 

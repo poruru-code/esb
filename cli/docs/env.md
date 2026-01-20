@@ -22,7 +22,7 @@ esb env [command] [flags]
 
 ## 実装詳細
 
-CLIアダプタは `cli/internal/app/env.go` と `cli/internal/app/env_var.go` にあり、環境管理のオーケストレーションは `cli/internal/workflows/env.go` が担当します。`env var` は引き続きアダプタ側で実装されています。
+CLIアダプタは `cli/internal/commands/env.go` と `cli/internal/commands/env_var.go` にあり、環境管理のオーケストレーションは `cli/internal/workflows/env.go` が担当します。`env var` は引き続きアダプタ側で実装されています。
 
 ### 主要コンポーネント
 
