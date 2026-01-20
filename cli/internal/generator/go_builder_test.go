@@ -39,10 +39,11 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	}
 
 	repoRoot := projectDir
+	if err := os.MkdirAll(filepath.Join(repoRoot, "compose"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	writeComposeFiles(t, repoRoot,
-		"docker-compose.yml",
-		"docker-compose.worker.yml",
-		"docker-compose.registry.yml",
+		"compose/base.yml",
 		"docker-compose.containerd.yml",
 	)
 	// Create mock service directories and root files required by staging logic
@@ -219,10 +220,11 @@ func TestGoBuilderBuildFirecrackerBuildsServiceImages(t *testing.T) {
 	}
 
 	repoRoot := projectDir
+	if err := os.MkdirAll(filepath.Join(repoRoot, "compose"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	writeComposeFiles(t, repoRoot,
-		"docker-compose.yml",
-		"docker-compose.worker.yml",
-		"docker-compose.registry.yml",
+		"compose/base.yml",
 		"docker-compose.fc.yml",
 	)
 	// Create mock service directories and root files required by staging logic

@@ -110,8 +110,6 @@ func TestResolveComposeFilesFirecrackerNode(t *testing.T) {
 func TestResolveComposeFilesInvalidTarget(t *testing.T) {
 	root := t.TempDir()
 	required := []string{
-		"docker-compose.yml",
-		"docker-compose.worker.yml",
 		"docker-compose.docker.yml",
 	}
 	for _, name := range required {
@@ -191,7 +189,7 @@ func TestUpProjectPassesEnvFile(t *testing.T) {
 func createTempComposeFiles(t *testing.T) string {
 	dir := t.TempDir()
 	files := []string{
-		"docker-compose.yml", // Need to retain? No, but ResolveComposeFiles doesn't strictly check for them anymore unless they are the target file.
+		"docker-compose.docker.yml",
 		"docker-compose.docker.yml",
 		"docker-compose.containerd.yml",
 		"docker-compose.fc.yml",

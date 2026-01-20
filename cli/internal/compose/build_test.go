@@ -14,8 +14,6 @@ import (
 func TestBuildProjectBuildsCommand(t *testing.T) {
 	root := t.TempDir()
 	writeComposeFiles(t, root,
-		"docker-compose.yml",
-		"docker-compose.worker.yml",
 		"docker-compose.docker.yml",
 	)
 
@@ -49,9 +47,6 @@ func TestBuildProjectBuildsCommand(t *testing.T) {
 func TestBuildProjectAddsRuntimeNodeForContainerd(t *testing.T) {
 	root := t.TempDir()
 	writeComposeFiles(t, root,
-		"docker-compose.yml",
-		"docker-compose.worker.yml",
-		"docker-compose.registry.yml",
 		"docker-compose.containerd.yml",
 	)
 
@@ -84,9 +79,6 @@ func TestBuildProjectAddsRuntimeNodeForContainerd(t *testing.T) {
 func TestBuildProjectAddsRuntimeNodeForFirecracker(t *testing.T) {
 	root := t.TempDir()
 	writeComposeFiles(t, root,
-		"docker-compose.yml",
-		"docker-compose.worker.yml",
-		"docker-compose.registry.yml",
 		"docker-compose.fc.yml",
 	)
 
@@ -119,8 +111,6 @@ func TestBuildProjectAddsRuntimeNodeForFirecracker(t *testing.T) {
 func TestBuildProjectUsesNoCacheFlag(t *testing.T) {
 	root := t.TempDir()
 	writeComposeFiles(t, root,
-		"docker-compose.yml",
-		"docker-compose.worker.yml",
 		"docker-compose.docker.yml",
 	)
 

@@ -1,5 +1,6 @@
 # Core control-plane services (Gateway + stateful dependencies).
 # Provide the shared control stack for both single-node and multi-node setups.
+
 services:
   # ============================================
   # Base Images (Debian 12)
@@ -62,7 +63,7 @@ services:
       - "${PORT_S3_MGMT:-9001}:9001" # Console
     volumes:
       - rustfs_data:/data/rustfs
-      - ../config/lifecycle.yml:/app/config/lifecycle.yml:ro
+      - ./config/lifecycle.yml:/app/config/lifecycle.yml:ro
     environment:
       - RUSTFS_VOLUMES=/data/rustfs
       - RUSTFS_ADDRESS=0.0.0.0:9000
@@ -160,7 +161,7 @@ services:
       context: ..
       dockerfile: services/gateway/Dockerfile
       additional_contexts:
-        config: ${CONFIG_DIR:-services/gateway/config}
+        config: ${CONFIG_DIR:-../services/gateway/config}
       args:
         IMAGE_PREFIX: ${IMAGE_PREFIX:-undefined}
         SERVICE_USER: ${PROJECT_NAME:-undefined}
@@ -243,4 +244,3 @@ networks:
     # Let Docker choose the subnet unless the network is pre-created.
     name: ${NETWORK_EXTERNAL:-${PROJECT_NAME:-undefined}-external}
     driver: bridge
-

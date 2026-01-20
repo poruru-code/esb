@@ -271,7 +271,10 @@ func TestRunUpWithEnv(t *testing.T) {
 
 func TestRunUpAppliesEnvDefaults(t *testing.T) {
 	repoRoot := t.TempDir()
-	if err := os.WriteFile(filepath.Join(repoRoot, "docker-compose.yml"), []byte("test"), 0o644); err != nil {
+	if err := os.MkdirAll(filepath.Join(repoRoot, "compose"), 0o755); err != nil {
+		t.Fatalf("create compose dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repoRoot, "compose", "base.yml"), []byte("test"), 0o644); err != nil {
 		t.Fatalf("write compose fixture: %v", err)
 	}
 	if err := writeGeneratorFixture(repoRoot, "staging"); err != nil {

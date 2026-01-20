@@ -10,7 +10,6 @@ services:
   agent:
     ports:
       - "${PORT_AGENT_METRICS:-0}:9091"
-    # Participate in Network Directly
     networks:
       - external_network
     environment:
@@ -55,7 +54,6 @@ services:
       - GATEWAY_VICTORIALOGS_URL=http://victorialogs:9428
       - IMAGE_TAG=${IMAGE_TAG:-}
       - FUNCTION_IMAGE_PREFIX=${FUNCTION_IMAGE_PREFIX:-}
-      # ESB_DATA_PLANE_HOST is ignored in Docker mode if endpoints are set
       - HTTP_PROXY
       - HTTPS_PROXY
       - NO_PROXY
