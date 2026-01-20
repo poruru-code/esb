@@ -53,6 +53,7 @@ Gateway は Lambda 環境の "Master Config" として機能し、サービス�
 | `CNI_GW_IP`          | `ESB_DATA_PLANE_HOST`     | **Networking**: `runtime-node` 内でブリッジインターフェース (`esb-cni0`) に設定されるゲートウェイ IP。 |
 | `CNI_DNS_SERVER`     | (任意)                    | **Networking**: ワーカー DNS の明示的なネームサーバー。未指定時は `CNI_GW_IP` または `10.88.0.1`。     |
 | `CNI_SUBNET`         | (任意)                    | **Networking**: CNI のサブネット範囲。IPAM の subnet/range に反映される。                             |
+| `CNI_NET_DIR`        | `/var/lib/cni/networks`   | **Networking**: CNI IP 割り当てファイルの保存先。Agent が `List` 時に IP を再解決する際に参照する。     |
 | `CONTAINER_REGISTRY` | (任意)                    | **Distribution**: Containerd/FC モードでイメージをプルするレジストリのアドレス。                       |
 
 ---
