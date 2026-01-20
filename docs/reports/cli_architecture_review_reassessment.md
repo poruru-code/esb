@@ -3,71 +3,60 @@ Where: docs/reports/cli_architecture_review_reassessment.md
 What: Objective reassessment of architecture_review.md.resolved against current CLI implementation.
 Why: Provide strict, evidence-based judgment with alternatives in three passes.
 -->
-# CLI アーキテクチャレビュー再評価（3 Passes）
+# CLI アーキテクチャレビュー再評価（未解消事項）
 
 対象: `cli/`（Go CLI）  
 参照: `architecture_review.md.resolved`, `docs/developer/cli-architecture.md`
 
 ---
 
-## Pass 1: 事実整合性チェック（指摘ごとの妥当性）
+## 未解消事項（具体）
 
-- **Findings**
-- 妥当: `runUp` は build/provision/wait/prompt を内包し、単なるディスパッチではない (`cli/internal/app/up.go`)
-- 妥当: `internal/app` は 52 ファイルでコマンド/テスト/ヘルパーが混在し、層分離が弱い (`cli/internal/app`)
-- 一部妥当: generator は「Python workflow の Go 実装」と明記され移植色が強いが、Go に不適な構造が実害化している証拠は薄い (`cli/internal/generator/generate.go`, `cli/internal/generator/go_builder.go`)
-- 妥当: `Dependencies` はサービスロケータに近く nil チェック前提 (`cli/internal/app/app.go`, `cli/internal/app/up.go`)
-- 妥当: 依存の手動ワイヤリングがエントリポイントに集中 (`cli/cmd/esb/cli.go`, `cli/cmd/esb/main.go`)
-- 妥当: `EnsureAuthCredentials`/`DiscoverAndPersistPorts` が副作用の大きいグローバル関数で DI を迂回 (`cli/internal/app/auth.go`, `cli/internal/app/ports.go`)
-- 妥当: プロンプトがコマンド処理内に入り、非対話実行がフラグ運用に依存 (`cli/internal/app/command_context.go`, `cli/internal/app/project.go`, `cli/internal/app/env.go`)
-- 一部妥当: 起動時に Docker クライアントを必ず生成するため軽量コマンドでも初期化が走るが、現状の実コストは限定的 (`cli/cmd/esb/main.go`, `cli/internal/compose/client.go`)
-- 妥当: 出力が `fmt` と UI helper で混在し、出力仕様が一貫しない (`cli/internal/app/*.go`, `cli/internal/ui`)
-
-- **Counterpoints**
-- generator/compose/state はパッケージ分割されており、CLI 全体が完全なモノリスとは言い切れない (`cli/internal/generator`, `cli/internal/compose`, `cli/internal/state`)
-- Kong は `required/enum` 等のタグと `Validate()` による拡張バリデーションを提供するため、検証を構造体側へ寄せる余地はある (Context7: `/alecthomas/kong`)
-
-- **Alternatives**
-- Kong の `Validate()` を導入し、入力検証を CLI 構造体に集約
-- `runUp` 相当のオーケストレーションを `workflow` に切り出し、CLI は DTO 組み立てに限定
+**P0 (高)**: `Dependencies` 分割後も nil チェック運用が残り、欠落依存が実行時まで露見; 型安全性が弱い (`cli/internal/app/app.go`, `cli/internal/app/deps_split.go`)
+**P0 (高)**: 依存の手動ワイヤリングがエントリポイントに集中し、初期化変更のコストが高い (`cli/cmd/esb/cli.go`, `cli/cmd/esb/main.go`)
+**P1 (中)**: `internal/app` にコマンド/テスト/ヘルパーが混在し、責務境界が曖昧; 変更影響が広い (`cli/internal/app`)
+**P1 (中)**: プロンプト/対話分岐がコマンド処理内に残り、非対話実行がフラグ前提 (`cli/internal/app/command_context.go`, `cli/internal/app/project.go`, `cli/internal/app/env.go`)
+**P1 (中)**: 出力が `fmt` と UI helper で混在し、出力仕様や将来の JSON 化が不安定 (`cli/internal/app/*.go`, `cli/internal/ui`, `cli/internal/ports/ui.go`)
+**P1 (中)**: グローバル設定/FS 依存がコマンド内に散在し、テスト/差分導入が高コスト (`cli/internal/app/project.go`, `cli/internal/app/env.go`)
+**P2 (低)**: `DiscoverAndPersistPorts` がグローバル関数として残存し、DI を迂回する副作用点が存在 (`cli/internal/app/ports.go`, `cli/internal/app/port_publisher.go`)
+**P2 (低)**: 起動時に Docker クライアント初期化が走る構造が維持され、軽量コマンドでも初期化コストが発生し得る (`cli/cmd/esb/main.go`, `cli/internal/compose/client.go`)
+**P3 (低)**: generator の構造が Python 由来である点は検証不足のまま; 実害の証拠は薄いが保守性リスクは残る (`cli/internal/generator/generate.go`, `cli/internal/generator/go_builder.go`)
 
 ---
 
-## Pass 2: 設計品質の厳しめ評価（影響度順）
+## 対応方針（短期/中期）
 
-- **Findings**
-- High: コマンドハンドラがワークフローを内包し、テスト/再利用が困難 (`cli/internal/app/up.go`)
-- High: `Dependencies` の肥大化と nil チェック運用は型安全性を失い、欠落依存がランタイムまで露見しない (`cli/internal/app/app.go`, `cli/cmd/esb/cli.go`)
-- Medium: UI 入力と実行が混在し、非対話環境の実行がフラグ運用に依存 (`cli/internal/app/command_context.go`, `cli/internal/app/interaction.go`)
-- Medium: グローバル設定/FS 依存がコマンド内に散在し、テストと差分導入のコストが高い (`cli/internal/app/project.go`, `cli/internal/app/env.go`)
-- Medium: 出力整形の統一層がなく、将来的な JSON 出力・色付け・機械可読性に弱い (`cli/internal/app/*.go`, `cli/internal/ui`)
-- Low: 依存の全初期化は現時点では許容だが、機能増加で劣化する構造 (`cli/cmd/esb/main.go`)
+**P0 (高)**
+- **Dependencies の nil チェック運用**
+  - 短期: コマンドごとのコンストラクタに必須依存を引数化し、`Dependencies` からの直接参照を最小化 (`NewUpCmd`, `NewBuildCmd` 等)
+  - 中期: `Dependencies` を用途別パッケージに分割し、nil 許容の型を排除; 未設定は構築時にエラー化
+- **エントリポイントの手動ワイヤリング集中**
+  - 短期: 初期化を `internal/wire` に集約し、main からの組み立てを関数呼び出し化
+  - 中期: モジュール単位の factory を導入し、コマンド単位の組み替えが可能な構成に整理
 
-- **Alternatives**
-- コマンドごとのコンストラクタ注入で `Dependencies` を分割し nil チェックを排除
-- `UpWorkflow` / `ProjectWorkflow` を導入し、CLI は「入力収集 → DTO → 実行」に徹する
-- `ui` を唯一の出力経路にし、テキスト/JSON を切り替え可能にする
+**P1 (中)**
+- **`internal/app` の混在**
+  - 短期: コマンドハンドラとヘルパーをサブパッケージへ分割 (`internal/commands`, `internal/helpers`)
+  - 中期: command 層と workflow 層の依存方向を固定し、app 層を縮小
+- **プロンプト/対話分岐の混在**
+  - 短期: プロンプト処理を `interaction` に集約し、`command_context` から分離
+  - 中期: 入力解決を workflow 前の DTO 組み立て専用に切り出し、非対話の仕様を明文化
+- **出力経路の混在**
+  - 短期: `fmt.Fprintln` を `UserInterface` に置換する移行表を作成
+  - 中期: JSON 出力モードに備えた UI 抽象の統合
+- **グローバル設定/FS 依存の散在**
+  - 短期: 設定/FS 依存を `ports` 経由に寄せる箇所を優先度順に整理
+  - 中期: 設定読み込みを workflow 前段に集中し、コマンド内 I/O を削減
 
----
+**P2 (低)**
+- **`DiscoverAndPersistPorts` のグローバル関数**
+  - 短期: `PortPublisher` の実装へ移譲し、app からの直接参照を廃止
+  - 中期: 状態更新は `ports.StateStore` などに切り出し、副作用を明確化
+- **Docker クライアントの早期初期化**
+  - 短期: コマンド単位の遅延初期化フラグを導入
+  - 中期: 依存注入経路を分割し、Docker が不要なコマンドは初期化をスキップ
 
-## Pass 3: 代案比較と実行性評価
-
-- **Option A: 低リスクの漸進改善**
-- `internal/app` を `commands` と `workflows` に分割し、依存は関数引数に限定
-- `Validate()` によるバリデーション集約と、プロンプト処理の独立化
-- コマンドごとに遅延初期化 (必要時に Docker クライアント生成)
-
-- **Option B: 中規模の再構成**
-- `internal/workflows` + `internal/ports` を追加し、Compose/Generator を interface 化
-- `Dependencies` を廃止して `NewUpCmd(upper Upper, builder Builder, ...)` へ移行
-- `ui` を統一し、`fmt.Fprintln` 直接利用を段階的に排除
-
-- **Option C: フル・ヘキサゴナル**
-- `core/workflows` + `adapters/cli|container|ui` の三層構成に移行
-- 大規模なファイル移動と移行期間が必要で、短期コストは高い
-- CLI がプラットフォーム化する予定がある場合のみ正当化
-
-- **Architect Verdict (Strict)**
-- 指摘の大半は現行コードと整合しており、特に「ハンドラ肥大」「依存肥大」「UI混在」は妥当
-- 「Python 構造の投影」は根拠薄で、実害が出るまで優先度を上げるべきではない
-- 目標が CLI の長期拡張性なら Option B が最も費用対効果が高い
+**P3 (低)**
+- **generator の移植構造**
+  - 短期: 構造の健全性を測る設計メモを作成（責務/依存/拡張点）
+  - 中期: 実害が出た部分から関数単位で再設計

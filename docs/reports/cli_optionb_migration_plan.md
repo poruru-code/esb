@@ -1,62 +1,44 @@
 <!--
 Where: docs/reports/cli_optionb_migration_plan.md
-What: Phase 3 migration plan for Option B (Up/Build first).
-Why: Provide a staged, low-risk refactor sequence.
+What: Stage 7 follow-ups for Option B after Phase 3.
+Why: Track remaining P0/P1 architecture work.
 -->
-# CLI Option B - Phase 3 Migration Plan (Up/Build)
+# CLI Option B - Stage 7 Follow-ups
 
-## Stage 0: Preparation
-- Add `cli/internal/ports` and `cli/internal/workflows` packages (empty placeholders).
-- Add minimal UI interface and adapters (wrapper over existing `ui` helpers).
-- Ensure no behavior change at this stage.
+Stages 0-6 are archived in `docs/reports/cli_optionb_migration_plan_archive.md`.
 
-## Stage 1: Build Workflow (Low Risk)
-- Create `ports` for Build:
-  - `Builder` interface (reuse existing)
-  - `RuntimeEnvApplier`
-  - `UserInterface`
-- Create `workflows/build.go`:
-  - Accept `BuildRequest` (context/env/template/no-cache/verbose)
-  - Call `RuntimeEnvApplier.Apply`
-  - Call `Builder.Build`
-  - UI success output
-- Update `runBuild`:
-  - Keep `resolveCommandContext` and `.env` loading in CLI adapter
-  - Build request and call `BuildWorkflow.Run`
-  - Convert error to exit code
+## Stage 7: Architecture Follow-ups (P0/P1)
+- **P0: Dependency wiring safety**
+  - Introduce command-level constructors (`NewUpCmd`, `NewBuildCmd`, etc.) and remove nil-checked direct `Dependencies` access.
+  - Add a `internal/wire` initializer so main only calls a single builder function.
+- **P1: Boundary cleanup**
+  - Split `internal/app` into command handlers vs shared helpers (e.g., `internal/commands`, `internal/helpers`).
+  - Extract prompt handling into a dedicated interaction layer; keep workflows free of interactive logic.
+  - Replace remaining `fmt.Fprintln` output with `UserInterface` calls to unify output paths.
+  - Centralize config/FS reads before workflow execution to reduce per-command I/O.
 
-## Stage 2: Up Workflow (Medium Risk)
-- Create `ports` for Up:
-  - `Upper`, `Downer`, `PortPublisher`, `CredentialManager`
-  - `TemplateLoader`, `TemplateParser`, `Provisioner`, `GatewayWaiter`
-- Create `workflows/up.go`:
-  - Apply env, reset, credentials, build (optional), up, ports, parse+provision, wait
-  - UI outputs for warnings/credentials/ports/success
-- Update `runUp`:
-  - Keep prompt logic in CLI adapter (confirmation before reset)
-  - Build request and call `UpWorkflow.Run`
+### Stage 7 Detailed Tasks
 
-## Stage 3: Dependency Wiring Split
-- Replace `app.Dependencies` usage in `runBuild/runUp` with smaller constructor inputs:
-  - `NewBuildCmd(builder, envApplier, ui)`
-  - `NewUpCmd(upper, downer, portPublisher, credentialMgr, parser, provisioner, waiter, builder, envApplier, ui)`
-- Keep legacy `Dependencies` for other commands temporarily.
+- **Task 7.1 (P0): Command constructors**
+  - 作業: `runBuild/runUp/runDown/runLogs/runStop/runPrune` を `New*Cmd` で生成したハンドラに委譲し、必須依存をコンストラクタ引数に固定する。
+  - 受け入れ条件: 各コマンドが `Dependencies` の nil チェックを行わない; コンストラクタで欠落依存が検知できる。
 
-## Stage 4: Logs/Down Workflows (Low Risk)
-- Create `LogsWorkflow` with `Logger` port and legacy output behavior.
-- Create `DownWorkflow` with `Downer` port and legacy output behavior.
-- Update `runLogs`/`runDown` to delegate to workflows while keeping prompts in CLI.
+- **Task 7.2 (P0): Wire 集約**
+  - 作業: `internal/wire` を追加し、main 側の初期化を `wire.BuildCLI()` のような単一関数に集約する。
+  - 受け入れ条件: `cli/cmd/esb/main.go` のワイヤリング記述が大幅に縮小; 依存追加時は `internal/wire` のみ更新。
 
-## Stage 5: Cleanup and Consistency
-- Move `fmt.Fprintln` in workflows to `UserInterface`.
-- Remove direct calls to `EnsureAuthCredentials` and `DiscoverAndPersistPorts` from CLI adapter.
-- Confirm outputs match prior behavior (message text, ordering).
+- **Task 7.3 (P1): app 層の分割**
+  - 作業: `internal/app` を `internal/commands`（コマンドハンドラ）と `internal/helpers`（共通処理）に整理する。
+  - 受け入れ条件: コマンドエントリが `internal/commands` に集約され、ヘルパーは `internal/helpers` からのみ参照される。
 
-## Stage 6: Documentation & Tests
-- Update `docs/developer/cli-architecture.md` with workflows/ports model.
-- Add unit tests for workflow behavior (build success, up reset flow, ports published).
-- Run `cd cli && go test ./...` if feasible.
+- **Task 7.4 (P1): Prompt/Interaction 分離**
+  - 作業: プロンプト/UI 入力を `internal/interaction` に集約し、`command_context` から分離する。
+  - 受け入れ条件: 非対話分岐が `interaction` 層に集約され、コマンド側は DTO 構築に専念。
 
-## Rollback Strategy
-- Each stage is independently revertible.
-- Keep `runBuild`/`runUp` old implementation temporarily behind feature flag if needed.
+- **Task 7.5 (P1): 出力統一**
+  - 作業: `fmt.Fprintln` の残存箇所を `UserInterface` 経由へ移行する。
+  - 受け入れ条件: `cli/internal/app` から `fmt.Fprintln` の直書きが消える; 出力が UI で一元化。
+
+- **Task 7.6 (P1): Config/FS 依存の前段化**
+  - 作業: 設定読み込み/FS 解決を workflow 前段へ集約し、コマンド内 I/O を削減する。
+  - 受け入れ条件: `project/env` 系コマンドの I/O 依存が helpers に集約され、テストでの差し替えが容易。
