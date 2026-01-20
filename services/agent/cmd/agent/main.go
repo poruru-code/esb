@@ -151,7 +151,7 @@ func main() {
 	agentServer := api.NewAgentServer(rt)
 	pb.RegisterAgentServiceServer(grpcServer, agentServer)
 
-	if os.Getenv("AGENT_GRPC_REFLECTION") == "1" {
+	if isReflectionEnabled() {
 		// Enable reflection for debugging (grpcurl etc.)
 		reflection.Register(grpcServer)
 	}
@@ -176,6 +176,10 @@ func main() {
 	if err := grpcServer.Serve(lis); err != nil {
 		log.Fatalf("Failed to serve: %v", err)
 	}
+}
+
+func isReflectionEnabled() bool {
+	return os.Getenv("AGENT_GRPC_REFLECTION") == "1"
 }
 
 func grpcServerOptions() ([]grpc.ServerOption, error) {
