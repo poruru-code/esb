@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/containerd/containerd"
 	"github.com/containerd/go-cni"
@@ -30,6 +32,11 @@ import (
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
+
+	// Prometheus
+
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -169,9 +176,13 @@ func main() {
 	}
 	grpcOptions = append(grpcOptions, grpc.ChainUnaryInterceptor(
 		logging.UnaryServerInterceptor(interceptor.Logger(slog.Default()), loggingOpts...),
+		grpc_prometheus.UnaryServerInterceptor,
 	))
 
 	grpcServer := grpc.NewServer(grpcOptions...)
+	grpc_prometheus.Register(grpcServer)
+	grpc_prometheus.EnableHandlingTimeHistogram()
+
 	agentServer := api.NewAgentServer(rt)
 	pb.RegisterAgentServiceServer(grpcServer, agentServer)
 
@@ -186,6 +197,22 @@ func main() {
 		reflection.Register(grpcServer)
 	}
 
+	// Start Prometheus metrics server
+	metricsPort := os.Getenv("AGENT_METRICS_PORT")
+	if metricsPort == "" {
+		metricsPort = "9091" // Default port (avoid 9090 which is Prometheus default)
+	}
+	metricsServer := &http.Server{
+		Addr:    ":" + metricsPort,
+		Handler: promhttp.Handler(),
+	}
+	go func() {
+		slog.Info("Starting Prometheus metrics server", "port", metricsPort)
+		if err := metricsServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			slog.Error("Failed to start metrics server", "error", err)
+		}
+	}()
+
 	// Signal handling for graceful shutdown
 	go func() {
 		sigCh := make(chan os.Signal, 1)
@@ -196,6 +223,13 @@ func main() {
 		// Perform GC before shutdown
 		if err := rt.GC(context.Background()); err != nil {
 			slog.Warn("GC during shutdown failed", "error", err)
+		}
+
+		// Graceful shutdown of metrics server
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := metricsServer.Shutdown(shutdownCtx); err != nil {
+			slog.Warn("Metrics server shutdown failed", "error", err)
 		}
 
 		slog.Info("Shutting down gRPC server...")
