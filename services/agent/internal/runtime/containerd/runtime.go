@@ -4,10 +4,12 @@
 package containerd
 
 import (
+	"bufio"
 	"context"
 	"encoding/hex"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -29,6 +31,7 @@ import (
 	"github.com/containerd/go-cni"
 	"github.com/containerd/typeurl/v2"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
+	"github.com/poruru/edge-serverless-box/meta"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
 )
 
@@ -78,6 +81,27 @@ func resolveCNIDNSServer() string {
 		return value
 	}
 	return defaultCNIDNSServer
+}
+
+func resolveCNINetDir() string {
+	if value := strings.TrimSpace(os.Getenv("CNI_NET_DIR")); value != "" {
+		return value
+	}
+	return "/var/lib/cni/networks"
+}
+
+func (r *Runtime) resolveCNINetworkName() string {
+	if r.cni != nil {
+		cfg := r.cni.GetConfig()
+		if cfg != nil {
+			for _, network := range cfg.Networks {
+				if network != nil && network.Config != nil && network.Config.Name != "" {
+					return network.Config.Name
+				}
+			}
+		}
+	}
+	return meta.RuntimeCNIName
 }
 
 func ensureResolvConf() (string, error) {
@@ -558,11 +582,12 @@ func (r *Runtime) List(ctx context.Context) ([]runtime.ContainerState, error) {
 	for _, c := range containers {
 		containerID := c.ID()
 
-		// Skip containers not managed by our runtime (check for esb-{env}- prefix)
-		// Or assume namespace isolation is enough.
-		// Let's use prefix check to be safe against accidental manual creations in same namespace
-		prefix := fmt.Sprintf("esb-%s-", r.env)
-		if !strings.HasPrefix(containerID, prefix) {
+		managed, err := r.isManagedContainer(ctx, c)
+		if err != nil {
+			log.Printf("Warning: failed to inspect container %s during list: %v", containerID, err)
+			continue
+		}
+		if !managed {
 			continue
 		}
 
@@ -615,6 +640,11 @@ func (r *Runtime) List(ctx context.Context) ([]runtime.ContainerState, error) {
 			lastUsedAt = val.(time.Time)
 		}
 
+		ipAddress := ""
+		if ip, err := r.resolveContainerIP(containerID); err == nil {
+			ipAddress = ip
+		}
+
 		states = append(states, runtime.ContainerState{
 			ID:            containerID,
 			FunctionName:  functionName,
@@ -622,8 +652,44 @@ func (r *Runtime) List(ctx context.Context) ([]runtime.ContainerState, error) {
 			LastUsedAt:    lastUsedAt,
 			ContainerName: containerID,
 			CreatedAt:     createdAt,
+			IPAddress:     ipAddress,
+			Port:          8080,
 		})
 	}
 
 	return states, nil
+}
+
+func (r *Runtime) resolveContainerIP(containerID string) (string, error) {
+	netDir := resolveCNINetDir()
+	networkName := r.resolveCNINetworkName()
+	path := filepath.Join(netDir, networkName, containerID)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	ip, err := parseCNIIPAddress(string(data))
+	if err != nil {
+		return "", err
+	}
+	return ip, nil
+}
+
+func parseCNIIPAddress(value string) (string, error) {
+	scanner := bufio.NewScanner(strings.NewReader(value))
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) == 0 {
+			continue
+		}
+		ip := net.ParseIP(fields[0])
+		if ip == nil || ip.To4() == nil {
+			return "", fmt.Errorf("invalid IP address %q", fields[0])
+		}
+		return ip.String(), nil
+	}
+	if err := scanner.Err(); err != nil {
+		return "", err
+	}
+	return "", fmt.Errorf("no IP address found")
 }

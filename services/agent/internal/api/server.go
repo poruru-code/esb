@@ -58,7 +58,13 @@ func (s *AgentServer) InvokeWorker(ctx context.Context, req *pb.InvokeWorkerRequ
 
 	workerValue, ok := s.workerCache.Load(req.ContainerId)
 	if !ok {
-		return nil, status.Error(codes.NotFound, "container_id not found")
+		if err := s.refreshWorkerCache(ctx); err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to refresh worker cache: %v", err)
+		}
+		workerValue, ok = s.workerCache.Load(req.ContainerId)
+		if !ok {
+			return nil, status.Error(codes.NotFound, "container_id not found")
+		}
 	}
 	worker := workerValue.(runtime.WorkerInfo)
 	if worker.IPAddress == "" {
@@ -162,6 +168,42 @@ func (s *AgentServer) DestroyContainer(ctx context.Context, req *pb.DestroyConta
 	return &pb.DestroyContainerResponse{
 		Success: true,
 	}, nil
+}
+
+func (s *AgentServer) refreshWorkerCache(ctx context.Context) error {
+	containers, err := s.runtime.List(ctx)
+	if err != nil {
+		return err
+	}
+
+	active := make(map[string]runtime.WorkerInfo, len(containers))
+	for _, container := range containers {
+		if container.ID == "" || container.IPAddress == "" {
+			continue
+		}
+		port := container.Port
+		if port == 0 {
+			port = 8080
+		}
+		active[container.ID] = runtime.WorkerInfo{
+			ID:        container.ID,
+			IPAddress: container.IPAddress,
+			Port:      port,
+		}
+	}
+
+	s.workerCache.Range(func(key, _ any) bool {
+		if _, ok := active[key.(string)]; !ok {
+			s.workerCache.Delete(key)
+		}
+		return true
+	})
+
+	for id, info := range active {
+		s.workerCache.Store(id, info)
+	}
+
+	return nil
 }
 
 func (s *AgentServer) PauseContainer(ctx context.Context, req *pb.PauseContainerRequest) (*pb.PauseContainerResponse, error) {

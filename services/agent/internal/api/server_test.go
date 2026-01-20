@@ -266,6 +266,69 @@ func TestInvokeWorkerUsesCachedWorker(t *testing.T) {
 	assert.Equal(t, "hello", gotBody)
 }
 
+func TestInvokeWorkerRefreshesCacheOnMiss(t *testing.T) {
+	mockRT := new(MockRuntime)
+	conn := initServer(t, mockRT)
+	defer conn.Close()
+
+	client := pb.NewAgentServiceClient(conn)
+
+	var gotPath string
+	var gotHeader string
+	var gotBody string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotHeader = r.Header.Get("X-Test")
+		body, err := io.ReadAll(r.Body)
+		if err == nil {
+			gotBody = string(body)
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer server.Close()
+
+	parsedURL, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatalf("parse server url: %v", err)
+	}
+	host, portStr, err := net.SplitHostPort(parsedURL.Host)
+	if err != nil {
+		t.Fatalf("split host port: %v", err)
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		t.Fatalf("parse port: %v", err)
+	}
+
+	containerID := "container-123"
+	mockRT.On("List", mock.Anything).Return([]runtime.ContainerState{
+		{
+			ID:        containerID,
+			IPAddress: host,
+			Port:      port,
+		},
+	}, nil)
+
+	resp, err := client.InvokeWorker(context.Background(), &pb.InvokeWorkerRequest{
+		ContainerId: containerID,
+		Path:        "invoke",
+		Payload:     []byte("hello"),
+		Headers: map[string]string{
+			"X-Test": "value",
+		},
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, int32(http.StatusOK), resp.StatusCode)
+	assert.Equal(t, "ok", string(resp.Body))
+	assert.Equal(t, "/invoke", gotPath)
+	assert.Equal(t, "value", gotHeader)
+	assert.Equal(t, "hello", gotBody)
+
+	mockRT.AssertExpectations(t)
+}
+
 func TestPauseContainer(t *testing.T) {
 	mockRT := new(MockRuntime)
 	conn := initServer(t, mockRT)

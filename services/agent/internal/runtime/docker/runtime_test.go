@@ -187,6 +187,20 @@ func TestRuntime_List(t *testing.T) {
 			},
 		},
 	}, nil)
+	mockClient.On("ContainerInspect", ctx, "id-1").Return(container.InspectResponse{
+		NetworkSettings: &container.NetworkSettings{
+			Networks: map[string]*network.EndpointSettings{
+				"esb-net": {IPAddress: "10.0.0.2"},
+			},
+		},
+	}, nil)
+	mockClient.On("ContainerInspect", ctx, "id-2").Return(container.InspectResponse{
+		NetworkSettings: &container.NetworkSettings{
+			Networks: map[string]*network.EndpointSettings{
+				"esb-net": {IPAddress: "10.0.0.3"},
+			},
+		},
+	}, nil)
 
 	// Execute
 	states, err := rt.List(ctx)
