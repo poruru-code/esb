@@ -44,7 +44,7 @@ flowchart TD
     Gateway -->|HTTP| Lambda
     
     Agent -->|docker/containerd| Lambda
-    Agent -.-|Pull (Containerd/FC only)| Registry["Registry"]
+    Agent -.-|"Pull (Containerd/FC only)"| Registry["Registry"]
     
     Lambda -->|DNS Query| CoreDNS
     CoreDNS -->|Resolve| RustFS
