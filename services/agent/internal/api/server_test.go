@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/containerd/containerd/errdefs"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/api"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
 	pb "github.com/poruru/edge-serverless-box/services/agent/pkg/api/v1"
@@ -166,6 +167,27 @@ func TestDestroyContainer(t *testing.T) {
 	containerID := "test-container-id"
 
 	mockRT.On("Destroy", mock.Anything, containerID).Return(nil)
+
+	req := &pb.DestroyContainerRequest{
+		ContainerId: containerID,
+	}
+
+	resp, err := client.DestroyContainer(context.Background(), req)
+
+	assert.NoError(t, err)
+	assert.True(t, resp.Success)
+	mockRT.AssertExpectations(t)
+}
+
+func TestDestroyContainerNotFound(t *testing.T) {
+	mockRT := new(MockRuntime)
+	conn := initServer(t, mockRT)
+	defer conn.Close()
+
+	client := pb.NewAgentServiceClient(conn)
+	containerID := "missing-container-id"
+
+	mockRT.On("Destroy", mock.Anything, containerID).Return(errdefs.ErrNotFound)
 
 	req := &pb.DestroyContainerRequest{
 		ContainerId: containerID,

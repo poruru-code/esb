@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/containerd/containerd/errdefs"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
 	pb "github.com/poruru/edge-serverless-box/services/agent/pkg/api/v1"
 	"google.golang.org/grpc/codes"
@@ -160,6 +161,10 @@ func (s *AgentServer) DestroyContainer(ctx context.Context, req *pb.DestroyConta
 	}
 
 	if err := s.runtime.Destroy(ctx, req.ContainerId); err != nil {
+		if errdefs.IsNotFound(err) {
+			s.workerCache.Delete(req.ContainerId)
+			return &pb.DestroyContainerResponse{Success: true}, nil
+		}
 		return nil, status.Errorf(codes.Internal, "failed to destroy container: %v", err)
 	}
 

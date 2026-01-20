@@ -171,6 +171,14 @@ async def lifespan(app: FastAPI):
     if pool_manager:
         await pool_manager.shutdown_all()
 
+    if channel:
+        try:
+            close_result = channel.close()
+            if asyncio.iscoroutine(close_result):
+                await close_result
+        except Exception as e:
+            logger.warning("Failed to close gRPC channel: %s", e)
+
     logger.info("Gateway shutting down, closing http client.")
     await client.aclose()
 
