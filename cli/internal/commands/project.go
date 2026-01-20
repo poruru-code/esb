@@ -47,9 +47,10 @@ type (
 func runProjectList(_ CLI, _ Dependencies, out io.Writer) int {
 	cfg, err := loadGlobalConfigOrDefault()
 	if err != nil {
-		fmt.Fprintln(out, err)
+		legacyUI(out).Warn(err.Error())
 		return 1
 	}
+	ui := legacyUI(out)
 
 	workflow := workflows.NewProjectListWorkflow()
 	result, err := workflow.Run(workflows.ProjectListRequest{Config: cfg})
@@ -58,16 +59,16 @@ func runProjectList(_ CLI, _ Dependencies, out io.Writer) int {
 	}
 
 	if len(result.Projects) == 0 {
-		fmt.Fprintln(out, "📦 No projects registered.")
+		ui.Info("📦 No projects registered.")
 		return 0
 	}
 
 	for _, project := range result.Projects {
 		if project.Active {
-			fmt.Fprintf(out, "📦  %s\n", project.Name)
+			ui.Info(fmt.Sprintf("📦  %s", project.Name))
 			continue
 		}
-		fmt.Fprintf(out, "    %s\n", project.Name)
+		ui.Info(fmt.Sprintf("    %s", project.Name))
 	}
 	return 0
 }
@@ -77,9 +78,10 @@ func runProjectList(_ CLI, _ Dependencies, out io.Writer) int {
 func runProjectRecent(_ CLI, _ Dependencies, out io.Writer) int {
 	cfg, err := loadGlobalConfigOrDefault()
 	if err != nil {
-		fmt.Fprintln(out, err)
+		legacyUI(out).Warn(err.Error())
 		return 1
 	}
+	ui := legacyUI(out)
 
 	workflow := workflows.NewProjectRecentWorkflow()
 	result, err := workflow.Run(workflows.ProjectRecentRequest{Config: cfg})
@@ -88,12 +90,12 @@ func runProjectRecent(_ CLI, _ Dependencies, out io.Writer) int {
 	}
 	list := result.Projects
 	if len(list) == 0 {
-		fmt.Fprintln(out, "no projects registered")
+		ui.Info("no projects registered")
 		return 0
 	}
 
 	for i, project := range list {
-		fmt.Fprintf(out, "%2d. 📦 %s\n", i+1, project.Name)
+		ui.Info(fmt.Sprintf("%2d. 📦 %s", i+1, project.Name))
 	}
 	return 0
 }
@@ -169,8 +171,8 @@ func runProjectUse(cli CLI, deps Dependencies, out io.Writer) int {
 		return exitWithError(out, err)
 	}
 
-	fmt.Fprintf(os.Stderr, "Switched to project '%s'\n", projectName)
-	fmt.Fprintf(out, "export %s=%s\n", envutil.HostEnvKey(constants.HostSuffixProject), projectName)
+	legacyUI(os.Stderr).Info(fmt.Sprintf("Switched to project '%s'", projectName))
+	legacyUI(out).Info(fmt.Sprintf("export %s=%s", envutil.HostEnvKey(constants.HostSuffixProject), projectName))
 	return 0
 }
 
@@ -235,7 +237,7 @@ func runProjectRemove(cli CLI, deps Dependencies, out io.Writer) int {
 		return exitWithError(out, err)
 	}
 
-	fmt.Fprintf(out, "Removed project '%s' from registered projects.\n", projectName)
+	legacyUI(out).Info(fmt.Sprintf("Removed project '%s' from registered projects.", projectName))
 	return 0
 }
 
@@ -265,7 +267,7 @@ func runProjectAdd(cli CLI, deps Dependencies, out io.Writer) int {
 				p := filepath.Join(absDir, name)
 				if _, err := os.Stat(p); err == nil {
 					template = p
-					fmt.Fprintf(out, "Detected template: %s\n", name)
+					legacyUI(out).Info(fmt.Sprintf("Detected template: %s", name))
 					break
 				}
 			}
@@ -343,17 +345,18 @@ func runProjectAdd(cli CLI, deps Dependencies, out io.Writer) int {
 			return exitWithError(out, err)
 		}
 		generatorPath = path
-		fmt.Fprintf(out, "Configuration saved to: %s\n", generatorPath)
+		legacyUI(out).Info(fmt.Sprintf("Configuration saved to: %s", generatorPath))
 	} else {
-		fmt.Fprintf(out, "Found existing generator.yml in %s\n", absDir)
+		legacyUI(out).Info(fmt.Sprintf("Found existing generator.yml in %s", absDir))
 	}
 
 	if err := registerProject(generatorPath, deps); err != nil {
 		return exitWithError(out, err)
 	}
 
-	fmt.Fprintf(out, "Project registered successfully.\n")
-	fmt.Fprintln(out, "Next: esb build")
+	ui := legacyUI(out)
+	ui.Info("Project registered successfully.")
+	ui.Info("Next: esb build")
 	return 0
 }
 

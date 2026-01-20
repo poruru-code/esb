@@ -4,7 +4,6 @@
 package commands
 
 import (
-	"fmt"
 	"io"
 	"sort"
 	"strings"
@@ -90,6 +89,6 @@ func printCompletionList(out io.Writer, items []string) {
 		if strings.TrimSpace(item) == "" {
 			continue
 		}
-		fmt.Fprintln(out, item)
+		writeLine(out, item)
 	}
 }

@@ -15,7 +15,6 @@ Why: Provide strict, evidence-based judgment with alternatives in three passes.
 **P0 (高)**: `Dependencies` 分割後も nil チェック運用が残り、欠落依存が実行時まで露見; 型安全性が弱い (`cli/internal/commands/app.go`, `cli/internal/commands/deps_split.go`)
 **P0 (高)**: 依存の手動ワイヤリングがエントリポイントに集中し、初期化変更のコストが高い (`cli/cmd/esb/cli.go`, `cli/cmd/esb/main.go`)
 **P1 (中)**: `internal/commands` と `internal/helpers` の境界がまだ曖昧で、周辺ロジックがコマンド側に残存; 変更影響が広い (`cli/internal/commands`, `cli/internal/helpers`)
-**P1 (中)**: 出力が `fmt` と UI helper で混在し、出力仕様や将来の JSON 化が不安定 (`cli/internal/commands/*.go`, `cli/internal/ui`, `cli/internal/ports/ui.go`)
 **P1 (中)**: グローバル設定/FS 依存がコマンド内に散在し、テスト/差分導入が高コスト (`cli/internal/commands/project.go`, `cli/internal/commands/env.go`)
 **P2 (低)**: `DiscoverAndPersistPorts` がグローバル関数として残存し、DI を迂回する副作用点が存在 (`cli/internal/helpers/ports.go`, `cli/internal/helpers/port_publisher.go`)
 **P2 (低)**: 起動時に Docker クライアント初期化が走る構造が維持され、軽量コマンドでも初期化コストが発生し得る (`cli/cmd/esb/main.go`, `cli/internal/compose/client.go`)
@@ -37,9 +36,6 @@ Why: Provide strict, evidence-based judgment with alternatives in three passes.
 - **commands/helpers の境界曖昧**
   - 短期: コマンドハンドラと共通処理の境界を `internal/commands`/`internal/helpers` で再整理
   - 中期: command 層と workflow 層の依存方向を固定し、コマンド層を縮小
-- **出力経路の混在**
-  - 短期: `fmt.Fprintln` を `UserInterface` に置換する移行表を作成
-  - 中期: JSON 出力モードに備えた UI 抽象の統合
 - **グローバル設定/FS 依存の散在**
   - 短期: 設定/FS 依存を `ports` 経由に寄せる箇所を優先度順に整理
   - 中期: 設定読み込みを workflow 前段に集中し、コマンド内 I/O を削減

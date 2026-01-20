@@ -66,6 +66,7 @@ func runEnvList(cli CLI, deps Dependencies, out io.Writer) int {
 	if err != nil {
 		return exitWithError(out, err)
 	}
+	ui := legacyUI(out)
 
 	workflow := workflows.NewEnvListWorkflow(deps.DetectorFactory)
 	result, err := workflow.Run(workflows.EnvListRequest{
@@ -87,7 +88,7 @@ func runEnvList(cli CLI, deps Dependencies, out io.Writer) int {
 			statusIcon = "🟢"
 		}
 
-		fmt.Fprintf(out, "%s %s (%s) - %s %s\n", marker, info.Name, info.Mode, statusIcon, info.Status)
+		ui.Info(fmt.Sprintf("%s %s (%s) - %s %s", marker, info.Name, info.Mode, statusIcon, info.Status))
 	}
 	return 0
 }
@@ -163,7 +164,7 @@ func runEnvAdd(cli CLI, deps Dependencies, out io.Writer) int {
 		return exitWithError(out, err)
 	}
 
-	fmt.Fprintf(out, "Added environment '%s'\n", name)
+	legacyUI(out).Info(fmt.Sprintf("Added environment '%s'", name))
 	return 0
 }
 
@@ -246,8 +247,8 @@ func runEnvUse(cli CLI, deps Dependencies, out io.Writer) int {
 		return exitWithError(out, err)
 	}
 
-	fmt.Fprintf(os.Stderr, "Switched to '%s:%s'\n", ctx.Project.Name, name)
-	fmt.Fprintf(out, "export %s=%s\n", envutil.HostEnvKey(constants.HostSuffixEnv), name)
+	legacyUI(os.Stderr).Info(fmt.Sprintf("Switched to '%s:%s'", ctx.Project.Name, name))
+	legacyUI(out).Info(fmt.Sprintf("export %s=%s", envutil.HostEnvKey(constants.HostSuffixEnv), name))
 	return 0
 }
 
@@ -312,19 +313,20 @@ func runEnvRemove(cli CLI, deps Dependencies, out io.Writer) int {
 		GeneratorPath: ctx.Project.GeneratorPath,
 		Generator:     ctx.Project.Generator,
 	}); err != nil {
+		ui := legacyUI(out)
 		if errors.Is(err, workflows.ErrEnvNotFound) {
-			fmt.Fprintln(out, "environment not found")
+			ui.Warn("environment not found")
 			return 1
 		}
 		if errors.Is(err, workflows.ErrEnvLast) {
-			fmt.Fprintln(out, "cannot remove the last environment")
+			ui.Warn("cannot remove the last environment")
 			return 1
 		}
-		fmt.Fprintln(out, err)
+		ui.Warn(err.Error())
 		return 1
 	}
 
-	fmt.Fprintf(out, "Removed environment '%s'\n", name)
+	legacyUI(out).Info(fmt.Sprintf("Removed environment '%s'", name))
 	return 0
 }
 

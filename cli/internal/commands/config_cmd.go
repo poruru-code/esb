@@ -23,10 +23,11 @@ type ConfigSetRepoCmd struct {
 // runConfigSetRepo updates the global configuration with the repo path.
 func runConfigSetRepo(cli CLI, _ Dependencies, out io.Writer) int {
 	repoPath := cli.Config.SetRepo.Path
+	ui := legacyUI(out)
 	// Resolve true root (upward search) before saving
 	absPath, err := config.ResolveRepoRootFromPath(repoPath)
 	if err != nil {
-		fmt.Fprintf(out, "⚠️  Warning: %v\n", err)
+		ui.Warn(fmt.Sprintf("⚠️  Warning: %v", err))
 		// Fallback to absolute path if resolution fails (though unlikely if it's a valid repo)
 		absPath, err = filepath.Abs(repoPath)
 		if err != nil {
@@ -44,6 +45,6 @@ func runConfigSetRepo(cli CLI, _ Dependencies, out io.Writer) int {
 		return exitWithError(out, err)
 	}
 
-	fmt.Fprintf(out, "updated repo_path: %s\n", absPath)
+	ui.Info(fmt.Sprintf("updated repo_path: %s", absPath))
 	return 0
 }

@@ -37,7 +37,7 @@ func runUp(cli CLI, deps Dependencies, out io.Writer) int {
 			return exitWithError(out, err)
 		}
 		if !confirmed {
-			fmt.Fprintln(out, "Aborted.")
+			legacyUI(out).Info("Aborted.")
 			return 1
 		}
 	}

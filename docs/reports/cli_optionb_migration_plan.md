@@ -41,6 +41,7 @@ Stages 0-6 are archived in `docs/reports/cli_optionb_migration_plan_archive.md`.
 - **Task 7.5 (P1): 出力統一**
   - 作業: `fmt.Fprintln` の残存箇所を `UserInterface` 経由へ移行する。
   - 受け入れ条件: `cli/internal/commands` から `fmt.Fprintln` の直書きが消える; 出力が UI で一元化。
+  - 現状: `legacyUI` 経由の出力に切り替え、コマンド直書きを排除。補完スクリプトは `writeLine/writeString` で出力を集約。
 
 - **Task 7.6 (P1): Config/FS 依存の前段化**
   - 作業: 設定読み込み/FS 解決を workflow 前段へ集約し、コマンド内 I/O を削減する。

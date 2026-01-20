@@ -82,7 +82,7 @@ func buildGeneratorConfig(templatePath string, envs config.Environments, project
 	if prompter != nil {
 		params, err := parseTemplateParameters(absTemplate)
 		if err == nil && len(params) > 0 {
-			fmt.Println("Template Parameters:")
+			legacyUI(os.Stdout).Info("Template Parameters:")
 			for name, p := range params {
 				label := fmt.Sprintf("%s (%s)", name, p.Description)
 				if p.Description == "" {
@@ -127,7 +127,7 @@ func buildGeneratorConfig(templatePath string, envs config.Environments, project
 			}
 		} else if err != nil {
 			// Warn but don't fail?
-			fmt.Fprintf(os.Stderr, "Warning: failed to parse template parameters: %v\n", err)
+			legacyUI(os.Stderr).Warn(fmt.Sprintf("Warning: failed to parse template parameters: %v", err))
 		}
 	}
 

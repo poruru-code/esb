@@ -143,7 +143,7 @@ _esb_complete() {
 }
 complete -F _esb_completion esb
 `
-	fmt.Fprintf(out, script, strings.Join(commands, " "), strings.Join(caseParts, "\n"))
+	writeString(out, fmt.Sprintf(script, strings.Join(commands, " "), strings.Join(caseParts, "\n")))
 	return 0
 }
 
@@ -236,53 +236,53 @@ _esb_completion() {
 }
 compdef _esb_completion esb
 `
-	fmt.Fprintf(out, script, strings.Join(commands, "\n        "))
+	writeString(out, fmt.Sprintf(script, strings.Join(commands, "\n        ")))
 	return 0
 }
 
 func runCompletionFish(cli CLI, out io.Writer) int {
 	parser, _ := kong.New(&cli)
-	fmt.Fprintln(out, "function __esb_has_positional_after")
-	fmt.Fprintln(out, "    set -l cmd $argv[1]")
-	fmt.Fprintln(out, "    set -l sub $argv[2]")
-	fmt.Fprintln(out, "    set -l tokens (commandline -opc)")
-	fmt.Fprintln(out, "    set -l current (commandline -ct)")
-	fmt.Fprintln(out, "    if test (count $tokens) -gt 0")
-	fmt.Fprintln(out, "        if test \"$tokens[-1]\" = \"$current\"")
-	fmt.Fprintln(out, "            set -e tokens[-1]")
-	fmt.Fprintln(out, "        end")
-	fmt.Fprintln(out, "    end")
-	fmt.Fprintln(out, "    set -l found 0")
-	fmt.Fprintln(out, "    for tok in $tokens")
-	fmt.Fprintln(out, "        if test $found -eq 0")
-	fmt.Fprintln(out, "            if test \"$tok\" = \"$cmd\"")
-	fmt.Fprintln(out, "                set found 1")
-	fmt.Fprintln(out, "                if test -z \"$sub\"")
-	fmt.Fprintln(out, "                    set found 2")
-	fmt.Fprintln(out, "                end")
-	fmt.Fprintln(out, "            end")
-	fmt.Fprintln(out, "        else if test $found -eq 1")
-	fmt.Fprintln(out, "            if test \"$tok\" = \"$sub\"")
-	fmt.Fprintln(out, "                set found 2")
-	fmt.Fprintln(out, "            end")
-	fmt.Fprintln(out, "        else")
-	fmt.Fprintln(out, "            if not string match -r '^-' -- \"$tok\"")
-	fmt.Fprintln(out, "                return 0")
-	fmt.Fprintln(out, "            end")
-	fmt.Fprintln(out, "        end")
-	fmt.Fprintln(out, "    end")
-	fmt.Fprintln(out, "    return 1")
-	fmt.Fprintln(out, "end")
+	writeLine(out, "function __esb_has_positional_after")
+	writeLine(out, "    set -l cmd $argv[1]")
+	writeLine(out, "    set -l sub $argv[2]")
+	writeLine(out, "    set -l tokens (commandline -opc)")
+	writeLine(out, "    set -l current (commandline -ct)")
+	writeLine(out, "    if test (count $tokens) -gt 0")
+	writeLine(out, "        if test \"$tokens[-1]\" = \"$current\"")
+	writeLine(out, "            set -e tokens[-1]")
+	writeLine(out, "        end")
+	writeLine(out, "    end")
+	writeLine(out, "    set -l found 0")
+	writeLine(out, "    for tok in $tokens")
+	writeLine(out, "        if test $found -eq 0")
+	writeLine(out, "            if test \"$tok\" = \"$cmd\"")
+	writeLine(out, "                set found 1")
+	writeLine(out, "                if test -z \"$sub\"")
+	writeLine(out, "                    set found 2")
+	writeLine(out, "                end")
+	writeLine(out, "            end")
+	writeLine(out, "        else if test $found -eq 1")
+	writeLine(out, "            if test \"$tok\" = \"$sub\"")
+	writeLine(out, "                set found 2")
+	writeLine(out, "            end")
+	writeLine(out, "        else")
+	writeLine(out, "            if not string match -r '^-' -- \"$tok\"")
+	writeLine(out, "                return 0")
+	writeLine(out, "            end")
+	writeLine(out, "        end")
+	writeLine(out, "    end")
+	writeLine(out, "    return 1")
+	writeLine(out, "end")
 	for _, node := range parser.Model.Children {
 		if node.Hidden || strings.HasPrefix(node.Name, "__") {
 			continue
 		}
-		fmt.Fprintf(out, "complete -c esb -f -a %s -d '%s'\n", node.Name, node.Help)
+		writeLine(out, fmt.Sprintf("complete -c esb -f -a %s -d '%s'", node.Name, node.Help))
 	}
-	fmt.Fprintln(out, "complete -c esb -f -l env -s e -r -a '(esb __complete env)' -d 'Environment'")
-	fmt.Fprintln(out, "complete -c esb -f -n '__fish_seen_subcommand_from env; and __fish_seen_subcommand_from use remove; and not __esb_has_positional_after env use; and not __esb_has_positional_after env remove' -a '(esb __complete env)'")
-	fmt.Fprintln(out, "complete -c esb -f -n '__fish_seen_subcommand_from project; and __fish_seen_subcommand_from use remove; and not __esb_has_positional_after project use; and not __esb_has_positional_after project remove' -a '(esb __complete project)'")
-	fmt.Fprintln(out, "complete -c esb -f -n '__fish_seen_subcommand_from logs; and not __esb_has_positional_after logs \"\"' -a '(esb __complete service)'")
-	fmt.Fprintln(out, "complete -c esb -f -n '__fish_seen_subcommand_from env; and __fish_seen_subcommand_from var; and not __esb_has_positional_after env var' -a '(esb __complete service)'")
+	writeLine(out, "complete -c esb -f -l env -s e -r -a '(esb __complete env)' -d 'Environment'")
+	writeLine(out, "complete -c esb -f -n '__fish_seen_subcommand_from env; and __fish_seen_subcommand_from use remove; and not __esb_has_positional_after env use; and not __esb_has_positional_after env remove' -a '(esb __complete env)'")
+	writeLine(out, "complete -c esb -f -n '__fish_seen_subcommand_from project; and __fish_seen_subcommand_from use remove; and not __esb_has_positional_after project use; and not __esb_has_positional_after project remove' -a '(esb __complete project)'")
+	writeLine(out, "complete -c esb -f -n '__fish_seen_subcommand_from logs; and not __esb_has_positional_after logs \"\"' -a '(esb __complete service)'")
+	writeLine(out, "complete -c esb -f -n '__fish_seen_subcommand_from env; and __fish_seen_subcommand_from var; and not __esb_has_positional_after env var' -a '(esb __complete service)'")
 	return 0
 }

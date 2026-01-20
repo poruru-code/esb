@@ -18,26 +18,29 @@ import (
 // Used by runNoArgs when esb is invoked without arguments.
 func runInfo(cli CLI, deps Dependencies, out io.Writer) int {
 	opts := newResolveOptions(false) // No force flag for info display
+	ui := legacyUI(out)
 	configPath, cfg, err := loadGlobalConfigWithPath()
 	if err != nil {
-		fmt.Fprintln(out, err)
+		ui.Warn(err.Error())
 		return 1
 	}
 
-	fmt.Fprintln(out, "ℹ️  Version")
-	fmt.Fprintf(out, "   %s\n", version.GetVersion())
+	ui.Info("ℹ️  Version")
+	ui.Info(fmt.Sprintf("   %s", version.GetVersion()))
 
-	fmt.Fprintln(out, "\n⚙️  Config")
-	fmt.Fprintf(out, "   path: %s\n", configPath)
+	ui.Info("")
+	ui.Info("⚙️  Config")
+	ui.Info(fmt.Sprintf("   path: %s", configPath))
 	if cli.Template == "" && len(cfg.Projects) == 0 {
-		fmt.Fprintln(out, "\n📦 No projects registered.")
-		fmt.Fprintln(out, "   Run 'esb project add . -t <template>' to get started.")
+		ui.Info("")
+		ui.Info("📦 No projects registered.")
+		ui.Info("   Run 'esb project add . -t <template>' to get started.")
 		return 1
 	}
 
 	selection, err := resolveProjectSelection(cli, deps, opts)
 	if err != nil {
-		fmt.Fprintln(out, err)
+		ui.Warn(err.Error())
 		return 1
 	}
 
@@ -47,7 +50,7 @@ func runInfo(cli CLI, deps Dependencies, out io.Writer) int {
 	}
 	project, err := loadProjectConfig(projectDir)
 	if err != nil {
-		fmt.Fprintln(out, err)
+		ui.Warn(err.Error())
 		return 1
 	}
 
@@ -74,7 +77,7 @@ func runInfo(cli CLI, deps Dependencies, out io.Writer) int {
 	if envError == nil {
 		ctx, err = state.ResolveContext(project.Dir, envState.ActiveEnv)
 		if err != nil {
-			fmt.Fprintln(out, err)
+			ui.Warn(err.Error())
 			return 1
 		}
 	} else {
@@ -86,12 +89,13 @@ func runInfo(cli CLI, deps Dependencies, out io.Writer) int {
 		}
 	}
 
-	fmt.Fprintln(out, "\n📦 Project")
-	fmt.Fprintf(out, "   name: %s\n", project.Name)
-	fmt.Fprintf(out, "   dir:  %s\n", project.Dir)
-	fmt.Fprintf(out, "   gen:  %s\n", project.GeneratorPath)
-	fmt.Fprintf(out, "   tmpl: %s\n", ctx.TemplatePath)
-	fmt.Fprintf(out, "   out:  %s\n", ctx.OutputDir)
+	ui.Info("")
+	ui.Info("📦 Project")
+	ui.Info(fmt.Sprintf("   name: %s", project.Name))
+	ui.Info(fmt.Sprintf("   dir:  %s", project.Dir))
+	ui.Info(fmt.Sprintf("   gen:  %s", project.GeneratorPath))
+	ui.Info(fmt.Sprintf("   tmpl: %s", ctx.TemplatePath))
+	ui.Info(fmt.Sprintf("   out:  %s", ctx.OutputDir))
 
 	stateValue := "unknown"
 	if envError == nil && deps.DetectorFactory != nil {
@@ -108,14 +112,15 @@ func runInfo(cli CLI, deps Dependencies, out io.Writer) int {
 		}
 	}
 
-	fmt.Fprintln(out, "\n🌐 Environment")
+	ui.Info("")
+	ui.Info("🌐 Environment")
 	if envError != nil {
-		fmt.Fprintf(out, "   status: %v\n", envError)
+		ui.Info(fmt.Sprintf("   status: %v", envError))
 	}
-	fmt.Fprintf(out, "   name:   %s (%s)\n", ctx.Env, ctx.Mode)
-	fmt.Fprintf(out, "   state:  %s\n", stateValue)
-	fmt.Fprintf(out, "   env:    %s\n", ctx.OutputEnvDir)
-	fmt.Fprintf(out, "   proj:   %s\n", ctx.ComposeProject)
+	ui.Info(fmt.Sprintf("   name:   %s (%s)", ctx.Env, ctx.Mode))
+	ui.Info(fmt.Sprintf("   state:  %s", stateValue))
+	ui.Info(fmt.Sprintf("   env:    %s", ctx.OutputEnvDir))
+	ui.Info(fmt.Sprintf("   proj:   %s", ctx.ComposeProject))
 
 	return 0
 }

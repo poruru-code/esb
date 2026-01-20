@@ -67,7 +67,7 @@ func (c *pruneCommand) Run(ctxInfo commandContext, flags PruneCmd) error {
 			return err
 		}
 		if !confirmed {
-			fmt.Fprintln(c.out, "Aborted.")
+			legacyUI(c.out).Info("Aborted.")
 			return fmt.Errorf("aborted")
 		}
 	}
@@ -84,22 +84,23 @@ func (c *pruneCommand) Run(ctxInfo commandContext, flags PruneCmd) error {
 }
 
 func printPruneWarning(out io.Writer, request ports.PruneRequest) {
-	fmt.Fprintln(out, "WARNING! This will remove:")
-	fmt.Fprintln(out, "  - all stopped project containers")
-	fmt.Fprintln(out, "  - all project networks not used by at least one container")
+	ui := legacyUI(out)
+	ui.Info("WARNING! This will remove:")
+	ui.Info("  - all stopped project containers")
+	ui.Info("  - all project networks not used by at least one container")
 	if request.AllImages {
-		fmt.Fprintln(out, "  - all project images not used by at least one container")
+		ui.Info("  - all project images not used by at least one container")
 	} else {
-		fmt.Fprintln(out, "  - all dangling project images")
+		ui.Info("  - all dangling project images")
 	}
 	if request.RemoveVolumes {
-		fmt.Fprintln(out, "  - all project volumes not used by at least one container")
+		ui.Info("  - all project volumes not used by at least one container")
 	}
 	if request.Context.OutputEnvDir != "" {
-		fmt.Fprintf(out, "  - generated artifacts: %s\n", request.Context.OutputEnvDir)
+		ui.Info(fmt.Sprintf("  - generated artifacts: %s", request.Context.OutputEnvDir))
 	}
 	if request.Hard {
-		fmt.Fprintln(out, "  - generator.yml")
+		ui.Info("  - generator.yml")
 	}
-	fmt.Fprintln(out, "")
+	ui.Info("")
 }

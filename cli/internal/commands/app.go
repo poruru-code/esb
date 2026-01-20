@@ -104,9 +104,10 @@ func Run(args []string, deps Dependencies) int {
 	if out == nil {
 		out = os.Stdout
 	}
+	ui := legacyUI(out)
 
 	if commandName(args) == "node" {
-		fmt.Fprintln(out, "node command is disabled in Go CLI")
+		ui.Warn("node command is disabled in Go CLI")
 		return 1
 	}
 
@@ -137,13 +138,13 @@ func Run(args []string, deps Dependencies) int {
 	// Load environment file if provided or if .env exists in current directory
 	if cli.EnvFile != "" {
 		if err := godotenv.Load(cli.EnvFile); err != nil {
-			fmt.Fprintf(out, "Warning: failed to load env file %s: %v\n", cli.EnvFile, err)
+			ui.Warn(fmt.Sprintf("Warning: failed to load env file %s: %v", cli.EnvFile, err))
 		}
 	} else {
 		// Default to .env in current directory
 		if _, err := os.Stat(".env"); err == nil {
 			if err := godotenv.Load(); err != nil {
-				fmt.Fprintf(out, "Warning: failed to load .env: %v\n", err)
+				ui.Warn(fmt.Sprintf("Warning: failed to load .env: %v", err))
 			}
 		}
 	}
@@ -153,7 +154,7 @@ func Run(args []string, deps Dependencies) int {
 		return exitCode
 	}
 
-	fmt.Fprintln(out, "unknown command")
+	ui.Warn("unknown command")
 	return 1
 }
 
@@ -214,7 +215,7 @@ func dispatchCommand(command string, cli CLI, deps Dependencies, out io.Writer) 
 
 // runVersion prints the version information of the CLI.
 func runVersion(_ CLI, out io.Writer) int {
-	fmt.Fprintln(out, version.GetVersion())
+	legacyUI(out).Info(version.GetVersion())
 	return 0
 }
 

@@ -22,6 +22,7 @@ import (
 func runEnvVar(cli CLI, deps Dependencies, out io.Writer) int {
 	opts := newResolveOptions(cli.Env.Var.Force)
 	opts.Interactive = interaction.IsTerminal(os.Stdin) && deps.Prompter != nil
+	ui := legacyUI(out)
 
 	ctxInfo, err := resolveCommandContext(cli, deps, opts)
 	if err != nil {
@@ -48,7 +49,7 @@ func runEnvVar(cli CLI, deps Dependencies, out io.Writer) int {
 	}
 
 	if len(services) == 0 {
-		fmt.Fprintln(out, "No services found in the environment.")
+		ui.Info("No services found in the environment.")
 		return 1
 	}
 
@@ -135,15 +136,15 @@ func runEnvVar(cli CLI, deps Dependencies, out io.Writer) int {
 			}
 		}
 		data, _ := json.MarshalIndent(envMap, "", "  ")
-		fmt.Fprintln(out, string(data))
+		ui.Info(string(data))
 	case "export":
 		for _, env := range envVars {
-			fmt.Fprintf(out, "export %s\n", env)
+			ui.Info(fmt.Sprintf("export %s", env))
 		}
 	default: // plain
-		fmt.Fprintf(out, "--- Environment variables for service '%s' (container: %s) ---\n", service, containerName)
+		ui.Info(fmt.Sprintf("--- Environment variables for service '%s' (container: %s) ---", service, containerName))
 		for _, env := range envVars {
-			fmt.Fprintln(out, env)
+			ui.Info(env)
 		}
 	}
 
