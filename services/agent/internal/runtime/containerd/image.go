@@ -13,6 +13,7 @@ import (
 	"os"
 
 	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/remotes"
 	"github.com/containerd/containerd/remotes/docker"
 	"github.com/poruru/edge-serverless-box/meta"
@@ -30,6 +31,10 @@ func (r *Runtime) ensureImage(ctx context.Context, ref string) (containerd.Image
 			return nil, err
 		}
 		return img, nil
+	}
+
+	if !errdefs.IsNotFound(err) {
+		return nil, fmt.Errorf("failed to get image %s: %w", ref, err)
 	}
 
 	log.Printf("Image %s not found, pulling...", ref)

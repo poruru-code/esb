@@ -46,6 +46,7 @@
 - Proposed change: `errdefs.IsNotFound(err)` のみ Pull し、その他は即失敗にする。
 - Acceptance: 誤った Pull に進まず、原因がログ/エラーで明確に判別できる。
 - Tests/Docs: `GetImage` エラー種別ごとのテスト追加。
+- Status: Done（NotFound のみ Pull、非 NotFound は即エラー、テスト追加）
 
 ## 依存関係と順序
 - P0-1 は単独で即時対応可能。
