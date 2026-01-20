@@ -132,10 +132,10 @@ func TestResolveRepoRootFromPathErrorsWhenMissing(t *testing.T) {
 func makeRepo(t *testing.T, base, name string) string {
 	t.Helper()
 	repo := filepath.Join(base, name)
-	if err := os.MkdirAll(repo, 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(repo, "compose"), 0o755); err != nil {
 		t.Fatalf("create repo dir: %v", err)
 	}
-	marker := filepath.Join(repo, "docker-compose.yml")
+	marker := filepath.Join(repo, "compose", "base.yml")
 	if err := os.WriteFile(marker, []byte(""), 0o644); err != nil {
 		t.Fatalf("write repo marker: %v", err)
 	}

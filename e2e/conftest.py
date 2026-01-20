@@ -8,10 +8,35 @@ Each test file uses fixtures and constants from this conftest.py.
 import json
 import os
 import time
+from pathlib import Path
 
 import pytest
 import requests
 import urllib3
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+
+def build_control_compose_command(
+    args: list[str], mode: str | None = None, project_name: str | None = None
+) -> list[str]:
+    """Construct the `docker compose` command used for control-plane actions."""
+    if project_name:
+        cmd = ["docker", "compose", "-p", project_name]
+    else:
+        cmd = ["docker", "compose"]
+
+    mode = (mode or os.getenv("MODE") or "docker").lower()
+    if mode == "firecracker":
+        filename = "docker-compose.fc.yml"
+    elif mode == "containerd":
+        filename = "docker-compose.containerd.yml"
+    else:
+        filename = "docker-compose.docker.yml"
+
+    cmd.extend(["-f", str(PROJECT_ROOT / filename)])
+    cmd.extend(args)
+    return cmd
 
 
 def parse_bool(value: str | None) -> bool:

@@ -47,8 +47,11 @@ func (s *stubStateStore) Remove(_ state.Context) error {
 
 func TestDiscoverAndPersistPortsChanged(t *testing.T) {
 	repoRoot := t.TempDir()
-	if err := os.WriteFile(filepath.Join(repoRoot, "docker-compose.yml"), []byte(""), 0o644); err != nil {
-		t.Fatalf("write docker-compose fixture: %v", err)
+	if err := os.MkdirAll(filepath.Join(repoRoot, "compose"), 0o755); err != nil {
+		t.Fatalf("create compose dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repoRoot, "compose", "base.yml"), []byte(""), 0o644); err != nil {
+		t.Fatalf("write compose/base.yml fixture: %v", err)
 	}
 	t.Setenv(envutil.HostEnvKey(constants.HostSuffixRepo), repoRoot)
 
@@ -81,8 +84,11 @@ func TestDiscoverAndPersistPortsChanged(t *testing.T) {
 
 func TestDiscoverAndPersistPortsUnchanged(t *testing.T) {
 	repoRoot := t.TempDir()
-	if err := os.WriteFile(filepath.Join(repoRoot, "docker-compose.yml"), []byte(""), 0o644); err != nil {
-		t.Fatalf("write docker-compose fixture: %v", err)
+	if err := os.MkdirAll(filepath.Join(repoRoot, "compose"), 0o755); err != nil {
+		t.Fatalf("create compose dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repoRoot, "compose", "base.yml"), []byte(""), 0o644); err != nil {
+		t.Fatalf("write compose/base.yml fixture: %v", err)
 	}
 	t.Setenv(envutil.HostEnvKey(constants.HostSuffixRepo), repoRoot)
 

@@ -1,13 +1,13 @@
 # Worker services (Agent for container management).
 services:
   agent:
-    env_file: config/defaults.env
+    env_file: ../config/defaults.env
     image: ${IMAGE_PREFIX:-undefined}-agent:${IMAGE_TAG:-latest}
     build:
-      context: services/agent
+      context: ../services/agent
       dockerfile: Dockerfile
       additional_contexts:
-        meta: meta
+        meta: ../meta
       args:
         IMAGE_PREFIX: ${IMAGE_PREFIX:-undefined}
         OS_BASE_IMAGE: esb-os-base:latest

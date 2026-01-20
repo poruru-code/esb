@@ -14,8 +14,6 @@ import (
 func TestBuildProjectBuildsCommand(t *testing.T) {
 	root := t.TempDir()
 	writeComposeFiles(t, root,
-		"docker-compose.yml",
-		"docker-compose.worker.yml",
 		"docker-compose.docker.yml",
 	)
 
@@ -33,8 +31,6 @@ func TestBuildProjectBuildsCommand(t *testing.T) {
 	expected := []string{
 		"compose",
 		"-p", "esb-default",
-		"-f", filepath.Join(root, "docker-compose.yml"),
-		"-f", filepath.Join(root, "docker-compose.worker.yml"),
 		"-f", filepath.Join(root, "docker-compose.docker.yml"),
 		"build",
 		"gateway",
@@ -51,9 +47,6 @@ func TestBuildProjectBuildsCommand(t *testing.T) {
 func TestBuildProjectAddsRuntimeNodeForContainerd(t *testing.T) {
 	root := t.TempDir()
 	writeComposeFiles(t, root,
-		"docker-compose.yml",
-		"docker-compose.worker.yml",
-		"docker-compose.registry.yml",
 		"docker-compose.containerd.yml",
 	)
 
@@ -72,9 +65,6 @@ func TestBuildProjectAddsRuntimeNodeForContainerd(t *testing.T) {
 	expected := []string{
 		"compose",
 		"-p", "esb-default",
-		"-f", filepath.Join(root, "docker-compose.yml"),
-		"-f", filepath.Join(root, "docker-compose.worker.yml"),
-		"-f", filepath.Join(root, "docker-compose.registry.yml"),
 		"-f", filepath.Join(root, "docker-compose.containerd.yml"),
 		"build",
 		"gateway",
@@ -89,9 +79,6 @@ func TestBuildProjectAddsRuntimeNodeForContainerd(t *testing.T) {
 func TestBuildProjectAddsRuntimeNodeForFirecracker(t *testing.T) {
 	root := t.TempDir()
 	writeComposeFiles(t, root,
-		"docker-compose.yml",
-		"docker-compose.worker.yml",
-		"docker-compose.registry.yml",
 		"docker-compose.fc.yml",
 	)
 
@@ -110,9 +97,6 @@ func TestBuildProjectAddsRuntimeNodeForFirecracker(t *testing.T) {
 	expected := []string{
 		"compose",
 		"-p", "esb-default",
-		"-f", filepath.Join(root, "docker-compose.yml"),
-		"-f", filepath.Join(root, "docker-compose.worker.yml"),
-		"-f", filepath.Join(root, "docker-compose.registry.yml"),
 		"-f", filepath.Join(root, "docker-compose.fc.yml"),
 		"build",
 		"gateway",
@@ -127,8 +111,6 @@ func TestBuildProjectAddsRuntimeNodeForFirecracker(t *testing.T) {
 func TestBuildProjectUsesNoCacheFlag(t *testing.T) {
 	root := t.TempDir()
 	writeComposeFiles(t, root,
-		"docker-compose.yml",
-		"docker-compose.worker.yml",
 		"docker-compose.docker.yml",
 	)
 
@@ -148,8 +130,6 @@ func TestBuildProjectUsesNoCacheFlag(t *testing.T) {
 	expected := []string{
 		"compose",
 		"-p", "esb-default",
-		"-f", filepath.Join(root, "docker-compose.yml"),
-		"-f", filepath.Join(root, "docker-compose.worker.yml"),
 		"-f", filepath.Join(root, "docker-compose.docker.yml"),
 		"build",
 		"--no-cache",

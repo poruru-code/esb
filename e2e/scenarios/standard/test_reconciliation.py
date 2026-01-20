@@ -16,6 +16,7 @@ from e2e.conftest import (
     DEFAULT_REQUEST_TIMEOUT,
     GATEWAY_URL,
     VERIFY_SSL,
+    build_control_compose_command,
     call_api,
 )
 
@@ -46,13 +47,17 @@ class TestReconciliation:
 
         # 2. Restart Gateway (container runs in Agent but leaves Gateway pool).
         print("Step 2: Restarting Gateway container...")
+        project_name = os.getenv("PROJECT_NAME")
+        cmd = build_control_compose_command(
+            ["restart", "gateway"],
+            mode=os.getenv("MODE"),
+            project_name=project_name,
+        )
+
         restart_result = subprocess.run(
-            ["docker", "compose", "restart", "gateway"],
+            cmd,
             capture_output=True,
             text=True,
-            cwd=os.path.dirname(
-                os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            ),
         )
         assert restart_result.returncode == 0, f"Failed to restart gateway: {restart_result.stderr}"
 

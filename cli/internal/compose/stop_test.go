@@ -13,9 +13,11 @@ import (
 
 func TestStopProjectBuildsCommand(t *testing.T) {
 	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "compose"), 0o755); err != nil {
+		t.Fatalf("create compose dir: %v", err)
+	}
 	writeStopComposeFiles(t, root,
-		"docker-compose.yml",
-		"docker-compose.worker.yml",
+		"compose/base.yml",
 		"docker-compose.docker.yml",
 	)
 
@@ -33,8 +35,6 @@ func TestStopProjectBuildsCommand(t *testing.T) {
 	expected := []string{
 		"compose",
 		"-p", "esb-default",
-		"-f", filepath.Join(root, "docker-compose.yml"),
-		"-f", filepath.Join(root, "docker-compose.worker.yml"),
 		"-f", filepath.Join(root, "docker-compose.docker.yml"),
 		"stop",
 	}
@@ -45,9 +45,11 @@ func TestStopProjectBuildsCommand(t *testing.T) {
 
 func TestLogsProjectBuildsCommand(t *testing.T) {
 	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "compose"), 0o755); err != nil {
+		t.Fatalf("create compose dir: %v", err)
+	}
 	writeStopComposeFiles(t, root,
-		"docker-compose.yml",
-		"docker-compose.worker.yml",
+		"compose/base.yml",
 		"docker-compose.docker.yml",
 	)
 
@@ -69,8 +71,6 @@ func TestLogsProjectBuildsCommand(t *testing.T) {
 	expected := []string{
 		"compose",
 		"-p", "esb-default",
-		"-f", filepath.Join(root, "docker-compose.yml"),
-		"-f", filepath.Join(root, "docker-compose.worker.yml"),
 		"-f", filepath.Join(root, "docker-compose.docker.yml"),
 		"logs",
 		"--follow",

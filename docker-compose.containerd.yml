@@ -1,4 +1,9 @@
 
+include:
+  - compose/base.yml
+  - compose/worker.yml
+  - compose/registry.yml
+
 services:
   # ------------------------------------------
   # 1. Runtime Node (Containerd Host Container)
@@ -14,8 +19,6 @@ services:
     entrypoint: /entrypoint.containerd.sh
     privileged: true
     ports:
-      - "${PORT_AGENT_GRPC:-0}:50051"
-      - "${PORT_GATEWAY_HTTPS:-0}:8443"  # Gateway port (shared network)
       - "${PORT_AGENT_GRPC:-0}:50051"
       - "${PORT_GATEWAY_HTTPS:-0}:8443"  # Gateway port (shared network)
       - "${PORT_AGENT_METRICS:-0}:9091" # Agent Metrics
@@ -49,7 +52,6 @@ services:
     depends_on:
       runtime-node: { condition: service_started }
     restart: unless-stopped
-
 
   # ------------------------------------------
   # 3. Agent Wiring (Shares network with runtime-node)

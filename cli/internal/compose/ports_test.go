@@ -42,8 +42,6 @@ func (f fakeOutputRunner) RunOutput(_ context.Context, _, _ string, args ...stri
 func TestDiscoverPortsFiltersByMode(t *testing.T) {
 	rootDir := t.TempDir()
 	for _, name := range []string{
-		"docker-compose.yml",
-		"docker-compose.worker.yml",
 		"docker-compose.docker.yml",
 	} {
 		if err := os.WriteFile(filepath.Join(rootDir, name), []byte("test"), 0o644); err != nil {
@@ -80,10 +78,7 @@ func TestDiscoverPortsIgnoresZeroPort(t *testing.T) {
 	rootDir := t.TempDir()
 	// Create all potential compose files that might be looked up
 	for _, name := range []string{
-		"docker-compose.yml",
-		"docker-compose.worker.yml",
 		"docker-compose.containerd.yml",
-		"docker-compose.registry.yml",
 	} {
 		if err := os.WriteFile(filepath.Join(rootDir, name), []byte("test"), 0o644); err != nil {
 			t.Fatalf("write compose file: %v", err)

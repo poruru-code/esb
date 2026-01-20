@@ -6,10 +6,10 @@ services:
   # Base Images (Debian 12)
   # ============================================
   os-base:
-    env_file: config/defaults.env
+    env_file: ../config/defaults.env
     image: esb-os-base:latest
     build:
-      context: .
+      context: ..
       dockerfile: services/common/Dockerfile.os-base
       args:
         IMAGE_PREFIX: ${IMAGE_PREFIX:-undefined}
@@ -20,10 +20,10 @@ services:
         - root_ca
 
   python-base:
-    env_file: config/defaults.env
+    env_file: ../config/defaults.env
     image: esb-python-base:latest
     build:
-      context: .
+      context: ..
       dockerfile: services/common/Dockerfile.python-base
       args:
         IMAGE_PREFIX: ${IMAGE_PREFIX:-undefined}
@@ -37,7 +37,7 @@ services:
   # Permission Helper (for RustFS)
   # ============================================
   permission-helper:
-    env_file: config/defaults.env
+    env_file: ../config/defaults.env
     image: alpine
     container_name: ${PROJECT_NAME:-undefined}-permission-helper
     volumes:
@@ -52,7 +52,7 @@ services:
   # RustFS (S3 Compatible Storage)
   # ============================================
   s3-storage:
-    env_file: config/defaults.env
+    env_file: ../config/defaults.env
     image: rustfs/rustfs:latest
     container_name: ${PROJECT_NAME:-undefined}-s3-storage
     depends_on:
@@ -94,7 +94,7 @@ services:
   # ScyllaDB (DynamoDB Compatible DB)
   # ============================================
   database:
-    env_file: config/defaults.env
+    env_file: ../config/defaults.env
     image: scylladb/scylla:latest
     container_name: ${PROJECT_NAME:-undefined}-database
     ports:
@@ -124,7 +124,7 @@ services:
   # VictoriaLogs
   # ============================================
   victorialogs:
-    env_file: config/defaults.env
+    env_file: ../config/defaults.env
     image: victoriametrics/victoria-logs:latest
     container_name: ${PROJECT_NAME:-undefined}-victorialogs
     ports:
@@ -155,13 +155,13 @@ services:
   # API Gateway (Facade)
   # ============================================
   gateway:
-    env_file: config/defaults.env
+    env_file: ../config/defaults.env
     image: ${IMAGE_PREFIX:-undefined}-gateway:${IMAGE_TAG:-latest}
     build:
-      context: .
+      context: ..
       dockerfile: services/gateway/Dockerfile
       additional_contexts:
-        config: ${CONFIG_DIR:-services/gateway/config}
+        config: ${CONFIG_DIR:-../services/gateway/config}
       args:
         IMAGE_PREFIX: ${IMAGE_PREFIX:-undefined}
         SERVICE_USER: ${PROJECT_NAME:-undefined}
