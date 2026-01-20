@@ -20,6 +20,8 @@ require (
 	google.golang.org/protobuf v1.36.10
 )
 
+require github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.3
+
 require (
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24 // indirect
 	github.com/AdamKorcz/go-118-fuzz-build v0.0.0-20230306123547-8075edf89bb0 // indirect

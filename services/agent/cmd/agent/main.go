@@ -15,9 +15,11 @@ import (
 	"github.com/containerd/containerd"
 	"github.com/containerd/go-cni"
 	"github.com/docker/docker/client"
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"github.com/poruru/edge-serverless-box/meta"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/api"
 	cni_gen "github.com/poruru/edge-serverless-box/services/agent/internal/cni"
+	"github.com/poruru/edge-serverless-box/services/agent/internal/interceptor"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/logger"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
 	agentContainerd "github.com/poruru/edge-serverless-box/services/agent/internal/runtime/containerd"
@@ -160,6 +162,15 @@ func main() {
 	} else {
 		slog.Info("gRPC TLS is enabled by default.")
 	}
+
+	// Setup logging interceptor
+	loggingOpts := []logging.Option{
+		logging.WithLogOnEvents(logging.FinishCall),
+	}
+	grpcOptions = append(grpcOptions, grpc.ChainUnaryInterceptor(
+		logging.UnaryServerInterceptor(interceptor.Logger(slog.Default()), loggingOpts...),
+	))
+
 	grpcServer := grpc.NewServer(grpcOptions...)
 	agentServer := api.NewAgentServer(rt)
 	pb.RegisterAgentServiceServer(grpcServer, agentServer)
