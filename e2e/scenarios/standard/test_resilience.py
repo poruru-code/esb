@@ -9,7 +9,6 @@ Resilience and performance tests.
 import os
 import subprocess
 import time
-from pathlib import Path
 
 import requests
 
@@ -19,46 +18,10 @@ from e2e.conftest import (
     ORCHESTRATOR_RESTART_WAIT,
     STABILIZATION_WAIT,
     VERIFY_SSL,
+    build_control_compose_command,
     call_api,
     request_with_retry,
 )
-
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
-
-
-def build_control_compose_command(
-    args: list[str], mode: str | None = None, project_name: str | None = None
-) -> list[str]:
-    """Construct the `docker compose` command used for control-plane actions."""
-    if project_name:
-        cmd = ["docker", "compose", "-p", project_name]
-    else:
-        cmd = ["docker", "compose"]
-
-    base_files = [
-        PROJECT_ROOT / "docker-compose.yml",
-        PROJECT_ROOT / "docker-compose.worker.yml",
-    ]
-
-    mode = (mode or os.getenv("MODE") or "docker").lower()
-    if mode == "firecracker":
-        mode_files = [
-            PROJECT_ROOT / "docker-compose.registry.yml",
-            PROJECT_ROOT / "docker-compose.fc.yml",
-        ]
-    elif mode == "containerd":
-        mode_files = [
-            PROJECT_ROOT / "docker-compose.registry.yml",
-            PROJECT_ROOT / "docker-compose.containerd.yml",
-        ]
-    else:
-        mode_files = [PROJECT_ROOT / "docker-compose.docker.yml"]
-
-    for path in base_files + mode_files:
-        cmd.extend(["-f", str(path)])
-
-    cmd.extend(args)
-    return cmd
 
 
 class TestResilience:
