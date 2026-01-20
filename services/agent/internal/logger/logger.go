@@ -10,10 +10,14 @@ import (
 var defaultLogger *slog.Logger
 
 // Init initializes the global logger based on environment variables.
-// AGENT_LOG_LEVEL: debug, info, warn, error (default: info)
+// Priority: AGENT_LOG_LEVEL > LOG_LEVEL > Default ("info")
 // AGENT_LOG_FORMAT: text, json (default: text)
 func Init() {
-	level := parseLevel(os.Getenv("AGENT_LOG_LEVEL"))
+	levelStr := os.Getenv("AGENT_LOG_LEVEL")
+	if levelStr == "" {
+		levelStr = os.Getenv("LOG_LEVEL")
+	}
+	level := parseLevel(levelStr)
 	format := strings.ToLower(os.Getenv("AGENT_LOG_FORMAT"))
 
 	opts := &slog.HandlerOptions{Level: level}
