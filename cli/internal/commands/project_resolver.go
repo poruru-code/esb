@@ -23,7 +23,7 @@ type projectSelection struct {
 
 // resolveProjectSelection determines the project directory based on CLI flags,
 // project environment variable, or the most recently used project.
-func resolveProjectSelection(cli CLI, _ Dependencies, opts resolveOptions) (projectSelection, error) {
+func resolveProjectSelection(cli CLI, deps Dependencies, opts resolveOptions) (projectSelection, error) {
 	if strings.TrimSpace(cli.Template) != "" {
 		absTemplate, err := filepath.Abs(cli.Template)
 		if err != nil {
@@ -38,7 +38,7 @@ func resolveProjectSelection(cli CLI, _ Dependencies, opts resolveOptions) (proj
 		}, nil
 	}
 
-	path, cfg, err := loadGlobalConfigWithPath()
+	path, cfg, err := loadGlobalConfigWithPath(deps)
 	if err != nil {
 		return projectSelection{}, err
 	}

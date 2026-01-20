@@ -21,7 +21,7 @@ type ConfigSetRepoCmd struct {
 }
 
 // runConfigSetRepo updates the global configuration with the repo path.
-func runConfigSetRepo(cli CLI, _ Dependencies, out io.Writer) int {
+func runConfigSetRepo(cli CLI, deps Dependencies, out io.Writer) int {
 	repoPath := cli.Config.SetRepo.Path
 	ui := legacyUI(out)
 	// Resolve true root (upward search) before saving
@@ -35,7 +35,7 @@ func runConfigSetRepo(cli CLI, _ Dependencies, out io.Writer) int {
 		}
 	}
 
-	path, cfg, err := loadGlobalConfigWithPath()
+	path, cfg, err := loadGlobalConfigWithPath(deps)
 	if err != nil {
 		return exitWithError(out, err)
 	}

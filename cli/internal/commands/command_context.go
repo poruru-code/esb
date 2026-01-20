@@ -85,7 +85,7 @@ func resolveCommandContext(cli CLI, deps Dependencies, opts resolveOptions) (com
 		projectDir = "."
 	}
 
-	project, err := loadProjectConfig(projectDir)
+	project, err := loadProjectConfig(deps, projectDir)
 	if err != nil {
 		return commandContext{}, err
 	}

@@ -22,18 +22,20 @@ import (
 // This structure enables dependency injection for testing and allows swapping
 // implementations of various subsystems.
 type Dependencies struct {
-	ProjectDir      string
-	Out             io.Writer
-	DetectorFactory helpers.DetectorFactory
-	Now             func() time.Time
-	Prompter        interaction.Prompter
-	RepoResolver    func(string) (string, error)
-	Build           BuildDeps
-	Up              UpDeps
-	Down            DownDeps
-	Logs            LogsDeps
-	Stop            StopDeps
-	Prune           PruneDeps
+	ProjectDir          string
+	Out                 io.Writer
+	DetectorFactory     helpers.DetectorFactory
+	Now                 func() time.Time
+	Prompter            interaction.Prompter
+	RepoResolver        func(string) (string, error)
+	GlobalConfigLoader  helpers.GlobalConfigLoader
+	ProjectConfigLoader helpers.ProjectConfigLoader
+	Build               BuildDeps
+	Up                  UpDeps
+	Down                DownDeps
+	Logs                LogsDeps
+	Stop                StopDeps
+	Prune               PruneDeps
 }
 
 // CLI defines the command-line interface structure parsed by Kong.
@@ -267,9 +269,9 @@ func handleParseError(args []string, err error, deps Dependencies, out io.Writer
 		switch {
 		case strings.HasPrefix(cmd, "env") && strings.Contains(errStr, "<name>"):
 			opts := newResolveOptions(false)
-			selection, _ := resolveProjectSelection(CLI{}, Dependencies{}, opts)
+			selection, _ := resolveProjectSelection(CLI{}, deps, opts)
 			if selection.Dir != "" {
-				project, loadErr := loadProjectConfig(selection.Dir)
+				project, loadErr := loadProjectConfig(deps, selection.Dir)
 				if loadErr == nil {
 					var envNames []string
 					for _, env := range project.Generator.Environments {
@@ -289,7 +291,7 @@ func handleParseError(args []string, err error, deps Dependencies, out io.Writer
 			return runEnvList(CLI{}, deps, out)
 
 		case strings.HasPrefix(cmd, "project") && strings.Contains(errStr, "<name>"):
-			cfg, _ := loadGlobalConfigOrDefault()
+			cfg, _ := loadGlobalConfigOrDefault(deps)
 			var projectNames []string
 			for name := range cfg.Projects {
 				projectNames = append(projectNames, name)

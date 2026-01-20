@@ -44,8 +44,8 @@ type (
 
 // runProjectList executes the 'project list' command which displays
 // all registered projects.
-func runProjectList(_ CLI, _ Dependencies, out io.Writer) int {
-	cfg, err := loadGlobalConfigOrDefault()
+func runProjectList(_ CLI, deps Dependencies, out io.Writer) int {
+	cfg, err := loadGlobalConfigOrDefault(deps)
 	if err != nil {
 		legacyUI(out).Warn(err.Error())
 		return 1
@@ -75,8 +75,8 @@ func runProjectList(_ CLI, _ Dependencies, out io.Writer) int {
 
 // runProjectRecent executes the 'project recent' command which displays
 // projects sorted by most recent usage with numbered indices.
-func runProjectRecent(_ CLI, _ Dependencies, out io.Writer) int {
-	cfg, err := loadGlobalConfigOrDefault()
+func runProjectRecent(_ CLI, deps Dependencies, out io.Writer) int {
+	cfg, err := loadGlobalConfigOrDefault(deps)
 	if err != nil {
 		legacyUI(out).Warn(err.Error())
 		return 1
@@ -104,7 +104,7 @@ func runProjectRecent(_ CLI, _ Dependencies, out io.Writer) int {
 // the active project by name or recent index number. If no name is provided
 // and running in a TTY, prompts the user to select from registered projects.
 func runProjectUse(cli CLI, deps Dependencies, out io.Writer) int {
-	path, cfg, err := loadGlobalConfigWithPath()
+	path, cfg, err := loadGlobalConfigWithPath(deps)
 	if err != nil {
 		return exitWithError(out, err)
 	}
@@ -179,7 +179,7 @@ func runProjectUse(cli CLI, deps Dependencies, out io.Writer) int {
 // runProjectRemove executes the 'project remove' command which deregisters
 // a project from the global configuration.
 func runProjectRemove(cli CLI, deps Dependencies, out io.Writer) int {
-	path, cfg, err := loadGlobalConfigWithPath()
+	path, cfg, err := loadGlobalConfigWithPath(deps)
 	if err != nil {
 		return exitWithError(out, err)
 	}
@@ -362,27 +362,6 @@ func runProjectAdd(cli CLI, deps Dependencies, out io.Writer) int {
 
 // loadGlobalConfigOrDefault loads the global configuration or returns
 // an empty config if not found.
-func loadGlobalConfigOrDefault() (config.GlobalConfig, error) {
-	path, err := config.GlobalConfigPath()
-	if err != nil {
-		return config.GlobalConfig{}, err
-	}
-	return loadGlobalConfig(path)
-}
-
-// loadGlobalConfigWithPath loads the global configuration and returns
-// both the config path and the loaded configuration.
-func loadGlobalConfigWithPath() (string, config.GlobalConfig, error) {
-	path, err := config.GlobalConfigPath()
-	if err != nil {
-		return "", config.GlobalConfig{}, err
-	}
-	cfg, err := loadGlobalConfig(path)
-	if err != nil {
-		return "", config.GlobalConfig{}, err
-	}
-	return path, cfg, nil
-}
 
 // selectProject resolves a project selector (name or index) to a project name.
 // Numeric selectors are 1-indexed and reference recent projects list.

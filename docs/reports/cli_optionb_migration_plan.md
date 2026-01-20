@@ -46,3 +46,4 @@ Stages 0-6 are archived in `docs/reports/cli_optionb_migration_plan_archive.md`.
 - **Task 7.6 (P1): Config/FS 依存の前段化**
   - 作業: 設定読み込み/FS 解決を workflow 前段へ集約し、コマンド内 I/O を削減する。
   - 受け入れ条件: `project/env` 系コマンドの I/O 依存が helpers に集約され、テストでの差し替えが容易。
+  - 現状: `helpers.GlobalConfigLoader`/`helpers.ProjectConfigLoader` を導入し、`Dependencies` に注入。コマンドは `loadGlobalConfig*` と `loadProjectConfig` を loader 経由で呼び出し、FS/設定アクセスを一元化。

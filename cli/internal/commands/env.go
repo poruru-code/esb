@@ -13,6 +13,7 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
+	"github.com/poruru/edge-serverless-box/cli/internal/helpers"
 	"github.com/poruru/edge-serverless-box/cli/internal/interaction"
 	"github.com/poruru/edge-serverless-box/cli/internal/workflows"
 )
@@ -53,7 +54,7 @@ type (
 // envContext holds the resolved project and global configuration
 // needed for environment operations.
 type envContext struct {
-	Project    projectConfig
+	Project    helpers.ProjectConfig
 	Config     config.GlobalConfig
 	ConfigPath string
 }
@@ -342,11 +343,11 @@ func resolveEnvContext(cli CLI, deps Dependencies, opts resolveOptions) (envCont
 		projectDir = "."
 	}
 
-	project, err := loadProjectConfig(projectDir)
+	project, err := loadProjectConfig(deps, projectDir)
 	if err != nil {
 		return envContext{}, err
 	}
-	path, cfg, err := loadGlobalConfigWithPath()
+	path, cfg, err := loadGlobalConfigWithPath(deps)
 	if err != nil {
 		return envContext{}, err
 	}

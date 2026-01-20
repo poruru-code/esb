@@ -19,7 +19,7 @@ import (
 func runInfo(cli CLI, deps Dependencies, out io.Writer) int {
 	opts := newResolveOptions(false) // No force flag for info display
 	ui := legacyUI(out)
-	configPath, cfg, err := loadGlobalConfigWithPath()
+	configPath, cfg, err := loadGlobalConfigWithPath(deps)
 	if err != nil {
 		ui.Warn(err.Error())
 		return 1
@@ -48,7 +48,7 @@ func runInfo(cli CLI, deps Dependencies, out io.Writer) int {
 	if strings.TrimSpace(projectDir) == "" {
 		projectDir = "."
 	}
-	project, err := loadProjectConfig(projectDir)
+	project, err := loadProjectConfig(deps, projectDir)
 	if err != nil {
 		ui.Warn(err.Error())
 		return 1

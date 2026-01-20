@@ -41,11 +41,13 @@ func BuildDependencies() (commands.Dependencies, io.Closer, error) {
 	portDiscoverer := helpers.NewPortDiscoverer()
 	builder := generator.NewGoBuilder(portDiscoverer)
 	deps := commands.Dependencies{
-		ProjectDir:      projectDir,
-		Out:             Stdout,
-		DetectorFactory: helpers.NewDetectorFactory(client, warnf),
-		Prompter:        interaction.HuhPrompter{},
-		RepoResolver:    config.ResolveRepoRoot,
+		ProjectDir:          projectDir,
+		Out:                 Stdout,
+		DetectorFactory:     helpers.NewDetectorFactory(client, warnf),
+		Prompter:            interaction.HuhPrompter{},
+		RepoResolver:        config.ResolveRepoRoot,
+		GlobalConfigLoader:  helpers.DefaultGlobalConfigLoader(),
+		ProjectConfigLoader: helpers.DefaultProjectConfigLoader(),
 		Build: commands.BuildDeps{
 			Builder: builder,
 		},

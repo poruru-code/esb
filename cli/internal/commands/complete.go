@@ -43,8 +43,8 @@ func runCompleteEnv(cli CLI, deps Dependencies, out io.Writer) int {
 	return 0
 }
 
-func runCompleteProject(_ CLI, _ Dependencies, out io.Writer) int {
-	cfg, err := loadGlobalConfigOrDefault()
+func runCompleteProject(_ CLI, deps Dependencies, out io.Writer) int {
+	cfg, err := loadGlobalConfigOrDefault(deps)
 	if err != nil {
 		return 0
 	}
