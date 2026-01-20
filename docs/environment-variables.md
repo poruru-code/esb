@@ -44,13 +44,13 @@ Gateway は Lambda 環境の "Master Config" として機能し、サービス�
 | `CONTAINERS_NETWORK`  | `ESB_NETWORK_EXTERNAL`     | 自身の所属チェックおよびワーカーの状態監視に使用。                               |
 | `RUSTFS_ACCESS_KEY`  | (自動生成)                 | S3 ストレージ (RustFS) のアクセスキー。未指定時は `esb` またはランダム値が設定される。 |
 | `RUSTFS_SECRET_KEY`  | (自動生成)                 | S3 ストレージ (RustFS) のシークレットキー。未指定時はランダム値が設定される。         |
-| `ESB_DATA_PLANE_HOST` | `10.88.0.1`                | **Containerd/FC Mode**: ネットワークゲートウェイ兼 DNS サーバーの IP。           |
+| `DATA_PLANE_HOST` | `10.88.0.1`                | **Containerd/FC Mode**: ネットワークゲートウェイ兼 DNS サーバーの IP。           |
 
 ### 2. Agent & Runtime Node
 
 | 変数名               | Source (`.env` / Default) | Agent/Runtimeでの用途                                                                                  |
 | -------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `CNI_GW_IP`          | `ESB_DATA_PLANE_HOST`     | **Networking**: `runtime-node` 内でブリッジインターフェース (`esb-cni0`) に設定されるゲートウェイ IP。 |
+| `CNI_GW_IP`          | `DATA_PLANE_HOST`     | **Networking**: `runtime-node` 内でブリッジインターフェース (`esb-cni0`) に設定されるゲートウェイ IP。 |
 | `CNI_DNS_SERVER`     | (任意)                    | **Networking**: ワーカー DNS の明示的なネームサーバー。未指定時は `CNI_GW_IP` または `10.88.0.1`。     |
 | `CNI_SUBNET`         | (任意)                    | **Networking**: CNI のサブネット範囲。IPAM の subnet/range に反映される。                             |
 | `CNI_NET_DIR`        | `/var/lib/cni/networks`   | **Networking**: CNI IP 割り当てファイルの保存先。Agent が `List` 時に IP を再解決する際に参照する。     |
@@ -85,7 +85,7 @@ environment:
   # 共通設定 (docker-compose.yml)
   - JWT_SECRET_KEY=${JWT_SECRET_KEY}
   - CONTAINERS_NETWORK=${ESB_NETWORK_EXTERNAL}
-  - ESB_DATA_PLANE_HOST=${ESB_DATA_PLANE_HOST:-10.88.0.1}
+  - DATA_PLANE_HOST=${DATA_PLANE_HOST:-10.88.0.1}
 
   # サービスエンドポイント (上書きが必要な場合のみ設定)
   - S3_ENDPOINT=${S3_ENDPOINT}
@@ -96,6 +96,6 @@ environment:
 
 ```yaml
 environment:
-  - CNI_GW_IP=${ESB_DATA_PLANE_HOST:-10.88.0.1}
+  - CNI_GW_IP=${DATA_PLANE_HOST:-10.88.0.1}
   # 注意: 以前の DNAT_S3_IP, DNAT_DB_IP 等は CoreDNS 移行に伴い廃止されました。
 ```

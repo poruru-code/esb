@@ -221,10 +221,9 @@ flowchart LR
 
 ## Phase C 切り替え運用（現行との共存）
 
-- 基本は **Phase B の構成を維持**し、Firecracker 検証は compose override で切り替える。
-- 例（Control）: `docker compose -f docker-compose.yml up -d`
-- 例（Compute）: `docker compose -f docker-compose.node.yml up -d`
-- runtime-node/agent の Firecracker 設定は `docker-compose.node.yml` に集約する。
+- 基本は **Phase B の構成を維持**し、Firecracker 検証は compose mixin で切り替える。
+- 例: `docker compose -f docker-compose.yml -f docker-compose.worker.yml -f docker-compose.registry.yml -f docker-compose.fc.yml up -d`
+- runtime-node/agent の Firecracker 設定は `docker-compose.fc.yml` に集約する。
 
 ---
 
@@ -241,13 +240,12 @@ flowchart LR
   - `/etc/containerd/firecracker-runtime.json` を使用（kernel/rootfs は `/var/lib/firecracker-containerd/runtime`）
   - `/etc/firecracker-containerd/config.toml` は runtime-node イメージに同梱（`services/runtime-node/firecracker-containerd.toml`）。
     `pool_name` / `root_path` / `base_image_size` は `DEVMAPPER_*` と整合させる。
-  - Compute Node 側は `esb node provision` でバイナリ・設定・kernel/rootfs・devmapper を準備する。
-  - `esb node provision` は `esb-storage.service`（oneshot）を配置し、起動時に devmapper pool を復元してから containerd/docker を起動する。
+  - Compute Node 側のバイナリ・設定・kernel/rootfs・devmapper の準備は手順化（TBD）。
   - Docker を自分でインストールする場合は **storage driver を overlay2 に固定**する（`/etc/docker/daemon.json`）。
   - devmapper の thin-pool は **再初期化しない**（既存 pool がある状態で `dmsetup reload/create` を繰り返すと `different pool cannot replace a pool` が発生する）。
     その場合は Compute Node で `dmsetup remove_all` と `losetup -D` を実行してから `runtime-node` を再起動する。
-  - `esb node provision` は pool 既存時に reload を行わず、再初期化を避ける。
-  - `esb node doctor` で `cmd_firecracker` / `fc_kernel` / `devmapper_pool` が OK になっていることを確認する。
+  - プロビジョニング手順（TBD）は pool 既存時に reload を行わず、再初期化を避ける。
+  - 検証手順（TBD）で `cmd_firecracker` / `fc_kernel` / `devmapper_pool` が OK になっていることを確認する。
   - `firecracker-containerd` を起動し、`firecracker-ctr` で起動確認を行う。
   - **C-1 完了確認（実測ログ）**
     - rootfs は **agent 入りの `rootfs.img`** が必須（`make image` で生成）。Quickstart の rootfs だけだと `vsock dial refused` で失敗する。
@@ -330,7 +328,7 @@ sudo firecracker-ctr --address /run/firecracker-containerd/containerd.sock \
    - 設定ファイルをマウント:
      - `/app/config/wireguard/wg0.conf`
      - 既定の配置: `~/.esb/wireguard/gateway/wg0.conf`
-   - `esb node provision` が **gateway 側の wg0.conf も生成/追記**する。
+   - プロビジョニング手順（TBD）で **gateway 側の wg0.conf も生成/追記**する想定。
    - 起動時に `wg0` を作成し、**Gateway コンテナ内でルートを追加**:
      ```bash
      wg-quick up /app/config/wireguard/wg0.conf
@@ -345,10 +343,10 @@ sudo firecracker-ctr --address /run/firecracker-containerd/containerd.sock \
    - `wireguard` を導入し `wg0` を作成。
    - `sysctl -w net.ipv4.ip_forward=1` を有効化（永続化も行う）。
    - `wg0` 側から `10.88.1.0/24` 宛を **runtime-node 側へ転送**できるようにする。
-   - `esb node provision` は `~/.esb/wireguard/compute/<node>/wg0.conf` を `/etc/wireguard/wg0.conf` に配置し、
+   - プロビジョニング手順（TBD）は `~/.esb/wireguard/compute/<node>/wg0.conf` を `/etc/wireguard/wg0.conf` に配置し、
      `wg-quick` の起動までを行う前提。
    - `wireguard-tools` が Control 側にあれば **鍵と config を自動生成**する。
-   - 例: `esb node provision --host esb@10.1.1.220 --wg-subnet 10.88.1.0/24 --wg-runtime-ip 172.20.0.10`
+   - 例: （TBD）
 
 4) **runtime-node への到達（2案のどちらかを選択）**
    - **採用: runtime-node を user-defined bridge + 固定 IP で稼働**
