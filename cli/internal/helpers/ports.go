@@ -116,4 +116,8 @@ func applyPortsToEnv(ports map[string]int) {
 	if port, ok := ports[constants.EnvPortAgentGRPC]; ok {
 		_ = os.Setenv(constants.EnvAgentGrpcAddress, fmt.Sprintf("localhost:%d", port))
 	}
+	if port, ok := ports[constants.EnvPortAgentMetrics]; ok {
+		_ = os.Setenv(constants.EnvAgentMetricsPort, strconv.Itoa(port))
+		_ = os.Setenv(constants.EnvAgentMetricsURL, fmt.Sprintf("http://localhost:%d", port))
+	}
 }

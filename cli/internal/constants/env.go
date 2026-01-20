@@ -12,6 +12,7 @@ const (
 	EnvPortAgentGRPC     = "PORT_AGENT_GRPC"
 	EnvPortRegistry      = "PORT_REGISTRY"
 	EnvPortVictoriaLogs  = "PORT_VICTORIALOGS"
+	EnvPortAgentMetrics  = "PORT_AGENT_METRICS"
 	EnvNetworkExternal   = "NETWORK_EXTERNAL"
 	EnvSubnetExternal    = "SUBNET_EXTERNAL"
 	EnvRuntimeNetSubnet  = "RUNTIME_NET_SUBNET"
@@ -49,6 +50,8 @@ const (
 	EnvGatewayInternalURL = "GATEWAY_INTERNAL_URL"
 	EnvVictoriaLogsPort   = "VICTORIALOGS_PORT"
 	EnvVictoriaLogsURL    = "VICTORIALOGS_URL"
+	EnvAgentMetricsPort   = "AGENT_METRICS_PORT"
+	EnvAgentMetricsURL    = "AGENT_METRICS_URL"
 	EnvAgentGrpcAddress   = "AGENT_GRPC_ADDRESS"
 
 	// Generator Configuration

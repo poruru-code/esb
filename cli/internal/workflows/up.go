@@ -195,6 +195,7 @@ func printDiscoveredPorts(ui ports.UserInterface, portsMap map[string]int) {
 	add(constants.EnvPortS3)
 	add(constants.EnvPortS3Mgmt)
 	add(constants.EnvPortRegistry)
+	add(constants.EnvPortAgentMetrics)
 
 	var unknown []string
 	for key := range portsMap {
