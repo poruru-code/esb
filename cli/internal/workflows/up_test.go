@@ -27,7 +27,9 @@ func TestUpWorkflowRunSuccess(t *testing.T) {
 	upper := &recordUpper{}
 	downer := &recordDowner{}
 	publisher := &recordPortPublisher{
-		ports: map[string]int{constants.EnvPortGatewayHTTPS: 1234},
+		result: ports.PortPublishResult{
+			Published: map[string]int{constants.EnvPortGatewayHTTPS: 1234},
+		},
 	}
 	creds := &recordCredentialManager{
 		creds: ports.AuthCredentials{
@@ -100,7 +102,7 @@ func TestUpWorkflowRunSuccess(t *testing.T) {
 	if len(waiter.calls) != 1 {
 		t.Fatalf("expected waiter to be called")
 	}
-	if !reflect.DeepEqual(result.Ports, publisher.ports) {
+	if !reflect.DeepEqual(result.Ports.Published, publisher.result.Published) {
 		t.Fatalf("expected ports to be returned")
 	}
 	if result.Credentials.AuthUser != "user" || !result.Credentials.Generated {

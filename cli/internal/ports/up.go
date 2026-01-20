@@ -31,7 +31,14 @@ type Downer interface {
 
 // PortPublisher discovers runtime ports, persists them, and exposes them as env vars.
 type PortPublisher interface {
-	Publish(ctx state.Context) (map[string]int, error)
+	Publish(ctx state.Context) (PortPublishResult, error)
+}
+
+// PortPublishResult captures discovery and persistence results.
+type PortPublishResult struct {
+	Detected  map[string]int
+	Published map[string]int
+	Changed   bool
 }
 
 // TemplateLoader reads the SAM template file.

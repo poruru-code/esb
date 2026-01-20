@@ -29,7 +29,7 @@ type UpRequest struct {
 
 // UpResult contains feedback returned by the workflow.
 type UpResult struct {
-	Ports       map[string]int
+	Ports       ports.PortPublishResult
 	Credentials ports.AuthCredentials
 }
 
@@ -120,13 +120,13 @@ func (w UpWorkflow) Run(req UpRequest) (UpResult, error) {
 	}
 
 	if w.PortPublisher != nil {
-		portsDiscovered, err := w.PortPublisher.Publish(req.Context)
+		publishResult, err := w.PortPublisher.Publish(req.Context)
 		if err != nil {
 			if w.UserInterface != nil {
 				w.UserInterface.Warn(err.Error())
 			}
 		} else {
-			result.Ports = portsDiscovered
+			result.Ports = publishResult
 		}
 	}
 
@@ -156,7 +156,7 @@ func (w UpWorkflow) Run(req UpRequest) (UpResult, error) {
 		w.UserInterface.Info("Next:")
 		w.UserInterface.Info("  esb logs <service>  # View logs")
 		w.UserInterface.Info("  esb down            # Stop environment")
-		printDiscoveredPorts(w.UserInterface, result.Ports)
+		printDiscoveredPorts(w.UserInterface, result.Ports.Published)
 	}
 
 	return result, nil

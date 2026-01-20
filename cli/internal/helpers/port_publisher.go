@@ -10,12 +10,13 @@ import (
 
 type portPublisher struct {
 	discoverer PortDiscoverer
+	store      ports.StateStore
 }
 
-func NewPortPublisher(discoverer PortDiscoverer) ports.PortPublisher {
-	return portPublisher{discoverer: discoverer}
+func NewPortPublisher(discoverer PortDiscoverer, store ports.StateStore) ports.PortPublisher {
+	return portPublisher{discoverer: discoverer, store: store}
 }
 
-func (p portPublisher) Publish(ctx state.Context) (map[string]int, error) {
-	return DiscoverAndPersistPorts(ctx, p.discoverer)
+func (p portPublisher) Publish(ctx state.Context) (ports.PortPublishResult, error) {
+	return DiscoverAndPersistPorts(ctx, p.discoverer, p.store)
 }

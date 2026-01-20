@@ -88,7 +88,7 @@ func newUpCommand(deps UpDeps, repoResolver func(string) (string, error), out io
 		builder:           deps.Builder,
 		upper:             deps.Upper,
 		downer:            deps.Downer,
-		publisher:         helpers.NewPortPublisher(deps.PortDiscoverer),
+		publisher:         helpers.NewPortPublisher(deps.PortDiscoverer, deps.PortStateStore),
 		credentialManager: helpers.NewCredentialManager(),
 		templateLoader:    helpers.NewTemplateLoader(),
 		templateParser:    helpers.NewTemplateParser(deps.Parser),
@@ -153,11 +153,11 @@ func (c *upCommand) Run(ctxInfo commandContext, flags UpCmd, envFile string) err
 
 	var discoveredPorts map[string]int
 	if c.publisher != nil {
-		portsDiscovered, err := c.publisher.Publish(ctxInfo.Context)
+		publishResult, err := c.publisher.Publish(ctxInfo.Context)
 		if err != nil {
 			c.ui.Warn(err.Error())
 		} else {
-			discoveredPorts = portsDiscovered
+			discoveredPorts = publishResult.Published
 		}
 	}
 

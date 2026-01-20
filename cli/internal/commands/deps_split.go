@@ -20,6 +20,7 @@ type UpDeps struct {
 	Upper          ports.Upper
 	Downer         ports.Downer
 	PortDiscoverer helpers.PortDiscoverer
+	PortStateStore ports.StateStore
 	Waiter         ports.GatewayWaiter
 	Provisioner    ports.Provisioner
 	Parser         generator.Parser

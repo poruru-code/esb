@@ -4,45 +4,11 @@
 package helpers
 
 import (
-	"encoding/json"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
-	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
 )
-
-func TestSavePortsWritesFile(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
-	esbHome := t.TempDir()
-	t.Setenv(envutil.HostEnvKey(constants.HostSuffixHome), esbHome)
-
-	ports := map[string]int{
-		constants.EnvPortGatewayHTTPS: 10443,
-		constants.EnvPortVictoriaLogs: 19428,
-	}
-
-	path, err := savePorts("staging", ports)
-	if err != nil {
-		t.Fatalf("save ports: %v", err)
-	}
-	expectedPath := filepath.Join(esbHome, "ports.json")
-	if path != expectedPath {
-		t.Fatalf("unexpected ports path: %s", path)
-	}
-	payload, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read ports file: %v", err)
-	}
-	var loaded map[string]int
-	if err := json.Unmarshal(payload, &loaded); err != nil {
-		t.Fatalf("unmarshal ports: %v", err)
-	}
-	if loaded[constants.EnvPortGatewayHTTPS] != 10443 {
-		t.Fatalf("unexpected gateway port: %d", loaded[constants.EnvPortGatewayHTTPS])
-	}
-}
 
 func TestApplyPortsToEnvSetsDerived(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())

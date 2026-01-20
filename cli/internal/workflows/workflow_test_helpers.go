@@ -84,17 +84,17 @@ func (r *recordDowner) Down(project string, removeVolumes bool) error {
 }
 
 type recordPortPublisher struct {
-	calls []state.Context
-	ports map[string]int
-	err   error
+	calls  []state.Context
+	result ports.PortPublishResult
+	err    error
 }
 
-func (r *recordPortPublisher) Publish(ctx state.Context) (map[string]int, error) {
+func (r *recordPortPublisher) Publish(ctx state.Context) (ports.PortPublishResult, error) {
 	r.calls = append(r.calls, ctx)
 	if r.err != nil {
-		return nil, r.err
+		return ports.PortPublishResult{}, r.err
 	}
-	return r.ports, nil
+	return r.result, nil
 }
 
 type recordCredentialManager struct {

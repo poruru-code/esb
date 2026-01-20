@@ -5,19 +5,15 @@ package helpers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
-	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
-	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
+	"github.com/poruru/edge-serverless-box/cli/internal/ports"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
-	"github.com/poruru/edge-serverless-box/meta"
 )
 
 // PortDiscoverer defines the interface for discovering dynamically assigned ports
@@ -54,69 +50,53 @@ func (d composePortDiscoverer) Discover(ctx context.Context, rootDir, project, m
 
 // DiscoverAndPersistPorts discovers running service ports and persists them
 // to a JSON file for use by provisioning and E2E tests.
-func DiscoverAndPersistPorts(ctx state.Context, discoverer PortDiscoverer) (map[string]int, error) {
+func DiscoverAndPersistPorts(
+	ctx state.Context,
+	discoverer PortDiscoverer,
+	store ports.StateStore,
+) (ports.PortPublishResult, error) {
+	var result ports.PortPublishResult
 	if discoverer == nil {
-		return nil, nil
+		return result, nil
+	}
+	if store == nil {
+		return result, fmt.Errorf("port state store not configured")
 	}
 	rootDir, err := config.ResolveRepoRoot(ctx.ProjectDir)
 	if err != nil {
-		return nil, err
+		return result, err
 	}
 	ports, err := discoverer.Discover(context.Background(), rootDir, ctx.ComposeProject, ctx.Mode)
 	if err != nil {
-		return nil, err
+		return result, err
 	}
 	if len(ports) == 0 {
-		return nil, nil
+		return result, nil
 	}
-	if _, err := savePorts(ctx.Env, ports); err != nil {
-		return nil, err
+	previous, err := store.Load(ctx)
+	if err != nil {
+		return result, err
+	}
+	if err := store.Save(ctx, ports); err != nil {
+		return result, err
 	}
 	applyPortsToEnv(ports)
-	return ports, nil
+	result.Detected = ports
+	result.Published = ports
+	result.Changed = !portsEqual(previous, ports)
+	return result, nil
 }
 
-// savePorts writes the discovered ports to a JSON file in the project-specific data directory.
-// Returns the path to the saved file.
-func savePorts(env string, ports map[string]int) (string, error) {
-	home, err := resolveESBHome(env)
-	if err != nil {
-		return "", err
+func portsEqual(left, right map[string]int) bool {
+	if len(left) != len(right) {
+		return false
 	}
-	path := filepath.Join(home, "ports.json")
-	payload, err := json.MarshalIndent(ports, "", "  ")
-	if err != nil {
-		return "", err
+	for key, value := range left {
+		if other, ok := right[key]; !ok || other != value {
+			return false
+		}
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return "", err
-	}
-	if err := os.WriteFile(path, payload, 0o644); err != nil {
-		return "", err
-	}
-	return path, nil
-}
-
-// resolveESBHome determines the base directory for project-specific data.
-// Uses brand-specific HOME environment variable if set, otherwise ~/.<brand>/<env>.
-func resolveESBHome(env string) (string, error) {
-	override := strings.TrimSpace(envutil.GetHostEnv(constants.HostSuffixHome))
-	if override != "" {
-		return override, nil
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	name := strings.TrimSpace(env)
-	if name == "" {
-		name = "default"
-	}
-	homeDirName := meta.HomeDir
-	if !strings.HasPrefix(homeDirName, ".") {
-		homeDirName = "." + homeDirName
-	}
-	return filepath.Join(home, homeDirName, name), nil
+	return true
 }
 
 // applyPortsToEnv sets environment variables for discovered ports,

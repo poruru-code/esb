@@ -39,6 +39,7 @@ func BuildDependencies() (commands.Dependencies, io.Closer, error) {
 	}
 
 	portDiscoverer := helpers.NewPortDiscoverer()
+	portStateStore := helpers.NewPortStateStore()
 	builder := generator.NewGoBuilder(portDiscoverer)
 	deps := commands.Dependencies{
 		ProjectDir:          projectDir,
@@ -57,6 +58,7 @@ func BuildDependencies() (commands.Dependencies, io.Closer, error) {
 			Upper:          helpers.NewUpper(config.ResolveRepoRoot),
 			Downer:         helpers.NewDowner(client),
 			PortDiscoverer: portDiscoverer,
+			PortStateStore: portStateStore,
 			Waiter:         helpers.NewGatewayWaiter(),
 			Provisioner:    provisioner.New(client),
 			Parser:         generator.DefaultParser{},
