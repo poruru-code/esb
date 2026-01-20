@@ -14,13 +14,14 @@ import (
 
 	"github.com/poruru/edge-serverless-box/cli/internal/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/interaction"
 )
 
 // runEnvVar executes the 'env var' command which shows environment variables
 // of a running container. If no service is specified, prompts interactively.
 func runEnvVar(cli CLI, deps Dependencies, out io.Writer) int {
 	opts := newResolveOptions(cli.Env.Var.Force)
-	opts.Interactive = isTerminal(os.Stdin) && deps.Prompter != nil
+	opts.Interactive = interaction.IsTerminal(os.Stdin) && deps.Prompter != nil
 
 	ctxInfo, err := resolveCommandContext(cli, deps, opts)
 	if err != nil {

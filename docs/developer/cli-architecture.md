@@ -5,7 +5,8 @@
 ## コンポーネント概要
 
 - `cli/cmd/esb`: `kong` ベースの CLI エントリポイント。`commands.Run` を呼び出して依存 (`Dependencies`) を注入し、`build`/`up`/`down`/`logs`/`stop`/`prune`/`env`/`project` などのコマンドを実行します。
-- `cli/internal/commands`: CLI アダプタ。`resolveCommandContext` による状態解決、対話型プロンプト、`.env` の読み込みなどを担い、`workflows` へ DTO を渡します。依存は `Dependencies` のコマンド別構造体で注入します。
+- `cli/internal/commands`: CLI アダプタ。`resolveCommandContext` による状態解決、`.env` の読み込みなどを担い、`workflows` へ DTO を渡します。依存は `Dependencies` のコマンド別構造体で注入します。
+- `cli/internal/interaction`: TTY 判定とプロンプト入力（`Prompter`, 確認ダイアログ）を提供します。
 - `cli/internal/helpers`: `RuntimeEnvApplier` や `CredentialManager` などの共通アダプタを提供します。
 - `cli/internal/ports`: ワークフローが使うインタフェース群（Builder/Upper/Provisioner/RuntimeEnvApplier/UserInterface/DetectorFactory など）。
 - `cli/internal/workflows`: ビジネスロジックのオーケストレーション（`build`/`up`/`down`/`logs`/`stop`/`prune`/`env`/`project` を移行済み）。

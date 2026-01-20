@@ -11,6 +11,7 @@ import (
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/helpers"
+	"github.com/poruru/edge-serverless-box/cli/internal/interaction"
 	"github.com/poruru/edge-serverless-box/cli/internal/ports"
 	"github.com/poruru/edge-serverless-box/cli/internal/workflows"
 )
@@ -44,16 +45,16 @@ func runLogs(cli CLI, deps Dependencies, out io.Writer) int {
 		},
 	}
 
-	if req.Service == "" && isTerminal(os.Stdin) {
+	if req.Service == "" && interaction.IsTerminal(os.Stdin) {
 		services, err := deps.Logs.Logger.ListServices(req.LogsRequest)
 		if err != nil {
 			return exitWithError(out, err)
 		}
 		if len(services) > 0 {
-			var options []selectOption
-			options = append(options, selectOption{Label: "All services", Value: ""})
+			var options []interaction.SelectOption
+			options = append(options, interaction.SelectOption{Label: "All services", Value: ""})
 			for _, svc := range services {
-				options = append(options, selectOption{Label: svc, Value: svc})
+				options = append(options, interaction.SelectOption{Label: svc, Value: svc})
 			}
 
 			if deps.Prompter == nil {

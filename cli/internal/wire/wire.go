@@ -12,6 +12,7 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/generator"
 	"github.com/poruru/edge-serverless-box/cli/internal/helpers"
+	"github.com/poruru/edge-serverless-box/cli/internal/interaction"
 	"github.com/poruru/edge-serverless-box/cli/internal/provisioner"
 )
 
@@ -43,7 +44,7 @@ func BuildDependencies() (commands.Dependencies, io.Closer, error) {
 		ProjectDir:      projectDir,
 		Out:             Stdout,
 		DetectorFactory: helpers.NewDetectorFactory(client, warnf),
-		Prompter:        commands.HuhPrompter{},
+		Prompter:        interaction.HuhPrompter{},
 		RepoResolver:    config.ResolveRepoRoot,
 		Build: commands.BuildDeps{
 			Builder: builder,

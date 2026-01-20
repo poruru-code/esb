@@ -40,7 +40,7 @@ CLIアダプタは `cli/internal/commands/logs.go`、オーケストレーショ
 
 1. **コンテキスト解決**: アクティブな環境を決定します。
 2. **インタラクティブ選択 (オプション)**:
-   - `service` 引数が空かつ `isTerminal` が true の場合:
+   - `service` 引数が空かつ TTY の場合:
      - `Logger.ListServices` をクエリします。
      - `Prompter` を介してリストを表示します。
      - 選択結果で `req.Service` を更新します。

@@ -6,6 +6,7 @@ package commands
 import (
 	"os"
 
+	"github.com/poruru/edge-serverless-box/cli/internal/interaction"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
@@ -19,7 +20,7 @@ type resolveOptions struct {
 func newResolveOptions(force bool) resolveOptions {
 	return resolveOptions{
 		Force:       force,
-		Interactive: isTerminal(os.Stdin),
-		Prompt:      promptYesNo,
+		Interactive: interaction.IsTerminal(os.Stdin),
+		Prompt:      interaction.PromptYesNo,
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/interaction"
 )
 
 type fakePruner struct {
@@ -117,9 +118,9 @@ func TestRunPruneRequiresYes(t *testing.T) {
 	var out bytes.Buffer
 	deps := Dependencies{Out: &out, ProjectDir: projectDir, Prune: PruneDeps{Pruner: pruner}}
 
-	originalIsTerminal := isTerminal
-	isTerminal = func(_ *os.File) bool { return false }
-	defer func() { isTerminal = originalIsTerminal }()
+	originalIsTerminal := interaction.IsTerminal
+	interaction.IsTerminal = func(_ *os.File) bool { return false }
+	defer func() { interaction.IsTerminal = originalIsTerminal }()
 
 	exitCode := Run([]string{"prune"}, deps)
 	if exitCode == 0 {

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/interaction"
 )
 
 func TestRunEnvList(t *testing.T) {
@@ -175,9 +176,9 @@ func TestRunEnvCreateInteractive(t *testing.T) {
 	setupProjectConfig(t, projectDir, "demo")
 
 	// Mock isTerminal to return true for interactive tests
-	originalIsTerminal := isTerminal
-	isTerminal = func(_ *os.File) bool { return true }
-	defer func() { isTerminal = originalIsTerminal }()
+	originalIsTerminal := interaction.IsTerminal
+	interaction.IsTerminal = func(_ *os.File) bool { return true }
+	defer func() { interaction.IsTerminal = originalIsTerminal }()
 
 	tests := []struct {
 		name         string

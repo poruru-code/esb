@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/helpers"
+	"github.com/poruru/edge-serverless-box/cli/internal/interaction"
 )
 
 // CompleteCmd defines hidden subcommands used by shell completion scripts.
@@ -26,7 +27,7 @@ type (
 )
 
 func runCompleteEnv(cli CLI, deps Dependencies, out io.Writer) int {
-	opts := resolveOptions{Interactive: false, Prompt: promptYesNo}
+	opts := resolveOptions{Interactive: false, Prompt: interaction.PromptYesNo}
 	ctx, err := resolveEnvContext(cli, deps, opts)
 	if err != nil {
 		return 0
@@ -66,7 +67,7 @@ func runCompleteService(cli CLI, deps Dependencies, out io.Writer) int {
 		return 0
 	}
 
-	opts := resolveOptions{Interactive: false, Prompt: promptYesNo, AllowMissingEnv: true}
+	opts := resolveOptions{Interactive: false, Prompt: interaction.PromptYesNo, AllowMissingEnv: true}
 	ctxInfo, err := resolveCommandContext(cli, deps, opts)
 	if err != nil || strings.TrimSpace(ctxInfo.Env) == "" {
 		return 0

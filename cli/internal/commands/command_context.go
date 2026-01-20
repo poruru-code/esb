@@ -10,57 +10,9 @@ import (
 
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
+	"github.com/poruru/edge-serverless-box/cli/internal/interaction"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
-
-// selectOption represents a single option in a selection menu.
-type selectOption struct {
-	Label string // Display text
-	Value string // Return value
-}
-
-// Prompter defines the interface for interactive user input and selection.
-type Prompter interface {
-	Input(title string, suggestions []string) (string, error)
-	Select(title string, options []string) (string, error)
-	SelectValue(title string, options []selectOption) (string, error)
-}
-
-type mockPrompter struct {
-	inputFn       func(title string, suggestions []string) (string, error)
-	selectFn      func(title string, options []string) (string, error)
-	selectValueFn func(title string, options []selectOption) (string, error)
-
-	// Convenience fields for recording/controlling selections
-	selectedValue string
-	lastTitle     string
-	lastOptions   []string
-}
-
-func (m *mockPrompter) Input(title string, suggestions []string) (string, error) {
-	m.lastTitle = title
-	if m.inputFn != nil {
-		return m.inputFn(title, suggestions)
-	}
-	return m.selectedValue, nil
-}
-
-func (m *mockPrompter) Select(title string, options []string) (string, error) {
-	m.lastTitle = title
-	m.lastOptions = options
-	if m.selectFn != nil {
-		return m.selectFn(title, options)
-	}
-	return m.selectedValue, nil
-}
-
-func (m *mockPrompter) SelectValue(title string, options []selectOption) (string, error) {
-	m.lastTitle = title
-	if m.selectValueFn != nil {
-		return m.selectValueFn(title, options)
-	}
-	return m.selectedValue, nil
-}
 
 // exitWithError prints an error message to the output writer and returns
 // exit code 1 for CLI error handling.
@@ -151,9 +103,9 @@ func resolveCommandContext(cli CLI, deps Dependencies, opts resolveOptions) (com
 		// Re-loading or using existing project config if accessible.
 		// Current logic loaded 'project' but didn't pass it fully here.
 		// We can re-use 'project' variable loaded above.
-		var options []selectOption
+		var options []interaction.SelectOption
 		for _, e := range project.Generator.Environments {
-			options = append(options, selectOption{Label: fmt.Sprintf("%s (%s)", e.Name, e.Mode), Value: e.Name})
+			options = append(options, interaction.SelectOption{Label: fmt.Sprintf("%s (%s)", e.Name, e.Mode), Value: e.Name})
 		}
 		if len(options) > 0 {
 			if deps.Prompter == nil {

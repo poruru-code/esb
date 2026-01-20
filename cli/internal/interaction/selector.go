@@ -1,7 +1,7 @@
-// Where: cli/internal/commands/selector.go
-// What: Interactive selection helpers using huh library.
+// Where: cli/internal/interaction/selector.go
+// What: Interactive selection helpers using the huh library.
 // Why: Provide keyboard-based selection for env/project commands.
-package commands
+package interaction
 
 import (
 	"github.com/charmbracelet/huh"
@@ -41,7 +41,7 @@ func (p HuhPrompter) Select(title string, options []string) (string, error) {
 	return selected, nil
 }
 
-func (p HuhPrompter) SelectValue(title string, options []selectOption) (string, error) {
+func (p HuhPrompter) SelectValue(title string, options []SelectOption) (string, error) {
 	if len(options) == 0 {
 		return "", nil
 	}

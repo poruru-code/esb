@@ -36,6 +36,7 @@ Stages 0-6 are archived in `docs/reports/cli_optionb_migration_plan_archive.md`.
 - **Task 7.4 (P1): Prompt/Interaction 分離**
   - 作業: プロンプト/UI 入力を `internal/interaction` に集約し、`command_context` から分離する。
   - 受け入れ条件: 非対話分岐が `interaction` 層に集約され、コマンド側は DTO 構築に専念。
+  - 現状: `internal/interaction` を追加し、TTY 判定/確認プロンプト/Prompter 実装を移設。コマンド側は `interaction` を参照。
 
 - **Task 7.5 (P1): 出力統一**
   - 作業: `fmt.Fprintln` の残存箇所を `UserInterface` 経由へ移行する。

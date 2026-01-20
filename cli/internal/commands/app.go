@@ -14,6 +14,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/helpers"
+	"github.com/poruru/edge-serverless-box/cli/internal/interaction"
 	"github.com/poruru/edge-serverless-box/cli/internal/version"
 )
 
@@ -25,7 +26,7 @@ type Dependencies struct {
 	Out             io.Writer
 	DetectorFactory helpers.DetectorFactory
 	Now             func() time.Time
-	Prompter        Prompter
+	Prompter        interaction.Prompter
 	RepoResolver    func(string) (string, error)
 	Build           BuildDeps
 	Up              UpDeps

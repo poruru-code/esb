@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/interaction"
 )
 
 func TestResolveCommandContext_Interactive(t *testing.T) {
@@ -25,7 +26,7 @@ func TestResolveCommandContext_Interactive(t *testing.T) {
 
 	// Mock prompter to select "prod"
 	prompter := &mockPrompter{
-		selectValueFn: func(title string, options []selectOption) (string, error) {
+		selectValueFn: func(title string, options []interaction.SelectOption) (string, error) {
 			if title != "Select environment" {
 				t.Errorf("unexpected title: %s", title)
 			}

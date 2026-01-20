@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/poruru/edge-serverless-box/cli/internal/interaction"
 	"github.com/poruru/edge-serverless-box/cli/internal/ports"
 	"github.com/poruru/edge-serverless-box/cli/internal/workflows"
 )
@@ -58,10 +59,10 @@ func (c *pruneCommand) Run(ctxInfo commandContext, flags PruneCmd) error {
 
 	printPruneWarning(c.out, req)
 	if !flags.Yes {
-		if !isTerminal(os.Stdin) {
+		if !interaction.IsTerminal(os.Stdin) {
 			return fmt.Errorf("prune requires --yes in non-interactive mode")
 		}
-		confirmed, err := promptYesNo("Are you sure you want to continue?")
+		confirmed, err := interaction.PromptYesNo("Are you sure you want to continue?")
 		if err != nil {
 			return err
 		}

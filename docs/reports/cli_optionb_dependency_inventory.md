@@ -23,7 +23,7 @@ Scope: `cli/internal/commands/runBuild`, `cli/internal/commands/runUp`, and shar
 2. `runUp` -> `applyRuntimeEnv` (sets env vars)
 3. Optional reset flow:
    - `printResetWarning`
-   - `promptYesNo` (interactive)
+   - `interaction.PromptYesNo` (interactive)
    - `Downer.Down`
 4. `EnsureAuthCredentials` (sets env vars + prints)
 5. Optional build flow: `Builder.Build`
@@ -50,7 +50,7 @@ Scope: `cli/internal/commands/runBuild`, `cli/internal/commands/runUp`, and shar
 - `applyRuntimeEnv` (mutates env vars, reads CA cert file)
 - `EnsureAuthCredentials` (mutates env vars, prints credentials)
 - `DiscoverAndPersistPorts` (writes `~/.<brand>/<env>/ports.json`, mutates env vars)
-- `promptYesNo` / `isTerminal`
+- `interaction.PromptYesNo` / `interaction.IsTerminal`
 
 ### File / OS Side Effects
 - Read: `generator.yml`, `template.yaml`, CA cert file, `.env` (optional)

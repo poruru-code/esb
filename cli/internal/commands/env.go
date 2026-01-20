@@ -13,6 +13,7 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
+	"github.com/poruru/edge-serverless-box/cli/internal/interaction"
 	"github.com/poruru/edge-serverless-box/cli/internal/workflows"
 )
 
@@ -102,7 +103,7 @@ func runEnvAdd(cli CLI, deps Dependencies, out io.Writer) int {
 		return exitWithError(out, err)
 	}
 
-	isTTY := isTerminal(os.Stdin)
+	isTTY := interaction.IsTerminal(os.Stdin)
 	if rawName == "" {
 		if !isTTY || deps.Prompter == nil {
 			var names []string
@@ -187,7 +188,7 @@ func runEnvUse(cli CLI, deps Dependencies, out io.Writer) int {
 		}
 
 		// Check if interactive mode is available
-		if !isTerminal(os.Stdin) {
+		if !interaction.IsTerminal(os.Stdin) {
 			var names []string
 			for _, env := range envs {
 				names = append(names, env.Name)
@@ -200,13 +201,13 @@ func runEnvUse(cli CLI, deps Dependencies, out io.Writer) int {
 		}
 
 		// Build options for huh selector
-		options := make([]selectOption, len(envs))
+		options := make([]interaction.SelectOption, len(envs))
 		for i, env := range envs {
 			label := fmt.Sprintf("%s (%s)", env.Name, env.Mode)
 			if env.Name == strings.TrimSpace(ctx.Project.Generator.App.LastEnv) {
 				label = "* " + label
 			}
-			options[i] = selectOption{Label: label, Value: env.Name}
+			options[i] = interaction.SelectOption{Label: label, Value: env.Name}
 		}
 
 		if deps.Prompter == nil {
@@ -278,7 +279,7 @@ func runEnvRemove(cli CLI, deps Dependencies, out io.Writer) int {
 			return exitWithError(out, fmt.Errorf("no environments defined"))
 		}
 
-		if !isTerminal(os.Stdin) {
+		if !interaction.IsTerminal(os.Stdin) {
 			var names []string
 			for _, env := range envs {
 				names = append(names, env.Name)
@@ -290,9 +291,9 @@ func runEnvRemove(cli CLI, deps Dependencies, out io.Writer) int {
 			)
 		}
 
-		options := make([]selectOption, len(envs))
+		options := make([]interaction.SelectOption, len(envs))
 		for i, env := range envs {
-			options[i] = selectOption{Label: fmt.Sprintf("%s (%s)", env.Name, env.Mode), Value: env.Name}
+			options[i] = interaction.SelectOption{Label: fmt.Sprintf("%s (%s)", env.Name, env.Mode), Value: env.Name}
 		}
 
 		if deps.Prompter == nil {

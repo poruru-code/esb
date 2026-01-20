@@ -17,6 +17,7 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
 	"github.com/poruru/edge-serverless-box/cli/internal/generator"
+	"github.com/poruru/edge-serverless-box/cli/internal/interaction"
 	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
 	"github.com/poruru/edge-serverless-box/cli/internal/staging"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
@@ -179,12 +180,12 @@ func TestRunUpResetRequiresYesInNonInteractiveMode(t *testing.T) {
 	setupProjectConfig(t, projectDir, "demo")
 	t.Setenv(envutil.HostEnvKey(constants.HostSuffixMode), "")
 
-	origIsTerminal := isTerminal
-	isTerminal = func(_ *os.File) bool {
+	origIsTerminal := interaction.IsTerminal
+	interaction.IsTerminal = func(_ *os.File) bool {
 		return false
 	}
 	t.Cleanup(func() {
-		isTerminal = origIsTerminal
+		interaction.IsTerminal = origIsTerminal
 	})
 
 	downer := &fakeUpDowner{}

@@ -13,6 +13,7 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
+	"github.com/poruru/edge-serverless-box/cli/internal/interaction"
 	"github.com/poruru/edge-serverless-box/cli/internal/workflows"
 )
 
@@ -116,7 +117,7 @@ func runProjectUse(cli CLI, deps Dependencies, out io.Writer) int {
 	// Interactive selection if no name provided
 	if selector == "" {
 		// Check if interactive mode is available
-		if !isTerminal(os.Stdin) {
+		if !interaction.IsTerminal(os.Stdin) {
 			var names []string
 			for name := range cfg.Projects {
 				names = append(names, name)
@@ -130,9 +131,9 @@ func runProjectUse(cli CLI, deps Dependencies, out io.Writer) int {
 
 		// Build options for huh selector
 		list := sortProjectsByRecent(cfg)
-		options := make([]selectOption, len(list))
+		options := make([]interaction.SelectOption, len(list))
 		for i, project := range list {
-			options[i] = selectOption{Label: project.Name, Value: project.Name}
+			options[i] = interaction.SelectOption{Label: project.Name, Value: project.Name}
 		}
 
 		if deps.Prompter == nil {
@@ -183,7 +184,7 @@ func runProjectRemove(cli CLI, deps Dependencies, out io.Writer) int {
 
 	selector := cli.Project.Remove.Name
 	if selector == "" {
-		if !isTerminal(os.Stdin) {
+		if !interaction.IsTerminal(os.Stdin) {
 			var names []string
 			for name := range cfg.Projects {
 				names = append(names, name)
@@ -283,7 +284,7 @@ func runProjectAdd(cli CLI, deps Dependencies, out io.Writer) int {
 
 		if cli.Project.Add.Name == "" {
 			defaultName := filepath.Base(absDir)
-			if isTerminal(os.Stdin) && deps.Prompter != nil {
+			if interaction.IsTerminal(os.Stdin) && deps.Prompter != nil {
 				name, err := deps.Prompter.Input("Project Name", []string{defaultName}) // Suggestion as slice
 				if err != nil {
 					return exitWithError(out, err)
@@ -295,8 +296,7 @@ func runProjectAdd(cli CLI, deps Dependencies, out io.Writer) int {
 					// My mock/impl of Input might differ.
 					// Let's assume standard behavior: user types name or we use default.
 					// Actually, common Prompter.Input(title, default) pattern...
-					// Wait, Looking at Prompter interface in `command_context.go`:
-					// Input(title string, suggestions []string) (string, error)
+					// Prompter.Input(title string, suggestions []string) (string, error)
 					// It doesn't take a single default string, but suggestions.
 					// Usually suggestions are for tab completion.
 					// I need to interpret empty input as default manually if I want that.
@@ -311,7 +311,7 @@ func runProjectAdd(cli CLI, deps Dependencies, out io.Writer) int {
 
 		envs := splitEnvList(cli.EnvFlag)
 		if len(envs) == 0 {
-			if !isTerminal(os.Stdin) || deps.Prompter == nil {
+			if !interaction.IsTerminal(os.Stdin) || deps.Prompter == nil {
 				return exitWithSuggestion(out, "Environment name is required for new projects.",
 					[]string{"esb project add . -e dev:docker"})
 			}
@@ -325,7 +325,7 @@ func runProjectAdd(cli CLI, deps Dependencies, out io.Writer) int {
 				return exitWithError(out, fmt.Errorf("environment name is required"))
 			}
 
-			modeOptions := []selectOption{
+			modeOptions := []interaction.SelectOption{
 				{Label: "Docker (Standard)", Value: "docker"},
 				{Label: "Containerd (Advanced)", Value: "containerd"},
 				{Label: "Firecracker (MicroVM)", Value: "firecracker"},

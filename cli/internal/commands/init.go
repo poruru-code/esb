@@ -12,13 +12,14 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
+	"github.com/poruru/edge-serverless-box/cli/internal/interaction"
 	"github.com/poruru/edge-serverless-box/meta"
 	"gopkg.in/yaml.v3"
 )
 
 // runInit creates a new generator.yml configuration file for a SAM template.
 // Returns the path to the generated configuration file.
-func runInit(templatePath string, envs []string, projectName string, prompter Prompter) (string, error) {
+func runInit(templatePath string, envs []string, projectName string, prompter interaction.Prompter) (string, error) {
 	cleaned := normalizeEnvs(envs)
 	if len(cleaned) == 0 {
 		return "", fmt.Errorf("environment name is required")
@@ -43,7 +44,7 @@ func runInit(templatePath string, envs []string, projectName string, prompter Pr
 
 // buildGeneratorConfig constructs the generator.yml configuration structure
 // from the provided template path, environments, and project name.
-func buildGeneratorConfig(templatePath string, envs config.Environments, projectName string, prompter Prompter) (config.GeneratorConfig, string, error) {
+func buildGeneratorConfig(templatePath string, envs config.Environments, projectName string, prompter interaction.Prompter) (config.GeneratorConfig, string, error) {
 	if templatePath == "" {
 		return config.GeneratorConfig{}, "", fmt.Errorf("template path is required")
 	}
