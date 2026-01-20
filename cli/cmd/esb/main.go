@@ -14,7 +14,8 @@ import (
 // main is the entry point for the ESB CLI. It builds the dependencies,
 // parses command-line arguments, and dispatches to the appropriate command handler.
 func main() {
-	deps, closer, err := wire.BuildDependencies()
+	args := os.Args[1:]
+	deps, closer, err := wire.BuildDependencies(args)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -23,5 +24,5 @@ func main() {
 		defer closer.Close()
 	}
 
-	os.Exit(commands.Run(os.Args[1:], deps))
+	os.Exit(commands.Run(args, deps))
 }

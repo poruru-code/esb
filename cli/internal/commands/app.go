@@ -25,6 +25,7 @@ type Dependencies struct {
 	ProjectDir          string
 	Out                 io.Writer
 	DetectorFactory     helpers.DetectorFactory
+	DockerClientFactory helpers.DockerClientFactory
 	Now                 func() time.Time
 	Prompter            interaction.Prompter
 	RepoResolver        func(string) (string, error)
@@ -244,7 +245,7 @@ func commandName(args []string) string {
 		}
 		if strings.HasPrefix(arg, "-") {
 			switch arg {
-			case "-e", "--env", "-t", "--template":
+			case "-e", "--env", "-t", "--template", "--env-file":
 				skipNext = true
 			}
 			continue
@@ -252,6 +253,11 @@ func commandName(args []string) string {
 		return arg
 	}
 	return ""
+}
+
+// CommandName exposes command parsing for wiring decisions.
+func CommandName(args []string) string {
+	return commandName(args)
 }
 
 // runNoArgs handles the case when esb is invoked without arguments.

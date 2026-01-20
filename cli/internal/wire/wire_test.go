@@ -61,11 +61,13 @@ func TestBuildDependenciesSuccess(t *testing.T) {
 	Getwd = func() (string, error) {
 		return "/project", nil
 	}
+	clientCalls := 0
 	NewDockerClient = func() (compose.DockerClient, error) {
+		clientCalls++
 		return fakeDockerClient{}, nil
 	}
 
-	deps, closer, err := BuildDependencies()
+	deps, closer, err := BuildDependencies([]string{"up"})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -74,6 +76,19 @@ func TestBuildDependenciesSuccess(t *testing.T) {
 	}
 	if deps.DetectorFactory == nil {
 		t.Fatalf("expected detector factory")
+	}
+	if clientCalls != 0 {
+		t.Fatalf("expected docker client to be lazy, got %d calls", clientCalls)
+	}
+	detector, err := deps.DetectorFactory("/project", "dev")
+	if err != nil {
+		t.Fatalf("expected detector factory to succeed, got %v", err)
+	}
+	if detector == nil {
+		t.Fatalf("expected detector")
+	}
+	if clientCalls != 1 {
+		t.Fatalf("expected docker client to be created once, got %d", clientCalls)
 	}
 	if closer != nil {
 		_ = closer.Close()
@@ -90,7 +105,7 @@ func TestBuildDependenciesGetwdError(t *testing.T) {
 		return "", errors.New("boom")
 	}
 
-	_, _, err := BuildDependencies()
+	_, _, err := BuildDependencies(nil)
 	if err == nil {
 		t.Fatalf("expected error on getwd failure")
 	}
@@ -111,8 +126,44 @@ func TestBuildDependenciesClientError(t *testing.T) {
 		return nil, errors.New("client")
 	}
 
-	_, _, err := BuildDependencies()
-	if err == nil {
+	deps, closer, err := BuildDependencies([]string{"up"})
+	if err != nil {
+		t.Fatalf("expected no error on lazy docker client wiring, got %v", err)
+	}
+	if deps.DetectorFactory == nil {
+		t.Fatalf("expected detector factory")
+	}
+	if _, err := deps.DetectorFactory("/project", "dev"); err == nil {
 		t.Fatalf("expected error on docker client failure")
+	}
+	if closer != nil {
+		_ = closer.Close()
+	}
+}
+
+func TestBuildDependenciesSkipDocker(t *testing.T) {
+	origGetwd := Getwd
+	origNewClient := NewDockerClient
+	t.Cleanup(func() {
+		Getwd = origGetwd
+		NewDockerClient = origNewClient
+	})
+
+	Getwd = func() (string, error) {
+		return "/project", nil
+	}
+	NewDockerClient = func() (compose.DockerClient, error) {
+		return nil, errors.New("should not be called")
+	}
+
+	deps, closer, err := BuildDependencies([]string{"version"})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if deps.DetectorFactory != nil {
+		t.Fatalf("expected detector factory to be nil when docker is skipped")
+	}
+	if closer != nil {
+		_ = closer.Close()
 	}
 }
