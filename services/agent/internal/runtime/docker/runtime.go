@@ -17,6 +17,8 @@ import (
 	"github.com/docker/go-connections/nat"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // Client defines the subset of Docker API used by Agent.
@@ -157,11 +159,11 @@ func (r *Runtime) Destroy(ctx context.Context, id string) error {
 func (r *Runtime) Suspend(_ context.Context, _ string) error {
 	// We could call Docker's Pause, but Phase 2's main focus is containerd.
 	// For Docker, keep it simplified or unimplemented, but return a stub or error for compatibility.
-	return fmt.Errorf("pause not implemented for docker runtime")
+	return status.Error(codes.Unimplemented, "pause not implemented for docker runtime")
 }
 
 func (r *Runtime) Resume(_ context.Context, _ string) error {
-	return fmt.Errorf("resume not implemented for docker runtime")
+	return status.Error(codes.Unimplemented, "resume not implemented for docker runtime")
 }
 
 func (r *Runtime) Close() error {

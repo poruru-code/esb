@@ -55,6 +55,7 @@ Gateway は Lambda 環境の "Master Config" として機能し、サービス�
 | `CNI_SUBNET`         | (任意)                    | **Networking**: CNI のサブネット範囲。IPAM の subnet/range に反映される。                             |
 | `CNI_NET_DIR`        | `/var/lib/cni/networks`   | **Networking**: CNI IP 割り当てファイルの保存先。Agent が `List` 時に IP を再解決する際に参照する。     |
 | `CONTAINER_REGISTRY` | (任意)                    | **Distribution**: Containerd/FC モードでイメージをプルするレジストリのアドレス。                       |
+| `AGENT_INVOKE_MAX_RESPONSE_SIZE` | `10485760` (10MB) | **Security**: `InvokeWorker` レスポンスの最大サイズ制限（バイト）。                                   |
 
 ---
 

@@ -21,6 +21,7 @@
 - P1-3: 资源制御（CPU/メモリ上限）  
   - 反映先: `services/agent/internal/runtime/containerd/*`, `services/agent/internal/runtime/docker/*`  
   - 受け入れ条件: デフォルト上限が設定可能で、無制限を選べる場合は明示設定が必要。
+  - **Note**: containerd のメモリ制限は `runtime.go:286` で `oci.WithMemoryLimit` により実装済み。残件は CPU 制限の追加と Docker 側の資源制御。
 - P1-4: insecure registry 利用可否の整理  
   - 反映先: `services/agent/internal/runtime/containerd/image.go`  
   - 決めること: HTTPS 強制を維持するか、環境変数で HTTP を許可するか。  
