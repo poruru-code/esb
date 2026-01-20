@@ -27,7 +27,7 @@ func TestRunStopCallsStopper(t *testing.T) {
 
 	stopper := &fakeStopper{}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, ProjectDir: projectDir, Stopper: stopper}
+	deps := Dependencies{Out: &out, ProjectDir: projectDir, Stop: StopDeps{Stopper: stopper}}
 
 	exitCode := Run([]string{"stop"}, deps)
 	if exitCode != 0 {

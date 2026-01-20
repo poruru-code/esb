@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
 	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
 )
 
@@ -34,7 +36,7 @@ func TestRunBuildCallsBuilder(t *testing.T) {
 
 	builder := &fakeBuilder{}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, Builder: builder}
+	deps := Dependencies{Out: &out, Build: BuildDeps{Builder: builder}}
 
 	exitCode := Run([]string{"--template", templatePath, "build", "--env", "staging"}, deps)
 	if exitCode != 0 {
@@ -60,7 +62,7 @@ func TestRunBuildMissingTemplate(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, Builder: &fakeBuilder{}, ProjectDir: projectDir}
+	deps := Dependencies{Out: &out, ProjectDir: projectDir, Build: BuildDeps{Builder: &fakeBuilder{}}}
 
 	exitCode := Run([]string{"build"}, deps)
 	if exitCode == 0 {
@@ -78,7 +80,7 @@ func TestRunBuildBuilderError(t *testing.T) {
 
 	builder := &fakeBuilder{err: errors.New("boom")}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, Builder: builder}
+	deps := Dependencies{Out: &out, Build: BuildDeps{Builder: builder}}
 
 	exitCode := Run([]string{"--template", templatePath, "build"}, deps)
 	if exitCode == 0 {
@@ -119,7 +121,7 @@ func TestRunBuildUsesActiveEnvFromGlobalConfig(t *testing.T) {
 
 	builder := &fakeBuilder{}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, Builder: builder}
+	deps := Dependencies{Out: &out, Build: BuildDeps{Builder: builder}}
 
 	exitCode := Run([]string{"--template", templatePath, "build"}, deps)
 	if exitCode != 0 {
@@ -142,7 +144,7 @@ func TestRunBuildUsesGeneratorTemplateWhenTemplateFlagMissing(t *testing.T) {
 
 	builder := &fakeBuilder{}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, Builder: builder, ProjectDir: projectDir}
+	deps := Dependencies{Out: &out, ProjectDir: projectDir, Build: BuildDeps{Builder: builder}}
 
 	exitCode := Run([]string{"build"}, deps)
 	if exitCode != 0 {
@@ -168,7 +170,7 @@ func TestRunBuildPassesNoCacheFlag(t *testing.T) {
 
 	builder := &fakeBuilder{}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, Builder: builder, ProjectDir: projectDir}
+	deps := Dependencies{Out: &out, ProjectDir: projectDir, Build: BuildDeps{Builder: builder}}
 
 	exitCode := Run([]string{"--template", templatePath, "build", "--no-cache"}, deps)
 	if exitCode != 0 {
@@ -179,5 +181,28 @@ func TestRunBuildPassesNoCacheFlag(t *testing.T) {
 	}
 	if !builder.requests[0].NoCache {
 		t.Fatalf("expected no-cache to be true")
+	}
+}
+
+func TestRunBuildOutputsLegacySuccess(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv(envutil.HostEnvKey(constants.HostSuffixEnv), "default")
+	projectDir := t.TempDir()
+	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
+		t.Fatalf("write generator fixture: %v", err)
+	}
+	templatePath := filepath.Join(projectDir, "template.yaml")
+
+	builder := &fakeBuilder{}
+	var out bytes.Buffer
+	deps := Dependencies{Out: &out, Build: BuildDeps{Builder: builder}}
+
+	exitCode := Run([]string{"--template", templatePath, "build"}, deps)
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d", exitCode)
+	}
+	expected := "✓ Build complete\nNext: esb up\n"
+	if out.String() != expected {
+		t.Fatalf("unexpected output:\n%s", out.String())
 	}
 }

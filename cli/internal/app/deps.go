@@ -11,6 +11,7 @@ import (
 
 	"github.com/poruru/edge-serverless-box/cli/internal/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/ports"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
@@ -121,22 +122,14 @@ func (fn stopperFunc) Stop(request StopRequest) error {
 	return fn(request)
 }
 
-// Logger defines the interface for streaming container logs and listing services.
-// Implementations use Docker Compose to retrieve log output and configuration.
-type Logger interface {
-	Logs(request LogsRequest) error
-	ListServices(request LogsRequest) ([]string, error)
-	ListContainers(project string) ([]state.ContainerInfo, error)
-}
-
 // NewLogger creates a Logger implementation that streams container logs
 // via Docker Compose with follow/tail/timestamp options.
-func NewLogger(client compose.DockerClient, resolver func(string) (string, error)) Logger {
+func NewLogger(client compose.DockerClient, resolver func(string) (string, error)) ports.Logger {
 	if resolver == nil {
 		resolver = config.ResolveRepoRoot
 	}
 	return loggerImpl{
-		logsFn: func(request LogsRequest) error {
+		logsFn: func(request ports.LogsRequest) error {
 			rootDir, err := resolver(request.Context.ProjectDir)
 			if err != nil {
 				return err
@@ -154,7 +147,7 @@ func NewLogger(client compose.DockerClient, resolver func(string) (string, error
 			}
 			return compose.LogsProject(context.Background(), compose.ExecRunner{}, opts)
 		},
-		listServicesFn: func(request LogsRequest) ([]string, error) {
+		listServicesFn: func(request ports.LogsRequest) ([]string, error) {
 			rootDir, err := resolver(request.Context.ProjectDir)
 			if err != nil {
 				return nil, err
@@ -179,22 +172,22 @@ func NewLogger(client compose.DockerClient, resolver func(string) (string, error
 
 // loggerImpl implements the Logger interface using function adapters.
 type loggerImpl struct {
-	logsFn           func(request LogsRequest) error
-	listServicesFn   func(request LogsRequest) ([]string, error)
+	logsFn           func(request ports.LogsRequest) error
+	listServicesFn   func(request ports.LogsRequest) ([]string, error)
 	listContainersFn func(project string) ([]state.ContainerInfo, error)
 }
 
-// Logs implements the Logger interface by invoking the wrapped function.
-func (l loggerImpl) Logs(request LogsRequest) error {
+// Logs implements ports.Logger by invoking the wrapped function.
+func (l loggerImpl) Logs(request ports.LogsRequest) error {
 	return l.logsFn(request)
 }
 
-// ListServices implements the Logger interface by invoking the wrapped function.
-func (l loggerImpl) ListServices(request LogsRequest) ([]string, error) {
+// ListServices implements ports.Logger by invoking the wrapped function.
+func (l loggerImpl) ListServices(request ports.LogsRequest) ([]string, error) {
 	return l.listServicesFn(request)
 }
 
-// ListContainers implements the Logger interface by invoking the wrapped function.
+// ListContainers implements ports.Logger by invoking the wrapped function.
 func (l loggerImpl) ListContainers(project string) ([]state.ContainerInfo, error) {
 	return l.listContainersFn(project)
 }

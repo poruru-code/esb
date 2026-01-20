@@ -23,11 +23,6 @@ func loadGlobalConfig(path string) (config.GlobalConfig, error) {
 	return normalizeGlobalConfig(cfg), nil
 }
 
-// saveGlobalConfig persists the global configuration to the specified path.
-func saveGlobalConfig(path string, cfg config.GlobalConfig) error {
-	return config.SaveGlobalConfig(path, cfg)
-}
-
 // defaultGlobalConfig returns an empty but properly initialized GlobalConfig.
 func defaultGlobalConfig() config.GlobalConfig {
 	return config.DefaultGlobalConfig()

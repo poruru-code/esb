@@ -13,21 +13,8 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/joho/godotenv"
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
-	"github.com/poruru/edge-serverless-box/cli/internal/generator"
-	"github.com/poruru/edge-serverless-box/cli/internal/state"
 	"github.com/poruru/edge-serverless-box/cli/internal/version"
 )
-
-// StateDetector defines the interface for detecting the current environment state.
-// Implementations query Docker and file system to determine if the environment
-// is running, stopped, or not initialized.
-type StateDetector interface {
-	Detect() (state.State, error)
-}
-
-// DetectorFactory is a function type that creates a StateDetector for a given
-// project directory and environment name.
-type DetectorFactory func(projectDir, env string) (StateDetector, error)
 
 // Dependencies holds all injected dependencies required for CLI command execution.
 // This structure enables dependency injection for testing and allows swapping
@@ -36,19 +23,15 @@ type Dependencies struct {
 	ProjectDir      string
 	Out             io.Writer
 	DetectorFactory DetectorFactory
-	Builder         Builder
-	Downer          Downer
-	Upper           Upper
-	Stopper         Stopper
-	Logger          Logger
-	PortDiscoverer  PortDiscoverer
-	Waiter          GatewayWaiter
-	Provisioner     Provisioner
-	Parser          generator.Parser
-	Pruner          Pruner
 	Now             func() time.Time
 	Prompter        Prompter
 	RepoResolver    func(string) (string, error)
+	Build           BuildDeps
+	Up              UpDeps
+	Down            DownDeps
+	Logs            LogsDeps
+	Stop            StopDeps
+	Prune           PruneDeps
 }
 
 // CLI defines the command-line interface structure parsed by Kong.

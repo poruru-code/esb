@@ -9,47 +9,43 @@ import (
 	"os"
 	"strings"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/state"
+	"github.com/poruru/edge-serverless-box/cli/internal/ports"
+	"github.com/poruru/edge-serverless-box/cli/internal/workflows"
 )
 
 // LogsRequest contains parameters for viewing container logs.
 // It specifies follow mode, tail count, timestamps, and optional service filter.
-type LogsRequest struct {
-	Context    state.Context
-	Follow     bool
-	Tail       int
-	Timestamps bool
-	Service    string
-}
-
 // runLogs executes the 'logs' command which streams container logs
 // with optional follow, tail, and timestamp options.
 func runLogs(cli CLI, deps Dependencies, out io.Writer) int {
-	if deps.Logger == nil {
-		fmt.Fprintln(out, "logs: not implemented")
-		return 1
-	}
-
 	opts := newResolveOptions(cli.Logs.Force)
 	ctxInfo, err := resolveCommandContext(cli, deps, opts)
 	if err != nil {
 		fmt.Fprintln(out, err)
 		return 1
 	}
+	return runLogsWithDeps(cli, deps.Logs, deps.Prompter, deps.RepoResolver, ctxInfo, out)
+}
+
+func runLogsWithDeps(cli CLI, deps LogsDeps, prompter Prompter, repoResolver func(string) (string, error), ctxInfo commandContext, out io.Writer) int {
+	if deps.Logger == nil {
+		fmt.Fprintln(out, "logs: not implemented")
+		return 1
+	}
 
 	ctx := ctxInfo.Context
-	applyRuntimeEnv(ctx, deps.RepoResolver)
-
-	req := LogsRequest{
-		Context:    ctx,
-		Follow:     cli.Logs.Follow,
-		Tail:       cli.Logs.Tail,
-		Timestamps: cli.Logs.Timestamps,
-		Service:    strings.TrimSpace(cli.Logs.Service),
+	req := workflows.LogsRequest{
+		LogsRequest: ports.LogsRequest{
+			Context:    ctx,
+			Follow:     cli.Logs.Follow,
+			Tail:       cli.Logs.Tail,
+			Timestamps: cli.Logs.Timestamps,
+			Service:    strings.TrimSpace(cli.Logs.Service),
+		},
 	}
 
 	if req.Service == "" && isTerminal(os.Stdin) {
-		services, err := deps.Logger.ListServices(req)
+		services, err := deps.Logger.ListServices(req.LogsRequest)
 		if err != nil {
 			// If listing services fails (e.g. interpolation error), logs will likely fail too.
 			// Exit early to avoid double error output.
@@ -62,10 +58,10 @@ func runLogs(cli CLI, deps Dependencies, out io.Writer) int {
 				options = append(options, selectOption{Label: svc, Value: svc})
 			}
 
-			if deps.Prompter == nil {
+			if prompter == nil {
 				return exitWithError(out, fmt.Errorf("prompter not configured"))
 			}
-			selected, err := deps.Prompter.SelectValue("Select service to view logs", options)
+			selected, err := prompter.SelectValue("Select service to view logs", options)
 			if err != nil {
 				return exitWithError(out, err)
 			}
@@ -73,7 +69,8 @@ func runLogs(cli CLI, deps Dependencies, out io.Writer) int {
 		}
 	}
 
-	if err := deps.Logger.Logs(req); err != nil {
+	workflow := workflows.NewLogsWorkflow(deps.Logger, newRuntimeEnvApplier(repoResolver), ports.NewLegacyUI(out))
+	if err := workflow.Run(req); err != nil {
 		fmt.Fprintln(out, err)
 		return 1
 	}

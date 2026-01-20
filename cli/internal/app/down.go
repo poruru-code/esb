@@ -6,34 +6,36 @@ package app
 import (
 	"fmt"
 	"io"
-)
 
-// Downer defines the interface for stopping and removing environment resources.
-// Implementations use Docker Compose to bring down the services.
-type Downer interface {
-	Down(project string, removeVolumes bool) error
-}
+	"github.com/poruru/edge-serverless-box/cli/internal/ports"
+	"github.com/poruru/edge-serverless-box/cli/internal/workflows"
+)
 
 // runDown executes the 'down' command which stops all containers
 // and optionally removes volumes for the current environment.
 func runDown(cli CLI, deps Dependencies, out io.Writer) int {
-	if deps.Downer == nil {
-		fmt.Fprintln(out, "down: not implemented")
-		return 1
-	}
-
 	opts := newResolveOptions(cli.Down.Force)
 	ctxInfo, err := resolveCommandContext(cli, deps, opts)
 	if err != nil {
 		fmt.Fprintln(out, err)
 		return 1
 	}
+	return runDownWithDeps(deps.Down, ctxInfo, cli.Down.Volumes, out)
+}
 
-	if err := deps.Downer.Down(ctxInfo.Context.ComposeProject, cli.Down.Volumes); err != nil {
-		fmt.Fprintln(out, err)
+func runDownWithDeps(deps DownDeps, ctxInfo commandContext, volumes bool, out io.Writer) int {
+	if deps.Downer == nil {
+		fmt.Fprintln(out, "down: not implemented")
 		return 1
 	}
 
-	fmt.Fprintln(out, "down complete")
+	workflow := workflows.NewDownWorkflow(deps.Downer, ports.NewLegacyUI(out))
+	if err := workflow.Run(workflows.DownRequest{
+		Context: ctxInfo.Context,
+		Volumes: volumes,
+	}); err != nil {
+		fmt.Fprintln(out, err)
+		return 1
+	}
 	return 0
 }

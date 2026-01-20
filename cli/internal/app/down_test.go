@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
 )
 
 type fakeDowner struct {
@@ -34,7 +36,7 @@ func TestRunDownCallsDowner(t *testing.T) {
 
 	downer := &fakeDowner{}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, ProjectDir: projectDir, Downer: downer}
+	deps := Dependencies{Out: &out, ProjectDir: projectDir, Down: DownDeps{Downer: downer}}
 
 	exitCode := Run([]string{"down"}, deps)
 	if exitCode != 0 {
@@ -57,7 +59,7 @@ func TestRunDownWithEnv(t *testing.T) {
 
 	downer := &fakeDowner{}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, ProjectDir: projectDir, Downer: downer}
+	deps := Dependencies{Out: &out, ProjectDir: projectDir, Down: DownDeps{Downer: downer}}
 
 	exitCode := Run([]string{"--env", "staging", "down"}, deps)
 	if exitCode != 0 {
@@ -98,7 +100,7 @@ func TestRunDownUsesActiveEnvFromGlobalConfig(t *testing.T) {
 
 	downer := &fakeDowner{}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, ProjectDir: projectDir, Downer: downer}
+	deps := Dependencies{Out: &out, ProjectDir: projectDir, Down: DownDeps{Downer: downer}}
 
 	exitCode := Run([]string{"down"}, deps)
 	if exitCode != 0 {
@@ -106,6 +108,27 @@ func TestRunDownUsesActiveEnvFromGlobalConfig(t *testing.T) {
 	}
 	if len(downer.projects) != 1 || downer.projects[0] != expectedComposeProject("demo", "staging") {
 		t.Fatalf("unexpected project: %v", downer.projects)
+	}
+}
+
+func TestRunDownOutputsLegacySuccess(t *testing.T) {
+	t.Setenv(envutil.HostEnvKey(constants.HostSuffixEnv), "default")
+	projectDir := t.TempDir()
+	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
+		t.Fatalf("write generator fixture: %v", err)
+	}
+	setupProjectConfig(t, projectDir, "demo")
+
+	downer := &fakeDowner{}
+	var out bytes.Buffer
+	deps := Dependencies{Out: &out, ProjectDir: projectDir, Down: DownDeps{Downer: downer}}
+
+	exitCode := Run([]string{"down"}, deps)
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d", exitCode)
+	}
+	if out.String() != "down complete\n" {
+		t.Fatalf("unexpected output: %s", out.String())
 	}
 }
 

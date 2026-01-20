@@ -86,12 +86,13 @@ func TestRunUpCallsUpper(t *testing.T) {
 	}
 	setupProjectConfig(t, projectDir, "demo")
 	t.Setenv(envutil.HostEnvKey(constants.HostSuffixMode), "")
+	t.Setenv(envutil.HostEnvKey(constants.HostSuffixEnv), "default")
 
 	upper := &fakeUpper{}
 	provisioner := &fakeProvisioner{}
 	parser := &fakeParser{}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, ProjectDir: projectDir, Upper: upper, Provisioner: provisioner, Parser: parser}
+	deps := Dependencies{Out: &out, ProjectDir: projectDir, Up: UpDeps{Upper: upper, Provisioner: provisioner, Parser: parser}}
 
 	exitCode := Run([]string{"up"}, deps)
 	if exitCode != 0 {
@@ -131,14 +132,16 @@ func TestRunUpResetCallsDownBuildUp(t *testing.T) {
 	waiter := &fakeWaiter{}
 	var out bytes.Buffer
 	deps := Dependencies{
-		Out:         &out,
-		ProjectDir:  projectDir,
-		Downer:      downer,
-		Builder:     builder,
-		Upper:       upper,
-		Provisioner: provisioner,
-		Parser:      parser,
-		Waiter:      waiter,
+		Out:        &out,
+		ProjectDir: projectDir,
+		Up: UpDeps{
+			Downer:      downer,
+			Builder:     builder,
+			Upper:       upper,
+			Provisioner: provisioner,
+			Parser:      parser,
+			Waiter:      waiter,
+		},
 	}
 
 	exitCode := Run([]string{"up", "--reset", "--yes", "--wait"}, deps)
@@ -191,13 +194,15 @@ func TestRunUpResetRequiresYesInNonInteractiveMode(t *testing.T) {
 	parser := &fakeParser{}
 	var out bytes.Buffer
 	deps := Dependencies{
-		Out:         &out,
-		ProjectDir:  projectDir,
-		Downer:      downer,
-		Builder:     builder,
-		Upper:       upper,
-		Provisioner: provisioner,
-		Parser:      parser,
+		Out:        &out,
+		ProjectDir: projectDir,
+		Up: UpDeps{
+			Downer:      downer,
+			Builder:     builder,
+			Upper:       upper,
+			Provisioner: provisioner,
+			Parser:      parser,
+		},
 	}
 
 	exitCode := Run([]string{"up", "--reset"}, deps)
@@ -206,6 +211,37 @@ func TestRunUpResetRequiresYesInNonInteractiveMode(t *testing.T) {
 	}
 	if len(downer.projects) != 0 {
 		t.Fatalf("expected downer not called, got %v", downer.projects)
+	}
+}
+
+func TestRunUpOutputsLegacySuccess(t *testing.T) {
+	projectDir := t.TempDir()
+	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
+		t.Fatalf("write generator fixture: %v", err)
+	}
+	setupProjectConfig(t, projectDir, "demo")
+	t.Setenv(envutil.HostEnvKey(constants.HostSuffixMode), "")
+
+	t.Setenv("AUTH_USER", "user")
+	t.Setenv("AUTH_PASS", "pass")
+	t.Setenv("JWT_SECRET_KEY", "jwt")
+	t.Setenv("X_API_KEY", "api")
+	t.Setenv("RUSTFS_ACCESS_KEY", "access")
+	t.Setenv("RUSTFS_SECRET_KEY", "secret")
+
+	upper := &fakeUpper{}
+	provisioner := &fakeProvisioner{}
+	parser := &fakeParser{}
+	var out bytes.Buffer
+	deps := Dependencies{Out: &out, ProjectDir: projectDir, Up: UpDeps{Upper: upper, Provisioner: provisioner, Parser: parser}}
+
+	exitCode := Run([]string{"up"}, deps)
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d", exitCode)
+	}
+	expected := "✓ Up complete\nNext:\n  esb logs <service>  # View logs\n  esb down            # Stop environment\n"
+	if out.String() != expected {
+		t.Fatalf("unexpected output:\n%s", out.String())
 	}
 }
 
@@ -221,7 +257,7 @@ func TestRunUpWithEnv(t *testing.T) {
 	provisioner := &fakeProvisioner{}
 	parser := &fakeParser{}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, ProjectDir: projectDir, Upper: upper, Provisioner: provisioner, Parser: parser}
+	deps := Dependencies{Out: &out, ProjectDir: projectDir, Up: UpDeps{Upper: upper, Provisioner: provisioner, Parser: parser}}
 
 	exitCode := Run([]string{"--env", "staging", "up"}, deps)
 	if exitCode != 0 {
@@ -260,11 +296,13 @@ func TestRunUpAppliesEnvDefaults(t *testing.T) {
 	parser := &fakeParser{}
 	var out bytes.Buffer
 	deps := Dependencies{
-		Out:         &out,
-		ProjectDir:  repoRoot,
-		Upper:       upper,
-		Provisioner: provisioner,
-		Parser:      parser,
+		Out:        &out,
+		ProjectDir: repoRoot,
+		Up: UpDeps{
+			Upper:       upper,
+			Provisioner: provisioner,
+			Parser:      parser,
+		},
 		RepoResolver: func(_ string) (string, error) {
 			return repoRoot, nil
 		},
@@ -330,7 +368,7 @@ func TestRunUpAppliesGeneratorParameters(t *testing.T) {
 	provisioner := &fakeProvisioner{}
 	parser := &fakeParser{}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, ProjectDir: projectDir, Upper: upper, Provisioner: provisioner, Parser: parser}
+	deps := Dependencies{Out: &out, ProjectDir: projectDir, Up: UpDeps{Upper: upper, Provisioner: provisioner, Parser: parser}}
 
 	exitCode := Run([]string{"up"}, deps)
 	if exitCode != 0 {
@@ -374,7 +412,7 @@ func TestRunUpKeepsExplicitEnvOverrides(t *testing.T) {
 	provisioner := &fakeProvisioner{}
 	parser := &fakeParser{}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, ProjectDir: projectDir, Upper: upper, Provisioner: provisioner, Parser: parser}
+	deps := Dependencies{Out: &out, ProjectDir: projectDir, Up: UpDeps{Upper: upper, Provisioner: provisioner, Parser: parser}}
 
 	exitCode := Run([]string{"--env", "default", "up"}, deps)
 	if exitCode != 0 {
@@ -423,7 +461,7 @@ func TestRunUpMissingProvisioner(t *testing.T) {
 	upper := &fakeUpper{}
 	parser := &fakeParser{}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, ProjectDir: projectDir, Upper: upper, Parser: parser}
+	deps := Dependencies{Out: &out, ProjectDir: projectDir, Up: UpDeps{Upper: upper, Parser: parser}}
 
 	exitCode := Run([]string{"up"}, deps)
 	if exitCode == 0 {
@@ -454,7 +492,7 @@ func TestRunUpWithBuildRunsBuilder(t *testing.T) {
 	provisioner := &fakeProvisioner{}
 	parser := &fakeParser{}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, ProjectDir: projectDir, Upper: upper, Builder: builder, Provisioner: provisioner, Parser: parser}
+	deps := Dependencies{Out: &out, ProjectDir: projectDir, Up: UpDeps{Upper: upper, Builder: builder, Provisioner: provisioner, Parser: parser}}
 
 	exitCode := Run([]string{"up", "--build"}, deps)
 	if exitCode != 0 {
@@ -488,7 +526,7 @@ func TestRunUpWithBuildMissingBuilder(t *testing.T) {
 	provisioner := &fakeProvisioner{}
 	parser := &fakeParser{}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, ProjectDir: projectDir, Upper: upper, Provisioner: provisioner, Parser: parser}
+	deps := Dependencies{Out: &out, ProjectDir: projectDir, Up: UpDeps{Upper: upper, Provisioner: provisioner, Parser: parser}}
 
 	exitCode := Run([]string{"up", "--build"}, deps)
 	if exitCode == 0 {
@@ -513,12 +551,14 @@ func TestRunUpWithWaitCallsWaiter(t *testing.T) {
 	waiter := &fakeWaiter{}
 	var out bytes.Buffer
 	deps := Dependencies{
-		Out:         &out,
-		ProjectDir:  projectDir,
-		Upper:       upper,
-		Provisioner: provisioner,
-		Parser:      parser,
-		Waiter:      waiter,
+		Out:        &out,
+		ProjectDir: projectDir,
+		Up: UpDeps{
+			Upper:       upper,
+			Provisioner: provisioner,
+			Parser:      parser,
+			Waiter:      waiter,
+		},
 	}
 
 	exitCode := Run([]string{"up", "--wait"}, deps)
@@ -544,12 +584,14 @@ func TestRunUpWithWaiterError(t *testing.T) {
 	waiter := &fakeWaiter{err: errors.New("boom")}
 	var out bytes.Buffer
 	deps := Dependencies{
-		Out:         &out,
-		ProjectDir:  projectDir,
-		Upper:       upper,
-		Provisioner: provisioner,
-		Parser:      parser,
-		Waiter:      waiter,
+		Out:        &out,
+		ProjectDir: projectDir,
+		Up: UpDeps{
+			Upper:       upper,
+			Provisioner: provisioner,
+			Parser:      parser,
+			Waiter:      waiter,
+		},
 	}
 
 	exitCode := Run([]string{"up", "--wait"}, deps)
@@ -573,7 +615,7 @@ func TestRunUpSetsModeFromGenerator(t *testing.T) {
 	provisioner := &fakeProvisioner{}
 	parser := &fakeParser{}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, ProjectDir: projectDir, Upper: upper, Provisioner: provisioner, Parser: parser}
+	deps := Dependencies{Out: &out, ProjectDir: projectDir, Up: UpDeps{Upper: upper, Provisioner: provisioner, Parser: parser}}
 
 	exitCode := Run([]string{"up"}, deps)
 	if exitCode != 0 {
@@ -601,7 +643,7 @@ func TestRunUpUsesActiveEnvFromGlobalConfig(t *testing.T) {
 	provisioner := &fakeProvisioner{}
 	parser := &fakeParser{}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, ProjectDir: projectDir, Upper: upper, Provisioner: provisioner, Parser: parser}
+	deps := Dependencies{Out: &out, ProjectDir: projectDir, Up: UpDeps{Upper: upper, Provisioner: provisioner, Parser: parser}}
 
 	exitCode := Run([]string{"up"}, deps)
 	if exitCode != 0 {

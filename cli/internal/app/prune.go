@@ -8,23 +8,9 @@ import (
 	"io"
 	"os"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/state"
+	"github.com/poruru/edge-serverless-box/cli/internal/ports"
+	"github.com/poruru/edge-serverless-box/cli/internal/workflows"
 )
-
-// PruneRequest contains parameters for removing project resources and artifacts.
-// The Hard flag also removes the generator.yml configuration file.
-type PruneRequest struct {
-	Context       state.Context
-	Hard          bool
-	RemoveVolumes bool
-	AllImages     bool
-}
-
-// Pruner defines the interface for removing project resources and artifacts.
-// Implementations prune Docker resources and optionally clean configuration.
-type Pruner interface {
-	Prune(request PruneRequest) error
-}
 
 // runPrune executes the 'prune' command which removes project-scoped Docker
 // resources and generated artifacts, with a docker system prune-like prompt.
@@ -35,6 +21,10 @@ func runPrune(cli CLI, deps Dependencies, out io.Writer) int {
 		return exitWithError(out, err)
 	}
 
+	return runPruneWithDeps(deps.Prune, cli.Prune, ctxInfo, out)
+}
+
+func runPruneWithDeps(deps PruneDeps, flags PruneCmd, ctxInfo commandContext, out io.Writer) int {
 	if deps.Pruner == nil {
 		fmt.Fprintln(out, "prune: pruner not configured")
 		return 1
@@ -42,13 +32,13 @@ func runPrune(cli CLI, deps Dependencies, out io.Writer) int {
 
 	req := PruneRequest{
 		Context:       ctxInfo.Context,
-		Hard:          cli.Prune.Hard,
-		RemoveVolumes: cli.Prune.Volumes,
-		AllImages:     cli.Prune.All,
+		Hard:          flags.Hard,
+		RemoveVolumes: flags.Volumes,
+		AllImages:     flags.All,
 	}
 
 	printPruneWarning(out, req)
-	if !cli.Prune.Yes {
+	if !flags.Yes {
 		if !isTerminal(os.Stdin) {
 			return exitWithError(out, fmt.Errorf("prune requires --yes in non-interactive mode"))
 		}
@@ -62,11 +52,10 @@ func runPrune(cli CLI, deps Dependencies, out io.Writer) int {
 		}
 	}
 
-	if err := deps.Pruner.Prune(req); err != nil {
+	workflow := workflows.NewPruneWorkflow(deps.Pruner, ports.NewLegacyUI(out))
+	if err := workflow.Run(workflows.PruneRequest(req)); err != nil {
 		return exitWithError(out, err)
 	}
-
-	fmt.Fprintln(out, "prune complete")
 	return 0
 }
 

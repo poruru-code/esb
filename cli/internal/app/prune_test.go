@@ -31,7 +31,7 @@ func TestRunPruneCallsPruner(t *testing.T) {
 
 	pruner := &fakePruner{}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, ProjectDir: projectDir, Pruner: pruner}
+	deps := Dependencies{Out: &out, ProjectDir: projectDir, Prune: PruneDeps{Pruner: pruner}}
 
 	exitCode := Run([]string{"prune", "--yes"}, deps)
 	if exitCode != 0 {
@@ -68,7 +68,7 @@ func TestRunPruneWithHard(t *testing.T) {
 
 	pruner := &fakePruner{}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, ProjectDir: projectDir, Pruner: pruner}
+	deps := Dependencies{Out: &out, ProjectDir: projectDir, Prune: PruneDeps{Pruner: pruner}}
 
 	exitCode := Run([]string{"prune", "--yes", "--hard"}, deps)
 	if exitCode != 0 {
@@ -88,7 +88,7 @@ func TestRunPruneWithVolumesAndAllImages(t *testing.T) {
 
 	pruner := &fakePruner{}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, ProjectDir: projectDir, Pruner: pruner}
+	deps := Dependencies{Out: &out, ProjectDir: projectDir, Prune: PruneDeps{Pruner: pruner}}
 
 	exitCode := Run([]string{"prune", "--yes", "--volumes", "--all"}, deps)
 	if exitCode != 0 {
@@ -115,7 +115,7 @@ func TestRunPruneRequiresYes(t *testing.T) {
 
 	pruner := &fakePruner{}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, ProjectDir: projectDir, Pruner: pruner}
+	deps := Dependencies{Out: &out, ProjectDir: projectDir, Prune: PruneDeps{Pruner: pruner}}
 
 	originalIsTerminal := isTerminal
 	isTerminal = func(_ *os.File) bool { return false }
@@ -155,7 +155,7 @@ func TestRunPruneWithEnv(t *testing.T) {
 
 	pruner := &fakePruner{}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, ProjectDir: projectDir, Pruner: pruner}
+	deps := Dependencies{Out: &out, ProjectDir: projectDir, Prune: PruneDeps{Pruner: pruner}}
 
 	exitCode := Run([]string{"--env", "staging", "prune", "--yes"}, deps)
 	if exitCode != 0 {
@@ -175,7 +175,7 @@ func TestRunPrunePassesContext(t *testing.T) {
 
 	pruner := &fakePruner{}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, ProjectDir: projectDir, Pruner: pruner}
+	deps := Dependencies{Out: &out, ProjectDir: projectDir, Prune: PruneDeps{Pruner: pruner}}
 
 	exitCode := Run([]string{"prune", "--yes"}, deps)
 	if exitCode != 0 {
@@ -209,7 +209,7 @@ func TestRunPruneUsesActiveEnvFromGlobalConfig(t *testing.T) {
 
 	pruner := &fakePruner{}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, ProjectDir: projectDir, Pruner: pruner}
+	deps := Dependencies{Out: &out, ProjectDir: projectDir, Prune: PruneDeps{Pruner: pruner}}
 
 	exitCode := Run([]string{"prune", "--yes"}, deps)
 	if exitCode != 0 {
@@ -232,7 +232,7 @@ func TestRunPruneWithoutGeneratorRemovesContainersOnly(t *testing.T) {
 
 	pruner := &fakePruner{}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, ProjectDir: projectDir, Pruner: pruner}
+	deps := Dependencies{Out: &out, ProjectDir: projectDir, Prune: PruneDeps{Pruner: pruner}}
 
 	exitCode := Run([]string{"prune", "--yes"}, deps)
 	if exitCode == 0 {

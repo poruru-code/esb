@@ -4,15 +4,16 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
+	"github.com/poruru/edge-serverless-box/cli/internal/workflows"
 )
 
 // EnvCmd groups all environment management subcommands including
@@ -65,42 +66,16 @@ func runEnvList(cli CLI, deps Dependencies, out io.Writer) int {
 		return exitWithError(out, err)
 	}
 
-	// Pre-calculate status for all environments
-	type envInfo struct {
-		Name   string
-		Mode   string
-		Status string
-		Active bool
+	workflow := workflows.NewEnvListWorkflow(deps.DetectorFactory)
+	result, err := workflow.Run(workflows.EnvListRequest{
+		ProjectDir: ctx.Project.Dir,
+		Generator:  ctx.Project.Generator,
+	})
+	if err != nil {
+		return exitWithError(out, err)
 	}
 
-	activeEnv := strings.TrimSpace(ctx.Project.Generator.App.LastEnv)
-	var infos []envInfo
-
-	for _, env := range ctx.Project.Generator.Environments {
-		name := strings.TrimSpace(env.Name)
-		if name == "" {
-			continue
-		}
-
-		status := "unknown"
-		if deps.DetectorFactory != nil {
-			detector, err := deps.DetectorFactory(ctx.Project.Dir, name)
-			if err == nil && detector != nil {
-				if current, err := detector.Detect(); err == nil {
-					status = string(current)
-				}
-			}
-		}
-
-		infos = append(infos, envInfo{
-			Name:   name,
-			Mode:   env.Mode,
-			Status: status,
-			Active: name == activeEnv,
-		})
-	}
-
-	for _, info := range infos {
+	for _, info := range result.Environments {
 		marker := "    "
 		if info.Active {
 			marker = "🌐  "
@@ -177,11 +152,13 @@ func runEnvAdd(cli CLI, deps Dependencies, out io.Writer) int {
 		return exitWithError(out, fmt.Errorf("environment %q already exists", name))
 	}
 
-	ctx.Project.Generator.Environments = append(ctx.Project.Generator.Environments, config.EnvironmentSpec{
-		Name: name,
-		Mode: mode,
-	})
-	if err := config.SaveGeneratorConfig(ctx.Project.GeneratorPath, ctx.Project.Generator); err != nil {
+	workflow := workflows.NewEnvAddWorkflow()
+	if err := workflow.Run(workflows.EnvAddRequest{
+		GeneratorPath: ctx.Project.GeneratorPath,
+		Generator:     ctx.Project.Generator,
+		Name:          name,
+		Mode:          mode,
+	}); err != nil {
 		return exitWithError(out, err)
 	}
 
@@ -254,21 +231,17 @@ func runEnvUse(cli CLI, deps Dependencies, out io.Writer) int {
 		)
 	}
 
-	if ctx.ConfigPath == "" {
-		return exitWithError(out, fmt.Errorf("global config path not available"))
-	}
-
-	ctx.Project.Generator.App.LastEnv = name
-	if err := config.SaveGeneratorConfig(ctx.Project.GeneratorPath, ctx.Project.Generator); err != nil {
-		return exitWithError(out, err)
-	}
-
-	cfg := normalizeGlobalConfig(ctx.Config)
-	entry := cfg.Projects[ctx.Project.Name]
-	entry.Path = ctx.Project.Dir
-	entry.LastUsed = now(deps).Format(time.RFC3339)
-	cfg.Projects[ctx.Project.Name] = entry
-	if err := saveGlobalConfig(ctx.ConfigPath, cfg); err != nil {
+	workflow := workflows.NewEnvUseWorkflow()
+	if _, err := workflow.Run(workflows.EnvUseRequest{
+		EnvName:          name,
+		ProjectName:      ctx.Project.Name,
+		ProjectDir:       ctx.Project.Dir,
+		GeneratorPath:    ctx.Project.GeneratorPath,
+		Generator:        ctx.Project.Generator,
+		GlobalConfig:     ctx.Config,
+		GlobalConfigPath: ctx.ConfigPath,
+		Now:              now(deps),
+	}); err != nil {
 		return exitWithError(out, err)
 	}
 
@@ -332,27 +305,20 @@ func runEnvRemove(cli CLI, deps Dependencies, out io.Writer) int {
 		name = selected
 	}
 
-	if !ctx.Project.Generator.Environments.Has(name) {
-		fmt.Fprintln(out, "environment not found")
-		return 1
-	}
-	if len(ctx.Project.Generator.Environments) <= 1 {
-		fmt.Fprintln(out, "cannot remove the last environment")
-		return 1
-	}
-
-	filtered := make(config.Environments, 0, len(ctx.Project.Generator.Environments)-1)
-	for _, env := range ctx.Project.Generator.Environments {
-		if strings.TrimSpace(env.Name) == name {
-			continue
+	workflow := workflows.NewEnvRemoveWorkflow()
+	if err := workflow.Run(workflows.EnvRemoveRequest{
+		Name:          name,
+		GeneratorPath: ctx.Project.GeneratorPath,
+		Generator:     ctx.Project.Generator,
+	}); err != nil {
+		if errors.Is(err, workflows.ErrEnvNotFound) {
+			fmt.Fprintln(out, "environment not found")
+			return 1
 		}
-		filtered = append(filtered, env)
-	}
-	ctx.Project.Generator.Environments = filtered
-	if strings.TrimSpace(ctx.Project.Generator.App.LastEnv) == name {
-		ctx.Project.Generator.App.LastEnv = ""
-	}
-	if err := config.SaveGeneratorConfig(ctx.Project.GeneratorPath, ctx.Project.Generator); err != nil {
+		if errors.Is(err, workflows.ErrEnvLast) {
+			fmt.Fprintln(out, "cannot remove the last environment")
+			return 1
+		}
 		fmt.Fprintln(out, err)
 		return 1
 	}

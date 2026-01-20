@@ -38,7 +38,7 @@ func TestRunLogsCallsLogger(t *testing.T) {
 
 	logger := &fakeLogger{}
 	var out bytes.Buffer
-	deps := Dependencies{Out: &out, ProjectDir: projectDir, Logger: logger}
+	deps := Dependencies{Out: &out, ProjectDir: projectDir, Logs: LogsDeps{Logger: logger}}
 
 	// Non-interactive execution with arguments
 	exitCode := Run([]string{"logs", "--follow", "--tail", "50", "--timestamps", "gateway"}, deps)
@@ -90,7 +90,7 @@ func TestRunLogsInteractive(t *testing.T) {
 	deps := Dependencies{
 		Out:        &out,
 		ProjectDir: projectDir,
-		Logger:     logger,
+		Logs:       LogsDeps{Logger: logger},
 		Prompter:   prompter,
 	}
 

@@ -7,43 +7,36 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/state"
+	"github.com/poruru/edge-serverless-box/cli/internal/ports"
+	"github.com/poruru/edge-serverless-box/cli/internal/workflows"
 )
-
-// StopRequest contains parameters for stopping the environment.
-// Unlike Down, this preserves container state for later restart.
-type StopRequest struct {
-	Context state.Context
-}
-
-// Stopper defines the interface for stopping containers without removal.
-// Use this when you want to pause the environment temporarily.
-type Stopper interface {
-	Stop(request StopRequest) error
-}
 
 // runStop executes the 'stop' command which stops all containers
 // but preserves their state for later restart with 'up'.
 func runStop(cli CLI, deps Dependencies, out io.Writer) int {
-	if deps.Stopper == nil {
-		fmt.Fprintln(out, "stop: not implemented")
-		return 1
-	}
-
 	opts := newResolveOptions(cli.Stop.Force)
 	ctxInfo, err := resolveCommandContext(cli, deps, opts)
 	if err != nil {
 		fmt.Fprintln(out, err)
 		return 1
 	}
-	ctx := ctxInfo.Context
-	applyRuntimeEnv(ctx, deps.RepoResolver)
+	return runStopWithDeps(deps.Stop, deps.RepoResolver, ctxInfo, out)
+}
 
-	if err := deps.Stopper.Stop(StopRequest{Context: ctx}); err != nil {
-		fmt.Fprintln(out, err)
+func runStopWithDeps(deps StopDeps, repoResolver func(string) (string, error), ctxInfo commandContext, out io.Writer) int {
+	if deps.Stopper == nil {
+		fmt.Fprintln(out, "stop: not implemented")
 		return 1
 	}
 
-	fmt.Fprintln(out, "stop complete")
+	workflow := workflows.NewStopWorkflow(
+		deps.Stopper,
+		newRuntimeEnvApplier(repoResolver),
+		ports.NewLegacyUI(out),
+	)
+	if err := workflow.Run(workflows.StopRequest{Context: ctxInfo.Context}); err != nil {
+		fmt.Fprintln(out, err)
+		return 1
+	}
 	return 0
 }

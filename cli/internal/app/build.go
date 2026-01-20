@@ -7,47 +7,55 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
+	"github.com/poruru/edge-serverless-box/cli/internal/ports"
+	"github.com/poruru/edge-serverless-box/cli/internal/workflows"
 )
 
 // Builder defines the interface for building Lambda function images.
 // Implementations generate Dockerfiles and build container images.
-type Builder interface {
-	Build(request manifest.BuildRequest) error
-}
+type Builder = ports.Builder
 
 // runBuild executes the 'build' command which generates Dockerfiles
 // and builds container images for all Lambda functions in the SAM template.
 func runBuild(cli CLI, deps Dependencies, out io.Writer) int {
-	if deps.Builder == nil {
-		fmt.Fprintln(out, "build: not implemented")
-		return 1
-	}
-
 	opts := newResolveOptions(cli.Build.Force)
 	ctxInfo, err := resolveCommandContext(cli, deps, opts)
 	if err != nil {
 		return exitWithError(out, err)
 	}
-	ctx := ctxInfo.Context
-	applyRuntimeEnv(ctx, deps.RepoResolver)
+
+	return runBuildWithDeps(deps.Build, deps.RepoResolver, ctxInfo, cli.Build.NoCache, cli.Build.Verbose, out)
+}
+
+func runBuildWithDeps(
+	deps BuildDeps,
+	repoResolver func(string) (string, error),
+	ctxInfo commandContext,
+	noCache bool,
+	verbose bool,
+	out io.Writer,
+) int {
+	if deps.Builder == nil {
+		fmt.Fprintln(out, "build: not implemented")
+		return 1
+	}
 
 	templatePath := resolvedTemplatePath(ctxInfo)
 
-	request := manifest.BuildRequest{
-		ProjectDir:   ctx.ProjectDir,
-		ProjectName:  ctx.ComposeProject,
-		TemplatePath: templatePath,
+	envApplier := newRuntimeEnvApplier(repoResolver)
+	workflow := workflows.NewBuildWorkflow(deps.Builder, envApplier, ports.NewLegacyUI(out))
+
+	request := workflows.BuildRequest{
+		Context:      ctxInfo.Context,
 		Env:          ctxInfo.Env,
-		NoCache:      cli.Build.NoCache,
-		Verbose:      cli.Build.Verbose,
+		TemplatePath: templatePath,
+		NoCache:      noCache,
+		Verbose:      verbose,
 	}
 
-	if err := deps.Builder.Build(request); err != nil {
+	if err := workflow.Run(request); err != nil {
 		return exitWithError(out, err)
 	}
 
-	fmt.Fprintln(out, "✓ Build complete")
-	fmt.Fprintln(out, "Next: esb up")
 	return 0
 }

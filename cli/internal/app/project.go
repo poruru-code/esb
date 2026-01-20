@@ -8,15 +8,12 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
-	"github.com/poruru/edge-serverless-box/cli/internal/state"
+	"github.com/poruru/edge-serverless-box/cli/internal/workflows"
 )
 
 // ProjectCmd groups all project management subcommands including
@@ -44,13 +41,6 @@ type (
 	}
 )
 
-// recentProject holds project metadata for sorting by recent usage.
-type recentProject struct {
-	Name   string
-	Entry  config.ProjectEntry
-	UsedAt time.Time
-}
-
 // runProjectList executes the 'project list' command which displays
 // all registered projects.
 func runProjectList(_ CLI, _ Dependencies, out io.Writer) int {
@@ -60,29 +50,23 @@ func runProjectList(_ CLI, _ Dependencies, out io.Writer) int {
 		return 1
 	}
 
-	if len(cfg.Projects) == 0 {
+	workflow := workflows.NewProjectListWorkflow()
+	result, err := workflow.Run(workflows.ProjectListRequest{Config: cfg})
+	if err != nil {
+		return exitWithError(out, err)
+	}
+
+	if len(result.Projects) == 0 {
 		fmt.Fprintln(out, "📦 No projects registered.")
 		return 0
 	}
 
-	names := make([]string, 0, len(cfg.Projects))
-	for name := range cfg.Projects {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-
-	appState, _ := state.ResolveAppState(state.AppStateOptions{
-		ProjectEnv: envutil.GetHostEnv(constants.HostSuffixProject),
-		Projects:   cfg.Projects,
-	})
-	activeProject := appState.ActiveProject
-
-	for _, name := range names {
-		if name == activeProject {
-			fmt.Fprintf(out, "📦  %s\n", name)
+	for _, project := range result.Projects {
+		if project.Active {
+			fmt.Fprintf(out, "📦  %s\n", project.Name)
 			continue
 		}
-		fmt.Fprintf(out, "    %s\n", name)
+		fmt.Fprintf(out, "    %s\n", project.Name)
 	}
 	return 0
 }
@@ -96,7 +80,12 @@ func runProjectRecent(_ CLI, _ Dependencies, out io.Writer) int {
 		return 1
 	}
 
-	list := sortProjectsByRecent(cfg)
+	workflow := workflows.NewProjectRecentWorkflow()
+	result, err := workflow.Run(workflows.ProjectRecentRequest{Config: cfg})
+	if err != nil {
+		return exitWithError(out, err)
+	}
+	list := result.Projects
 	if len(list) == 0 {
 		fmt.Fprintln(out, "no projects registered")
 		return 0
@@ -169,12 +158,13 @@ func runProjectUse(cli CLI, deps Dependencies, out io.Writer) int {
 		)
 	}
 
-	updated := normalizeGlobalConfig(cfg)
-	entry := updated.Projects[projectName]
-	entry.LastUsed = now(deps).Format(time.RFC3339)
-	updated.Projects[projectName] = entry
-
-	if err := saveGlobalConfig(path, updated); err != nil {
+	workflow := workflows.NewProjectUseWorkflow()
+	if err := workflow.Run(workflows.ProjectUseRequest{
+		ProjectName:      projectName,
+		GlobalConfig:     cfg,
+		GlobalConfigPath: path,
+		Now:              now(deps),
+	}); err != nil {
 		return exitWithError(out, err)
 	}
 
@@ -235,8 +225,12 @@ func runProjectRemove(cli CLI, deps Dependencies, out io.Writer) int {
 		)
 	}
 
-	delete(cfg.Projects, projectName)
-	if err := saveGlobalConfig(path, cfg); err != nil {
+	workflow := workflows.NewProjectRemoveWorkflow()
+	if err := workflow.Run(workflows.ProjectRemoveRequest{
+		ProjectName:      projectName,
+		GlobalConfig:     cfg,
+		GlobalConfigPath: path,
+	}); err != nil {
 		return exitWithError(out, err)
 	}
 
@@ -390,62 +384,10 @@ func loadGlobalConfigWithPath() (string, config.GlobalConfig, error) {
 // selectProject resolves a project selector (name or index) to a project name.
 // Numeric selectors are 1-indexed and reference recent projects list.
 func selectProject(cfg config.GlobalConfig, selector string) (string, error) {
-	if len(cfg.Projects) == 0 {
-		return "", fmt.Errorf("no projects registered")
-	}
-
-	// 1. Try exact name match first.
-	// This prevents collisions where a project name is numeric (e.g. "001").
-	if _, ok := cfg.Projects[selector]; ok {
-		return selector, nil
-	}
-
-	// 2. Try index interpretation for numeric selectors.
-	if index, err := strconv.Atoi(selector); err == nil {
-		if index <= 0 {
-			return "", fmt.Errorf("invalid project index")
-		}
-		list := sortProjectsByRecent(cfg)
-		if index > len(list) {
-			return "", fmt.Errorf("project index out of range")
-		}
-		return list[index-1].Name, nil
-	}
-
-	return "", fmt.Errorf("project not found")
+	return workflows.SelectProject(cfg, selector)
 }
 
-// sortProjectsByRecent returns projects sorted by last-used timestamp,
-// with most recently used first. Ties are broken alphabetically.
-func sortProjectsByRecent(cfg config.GlobalConfig) []recentProject {
-	projects := make([]recentProject, 0, len(cfg.Projects))
-	for name, entry := range cfg.Projects {
-		projects = append(projects, recentProject{
-			Name:   name,
-			Entry:  entry,
-			UsedAt: parseLastUsed(entry.LastUsed),
-		})
-	}
-
-	sort.Slice(projects, func(i, j int) bool {
-		if projects[i].UsedAt.Equal(projects[j].UsedAt) {
-			return projects[i].Name < projects[j].Name
-		}
-		return projects[i].UsedAt.After(projects[j].UsedAt)
-	})
-	return projects
-}
-
-// parseLastUsed parses an RFC3339 timestamp string into a time.Time.
-// Returns zero time if the string is empty or invalid.
-func parseLastUsed(value string) time.Time {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return time.Time{}
-	}
-	parsed, err := time.Parse(time.RFC3339, value)
-	if err != nil {
-		return time.Time{}
-	}
-	return parsed
+// sortProjectsByRecent returns projects sorted by last-used timestamp.
+func sortProjectsByRecent(cfg config.GlobalConfig) []workflows.RecentProject {
+	return workflows.SortProjectsByRecent(cfg)
 }

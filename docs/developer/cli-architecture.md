@@ -5,7 +5,9 @@
 ## コンポーネント概要
 
 - `cli/cmd/esb`: `kong` ベースの CLI エントリポイント。`app.Run` を呼び出して依存 (`Dependencies`) を注入し、`build`/`up`/`down`/`logs`/`stop`/`prune`/`env`/`project` などのコマンドを実行します。
-- `cli/internal/app`: コマンドごとのリクエスト構造とステート解決ロジック (`resolveCommandContext`) を持ち、`compose` へ依頼するための `BuildRequest`/`UpRequest` 等を組み立てます。対話型プロンプト (`Prompter`) による環境・プロジェクト選択もここで行われます。
+- `cli/internal/app`: CLI アダプタ。`resolveCommandContext` による状態解決、対話型プロンプト、`.env` の読み込みなどを担い、`workflows` へ DTO を渡します。依存は `Dependencies` のコマンド別構造体で注入します。
+- `cli/internal/ports`: ワークフローが使うインタフェース群（Builder/Upper/Provisioner/RuntimeEnvApplier/UserInterface/DetectorFactory など）。
+- `cli/internal/workflows`: ビジネスロジックのオーケストレーション（`build`/`up`/`down`/`logs`/`stop`/`prune`/`env`/`project` を移行済み）。
 - `cli/internal/generator`: Parser/Renderer で `template.yaml` を `functions.yml`/`routing.yml`・Dockerfile に変換し、`go_builder` で Docker イメージや Compose 設定まで進みます。
 - `cli/internal/compose`: `docker compose` を呼び出すユーティリティで、`ResolveComposeFiles` により `docker-compose.yml` + mode 固有ファイルを選びます。
 - `cli/internal/state`: `generator.yml` や `global_config` を読み込んで `Context` を管理します。`applyRuntimeEnv` により、解決されたコンテキストに基づいた `ESB_` 環境変数の適用を一元的に行います。
@@ -18,9 +20,22 @@ classDiagram
         +Run
     }
     class App {
-        +runBuild
-        +runUp
-        +runDown
+        +runBuild/runUp (adapter)
+        +runDown (legacy)
+    }
+    class Workflows {
+        +BuildWorkflow
+        +UpWorkflow
+        +DownWorkflow
+        +LogsWorkflow
+        +StopWorkflow
+        +PruneWorkflow
+        +EnvList/EnvAdd/EnvUse/EnvRemove
+        +ProjectList/ProjectRecent/ProjectUse/ProjectRemove/ProjectRegister
+    }
+    class Ports {
+        +Builder/Upper/Provisioner
+        +UserInterface/RuntimeEnvApplier
     }
     class Generator {
         +GenerateFiles
@@ -32,8 +47,10 @@ classDiagram
     }
     class State
     CLI --> App
-    App --> Generator
-    App --> Compose
+    App --> Workflows
+    Workflows --> Ports
+    Ports --> Generator
+    Ports --> Compose
     Generator --> State
 ```
 
@@ -42,12 +59,27 @@ classDiagram
 ```mermaid
 flowchart TD
     A[esb build --env <env>] --> B[resolve generator.yml & template]
-    B --> C[cli/internal/generator/parser]
-    C --> D[staging .esb/functions/<fn>]
-    D --> E["docker compose build (esb-lambda-base + functions)"]
-    E --> F[esb up --env <env>] --> G["docker compose up control (gateway/agent/runtime)"]
-    G --> H[esb logs / stop / prune] --> I[docker compose logs/stop/down]
+    B --> C[BuildWorkflow]
+    C --> D[Builder port -> generator + docker build]
+    D --> E[esb up --env <env>]
+    E --> F[UpWorkflow]
+    F --> G[Upper/Provisioner/Waiter ports]
+    G --> H[esb logs / stop / prune]
+    H --> I[docker compose logs/stop/down]
 ```
+
+## Workflows / Ports の概要
+
+`build`/`up`/`down`/`logs`/`stop`/`prune`/`env`/`project` は `workflows` へ移行済みです。CLI アダプタは入力収集とプロンプト処理のみを担当し、ワークフローは `ports` を通じて Builder/Upper/Provisioner/DetectorFactory などを呼び出します。出力は `ports.UserInterface` に統一し、現状は従来出力互換の `LegacyUI` を利用しています。
+
+### Dependencies の構成
+
+`Dependencies` は共有フィールドとコマンド専用束に分割されています。
+
+- 共有: `ProjectDir` / `Out` / `DetectorFactory` / `Now` / `Prompter` / `RepoResolver`
+- コマンド束: `Build` / `Up` / `Down` / `Logs` / `Stop` / `Prune`
+
+`env/project` は `DetectorFactory` と config ローダを使い、`workflows` で generator.yml / global config の更新を行います。
 
 ## generator.yml とステートマシン
 

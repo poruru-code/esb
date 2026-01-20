@@ -71,7 +71,7 @@ func TestRunEnvVarWithInteractiveSelection(t *testing.T) {
 		Out:        &out,
 		ProjectDir: projectDir,
 		Prompter:   mockPrompter,
-		Logger:     mockLogger,
+		Logs:       LogsDeps{Logger: mockLogger},
 	}
 
 	// This will fail because there's no actual docker container

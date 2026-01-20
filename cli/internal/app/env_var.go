@@ -91,7 +91,7 @@ func runEnvVar(cli CLI, deps Dependencies, out io.Writer) int {
 	}
 
 	// Get containers for the project
-	containers, err := deps.Logger.ListContainers(ctx.ComposeProject)
+	containers, err := deps.Logs.Logger.ListContainers(ctx.ComposeProject)
 	if err != nil {
 		return exitWithError(out, fmt.Errorf("failed to list containers: %w", err))
 	}

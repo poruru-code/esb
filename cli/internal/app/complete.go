@@ -60,7 +60,7 @@ func runCompleteProject(_ CLI, _ Dependencies, out io.Writer) int {
 }
 
 func runCompleteService(cli CLI, deps Dependencies, out io.Writer) int {
-	if deps.Logger == nil {
+	if deps.Logs.Logger == nil {
 		return 0
 	}
 
@@ -73,7 +73,7 @@ func runCompleteService(cli CLI, deps Dependencies, out io.Writer) int {
 	ctx := ctxInfo.Context
 	applyRuntimeEnv(ctx, deps.RepoResolver)
 
-	services, err := deps.Logger.ListServices(LogsRequest{Context: ctx})
+	services, err := deps.Logs.Logger.ListServices(LogsRequest{Context: ctx})
 	if err != nil {
 		return 0
 	}

@@ -34,22 +34,37 @@ func buildDependencies() (app.Dependencies, io.Closer, error) {
 	}
 
 	portDiscoverer := app.NewPortDiscoverer()
+	builder := generator.NewGoBuilder(portDiscoverer)
 	deps := app.Dependencies{
 		ProjectDir:      projectDir,
 		Out:             os.Stdout,
 		DetectorFactory: app.NewDetectorFactory(client, warnf),
-		Builder:         generator.NewGoBuilder(portDiscoverer),
-		Downer:          app.NewDowner(client),
-		Upper:           app.NewUpper(config.ResolveRepoRoot),
-		Stopper:         app.NewStopper(config.ResolveRepoRoot),
-		Logger:          app.NewLogger(client, config.ResolveRepoRoot),
-		PortDiscoverer:  portDiscoverer,
-		Waiter:          app.NewGatewayWaiter(),
-		Provisioner:     provisioner.New(client),
-		Parser:          generator.DefaultParser{},
-		Pruner:          app.NewPruner(client),
 		Prompter:        app.HuhPrompter{},
 		RepoResolver:    config.ResolveRepoRoot,
+		Build: app.BuildDeps{
+			Builder: builder,
+		},
+		Up: app.UpDeps{
+			Builder:        builder,
+			Upper:          app.NewUpper(config.ResolveRepoRoot),
+			Downer:         app.NewDowner(client),
+			PortDiscoverer: portDiscoverer,
+			Waiter:         app.NewGatewayWaiter(),
+			Provisioner:    provisioner.New(client),
+			Parser:         generator.DefaultParser{},
+		},
+		Down: app.DownDeps{
+			Downer: app.NewDowner(client),
+		},
+		Logs: app.LogsDeps{
+			Logger: app.NewLogger(client, config.ResolveRepoRoot),
+		},
+		Stop: app.StopDeps{
+			Stopper: app.NewStopper(config.ResolveRepoRoot),
+		},
+		Prune: app.PruneDeps{
+			Pruner: app.NewPruner(client),
+		},
 	}
 
 	return deps, asCloser(client), nil
