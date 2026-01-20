@@ -281,6 +281,11 @@ def run_scenario(args, scenario):
             if agent_key in ports:
                 env["AGENT_GRPC_ADDRESS"] = f"localhost:{ports[agent_key]}"
 
+            agent_metrics_key = env_key("PORT_AGENT_METRICS")
+            if agent_metrics_key in ports:
+                env["AGENT_METRICS_PORT"] = str(ports[agent_metrics_key])
+                env["AGENT_METRICS_URL"] = f"http://localhost:{ports[agent_metrics_key]}"
+
         apply_gateway_env_from_container(env, env_file)
 
         # 4. Run Tests

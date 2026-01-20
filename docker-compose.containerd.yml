@@ -16,7 +16,9 @@ services:
     ports:
       - "${PORT_AGENT_GRPC:-0}:50051"
       - "${PORT_GATEWAY_HTTPS:-0}:8443"  # Gateway port (shared network)
-      - "${PORT_AGENT_METRICS:-9091}:9091" # Agent Metrics
+      - "${PORT_AGENT_GRPC:-0}:50051"
+      - "${PORT_GATEWAY_HTTPS:-0}:8443"  # Gateway port (shared network)
+      - "${PORT_AGENT_METRICS:-0}:9091" # Agent Metrics
     networks:
       - external_network
     environment:
