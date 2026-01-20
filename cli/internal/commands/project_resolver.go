@@ -61,30 +61,9 @@ func resolveProjectSelection(cli CLI, deps Dependencies, opts resolveOptions) (p
 	if !ok || strings.TrimSpace(entry.Path) == "" {
 		return projectSelection{}, fmt.Errorf("Project not found: %s", appState.ActiveProject)
 	}
-	if dir, ok := findProjectDir(entry.Path); ok {
+	if dir, ok := projectDirFinder(deps)(entry.Path); ok {
 		return projectSelection{Dir: dir}, nil
 	}
 
 	return projectSelection{}, fmt.Errorf("project path not found: %s (config: %s)", entry.Path, path)
-}
-
-// findProjectDir searches upward from the given start directory to find
-// a parent containing generator.yml. Returns the directory and success flag.
-func findProjectDir(start string) (string, bool) {
-	abs, err := filepath.Abs(start)
-	if err != nil {
-		return "", false
-	}
-	dir := filepath.Clean(abs)
-	for {
-		if _, err := os.Stat(filepath.Join(dir, "generator.yml")); err == nil {
-			return dir, true
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			break
-		}
-		dir = parent
-	}
-	return "", false
 }

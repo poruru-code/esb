@@ -22,6 +22,13 @@ func projectConfigLoader(deps Dependencies) helpers.ProjectConfigLoader {
 	return helpers.DefaultProjectConfigLoader()
 }
 
+func projectDirFinder(deps Dependencies) helpers.ProjectDirFinder {
+	if deps.ProjectDirFinder != nil {
+		return deps.ProjectDirFinder
+	}
+	return helpers.DefaultProjectDirFinder()
+}
+
 func loadGlobalConfigOrDefault(deps Dependencies) (config.GlobalConfig, error) {
 	_, cfg, err := globalConfigLoader(deps)()
 	return cfg, err

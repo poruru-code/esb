@@ -30,6 +30,7 @@ type Dependencies struct {
 	RepoResolver        func(string) (string, error)
 	GlobalConfigLoader  helpers.GlobalConfigLoader
 	ProjectConfigLoader helpers.ProjectConfigLoader
+	ProjectDirFinder    helpers.ProjectDirFinder
 	Build               BuildDeps
 	Up                  UpDeps
 	Down                DownDeps

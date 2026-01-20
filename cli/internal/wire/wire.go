@@ -48,6 +48,7 @@ func BuildDependencies() (commands.Dependencies, io.Closer, error) {
 		RepoResolver:        config.ResolveRepoRoot,
 		GlobalConfigLoader:  helpers.DefaultGlobalConfigLoader(),
 		ProjectConfigLoader: helpers.DefaultProjectConfigLoader(),
+		ProjectDirFinder:    helpers.DefaultProjectDirFinder(),
 		Build: commands.BuildDeps{
 			Builder: builder,
 		},
