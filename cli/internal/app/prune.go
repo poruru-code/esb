@@ -21,15 +21,34 @@ func runPrune(cli CLI, deps Dependencies, out io.Writer) int {
 		return exitWithError(out, err)
 	}
 
-	return runPruneWithDeps(deps.Prune, cli.Prune, ctxInfo, out)
+	cmd, err := newPruneCommand(deps.Prune, out)
+	if err != nil {
+		return exitWithError(out, err)
+	}
+	if err := cmd.Run(ctxInfo, cli.Prune); err != nil {
+		return exitWithError(out, err)
+	}
+	return 0
 }
 
-func runPruneWithDeps(deps PruneDeps, flags PruneCmd, ctxInfo commandContext, out io.Writer) int {
-	if deps.Pruner == nil {
-		fmt.Fprintln(out, "prune: pruner not configured")
-		return 1
-	}
+type pruneCommand struct {
+	pruner ports.Pruner
+	ui     ports.UserInterface
+	out    io.Writer
+}
 
+func newPruneCommand(deps PruneDeps, out io.Writer) (*pruneCommand, error) {
+	if deps.Pruner == nil {
+		return nil, fmt.Errorf("prune: pruner not configured")
+	}
+	return &pruneCommand{
+		pruner: deps.Pruner,
+		ui:     ports.NewLegacyUI(out),
+		out:    out,
+	}, nil
+}
+
+func (c *pruneCommand) Run(ctxInfo commandContext, flags PruneCmd) error {
 	req := PruneRequest{
 		Context:       ctxInfo.Context,
 		Hard:          flags.Hard,
@@ -37,26 +56,30 @@ func runPruneWithDeps(deps PruneDeps, flags PruneCmd, ctxInfo commandContext, ou
 		AllImages:     flags.All,
 	}
 
-	printPruneWarning(out, req)
+	printPruneWarning(c.out, req)
 	if !flags.Yes {
 		if !isTerminal(os.Stdin) {
-			return exitWithError(out, fmt.Errorf("prune requires --yes in non-interactive mode"))
+			return fmt.Errorf("prune requires --yes in non-interactive mode")
 		}
 		confirmed, err := promptYesNo("Are you sure you want to continue?")
 		if err != nil {
-			return exitWithError(out, err)
+			return err
 		}
 		if !confirmed {
-			fmt.Fprintln(out, "Aborted.")
-			return 1
+			fmt.Fprintln(c.out, "Aborted.")
+			return fmt.Errorf("aborted")
 		}
 	}
 
-	workflow := workflows.NewPruneWorkflow(deps.Pruner, ports.NewLegacyUI(out))
-	if err := workflow.Run(workflows.PruneRequest(req)); err != nil {
-		return exitWithError(out, err)
+	if err := workflows.NewPruneWorkflow(c.pruner, c.ui).Run(workflows.PruneRequest{
+		Context:       req.Context,
+		Hard:          req.Hard,
+		RemoveVolumes: req.RemoveVolumes,
+		AllImages:     req.AllImages,
+	}); err != nil {
+		return err
 	}
-	return 0
+	return nil
 }
 
 func printPruneWarning(out io.Writer, request PruneRequest) {

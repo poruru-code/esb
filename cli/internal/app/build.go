@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/ports"
 	"github.com/poruru/edge-serverless-box/cli/internal/workflows"
 )
@@ -24,38 +25,49 @@ func runBuild(cli CLI, deps Dependencies, out io.Writer) int {
 		return exitWithError(out, err)
 	}
 
-	return runBuildWithDeps(deps.Build, deps.RepoResolver, ctxInfo, cli.Build.NoCache, cli.Build.Verbose, out)
-}
-
-func runBuildWithDeps(
-	deps BuildDeps,
-	repoResolver func(string) (string, error),
-	ctxInfo commandContext,
-	noCache bool,
-	verbose bool,
-	out io.Writer,
-) int {
-	if deps.Builder == nil {
-		fmt.Fprintln(out, "build: not implemented")
-		return 1
+	repoResolver := deps.RepoResolver
+	if repoResolver == nil {
+		repoResolver = config.ResolveRepoRoot
 	}
 
-	templatePath := resolvedTemplatePath(ctxInfo)
+	cmd, err := newBuildCommand(deps.Build, repoResolver, out)
+	if err != nil {
+		return exitWithError(out, err)
+	}
 
+	if err := cmd.Run(ctxInfo, cli.Build); err != nil {
+		return exitWithError(out, err)
+	}
+	return 0
+}
+
+type buildCommand struct {
+	builder    ports.Builder
+	envApplier ports.RuntimeEnvApplier
+	ui         ports.UserInterface
+}
+
+func newBuildCommand(deps BuildDeps, repoResolver func(string) (string, error), out io.Writer) (*buildCommand, error) {
+	if deps.Builder == nil {
+		return nil, fmt.Errorf("build: builder not configured")
+	}
 	envApplier := newRuntimeEnvApplier(repoResolver)
-	workflow := workflows.NewBuildWorkflow(deps.Builder, envApplier, ports.NewLegacyUI(out))
+	ui := ports.NewLegacyUI(out)
+	return &buildCommand{
+		builder:    deps.Builder,
+		envApplier: envApplier,
+		ui:         ui,
+	}, nil
+}
 
+func (c *buildCommand) Run(ctxInfo commandContext, flags BuildCmd) error {
+	templatePath := resolvedTemplatePath(ctxInfo)
 	request := workflows.BuildRequest{
 		Context:      ctxInfo.Context,
 		Env:          ctxInfo.Env,
 		TemplatePath: templatePath,
-		NoCache:      noCache,
-		Verbose:      verbose,
+		NoCache:      flags.NoCache,
+		Verbose:      flags.Verbose,
 	}
-
-	if err := workflow.Run(request); err != nil {
-		return exitWithError(out, err)
-	}
-
-	return 0
+	return workflows.NewBuildWorkflow(c.builder, c.envApplier, c.ui).Run(request)
 }

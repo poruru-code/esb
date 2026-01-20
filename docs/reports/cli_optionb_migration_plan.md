@@ -22,6 +22,7 @@ Stages 0-6 are archived in `docs/reports/cli_optionb_migration_plan_archive.md`.
 - **Task 7.1 (P0): Command constructors**
   - 作業: `runBuild/runUp/runDown/runLogs/runStop/runPrune` を `New*Cmd` で生成したハンドラに委譲し、必須依存をコンストラクタ引数に固定する。
   - 受け入れ条件: 各コマンドが `Dependencies` の nil チェックを行わない; コンストラクタで欠落依存が検知できる。
+  - 現状: build/up/down/logs/stop/prune すべてを構造体＋`Run` に切り出し、`go test ./...` に成功。
 
 - **Task 7.2 (P0): Wire 集約**
   - 作業: `internal/wire` を追加し、main 側の初期化を `wire.BuildCLI()` のような単一関数に集約する。

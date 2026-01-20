@@ -17,25 +17,36 @@ func runDown(cli CLI, deps Dependencies, out io.Writer) int {
 	opts := newResolveOptions(cli.Down.Force)
 	ctxInfo, err := resolveCommandContext(cli, deps, opts)
 	if err != nil {
-		fmt.Fprintln(out, err)
-		return 1
+		return exitWithError(out, err)
 	}
-	return runDownWithDeps(deps.Down, ctxInfo, cli.Down.Volumes, out)
-}
-
-func runDownWithDeps(deps DownDeps, ctxInfo commandContext, volumes bool, out io.Writer) int {
-	if deps.Downer == nil {
-		fmt.Fprintln(out, "down: not implemented")
-		return 1
+	cmd, err := newDownCommand(deps.Down, out)
+	if err != nil {
+		return exitWithError(out, err)
 	}
-
-	workflow := workflows.NewDownWorkflow(deps.Downer, ports.NewLegacyUI(out))
-	if err := workflow.Run(workflows.DownRequest{
-		Context: ctxInfo.Context,
-		Volumes: volumes,
-	}); err != nil {
-		fmt.Fprintln(out, err)
-		return 1
+	if err := cmd.Run(ctxInfo, cli.Down.Volumes); err != nil {
+		return exitWithError(out, err)
 	}
 	return 0
+}
+
+type downCommand struct {
+	downer ports.Downer
+	ui     ports.UserInterface
+}
+
+func newDownCommand(deps DownDeps, out io.Writer) (*downCommand, error) {
+	if deps.Downer == nil {
+		return nil, fmt.Errorf("down: not implemented")
+	}
+	return &downCommand{
+		downer: deps.Downer,
+		ui:     ports.NewLegacyUI(out),
+	}, nil
+}
+
+func (c *downCommand) Run(ctxInfo commandContext, volumes bool) error {
+	return workflows.NewDownWorkflow(c.downer, c.ui).Run(workflows.DownRequest{
+		Context: ctxInfo.Context,
+		Volumes: volumes,
+	})
 }
