@@ -2,7 +2,7 @@
 
 ## 概要
 
-`esb project` コマンドファミリは、異なるESBプロジェクトの登録、移動、および管理に使用されます。プロジェクトのグローバルレジストリ（`~/.config/esb/config.yaml`）を維持し、ファイルシステムを移動することなくコンテキストを簡単に切り替えることができます。
+`esb project` コマンドファミリは、異なるESBプロジェクトの登録、移動、および管理に使用されます。プロジェクトのグローバルレジストリ（`~/.esb/config.yaml`、`ESB_CONFIG_PATH`/`ESB_CONFIG_HOME` で上書き可能）を維持し、ファイルシステムを移動することなくコンテキストを簡単に切り替えることができます。
 
 ## 使用方法
 
@@ -22,7 +22,7 @@ esb project [command] [flags]
 
 ## 実装詳細
 
-ロジックは `cli/internal/app/project.go`, `cli/internal/app/project_register.go`, `cli/internal/app/project_resolver.go` に分散されています。
+CLIアダプタは `cli/internal/commands/project.go` にあり、プロンプトや初期化処理を担当します。プロジェクト一覧/切り替え/削除/登録のオーケストレーションは `cli/internal/workflows/project.go` に移行されています。プロジェクト選択の解決は `cli/internal/commands/project_resolver.go` が担います。
 
 ### 主要コンポーネント
 
@@ -31,7 +31,7 @@ esb project [command] [flags]
   1. CLIフラグ (`--template`)
   2. 環境変数 (`ESB_PROJECT`)
   3. インタラクティブ選択（未設定の場合）
-- **プロジェクト初期化**: `runProjectAdd` は `generator.yml` を検出するか、見つからない場合はSAMテンプレートから初期化します。
+- **プロジェクト初期化**: `runProjectAdd` は `generator.yml` を検出するか、見つからない場合はSAMテンプレートから初期化します。初期化後の登録は `ProjectRegisterWorkflow` が行います。
 
 ### ロジックフロー
 

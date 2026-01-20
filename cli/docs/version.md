@@ -12,7 +12,7 @@ esb version
 
 ## 実装詳細
 
-- **場所**: `cli/internal/app/app.go` (`runVersion`).
+- **場所**: `cli/internal/commands/app.go` (`runVersion`).
 - **ロジック**: `version.GetVersion()` が返す文字列を表示します。
 - **ビルド時**: バージョン情報は通常、ビルドプロセス中にリンカーフラグ (`-ldflags`) を介して注入されます（`cli/version/version.go` 等で処理）。
 

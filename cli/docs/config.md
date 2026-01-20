@@ -18,7 +18,7 @@ esb config [command] [flags]
 
 ## 実装詳細
 
-コマンドのロジックは `cli/internal/app/config_cmd.go` に実装されています。
+コマンドのロジックは `cli/internal/commands/config_cmd.go` に実装されています。
 
 ### `set-repo`
 

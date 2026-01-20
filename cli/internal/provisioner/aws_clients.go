@@ -14,9 +14,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/poruru-code/aws-sam-parser-go/schema"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
+	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
 )
 
 func traceProvisionerOp(format string, args ...any) {
@@ -243,7 +243,7 @@ func (c awsS3Client) CreateBucket(ctx context.Context, name string) error {
 }
 
 // PutBucketLifecycleConfiguration applies lifecycle rules to the bucket.
-func (c awsS3Client) PutBucketLifecycleConfiguration(ctx context.Context, name string, config *schema.AWSS3BucketLifecycleConfiguration) error {
+func (c awsS3Client) PutBucketLifecycleConfiguration(ctx context.Context, name string, config *manifest.S3LifecycleConfiguration) error {
 	if c.client == nil {
 		return fmt.Errorf("s3 client is nil")
 	}
@@ -272,7 +272,7 @@ func (c awsS3Client) PutBucketLifecycleConfiguration(ctx context.Context, name s
 	return err
 }
 
-func mapLifecycleRules(items []schema.AWSS3BucketRule) ([]s3types.LifecycleRule, error) {
+func mapLifecycleRules(items []manifest.S3LifecycleRule) ([]s3types.LifecycleRule, error) {
 	out := make([]s3types.LifecycleRule, 0, len(items))
 	for _, item := range items {
 		rule := s3types.LifecycleRule{}
@@ -283,7 +283,7 @@ func mapLifecycleRules(items []schema.AWSS3BucketRule) ([]s3types.LifecycleRule,
 			rule.Status = s3types.ExpirationStatusDisabled
 		}
 
-		if id := toString(item.Id); id != "" {
+		if id := toString(item.ID); id != "" {
 			rule.ID = aws.String(id)
 		}
 

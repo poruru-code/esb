@@ -60,3 +60,8 @@ func (c *Console) Success(msg string) {
 func (c *Console) Info(msg string) {
 	fmt.Fprintf(c.Out, "➜ %s\n", msg)
 }
+
+// Warn prints a warning message with an emoji.
+func (c *Console) Warn(msg string) {
+	fmt.Fprintf(c.Out, "⚠️ %s\n", msg)
+}

@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strings"
 
-	samparser "github.com/poruru-code/aws-sam-parser-go/parser"
+	"github.com/poruru/edge-serverless-box/cli/internal/sam"
 )
 
 const maxResolveDepth = 20
@@ -38,7 +38,7 @@ func NewIntrinsicResolver(params map[string]string) *IntrinsicResolver {
 }
 
 // Resolve implements parser.Resolver.
-func (r *IntrinsicResolver) Resolve(ctx *samparser.Context, value any) (any, bool, error) {
+func (r *IntrinsicResolver) Resolve(ctx *sam.Context, value any) (any, bool, error) {
 	if value == nil {
 		return nil, false, nil
 	}
@@ -191,11 +191,11 @@ func (r *IntrinsicResolver) Resolve(ctx *samparser.Context, value any) (any, boo
 	return value, false, nil
 }
 
-func (r *IntrinsicResolver) resolveValue(ctx *samparser.Context, value any) any {
+func (r *IntrinsicResolver) resolveValue(ctx *sam.Context, value any) any {
 	if ctx == nil {
-		ctx = &samparser.Context{MaxDepth: maxResolveDepth}
+		ctx = &sam.Context{MaxDepth: maxResolveDepth}
 	}
-	resolved, err := samparser.ResolveAll(ctx, value, r)
+	resolved, err := sam.ResolveAll(ctx, value, r)
 	if err != nil {
 		r.addWarningf("resolve error: %v", err)
 		return value

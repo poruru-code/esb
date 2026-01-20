@@ -9,7 +9,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/poruru-code/aws-sam-parser-go/schema"
 	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
 )
 
@@ -101,7 +100,7 @@ func (f *fakeS3) CreateBucket(_ context.Context, name string) error {
 	return nil
 }
 
-func (f *fakeS3) PutBucketLifecycleConfiguration(_ context.Context, name string, config *schema.AWSS3BucketLifecycleConfiguration) error {
+func (f *fakeS3) PutBucketLifecycleConfiguration(_ context.Context, name string, config *manifest.S3LifecycleConfiguration) error {
 	if config == nil {
 		return errors.New("invalid lifecycle configuration format")
 	}
@@ -117,10 +116,10 @@ func TestProvisionDynamoCreatesWhenMissing(t *testing.T) {
 	tables := []manifest.DynamoDBSpec{
 		{
 			TableName: "test-table",
-			KeySchema: []schema.AWSDynamoDBTableKeySchema{
+			KeySchema: []manifest.DynamoDBKeySchema{
 				{AttributeName: "id", KeyType: "HASH"},
 			},
-			AttributeDefinitions: []schema.AWSDynamoDBTableAttributeDefinition{
+			AttributeDefinitions: []manifest.DynamoDBAttributeDefinition{
 				{AttributeName: "id", AttributeType: "S"},
 			},
 			BillingMode: "PAY_PER_REQUEST",

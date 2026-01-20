@@ -12,6 +12,7 @@ import (
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
+	"gopkg.in/yaml.v3"
 )
 
 type stubParser struct {
@@ -288,6 +289,139 @@ func TestGenerateFilesLayerNesting(t *testing.T) {
 	check(filepath.Join(staged, "layer-nested-zip", "python", "lib_zip_nested.py"))
 	if _, err := os.Stat(filepath.Join(staged, "layer-nested-zip", "python", "python")); err == nil {
 		t.Fatalf("nested zip should not double nest")
+	}
+}
+
+func TestGenerateFilesIntegrationOutputs(t *testing.T) {
+	root := t.TempDir()
+	templatePath := filepath.Join(root, "template.yaml")
+	writeTestFile(t, templatePath, `
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Resources:
+  HelloFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lambda-hello
+      CodeUri: functions/hello/
+      Handler: app.handler
+      Runtime: python3.12
+      Timeout: 10
+      MemorySize: 256
+      Environment:
+        Variables:
+          S3_ENDPOINT: http://esb-storage:9000
+      Events:
+        HelloApi:
+          Type: Api
+          Properties:
+            Path: /api/hello
+            Method: post
+        Nightly:
+          Type: Schedule
+          Properties:
+            Schedule: rate(5 minutes)
+`)
+
+	funcDir := filepath.Join(root, "functions", "hello")
+	mustMkdirAll(t, funcDir)
+	writeTestFile(t, filepath.Join(funcDir, "app.py"), "print('hello')")
+
+	cfg := config.GeneratorConfig{
+		Paths: config.PathsConfig{
+			SamTemplate: "template.yaml",
+			OutputDir:   "out/",
+		},
+	}
+	functions, err := GenerateFiles(cfg, GenerateOptions{ProjectRoot: root})
+	if err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	if len(functions) != 1 {
+		t.Fatalf("expected 1 function, got %d", len(functions))
+	}
+
+	expectedFunctions, err := RenderFunctionsYml(functions, "", "latest")
+	if err != nil {
+		t.Fatalf("RenderFunctionsYml: %v", err)
+	}
+	expectedRouting, err := RenderRoutingYml(functions)
+	if err != nil {
+		t.Fatalf("RenderRoutingYml: %v", err)
+	}
+
+	functionsYml := filepath.Join(root, "out", "config", "functions.yml")
+	routingYml := filepath.Join(root, "out", "config", "routing.yml")
+	if got := readFile(t, functionsYml); got != expectedFunctions {
+		t.Fatalf("functions.yml mismatch")
+	}
+	if got := readFile(t, routingYml); got != expectedRouting {
+		t.Fatalf("routing.yml mismatch")
+	}
+}
+
+func TestGenerateFilesRendersRoutingEvents(t *testing.T) {
+	root := t.TempDir()
+	templatePath := filepath.Join(root, "template.yaml")
+	writeTestFile(t, templatePath, "Resources: {}")
+
+	funcDir := filepath.Join(root, "functions", "events")
+	mustMkdirAll(t, funcDir)
+	writeTestFile(t, filepath.Join(funcDir, "app.py"), "print('events')")
+
+	parser := &stubParser{
+		result: ParseResult{
+			Functions: []FunctionSpec{
+				{
+					Name:    "lambda-events",
+					Runtime: "python3.12",
+					CodeURI: "functions/events/",
+					Events: []EventSpec{
+						{
+							Path:   "/api/events",
+							Method: "POST",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	cfg := config.GeneratorConfig{
+		Paths: config.PathsConfig{
+			SamTemplate: "template.yaml",
+			OutputDir:   "out/",
+		},
+	}
+	if _, err := GenerateFiles(cfg, GenerateOptions{ProjectRoot: root, Parser: parser}); err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+
+	routingYml := filepath.Join(root, "out", "config", "routing.yml")
+	content := readFile(t, routingYml)
+
+	type route struct {
+		Path     string `yaml:"path"`
+		Method   string `yaml:"method"`
+		Function string `yaml:"function"`
+	}
+	var parsed struct {
+		Routes []route `yaml:"routes"`
+	}
+	if err := yaml.Unmarshal([]byte(content), &parsed); err != nil {
+		t.Fatalf("yaml unmarshal: %v", err)
+	}
+	if len(parsed.Routes) != 1 {
+		t.Fatalf("expected one route, got %d", len(parsed.Routes))
+	}
+	if parsed.Routes[0].Path != "/api/events" {
+		t.Fatalf("unexpected path: %s", parsed.Routes[0].Path)
+	}
+	if parsed.Routes[0].Function != "lambda-events" {
+		t.Fatalf("unexpected function: %s", parsed.Routes[0].Function)
+	}
+	if parsed.Routes[0].Method != "POST" {
+		t.Fatalf("unexpected method: %s", parsed.Routes[0].Method)
 	}
 }
 

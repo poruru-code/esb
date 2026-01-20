@@ -23,7 +23,7 @@ esb prune [flags]
 
 ## 実装詳細
 
-コマンドのロジックは `cli/internal/app/prune.go` に実装されています。
+CLIアダプタは `cli/internal/commands/prune.go`、オーケストレーションは `cli/internal/workflows/prune.go` が担当します。
 
 ### 主要コンポーネント
 

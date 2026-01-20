@@ -6,9 +6,8 @@ package generator
 import (
 	"fmt"
 
-	samparser "github.com/poruru-code/aws-sam-parser-go/parser"
-	"github.com/poruru-code/aws-sam-parser-go/schema"
 	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
+	"github.com/poruru/edge-serverless-box/cli/internal/sam"
 )
 
 func parseLayerResources(resources map[string]any) (map[string]manifest.LayerSpec, []manifest.LayerSpec) {
@@ -65,31 +64,24 @@ func parseOtherResources(resources map[string]any) manifest.ResourcesSpec {
 		case "AWS::DynamoDB::Table":
 			tableName := ResolveTableName(props, logicalID)
 
-			var tableProps schema.AWSDynamoDBTableProperties
-			if err := samparser.Decode(props, &tableProps, nil); err != nil {
+			tableProps, err := sam.DecodeDynamoDBProps(props)
+			if err != nil {
 				fmt.Printf("Warning: failed to map DynamoDB table %s: %v\n", logicalID, err)
 			}
 
-			parsed.DynamoDB = append(parsed.DynamoDB, manifest.DynamoDBSpec{
-				TableName:              tableName,
-				KeySchema:              tableProps.KeySchema,
-				AttributeDefinitions:   tableProps.AttributeDefinitions,
-				GlobalSecondaryIndexes: tableProps.GlobalSecondaryIndexes,
-				BillingMode:            ResolveBillingMode(props),
-				ProvisionedThroughput:  tableProps.ProvisionedThroughput,
-			})
+			tableProps.TableName = tableName
+			tableProps.BillingMode = ResolveBillingMode(props)
+			parsed.DynamoDB = append(parsed.DynamoDB, tableProps)
 		case "AWS::S3::Bucket":
 			bucketName := ResolveS3BucketName(props, logicalID)
 
-			var s3Props schema.AWSS3BucketProperties
-			if err := samparser.Decode(props, &s3Props, nil); err != nil {
+			s3Props, err := sam.DecodeS3BucketProps(props)
+			if err != nil {
 				fmt.Printf("Warning: failed to map S3 bucket %s: %v\n", logicalID, err)
 			}
 
-			parsed.S3 = append(parsed.S3, manifest.S3Spec{
-				BucketName:             bucketName,
-				LifecycleConfiguration: s3Props.LifecycleConfiguration,
-			})
+			s3Props.BucketName = bucketName
+			parsed.S3 = append(parsed.S3, s3Props)
 
 		}
 	}

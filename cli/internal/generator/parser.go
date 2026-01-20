@@ -6,9 +6,8 @@ package generator
 import (
 	"fmt"
 
-	samparser "github.com/poruru-code/aws-sam-parser-go/parser"
-	"github.com/poruru-code/aws-sam-parser-go/schema"
 	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
+	"github.com/poruru/edge-serverless-box/cli/internal/sam"
 )
 
 type ParseResult struct {
@@ -57,7 +56,7 @@ func ParseSAMTemplate(content string, parameters map[string]string) (ParseResult
 		parameters = map[string]string{}
 	}
 
-	data, err := samparser.DecodeYAML(content)
+	data, err := sam.DecodeYAML(content)
 	if err != nil {
 		return ParseResult{}, err
 	}
@@ -72,8 +71,8 @@ func ParseSAMTemplate(content string, parameters map[string]string) (ParseResult
 	resolver := NewIntrinsicResolver(mergedParams)
 	resolver.RawConditions = asMap(data["Conditions"])
 
-	resolvedAny, err := samparser.ResolveAll(
-		&samparser.Context{MaxDepth: maxResolveDepth},
+	resolvedAny, err := sam.ResolveAll(
+		&sam.Context{MaxDepth: maxResolveDepth},
 		data,
 		resolver,
 	)
@@ -85,8 +84,8 @@ func ParseSAMTemplate(content string, parameters map[string]string) (ParseResult
 		return ParseResult{}, fmt.Errorf("unexpected yaml root")
 	}
 
-	var template schema.SamModel
-	if err := samparser.Decode(resolved, &template, nil); err != nil {
+	template, err := sam.DecodeTemplate(resolved)
+	if err != nil {
 		return ParseResult{}, err
 	}
 
