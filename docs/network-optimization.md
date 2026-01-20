@@ -3,7 +3,7 @@
 ## 背景
 Docker コンテナ間の通信において、本プロジェクトは「Lambda の冷間起動（Cold Start）」の高速化と、システム全体の「保守性・堅牢性」の両立を目指しています。
 
-現在は **IP アドレスを優先する設計**を採用しています。Go Agent は containerd/CNI から取得した IP を返却し、Gateway はその IP で Readiness チェックと Lambda Invoke を行います。
+現在は **IP アドレスを優先する設計**を採用しています。Go Agent は runtime から取得した IP を返却し、Gateway はその IP で Readiness チェックと Lambda Invoke を行います。
 
 ## 解決策: ハイブリッドアプローチ
 
@@ -14,7 +14,7 @@ Go Agent から受け取った IP アドレスに対して TCP 接続を行い�
 
 ### 2. Gateway からの通信: **IP アドレスを使用**
 Gateway は `WorkerInfo.ip_address` を直接使用して Lambda RIE に接続します。
-- **理由**: CNI ネットワーク上の IP を即座に利用でき、DNS 伝播待ちを不要にするため。
+- **理由**: CNI/Docker のネットワーク上の IP を即座に利用でき、DNS 伝播待ちを不要にするため。
 - **メリット**: Readiness チェックと実行パスを統一でき、起動直後の呼び出し遅延を最小化できます。
 
 ## 根拠と検証データ
@@ -22,14 +22,14 @@ Gateway は `WorkerInfo.ip_address` を直接使用して Lambda RIE に接続�
 ### 性能比較
 | 解決方法 | 平均レイテンシ | 役割 |
 | :--- | :--- | :--- |
-| **IPアドレス (直接指定)** | **0.092 ms** | **内部 Readiness Check で使用** (最速の検知) |
-| **ホスト名 (DNS経由)** | **0.595 ms** | **Gateway 間通信で使用** (保守性の確保) |
+| **IPアドレス (直接指定)** | **0.092 ms** | **Readiness / Invoke で使用** (最速の検知) |
+| **ホスト名 (DNS経由)** | **0.595 ms** | **サービス解決で使用** (ワーカーの外部通信) |
 
 この差（約 0.5ms）は、アプリケーション全体の処理時間（数百 ms 〜）と比較すると無視できる範囲であり、DNS を利用することによる保守性向上のメリットが上回ると判断しました。
 
 ## 実装の詳細
-`services/gateway/services/grpc_provision.py` および `services/gateway/services/grpc_backend.py` では以下のフローを実行します：
+`services/gateway/services/grpc_provision.py` および `services/gateway/services/lambda_invoker.py` では以下のフローを実行します：
 
-1. コンテナを起動し、`container.reload()` で IP アドレスを取得。
-2. 取得した IP アドレスに対して `_wait_for_readiness(ip)` を実行。
+1. Agent にコンテナ起動を依頼し、`WorkerInfo.ip_address` を取得。
+2. 取得した IP アドレスに対して `_wait_for_readiness(host, port)` を実行。
 3. 確認完了後、Gateway は **IP アドレス** 宛にリクエストを送信。

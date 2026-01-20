@@ -25,7 +25,7 @@ flowchart TD
     
     Functions --> Renderer
     
-    Renderer --> Dockerfiles["Dockerfiles (`assets/Dockerfile.base` → `Dockerfile`/`Dockerfile.layer` )"]
+    Renderer --> Dockerfiles["Dockerfiles (`assets/Dockerfile.lambda-base` → `Dockerfile` )"]
     Renderer --> RuntimeHooks["Runtime Hooks (`assets/site-packages/` + viewer hooks)"]
 ```
 
@@ -73,7 +73,7 @@ routes:
 `functions.yml` にリストアップされた関数ごとに Build Context を作成、`renderer.go` がファイルを生成します。
 
 1. **Dockerfile の生成**  
-   `cli/internal/generator/assets/Dockerfile.base` をベースに、関数/ランタイム特有のステップ（`COPY functions/...` や `ENV` 設定）を動的に組み立てます。  
+   `cli/internal/generator/assets/Dockerfile.lambda-base` をベースに、関数/ランタイム特有のステップ（`COPY functions/...` や `ENV` 設定）を動的に組み立てます。  
 2. **Layer のステージング**  
    `AWS::Serverless::LayerVersion` から抽出したレイヤーは `output_dir/layers/` に展開し、各関数の Dockerfile から共有参照されます。ZIP 形式のレイヤーは展開済みバージョンを `/opt/` にコピー。  
 3. **ビルドコンテキストの最小化**  

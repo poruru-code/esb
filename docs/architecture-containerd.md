@@ -193,7 +193,7 @@ sequenceDiagram
 - **8-13. 通信**: ワーカーは `CoreDNS` を介してサービス名（`s3-storage` など）を解決し、CoreDNS は Docker DNS (`127.0.0.11`) へフォワードします。実際の通信は CNI ブリッジの `MASQUERADE` ルールによって透過的に外部ネットワークへルーティングされます。
 
 補足:
-- Gateway はコンテナ内部では `:8443` で待ち受け、ホスト公開は `ESB_PORT_GATEWAY_HTTPS` に依存します。
+- Gateway はコンテナ内部では `:8443` で待ち受け、ホスト公開は `PORT_GATEWAY_HTTPS` に依存します。
 - containerd モードでは `runtime-node` が NetNS の親で、`gateway`/`agent`/`coredns` が `network_mode: service:runtime-node` で同居します。
 - ワーカーの `/etc/resolv.conf` は `CNI_DNS_SERVER` または `CNI_GW_IP` を参照し、CoreDNS に到達できないと `s3-storage`/`database` の名前解決が失敗します。
 - CNI サブネットから control-plane へ到達するため、`runtime-node` の MASQUERADE と FORWARD ルールが必要です。

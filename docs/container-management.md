@@ -48,7 +48,7 @@ flowchart LR
 
 ```
 cli/internal/generator/assets/
-├── Dockerfile.base
+├── Dockerfile.lambda-base
 └── site-packages/
     └── sitecustomize.py    # AWS SDK パッチ & Direct Logging
 ```
@@ -76,7 +76,7 @@ CMD [ "lambda_function.lambda_handler" ]
 
 ## コンテナライフサイクル
 
-Lambda RIE コンテナは **Go Agent** により動的に管理されます。Gateway は gRPC で Go Agent に依頼し、containerd 経由でコンテナを起動・削除します。Gateway の Janitor がアイドル/孤児コンテナを定期的に整理します（詳細は [orchestrator-restart-resilience.md](./orchestrator-restart-resilience.md) を参照）。
+Lambda RIE コンテナは **Go Agent** により動的に管理されます。Gateway は gRPC で Go Agent に依頼し、runtime（docker / containerd）経由でコンテナを起動・削除します。Gateway の Janitor がアイドル/孤児コンテナを定期的に整理します（詳細は [orchestrator-restart-resilience.md](./orchestrator-restart-resilience.md) を参照）。
 
 ```mermaid
 sequenceDiagram

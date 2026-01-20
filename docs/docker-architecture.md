@@ -94,7 +94,8 @@ Firecracker を使う構成は必要なバイナリが多くサイズが肥大�
 ## 4. 今後の拡張への指針
 
 - **非 root 実行**: Gateway は Docker/containerd モードで非 root で動作します。`~/.esb/certs`
-  を読むため、`ESB_UID`/`ESB_GID` をホストの UID/GID に合わせてビルドしてください。
+  を読むため、compose の `RUN_UID`/`RUN_GID`（Dockerfile の `SERVICE_UID`/`SERVICE_GID`）を
+  ホストの UID/GID に合わせてください。
   Firecracker モードは WireGuard と `/dev/net/tun` の都合で root 実行を継続し、
   `docker-compose.fc.yml` で `user: 0:0` を指定しています。
 - **C 拡張への対応**: 新たなライブラリを追加する際は、`builder` ステージでビルドされたバイナリが

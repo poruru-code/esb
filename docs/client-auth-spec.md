@@ -8,7 +8,7 @@
 
 ### 📌 エンドポイント仕様
 
-**パス:** `POST /user/auth/ver1.0`
+**パス:** `POST /user/auth/v1`（`AUTH_ENDPOINT_PATH` で変更可能）
 
 **リクエストヘッダ:**
 - `x-api-key`: API GatewayのAPIキー
@@ -82,14 +82,14 @@ class AuthResponse(BaseModel):
     environment:
       - JWT_SECRET_KEY=dev-secret-key-change-in-production
       - X_API_KEY=dev-api-key-change-in-production
-      - AUTH_ENDPOINT_PATH=/user/auth/ver1.0
+      - AUTH_ENDPOINT_PATH=/user/auth/v1
 ```
 
 #### 環境変数
 
 - `JWT_SECRET_KEY`: JWTトークンの署名キー
 - `X_API_KEY`: API Gatewayのアクセスキー
-- `AUTH_ENDPOINT_PATH`: 認証エンドポイントのパス (デフォルト: `/user/auth/ver1.0`)
+- `AUTH_ENDPOINT_PATH`: 認証エンドポイントのパス (デフォルト: `/user/auth/v1`)
 
 ---
 
@@ -98,7 +98,7 @@ class AuthResponse(BaseModel):
 #### 認証リクエスト
 
 ```bash
-curl -X POST http://localhost:8000/user/auth/ver1.0 \
+curl -X POST http://localhost:8000/user/auth/v1 \
   -H "x-api-key: dev-api-key-change-in-production" \
   -H "Content-Type: application/json" \
   -d '{

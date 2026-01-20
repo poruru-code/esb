@@ -6,7 +6,7 @@ Why: Provide a stable reference for ESB components and deployment models.
 # システム仕様書
 
 ## 1. 概要
-本システムは、コンテナ技術(Docker / containerd)を用いてエッジサーバーレス環境をシミュレートするための基盤です。単一ホストの containerd 構成は `docker-compose.yml` + `docker-compose.node.yml` + `docker-compose.containerd.yml` を組み合わせ、Firecracker 分離構成では Control (`docker-compose.yml`) / Compute (`docker-compose.node.yml`) に分けて起動します。
+本システムは、コンテナ技術(Docker / containerd)を用いてエッジサーバーレス環境をシミュレートするための基盤です。単一ホストの containerd 構成は `docker-compose.yml` + `docker-compose.worker.yml` + `docker-compose.registry.yml` + `docker-compose.containerd.yml` を組み合わせ、Firecracker 構成は `docker-compose.yml` + `docker-compose.worker.yml` + `docker-compose.registry.yml` + `docker-compose.fc.yml` を組み合わせます。
 
 ## 2. コンポーネント構成
 
@@ -22,7 +22,7 @@ flowchart TD
         CoreDNS["CoreDNS (Sidecar)<br>(:53)"]
         RustFS["RustFS S3<br>(:9000)"]
         Console["RustFS Console<br>(:9001)"]
-        DB["ScyllaDB<br>(:8001)"]
+        DB["ScyllaDB<br>(:8000)"]
         Logs["VictoriaLogs<br>(:9428)"]
         
         Gateway -->|Pool Management| PoolManager["PoolManager"]
@@ -32,7 +32,7 @@ flowchart TD
         Lambda["Lambda microVM/Container<br>(Ephemeral)"]
     end
 
-    User -->|HTTP| Gateway
+    User -->|HTTPS| Gateway
     User -->|S3 API| RustFS
     User -->|Web UI| Console
     User -->|Dynamo API| DB
@@ -43,8 +43,8 @@ flowchart TD
     Gateway -->|AWS SDK| DB
     Gateway -->|HTTP| Lambda
     
-    Agent -->|containerd/CNI| Lambda
-    Agent -.-|Pull (Containerd/FC only)| Registry["Registry"]
+    Agent -->|docker/containerd| Lambda
+    Agent -.-|"Pull (Containerd/FC only)"| Registry["Registry"]
     
     Lambda -->|DNS Query| CoreDNS
     CoreDNS -->|Resolve| RustFS
@@ -112,7 +112,7 @@ services/gateway/
 
 ### 2.5 ScyllaDB (Database)
 - **役割**: Dockerコンテナ向けの高性能NoSQLデータベース。AWS DynamoDB互換API (Alternator) を提供。
-- **ポート**: `8001` (Alternator API 外部公開用), `8000` (内部通信用)
+- **ポート**: `8000` (Alternator API。ホスト公開ポートは `PORT_DATABASE`)
 
 ### 2.6 VictoriaLogs
 - **役割**: ログ収集・管理基盤。LambdaやGatewayのログを集約可。
@@ -130,7 +130,7 @@ Gateway は external_network 上で起動し、コンテナ内 `8443` をホス�
 | CoreDNS        | 53               | なし             | `10.88.0.1:53`                | DNS (UDP/TCP)       |
 | RustFS API     | 9000             | 9000             | `http://localhost:9000`       | HTTP                |
 | RustFS Console | 9001             | 9001             | `http://localhost:9001`       | HTTP                |
-| ScyllaDB       | 8000             | 8001             | `http://localhost:8001`       | HTTP (DynamoDB API) |
+| ScyllaDB       | 8000             | 8000             | `http://localhost:8000`       | HTTP (DynamoDB API) |
 | VictoriaLogs   | 9428             | 9428             | `http://localhost:9428`       | HTTP                |
 
 補足:
@@ -155,8 +155,8 @@ Gateway は external_network 上で起動し、コンテナ内 `8443` をホス�
 | --------------------------------- | -------------------------------------- | ------------------------------------------ |
 | `docker-compose.yml`              | Control/Core（Gateway + 依存サービス） | Control Plane（単一ノード/分離構成の共通） |
 | **`docker-compose.registry.yml`** | **Registry**                           | Containerd/Firecracker モードで自動追加    |
-| `docker-compose.node.yml`         | Compute（runtime-node/agent/coredns）  | Compute Node（Firecracker/remote）         |
-| `docker-compose.containerd.yml`   | Adapter（単一ノード結合 / coredns）    | Core + Compute を同一ホストで統合          |
+| `docker-compose.worker.yml`       | Worker 基本定義                         | Agent の基本定義（イメージ/環境/ボリューム） |
+| `docker-compose.containerd.yml`   | Adapter（単一ノード結合 / coredns）     | Core + Worker を同一ホストで統合           |
 
 ### 5.2 起動パターン（docker compose）
 
@@ -164,17 +164,16 @@ Gateway は external_network 上で起動し、コンテナ内 `8443` をホス�
 ```bash
 docker compose -f docker-compose.yml \
   -f docker-compose.registry.yml \
-  -f docker-compose.node.yml \
+  -f docker-compose.worker.yml \
   -f docker-compose.containerd.yml up -d
 ```
 
-Control/Compute 分離（Firecracker）:
+Firecracker:
 ```bash
-# Control
-docker compose -f docker-compose.yml up -d
-
-# Compute
-docker compose -f docker-compose.node.yml up -d
+docker compose -f docker-compose.yml \
+  -f docker-compose.registry.yml \
+  -f docker-compose.worker.yml \
+  -f docker-compose.fc.yml up -d
 ```
 
 注意:

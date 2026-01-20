@@ -73,7 +73,7 @@ flowchart TD
 ## 検証ポイント
 
 - `cd cli && go test ./...` でユニットを通す。`cli/internal/generator` への `validator_test` を含める。  
-- `uv run python e2e/run_tests.py --parallel --reset` で `e2e-docker`/`e2e-containerd` 両プロファイルの 39 テストが通るかを確認。  
+- `uv run python e2e/run_tests.py --parallel --reset` で `e2e-docker`/`e2e-containerd` 両プロファイルが通るかを確認。  
 - `esb build --env <env>` → `esb up --env <env>` → `esb logs/stop/prune` の組み合わせで `docker compose` の状態遷移が正しいか確認。
 
 ## ステートマシン

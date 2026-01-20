@@ -48,9 +48,12 @@ Dockerイメージのビルド時に `esb-lambda-base` に配置されます。�
 
 | 変数名 | 説明 | デフォルト |
 |--------|------|------------|
-| `VICTORIALOGS_URL` | ログ送信先エンドポイント | `http://victorialogs:9428/insert/jsonline` |
+| `VICTORIALOGS_URL` | ログ送信先エンドポイント | `http://victorialogs:9428` |
 | `LOG_LEVEL` | ログ出力レベル | `INFO` |
 | `AWS_LAMBDA_FUNCTION_NAME` | ログの `container_name` タグとして使用 | コンテナ名 |
+
+> [!NOTE]
+> `VICTORIALOGS_URL` は **ベース URL** を指定します。`sitecustomize.py` が内部で `/insert/jsonline` を付与します。
 
 ## VictoriaLogs UI
 

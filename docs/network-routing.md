@@ -50,9 +50,9 @@
 - **CNI_GW_IP** (既定: `10.88.0.1`): CNI ブリッジのゲートウェイ。CoreDNS の待ち受け IP としても利用される。
 - **CNI_DNS_SERVER** (任意): ワーカーの DNS 参照先。未指定時は `CNI_GW_IP` を使用。
 - **CNI_SUBNET** (任意): CNI ブリッジのサブネット。IPAM の subnet/range に反映される。
-- **ESB_CONTROL_HOST** (既定: `10.99.0.1`): リモートノードから見た制御プレーンの到達先 IP。
-- **DYNAMODB_ENDPOINT_HOST**: `database` (DNS で解決)
-- **S3_ENDPOINT_HOST**: `s3-storage` (DNS で解決)
+- **CONTROL_HOST** (既定: `10.99.0.1`): リモートノードから見た制御プレーンの到達先 IP。
+- **DYNAMODB_ENDPOINT**: `http://database:8000` (DNS で解決)
+- **S3_ENDPOINT**: `http://s3-storage:9000` (DNS で解決)
 
 ## CNI_SUBNET 変更時の推奨値（GW/DNS の関係）
 
