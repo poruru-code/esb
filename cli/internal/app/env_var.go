@@ -90,6 +90,10 @@ func runEnvVar(cli CLI, deps Dependencies, out io.Writer) int {
 		)
 	}
 
+	if deps.Logs.Logger == nil {
+		return exitWithError(out, fmt.Errorf("logger not configured"))
+	}
+
 	// Get containers for the project
 	containers, err := deps.Logs.Logger.ListContainers(ctx.ComposeProject)
 	if err != nil {

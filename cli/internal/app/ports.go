@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -17,7 +16,6 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
-	"github.com/poruru/edge-serverless-box/cli/internal/ports"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 	"github.com/poruru/edge-serverless-box/meta"
 )
@@ -76,51 +74,6 @@ func DiscoverAndPersistPorts(ctx state.Context, discoverer PortDiscoverer) (map[
 	}
 	applyPortsToEnv(ports)
 	return ports, nil
-}
-
-func PrintDiscoveredPorts(ui ports.UserInterface, discovered map[string]int) {
-	if len(discovered) == 0 || ui == nil {
-		return
-	}
-
-	var rows []ports.KeyValue
-	addPort := func(key string) {
-		if val, ok := discovered[key]; ok {
-			rows = append(rows, ports.KeyValue{Key: key, Value: val})
-		}
-	}
-
-	addPort(constants.EnvPortGatewayHTTPS)
-	addPort(constants.EnvPortVictoriaLogs)
-	addPort(constants.EnvPortDatabase)
-	addPort(constants.EnvPortS3)
-	addPort(constants.EnvPortS3Mgmt)
-	addPort(constants.EnvPortRegistry)
-
-	var unknownKeys []string
-	for key := range discovered {
-		if !isKnownPort(key) {
-			unknownKeys = append(unknownKeys, key)
-		}
-	}
-	sort.Strings(unknownKeys)
-	for _, key := range unknownKeys {
-		rows = append(rows, ports.KeyValue{Key: key, Value: discovered[key]})
-	}
-
-	if len(rows) == 0 {
-		return
-	}
-
-	ui.Block("🔌", "Discovered Ports:", rows)
-}
-
-func isKnownPort(key string) bool {
-	switch key {
-	case constants.EnvPortGatewayHTTPS, constants.EnvPortVictoriaLogs, constants.EnvPortDatabase, constants.EnvPortS3, constants.EnvPortS3Mgmt, constants.EnvPortRegistry, constants.EnvPortAgentGRPC:
-		return true
-	}
-	return false
 }
 
 // savePorts writes the discovered ports to a JSON file in the project-specific data directory.
