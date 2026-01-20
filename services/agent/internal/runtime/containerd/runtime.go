@@ -502,6 +502,10 @@ func (r *Runtime) Resume(ctx context.Context, id string) error {
 	return nil
 }
 
+func (r *Runtime) Touch(id string) {
+	r.accessTracker.Store(id, time.Now())
+}
+
 func (r *Runtime) Close() error {
 	if r.client != nil {
 		return r.client.Close()

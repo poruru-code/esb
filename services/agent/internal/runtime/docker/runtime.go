@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -33,9 +34,10 @@ type Client interface {
 }
 
 type Runtime struct {
-	client    Client
-	networkID string
-	env       string
+	client        Client
+	networkID     string
+	env           string
+	accessTracker sync.Map // map[containerID]time.Time - tracks last access time
 }
 
 // NewRuntime creates a new Docker runtime.
@@ -124,6 +126,9 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 		return nil, fmt.Errorf("failed to start container: %w", err)
 	}
 
+	// Record initial access time
+	r.accessTracker.Store(containerID, time.Now())
+
 	// Retry IP resolution with exponential backoff
 	var ip string
 	maxRetries := 5
@@ -171,7 +176,15 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 }
 
 func (r *Runtime) Destroy(ctx context.Context, id string) error {
-	return r.client.ContainerRemove(ctx, id, container.RemoveOptions{Force: true})
+	if err := r.client.ContainerRemove(ctx, id, container.RemoveOptions{Force: true}); err != nil {
+		return fmt.Errorf("failed to remove container: %w", err)
+	}
+	r.accessTracker.Delete(id)
+	return nil
+}
+
+func (r *Runtime) Touch(id string) {
+	r.accessTracker.Store(id, time.Now())
 }
 
 func (r *Runtime) Suspend(_ context.Context, _ string) error {
@@ -217,9 +230,12 @@ func (r *Runtime) List(ctx context.Context) ([]runtime.ContainerState, error) {
 			continue
 		}
 
-		// Docker API doesn't provide precise last_used_at.
-		// For Phase 1/3, we use Created time as a base.
+		// For Phase 1/3, we use Created time as a base, but check accessTracker.
 		createdTime := time.Unix(c.Created, 0)
+		lastUsedAt := createdTime
+		if val, ok := r.accessTracker.Load(c.ID); ok {
+			lastUsedAt = val.(time.Time)
+		}
 
 		// Docker names start with /
 		name := ""
@@ -236,7 +252,7 @@ func (r *Runtime) List(ctx context.Context) ([]runtime.ContainerState, error) {
 			ID:            c.ID,
 			FunctionName:  funcName,
 			Status:        normalizeDockerStatus(c.State),
-			LastUsedAt:    createdTime,
+			LastUsedAt:    lastUsedAt,
 			ContainerName: name,
 			CreatedAt:     createdTime, // Container creation time from Docker API
 			IPAddress:     ipAddress,

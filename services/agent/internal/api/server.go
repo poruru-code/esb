@@ -68,6 +68,8 @@ func (s *AgentServer) InvokeWorker(ctx context.Context, req *pb.InvokeWorkerRequ
 		return nil, status.Error(codes.InvalidArgument, "container_id is required")
 	}
 
+	s.runtime.Touch(req.ContainerId)
+
 	workerValue, ok := s.workerCache.Load(req.ContainerId)
 	if !ok {
 		if err := s.refreshWorkerCache(ctx); err != nil {

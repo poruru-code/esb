@@ -76,6 +76,9 @@ type ContainerRuntime interface {
 	// Metrics returns resource usage metrics for a container.
 	Metrics(ctx context.Context, id string) (*ContainerMetrics, error)
 
+	// Touch updates the last used time for a container.
+	Touch(id string)
+
 	// GC performs garbage collection, cleaning up all managed containers and tasks.
 	GC(ctx context.Context) error
 

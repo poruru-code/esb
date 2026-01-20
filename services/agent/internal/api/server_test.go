@@ -77,6 +77,10 @@ func (m *MockRuntime) Metrics(ctx context.Context, containerID string) (*runtime
 	return args.Get(0).(*runtime.ContainerMetrics), args.Error(1)
 }
 
+func (m *MockRuntime) Touch(id string) {
+	m.Called(id)
+}
+
 func (m *MockRuntime) GC(ctx context.Context) error {
 	args := m.Called(ctx)
 	return args.Error(0)
@@ -264,6 +268,8 @@ func TestInvokeWorkerUsesCachedWorker(t *testing.T) {
 		Env:          env,
 	}).Return(expectedWorker, nil)
 
+	mockRT.On("Touch", expectedWorker.ID).Return()
+
 	_, err = client.EnsureContainer(context.Background(), &pb.EnsureContainerRequest{
 		FunctionName: fnName,
 		Image:        image,
@@ -332,6 +338,8 @@ func TestInvokeWorkerRefreshesCacheOnMiss(t *testing.T) {
 			Port:      port,
 		},
 	}, nil)
+
+	mockRT.On("Touch", containerID).Return()
 
 	resp, err := client.InvokeWorker(context.Background(), &pb.InvokeWorkerRequest{
 		ContainerId: containerID,
