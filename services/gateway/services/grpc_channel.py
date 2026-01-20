@@ -7,13 +7,14 @@ Why: Centralize channel creation logic for Gateway components.
 from pathlib import Path
 
 import grpc
+import grpc.aio as grpc_aio
 
 from services.gateway.config import GatewayConfig
 
 
-def create_agent_channel(agent_address: str, config: GatewayConfig) -> grpc.aio.Channel:
+def create_agent_channel(agent_address: str, config: GatewayConfig) -> grpc_aio.Channel:
     if not config.AGENT_GRPC_TLS_ENABLED:
-        return grpc.aio.insecure_channel(agent_address)  # ty: ignore[possibly-missing-attribute]
+        return grpc_aio.insecure_channel(agent_address)
 
     ca_pem = Path(config.AGENT_GRPC_TLS_CA_CERT_PATH).read_bytes()
     cert_pem = Path(config.AGENT_GRPC_TLS_CERT_PATH).read_bytes()
@@ -25,7 +26,7 @@ def create_agent_channel(agent_address: str, config: GatewayConfig) -> grpc.aio.
         certificate_chain=cert_pem,
     )
 
-    return grpc.aio.secure_channel(  # ty: ignore[possibly-missing-attribute]
+    return grpc_aio.secure_channel(
         agent_address,
         credentials,
     )

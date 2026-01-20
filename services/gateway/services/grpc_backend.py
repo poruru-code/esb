@@ -2,6 +2,7 @@ import logging
 from typing import List, Optional
 
 import grpc
+import grpc.aio as grpc_aio
 
 from services.common.models.internal import WorkerInfo
 from services.gateway.config import GatewayConfig
@@ -30,7 +31,7 @@ class GrpcBackend:
         if config:
             self.channel = create_agent_channel(agent_address, config)
         else:
-            self.channel = grpc.aio.insecure_channel(agent_address)  # type: ignore[possibly-missing-attribute]
+            self.channel = grpc_aio.insecure_channel(agent_address)
         self.stub = agent_pb2_grpc.AgentServiceStub(self.channel)
         self.function_registry = function_registry
         self.concurrency_manager = concurrency_manager

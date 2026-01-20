@@ -64,7 +64,7 @@ class TestMetricsAPI:
             assert field in pool_entry
 
         metrics_entry = None
-        metrics_resp = None  # Initialize metrics_resp outside the loop
+        metrics_resp: requests.Response | None = None
         for _ in range(10):
             metrics_resp = requests.get(
                 f"{GATEWAY_URL}/metrics/containers",
@@ -108,6 +108,7 @@ class TestMetricsAPI:
             time.sleep(1)
 
         # If we got 200 OK, verify metrics content
+        assert metrics_resp is not None
         assert metrics_resp.status_code == 200, (
             f"Metrics API failed with {metrics_resp.status_code}: {metrics_resp.text}"
         )
