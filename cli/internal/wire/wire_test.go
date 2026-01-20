@@ -1,7 +1,7 @@
-// Where: cli/cmd/esb/cli_test.go
+// Where: cli/internal/wire/wire_test.go
 // What: Tests for CLI dependency wiring.
-// Why: Ensure buildDependencies is deterministic under TDD.
-package main
+// Why: Ensure BuildDependencies behaves under various init scenarios.
+package wire
 
 import (
 	"context"
@@ -51,21 +51,21 @@ func (fakeDockerClient) VolumesPrune(_ context.Context, _ filters.Args) (volume.
 }
 
 func TestBuildDependenciesSuccess(t *testing.T) {
-	origGetwd := getwd
-	origNewClient := newDockerClient
+	origGetwd := Getwd
+	origNewClient := NewDockerClient
 	t.Cleanup(func() {
-		getwd = origGetwd
-		newDockerClient = origNewClient
+		Getwd = origGetwd
+		NewDockerClient = origNewClient
 	})
 
-	getwd = func() (string, error) {
+	Getwd = func() (string, error) {
 		return "/project", nil
 	}
-	newDockerClient = func() (compose.DockerClient, error) {
+	NewDockerClient = func() (compose.DockerClient, error) {
 		return fakeDockerClient{}, nil
 	}
 
-	deps, closer, err := buildDependencies()
+	deps, closer, err := BuildDependencies()
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -81,37 +81,37 @@ func TestBuildDependenciesSuccess(t *testing.T) {
 }
 
 func TestBuildDependenciesGetwdError(t *testing.T) {
-	origGetwd := getwd
+	origGetwd := Getwd
 	t.Cleanup(func() {
-		getwd = origGetwd
+		Getwd = origGetwd
 	})
 
-	getwd = func() (string, error) {
+	Getwd = func() (string, error) {
 		return "", errors.New("boom")
 	}
 
-	_, _, err := buildDependencies()
+	_, _, err := BuildDependencies()
 	if err == nil {
 		t.Fatalf("expected error on getwd failure")
 	}
 }
 
 func TestBuildDependenciesClientError(t *testing.T) {
-	origGetwd := getwd
-	origNewClient := newDockerClient
+	origGetwd := Getwd
+	origNewClient := NewDockerClient
 	t.Cleanup(func() {
-		getwd = origGetwd
-		newDockerClient = origNewClient
+		Getwd = origGetwd
+		NewDockerClient = origNewClient
 	})
 
-	getwd = func() (string, error) {
+	Getwd = func() (string, error) {
 		return "/project", nil
 	}
-	newDockerClient = func() (compose.DockerClient, error) {
+	NewDockerClient = func() (compose.DockerClient, error) {
 		return nil, errors.New("client")
 	}
 
-	_, _, err := buildDependencies()
+	_, _, err := BuildDependencies()
 	if err == nil {
 		t.Fatalf("expected error on docker client failure")
 	}

@@ -27,6 +27,7 @@ Stages 0-6 are archived in `docs/reports/cli_optionb_migration_plan_archive.md`.
 - **Task 7.2 (P0): Wire 集約**
   - 作業: `internal/wire` を追加し、main 側の初期化を `wire.BuildCLI()` のような単一関数に集約する。
   - 受け入れ条件: `cli/cmd/esb/main.go` のワイヤリング記述が大幅に縮小; 依存追加時は `internal/wire` のみ更新。
+  - 現状: `cli/internal/wire` に依存構築ロジックを移設し、`main` は `wire.BuildDependencies()` を呼ぶだけになった。
 
 - **Task 7.3 (P1): app 層の分割**
   - 作業: `internal/app` を `internal/commands`（コマンドハンドラ）と `internal/helpers`（共通処理）に整理する。

@@ -1,7 +1,7 @@
-// Where: cli/cmd/esb/cli.go
-// What: CLI dependency wiring helpers.
-// Why: Centralize construction for testability.
-package main
+// Where: cli/internal/wire/wire.go
+// What: CLI dependency wiring.
+// Why: Centralize CLI dependency construction for reuse by main and tests.
+package wire
 
 import (
 	"io"
@@ -15,20 +15,23 @@ import (
 )
 
 var (
-	getwd           = os.Getwd
-	newDockerClient = compose.NewDockerClient
+	// Getwd returns the current working directory. Tests may override this helper.
+	Getwd = os.Getwd
+	// NewDockerClient creates the Docker client. Tests may override this helper.
+	NewDockerClient = compose.NewDockerClient
+	// Stdout is the writer used for CLI output (used by app.Dependencies).
+	Stdout = os.Stdout
 )
 
-// buildDependencies constructs all runtime dependencies required by the CLI.
-// It initializes the Docker client, generator, and various command handlers.
-// Returns the dependencies, a closer for cleanup, and any initialization error.
-func buildDependencies() (app.Dependencies, io.Closer, error) {
-	projectDir, err := getwd()
+// BuildDependencies constructs CLI dependencies. It returns the dependencies
+// bundle, a closer for cleanup, and any initialization error.
+func BuildDependencies() (app.Dependencies, io.Closer, error) {
+	projectDir, err := Getwd()
 	if err != nil {
 		return app.Dependencies{}, nil, err
 	}
 
-	client, err := newDockerClient()
+	client, err := NewDockerClient()
 	if err != nil {
 		return app.Dependencies{}, nil, err
 	}
@@ -37,7 +40,7 @@ func buildDependencies() (app.Dependencies, io.Closer, error) {
 	builder := generator.NewGoBuilder(portDiscoverer)
 	deps := app.Dependencies{
 		ProjectDir:      projectDir,
-		Out:             os.Stdout,
+		Out:             Stdout,
 		DetectorFactory: app.NewDetectorFactory(client, warnf),
 		Prompter:        app.HuhPrompter{},
 		RepoResolver:    config.ResolveRepoRoot,
@@ -70,15 +73,10 @@ func buildDependencies() (app.Dependencies, io.Closer, error) {
 	return deps, asCloser(client), nil
 }
 
-// warnf writes a warning message to stderr.
-// Used as a callback for the detector factory to report non-fatal issues.
 func warnf(_ string) {
-	// Silenced to prevent stderr output from disrupting CLI layout.
-	// fmt.Fprintln(os.Stderr, message)
+	// Silently drop warnings to keep CLI output stable.
 }
 
-// asCloser attempts to cast the Docker client to an io.Closer.
-// Returns nil if the client does not implement the Closer interface.
 func asCloser(client compose.DockerClient) io.Closer {
 	if closer, ok := client.(io.Closer); ok {
 		return closer
