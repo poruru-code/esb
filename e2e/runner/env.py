@@ -5,6 +5,7 @@ import secrets
 import subprocess
 from pathlib import Path
 
+from e2e.runner import constants
 from e2e.runner.utils import (
     BRAND_HOME_DIR,
     BRAND_SLUG,
@@ -14,17 +15,6 @@ from e2e.runner.utils import (
     build_esb_cmd,
     env_key,
 )
-
-DEFAULT_PORTS = [
-    "PORT_GATEWAY_HTTPS",
-    "PORT_GATEWAY_HTTP",
-    "PORT_AGENT_GRPC",
-    "PORT_S3",
-    "PORT_S3_MGMT",
-    "PORT_DATABASE",
-    "PORT_REGISTRY",
-    "PORT_VICTORIALOGS",
-]
 
 
 def hash_mod(value: str, mod: int) -> int:
@@ -78,8 +68,8 @@ def calculate_runtime_env(
     if not env_name:
         env_name = "default"
 
-    env["ENV"] = env_name
-    env["MODE"] = mode
+    env[constants.ENV_ENV] = env_name
+    env[constants.ENV_MODE] = mode
     env[f"{ENV_PREFIX}_ENV"] = env_name
     env[f"{ENV_PREFIX}_MODE"] = mode
 
@@ -90,13 +80,13 @@ def calculate_runtime_env(
     else:
         tag = env_name if env_name else "latest"
 
-    env["IMAGE_TAG"] = tag
+    env[constants.ENV_IMAGE_TAG] = tag
     env[f"{ENV_PREFIX}_IMAGE_TAG"] = tag
-    env["PROJECT_NAME"] = project_name
+    env[constants.ENV_PROJECT_NAME] = project_name
 
     # Image Prefix
-    if "IMAGE_PREFIX" not in env:
-        env["IMAGE_PREFIX"] = project_name
+    if constants.ENV_IMAGE_PREFIX not in env:
+        env[constants.ENV_IMAGE_PREFIX] = project_name
 
     # If using local dev, point to the Go CLI source root for template resolution
     # (matching logic in cli/internal/config/config.go)
@@ -104,50 +94,60 @@ def calculate_runtime_env(
         env["CLI_SRC_ROOT"] = str(CLI_ROOT)
 
     # 2. Port Defaults (0 for dynamic)
-    for port_suffix in DEFAULT_PORTS:
+    # 2. Port Defaults (0 for dynamic)
+    for port_suffix in (
+        constants.PORT_GATEWAY_HTTPS,
+        constants.PORT_GATEWAY_HTTP,
+        constants.PORT_AGENT_GRPC,
+        constants.PORT_S3,
+        constants.PORT_S3_MGMT,
+        constants.PORT_DATABASE,
+        constants.PORT_REGISTRY,
+        constants.PORT_VICTORIALOGS,
+    ):
         key = env_key(port_suffix)
         # Check if set (possibly prefixed or not)
         if not env.get(key):
             env[key] = "0"
 
     # 3. Subnets & Networks (Isolated per project-env)
-    if not env.get("NETWORK_EXTERNAL"):
-        env["NETWORK_EXTERNAL"] = f"{project_name}-{env_name}-external"
+    if not env.get(constants.ENV_NETWORK_EXTERNAL):
+        env[constants.ENV_NETWORK_EXTERNAL] = f"{project_name}-{env_name}-external"
 
-    if not env.get("SUBNET_EXTERNAL"):
-        env["SUBNET_EXTERNAL"] = f"172.{env_external_subnet_index(env_name)}.0.0/16"
+    if not env.get(constants.ENV_SUBNET_EXTERNAL):
+        env[constants.ENV_SUBNET_EXTERNAL] = f"172.{env_external_subnet_index(env_name)}.0.0/16"
 
-    if not env.get("RUNTIME_NET_SUBNET"):
-        env["RUNTIME_NET_SUBNET"] = f"172.{env_runtime_subnet_index(env_name)}.0.0/16"
+    if not env.get(constants.ENV_RUNTIME_NET_SUBNET):
+        env[constants.ENV_RUNTIME_NET_SUBNET] = f"172.{env_runtime_subnet_index(env_name)}.0.0/16"
 
-    if not env.get("RUNTIME_NODE_IP"):
-        env["RUNTIME_NODE_IP"] = f"172.{env_runtime_subnet_index(env_name)}.0.10"
+    if not env.get(constants.ENV_RUNTIME_NODE_IP):
+        env[constants.ENV_RUNTIME_NODE_IP] = f"172.{env_runtime_subnet_index(env_name)}.0.10"
 
-    if not env.get("LAMBDA_NETWORK"):
-        env["LAMBDA_NETWORK"] = f"esb_int_{env_name}"
+    if not env.get(constants.ENV_LAMBDA_NETWORK):
+        env[constants.ENV_LAMBDA_NETWORK] = f"esb_int_{env_name}"
 
     # 4. Registry Defaults
-    if not env.get("CONTAINER_REGISTRY") and norm_mode in ("containerd", "firecracker"):
-        env["CONTAINER_REGISTRY"] = "registry:5010"
+    if not env.get(constants.ENV_CONTAINER_REGISTRY) and norm_mode in ("containerd", "firecracker"):
+        env[constants.ENV_CONTAINER_REGISTRY] = constants.DEFAULT_AGENT_REGISTRY
 
     # 5. Credentials (Simplified generation for E2E)
-    if not env.get("AUTH_USER"):
-        env["AUTH_USER"] = BRAND_SLUG
-    if not env.get("AUTH_PASS"):
-        env["AUTH_PASS"] = secrets.token_hex(16)
-    if not env.get("JWT_SECRET_KEY"):
-        env["JWT_SECRET_KEY"] = secrets.token_hex(32)
-    if not env.get("X_API_KEY"):
-        env["X_API_KEY"] = secrets.token_hex(32)
-    if not env.get("RUSTFS_ACCESS_KEY"):
-        env["RUSTFS_ACCESS_KEY"] = BRAND_SLUG
-    if not env.get("RUSTFS_SECRET_KEY"):
-        env["RUSTFS_SECRET_KEY"] = secrets.token_hex(16)
+    if not env.get(constants.ENV_AUTH_USER):
+        env[constants.ENV_AUTH_USER] = BRAND_SLUG
+    if not env.get(constants.ENV_AUTH_PASS):
+        env[constants.ENV_AUTH_PASS] = secrets.token_hex(16)
+    if not env.get(constants.ENV_JWT_SECRET_KEY):
+        env[constants.ENV_JWT_SECRET_KEY] = secrets.token_hex(32)
+    if not env.get(constants.ENV_X_API_KEY):
+        env[constants.ENV_X_API_KEY] = secrets.token_hex(32)
+    if not env.get(constants.ENV_RUSTFS_ACCESS_KEY):
+        env[constants.ENV_RUSTFS_ACCESS_KEY] = BRAND_SLUG
+    if not env.get(constants.ENV_RUSTFS_SECRET_KEY):
+        env[constants.ENV_RUSTFS_SECRET_KEY] = secrets.token_hex(16)
 
     # 6. Branding & Certificates (Replicating applyBrandingEnv in Go)
     env["ENV_PREFIX"] = ENV_PREFIX
-    env["CLI_CMD"] = BRAND_SLUG
-    env["ROOT_CA_MOUNT_ID"] = f"{BRAND_SLUG}_root_ca"
+    env[constants.ENV_CLI_CMD] = BRAND_SLUG
+    env[constants.ENV_ROOT_CA_MOUNT_ID] = f"{BRAND_SLUG}_root_ca"
     env.setdefault("ROOT_CA_CERT_FILENAME", "rootCA.crt")
 
     # Resolve CERT_DIR
@@ -167,9 +167,66 @@ def calculate_runtime_env(
     apply_proxy_env_to_dict(env)
 
     # 8. Docker BuildKit
-    env.setdefault("DOCKER_BUILDKIT", "1")
+    env.setdefault(constants.ENV_DOCKER_BUILDKIT, "1")
+
+    # 9. Project Configuration (generator.yml)
+    # Replicates applyGeneratorConfigEnv logic
+    repo_root = Path(env.get(env_key("REPO"), Path.cwd()))
+    # In E2E, the fixtures are often in e2e/fixtures
+    if (
+        not (repo_root / "generator.yml").exists()
+        and (repo_root / "e2e" / "fixtures" / "generator.yml").exists()
+    ):
+        repo_root = repo_root / "e2e" / "fixtures"
+
+    gen_yaml_path = repo_root / "generator.yml"
+    if gen_yaml_path.exists():
+        try:
+            import yaml
+
+            with open(gen_yaml_path) as f:
+                gen_cfg = yaml.safe_load(f)
+            paths = gen_cfg.get("paths", {})
+            if paths.get("functions_yml"):
+                env[constants.ENV_GATEWAY_FUNCTIONS_YML] = paths["functions_yml"]
+            if paths.get("routing_yml"):
+                env[constants.ENV_GATEWAY_ROUTING_YML] = paths["routing_yml"]
+        except Exception:
+            pass
+
+    # 10. Staging Config Dir
+    # Replicates applyConfigDirEnv / staging.ConfigDir logic
+    config_dir = calculate_staging_dir(project_name, env_name)
+    if config_dir.exists():
+        env[constants.ENV_CONFIG_DIR] = str(config_dir)
 
     return env
+
+
+def calculate_staging_dir(project_name: str, env_name: str) -> Path:
+    """Replicates staging.ConfigDir logic from Go."""
+    # ComposeProjectKey logic
+    proj_key = project_name.strip()
+    if not proj_key:
+        proj_key = f"{BRAND_SLUG}-{env_name.lower()}" if env_name else BRAND_SLUG
+
+    # stageKey logic
+    seed = proj_key
+    if env_name:
+        seed = f"{seed}:{env_name.lower()}"
+
+    h = hashlib.sha256(seed.encode()).hexdigest()
+    # hex.EncodeToString(sum[:4]) in Go is 8 chars
+    stage_key = f"{proj_key}-{h[:8]}"
+
+    # RootDir logic
+    cache_home = os.environ.get("XDG_CACHE_HOME")
+    if cache_home:
+        root = Path(cache_home) / BRAND_SLUG / "staging"
+    else:
+        root = Path.home() / f".{BRAND_SLUG}" / ".cache" / "staging"
+
+    return root / stage_key / env_name / "config"
 
 
 def apply_proxy_env_to_dict(env: dict[str, str]) -> None:
@@ -322,30 +379,36 @@ def apply_ports_to_env(ports: dict[str, int]) -> None:
     # Other services like Database or S3 are reached via Gateway or internal networking.
     # Over-applying here can cause endpoint mismatches if tests or Lambdas inherit host-mapped ports.
 
-    gateway_key = env_key("PORT_GATEWAY_HTTPS")
+    gateway_key = env_key(constants.PORT_GATEWAY_HTTPS)
     if gateway_key in ports:
         gateway_port = ports[gateway_key]
         os.environ[gateway_key] = str(gateway_port)
-        os.environ["GATEWAY_PORT"] = str(gateway_port)
-        os.environ["GATEWAY_URL"] = f"https://localhost:{gateway_port}"
+        os.environ[constants.ENV_GatewayPort] = str(gateway_port)
+        os.environ[constants.ENV_GatewayURL] = f"https://localhost:{gateway_port}"
 
-    vl_key = env_key("PORT_VICTORIALOGS")
+    vl_key = env_key(constants.PORT_VICTORIALOGS)
     if vl_key in ports:
         vl_port = ports[vl_key]
         os.environ[vl_key] = str(vl_port)
-        os.environ["VICTORIALOGS_PORT"] = str(vl_port)
-        os.environ["VICTORIALOGS_URL"] = f"http://localhost:{vl_port}"
+        os.environ[constants.ENV_VictoriaLogsPort] = str(vl_port)
+        os.environ[constants.ENV_VictoriaLogsURL] = f"http://localhost:{vl_port}"
 
-    agent_key = env_key("PORT_AGENT_GRPC")
+    agent_key = env_key(constants.PORT_AGENT_GRPC)
     if agent_key in ports:
         agent_port = ports[agent_key]
         os.environ[agent_key] = str(agent_port)
-        os.environ["AGENT_GRPC_ADDRESS"] = f"localhost:{agent_port}"
+        os.environ[constants.ENV_AgentGrpcAddress] = f"localhost:{agent_port}"
 
 
 def apply_gateway_env_from_container(env: dict[str, str], env_file: str | None) -> None:
     gateway_env = read_service_env(env_file, "gateway")
-    required = ("AUTH_USER", "AUTH_PASS", "X_API_KEY", "RUSTFS_ACCESS_KEY", "RUSTFS_SECRET_KEY")
+    required = (
+        constants.ENV_AUTH_USER,
+        constants.ENV_AUTH_PASS,
+        constants.ENV_X_API_KEY,
+        constants.ENV_RUSTFS_ACCESS_KEY,
+        constants.ENV_RUSTFS_SECRET_KEY,
+    )
     missing = [key for key in required if not gateway_env.get(key)]
     if missing:
         raise RuntimeError(

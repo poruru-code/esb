@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/ports"
+	"github.com/poruru/edge-serverless-box/cli/internal/presenters"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
@@ -113,14 +114,12 @@ func (w SyncWorkflow) Run(req SyncRequest) (SyncResult, error) {
 
 	if w.UserInterface != nil {
 		w.UserInterface.Success("✓ Sync complete")
-		printDiscoveredPorts(w.UserInterface, result.Ports.Published)
+		presenters.PrintDiscoveredPorts(w.UserInterface, result.Ports.Published)
 	}
 
 	return result, nil
 }
 
 // Helper to reuse print logic?
-// Ideally `printDiscoveredPorts` should be shared or repeated if we want to follow "Copy-paste to decouple"
-// reusing `up.go` logic here for now as they are in same package.
-// If it's private in `up.go`, I need to check visibility. It is `printDiscoveredPorts`.
-// Since they are same package `workflows`, it is accessible.
+// Ideally `PrintDiscoveredPorts` should be shared.
+// Done: moved to `presenters` package.

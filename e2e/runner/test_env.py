@@ -1,9 +1,10 @@
 import os
 from unittest import mock
 
+from e2e.runner import constants
 from e2e.runner.env import (
-    DEFAULT_PORTS,
     calculate_runtime_env,
+    calculate_staging_dir,
     env_external_subnet_index,
     env_runtime_subnet_index,
     hash_mod,
@@ -50,12 +51,21 @@ def test_calculate_runtime_env_defaults():
         assert "SUBNET_EXTERNAL" in env
         assert "RUNTIME_NET_SUBNET" in env
         assert "RUNTIME_NODE_IP" in env
-        assert env["NETWORK_EXTERNAL"] == "myproj-external"
+        assert env["NETWORK_EXTERNAL"] == "myproj-myenv-external"
         assert env["LAMBDA_NETWORK"] == "esb_int_myenv"
 
         # Check Ports (should be initialized to "0" for dynamic discovery)
-        for p_suffix in DEFAULT_PORTS:
-            key = env_key(p_suffix.replace("PORT_", ""))
+        for p_suffix in (
+            constants.PORT_GATEWAY_HTTPS,
+            constants.PORT_GATEWAY_HTTP,
+            constants.PORT_AGENT_GRPC,
+            constants.PORT_S3,
+            constants.PORT_S3_MGMT,
+            constants.PORT_DATABASE,
+            constants.PORT_REGISTRY,
+            constants.PORT_VICTORIALOGS,
+        ):
+            key = env_key(p_suffix)
             assert env[key] == "0"
 
         # Check Credentials generation matches branding
@@ -95,3 +105,38 @@ def test_calculate_runtime_env_mode_tags():
     # custom mode (should fallback to env name or latest)
     env_custom = calculate_runtime_env("p", "prod", "firecracker")
     assert env_custom["IMAGE_TAG"] == "firecracker"
+
+
+def test_calculate_staging_dir_logic():
+    path = calculate_staging_dir("myproj", "myenv")
+    assert "myproj" in str(path)
+    assert "myenv" in str(path)
+    assert ".cache/staging" in str(path)
+
+
+def test_calculate_runtime_env_project_config(tmp_path):
+    # Test that project-specific config like CONFIG_DIR and FunctionsYml are set
+    project = "myproj"
+    env_name = "myenv"
+
+    # Create fake project repo for generator.yml
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    gen_yml = repo / "generator.yml"
+    gen_yml.write_text("paths:\n  functions_yml: custom_fns.yml\n")
+
+    # Mock calculate_staging_dir to return a path in tmp_path
+    staging_dir = tmp_path / "staging"
+    staging_dir.mkdir(parents=True)
+
+    with (
+        mock.patch("e2e.runner.env.calculate_staging_dir") as mock_calc,
+        mock.patch.dict(os.environ, {env_key("REPO"): str(repo)}, clear=True),
+    ):
+        mock_calc.return_value = staging_dir
+
+        env = calculate_runtime_env(project, env_name, "docker")
+
+        assert "CONFIG_DIR" in env
+        assert env["CONFIG_DIR"] == str(staging_dir)
+        assert env.get("GATEWAY_FUNCTIONS_YML") == "custom_fns.yml"
