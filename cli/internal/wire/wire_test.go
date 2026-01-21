@@ -167,3 +167,33 @@ func TestBuildDependenciesSkipDocker(t *testing.T) {
 		_ = closer.Close()
 	}
 }
+
+func TestBuildDependenciesSync(t *testing.T) {
+	origGetwd := Getwd
+	origNewClient := NewDockerClient
+	t.Cleanup(func() {
+		Getwd = origGetwd
+		NewDockerClient = origNewClient
+	})
+
+	Getwd = func() (string, error) {
+		return "/project", nil
+	}
+	NewDockerClient = func() (compose.DockerClient, error) {
+		return fakeDockerClient{}, nil
+	}
+
+	deps, closer, err := BuildDependencies([]string{"sync"})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if deps.Sync.PortPublisher == nil {
+		t.Fatalf("expected PortPublisher to be wired for sync")
+	}
+	if deps.Sync.Provisioner == nil {
+		t.Fatalf("expected Provisioner to be wired for sync")
+	}
+	if closer != nil {
+		_ = closer.Close()
+	}
+}

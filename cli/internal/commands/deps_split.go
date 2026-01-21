@@ -45,3 +45,11 @@ type StopDeps struct {
 type PruneDeps struct {
 	Pruner ports.Pruner
 }
+
+// SyncDeps holds only the dependencies required by the sync command.
+type SyncDeps struct {
+	PortPublisher  ports.PortPublisher
+	TemplateLoader ports.TemplateLoader
+	TemplateParser ports.TemplateParser
+	Provisioner    ports.Provisioner
+}

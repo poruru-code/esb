@@ -96,6 +96,12 @@ func BuildDependencies(args []string) (commands.Dependencies, io.Closer, error) 
 		Prune: commands.PruneDeps{
 			Pruner: pruner,
 		},
+		Sync: commands.SyncDeps{
+			PortPublisher:  helpers.NewPortPublisher(portDiscoverer, portStateStore),
+			TemplateLoader: helpers.NewTemplateLoader(),
+			TemplateParser: helpers.NewTemplateParser(generator.DefaultParser{}),
+			Provisioner:    provisionerSvc,
+		},
 	}
 
 	var closer io.Closer
@@ -207,7 +213,7 @@ func lazyDetectorFactory(factory helpers.DockerClientFactory) helpers.DetectorFa
 
 func requiresDockerClient(args []string) bool {
 	switch commands.CommandName(args) {
-	case "up", "down", "logs", "stop", "prune":
+	case "up", "down", "logs", "stop", "prune", "sync":
 		return true
 	case "env":
 		return envCommandNeedsDocker(args)

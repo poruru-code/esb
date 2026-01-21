@@ -38,6 +38,7 @@ type Dependencies struct {
 	Logs                LogsDeps
 	Stop                StopDeps
 	Prune               PruneDeps
+	Sync                SyncDeps
 }
 
 // CLI defines the command-line interface structure parsed by Kong.
@@ -52,6 +53,7 @@ type CLI struct {
 	Stop       StopCmd       `cmd:"" help:"Stop environment (preserve state)"`
 	Logs       LogsCmd       `cmd:"" help:"View logs"`
 	Prune      PruneCmd      `cmd:"" help:"Remove resources"`
+	Sync       SyncCmd       `cmd:"" help:"Sync resources and ports"`
 	Env        EnvCmd        `cmd:"" name:"env" help:"Manage environments"`
 	Project    ProjectCmd    `cmd:"" help:"Manage projects"`
 	Config     ConfigCmd     `cmd:"" name:"config" help:"Manage configuration"`
@@ -60,7 +62,12 @@ type CLI struct {
 	Version    VersionCmd    `cmd:"" help:"Show version information"`
 }
 
-type VersionCmd struct{}
+type (
+	SyncCmd struct {
+		Wait bool `default:"true" help:"Wait for services to be ready"`
+	}
+	VersionCmd struct{}
+)
 
 type (
 	StopCmd struct {
@@ -176,6 +183,7 @@ func dispatchCommand(command string, cli CLI, deps Dependencies, out io.Writer) 
 		"down":               runDown,
 		"stop":               runStop,
 		"prune":              runPrune,
+		"sync":               runSync,
 		"env":                runEnvList,
 		"env list":           runEnvList,
 		"project":            runProjectList,
