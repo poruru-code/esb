@@ -1,16 +1,20 @@
 import os
 import subprocess
 import sys
+import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Tuple
 
+import requests
+import urllib3
 from dotenv import load_dotenv
 
 from e2e.runner.env import (
     apply_gateway_env_from_container,
     apply_ports_to_env,
     apply_proxy_env,
+    calculate_runtime_env,
     ensure_firecracker_node_up,
     load_ports,
 )
@@ -110,21 +114,22 @@ def warmup_environment(env_scenarios: dict, matrix: list[dict], args):
         print("[ERROR] No active environments in matrix.")
         sys.exit(1)
 
-    # Build env list with modes from .env files or defaults
+    # Build env list with modes from ALL matrix entries to ensure generator.yml
+    # remains consistent even when running a single profile.
     env_list_parts = []
     for entry in matrix:
         env_name = entry.get("esb_env")
-        if env_name not in active_envs:
+        if not env_name:
             continue
         # Derive mode from env_file name (e.g., .env.docker -> docker)
         env_file = entry.get("env_file", "")
-        mode = ""
-        if "containerd" in env_file:
-            mode = "containerd"
-        elif "firecracker" in env_file:
-            mode = "firecracker"
-        else:
-            mode = "docker"
+        mode = (
+            "containerd"
+            if "containerd" in env_file
+            else "firecracker"
+            if "firecracker" in env_file
+            else "docker"
+        )
         env_list_parts.append(f"{env_name}:{mode}")
 
     env_list = ",".join(env_list_parts)
@@ -205,6 +210,10 @@ def run_scenario(args, scenario):
 
     ensure_firecracker_node_up()
 
+    # 1.5 Calculate Runtime Env (needed for reset/build too)
+    mode = scenario.get("mode", "docker")
+    runtime_env = calculate_runtime_env(project_name, env_name, mode, env_file)
+
     did_up = False
     try:
         # 2. Reset / Build
@@ -221,17 +230,25 @@ def run_scenario(args, scenario):
 
                 shutil.rmtree(env_state_dir)
 
+            # Re-generate configurations and build images via ESB build
+            # IMPORTANT: Pass runtime_env so (branding) is respected!
+            # We explicitly set ESB_REPO (BRAND_REPO) to point to fixtures so the CLI finds generator.yml
+            # without changing the process CWD (which is destructive/confusing).
+            build_env = runtime_env.copy()
+            build_env[env_key("REPO")] = str(PROJECT_ROOT / "e2e" / "fixtures")
+
+            run_esb(
+                ["build", "--no-cache"],
+                env_file=env_file,
+                verbose=args.verbose,
+                env=build_env,
+            )
+
             if build_only:
-                run_esb(["down", "-v"], check=True, env_file=env_file, verbose=args.verbose)
-                # Re-generate configurations via build
-                run_esb(["build", "--no-cache"], env_file=env_file, verbose=args.verbose)
-            else:
-                run_esb(
-                    ["up", "--reset", "--yes", "--detach", "--wait"],
-                    env_file=env_file,
-                    verbose=args.verbose,
-                )
-                did_up = True
+                return True
+
+            # Manual orchestration will handle starting the services in Step 3
+            did_up = False
         elif do_build:
             if not args.verbose:
                 print(f"➜ Building environment: {env_name}... ", end="", flush=True)
@@ -255,10 +272,46 @@ def run_scenario(args, scenario):
         if build_only:
             return
 
-        # 3. UP
+        # 3. UP (Manual Orchestration)
         if not did_up:
-            up_args = ["up", "--detach", "--wait"]
-            run_esb(up_args, env_file=env_file, verbose=args.verbose)
+            # Critical: Override PROJECT_NAME to include env suffix for isolation (e.g. esb-e2e-docker)
+            # This matches the logic in the Go CLI builder and ensures container names are unique.
+            runtime_env["PROJECT_NAME"] = f"{project_name}-{env_name}"
+
+            # Merge with existing system/process env to ensure PATH etc are preserved
+            compose_env = os.environ.copy()
+            compose_env.update(runtime_env)
+            compose_env.update(env_vars_override)
+
+            # Target the static docker-compose file in project root
+            # per user instruction: /home/akira/esb/docker-compose.{mode}.yml
+            compose_file_path = PROJECT_ROOT / f"docker-compose.{mode}.yml"
+            if not compose_file_path.exists():
+                print(f"[WARN] Static compose file not found at {compose_file_path}.")
+                # Fail fast as this is a configuration error
+                raise FileNotFoundError(f"Static compose file not found: {compose_file_path}")
+
+            compose_cmd = [
+                "docker",
+                "compose",
+                "--project-name",
+                f"{BRAND_SLUG}-{env_name}",
+                "--file",
+                str(compose_file_path),
+                "up",
+                "--detach",
+            ]
+
+            if args.verbose:
+                print(f"Running: {' '.join(compose_cmd)}")
+
+            subprocess.run(compose_cmd, check=True, env=compose_env)
+
+            # Sync generates ports.json and provisions resources
+            run_esb(["sync"], env_file=env_file, verbose=args.verbose, env=runtime_env)
+
+            # Wait for Gateway readiness (parity with legacy esb up)
+            wait_for_gateway(env_name, verbose=args.verbose)
 
         # 3.5 Load dynamic ports from ports.json (created by esb up)
         ports = load_ports(env_name)
@@ -518,3 +571,48 @@ def run_profiles_with_executor(
                 results[profile_name] = (False, [f"Environment {profile_name} (exception)"])
 
     return results
+
+
+def wait_for_gateway(
+    env_name: str, timeout: float = 60.0, interval: float = 1.0, verbose: bool = False
+) -> None:
+    """
+    Waits for the Gateway to be ready by polling its /health endpoint.
+    Parity with cli/internal/helpers/wait.go.
+    """
+    from e2e.runner.env import load_ports
+
+    ports = load_ports(env_name)
+    gw_port = ports.get("PORT_GATEWAY_HTTPS")
+    if not gw_port:
+        if verbose:
+            print(f"[WARN] Gateway port not found for {env_name}, skipping readiness wait.")
+        return
+
+    url = f"https://localhost:{gw_port}/health"
+    if verbose:
+        print(f"➜ Waiting for Gateway readiness at {url}...")
+
+    # Suppress certificate warnings for local dev
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+    deadline = time.time() + timeout
+    last_err = None
+
+    while time.time() < deadline:
+        try:
+            # We use a short timeout for the check itself
+            response = requests.get(url, timeout=2.0, verify=False)
+            if response.status_code == 200:
+                if verbose:
+                    print(f"✓ Gateway is ready ({response.status_code})")
+                return
+            last_err = f"Status code {response.status_code}"
+        except requests.exceptions.RequestException as e:
+            last_err = str(e)
+
+        time.sleep(interval)
+
+    raise RuntimeError(
+        f"Gateway failed to start in time ({timeout}s) for {env_name}. Last error: {last_err}"
+    )

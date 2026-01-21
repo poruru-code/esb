@@ -227,7 +227,7 @@ func printResetWarning(ui ports.UserInterface) {
 
 func containsKnown(key string) bool {
 	switch key {
-	case constants.EnvPortGatewayHTTPS, constants.EnvPortVictoriaLogs, constants.EnvPortDatabase, constants.EnvPortS3, constants.EnvPortS3Mgmt, constants.EnvPortRegistry, constants.EnvPortAgentGRPC:
+	case constants.EnvPortGatewayHTTPS, constants.EnvPortVictoriaLogs, constants.EnvPortDatabase, constants.EnvPortS3, constants.EnvPortS3Mgmt, constants.EnvPortRegistry, constants.EnvPortAgentGRPC, constants.EnvPortAgentMetrics:
 		return true
 	}
 	return false
