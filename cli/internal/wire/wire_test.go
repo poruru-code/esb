@@ -67,7 +67,7 @@ func TestBuildDependenciesSuccess(t *testing.T) {
 		return fakeDockerClient{}, nil
 	}
 
-	deps, closer, err := BuildDependencies([]string{"up"})
+	deps, closer, err := BuildDependencies([]string{"build"})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -126,7 +126,7 @@ func TestBuildDependenciesClientError(t *testing.T) {
 		return nil, errors.New("client")
 	}
 
-	deps, closer, err := BuildDependencies([]string{"up"})
+	deps, closer, err := BuildDependencies([]string{"build"})
 	if err != nil {
 		t.Fatalf("expected no error on lazy docker client wiring, got %v", err)
 	}
@@ -162,36 +162,6 @@ func TestBuildDependenciesSkipDocker(t *testing.T) {
 	}
 	if deps.DetectorFactory != nil {
 		t.Fatalf("expected detector factory to be nil when docker is skipped")
-	}
-	if closer != nil {
-		_ = closer.Close()
-	}
-}
-
-func TestBuildDependenciesSync(t *testing.T) {
-	origGetwd := Getwd
-	origNewClient := NewDockerClient
-	t.Cleanup(func() {
-		Getwd = origGetwd
-		NewDockerClient = origNewClient
-	})
-
-	Getwd = func() (string, error) {
-		return "/project", nil
-	}
-	NewDockerClient = func() (compose.DockerClient, error) {
-		return fakeDockerClient{}, nil
-	}
-
-	deps, closer, err := BuildDependencies([]string{"sync"})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if deps.Sync.PortPublisher == nil {
-		t.Fatalf("expected PortPublisher to be wired for sync")
-	}
-	if deps.Sync.Provisioner == nil {
-		t.Fatalf("expected Provisioner to be wired for sync")
 	}
 	if closer != nil {
 		_ = closer.Close()

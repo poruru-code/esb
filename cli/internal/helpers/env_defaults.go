@@ -213,15 +213,6 @@ func applyProxyDefaults() {
 	sync("HTTPS_PROXY", "https_proxy")
 }
 
-// applyEnvironmentDefaults is a legacy helper. New code should use applyRuntimeEnv.
-func applyEnvironmentDefaults(envName, mode, composeProject string) {
-	applyRuntimeEnv(state.Context{
-		Env:            envName,
-		Mode:           mode,
-		ComposeProject: composeProject,
-	}, config.ResolveRepoRoot)
-}
-
 // applyPortDefaults sets default port environment variables with an offset
 // calculated from a hash of the environment name. Skips already-set variables.
 // applyPortDefaults sets all registered port environment variables to "0" if they

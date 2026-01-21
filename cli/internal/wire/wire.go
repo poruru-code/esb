@@ -4,10 +4,8 @@
 package wire
 
 import (
-	"context"
 	"io"
 	"os"
-	"strings"
 	"sync"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/commands"
@@ -16,10 +14,7 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/generator"
 	"github.com/poruru/edge-serverless-box/cli/internal/helpers"
 	"github.com/poruru/edge-serverless-box/cli/internal/interaction"
-	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
 	"github.com/poruru/edge-serverless-box/cli/internal/ports"
-	"github.com/poruru/edge-serverless-box/cli/internal/provisioner"
-	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
 var (
@@ -45,22 +40,14 @@ func BuildDependencies(args []string) (commands.Dependencies, io.Closer, error) 
 	}
 
 	portDiscoverer := helpers.NewPortDiscoverer()
-	portStateStore := helpers.NewPortStateStore()
 	builder := generator.NewGoBuilder(portDiscoverer)
 	var detectorFactory helpers.DetectorFactory
 	var dockerFactory helpers.DockerClientFactory
-	var downer ports.Downer
-	var logger ports.Logger
-	var pruner ports.Pruner
-	var provisionerSvc ports.Provisioner
 	if provider != nil {
 		dockerFactory = provider.Get
 		detectorFactory = lazyDetectorFactory(dockerFactory)
-		downer = lazyDowner{factory: dockerFactory}
-		logger = lazyLogger{factory: dockerFactory, resolver: config.ResolveRepoRoot}
-		pruner = lazyPruner{factory: dockerFactory}
-		provisionerSvc = lazyProvisioner{factory: dockerFactory}
 	}
+
 	deps := commands.Dependencies{
 		ProjectDir:          projectDir,
 		Out:                 Stdout,
@@ -73,34 +60,6 @@ func BuildDependencies(args []string) (commands.Dependencies, io.Closer, error) 
 		ProjectDirFinder:    helpers.DefaultProjectDirFinder(),
 		Build: commands.BuildDeps{
 			Builder: builder,
-		},
-		Up: commands.UpDeps{
-			Builder:        builder,
-			Upper:          helpers.NewUpper(config.ResolveRepoRoot),
-			Downer:         downer,
-			PortDiscoverer: portDiscoverer,
-			PortStateStore: portStateStore,
-			Waiter:         helpers.NewGatewayWaiter(),
-			Provisioner:    provisionerSvc,
-			Parser:         generator.DefaultParser{},
-		},
-		Down: commands.DownDeps{
-			Downer: downer,
-		},
-		Logs: commands.LogsDeps{
-			Logger: logger,
-		},
-		Stop: commands.StopDeps{
-			Stopper: helpers.NewStopper(config.ResolveRepoRoot),
-		},
-		Prune: commands.PruneDeps{
-			Pruner: pruner,
-		},
-		Sync: commands.SyncDeps{
-			PortPublisher:  helpers.NewPortPublisher(portDiscoverer, portStateStore),
-			TemplateLoader: helpers.NewTemplateLoader(),
-			TemplateParser: helpers.NewTemplateParser(generator.DefaultParser{}),
-			Provisioner:    provisionerSvc,
 		},
 	}
 
@@ -136,71 +95,6 @@ func (p *dockerClientProvider) Close() error {
 	return nil
 }
 
-type lazyDowner struct {
-	factory helpers.DockerClientFactory
-}
-
-func (l lazyDowner) Down(project string, removeVolumes bool) error {
-	client, err := l.factory()
-	if err != nil {
-		return err
-	}
-	return helpers.NewDowner(client).Down(project, removeVolumes)
-}
-
-type lazyLogger struct {
-	factory  helpers.DockerClientFactory
-	resolver func(string) (string, error)
-}
-
-func (l lazyLogger) Logs(request ports.LogsRequest) error {
-	client, err := l.factory()
-	if err != nil {
-		return err
-	}
-	return helpers.NewLogger(client, l.resolver).Logs(request)
-}
-
-func (l lazyLogger) ListServices(request ports.LogsRequest) ([]string, error) {
-	client, err := l.factory()
-	if err != nil {
-		return nil, err
-	}
-	return helpers.NewLogger(client, l.resolver).ListServices(request)
-}
-
-func (l lazyLogger) ListContainers(project string) ([]state.ContainerInfo, error) {
-	client, err := l.factory()
-	if err != nil {
-		return nil, err
-	}
-	return helpers.NewLogger(client, l.resolver).ListContainers(project)
-}
-
-type lazyPruner struct {
-	factory helpers.DockerClientFactory
-}
-
-func (l lazyPruner) Prune(request ports.PruneRequest) error {
-	client, err := l.factory()
-	if err != nil {
-		return err
-	}
-	return helpers.NewPruner(client).Prune(request)
-}
-
-type lazyProvisioner struct {
-	factory helpers.DockerClientFactory
-}
-
-func (l lazyProvisioner) Apply(ctx context.Context, resources manifest.ResourcesSpec, composeProject string) error {
-	client, err := l.factory()
-	if err != nil {
-		return err
-	}
-	return provisioner.New(client).Apply(ctx, resources, composeProject)
-}
-
 func lazyDetectorFactory(factory helpers.DockerClientFactory) helpers.DetectorFactory {
 	return func(projectDir, env string) (ports.StateDetector, error) {
 		client, err := factory()
@@ -212,41 +106,12 @@ func lazyDetectorFactory(factory helpers.DockerClientFactory) helpers.DetectorFa
 }
 
 func requiresDockerClient(args []string) bool {
+	// Currently only build might need it for image existence checks
+	// or other internal logic, but we keep it for now.
 	switch commands.CommandName(args) {
-	case "up", "down", "logs", "stop", "prune", "sync":
+	case "build":
 		return true
-	case "env":
-		return envCommandNeedsDocker(args)
 	default:
 		return false
 	}
-}
-
-func envCommandNeedsDocker(args []string) bool {
-	for i, arg := range args {
-		if arg != "env" {
-			continue
-		}
-		return nextCommandToken(args[i+1:]) == "var"
-	}
-	return false
-}
-
-func nextCommandToken(args []string) string {
-	skipNext := false
-	for _, arg := range args {
-		if skipNext {
-			skipNext = false
-			continue
-		}
-		if strings.HasPrefix(arg, "-") {
-			switch arg {
-			case "-e", "--env", "-t", "--template", "--env-file":
-				skipNext = true
-			}
-			continue
-		}
-		return arg
-	}
-	return ""
 }

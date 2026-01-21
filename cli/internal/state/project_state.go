@@ -50,7 +50,7 @@ func ResolveProjectState(opts ProjectStateOptions) (ProjectState, error) {
 			return ProjectState{HasEnvironments: true, ActiveEnv: envFlag, GeneratorValid: true}, nil
 		}
 		return ProjectState{HasEnvironments: true, GeneratorValid: true}, fmt.Errorf(
-			"Environment not registered: %s",
+			"environment not registered: %s",
 			envFlag,
 		)
 	}

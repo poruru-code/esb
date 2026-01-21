@@ -60,7 +60,6 @@ func (w BuildWorkflow) Run(req BuildRequest) error {
 
 	if w.UserInterface != nil {
 		w.UserInterface.Success("✓ Build complete")
-		w.UserInterface.Info("Next: esb up")
 	}
 	return nil
 }

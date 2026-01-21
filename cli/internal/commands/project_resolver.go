@@ -59,7 +59,7 @@ func resolveProjectSelection(cli CLI, deps Dependencies, opts resolveOptions) (p
 
 	entry, ok := cfg.Projects[appState.ActiveProject]
 	if !ok || strings.TrimSpace(entry.Path) == "" {
-		return projectSelection{}, fmt.Errorf("Project not found: %s", appState.ActiveProject)
+		return projectSelection{}, fmt.Errorf("project not found: %s", appState.ActiveProject)
 	}
 	if dir, ok := projectDirFinder(deps)(entry.Path); ok {
 		return projectSelection{Dir: dir}, nil

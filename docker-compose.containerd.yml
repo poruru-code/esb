@@ -93,6 +93,7 @@ services:
     network_mode: "service:runtime-node"
     depends_on:
       agent: { condition: service_started }
+      provisioner: { condition: service_completed_successfully }
     environment:
       # Connect to Agent (same network namespace)
       - AGENT_GRPC_ADDRESS=localhost:50051

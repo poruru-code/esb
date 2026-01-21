@@ -10,13 +10,13 @@ import requests
 import urllib3
 from dotenv import load_dotenv
 
+from e2e.runner import constants
 from e2e.runner.env import (
-    apply_gateway_env_from_container,
     apply_ports_to_env,
     apply_proxy_env,
     calculate_runtime_env,
+    discover_ports,
     ensure_firecracker_node_up,
-    load_ports,
 )
 from e2e.runner.utils import (
     BRAND_SLUG,
@@ -219,7 +219,26 @@ def run_scenario(args, scenario):
         # 2. Reset / Build
         if do_reset:
             print(f"➜ Resetting environment: {env_name}")
-            # 2.1 Thorough Docker cleanup for this environment
+            # 2.1 Robust cleanup using docker compose down
+            # matches the "down" logic from legacy esb up replacement
+            compose_file_path = PROJECT_ROOT / f"docker-compose.{mode}.yml"
+            if compose_file_path.exists():
+                proj_key = f"{BRAND_SLUG}-{env_name}"
+                subprocess.run(
+                    [
+                        "docker",
+                        "compose",
+                        "--project-name",
+                        proj_key,
+                        "--file",
+                        str(compose_file_path),
+                        "down",
+                        "--volumes",
+                        "--remove-orphans",
+                    ],
+                    capture_output=True,
+                )
+            # Fallback to manual cleanup just in case (e.g. if compose file invalid or project name mismatch previously)
             thorough_cleanup(env_name)
 
             # 2.2 Clean artifact directory for this environment
@@ -262,8 +281,7 @@ def run_scenario(args, scenario):
                 print(f"➜ Preparing environment: {env_name}... ", end="", flush=True)
             else:
                 print(f"➜ Preparing environment: {env_name}")
-            # Ensure services are stopped before starting (without destroying data)
-            run_esb(["stop"], check=True, env_file=env_file, verbose=args.verbose)
+            # In Zero-Config, we just rebuild if needed. stop/sync are gone.
             run_esb(["build"], env_file=env_file, verbose=args.verbose)
             if not args.verbose:
                 print("Done")
@@ -282,6 +300,10 @@ def run_scenario(args, scenario):
             compose_env = os.environ.copy()
             compose_env.update(runtime_env)
             compose_env.update(env_vars_override)
+
+            # Pass RESOURCES_YML to docker compose so provisioner can find it
+            resources_yml_path = E2E_STATE_ROOT / env_name / "config" / "resources.yml"
+            compose_env["RESOURCES_YML"] = str(resources_yml_path.absolute())
 
             # Target the static docker-compose file in project root
             # per user instruction: /home/akira/esb/docker-compose.{mode}.yml
@@ -307,14 +329,51 @@ def run_scenario(args, scenario):
 
             subprocess.run(compose_cmd, check=True, env=compose_env)
 
-            # Sync generates ports.json and provisions resources
-            run_esb(["sync"], env_file=env_file, verbose=args.verbose, env=runtime_env)
+            # Sync is gone. Zero-Config provisioner service handles it.
+            # We just need to discover ports for the host-side testing.
+            ports = discover_ports(f"{BRAND_SLUG}-{env_name}", compose_file_path)
 
             # Wait for Gateway readiness (parity with legacy esb up)
-            wait_for_gateway(env_name, verbose=args.verbose)
+            wait_for_gateway(env_name, verbose=args.verbose, ports=ports)
 
-        # 3.5 Load dynamic ports from ports.json (created by esb up)
-        ports = load_ports(env_name)
+            # --- USER REQUEST: Print generated info ---
+            if ports:
+                print(f"\n🔌 Discovered Ports for {env_name}:")
+                # Sort for stable output
+                for k in sorted(ports.keys()):
+                    print(f"   {k}: {ports[k]}")
+
+            # Try to read generated credentials from the provisioner or env
+            # The CLI generates them into .env, but we might be running in a clean env.
+            # However, the compose environment `compose_env` has them if they were generated/loaded.
+            # But `runtime_env` was calculated before build.
+
+            # Actually, `esb build` might generate new credentials if they were missing.
+            # We should try to read the .env file from the state dir if it exists.
+            state_env_file = E2E_STATE_ROOT / env_name / "config" / ".env"
+            if state_env_file.exists():
+                print(f"\n🔑 Credentials (from {state_env_file}):")
+                with open(state_env_file, "r") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith("#"):
+                            if any(k in line for k in ["AUTH_", "SECRET", "KEY"]):
+                                print(f"   {line}")
+                            elif "VICTORIALOGS" in line:  # Useful to see full URLs if present
+                                print(f"   {line}")
+            print("")
+            # ------------------------------------------
+
+            # Apply discovered ports to OS environment and local env dict for pytest
+            apply_ports_to_env(ports)
+            env.update({k: str(v) for k, v in ports.items()})
+            # Re-apply composite variables that depend on ports
+            if env_key(constants.PORT_GATEWAY_HTTPS) in ports:
+                env["GATEWAY_PORT"] = str(ports[env_key(constants.PORT_GATEWAY_HTTPS)])
+                env["GATEWAY_URL"] = f"https://localhost:{env['GATEWAY_PORT']}"
+            if env_key(constants.PORT_VICTORIALOGS) in ports:
+                env["VICTORIALOGS_PORT"] = str(ports[env_key(constants.PORT_VICTORIALOGS)])
+                env["VICTORIALOGS_URL"] = f"http://localhost:{env['VICTORIALOGS_PORT']}"
         if ports:
             apply_ports_to_env(ports)
 
@@ -339,7 +398,9 @@ def run_scenario(args, scenario):
                 env["AGENT_METRICS_PORT"] = str(ports[agent_metrics_key])
                 env["AGENT_METRICS_URL"] = f"http://localhost:{ports[agent_metrics_key]}"
 
-        apply_gateway_env_from_container(env, env_file)
+        from e2e.runner.env import apply_gateway_env_from_container
+
+        apply_gateway_env_from_container(env, f"{BRAND_SLUG}-{env_name}")
 
         # 4. Run Tests
         if not scenario["targets"]:
@@ -373,7 +434,13 @@ def run_scenario(args, scenario):
                 print(f"➜ Cleaning up environment: {env_name}... ", end="", flush=True)
             else:
                 print(f"➜ Cleaning up environment: {env_name}")
-            run_esb(["down"], env_file=scenario.get("env_file"), verbose=args.verbose)
+            # esb down is gone, use docker compose directly
+            compose_file_path = PROJECT_ROOT / f"docker-compose.{mode}.yml"
+            proj_key = f"{BRAND_SLUG}-{env_name}"
+            subprocess.run(
+                ["docker", "compose", "-p", proj_key, "-f", str(compose_file_path), "down"],
+                capture_output=True,
+            )
             if not args.verbose:
                 print("Done")
 
@@ -574,16 +641,22 @@ def run_profiles_with_executor(
 
 
 def wait_for_gateway(
-    env_name: str, timeout: float = 60.0, interval: float = 1.0, verbose: bool = False
+    env_name: str,
+    timeout: float = 60.0,
+    interval: float = 1.0,
+    verbose: bool = False,
+    ports: dict | None = None,
 ) -> None:
     """
     Waits for the Gateway to be ready by polling its /health endpoint.
     Parity with cli/internal/helpers/wait.go.
     """
-    from e2e.runner.env import load_ports
+    if not ports:
+        from e2e.runner.env import load_ports
 
-    ports = load_ports(env_name)
-    gw_port = ports.get("PORT_GATEWAY_HTTPS")
+        ports = load_ports(env_name)
+
+    gw_port = ports.get(env_key("PORT_GATEWAY_HTTPS"))
     if not gw_port:
         if verbose:
             print(f"[WARN] Gateway port not found for {env_name}, skipping readiness wait.")

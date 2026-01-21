@@ -149,6 +149,17 @@ func GenerateFiles(cfg config.GeneratorConfig, opts GenerateOptions) ([]Function
 		}
 	}
 
+	resourcesYmlPath := resolveConfigPath(cfg.Paths.ResourcesYml, baseDir, outputDir, "resources.yml")
+	resourcesContent, err := RenderResourcesYml(parsed.Resources)
+	if err != nil {
+		return nil, err
+	}
+	if !opts.DryRun {
+		if err := writeConfigFile(resourcesYmlPath, resourcesContent); err != nil {
+			return nil, err
+		}
+	}
+
 	return functions, nil
 }
 

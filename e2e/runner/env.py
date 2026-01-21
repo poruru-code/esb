@@ -1,5 +1,4 @@
 import hashlib
-import json
 import os
 import secrets
 import subprocess
@@ -12,7 +11,6 @@ from e2e.runner.utils import (
     CLI_ROOT,
     DEFAULT_NO_PROXY_TARGETS,
     ENV_PREFIX,
-    build_esb_cmd,
     env_key,
 )
 
@@ -90,10 +88,9 @@ def calculate_runtime_env(
 
     # If using local dev, point to the Go CLI source root for template resolution
     # (matching logic in cli/internal/config/config.go)
-    if "CLI_SRC_ROOT" not in env:
-        env["CLI_SRC_ROOT"] = str(CLI_ROOT)
+    if constants.ENV_CLI_SRC_ROOT not in env:
+        env[constants.ENV_CLI_SRC_ROOT] = str(CLI_ROOT)
 
-    # 2. Port Defaults (0 for dynamic)
     # 2. Port Defaults (0 for dynamic)
     for port_suffix in (
         constants.PORT_GATEWAY_HTTPS,
@@ -127,7 +124,10 @@ def calculate_runtime_env(
         env[constants.ENV_LAMBDA_NETWORK] = f"esb_int_{env_name}"
 
     # 4. Registry Defaults
-    if not env.get(constants.ENV_CONTAINER_REGISTRY) and norm_mode in ("containerd", "firecracker"):
+    if not env.get(constants.ENV_CONTAINER_REGISTRY) and norm_mode in (
+        "containerd",
+        "firecracker",
+    ):
         env[constants.ENV_CONTAINER_REGISTRY] = constants.DEFAULT_AGENT_REGISTRY
 
     # 5. Credentials (Simplified generation for E2E)
@@ -148,18 +148,20 @@ def calculate_runtime_env(
     env["ENV_PREFIX"] = ENV_PREFIX
     env[constants.ENV_CLI_CMD] = BRAND_SLUG
     env[constants.ENV_ROOT_CA_MOUNT_ID] = f"{BRAND_SLUG}_root_ca"
-    env.setdefault("ROOT_CA_CERT_FILENAME", "rootCA.crt")
+    env.setdefault(constants.ENV_ROOT_CA_CERT_FILENAME, constants.DEFAULT_ROOT_CA_FILENAME)
 
     # Resolve CERT_DIR
-    cert_dir = Path(os.environ.get("CERT_DIR", Path.home() / BRAND_HOME_DIR / "certs")).expanduser()
-    env.setdefault("CERT_DIR", str(cert_dir))
+    cert_dir = Path(
+        os.environ.get(constants.ENV_CERT_DIR, Path.home() / BRAND_HOME_DIR / "certs")
+    ).expanduser()
+    env.setdefault(constants.ENV_CERT_DIR, str(cert_dir))
 
     # Calculate ROOT_CA_FINGERPRINT for build cache invalidation
-    ca_path = cert_dir / "rootCA.crt"
+    ca_path = cert_dir / constants.DEFAULT_ROOT_CA_FILENAME
     if ca_path.exists():
         try:
             content = ca_path.read_bytes()
-            env["ROOT_CA_FINGERPRINT"] = hashlib.md5(content).hexdigest()
+            env[constants.ENV_ROOT_CA_FINGERPRINT] = hashlib.md5(content).hexdigest()
         except OSError:
             pass
 
@@ -272,23 +274,41 @@ def apply_proxy_env_to_dict(env: dict[str, str]) -> None:
         env["no_proxy"] = val
 
 
-def read_service_env(env_file: str | None, service: str) -> dict[str, str]:
-    cmd = build_esb_cmd(["env", "var", service, "--format", "json"], env_file)
-    result = subprocess.run(
-        cmd,
-        cwd=CLI_ROOT,
-        check=True,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    if result.stderr.strip():
-        print(f"[WARN] esb env var output: {result.stderr.strip()}")
-    try:
-        return json.loads(result.stdout)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(f"Failed to parse esb env var output: {exc}") from exc
+def read_service_env(project_name: str, service: str) -> dict[str, str]:
+    """Read environment variables from a running container using docker inspect."""
+    # We need the container name. Docker Compose usually names them: {project}-{service}-1
+    # But it's safer to use labels.
+    cmd = [
+        "docker",
+        "ps",
+        "-q",
+        "--filter",
+        f"label=com.docker.compose.project={project_name}",
+        "--filter",
+        f"label=com.docker.compose.service={service}",
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    container_id = result.stdout.strip()
+    if not container_id:
+        raise RuntimeError(
+            f"No running container found for service: {service} in project: {project_name}"
+        )
+
+    cmd = [
+        "docker",
+        "inspect",
+        "--format",
+        "{{range .Config.Env}}{{println .}}{{end}}",
+        container_id,
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+
+    env = {}
+    for line in result.stdout.splitlines():
+        if "=" in line:
+            key, _, value = line.partition("=")
+            env[key] = value
+    return env
 
 
 def apply_proxy_env() -> None:
@@ -367,10 +387,50 @@ def resolve_esb_home(env_name: str) -> Path:
     return Path.home() / BRAND_HOME_DIR / env_name
 
 
+def discover_ports(project_name: str, compose_file: Path) -> dict[str, int]:
+    """Discover host ports for mapped services using docker compose port."""
+    services = {
+        "gateway": [("8443", constants.PORT_GATEWAY_HTTPS), ("8080", constants.PORT_GATEWAY_HTTP)],
+        "victorialogs": [("9428", constants.PORT_VICTORIALOGS)],
+        "database": [("8000", constants.PORT_DATABASE)],
+        "s3-storage": [("9000", constants.PORT_S3), ("9001", constants.PORT_S3_MGMT)],
+        "agent": [("50051", constants.PORT_AGENT_GRPC), ("9091", constants.PORT_AGENT_METRICS)],
+        "registry": [("5010", constants.PORT_REGISTRY)],
+        "runtime-node": [
+            ("8443", constants.PORT_GATEWAY_HTTPS),
+            ("50051", constants.PORT_AGENT_GRPC),
+            ("9091", constants.PORT_AGENT_METRICS),
+        ],
+    }
+
+    ports = {}
+    for service, port_mappings in services.items():
+        for internal, env_key_suffix in port_mappings:
+            try:
+                # docker compose -p {project} -f {file} port {service} {internal}
+                cmd = [
+                    "docker",
+                    "compose",
+                    "-p",
+                    project_name,
+                    "-f",
+                    str(compose_file),
+                    "port",
+                    service,
+                    internal,
+                ]
+                result = subprocess.run(cmd, capture_output=True, text=True)
+                if result.returncode == 0 and result.stdout.strip():
+                    # Format is 0.0.0.0:12345 or [::]:12345
+                    host_port = result.stdout.strip().split(":")[-1]
+                    ports[env_key(env_key_suffix)] = int(host_port)
+            except Exception:
+                continue
+    return ports
+
+
 def load_ports(env_name: str) -> dict[str, int]:
-    port_file = resolve_esb_home(env_name) / "ports.json"
-    if port_file.exists():
-        return json.loads(port_file.read_text())
+    """Deprecated: ports are now discovered dynamically in Zero-Config."""
     return {}
 
 
@@ -400,8 +460,8 @@ def apply_ports_to_env(ports: dict[str, int]) -> None:
         os.environ[constants.ENV_AgentGrpcAddress] = f"localhost:{agent_port}"
 
 
-def apply_gateway_env_from_container(env: dict[str, str], env_file: str | None) -> None:
-    gateway_env = read_service_env(env_file, "gateway")
+def apply_gateway_env_from_container(env: dict[str, str], project_name: str) -> None:
+    gateway_env = read_service_env(project_name, "gateway")
     required = (
         constants.ENV_AUTH_USER,
         constants.ENV_AUTH_PASS,
@@ -418,24 +478,32 @@ def apply_gateway_env_from_container(env: dict[str, str], env_file: str | None) 
     for key in required:
         env[key] = gateway_env[key]
 
-    auth_path = gateway_env.get("AUTH_ENDPOINT_PATH")
+    auth_path = gateway_env.get(constants.ENV_AUTH_ENDPOINT_PATH)
     if auth_path:
-        env["AUTH_ENDPOINT_PATH"] = auth_path
+        env[constants.ENV_AUTH_ENDPOINT_PATH] = auth_path
     else:
-        env.setdefault("AUTH_ENDPOINT_PATH", "/user/auth/v1")
+        env.setdefault(constants.ENV_AUTH_ENDPOINT_PATH, constants.DEFAULT_AUTH_Path)
 
-    for key in ("VERIFY_SSL", "CONTAINERS_NETWORK", "GATEWAY_INTERNAL_URL"):
+    for key in (
+        constants.ENV_VERIFY_SSL,
+        constants.ENV_CONTAINERS_NETWORK,
+        constants.ENV_GATEWAY_INTERNAL_URL,
+    ):
         value = gateway_env.get(key)
         if value:
             env[key] = value
 
-    tls_enabled = gateway_env.get("AGENT_GRPC_TLS_ENABLED")
+    tls_enabled = gateway_env.get(constants.ENV_AGENT_GRPC_TLS_ENABLED)
     if tls_enabled:
-        env["AGENT_GRPC_TLS_ENABLED"] = tls_enabled
-        cert_dir = Path(os.environ.get("CERT_DIR", f"~/{BRAND_HOME_DIR}/certs")).expanduser()
-        env["AGENT_GRPC_TLS_CA_CERT_PATH"] = str(cert_dir / "rootCA.crt")
-        env["AGENT_GRPC_TLS_CERT_PATH"] = str(cert_dir / "client.crt")
-        env["AGENT_GRPC_TLS_KEY_PATH"] = str(cert_dir / "client.key")
+        env[constants.ENV_AGENT_GRPC_TLS_ENABLED] = tls_enabled
+        cert_dir = Path(
+            os.environ.get(constants.ENV_CERT_DIR, f"~/{BRAND_HOME_DIR}/certs")
+        ).expanduser()
+        env[constants.ENV_AGENT_GRPC_TLS_CA_CERT_PATH] = str(
+            cert_dir / constants.DEFAULT_ROOT_CA_FILENAME
+        )
+        env[constants.ENV_AGENT_GRPC_TLS_CERT_PATH] = str(cert_dir / "client.crt")
+        env[constants.ENV_AGENT_GRPC_TLS_KEY_PATH] = str(cert_dir / "client.key")
 
 
 def ensure_firecracker_node_up() -> None:

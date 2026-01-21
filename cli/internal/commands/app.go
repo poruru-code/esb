@@ -33,12 +33,6 @@ type Dependencies struct {
 	ProjectConfigLoader helpers.ProjectConfigLoader
 	ProjectDirFinder    helpers.ProjectDirFinder
 	Build               BuildDeps
-	Up                  UpDeps
-	Down                DownDeps
-	Logs                LogsDeps
-	Stop                StopDeps
-	Prune               PruneDeps
-	Sync                SyncDeps
 }
 
 // CLI defines the command-line interface structure parsed by Kong.
@@ -48,12 +42,6 @@ type CLI struct {
 	EnvFlag    string        `short:"e" name:"env" help:"Environment (default: last used)"`
 	EnvFile    string        `name:"env-file" help:"Path to .env file"`
 	Build      BuildCmd      `cmd:"" help:"Build images"`
-	Up         UpCmd         `cmd:"" help:"Start environment"`
-	Down       DownCmd       `cmd:"" help:"Stop environment"`
-	Stop       StopCmd       `cmd:"" help:"Stop environment (preserve state)"`
-	Logs       LogsCmd       `cmd:"" help:"View logs"`
-	Prune      PruneCmd      `cmd:"" help:"Remove resources"`
-	Sync       SyncCmd       `cmd:"" help:"Sync resources and ports"`
 	Env        EnvCmd        `cmd:"" name:"env" help:"Manage environments"`
 	Project    ProjectCmd    `cmd:"" help:"Manage projects"`
 	Config     ConfigCmd     `cmd:"" name:"config" help:"Manage configuration"`
@@ -63,49 +51,17 @@ type CLI struct {
 }
 
 type (
-	SyncCmd struct {
-		Wait bool `default:"true" help:"Wait for services to be ready"`
+	BuildCmd struct {
+		NoCache bool `name:"no-cache" help:"Do not use cache when building images"`
+		Verbose bool `short:"v" help:"Enable verbose output"`
+		Force   bool `help:"Auto-unset invalid project/environment variables"`
 	}
 	VersionCmd struct{}
-)
 
-type (
-	StopCmd struct {
-		Force bool `help:"Auto-unset invalid project/environment variables"`
-	}
-	LogsCmd struct {
-		Service    string `arg:"" optional:"" help:"Service name (default: all)"`
-		Follow     bool   `short:"f" help:"Follow logs"`
-		Tail       int    `help:"Tail the latest N lines"`
-		Timestamps bool   `help:"Show timestamps"`
-		Force      bool   `help:"Auto-unset invalid project/environment variables"`
+	BuildDeps struct {
+		Builder Builder
 	}
 )
-
-type BuildCmd struct {
-	NoCache bool `name:"no-cache" help:"Do not use cache when building images"`
-	Verbose bool `short:"v" help:"Enable verbose output"`
-	Force   bool `help:"Auto-unset invalid project/environment variables"`
-}
-type UpCmd struct {
-	Build  bool `help:"Rebuild before starting"`
-	Reset  bool `help:"Reset environment before starting (down --volumes + build)"`
-	Yes    bool `short:"y" help:"Skip confirmation prompt for --reset"`
-	Detach bool `short:"d" default:"true" help:"Run in background"`
-	Wait   bool `short:"w" help:"Wait for gateway ready"`
-	Force  bool `help:"Auto-unset invalid project/environment variables"`
-}
-type DownCmd struct {
-	Volumes bool `short:"v" help:"Remove named volumes"`
-	Force   bool `help:"Auto-unset invalid project/environment variables"`
-}
-type PruneCmd struct {
-	Yes     bool `short:"y" help:"Skip confirmation prompt"`
-	All     bool `short:"a" help:"Remove all unused images (not just dangling)"`
-	Volumes bool `help:"Remove unused volumes"`
-	Hard    bool `help:"Also remove generator.yml"`
-	Force   bool `help:"Auto-unset invalid project/environment variables"`
-}
 
 // Run is the main entry point for CLI command execution.
 // It parses the command-line arguments, identifies the requested command,
@@ -179,11 +135,6 @@ type prefixHandler struct {
 func dispatchCommand(command string, cli CLI, deps Dependencies, out io.Writer) (int, bool) {
 	exactHandlers := map[string]commandHandler{
 		"build":              runBuild,
-		"up":                 runUp,
-		"down":               runDown,
-		"stop":               runStop,
-		"prune":              runPrune,
-		"sync":               runSync,
 		"env":                runEnvList,
 		"env list":           runEnvList,
 		"project":            runProjectList,
@@ -193,7 +144,6 @@ func dispatchCommand(command string, cli CLI, deps Dependencies, out io.Writer) 
 		"config set-repo":    runConfigSetRepo,
 		"__complete env":     runCompleteEnv,
 		"__complete project": runCompleteProject,
-		"__complete service": runCompleteService,
 		"completion bash":    func(_ CLI, _ Dependencies, out io.Writer) int { return runCompletionBash(cli, out) },
 		"completion zsh":     func(_ CLI, _ Dependencies, out io.Writer) int { return runCompletionZsh(cli, out) },
 		"completion fish":    func(_ CLI, _ Dependencies, out io.Writer) int { return runCompletionFish(cli, out) },
@@ -205,11 +155,9 @@ func dispatchCommand(command string, cli CLI, deps Dependencies, out io.Writer) 
 	}
 
 	prefixHandlers := []prefixHandler{
-		{prefix: "logs", handler: runLogs},
 		{prefix: "env add", handler: runEnvAdd},
 		{prefix: "env use", handler: runEnvUse},
 		{prefix: "env remove", handler: runEnvRemove},
-		{prefix: "env var", handler: runEnvVar},
 		{prefix: "project add", handler: runProjectAdd},
 		{prefix: "project use", handler: runProjectUse},
 		{prefix: "project remove", handler: runProjectRemove},

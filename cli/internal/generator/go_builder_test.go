@@ -143,7 +143,7 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	if buildOpts.Target != "control" {
 		t.Fatalf("unexpected compose target: %s", buildOpts.Target)
 	}
-	expectedServices := []string{"os-base", "python-base", "gateway", "agent"}
+	expectedServices := []string{"os-base", "python-base", "gateway", "agent", "provisioner"}
 	if len(buildOpts.Services) != len(expectedServices) {
 		t.Fatalf("unexpected compose services: %v", buildOpts.Services)
 	}

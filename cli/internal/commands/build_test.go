@@ -186,6 +186,7 @@ func TestRunBuildPassesNoCacheFlag(t *testing.T) {
 
 func TestRunBuildOutputsLegacySuccess(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
+	t.Setenv("ESB_ENV", "") // Ensure no external env var interferes
 	t.Setenv(envutil.HostEnvKey(constants.HostSuffixEnv), "default")
 	projectDir := t.TempDir()
 	if err := writeGeneratorFixture(projectDir, "default"); err != nil {
@@ -201,7 +202,7 @@ func TestRunBuildOutputsLegacySuccess(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("expected exit code 0, got %d", exitCode)
 	}
-	expected := "✓ Build complete\nNext: esb up\n"
+	expected := "✓ Build complete\n"
 	if out.String() != expected {
 		t.Fatalf("unexpected output:\n%s", out.String())
 	}

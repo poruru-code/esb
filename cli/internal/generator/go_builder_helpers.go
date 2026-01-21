@@ -84,7 +84,7 @@ func stageConfigFiles(outputDir, repoRoot, composeProject, env string) error {
 		return err
 	}
 
-	for _, name := range []string{"functions.yml", "routing.yml"} {
+	for _, name := range []string{"functions.yml", "routing.yml", "resources.yml"} {
 		src := filepath.Join(configDir, name)
 		if !fileExists(src) {
 			return fmt.Errorf("config not found: %s", src)

@@ -40,6 +40,7 @@ services:
       - external_network
     depends_on:
       agent: { condition: service_started }
+      provisioner: { condition: service_completed_successfully }
     environment:
       # Connect to Agent Directly
       - AGENT_GRPC_ADDRESS=agent:50051

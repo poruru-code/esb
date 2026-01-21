@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/helpers"
 	"github.com/poruru/edge-serverless-box/cli/internal/interaction"
 )
 
@@ -16,13 +15,11 @@ import (
 type CompleteCmd struct {
 	Env     CompleteEnvCmd     `cmd:"" help:"List environments for completion"`
 	Project CompleteProjectCmd `cmd:"" help:"List projects for completion"`
-	Service CompleteServiceCmd `cmd:"" help:"List services for completion"`
 }
 
 type (
 	CompleteEnvCmd     struct{}
 	CompleteProjectCmd struct{}
-	CompleteServiceCmd struct{}
 )
 
 func runCompleteEnv(cli CLI, deps Dependencies, out io.Writer) int {
@@ -58,29 +55,6 @@ func runCompleteProject(_ CLI, deps Dependencies, out io.Writer) int {
 	}
 	sort.Strings(names)
 	printCompletionList(out, names)
-	return 0
-}
-
-func runCompleteService(cli CLI, deps Dependencies, out io.Writer) int {
-	if deps.Logs.Logger == nil {
-		return 0
-	}
-
-	opts := resolveOptions{Interactive: false, Prompt: interaction.PromptYesNo, AllowMissingEnv: true}
-	ctxInfo, err := resolveCommandContext(cli, deps, opts)
-	if err != nil || strings.TrimSpace(ctxInfo.Env) == "" {
-		return 0
-	}
-
-	ctx := ctxInfo.Context
-	helpers.NewRuntimeEnvApplier(deps.RepoResolver).Apply(ctx)
-
-	services, err := deps.Logs.Logger.ListServices(LogsRequest{Context: ctx})
-	if err != nil {
-		return 0
-	}
-	sort.Strings(services)
-	printCompletionList(out, services)
 	return 0
 }
 

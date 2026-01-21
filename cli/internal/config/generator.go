@@ -33,6 +33,7 @@ type PathsConfig struct {
 	OutputDir    string `yaml:"output_dir"`
 	FunctionsYml string `yaml:"functions_yml,omitempty"`
 	RoutingYml   string `yaml:"routing_yml,omitempty"`
+	ResourcesYml string `yaml:"resources_yml,omitempty"`
 }
 
 // EnvironmentSpec defines an environment with its name and runtime mode.

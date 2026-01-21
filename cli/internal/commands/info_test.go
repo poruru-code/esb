@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/ports"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
@@ -53,7 +54,7 @@ func TestRunInfoOutputsConfigAndState(t *testing.T) {
 	var capturedEnv string
 	deps := Dependencies{
 		ProjectDir: projectDir,
-		DetectorFactory: func(_, env string) (StateDetector, error) {
+		DetectorFactory: func(_, env string) (ports.StateDetector, error) {
 			capturedEnv = env
 			return fakeInfoDetector{state: state.StateRunning}, nil
 		},

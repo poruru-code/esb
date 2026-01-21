@@ -350,7 +350,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		Project:  composeProject,
 		Mode:     mode,
 		Target:   "control",
-		Services: []string{"os-base", "python-base", "gateway", "agent"},
+		Services: []string{"os-base", "python-base", "gateway", "agent", "provisioner"},
 		NoCache:  request.NoCache,
 		Verbose:  request.Verbose,
 	}

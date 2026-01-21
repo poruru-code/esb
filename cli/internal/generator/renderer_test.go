@@ -126,6 +126,42 @@ func TestRenderRoutingYml(t *testing.T) {
 	}
 }
 
+func TestRenderResourcesYml(t *testing.T) {
+	spec := manifest.ResourcesSpec{
+		DynamoDB: []manifest.DynamoDBSpec{
+			{
+				TableName: "test-table",
+				KeySchema: []manifest.DynamoDBKeySchema{
+					{AttributeName: "PK", KeyType: "HASH"},
+				},
+			},
+		},
+		S3: []manifest.S3Spec{
+			{BucketName: "test-bucket"},
+		},
+	}
+
+	content, err := RenderResourcesYml(spec)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if !strings.Contains(content, "TableName: test-table") {
+		t.Fatalf("expected test-table in content, got: %s", content)
+	}
+	if !strings.Contains(content, "BucketName: test-bucket") {
+		t.Fatalf("expected test-bucket in content, got: %s", content)
+	}
+
+	var parsed manifest.ResourcesSpec
+	if err := yaml.Unmarshal([]byte(content), &parsed); err != nil {
+		t.Fatalf("yaml unmarshal failed: %v", err)
+	}
+	if len(parsed.DynamoDB) != 1 || parsed.DynamoDB[0].TableName != "test-table" {
+		t.Fatalf("unexpected unmarshaled content")
+	}
+}
+
 func intPtr(value int) *int {
 	return &value
 }

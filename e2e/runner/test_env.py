@@ -41,18 +41,18 @@ def test_calculate_runtime_env_defaults():
     with mock.patch.dict(os.environ, {}, clear=True):
         env = calculate_runtime_env("myproj", "myenv", "docker")
 
-        assert env["ENV"] == "myenv"
-        assert env["MODE"] == "docker"
-        assert env["PROJECT_NAME"] == "myproj"
-        assert env["IMAGE_TAG"] == "docker"
-        assert env["IMAGE_PREFIX"] == "myproj"
+        assert env[constants.ENV_ENV] == "myenv"
+        assert env[constants.ENV_MODE] == "docker"
+        assert env[constants.ENV_PROJECT_NAME] == "myproj"
+        assert env[constants.ENV_IMAGE_TAG] == "docker"
+        assert env[constants.ENV_IMAGE_PREFIX] == "myproj"
 
         # Check Subnets are present
-        assert "SUBNET_EXTERNAL" in env
-        assert "RUNTIME_NET_SUBNET" in env
-        assert "RUNTIME_NODE_IP" in env
-        assert env["NETWORK_EXTERNAL"] == "myproj-myenv-external"
-        assert env["LAMBDA_NETWORK"] == "esb_int_myenv"
+        assert constants.ENV_SUBNET_EXTERNAL in env
+        assert constants.ENV_RUNTIME_NET_SUBNET in env
+        assert constants.ENV_RUNTIME_NODE_IP in env
+        assert env[constants.ENV_NETWORK_EXTERNAL] == "myproj-myenv-external"
+        assert env[constants.ENV_LAMBDA_NETWORK] == "esb_int_myenv"
 
         # Check Ports (should be initialized to "0" for dynamic discovery)
         for p_suffix in (
@@ -69,21 +69,21 @@ def test_calculate_runtime_env_defaults():
             assert env[key] == "0"
 
         # Check Credentials generation matches branding
-        assert env["AUTH_USER"] == BRAND_SLUG
-        assert len(env["AUTH_PASS"]) == 32  # token_hex(16) -> 32 chars
-        assert len(env["JWT_SECRET_KEY"]) == 64
-        assert len(env["X_API_KEY"]) == 64
+        assert env[constants.ENV_AUTH_USER] == BRAND_SLUG
+        assert len(env[constants.ENV_AUTH_PASS]) == 32  # token_hex(16) -> 32 chars
+        assert len(env[constants.ENV_JWT_SECRET_KEY]) == 64
+        assert len(env[constants.ENV_X_API_KEY]) == 64
 
         # Check Branding & Repo Path
         assert env["ENV_PREFIX"] == ENV_PREFIX
-        assert env["CLI_CMD"] == BRAND_SLUG
+        assert env[constants.ENV_CLI_CMD] == BRAND_SLUG
 
 
 def test_calculate_runtime_env_override():
     # Ensure calculate_runtime_env respects existing environment variables
     # We use env_key to ensure we match whatever prefix logic is active
-    auth_key = "AUTH_USER"
-    gw_port_key = env_key("PORT_GATEWAY_HTTPS")
+    auth_key = constants.ENV_AUTH_USER
+    gw_port_key = env_key(constants.PORT_GATEWAY_HTTPS)
 
     with mock.patch.dict(os.environ, {auth_key: "alice", gw_port_key: "8443"}, clear=True):
         env = calculate_runtime_env("myproj", "myenv", "docker")
@@ -95,16 +95,16 @@ def test_calculate_runtime_env_override():
 def test_calculate_runtime_env_mode_tags():
     # docker mode
     env_docker = calculate_runtime_env("p", "e", "docker")
-    assert env_docker["IMAGE_TAG"] == "docker"
+    assert env_docker[constants.ENV_IMAGE_TAG] == "docker"
 
     # containerd mode
     env_containerd = calculate_runtime_env("p", "e", "containerd")
-    assert env_containerd["IMAGE_TAG"] == "containerd"
-    assert env_containerd["CONTAINER_REGISTRY"] == "registry:5010"
+    assert env_containerd[constants.ENV_IMAGE_TAG] == "containerd"
+    assert env_containerd[constants.ENV_CONTAINER_REGISTRY] == "registry:5010"
 
     # custom mode (should fallback to env name or latest)
     env_custom = calculate_runtime_env("p", "prod", "firecracker")
-    assert env_custom["IMAGE_TAG"] == "firecracker"
+    assert env_custom[constants.ENV_IMAGE_TAG] == "firecracker"
 
 
 def test_calculate_staging_dir_logic():
@@ -137,6 +137,6 @@ def test_calculate_runtime_env_project_config(tmp_path):
 
         env = calculate_runtime_env(project, env_name, "docker")
 
-        assert "CONFIG_DIR" in env
-        assert env["CONFIG_DIR"] == str(staging_dir)
-        assert env.get("GATEWAY_FUNCTIONS_YML") == "custom_fns.yml"
+        assert constants.ENV_CONFIG_DIR in env
+        assert env[constants.ENV_CONFIG_DIR] == str(staging_dir)
+        assert env.get(constants.ENV_GATEWAY_FUNCTIONS_YML) == "custom_fns.yml"

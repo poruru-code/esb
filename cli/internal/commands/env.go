@@ -25,7 +25,6 @@ type EnvCmd struct {
 	Add    EnvAddCmd    `cmd:"" help:"Add environment"`
 	Use    EnvUseCmd    `cmd:"" help:"Switch environment"`
 	Remove EnvRemoveCmd `cmd:"" help:"Remove environment"`
-	Var    EnvVarCmd    `cmd:"" help:"Show container environment variables"`
 }
 
 type (
@@ -43,11 +42,6 @@ type (
 	EnvRemoveCmd struct {
 		Name  string `arg:"" optional:"" help:"Environment name"`
 		Force bool   `help:"Auto-unset invalid project/environment variables"`
-	}
-	EnvVarCmd struct {
-		Service string `arg:"" optional:"" help:"Service name (interactive if omitted)"`
-		Format  string `name:"format" enum:"plain,json,export" default:"plain" help:"Output format"`
-		Force   bool   `help:"Auto-unset invalid project/environment variables"`
 	}
 )
 
@@ -251,18 +245,6 @@ func runEnvUse(cli CLI, deps Dependencies, out io.Writer) int {
 	legacyUI(os.Stderr).Info(fmt.Sprintf("Switched to '%s:%s'", ctx.Project.Name, name))
 	legacyUI(out).Info(fmt.Sprintf("export %s=%s", envutil.HostEnvKey(constants.HostSuffixEnv), name))
 	return 0
-}
-
-// parseIndex parses a 1-indexed selection string and returns the 0-indexed value.
-func parseIndex(input string, maxVal int) (int, error) {
-	var idx int
-	if _, err := fmt.Sscanf(input, "%d", &idx); err != nil {
-		return 0, err
-	}
-	if idx < 1 || idx > maxVal {
-		return 0, fmt.Errorf("index out of range")
-	}
-	return idx - 1, nil
 }
 
 // runEnvRemove executes the 'env remove' command which deletes an environment

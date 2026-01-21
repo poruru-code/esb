@@ -24,6 +24,8 @@ services:
       args:
         SERVICE_UID: ${RUN_UID:-1000}
         SERVICE_GID: ${RUN_GID:-1000}
+    depends_on:
+      provisioner: { condition: service_completed_successfully }
     ports:
       - "${PORT_GATEWAY_HTTPS:-0}:8443"
     networks:

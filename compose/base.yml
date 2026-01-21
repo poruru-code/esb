@@ -152,6 +152,37 @@ services:
 
 
   # ============================================
+  # Provisioner (Runtime Resource Initialization)
+  # ============================================
+  provisioner:
+    env_file: ../config/defaults.env
+    image: ${IMAGE_PREFIX:-undefined}-provisioner:${IMAGE_TAG:-latest}
+    build:
+      context: ..
+      dockerfile: services/provisioner/Dockerfile
+      additional_contexts:
+        config: ${CONFIG_DIR:-../services/gateway/config}
+    container_name: ${PROJECT_NAME:-undefined}-provisioner
+    depends_on:
+      database:
+        condition: service_healthy
+      s3-storage:
+        condition: service_healthy
+      victorialogs:
+        condition: service_healthy
+    environment:
+      - DYNAMODB_ENDPOINT=http://database:8000
+      - S3_ENDPOINT=http://s3-storage:9000
+      - VICTORIALOGS_URL=http://victorialogs:9428
+      - PYTHONUNBUFFERED=1
+      - AWS_DEFAULT_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=${RUSTFS_ACCESS_KEY:-esb}
+      - AWS_SECRET_ACCESS_KEY=${RUSTFS_SECRET_KEY:-esbsecret}
+    networks:
+      external_network: {}
+
+
+  # ============================================
   # API Gateway (Facade)
   # ============================================
   gateway:
@@ -221,6 +252,8 @@ services:
       - no_proxy
       - GRPC_VERBOSITY=ERROR
     depends_on:
+      provisioner:
+        condition: service_completed_successfully
       database:
         condition: service_healthy
       s3-storage:

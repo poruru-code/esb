@@ -273,6 +273,13 @@ func TestRunEnvRemoveRejectsLastEnvironment(t *testing.T) {
 	}
 }
 
+func writeGeneratorFixture(projectDir, lastEnv string) error {
+	envs := config.Environments{
+		{Name: lastEnv, Mode: "docker"},
+	}
+	return writeGeneratorFixtureWithEnvs(projectDir, envs, "demo")
+}
+
 func writeGeneratorFixtureWithEnvs(projectDir string, envs config.Environments, appName string) error {
 	templatePath := filepath.Join(projectDir, "template.yaml")
 	if err := os.WriteFile(templatePath, []byte("test"), 0o644); err != nil {

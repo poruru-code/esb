@@ -1,6 +1,3 @@
-// Where: cli/internal/workflows/build_test.go
-// What: Unit tests for BuildWorkflow orchestration.
-// Why: Verify builder wiring and runtime env application without CLI adapters.
 package workflows
 
 import (
@@ -32,8 +29,8 @@ func TestBuildWorkflowRunSuccess(t *testing.T) {
 		t.Fatalf("Run: %v", err)
 	}
 
-	if len(envApplier.calls) != 1 {
-		t.Fatalf("expected env applier to be called once, got %d", len(envApplier.calls))
+	if len(envApplier.applied) != 1 {
+		t.Fatalf("expected env applier to be called once, got %d", len(envApplier.applied))
 	}
 	if len(builder.requests) != 1 {
 		t.Fatalf("expected builder to be called once, got %d", len(builder.requests))
@@ -56,12 +53,10 @@ func TestBuildWorkflowRunSuccess(t *testing.T) {
 		t.Fatalf("expected no-cache and verbose to be true")
 	}
 
-	if len(ui.successes) != 1 || !strings.Contains(ui.successes[0], "Build complete") {
+	if len(ui.success) != 1 || !strings.Contains(ui.success[0], "Build complete") {
 		t.Fatalf("expected build success message")
 	}
-	if len(ui.infos) != 1 || ui.infos[0] != "Next: esb up" {
-		t.Fatalf("expected next step info")
-	}
+	// "Next: esb up" check removed as per build.go changes
 }
 
 func TestBuildWorkflowRunMissingBuilder(t *testing.T) {
