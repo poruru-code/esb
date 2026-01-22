@@ -171,32 +171,7 @@ def calculate_runtime_env(
     # 8. Docker BuildKit
     env.setdefault(constants.ENV_DOCKER_BUILDKIT, "1")
 
-    # 9. Project Configuration (generator.yml)
-    # Replicates applyGeneratorConfigEnv logic
-    repo_root = Path(env.get(env_key("REPO"), Path.cwd()))
-    # In E2E, the fixtures are often in e2e/fixtures
-    if (
-        not (repo_root / "generator.yml").exists()
-        and (repo_root / "e2e" / "fixtures" / "generator.yml").exists()
-    ):
-        repo_root = repo_root / "e2e" / "fixtures"
-
-    gen_yaml_path = repo_root / "generator.yml"
-    if gen_yaml_path.exists():
-        try:
-            import yaml
-
-            with open(gen_yaml_path) as f:
-                gen_cfg = yaml.safe_load(f)
-            paths = gen_cfg.get("paths", {})
-            if paths.get("functions_yml"):
-                env[constants.ENV_GATEWAY_FUNCTIONS_YML] = paths["functions_yml"]
-            if paths.get("routing_yml"):
-                env[constants.ENV_GATEWAY_ROUTING_YML] = paths["routing_yml"]
-        except Exception:
-            pass
-
-    # 10. Staging Config Dir
+    # 9. Staging Config Dir
     # Replicates applyConfigDirEnv / staging.ConfigDir logic
     config_dir = calculate_staging_dir(project_name, env_name)
     if config_dir.exists():

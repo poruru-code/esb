@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 import sys
@@ -35,6 +36,175 @@ COLORS = [
     "\033[33m",  # Yellow
 ]
 COLOR_RESET = "\033[0m"
+
+
+def _registry_port(project: str, compose_file: Path) -> int | None:
+    """Resolve host port mapped to registry:5010 for the given compose project."""
+    try:
+        result = subprocess.run(
+            [
+                "docker",
+                "compose",
+                "-p",
+                project,
+                "-f",
+                str(compose_file),
+                "port",
+                "registry",
+                "5010",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0 or not result.stdout.strip():
+            return None
+        return int(result.stdout.strip().split(":")[-1])
+    except Exception:
+        return None
+
+
+def isolate_external_network(project_label: str) -> None:
+    """Detach non-project containers from the external network to avoid DNS conflicts."""
+    network_name = f"{project_label}-external"
+    result = subprocess.run(
+        ["docker", "network", "inspect", network_name],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return
+    if not data:
+        return
+    containers = data[0].get("Containers") or {}
+    for entry in containers.values():
+        name = entry.get("Name", "")
+        if not name or name.startswith(project_label):
+            continue
+        subprocess.run(
+            ["docker", "network", "disconnect", "-f", network_name, name],
+            capture_output=True,
+        )
+
+
+def _load_function_names(env_name: str) -> list[str]:
+    config_path = E2E_STATE_ROOT / env_name / "config" / "functions.yml"
+    if not config_path.exists():
+        return []
+    try:
+        import yaml
+    except Exception:
+        return []
+    try:
+        data = yaml.safe_load(config_path.read_text()) or {}
+    except Exception:
+        return []
+    functions = data.get("functions", {})
+    if isinstance(functions, dict):
+        return sorted([name for name in functions.keys() if isinstance(name, str)])
+    return []
+
+
+def _pick_manifest_digest(index: dict) -> str | None:
+    manifests = index.get("manifests", [])
+    if not isinstance(manifests, list) or not manifests:
+        return None
+    for entry in manifests:
+        platform = entry.get("platform") or {}
+        if platform.get("os") == "linux" and platform.get("architecture") == "amd64":
+            return entry.get("digest")
+    return manifests[0].get("digest")
+
+
+def verify_registry_images(env_name: str, project: str, mode: str) -> None:
+    """Validate that registry blobs exist for built function images."""
+    if mode not in ("containerd", "firecracker"):
+        return
+
+    compose_file = PROJECT_ROOT / f"docker-compose.{mode}.yml"
+    port = _registry_port(project, compose_file)
+    if port is None:
+        print("[WARN] Registry port not discovered; skipping registry integrity check.")
+        return
+
+    function_names = _load_function_names(env_name)
+    if not function_names:
+        print("[WARN] functions.yml not found or empty; skipping registry integrity check.")
+        return
+
+    base_url = f"https://localhost:{port}"
+    missing: dict[str, list[str]] = {}
+
+    headers_index = {"Accept": "application/vnd.oci.image.index.v1+json"}
+    headers_manifest = {"Accept": "application/vnd.oci.image.manifest.v1+json"}
+
+    for name in function_names:
+        tag = mode
+        try:
+            resp = requests.get(
+                f"{base_url}/v2/{name}/manifests/{tag}",
+                headers=headers_index,
+                timeout=10,
+                verify=False,
+            )
+        except Exception as exc:
+            missing.setdefault(name, []).append(f"manifest fetch failed: {exc}")
+            continue
+
+        if resp.status_code != 200:
+            missing.setdefault(name, []).append(f"manifest status {resp.status_code}")
+            continue
+
+        try:
+            index = resp.json()
+        except json.JSONDecodeError:
+            missing.setdefault(name, []).append("manifest is not valid JSON")
+            continue
+
+        digest = _pick_manifest_digest(index)
+        if not digest:
+            missing.setdefault(name, []).append("manifest digest not found")
+            continue
+
+        resp = requests.get(
+            f"{base_url}/v2/{name}/manifests/{digest}",
+            headers=headers_manifest,
+            timeout=10,
+            verify=False,
+        )
+        if resp.status_code != 200:
+            missing.setdefault(name, []).append(f"image manifest status {resp.status_code}")
+            continue
+
+        try:
+            manifest = resp.json()
+        except json.JSONDecodeError:
+            missing.setdefault(name, []).append("image manifest is not valid JSON")
+            continue
+
+        layers = manifest.get("layers", [])
+        for layer in layers:
+            blob = layer.get("digest")
+            if not blob:
+                continue
+            head = requests.head(
+                f"{base_url}/v2/{name}/blobs/{blob}",
+                timeout=10,
+                verify=False,
+            )
+            if head.status_code != 200:
+                missing.setdefault(name, []).append(blob)
+
+    if missing:
+        print("\n[ERROR] Registry is missing image blobs; containerd pulls will fail.")
+        for name, blobs in sorted(missing.items()):
+            sample = ", ".join(blobs[:5])
+            suffix = "" if len(blobs) <= 5 else f" (+{len(blobs) - 5} more)"
+            print(f"  - {name}: {sample}{suffix}")
+        raise RuntimeError("registry missing blobs")
 
 
 def thorough_cleanup(env_name: str):
@@ -102,64 +272,19 @@ def thorough_cleanup(env_name: str):
 def warmup_environment(env_scenarios: dict, matrix: list[dict], args):
     """
     Perform global reset and warm-up actions.
-    This includes cleaning up old artifacts and registering the ESB project
-    in the global config before parallel execution.
+    This includes light validation to ensure shared inputs exist before parallel execution.
     """
-    # Note: Thorough cleanup is now handled per-scenario in run_scenario
-    # to support targeted resets (e.g. when --profile is specified).
-
-    # 2. Build environment list from matrix (not generator.yml - that's generated by esb project add)
     active_envs = list(env_scenarios.keys())
     if not active_envs:
         print("[ERROR] No active environments in matrix.")
         sys.exit(1)
 
-    # Build env list with modes from ALL matrix entries to ensure generator.yml
-    # remains consistent even when running a single profile.
-    env_list_parts = []
-    for entry in matrix:
-        env_name = entry.get("esb_env")
-        if not env_name:
-            continue
-        # Derive mode from env_file name (e.g., .env.docker -> docker)
-        env_file = entry.get("env_file", "")
-        mode = (
-            "containerd"
-            if "containerd" in env_file
-            else "firecracker"
-            if "firecracker" in env_file
-            else "docker"
-        )
-        env_list_parts.append(f"{env_name}:{mode}")
+    esb_template = PROJECT_ROOT / "e2e" / "fixtures" / "template.yaml"
+    if not esb_template.exists():
+        print(f"[ERROR] Missing E2E template: {esb_template}")
+        sys.exit(1)
 
-    env_list = ",".join(env_list_parts)
-
-    # 3. Register ESB project (this generates generator.yml)
-    print(f"\n[INIT] Registering ESB project for: {', '.join(active_envs)}")
-    # Use the default E2E template for registration
-    esb_template = "e2e/fixtures/template.yaml"
-    if not (PROJECT_ROOT / esb_template).exists():
-        # Fallback or error if template missing, mostly relevant for fresh clones
-        pass
-
-    # We use subprocess directly to call go run ... project add
-    # Assuming run_esb helper logic or direct call
-    # Here we replicate the call from original script
-    # Register ESB project (this generates generator.yml)
-    project_name = os.environ.get(env_key("PROJECT"), BRAND_SLUG)
-    run_esb(
-        [
-            "project",
-            "add",
-            ".",
-            "--template",
-            str(PROJECT_ROOT / esb_template),
-            "--env",
-            env_list,
-            "--name",
-            project_name,
-        ]
-    )
+    print(f"\n[INIT] Using E2E template: {esb_template}")
 
 
 def run_scenario(args, scenario):
@@ -212,11 +337,23 @@ def run_scenario(args, scenario):
 
     # 1.5 Calculate Runtime Env (needed for reset/build too)
     mode = scenario.get("mode", "docker")
+    template_path = PROJECT_ROOT / "e2e" / "fixtures" / "template.yaml"
+    if not template_path.exists():
+        raise FileNotFoundError(f"Missing E2E template: {template_path}")
     runtime_env = calculate_runtime_env(project_name, env_name, mode, env_file)
 
     did_up = False
     try:
         # 2. Reset / Build
+        build_args = [
+            "--template",
+            str(template_path.absolute()),
+            "build",
+            "--env",
+            env_name,
+            "--mode",
+            mode,
+        ]
         if do_reset:
             print(f"➜ Resetting environment: {env_name}")
             # 2.1 Robust cleanup using docker compose down
@@ -240,6 +377,7 @@ def run_scenario(args, scenario):
                 )
             # Fallback to manual cleanup just in case (e.g. if compose file invalid or project name mismatch previously)
             thorough_cleanup(env_name)
+            isolate_external_network(f"{BRAND_SLUG}-{env_name}")
 
             # 2.2 Clean artifact directory for this environment
             env_state_dir = E2E_STATE_ROOT / env_name
@@ -251,17 +389,18 @@ def run_scenario(args, scenario):
 
             # Re-generate configurations and build images via ESB build
             # IMPORTANT: Pass runtime_env so (branding) is respected!
-            # We explicitly set ESB_REPO (BRAND_REPO) to point to fixtures so the CLI finds generator.yml
-            # without changing the process CWD (which is destructive/confusing).
             build_env = runtime_env.copy()
-            build_env[env_key("REPO")] = str(PROJECT_ROOT / "e2e" / "fixtures")
+            # Ensure build uses the same compose project as the runtime stack.
+            # Otherwise containerd images get pushed to the wrong registry.
+            build_env["PROJECT_NAME"] = f"{project_name}-{env_name}"
 
             run_esb(
-                ["build", "--no-cache"],
+                build_args + ["--no-cache"],
                 env_file=env_file,
                 verbose=args.verbose,
                 env=build_env,
             )
+            verify_registry_images(env_name, f"{project_name}-{env_name}", mode)
 
             if build_only:
                 return True
@@ -273,7 +412,8 @@ def run_scenario(args, scenario):
                 print(f"➜ Building environment: {env_name}... ", end="", flush=True)
             else:
                 print(f"➜ Building environment: {env_name}")
-            run_esb(["build", "--no-cache"], env_file=env_file, verbose=args.verbose)
+            run_esb(build_args + ["--no-cache"], env_file=env_file, verbose=args.verbose)
+            verify_registry_images(env_name, f"{project_name}-{env_name}", mode)
             if not args.verbose:
                 print("Done")
         else:
@@ -282,7 +422,8 @@ def run_scenario(args, scenario):
             else:
                 print(f"➜ Preparing environment: {env_name}")
             # In Zero-Config, we just rebuild if needed. stop/sync are gone.
-            run_esb(["build"], env_file=env_file, verbose=args.verbose)
+            run_esb(build_args, env_file=env_file, verbose=args.verbose)
+            verify_registry_images(env_name, f"{project_name}-{env_name}", mode)
             if not args.verbose:
                 print("Done")
 

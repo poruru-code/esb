@@ -2,16 +2,6 @@ AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: E2E Test Lambda Functions
 
-Parameters:
-  S3_ENDPOINT_HOST:
-    Type: String
-    Default: s3-storage
-    Description: S3 endpoint host (without port)
-  DYNAMODB_ENDPOINT_HOST:
-    Type: String
-    Default: database
-    Description: DynamoDB endpoint host (without port)
-
 Globals:
   Function:
     Runtime: python3.12

@@ -114,16 +114,10 @@ def test_calculate_staging_dir_logic():
     assert ".cache/staging" in str(path)
 
 
-def test_calculate_runtime_env_project_config(tmp_path):
-    # Test that project-specific config like CONFIG_DIR and FunctionsYml are set
+def test_calculate_runtime_env_project_config_dir(tmp_path):
+    # Test that project-specific config like CONFIG_DIR is set
     project = "myproj"
     env_name = "myenv"
-
-    # Create fake project repo for generator.yml
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    gen_yml = repo / "generator.yml"
-    gen_yml.write_text("paths:\n  functions_yml: custom_fns.yml\n")
 
     # Mock calculate_staging_dir to return a path in tmp_path
     staging_dir = tmp_path / "staging"
@@ -131,7 +125,7 @@ def test_calculate_runtime_env_project_config(tmp_path):
 
     with (
         mock.patch("e2e.runner.env.calculate_staging_dir") as mock_calc,
-        mock.patch.dict(os.environ, {env_key("REPO"): str(repo)}, clear=True),
+        mock.patch.dict(os.environ, {}, clear=True),
     ):
         mock_calc.return_value = staging_dir
 
@@ -139,4 +133,3 @@ def test_calculate_runtime_env_project_config(tmp_path):
 
         assert constants.ENV_CONFIG_DIR in env
         assert env[constants.ENV_CONFIG_DIR] == str(staging_dir)
-        assert env.get(constants.ENV_GATEWAY_FUNCTIONS_YML) == "custom_fns.yml"
