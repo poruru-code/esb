@@ -28,12 +28,8 @@ func applyBuildEnv(env, composeProject string) {
 	}
 }
 
-func applyModeFromConfig(cfg config.GeneratorConfig, env string) {
+func applyModeFromRequest(mode string) {
 	if strings.TrimSpace(envutil.GetHostEnv(constants.HostSuffixMode)) != "" {
-		return
-	}
-	mode, ok := cfg.Environments.Mode(env)
-	if !ok {
 		return
 	}
 	mode = strings.TrimSpace(mode)

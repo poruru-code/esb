@@ -2,20 +2,22 @@
 
 ## 概要
 
-`esb build` コマンドは、サーバーレスプロジェクトの成果物をコンパイルします。SAMテンプレート (`template.yaml`) と `generator.yml` 設定ファイルを解析し、各Lambda関数用のDockerfileを生成して、対応するDockerイメージをビルドします。
+`esb build` コマンドは、サーバーレスプロジェクトの成果物をコンパイルします。SAMテンプレート (`template.yaml`) を解析し、各Lambda関数用のDockerfileを生成して、対応するDockerイメージをビルドします。`generator.yml` は参照しません。
 
 ## 使用方法
 
 ```bash
-esb build [flags]
+esb build --template <path> --env <name> --mode <docker|containerd|firecracker> [flags]
 ```
 
 ### フラグ
 
 | フラグ | 短縮形 | 説明 |
 |--------|--------|------|
-| `--env` | `-e` | ターゲット環境 (例: local, dev)。デフォルトは最後に使用された環境です。 |
-| `--template` | `-t` | SAMテンプレートへのパス。 |
+| `--env` | `-e` | ターゲット環境名（必須）。未指定時は対話入力。 |
+| `--mode` | `-m` | ランタイムモード（必須）。未指定時は対話入力。 |
+| `--template` | `-t` | SAMテンプレートへのパス（必須）。未指定時は対話入力。 |
+| `--output` | `-o` | 生成物の出力先（任意）。未指定時は既定の構成を使用。 |
 | `--no-cache` | | イメージビルド時にキャッシュを使用しません。 |
 | `--verbose` | `-v` | 詳細な出力を有効にします。デフォルトでは進行状況のみを表示する静音モードです。 |
 | `--force` | | 無効な `ESB_PROJECT`/`ESB_ENV` 環境変数を自動的に解除します。 |
@@ -39,7 +41,7 @@ CLIアダプタは `cli/internal/commands/build.go` にあり、オーケスト�
 
 1. **コンテキスト解決**: プロジェクトディレクトリとアクティブな環境を決定します。
 2. **ランタイム環境適用**: `RuntimeEnvApplier` が `ESB_*` 変数を適用します。
-3. **設定読み込み**: `generator.yml` を読み込み、関数のマッピングとパラメータを理解します。
+3. **パラメータ入力**: SAMテンプレートの `Parameters` が定義されている場合、対話的に入力を求めます（入力値はそのビルドのみ有効）。
 4. **コード生成**:
    - `template.yaml` を解析します。
    - Dockerfile と `functions.yml` / `routing.yml` を生成します。
@@ -66,7 +68,7 @@ sequenceDiagram
     CLI->>WF: Run(BuildRequest)
     WF->>Env: Apply(Context)
     WF->>Builder: Build(BuildRequest)
-    Builder->>Builder: generator.yml 読み込み
+    Builder->>Builder: SAMテンプレート読み込み
     Builder->>Generator: Generate(config, options)
     Generator-->>Builder: FunctionSpecs (関数リスト)
 

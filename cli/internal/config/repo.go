@@ -42,7 +42,7 @@ func ResolveRepoRoot(startDir string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("repository root not found. Please run 'esb config set-repo <path>' or set %s", envutil.HostEnvKey(constants.HostSuffixRepo)) //nolint:revive
+	return "", fmt.Errorf("repository root not found. Run from the repo root or set %s", envutil.HostEnvKey(constants.HostSuffixRepo)) //nolint:revive
 }
 
 // ResolveRepoRootFromPath determines the ESB repository root path using only the supplied path.

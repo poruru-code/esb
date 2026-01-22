@@ -30,30 +30,3 @@ func TestRunNodeDisabledWithGlobalFlags(t *testing.T) {
 		t.Fatalf("unexpected output: %q", out.String())
 	}
 }
-
-func TestRunProjectRemove_NoArgs(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
-	projectDir := t.TempDir()
-	setupProjectConfig(t, projectDir, "demo-project")
-
-	var out bytes.Buffer
-	prompter := &mockPrompter{
-		selectFn: func(_ string, options []string) (string, error) {
-			return options[0], nil
-		},
-	}
-
-	deps := Dependencies{
-		Out:      &out,
-		Prompter: prompter,
-	}
-
-	exitCode := Run([]string{"project", "remove"}, deps)
-	if exitCode != 0 {
-		t.Fatalf("expected exit code 0, got %d", exitCode)
-	}
-
-	if !strings.Contains(out.String(), "Removed project 'demo-project'") {
-		t.Fatalf("unexpected output: %q", out.String())
-	}
-}

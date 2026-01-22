@@ -19,7 +19,10 @@ func TestBuildWorkflowRunSuccess(t *testing.T) {
 	req := BuildRequest{
 		Context:      ctx,
 		Env:          "dev",
+		Mode:         "docker",
 		TemplatePath: "/repo/template.yaml",
+		OutputDir:    ".out",
+		Parameters:   map[string]string{"ParamA": "value"},
 		NoCache:      true,
 		Verbose:      true,
 	}
@@ -48,6 +51,15 @@ func TestBuildWorkflowRunSuccess(t *testing.T) {
 	}
 	if got.Env != req.Env {
 		t.Fatalf("env mismatch: %s", got.Env)
+	}
+	if got.Mode != req.Mode {
+		t.Fatalf("mode mismatch: %s", got.Mode)
+	}
+	if got.OutputDir != req.OutputDir {
+		t.Fatalf("output dir mismatch: %s", got.OutputDir)
+	}
+	if got.Parameters["ParamA"] != "value" {
+		t.Fatalf("parameters mismatch")
 	}
 	if !got.NoCache || !got.Verbose {
 		t.Fatalf("expected no-cache and verbose to be true")

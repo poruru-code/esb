@@ -60,6 +60,14 @@ func defaultGeneratorParameters() map[string]string {
 	}
 }
 
+func toAnyMap(values map[string]string) map[string]any {
+	out := make(map[string]any, len(values))
+	for key, value := range values {
+		out[key] = value
+	}
+	return out
+}
+
 func brandingImageLabels(project, env string) map[string]string {
 	labels := map[string]string{
 		compose.ESBManagedLabel: "true",

@@ -24,7 +24,6 @@ run = [
   "uv sync --all-extras",
   "lefthook install",
   "mise run build-cli",
-  "bash -lc 'source ./config/defaults.env && ${CLI_CMD} config set-repo .'",
   "mise run setup:certs",
 ]
 
@@ -44,4 +43,3 @@ run = [
 description = "Watch and rebuild CLI on changes"
 dir = "cli"
 run = "air"
-

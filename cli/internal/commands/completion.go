@@ -1,6 +1,6 @@
 // Where: cli/internal/commands/completion.go
-// What: Shell completion command implementation.
-// Why: Provide tab completion for bash, zsh, and fish.
+// What: Shell completion command implementation (build-only CLI).
+// Why: Provide basic subcommand completion for bash, zsh, and fish.
 package commands
 
 import (
@@ -25,6 +25,80 @@ type (
 )
 
 func runCompletionBash(cli CLI, out io.Writer) int {
+	commands, subcommands := collectCompletionCommands(cli)
+
+	var caseParts []string
+	for cmd, subs := range subcommands {
+		part := fmt.Sprintf(`        %s)
+            COMPREPLY=( $(compgen -W "%s" -- "${cur}") )
+            return 0
+            ;;`, cmd, strings.Join(subs, " "))
+		caseParts = append(caseParts, part)
+	}
+
+	script := `_esb_completion() {
+    local cur cmd
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    cmd="${COMP_WORDS[1]}"
+
+    case "${cmd}" in
+%s
+    esac
+
+    if [[ ${COMP_CWORD} -le 1 ]]; then
+        COMPREPLY=( $(compgen -W "%s" -- "${cur}") )
+        return 0
+    fi
+}
+complete -F _esb_completion esb
+`
+	writeString(out, fmt.Sprintf(script, strings.Join(caseParts, "\n"), strings.Join(commands, " ")))
+	return 0
+}
+
+func runCompletionZsh(cli CLI, out io.Writer) int {
+	commands, subcommands := collectCompletionCommands(cli)
+
+	script := `#compdef esb
+_esb_completion() {
+  local -a commands
+  commands=(%s)
+  local cmd="${words[2]}"
+
+  if [[ $CURRENT -eq 2 ]]; then
+    _values 'commands' ${commands[@]}
+    return
+  fi
+
+%s
+}
+_esb_completion "$@"
+`
+
+	var subBlocks strings.Builder
+	for cmd, subs := range subcommands {
+		subBlocks.WriteString(fmt.Sprintf(`  if [[ "${cmd}" == "%s" && $CURRENT -eq 3 ]]; then
+    _values '%s' %s
+    return
+  fi
+`, cmd, cmd, strings.Join(subs, " ")))
+	}
+
+	writeString(out, fmt.Sprintf(script, strings.Join(commands, " "), subBlocks.String()))
+	return 0
+}
+
+func runCompletionFish(cli CLI, out io.Writer) int {
+	commands, subcommands := collectCompletionCommands(cli)
+	writeLine(out, fmt.Sprintf("complete -c esb -f -a \"%s\"", strings.Join(commands, " ")))
+	for cmd, subs := range subcommands {
+		writeLine(out, fmt.Sprintf("complete -c esb -f -n \"__fish_seen_subcommand_from %s\" -a \"%s\"", cmd, strings.Join(subs, " ")))
+	}
+	return 0
+}
+
+func collectCompletionCommands(cli CLI) ([]string, map[string][]string) {
 	parser, _ := kong.New(&cli)
 
 	var commands []string
@@ -43,246 +117,11 @@ func runCompletionBash(cli CLI, out io.Writer) int {
 				}
 				subs = append(subs, sub.Name)
 			}
-			subcommands[node.Name] = subs
+			if len(subs) > 0 {
+				subcommands[node.Name] = subs
+			}
 		}
 	}
 
-	// Build case statements for subcommands
-	var caseParts []string
-	for cmd, subs := range subcommands {
-		part := fmt.Sprintf(`        %s)
-            COMPREPLY=( $(compgen -W "%s" -- "${cur}") )
-            return 0
-            ;;`, cmd, strings.Join(subs, " "))
-		caseParts = append(caseParts, part)
-	}
-
-	script := `_esb_find_index() {
-    local target="$1"
-    local i
-    for ((i=1; i<${#COMP_WORDS[@]}; i++)); do
-        if [[ "${COMP_WORDS[i]}" == "${target}" ]]; then
-            echo "${i}"
-            return 0
-        fi
-    done
-    return 1
-}
-_esb_has_positional_after() {
-    local start="$1"
-    local i word
-    for ((i=start; i<COMP_CWORD; i++)); do
-        word="${COMP_WORDS[i]}"
-        if [[ -n "${word}" && "${word}" != -* ]]; then
-            return 0
-        fi
-    done
-    return 1
-}
-_esb_completion() {
-    local cur prev opts cmd sub cmd_index sub_index arg_index
-    COMPREPLY=()
-    cur="${COMP_WORDS[COMP_CWORD]}"
-    prev="${COMP_WORDS[COMP_CWORD-1]}"
-    cmd="${COMP_WORDS[1]}"
-    sub="${COMP_WORDS[2]}"
-    opts="%s"
-
-    if [[ "${prev}" == "--env" || "${prev}" == "-e" ]]; then
-        COMPREPLY=( $(compgen -W "$(_esb_complete env)" -- "${cur}") )
-        return 0
-    fi
-    if [[ "${cmd}" == "env" && ( "${sub}" == "use" || "${sub}" == "remove" ) ]]; then
-        cmd_index=$(_esb_find_index "env") || cmd_index=1
-        sub_index=$((cmd_index+1))
-        arg_index=$((sub_index+1))
-        if _esb_has_positional_after "${arg_index}"; then
-            return 0
-        fi
-        COMPREPLY=( $(compgen -W "$(_esb_complete env)" -- "${cur}") )
-        return 0
-    fi
-    if [[ "${cmd}" == "project" && ( "${sub}" == "use" || "${sub}" == "remove" ) ]]; then
-        cmd_index=$(_esb_find_index "project") || cmd_index=1
-        sub_index=$((cmd_index+1))
-        arg_index=$((sub_index+1))
-        if _esb_has_positional_after "${arg_index}"; then
-            return 0
-        fi
-        COMPREPLY=( $(compgen -W "$(_esb_complete project)" -- "${cur}") )
-        return 0
-    fi
-    if [[ "${cmd}" == "logs" ]]; then
-        cmd_index=$(_esb_find_index "logs") || cmd_index=1
-        arg_index=$((cmd_index+1))
-        if _esb_has_positional_after "${arg_index}"; then
-            return 0
-        fi
-        COMPREPLY=( $(compgen -W "$(_esb_complete service)" -- "${cur}") )
-        return 0
-    fi
-    if [[ "${cmd}" == "env" && "${sub}" == "var" ]]; then
-        cmd_index=$(_esb_find_index "env") || cmd_index=1
-        sub_index=$((cmd_index+1))
-        arg_index=$((sub_index+1))
-        if _esb_has_positional_after "${arg_index}"; then
-            return 0
-        fi
-        COMPREPLY=( $(compgen -W "$(_esb_complete service)" -- "${cur}") )
-        return 0
-    fi
-
-    case "${prev}" in
-%s
-    esac
-
-    COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-}
-_esb_complete() {
-    command esb __complete "$1" 2>/dev/null
-}
-complete -F _esb_completion esb
-`
-	writeString(out, fmt.Sprintf(script, strings.Join(commands, " "), strings.Join(caseParts, "\n")))
-	return 0
-}
-
-func runCompletionZsh(cli CLI, out io.Writer) int {
-	parser, _ := kong.New(&cli)
-	var commands []string
-	for _, node := range parser.Model.Children {
-		if node.Hidden || strings.HasPrefix(node.Name, "__") {
-			continue
-		}
-		commands = append(commands, node.Name)
-	}
-
-	script := `#compdef esb
-_esb_find_index() {
-    local target="$1"
-    local i
-    for ((i=1; i<${#words[@]}; i++)); do
-        if [[ "${words[i]}" == "${target}" ]]; then
-            echo "${i}"
-            return 0
-        fi
-    done
-    return 1
-}
-_esb_has_positional_after() {
-    local start="$1"
-    local i word
-    for ((i=start; i<CURRENT; i++)); do
-        word="${words[i]}"
-        if [[ -n "${word}" && "${word}" != -* ]]; then
-            return 0
-        fi
-    done
-    return 1
-}
-_esb_completion() {
-    local -a commands
-    commands=(
-        %s
-    )
-    local prev="${words[$CURRENT-1]}"
-    local cmd="${words[2]}"
-    local sub="${words[3]}"
-    local cmd_index sub_index arg_index
-    if [[ "${prev}" == "--env" || "${prev}" == "-e" ]]; then
-        _values 'environments' ${(f)"$(command esb __complete env 2>/dev/null)"}
-        return
-    fi
-    if [[ "${cmd}" == "env" && ( "${sub}" == "use" || "${sub}" == "remove" ) ]]; then
-        cmd_index=$(_esb_find_index "env") || cmd_index=2
-        sub_index=$((cmd_index+1))
-        arg_index=$((sub_index+1))
-        if _esb_has_positional_after "${arg_index}"; then
-            return
-        fi
-        _values 'environments' ${(f)"$(command esb __complete env 2>/dev/null)"}
-        return
-    fi
-    if [[ "${cmd}" == "project" && ( "${sub}" == "use" || "${sub}" == "remove" ) ]]; then
-        cmd_index=$(_esb_find_index "project") || cmd_index=2
-        sub_index=$((cmd_index+1))
-        arg_index=$((sub_index+1))
-        if _esb_has_positional_after "${arg_index}"; then
-            return
-        fi
-        _values 'projects' ${(f)"$(command esb __complete project 2>/dev/null)"}
-        return
-    fi
-    if [[ "${cmd}" == "logs" ]]; then
-        cmd_index=$(_esb_find_index "logs") || cmd_index=2
-        arg_index=$((cmd_index+1))
-        if _esb_has_positional_after "${arg_index}"; then
-            return
-        fi
-        _values 'services' ${(f)"$(command esb __complete service 2>/dev/null)"}
-        return
-    fi
-    if [[ "${cmd}" == "env" && "${sub}" == "var" ]]; then
-        cmd_index=$(_esb_find_index "env") || cmd_index=2
-        sub_index=$((cmd_index+1))
-        arg_index=$((sub_index+1))
-        if _esb_has_positional_after "${arg_index}"; then
-            return
-        fi
-        _values 'services' ${(f)"$(command esb __complete service 2>/dev/null)"}
-        return
-    fi
-    _describe 'commands' commands
-}
-compdef _esb_completion esb
-`
-	writeString(out, fmt.Sprintf(script, strings.Join(commands, "\n        ")))
-	return 0
-}
-
-func runCompletionFish(cli CLI, out io.Writer) int {
-	parser, _ := kong.New(&cli)
-	writeLine(out, "function __esb_has_positional_after")
-	writeLine(out, "    set -l cmd $argv[1]")
-	writeLine(out, "    set -l sub $argv[2]")
-	writeLine(out, "    set -l tokens (commandline -opc)")
-	writeLine(out, "    set -l current (commandline -ct)")
-	writeLine(out, "    if test (count $tokens) -gt 0")
-	writeLine(out, "        if test \"$tokens[-1]\" = \"$current\"")
-	writeLine(out, "            set -e tokens[-1]")
-	writeLine(out, "        end")
-	writeLine(out, "    end")
-	writeLine(out, "    set -l found 0")
-	writeLine(out, "    for tok in $tokens")
-	writeLine(out, "        if test $found -eq 0")
-	writeLine(out, "            if test \"$tok\" = \"$cmd\"")
-	writeLine(out, "                set found 1")
-	writeLine(out, "                if test -z \"$sub\"")
-	writeLine(out, "                    set found 2")
-	writeLine(out, "                end")
-	writeLine(out, "            end")
-	writeLine(out, "        else if test $found -eq 1")
-	writeLine(out, "            if test \"$tok\" = \"$sub\"")
-	writeLine(out, "                set found 2")
-	writeLine(out, "            end")
-	writeLine(out, "        else")
-	writeLine(out, "            if not string match -r '^-' -- \"$tok\"")
-	writeLine(out, "                return 0")
-	writeLine(out, "            end")
-	writeLine(out, "        end")
-	writeLine(out, "    end")
-	writeLine(out, "    return 1")
-	writeLine(out, "end")
-	for _, node := range parser.Model.Children {
-		if node.Hidden || strings.HasPrefix(node.Name, "__") {
-			continue
-		}
-		writeLine(out, fmt.Sprintf("complete -c esb -f -a %s -d '%s'", node.Name, node.Help))
-	}
-	writeLine(out, "complete -c esb -f -l env -s e -r -a '(esb __complete env)' -d 'Environment'")
-	writeLine(out, "complete -c esb -f -n '__fish_seen_subcommand_from env; and __fish_seen_subcommand_from use remove; and not __esb_has_positional_after env use; and not __esb_has_positional_after env remove' -a '(esb __complete env)'")
-	writeLine(out, "complete -c esb -f -n '__fish_seen_subcommand_from project; and __fish_seen_subcommand_from use remove; and not __esb_has_positional_after project use; and not __esb_has_positional_after project remove' -a '(esb __complete project)'")
-	writeLine(out, "complete -c esb -f -n '__fish_seen_subcommand_from logs; and not __esb_has_positional_after logs \"\"' -a '(esb __complete service)'")
-	writeLine(out, "complete -c esb -f -n '__fish_seen_subcommand_from env; and __fish_seen_subcommand_from var; and not __esb_has_positional_after env var' -a '(esb __complete service)'")
-	return 0
+	return commands, subcommands
 }

@@ -24,20 +24,6 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	templatePath := filepath.Join(projectDir, "template.yaml")
 	writeTestFile(t, templatePath, "Resources: {}")
 
-	cfg := config.GeneratorConfig{
-		App: config.AppConfig{Name: "demo"},
-		Environments: config.Environments{
-			{Name: "staging", Mode: "containerd"},
-		},
-		Paths: config.PathsConfig{
-			SamTemplate: "template.yaml",
-			OutputDir:   meta.OutputDir + "/",
-		},
-	}
-	if err := config.SaveGeneratorConfig(filepath.Join(projectDir, "generator.yml"), cfg); err != nil {
-		t.Fatalf("write generator.yml: %v", err)
-	}
-
 	repoRoot := projectDir
 	if err := os.MkdirAll(filepath.Join(repoRoot, "compose"), 0o755); err != nil {
 		t.Fatal(err)
@@ -65,6 +51,7 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		outputDir := cfg.Paths.OutputDir
 		writeTestFile(t, filepath.Join(outputDir, "config", "functions.yml"), "functions: {}")
 		writeTestFile(t, filepath.Join(outputDir, "config", "routing.yml"), "routes: []")
+		writeTestFile(t, filepath.Join(outputDir, "config", "resources.yml"), "resources: {}")
 		writeTestFile(t, filepath.Join(outputDir, "functions", "hello", "Dockerfile"), "FROM scratch\n")
 		return []FunctionSpec{{Name: "hello"}}, nil
 	}
@@ -98,8 +85,10 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	setupRootCA(t)
 	request := BuildRequest{
 		ProjectDir:   projectDir,
+		ProjectName:  "demo-staging",
 		TemplatePath: templatePath,
 		Env:          "staging",
+		Mode:         "containerd",
 	}
 	if err := builder.Build(request); err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -124,10 +113,10 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	if gotOpts.Tag != "staging" {
 		t.Fatalf("unexpected tag: %s", gotOpts.Tag)
 	}
-	if gotOpts.Parameters["S3_ENDPOINT_HOST"] != "s3-storage" {
+	if gotCfg.Parameters["S3_ENDPOINT_HOST"] != "s3-storage" {
 		t.Fatalf("missing S3_ENDPOINT_HOST parameter")
 	}
-	if gotOpts.Parameters["DYNAMODB_ENDPOINT_HOST"] != "database" {
+	if gotCfg.Parameters["DYNAMODB_ENDPOINT_HOST"] != "database" {
 		t.Fatalf("missing DYNAMODB_ENDPOINT_HOST parameter")
 	}
 
@@ -205,20 +194,6 @@ func TestGoBuilderBuildFirecrackerBuildsServiceImages(t *testing.T) {
 	templatePath := filepath.Join(projectDir, "template.yaml")
 	writeTestFile(t, templatePath, "Resources: {}")
 
-	cfg := config.GeneratorConfig{
-		App: config.AppConfig{Name: "demo"},
-		Environments: config.Environments{
-			{Name: "prod", Mode: "firecracker"},
-		},
-		Paths: config.PathsConfig{
-			SamTemplate: "template.yaml",
-			OutputDir:   meta.OutputDir + "/",
-		},
-	}
-	if err := config.SaveGeneratorConfig(filepath.Join(projectDir, "generator.yml"), cfg); err != nil {
-		t.Fatalf("write generator.yml: %v", err)
-	}
-
 	repoRoot := projectDir
 	if err := os.MkdirAll(filepath.Join(repoRoot, "compose"), 0o755); err != nil {
 		t.Fatal(err)
@@ -244,6 +219,7 @@ func TestGoBuilderBuildFirecrackerBuildsServiceImages(t *testing.T) {
 		outputDir := cfg.Paths.OutputDir
 		writeTestFile(t, filepath.Join(outputDir, "config", "functions.yml"), "functions: {}")
 		writeTestFile(t, filepath.Join(outputDir, "config", "routing.yml"), "routes: []")
+		writeTestFile(t, filepath.Join(outputDir, "config", "resources.yml"), "resources: {}")
 		writeTestFile(t, filepath.Join(outputDir, "functions", "hello", "Dockerfile"), "FROM scratch\n")
 		return []FunctionSpec{{Name: "hello"}}, nil
 	}
@@ -269,8 +245,10 @@ func TestGoBuilderBuildFirecrackerBuildsServiceImages(t *testing.T) {
 
 	request := BuildRequest{
 		ProjectDir:   projectDir,
+		ProjectName:  "demo-prod",
 		TemplatePath: templatePath,
 		Env:          "prod",
+		Mode:         "firecracker",
 	}
 	if err := builder.Build(request); err != nil {
 		t.Fatalf("expected no error, got %v", err)

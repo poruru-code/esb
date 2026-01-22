@@ -16,6 +16,9 @@ type BuildRequest struct {
 	Context      state.Context
 	Env          string
 	TemplatePath string
+	Mode         string
+	OutputDir    string
+	Parameters   map[string]string
 	NoCache      bool
 	Verbose      bool
 }
@@ -50,6 +53,9 @@ func (w BuildWorkflow) Run(req BuildRequest) error {
 		ProjectName:  req.Context.ComposeProject,
 		TemplatePath: req.TemplatePath,
 		Env:          req.Env,
+		Mode:         req.Mode,
+		OutputDir:    req.OutputDir,
+		Parameters:   req.Parameters,
 		NoCache:      req.NoCache,
 		Verbose:      req.Verbose,
 	}

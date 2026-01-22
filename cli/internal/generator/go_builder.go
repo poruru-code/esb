@@ -56,6 +56,9 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	if request.Env == "" {
 		return fmt.Errorf("env is required")
 	}
+	if strings.TrimSpace(request.Mode) == "" {
+		return fmt.Errorf("mode is required")
+	}
 	if b.Runner == nil {
 		return fmt.Errorf("runner is nil")
 	}
@@ -77,37 +80,33 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		return fmt.Errorf("template not found: %w", err)
 	}
 
-	generatorPath := filepath.Join(request.ProjectDir, "generator.yml")
-	if _, err := os.Stat(generatorPath); err != nil {
-		return fmt.Errorf("generator.yml not found: %w", err)
+	cfg := config.GeneratorConfig{
+		App: config.AppConfig{
+			Name: strings.TrimSpace(request.ProjectName),
+		},
+		Paths: config.PathsConfig{
+			SamTemplate: templatePath,
+			OutputDir:   strings.TrimSpace(request.OutputDir),
+		},
 	}
-
-	cfg, err := config.LoadGeneratorConfig(generatorPath)
-	if err != nil {
-		return fmt.Errorf("read generator.yml: %w", err)
-	}
-	if !cfg.Environments.Has(request.Env) {
-		return fmt.Errorf("environment not registered: %s", request.Env)
-	}
-	applyModeFromConfig(cfg, request.Env)
+	applyModeFromRequest(request.Mode)
 
 	repoRoot, err := b.FindRepoRoot(request.ProjectDir)
 	if err != nil {
 		return err
 	}
 
-	mode, _ := cfg.Environments.Mode(request.Env)
+	mode := strings.TrimSpace(request.Mode)
 	registry := resolveRegistryConfig(mode)
 	imageTag := resolveImageTag(request.Env)
 
-	cfg.Paths.SamTemplate = templatePath
 	outputBase, err := resolveOutputDir(cfg.Paths.OutputDir, filepath.Dir(templatePath))
 	if err != nil {
 		return err
 	}
 	cfg.Paths.OutputDir = filepath.Join(outputBase, request.Env)
 
-	composeProject := request.ProjectName
+	composeProject := strings.TrimSpace(request.ProjectName)
 	if composeProject == "" {
 		brandName := strings.ToLower(cfg.App.Name)
 		if brandName == "" {
@@ -176,12 +175,16 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		fmt.Print("➜ Generating files... ")
 	}
 
+	cfg.Parameters = toAnyMap(defaultGeneratorParameters())
+	for key, value := range request.Parameters {
+		cfg.Parameters[key] = value
+	}
 	functions, err := b.Generate(cfg, GenerateOptions{
 		ProjectRoot:      repoRoot,
 		RegistryExternal: registry.External,
 		RegistryInternal: registry.Internal,
 		Tag:              imageTag,
-		Parameters:       defaultGeneratorParameters(),
+		Parameters:       request.Parameters,
 		Verbose:          request.Verbose,
 	})
 	if err != nil {

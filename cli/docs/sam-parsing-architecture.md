@@ -32,14 +32,14 @@ graph TD
     E --> F[generator: Spec 生成 + デフォルト適用]
     F --> G[manifest.ResourcesSpec]
 
-    P1[CLI --parameter] --> P_MERGE{パラメータ統合}
+    P1[build 入力値（対話）] --> P_MERGE{パラメータ統合}
     P2[template.yaml の Parameters.Default] --> P_MERGE
     P_MERGE --> D
 ```
 
 ## パラメータの優先順位
-ESB はテンプレート内の `Parameters.Default` と CLI 引数の値を統合します。
-- 優先順位は **CLI > テンプレート** です。
+ESB はテンプレート内の `Parameters.Default` と build 時の入力値を統合します。
+- 優先順位は **build 入力 > テンプレート** です。
 
 ## Intrinsic 解決（ESB 仕様）
 Intrinsic の解決は ESB 側の実装に閉じた仕様です。`aws-sam-parser-go` は「解決の仕組み」だけを提供し、具体的な解決ルールは ESB が決めます。

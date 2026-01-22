@@ -9,6 +9,9 @@ type BuildRequest struct {
 	ProjectName  string
 	TemplatePath string
 	Env          string
+	Mode         string
+	OutputDir    string
+	Parameters   map[string]string
 	NoCache      bool
 	Verbose      bool
 }
