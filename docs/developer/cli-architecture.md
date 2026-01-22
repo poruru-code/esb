@@ -1,18 +1,18 @@
-# `esb` CLI アーキテクチャ
+# `esb` CLI アーキテクチャ（build-only）
 
-`esb` CLI (`cli/cmd/esb`) とジェネレータ (`cli/internal/generator`) は、SAM テンプレート → Compose 運用の全工程を完結させるための基盤です。この文書では CLI 利用者向けの設計、処理フロー、スキーマ追加時の手順を収録しています。
+`esb` CLI (`cli/cmd/esb`) とジェネレータ (`cli/internal/generator`) は、SAM テンプレート → Docker ビルドまでを完結させるための基盤です。この文書では build-only 構成の設計、処理フロー、スキーマ追加時の手順を収録しています。
 
 ## コンポーネント概要
 
-- `cli/cmd/esb`: `kong` ベースの CLI エントリポイント。`commands.Run` を呼び出して依存 (`Dependencies`) を注入し、`build`/`up`/`down`/`logs`/`stop`/`prune`/`env`/`project` などのコマンドを実行します。
-- `cli/internal/commands`: CLI アダプタ。`resolveCommandContext` による状態解決、`.env` の読み込みなどを担い、`workflows` へ DTO を渡します。依存は `Dependencies` のコマンド別構造体で注入します。
+- `cli/cmd/esb`: `kong` ベースの CLI エントリポイント。`commands.Run` を呼び出して依存 (`Dependencies`) を注入し、`build`/`completion`/`version` を実行します。
+- `cli/internal/commands`: CLI アダプタ。引数・対話入力の解決（`template`/`env`/`mode`/`output`/`env-file`/SAM Parameters）を担い、`workflows` へ DTO を渡します。
 - `cli/internal/interaction`: TTY 判定とプロンプト入力（`Prompter`, 確認ダイアログ）を提供します。
-- `cli/internal/helpers`: `RuntimeEnvApplier` や `CredentialManager` などの共通アダプタを提供します。
-- `cli/internal/ports`: ワークフローが使うインタフェース群（Builder/Upper/Provisioner/RuntimeEnvApplier/UserInterface/DetectorFactory など）。
-- `cli/internal/workflows`: ビジネスロジックのオーケストレーション（`build`/`up`/`down`/`logs`/`stop`/`prune`/`env`/`project` を移行済み）。
-- `cli/internal/generator`: Parser/Renderer で `template.yaml` を `functions.yml`/`routing.yml`・Dockerfile に変換し、`go_builder` で Docker イメージや Compose 設定まで進みます。
-- `cli/internal/compose`: `docker compose` を呼び出すユーティリティで、`ResolveComposeFiles` により `docker-compose.yml` + mode 固有ファイルを選びます。
-- `cli/internal/state`: `generator.yml` や `global_config` を読み込んで `Context` を管理します。`ESB_` 環境変数の適用は `cli/internal/helpers` の `RuntimeEnvApplier` が担います。
+- `cli/internal/helpers`: `RuntimeEnvApplier` などの共通アダプタを提供します。
+- `cli/internal/ports`: ワークフローが使うインタフェース群（Builder/RuntimeEnvApplier/UserInterface）。
+- `cli/internal/workflows`: ビジネスロジックのオーケストレーション（`build` のみ）。
+- `cli/internal/generator`: Parser/Renderer で `template.yaml` を `functions.yml`/`routing.yml`・Dockerfile に変換し、`go_builder` で Docker イメージのビルドまで進みます。
+- `cli/internal/compose`: `docker compose` を呼び出すユーティリティで、コントロールプレーンのビルドで利用します。
+- `cli/internal/state`: ビルド時のコンテキスト構築に必要な最低限の状態を提供します（`generator.yml` は使用しません）。
 
 ## クラス図
 
@@ -22,30 +22,21 @@ classDiagram
         +Run
     }
     class Commands {
-        +runBuild/runUp (adapter)
-        +runDown (legacy)
+        +runBuild (adapter)
     }
     class Workflows {
         +BuildWorkflow
-        +UpWorkflow
-        +DownWorkflow
-        +LogsWorkflow
-        +StopWorkflow
-        +PruneWorkflow
-        +EnvList/EnvAdd/EnvUse/EnvRemove
-        +ProjectList/ProjectRecent/ProjectUse/ProjectRemove/ProjectRegister
     }
     class Ports {
-        +Builder/Upper/Provisioner
-        +UserInterface/RuntimeEnvApplier
+        +Builder
+        +UserInterface
+        +RuntimeEnvApplier
     }
     class Generator {
         +GenerateFiles
     }
     class Compose {
         +Build
-        +Up
-        +Logs
     }
     class State
     CLI --> Commands
@@ -60,41 +51,21 @@ classDiagram
 
 ```mermaid
 flowchart TD
-    A[esb build --env <env>] --> B[resolve generator.yml & template]
+    A[esb build] --> B[resolve template/env/mode/output]
     B --> C[BuildWorkflow]
     C --> D[Builder port -> generator + docker build]
-    D --> E[esb up --env <env>]
-    E --> F[UpWorkflow]
-    F --> G[Upper/Provisioner/Waiter ports]
-    G --> H[esb logs / stop / prune]
-    H --> I[docker compose logs/stop/down]
 ```
 
 ## Workflows / Ports の概要
 
-`build`/`up`/`down`/`logs`/`stop`/`prune`/`env`/`project` は `workflows` へ移行済みです。CLI アダプタは入力収集とプロンプト処理のみを担当し、ワークフローは `ports` を通じて Builder/Upper/Provisioner/DetectorFactory などを呼び出します。出力は `ports.UserInterface` に統一し、現状は従来出力互換の `LegacyUI` を利用しています。
+`build` は `workflows` へ移行済みです。CLI アダプタは入力収集とプロンプト処理のみを担当し、ワークフローは `ports` を通じて Builder/RuntimeEnvApplier などを呼び出します。出力は `ports.UserInterface` に統一し、現状は従来出力互換の `LegacyUI` を利用しています。
 
 ### Dependencies の構成
 
-`Dependencies` は共有フィールドとコマンド専用束に分割されています。
+`Dependencies` は共有フィールドとビルド専用束に分割されています。
 
-- 共有: `ProjectDir` / `Out` / `DetectorFactory` / `Now` / `Prompter` / `RepoResolver`
-- コマンド束: `Build` / `Up` / `Down` / `Logs` / `Stop` / `Prune`
-
-`env/project` は `DetectorFactory` と config ローダを使い、`workflows` で generator.yml / global config の更新を行います。
-
-## generator.yml とステートマシン
-
-`generator.yml` は `app.name`, `app.tag`, `app.last_env`, `PathsConfig`, `Environments` を含みます。CLI は次のレイヤで状態を解決します。
-
-1. Bootstrap: `~/.esb/config.yaml` を確実に作成 (`projects` + `last_used` を保持)。
-2. Project 選択: `--template` > `ESB_PROJECT` > `projects.last_used`。複数ある場合は対話型セレクタを表示。
-3. Env 選択: `--env` > `ESB_ENV` > `app.last_env`。複数ある場合は対話型セレクタを表示。
-4. Detector: `resolveCommandContext` で `Context` を解決し、`RuntimeEnvApplier` で環境変数を適用後、各コマンドへ連携。
-
-`esb project use` は `projects[*].last_used` を更新し、`esb env use` は `app.last_env` と `projects[*].last_used` を更新します。`export` 行は stdout、メッセージは stderr に出力されます。
-
-`ESB_PROJECT` / `ESB_ENV` が不正な場合は対話で `unset` を促し、非対話環境では `--force` 指定時のみ自動 `unset` します。
+- 共有: `Out` / `Prompter` / `RepoResolver`
+- コマンド束: `Build`
 
 ## Schema 追加・更新手順
 
@@ -108,20 +79,6 @@ flowchart TD
 
 - `cd cli && go test ./...` でユニットを通す。`cli/internal/generator` への `validator_test` を含める。  
 - `uv run python e2e/run_tests.py --parallel --reset` で `e2e-docker`/`e2e-containerd` 両プロファイルが通るかを確認。  
-- `esb build --env <env>` → `esb up --env <env>` → `esb logs/stop/prune` の組み合わせで `docker compose` の状態遷移が正しいか確認。
-
-## ステートマシン
-
-CLI の状態遷移は「Bootstrap → Project → Env → Detector」の四層モデルで整理します。Detector レイヤは既存の `State` (running/stopped 等) を維持し、選択前の状態遷移は次の通りです。
-
-```mermaid
-stateDiagram-v2
-    [*] --> NoProject
-    NoProject --> ProjectSelected: esb project add / esb project use
-    ProjectSelected --> EnvSelected: esb env use
-    EnvSelected --> EnvSelected: esb env use (switch)
-```
-
-Detector レイヤは `cli/internal/commands/command_context.go` を起点に `resolveCommandContext` が解決し、Compose 操作へ引き継ぎます。
+- `esb build --env <env>` のみで、生成・ビルドが完結することを確認。
 
 このドキュメントは `esb` CLI の開発者向けに、クラス図・処理フロー・スキーマ更新手順をまとめたものです。常に `cli/internal/generator`、`cli/internal/compose`、`cli/internal/state` が同期していることを意識して変更を加えてください。

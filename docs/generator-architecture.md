@@ -9,7 +9,7 @@
 
 ```mermaid
 flowchart TD
-    User["Developer"] -->|"esb init / build"| CLI["CLI (`cli/cmd/esb`)"]
+    User["Developer"] -->|"esb build"| CLI["CLI (`cli/cmd/esb`)"]
     
     CLI --> Parser["Parser (`cli/internal/generator/parser.go`)"]
     
@@ -32,7 +32,7 @@ flowchart TD
 ### コンポーネント
 
 1.  **CLI (`cli/cmd/esb`)**  
-    `esb` CLI がユーザーインターフェースを提供し、`esb init`, `esb build`, `esb up` などのコマンドを通じて `cli/internal/generator` や Compose 制御をオーケストレートします。
+    `esb` CLI がユーザーインターフェースを提供し、`esb build` を通じて `cli/internal/generator` と Docker ビルドをオーケストレートします。
 
 2.  **Parser (`cli/internal/generator/parser.go`) → Phase 1**  
     SAM テンプレートを解析し、中間設定ファイル（`routing.yml`, `functions.yml`）を組み立てます。主な役割は以下です：  
@@ -46,20 +46,10 @@ flowchart TD
 
 ## 生成プロセス詳細
 
-### 1. 初期化 (`esb init`)
-
-プロジェクト開始時に `esb init` を実行すると、SAM テンプレートのパラメータ/出力先などを記した `generator.yml` が生成されます。
-
-- **入力**: ユーザー指定（対話または CLI 引数）、`template.yaml` のパラメータ  
-- **出力**: `generator.yml`  
-  - SAM パラメータ値（例: `Prefix`, `ServiceVersion`）  
-  - Docker イメージタグ（`app.tag`）  
-  - 出力ディレクトリパス（デフォルト `.esb/`。`paths.output_dir` で調整可能）
-
-### 2. ビルドフェーズ (`esb build`)
+### ビルドフェーズ (`esb build`)
 
 #### Phase 1: 設定生成  
-`parser.go` が `template.yaml` と `generator.yml` を読み、最終的な `functions.yml`, `routing.yml` を `output_dir/config/` に書き出します。
+`parser.go` が `template.yaml` を読み、最終的な `functions.yml`, `routing.yml` を `output_dir/config/` に書き出します。
 
 **出力例 (`routing.yml`)**:
 ```yaml

@@ -42,11 +42,11 @@ E2Eランナーの手動オーケストレーションへの移行（フェー�
     | `IMAGE_TAG` | 設定あり | 設定あり | ✅ 一致 |
     | `CONTAINER_REGISTRY` | Default: `registry:5010` | Default: `registry:5010` | ✅ 一致 |
     | `CONFIG_DIR` | Stagingが存在すれば設定 | 設定あり (リファクタリングで解消) | ✅ 一致 |
-    | `GATEWAY_FUNCTIONS_YML` | `generator.yml` から読み込み | 実装あり (リファクタリングで解消) | ✅ 一致 |
+    | `GATEWAY_FUNCTIONS_YML` | 参照なし（generator.yml 不使用） | 実装なし（削除済み） | ✅ 一致 |
     | `NO_PROXY` | 補完ロジックあり | 同等の補完ロジックあり | ✅ 一致 |
 
     > [!NOTE]
-    > **修正済み**: `test_env.py` に `CONFIG_DIR` および `GATEWAY_FUNCTIONS_YML` の検証を追加し、`env.py` に不足していたロジックを補填しました。
+    > **修正済み**: `test_env.py` に `CONFIG_DIR` の検証を追加し、`env.py` に不足していたロジックを補填しました。`GATEWAY_FUNCTIONS_YML` は generator.yml 廃止に伴い対象外です。
 
 ### ラウンド 4: セキュリティとエラーハンドリング
 - **ステータス**: ✅ **合格**
