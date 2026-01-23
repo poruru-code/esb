@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
 	"github.com/poruru/edge-serverless-box/cli/internal/staging"
@@ -57,7 +56,7 @@ func applyRuntimeEnv(ctx state.Context, resolver func(string) (string, error)) {
 	}
 	imagePrefix := os.Getenv(constants.EnvImagePrefix)
 	if imagePrefix == "" {
-		imagePrefix = ctx.ComposeProject
+		imagePrefix = meta.Slug
 	}
 	setEnvIfEmpty(constants.EnvImagePrefix, imagePrefix)
 
@@ -65,7 +64,6 @@ func applyRuntimeEnv(ctx state.Context, resolver func(string) (string, error)) {
 	applySubnetDefaults(env)
 	applyRegistryDefaults(ctx.Mode)
 
-	_ = applyGeneratorConfigEnv(ctx.GeneratorPath)
 	applyConfigDirEnv(ctx, resolver)
 	applyBrandingEnv(ctx)
 	applyProxyDefaults()
@@ -213,15 +211,6 @@ func applyProxyDefaults() {
 	sync("HTTPS_PROXY", "https_proxy")
 }
 
-// applyEnvironmentDefaults is a legacy helper. New code should use applyRuntimeEnv.
-func applyEnvironmentDefaults(envName, mode, composeProject string) {
-	applyRuntimeEnv(state.Context{
-		Env:            envName,
-		Mode:           mode,
-		ComposeProject: composeProject,
-	}, config.ResolveRepoRoot)
-}
-
 // applyPortDefaults sets default port environment variables with an offset
 // calculated from a hash of the environment name. Skips already-set variables.
 // applyPortDefaults sets all registered port environment variables to "0" if they
@@ -291,33 +280,6 @@ func hashMod(value string, mod int64) int {
 	sum := md5.Sum([]byte(value))
 	hash := new(big.Int).SetBytes(sum[:])
 	return int(new(big.Int).Mod(hash, big.NewInt(mod)).Int64())
-}
-
-// applyGeneratorConfigEnv reads the generator.yml configuration and sets
-// environment variables for function/routing paths and custom parameters.
-func applyGeneratorConfigEnv(generatorPath string) error {
-	cfg, err := config.LoadGeneratorConfig(generatorPath)
-	if err != nil {
-		return err
-	}
-
-	if strings.TrimSpace(cfg.Paths.FunctionsYml) != "" {
-		_ = os.Setenv(constants.EnvGatewayFunctionsYml, cfg.Paths.FunctionsYml)
-	}
-	if strings.TrimSpace(cfg.Paths.RoutingYml) != "" {
-		_ = os.Setenv(constants.EnvGatewayRoutingYml, cfg.Paths.RoutingYml)
-	}
-
-	for key, value := range cfg.Parameters {
-		if strings.TrimSpace(key) == "" || value == nil {
-			continue
-		}
-		switch v := value.(type) {
-		case string, bool, int, int64, int32, float64, float32, uint, uint64, uint32:
-			_ = os.Setenv(key, fmt.Sprint(v))
-		}
-	}
-	return nil
 }
 
 // applyConfigDirEnv sets the CONFIG_DIR environment variable

@@ -11,7 +11,8 @@ _ENV_PREFIX_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
 # Project root
 # Assuming this file is in e2e/runner/utils.py, parent.parent is "e2e", parent.parent.parent is root.
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-GO_CLI_ROOT = PROJECT_ROOT / "cli"
+CLI_ROOT = PROJECT_ROOT / "cli"
+GO_CLI_ROOT = CLI_ROOT  # Alias for backward compatibility if needed
 
 
 @dataclass(frozen=True)
@@ -98,11 +99,31 @@ def env_key(suffix: str) -> str:
         "PORT_REGISTRY",
         "PORT_DATABASE",
         "PORT_S3",
+        "PORT_S3_MGMT",
         "PORT_AGENT_METRICS",
+        "NO_PROXY_EXTRA",
     }
     if suffix in prefix_less:
         return suffix
     return f"{ENV_PREFIX}_{suffix}"
+
+
+DEFAULT_NO_PROXY_TARGETS = [
+    "agent",
+    "database",
+    "gateway",
+    "local-proxy",
+    "localhost",
+    "registry",
+    "runtime-node",
+    "s3-storage",
+    "victorialogs",
+    "::1",
+    "10.88.0.0/16",
+    "10.99.0.1",
+    "127.0.0.1",
+    "172.20.0.0/16",
+]
 
 
 def resolve_env_file_path(env_file: Optional[str]) -> Optional[str]:
@@ -126,7 +147,11 @@ def build_esb_cmd(args: List[str], env_file: Optional[str]) -> List[str]:
 
 
 def run_esb(
-    args: List[str], check: bool = True, env_file: Optional[str] = None, verbose: bool = False
+    args: List[str],
+    check: bool = True,
+    env_file: Optional[str] = None,
+    verbose: bool = False,
+    env: Optional[dict[str, str]] = None,
 ) -> subprocess.CompletedProcess:
     """Helper to run the esb CLI."""
     if verbose and "build" in args:
@@ -139,4 +164,9 @@ def run_esb(
         print(f"Running: {' '.join(cmd)}")
 
     # Use shell=False and pass the command as a list to rely on PATH
-    return subprocess.run(cmd, check=check, stdin=subprocess.DEVNULL)
+    # If env is provided, merge it with os.environ to preserve PATH, etc.
+    run_env = os.environ.copy()
+    if env:
+        run_env.update(env)
+
+    return subprocess.run(cmd, check=check, stdin=subprocess.DEVNULL, env=run_env)

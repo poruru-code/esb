@@ -10,4 +10,4 @@ Why: Keep branding operations documented where the tool lives.
 
 - https://github.com/poruru-code/esb-branding-tool/blob/main/docs/branding-flow.md
 
-ESB 本体は `brand: esb` を維持し、生成はツール repo から実行します。
+ESB 本体は `config/defaults.env` の `CLI_CMD=esb` を維持し、生成はツール repo から実行します。

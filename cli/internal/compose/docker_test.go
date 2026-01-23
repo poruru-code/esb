@@ -12,7 +12,6 @@ import (
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/volume"
-	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
 type fakeDockerClient struct {
@@ -77,7 +76,8 @@ func TestListContainersByProject(t *testing.T) {
 	if len(containers) != 1 {
 		t.Fatalf("expected 1 container, got %d", len(containers))
 	}
-	if containers[0] != (state.ContainerInfo{State: "running"}) {
+	expected := ContainerInfo{State: "running"}
+	if containers[0] != expected {
 		t.Fatalf("unexpected container state: %v", containers[0])
 	}
 }

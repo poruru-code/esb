@@ -13,7 +13,6 @@ import (
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/volume"
-	"github.com/poruru/edge-serverless-box/cli/internal/state"
 	"github.com/poruru/edge-serverless-box/meta"
 )
 
@@ -40,13 +39,20 @@ type DockerClient interface {
 	VolumesPrune(ctx context.Context, pruneFilters filters.Args) (volume.PruneReport, error)
 }
 
+// ContainerInfo holds information about containers discovered via compose.
+type ContainerInfo struct {
+	Name    string
+	Service string
+	State   string
+}
+
 // ListContainersByProject returns container information for all containers
 // belonging to the specified Docker Compose project.
 func ListContainersByProject(
 	ctx context.Context,
 	client DockerClient,
 	project string,
-) ([]state.ContainerInfo, error) {
+) ([]ContainerInfo, error) {
 	labelFilter := filters.NewArgs()
 	labelFilter.Add("label", fmt.Sprintf("%s=%s", ComposeProjectLabel, project))
 
@@ -58,7 +64,7 @@ func ListContainersByProject(
 		return nil, err
 	}
 
-	result := make([]state.ContainerInfo, 0, len(containers))
+	result := make([]ContainerInfo, 0, len(containers))
 	for _, ctr := range containers {
 		if ctr.Labels == nil || ctr.Labels[ComposeProjectLabel] != project {
 			continue
@@ -69,7 +75,7 @@ func ListContainersByProject(
 			name = strings.TrimPrefix(ctr.Names[0], "/")
 		}
 
-		result = append(result, state.ContainerInfo{
+		result = append(result, ContainerInfo{
 			Name:    name,
 			Service: ctr.Labels[ComposeServiceLabel],
 			State:   ctr.State,

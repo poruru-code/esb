@@ -1,4 +1,0 @@
-# Where: config/branding.yaml
-# What: Branding identifier for generator defaults.
-# Why: Keep branding reproducible across clones.
-brand: esb

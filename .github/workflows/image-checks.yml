@@ -35,11 +35,11 @@ jobs:
           DOCKER_BUILDKIT: "1"
           COMPOSE_DOCKER_CLI_BUILD: "1"
         run: |
-          docker compose -f compose/base.yml build os-base python-base
-          docker compose -f compose/base.yml -f compose/worker.yml build gateway agent
+          docker compose -f docker-compose.docker.yml build os-base python-base
+          docker compose -f docker-compose.docker.yml build gateway agent
 
       - name: Run container structure tests
-        run: make cst
+        run: make cst GATEWAY_IMAGE=esb-gateway:docker AGENT_IMAGE=esb-agent:docker
 
       - name: Run dockle checks
-        run: make dockle
+        run: make dockle GATEWAY_IMAGE=esb-gateway:docker AGENT_IMAGE=esb-agent:docker

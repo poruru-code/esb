@@ -1,7 +1,7 @@
 # システム仕様書
 
 ## 1. 概要
-本システムは、コンテナ技術(Docker / containerd)を用いてエッジサーバーレス環境をシミュレートするための基盤です。単一ホストの containerd 構成は `docker-compose.yml` + `docker-compose.worker.yml` + `docker-compose.registry.yml` + `docker-compose.containerd.yml` を組み合わせ、Firecracker 構成は `docker-compose.yml` + `docker-compose.worker.yml` + `docker-compose.registry.yml` + `docker-compose.fc.yml` を組み合わせます。
+本システムは、コンテナ技術(Docker / containerd)を用いてエッジサーバーレス環境をシミュレートするための基盤です。モードごとに自己完結した compose ファイルを使用し、Containerd は `docker-compose.containerd.yml`、Docker は `docker-compose.docker.yml`、Firecracker は `docker-compose.fc.yml` / `docker-compose.fc-node.yml` を利用します。
 
 ## 2. コンポーネント構成
 
@@ -152,32 +152,26 @@ Gateway は external_network 上で起動し、コンテナ内 `8443` をホス�
 
 ### 5.1 Compose ファイル構成
 
-| ファイル                          | 役割                                   | 主な用途                                   |
-| --------------------------------- | -------------------------------------- | ------------------------------------------ |
-| `docker-compose.yml`              | Control/Core（Gateway + 依存サービス） | Control Plane（単一ノード/分離構成の共通） |
-| **`docker-compose.registry.yml`** | **Registry**                           | Containerd/Firecracker モードで自動追加    |
-| `docker-compose.worker.yml`       | Worker 基本定義                         | Agent の基本定義（イメージ/環境/ボリューム） |
-| `docker-compose.containerd.yml`   | Adapter（単一ノード結合 / coredns）     | Core + Worker を同一ホストで統合           |
+| ファイル                        | 役割                                   | 主な用途                                   |
+| ------------------------------- | -------------------------------------- | ------------------------------------------ |
+| `docker-compose.docker.yml`     | Docker モード                           | Docker ランタイムでの単一ノード構成         |
+| `docker-compose.containerd.yml` | Containerd モード                        | Core + Compute を同一ホストで統合           |
+| `docker-compose.fc.yml`         | Firecracker Control Plane               | コントロールプレーンのみ                   |
+| `docker-compose.fc-node.yml`    | Firecracker Compute Node                | コンピュートノードのみ                     |
 
 ### 5.2 起動パターン（docker compose）
 
 単一ノード（containerd）:
 ```bash
-docker compose -f docker-compose.yml \
-  -f docker-compose.registry.yml \
-  -f docker-compose.worker.yml \
-  -f docker-compose.containerd.yml up -d
+docker compose -f docker-compose.containerd.yml up -d
 ```
 
 Firecracker:
 ```bash
-docker compose -f docker-compose.yml \
-  -f docker-compose.registry.yml \
-  -f docker-compose.worker.yml \
-  -f docker-compose.fc.yml up -d
+docker compose -f docker-compose.fc.yml up -d
+docker compose -f docker-compose.fc-node.yml up -d
 ```
 
 注意:
-- `docker compose -f` は指定順に合成され、後のファイルが前の内容を上書きします。
-- パスは最初の `-f` のディレクトリ基準で解決されます（必要なら `--project-directory` を使用）。
-- `esb up` は環境変数 `ESB_MODE` に応じて同じ組み合わせを自動選択します。
+- `docker compose -f` は単一ファイル指定が前提です。
+- 起動は `docker compose -f docker-compose.<mode>.yml` を明示指定します（`esb up` は廃止）。

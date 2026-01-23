@@ -21,10 +21,13 @@ ESB の設定は以下の3段階で伝播します：
 
 ### 0. グローバル設定
 
-| 変数名     | 初期値    | 用途                                                       |
-| ---------- | --------- | ---------------------------------------------------------- |
-| `ESB_MODE` | `docker`  | 実行モードの選択 (`docker`, `containerd`, `firecracker`)。 |
-| `ESB_ENV`  | `default` | 環境名の識別子。設定の分離に使用。                         |
+| 変数名 | 初期値 | 用途 |
+| --- | --- | --- |
+| `ENV` | `default` | 環境名の識別子。`PROJECT_NAME` やコンテナ名の suffix に使われます。 |
+| `PROJECT_NAME` | `<brand>-<env>` | Compose のプロジェクト名/接頭辞。未指定時は `CLI_CMD + ENV` で自動生成されます。 |
+| `IMAGE_PREFIX` | `esb` | ベース/サービスイメージのプレフィックス。ブランド変更時に更新されます。 |
+| `IMAGE_TAG` | `docker` / `containerd` / `firecracker` | compose ファイル側で固定されるイメージタグ。 |
+| `CERT_DIR` | `~/.<brand>/certs` | mTLS 証明書のマウント元パス。 |
 
 ### 1. Gateway (`services/gateway`)
 
@@ -36,7 +39,7 @@ Gateway は Lambda 環境の "Master Config" として機能し、サービス�
 | `S3_ENDPOINT`         | (任意)                     | 明示的に上書きする場合に使用。未設定時は `http://s3-storage:9000` が注入される。 |
 | `DYNAMODB_ENDPOINT`   | (任意)                     | 明示的に上書きする場合に使用。未設定時は `http://database:8000` が注入される。   |
 | `VICTORIALOGS_URL`    | `http://victorialogs:9428` | 自身のログ送信先。                                                               |
-| `CONTAINERS_NETWORK`  | `ESB_NETWORK_EXTERNAL`     | 自身の所属チェックおよびワーカーの状態監視に使用。                               |
+| `CONTAINERS_NETWORK`  | `NETWORK_EXTERNAL`          | 自身の所属チェックおよびワーカーの状態監視に使用。                               |
 | `RUSTFS_ACCESS_KEY`  | (自動生成)                 | S3 ストレージ (RustFS) のアクセスキー。未指定時は `esb` またはランダム値が設定される。 |
 | `RUSTFS_SECRET_KEY`  | (自動生成)                 | S3 ストレージ (RustFS) のシークレットキー。未指定時はランダム値が設定される。         |
 | `DATA_PLANE_HOST` | `10.88.0.1`                | **Containerd/FC Mode**: ネットワークゲートウェイ兼 DNS サーバーの IP。           |
@@ -79,13 +82,13 @@ CoreDNS の導入により、すべての実行モード（Docker, Containerd, F
 
 ## 全変数リファレンス (Reference)
 
-### Gateway (`docker-compose.yml` & Adapters)
+### Gateway (`docker-compose.<mode>.yml` & Adapters)
 
 ```yaml
 environment:
   # 共通設定 (docker-compose.yml)
   - JWT_SECRET_KEY=${JWT_SECRET_KEY}
-  - CONTAINERS_NETWORK=${ESB_NETWORK_EXTERNAL}
+  - CONTAINERS_NETWORK=${NETWORK_EXTERNAL:-${PROJECT_NAME:-esb-${ENV:-default}}-external}
   - DATA_PLANE_HOST=${DATA_PLANE_HOST:-10.88.0.1}
 
   # サービスエンドポイント (上書きが必要な場合のみ設定)

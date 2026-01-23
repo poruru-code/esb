@@ -31,11 +31,20 @@ def build_env_scenarios(matrix: list, suites: dict, profile_filter: str | None =
 
         suite_names = entry.get("suites", [])
         if env_name not in env_scenarios:
+            env_file = entry.get("env_file", "")
+            if "containerd" in env_file:
+                mode = "containerd"
+            elif "firecracker" in env_file:
+                mode = "firecracker"
+            else:
+                mode = "docker"
+
             env_scenarios[env_name] = {
                 "name": f"Combined Scenarios for {env_name}",
-                "env_file": entry.get("env_file"),
+                "env_file": env_file,
                 "esb_env": env_name,
                 "esb_project": BRAND_SLUG,
+                "mode": mode,
                 "env_vars": entry.get("env_vars", {}),
                 "targets": [],
                 "exclude": [],

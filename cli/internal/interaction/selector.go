@@ -12,11 +12,14 @@ type HuhPrompter struct{}
 
 func (p HuhPrompter) Input(title string, suggestions []string) (string, error) {
 	var input string
-	err := huh.NewInput().
+	field := huh.NewInput().
 		Title(title).
 		Suggestions(suggestions).
-		Value(&input).
-		Run()
+		Value(&input)
+	if len(suggestions) > 0 {
+		field.Placeholder(suggestions[0])
+	}
+	err := field.Run()
 	if err != nil {
 		return "", err
 	}

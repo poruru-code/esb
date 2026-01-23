@@ -8,7 +8,7 @@ ARG SERVICE_UID=1000
 ARG SERVICE_GID=1000
 
 # Builder Stage - Standardized via python base (Debian 12 + Python 3.12)
-FROM esb-python-base:latest AS builder
+FROM ${IMAGE_PREFIX}-python-base:latest AS builder
 
 # Install uv (standardized via official image in standard path)
 COPY --from=ghcr.io/astral-sh/uv:0.8.13@sha256:4de5495181a281bc744845b9579acf7b221d6791f99bcc211b9ec13f417c2853 /uv /uvx /usr/local/bin/
@@ -34,7 +34,8 @@ RUN uv pip compile /app/pyproject.toml -o requirements.txt && \
     uv pip install -r requirements.txt
 
 # Final stage - Standardized via python base
-FROM esb-python-base:latest AS prod
+ARG IMAGE_PREFIX=esb
+FROM ${IMAGE_PREFIX}-python-base:latest AS prod
 
 ARG SERVICE_USER
 ARG SERVICE_UID

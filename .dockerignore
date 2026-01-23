@@ -35,6 +35,7 @@ e2e/
 
 # CLI (Go-based, separate build)
 cli/
+!cli/internal/generator/assets/site-packages/sitecustomize.py
 
 # IDE
 .vscode

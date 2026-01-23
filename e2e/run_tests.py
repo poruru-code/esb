@@ -120,8 +120,7 @@ def main():
 
     # --- Global Reset & Warm-up ---
     # Perform this if we are in the main dispatcher process (not a parallel worker).
-    # This ensures generator.yml and project registration are in sync with the matrix
-    # even when running a single profile manually.
+    # Validate shared inputs (e.g., template) once before dispatching.
     if os.environ.get("E2E_WORKER") != "1":
         warmup_environment(env_scenarios, matrix, args)
 

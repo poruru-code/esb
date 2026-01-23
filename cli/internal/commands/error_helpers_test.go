@@ -67,37 +67,6 @@ func TestExitWithSuggestionAndAvailable(t *testing.T) {
 	}
 }
 
-func TestHandleParseError_EnvUse(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
-	var buf bytes.Buffer
-	// Mock parse error for "env use" without name
-	err := errors.New(`expected "<name>"`)
-	code := handleParseError([]string{"env", "use"}, err, Dependencies{}, &buf)
-
-	if code != 1 {
-		t.Errorf("expected exit code 1, got %d", code)
-	}
-	output := buf.String()
-	if !contains(output, "Environment name required") {
-		t.Errorf("expected environment name required message: %s", output)
-	}
-}
-
-func TestHandleParseError_ProjectUse(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
-	var buf bytes.Buffer
-	err := errors.New(`expected "<name>"`)
-	code := handleParseError([]string{"project", "use"}, err, Dependencies{}, &buf)
-
-	if code != 1 {
-		t.Errorf("expected exit code 1, got %d", code)
-	}
-	output := buf.String()
-	if !contains(output, "Project name required") {
-		t.Errorf("expected project name required message: %s", output)
-	}
-}
-
 func TestHandleParseError_GenericError(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	var buf bytes.Buffer

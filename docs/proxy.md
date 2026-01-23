@@ -11,15 +11,15 @@ Edge Serverless Box を企業プロキシ環境で利用する際の設定と挙
   - `localhost`, `127.0.0.1`, `::1`, `registry`, `gateway`, `runtime-node`, `agent`,
     `s3-storage`, `database`, `victorialogs`, `local-proxy`,
     `10.88.0.0/16`, `10.99.0.1`, `172.20.0.0/16`
-- `esb up` / `esb down` / `esb stop` などの Docker Compose 実行時に `NO_PROXY` を注入し、
-  ローカル宛先へのアクセスがプロキシ経由にならないようにします。
-- `esb build` / 自動リビルドは docker build にプロキシを build-arg として渡します。
+- `esb build` は `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` を引き継ぎ、Docker build へ伝搬します。
+- `docker compose` で起動する際は `.env` / `--env-file` に Proxy を明示し、各サービスへ渡します。
+- Python/OS ベースイメージに内部宛先の `NO_PROXY` デフォルトを焼き込んでいます（上書き可能）。
 - Gateway 内の httpx クライアントは `trust_env=False` / `proxies=None` で生成されるため、
   環境変数由来のプロキシを見に行かず、ハートビートなどの内部通信はプロキシ経由になりません。
 
 ### 追加の `NO_PROXY`
 
-環境固有のアドレスを除外したい場合は `ESB_NO_PROXY_EXTRA` をカンマ区切りで指定すると、
+環境固有のアドレスを除外したい場合は `NO_PROXY_EXTRA` をカンマ区切りで指定すると、
 CLI/プロビジョニングの `NO_PROXY` に追記されます。
 
 ## ホスト側で必要な設定（例）
@@ -56,4 +56,4 @@ CLI は既存の設定を尊重しつつ内部宛先を `NO_PROXY` に追加し�
   `~/.docker/config.json` または systemd drop-in を見直してください。
 - リモートノード側で apt/curl がタイムアウトする場合は、対象ノードのプロキシ設定
   （`/etc/apt/apt.conf.d` や `/etc/profile.d` など）を確認し、
-  `ESB_NO_PROXY_EXTRA` に WireGuard 網や社内 DNS のアドレスを追加してください。
+  `NO_PROXY_EXTRA` に WireGuard 網や社内 DNS のアドレスを追加してください。
