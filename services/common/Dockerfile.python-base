@@ -11,9 +11,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tzdata \
   && rm -rf /var/lib/apt/lists/*
 
-ENV NO_PROXY=agent,database,gateway,local-proxy,localhost,registry,runtime-node,s3-storage,victorialogs,::1,10.88.0.0/16,10.99.0.1,127.0.0.1,172.20.0.0/16
-ENV no_proxy=$NO_PROXY
-
 # Bake the local Root CA into the image at build time (BuildKit secret).
 ARG ROOT_CA_FINGERPRINT
 ARG ROOT_CA_MOUNT_ID

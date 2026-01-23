@@ -1,12 +1,15 @@
 import sys
+from pathlib import Path
 
 import yaml
 
 from e2e.runner.utils import BRAND_SLUG, PROJECT_ROOT
 
+MATRIX_ROOT = PROJECT_ROOT / "e2e" / "environments"
+
 
 def load_test_matrix() -> dict:
-    matrix_file = PROJECT_ROOT / "e2e" / "test_matrix.yaml"
+    matrix_file = MATRIX_ROOT / "test_matrix.yaml"
     if not matrix_file.exists():
         print(f"[ERROR] Matrix file not found: {matrix_file}")
         sys.exit(1)
@@ -31,17 +34,22 @@ def build_env_scenarios(matrix: list, suites: dict, profile_filter: str | None =
 
         suite_names = entry.get("suites", [])
         if env_name not in env_scenarios:
+            env_dir = entry.get("env_dir", env_name)
             env_file = entry.get("env_file", "")
-            if "containerd" in env_file:
+            if "containerd" in env_dir or "containerd" in env_file:
                 mode = "containerd"
-            elif "firecracker" in env_file:
+            elif "firecracker" in env_dir or "firecracker" in env_file:
                 mode = "firecracker"
             else:
                 mode = "docker"
 
+            if env_dir:
+                env_file = f"e2e/environments/{env_dir}/.env"
+
             env_scenarios[env_name] = {
                 "name": f"Combined Scenarios for {env_name}",
                 "env_file": env_file,
+                "env_dir": f"e2e/environments/{env_dir}" if env_dir else env_dir,
                 "esb_env": env_name,
                 "esb_project": BRAND_SLUG,
                 "mode": mode,
@@ -55,7 +63,15 @@ def build_env_scenarios(matrix: list, suites: dict, profile_filter: str | None =
             if not suite_def:
                 print(f"[ERROR] Suite '{suite_name}' not defined in suites.")
                 continue
-            env_scenarios[env_name]["targets"].extend(suite_def.get("targets", []))
+            for target in suite_def.get("targets", []):
+                target_path = Path(target)
+                if not target_path.is_absolute():
+                    target_path = (MATRIX_ROOT / target_path).resolve()
+                try:
+                    target = str(target_path.relative_to(PROJECT_ROOT))
+                except ValueError:
+                    target = str(target_path)
+                env_scenarios[env_name]["targets"].append(target)
             env_scenarios[env_name]["exclude"].extend(suite_def.get("exclude", []))
 
     return env_scenarios

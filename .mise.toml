@@ -25,6 +25,7 @@ run = [
   "lefthook install",
   "mise run build-cli",
   "mise run setup:certs",
+  "mise run build-base",
 ]
 
 [tasks."setup:certs"]
@@ -38,6 +39,10 @@ run = [
   "bash -lc 'source ../config/defaults.env && go build -o ~/.local/bin/${CLI_CMD} ./cmd/esb'",
   "bash -lc 'source ../config/defaults.env && mkdir -p ~/.local/share/bash-completion/completions && ~/.local/bin/${CLI_CMD} completion bash > ~/.local/share/bash-completion/completions/${CLI_CMD}'",
 ]
+
+[tasks.build-base]
+description = "Build base images (os-base/python-base)"
+run = "docker compose -f docker-compose.docker.yml build os-base python-base"
 
 [tasks.dev-cli]
 description = "Watch and rebuild CLI on changes"

@@ -134,6 +134,64 @@ docker compose -f docker-compose.fc-node.yml up -d
 - 各モードは **単一ファイル**で完結します。
 - 環境変数を分離したい場合は `--env-file` を併用します（例: `.env.prod`）。
 
+#### docker-compose.yml (include) の使い方
+
+利用者は `docker-compose.yml` を用意し、モード別 Compose を include して起動します。
+環境変数は `.env` に記載します。
+
+例: docker (include)
+```yaml
+include:
+  - path: docker-compose.docker.yml
+```
+
+#### Proxy 設定の考え方
+
+Proxy の有無に関わらず `docker-compose.yml` を使う前提です。
+
+- config.json に proxy がある場合: **NO_PROXY のみを docker-compose.yml に明示**
+- config.json に proxy がない場合: **HTTP(S)_PROXY と NO_PROXY を docker-compose.yml に明示**
+
+例: NO_PROXY のみを追加 (config.json で proxy 済みの場合)
+```yaml
+x-no-proxy: &no_proxy
+  NO_PROXY: localhost,127.0.0.1,::1,agent,database,gateway,s3-storage,victorialogs,registry,runtime-node,host.docker.internal
+  no_proxy: localhost,127.0.0.1,::1,agent,database,gateway,s3-storage,victorialogs,registry,runtime-node,host.docker.internal
+
+services:
+  provisioner:
+    environment:
+      <<: *no_proxy
+  gateway:
+    environment:
+      <<: *no_proxy
+  agent:
+    environment:
+      <<: *no_proxy
+```
+
+例: proxy をすべて定義 (config.json がない場合)
+```yaml
+x-proxy: &proxy
+  HTTP_PROXY: http://user:pass@proxy.example:8080
+  HTTPS_PROXY: http://user:pass@proxy.example:8080
+  NO_PROXY: localhost,127.0.0.1,::1,agent,database,gateway,s3-storage,victorialogs,registry,runtime-node,host.docker.internal
+  http_proxy: http://user:pass@proxy.example:8080
+  https_proxy: http://user:pass@proxy.example:8080
+  no_proxy: localhost,127.0.0.1,::1,agent,database,gateway,s3-storage,victorialogs,registry,runtime-node,host.docker.internal
+
+services:
+  provisioner:
+    environment:
+      <<: *proxy
+  gateway:
+    environment:
+      <<: *proxy
+  agent:
+    environment:
+      <<: *proxy
+```
+
 ## クイックスタート
 
 詳細な開発環境セットアップ（`mise` / `lefthook` を使った依存インストールや Git フック設定）は [CONTRIBUTING.md#1開発環境セットアップ](CONTRIBUTING.md#1開発環境セットアップ) に詳述しています。
@@ -180,6 +238,9 @@ mise run setup:certs
 出力先は既定で `<template_dir>/.<brand>/<env>` になります（`--output` で変更可能）。
 
 ```bash
+# .env.example を .env にリネームして環境変数を用意
+mv .env.example .env
+
 # ビルド
 esb build --template template.yaml --env prod --mode docker
 

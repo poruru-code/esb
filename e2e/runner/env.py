@@ -9,7 +9,6 @@ from e2e.runner.utils import (
     BRAND_HOME_DIR,
     BRAND_SLUG,
     CLI_ROOT,
-    DEFAULT_NO_PROXY_TARGETS,
     ENV_PREFIX,
     env_key,
 )
@@ -165,9 +164,6 @@ def calculate_runtime_env(
         except OSError:
             pass
 
-    # 7. Proxy Defaults (Ensure NO_PROXY is consistent)
-    apply_proxy_env_to_dict(env)
-
     # 8. Docker BuildKit
     env.setdefault(constants.ENV_DOCKER_BUILDKIT, "1")
 
@@ -206,49 +202,6 @@ def calculate_staging_dir(project_name: str, env_name: str) -> Path:
     return root / stage_key / env_name / "config"
 
 
-def apply_proxy_env_to_dict(env: dict[str, str]) -> None:
-    """Replicates applyProxyDefaults logic into a dictionary for use in Compose."""
-    proxy_keys = ("HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy")
-    has_proxy = any(os.environ.get(key) or env.get(key) for key in proxy_keys)
-    existing_no_proxy = (
-        os.environ.get("NO_PROXY") or os.environ.get("no_proxy") or env.get("NO_PROXY")
-    )
-    extra_key = env_key("NO_PROXY_EXTRA")
-    extra_no_proxy = os.environ.get(extra_key) or env.get(extra_key)
-
-    if not (has_proxy or existing_no_proxy or extra_no_proxy):
-        return
-
-    def split_no_proxy(value: str | None) -> list[str]:
-        if not value:
-            return []
-        parts = value.replace(";", ",").split(",")
-        return [item.strip() for item in parts if item.strip()]
-
-    merged: list[str] = []
-    seen: set[str] = set()
-
-    for item in split_no_proxy(existing_no_proxy):
-        if item not in seen:
-            merged.append(item)
-            seen.add(item)
-
-    for item in DEFAULT_NO_PROXY_TARGETS:
-        if item and item not in seen:
-            merged.append(item)
-            seen.add(item)
-
-    for item in split_no_proxy(extra_no_proxy):
-        if item and item not in seen:
-            merged.append(item)
-            seen.add(item)
-
-    if merged:
-        val = ",".join(merged)
-        env["NO_PROXY"] = val
-        env["no_proxy"] = val
-
-
 def read_service_env(project_name: str, service: str) -> dict[str, str]:
     """Read environment variables from a running container using docker inspect."""
     # We need the container name. Docker Compose usually names them: {project}-{service}-1
@@ -284,65 +237,6 @@ def read_service_env(project_name: str, service: str) -> dict[str, str]:
             key, _, value = line.partition("=")
             env[key] = value
     return env
-
-
-def apply_proxy_env() -> None:
-    """
-    Apply proxy environment variable corrections for the Python runner process.
-
-    Note: While the Go CLI ('esb') also implements similar NO_PROXY correction,
-    this Python-side implementation remains necessary. Changes to environment
-    variables in a child process (the CLI) do not propagate back to the
-    parent process (this runner/pytest). Setting NO_PROXY here ensures that
-    the Python 'requests' library and other tools bypass the proxy when
-    communicating with local ESB services.
-    """
-    proxy_keys = ("HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy")
-    extra_key = env_key("NO_PROXY_EXTRA")
-
-    has_proxy = any(os.environ.get(key) for key in proxy_keys)
-    existing_no_proxy = os.environ.get("NO_PROXY") or os.environ.get("no_proxy")
-    extra_no_proxy = os.environ.get(extra_key)
-    if not (has_proxy or existing_no_proxy or extra_no_proxy):
-        return
-
-    def split_no_proxy(value: str | None) -> list[str]:
-        if not value:
-            return []
-        parts = value.replace(";", ",").split(",")
-        return [item.strip() for item in parts if item.strip()]
-
-    merged: list[str] = []
-    seen: set[str] = set()
-
-    for item in split_no_proxy(existing_no_proxy):
-        if item not in seen:
-            merged.append(item)
-            seen.add(item)
-
-    for item in DEFAULT_NO_PROXY_TARGETS:
-        if item and item not in seen:
-            merged.append(item)
-            seen.add(item)
-
-    for item in split_no_proxy(extra_no_proxy):
-        if item and item not in seen:
-            merged.append(item)
-            seen.add(item)
-
-    if merged:
-        merged_value = ",".join(merged)
-        os.environ["NO_PROXY"] = merged_value
-        os.environ["no_proxy"] = merged_value
-
-    if os.environ.get("HTTP_PROXY") and "http_proxy" not in os.environ:
-        os.environ["http_proxy"] = os.environ["HTTP_PROXY"]
-    if os.environ.get("http_proxy") and "HTTP_PROXY" not in os.environ:
-        os.environ["HTTP_PROXY"] = os.environ["http_proxy"]
-    if os.environ.get("HTTPS_PROXY") and "https_proxy" not in os.environ:
-        os.environ["https_proxy"] = os.environ["HTTPS_PROXY"]
-    if os.environ.get("https_proxy") and "HTTPS_PROXY" not in os.environ:
-        os.environ["HTTPS_PROXY"] = os.environ["https_proxy"]
 
 
 def build_env_list(entries: list[tuple[str, str]]) -> str:

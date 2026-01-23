@@ -101,29 +101,10 @@ def env_key(suffix: str) -> str:
         "PORT_S3",
         "PORT_S3_MGMT",
         "PORT_AGENT_METRICS",
-        "NO_PROXY_EXTRA",
     }
     if suffix in prefix_less:
         return suffix
     return f"{ENV_PREFIX}_{suffix}"
-
-
-DEFAULT_NO_PROXY_TARGETS = [
-    "agent",
-    "database",
-    "gateway",
-    "local-proxy",
-    "localhost",
-    "registry",
-    "runtime-node",
-    "s3-storage",
-    "victorialogs",
-    "::1",
-    "10.88.0.0/16",
-    "10.99.0.1",
-    "127.0.0.1",
-    "172.20.0.0/16",
-]
 
 
 def resolve_env_file_path(env_file: Optional[str]) -> Optional[str]:

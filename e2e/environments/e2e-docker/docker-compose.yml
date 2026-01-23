@@ -1,0 +1,17 @@
+include:
+  - path: ../../../docker-compose.docker.yml
+
+x-no-proxy: &no_proxy
+  NO_PROXY: localhost,127.0.0.1,::1,agent,database,gateway,s3-storage,victorialogs,registry,runtime-node,host.docker.internal
+  no_proxy: localhost,127.0.0.1,::1,agent,database,gateway,s3-storage,victorialogs,registry,runtime-node,host.docker.internal
+
+services:
+  provisioner:
+    environment:
+      <<: *no_proxy
+  gateway:
+    environment:
+      <<: *no_proxy
+  agent:
+    environment:
+      <<: *no_proxy
