@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/generator"
+	"github.com/poruru/edge-serverless-box/cli/internal/interaction"
 )
 
 type fakeBuilder struct {
@@ -190,5 +191,63 @@ func TestRunBuildOutputsLegacySuccess(t *testing.T) {
 	expected := "✓ Build complete\n"
 	if out.String() != expected {
 		t.Fatalf("unexpected output:\n%s", out.String())
+	}
+}
+
+type mockPrompter struct {
+	inputs []string
+}
+
+func (m *mockPrompter) Input(_ string, _ []string) (string, error) {
+	if len(m.inputs) > 0 {
+		ret := m.inputs[0]
+		m.inputs = m.inputs[1:]
+		return ret, nil
+	}
+	return "", errors.New("no more inputs")
+}
+
+func (m *mockPrompter) Select(_ string, _ []string) (string, error) {
+	return "", errors.New("not implemented")
+}
+
+func (m *mockPrompter) SelectValue(_ string, options []interaction.SelectOption) (string, error) {
+	// For confirmBuildInputs
+	for _, opt := range options {
+		if opt.Value == "proceed" {
+			return "proceed", nil
+		}
+	}
+	return "", nil
+}
+
+func TestPromptTemplateParameters_AllowsEmptyString(t *testing.T) {
+	// Setup temporary template
+	tmpDir := t.TempDir()
+	templateContent := `
+Parameters:
+  MyStringParam:
+    Type: String
+    Description: A string parameter
+`
+	templatePath := filepath.Join(tmpDir, "template.yml")
+	if err := os.WriteFile(templatePath, []byte(templateContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// We provide [""] to simulate: input empty.
+	mp := &mockPrompter{
+		inputs: []string{""},
+	}
+
+	// Function under test
+	params, err := promptTemplateParameters(templatePath, true, mp, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verification
+	if val, ok := params["MyStringParam"]; !ok || val != "" {
+		t.Errorf("Expected final value '', got '%s' (exists: %v)", val, ok)
 	}
 }

@@ -474,6 +474,11 @@ func promptTemplateParameters(
 				input = prevValue
 			}
 			if input == "" && !hasDefault {
+				// Allow empty string if type is explicitely "String"
+				if strings.EqualFold(param.Type, "String") {
+					values[name] = ""
+					break
+				}
 				fmt.Fprintf(os.Stderr, "Parameter %q is required.\n", name)
 				continue
 			}
