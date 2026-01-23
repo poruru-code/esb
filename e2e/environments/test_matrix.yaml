@@ -1,0 +1,34 @@
+# Test Execution Matrix
+# Defines which Test Suites run on which ESB environments.
+
+suites:
+  smoke:
+    description: Fast connectivity tests for all components
+    targets:
+    - ../scenarios/smoke/
+    exclude: []
+  standard:
+    description: Standard E2E Scenarios (Autoscaling + Standard)
+    targets:
+    - ../scenarios/autoscaling/
+    - ../scenarios/standard/
+    exclude: []
+
+matrix:
+# docker runtime
+- esb_env: e2e-docker
+  suites:
+  - smoke
+  - standard
+
+# containerd runtime
+- esb_env: e2e-containerd
+  suites:
+  - smoke
+  - standard
+
+# firecracker runtime
+# - esb_env: e2e-firecracker
+#   suites:
+#   - smoke
+#   - standard

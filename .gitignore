@@ -39,6 +39,7 @@ docker-images/
 
 # Environment
 .env
+!e2e/environments/**/.env
 .env.local
 .branding.env
 

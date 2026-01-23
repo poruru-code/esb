@@ -14,7 +14,6 @@ from dotenv import load_dotenv
 from e2e.runner import constants
 from e2e.runner.env import (
     apply_ports_to_env,
-    apply_proxy_env,
     calculate_runtime_env,
     discover_ports,
     ensure_firecracker_node_up,
@@ -61,6 +60,16 @@ def _registry_port(project: str, compose_file: Path) -> int | None:
         return int(result.stdout.strip().split(":")[-1])
     except Exception:
         return None
+
+
+def resolve_compose_file(scenario: dict[str, Any], mode: str) -> Path:
+    env_dir = scenario.get("env_dir")
+    if env_dir:
+        compose_path = PROJECT_ROOT / env_dir / "docker-compose.yml"
+        if compose_path.exists():
+            return compose_path
+        raise FileNotFoundError(f"Compose file not found in env_dir: {compose_path}")
+    return PROJECT_ROOT / f"docker-compose.{mode}.yml"
 
 
 def isolate_external_network(project_label: str) -> None:
@@ -119,12 +128,11 @@ def _pick_manifest_digest(index: dict) -> str | None:
     return manifests[0].get("digest")
 
 
-def verify_registry_images(env_name: str, project: str, mode: str) -> None:
+def verify_registry_images(env_name: str, project: str, mode: str, compose_file: Path) -> None:
     """Validate that registry blobs exist for built function images."""
     if mode not in ("containerd", "firecracker"):
         return
 
-    compose_file = PROJECT_ROOT / f"docker-compose.{mode}.yml"
     port = _registry_port(project, compose_file)
     if port is None:
         print("[WARN] Registry port not discovered; skipping registry integrity check.")
@@ -317,8 +325,6 @@ def run_scenario(args, scenario):
         print("Warning: No env_file specified for this scenario. Operating with system env only.")
 
     # 2.5 Inject Proxy Settings
-    apply_proxy_env()
-
     # 3. Reload env vars into a dict for passing to subprocess (pytest)
     env = os.environ.copy()
 
@@ -337,6 +343,7 @@ def run_scenario(args, scenario):
 
     # 1.5 Calculate Runtime Env (needed for reset/build too)
     mode = scenario.get("mode", "docker")
+    compose_file_path = resolve_compose_file(scenario, mode)
     template_path = PROJECT_ROOT / "e2e" / "fixtures" / "template.yaml"
     if not template_path.exists():
         raise FileNotFoundError(f"Missing E2E template: {template_path}")
@@ -358,7 +365,6 @@ def run_scenario(args, scenario):
             print(f"➜ Resetting environment: {env_name}")
             # 2.1 Robust cleanup using docker compose down
             # matches the "down" logic from legacy esb up replacement
-            compose_file_path = PROJECT_ROOT / f"docker-compose.{mode}.yml"
             if compose_file_path.exists():
                 proj_key = f"{BRAND_SLUG}-{env_name}"
                 subprocess.run(
@@ -400,7 +406,12 @@ def run_scenario(args, scenario):
                 verbose=args.verbose,
                 env=build_env,
             )
-            verify_registry_images(env_name, f"{project_name}-{env_name}", mode)
+            verify_registry_images(
+                env_name,
+                f"{project_name}-{env_name}",
+                mode,
+                compose_file_path,
+            )
 
             if build_only:
                 return True
@@ -413,7 +424,12 @@ def run_scenario(args, scenario):
             else:
                 print(f"➜ Building environment: {env_name}")
             run_esb(build_args + ["--no-cache"], env_file=env_file, verbose=args.verbose)
-            verify_registry_images(env_name, f"{project_name}-{env_name}", mode)
+            verify_registry_images(
+                env_name,
+                f"{project_name}-{env_name}",
+                mode,
+                compose_file_path,
+            )
             if not args.verbose:
                 print("Done")
         else:
@@ -423,7 +439,12 @@ def run_scenario(args, scenario):
                 print(f"➜ Preparing environment: {env_name}")
             # In Zero-Config, we just rebuild if needed. stop/sync are gone.
             run_esb(build_args, env_file=env_file, verbose=args.verbose)
-            verify_registry_images(env_name, f"{project_name}-{env_name}", mode)
+            verify_registry_images(
+                env_name,
+                f"{project_name}-{env_name}",
+                mode,
+                compose_file_path,
+            )
             if not args.verbose:
                 print("Done")
 
@@ -446,13 +467,9 @@ def run_scenario(args, scenario):
             resources_yml_path = E2E_STATE_ROOT / env_name / "config" / "resources.yml"
             compose_env["RESOURCES_YML"] = str(resources_yml_path.absolute())
 
-            # Target the static docker-compose file in project root
-            # per user instruction: /home/akira/esb/docker-compose.{mode}.yml
-            compose_file_path = PROJECT_ROOT / f"docker-compose.{mode}.yml"
             if not compose_file_path.exists():
-                print(f"[WARN] Static compose file not found at {compose_file_path}.")
-                # Fail fast as this is a configuration error
-                raise FileNotFoundError(f"Static compose file not found: {compose_file_path}")
+                print(f"[WARN] Compose file not found at {compose_file_path}.")
+                raise FileNotFoundError(f"Compose file not found: {compose_file_path}")
 
             compose_cmd = [
                 "docker",
@@ -576,7 +593,6 @@ def run_scenario(args, scenario):
             else:
                 print(f"➜ Cleaning up environment: {env_name}")
             # esb down is gone, use docker compose directly
-            compose_file_path = PROJECT_ROOT / f"docker-compose.{mode}.yml"
             proj_key = f"{BRAND_SLUG}-{env_name}"
             subprocess.run(
                 ["docker", "compose", "-p", proj_key, "-f", str(compose_file_path), "down"],
