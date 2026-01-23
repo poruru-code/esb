@@ -16,7 +16,7 @@ import (
 // ResolveRepoRoot determines the ESB repository root path.
 // Priority:
 // 1. Brand-prefixed REPO environment variable (validated as root or searched upward)
-// 2. Upward search for docker-compose.yml from startDir
+// 2. Upward search for docker-compose.{mode}.yml from startDir
 // 3. repo_path in global config (~/.esb/config.yaml) (validated as root or searched upward)
 func ResolveRepoRoot(startDir string) (string, error) {
 	// 1. Try environment variable
@@ -54,16 +54,25 @@ func ResolveRepoRootFromPath(path string) (string, error) {
 }
 
 // findRepoRoot searches upward from the given path to find
-// a directory containing docker-compose.yml.
+// a directory containing docker-compose.{mode}.yml.
 func findRepoRoot(path string) (string, bool) {
 	dir, err := filepath.Abs(path)
 	if err != nil {
 		return "", false
 	}
 
+	markers := []string{
+		"docker-compose.docker.yml",
+		"docker-compose.containerd.yml",
+		"docker-compose.fc.yml",
+		"docker-compose.fc-node.yml",
+	}
+
 	for {
-		if _, err := os.Stat(filepath.Join(dir, "compose", "base.yml")); err == nil {
-			return dir, true
+		for _, marker := range markers {
+			if _, err := os.Stat(filepath.Join(dir, marker)); err == nil {
+				return dir, true
+			}
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {

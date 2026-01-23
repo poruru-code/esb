@@ -20,7 +20,7 @@ Why: Provide a single entry point for developers and operators.
 
 | コマンド       | 説明                                                                                   | 主なオプション                                                                               |
 | -------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `esb build`    | SAM テンプレート (`template.yaml`) を解析して Dockerfile / config を生成し、関数イメージをビルドします。 | `--template (-t)`, `--env (-e)`, `--mode (-m)`, `--output (-o)`, `--no-cache`, `--verbose (-v)` |
+| `esb build`    | SAM テンプレート (`template.yaml`) を解析して Dockerfile / config を生成し、関数イメージをビルドします。 | `--template (-t)`, `--env (-e)`, `--mode (-m)`, `--env-file`, `--output (-o)`, `--no-cache`, `--verbose (-v)`, `--force` |
 | `esb completion` | Bash / Zsh / Fish 用の補完スクリプトを生成します。                                      | `bash`, `zsh`, `fish`                                                                        |
 | `esb version`   | CLI のバージョン情報を表示します。                                                      | —                                                                                            |
 
@@ -34,7 +34,7 @@ Why: Provide a single entry point for developers and operators.
 flowchart TD
     User([Developer / Client]) -->|HTTPS| Gateway["API Gateway - FastAPI"]
 
-    subgraph Control ["Control Plane (docker-compose.yml)"]
+    subgraph Control ["Control Plane (docker-compose.docker.yml)"]
         Gateway
         RustFS["RustFS (S3)"]
         ScyllaDB["ScyllaDB (DynamoDB)"]
@@ -42,7 +42,7 @@ flowchart TD
         Registry["Registry"]
     end
 
-    subgraph Compute ["Compute Plane (docker-compose.node.yml)"]
+    subgraph Compute ["Compute Plane (docker-compose.containerd.yml / docker-compose.fc-node.yml)"]
         RuntimeNode["runtime-node (containerd + CNI)"]
         Agent["Go Agent (gRPC)"]
         CoreDNS["CoreDNS (Sidecar)"]
@@ -79,19 +79,21 @@ CLI は現在 `esb build` に特化しており、生成された構成は下の
 ### ファイル構成
 ```text
 .
-├── docker-compose.yml       # Control/Core compose
-├── docker-compose.node.yml  # Compute compose (runtime-node/agent)
-├── docker-compose.containerd.yml # Standalone adapter (Core + Compute)
+├── docker-compose.docker.yml     # Docker mode (single file)
+├── docker-compose.containerd.yml # Containerd mode (single file)
+├── docker-compose.fc.yml         # Firecracker control plane
+├── docker-compose.fc-node.yml    # Firecracker compute node
 ├── services/
 │   ├── gateway/             # API Gateway (FastAPI)
 │   ├── agent/               # Container Orchestrator (Go Agent)
 │   ├── runtime-node/        # containerd + CNI runtime
 │   └── common/              # 共通ライブラリ
 ├── config/                  # 設定ファイル
+├── cli/                 # ESB CLI
 ├── tools/
-│   ├── cli/                 # ★ ESB CLI ツール (New)
-│   ├── generator/           # SAM Template Generator
-│   └── provisioner/         # Infrastructure Provisioner
+│   ├── cert-gen/        # mkcert ベースの証明書生成
+│   ├── gen_proto.py     # gRPC 生成補助
+│   └── setup_devmapper.sh
 ├── e2e/                 # E2Eテスト用Lambda関数
 │   ├── template.yaml    # SAM Source of Truth
 │   └── functions/       # Lambda関数コード
@@ -102,36 +104,35 @@ CLI は現在 `esb build` に特化しており、生成された構成は下の
 
 | ファイル                        | 役割                                   | 主な用途                                   |
 | ------------------------------- | -------------------------------------- | ------------------------------------------ |
-| `docker-compose.yml`            | Control/Core（Gateway + 依存サービス） | Control Plane（単一ノード/分離構成の共通） |
-| `docker-compose.node.yml`       | Compute（runtime-node/agent/coredns）  | Compute Node（Firecracker/remote）         |
-| `docker-compose.containerd.yml` | Adapter（単一ノード結合 / coredns）    | Core + Compute を同一ホストで統合          |
+| `docker-compose.docker.yml`     | Docker モード                           | Docker ランタイムでの単一ノード構成         |
+| `docker-compose.containerd.yml` | Containerd モード                        | Core + Compute を同一ホストで統合           |
+| `docker-compose.fc.yml`         | Firecracker Control Plane               | コントロールプレーンのみ                   |
+| `docker-compose.fc-node.yml`    | Firecracker Compute Node                | コンピュートノードのみ                     |
 
 #### 起動パターン（docker compose）
 
 単一ノード（containerd）:
 ```bash
-docker compose -f docker-compose.yml \
-  -f docker-compose.node.yml \
-  -f docker-compose.containerd.yml up -d
+docker compose -f docker-compose.containerd.yml up -d
 ```
 
 Control/Compute 分離（Firecracker）:
 ```bash
 # Control
-docker compose -f docker-compose.yml up -d
+docker compose -f docker-compose.fc.yml up -d
 
 # Compute
-docker compose -f docker-compose.node.yml up -d
+docker compose -f docker-compose.fc-node.yml up -d
 ```
 
 #### Compose を使った起動パターン
 
-- **Containerd**: Control Plane (`docker-compose.yml`) + Compute Plane (`docker-compose.node.yml`, `docker-compose.containerd.yml`) を順番に `docker compose up -d` します。
-- **Firecracker**: Control Plane のみ `docker compose -f docker-compose.yml up -d` で起動し、Compute は分離された `docker-compose.node.yml` を必要に応じて組み合わせます。
+- **Containerd**: `docker compose -f docker-compose.containerd.yml up -d`
+- **Firecracker**: `docker compose -f docker-compose.fc.yml up -d` のあと `docker compose -f docker-compose.fc-node.yml up -d`
 
 注意:
-- `docker compose -f` は指定順に合成され、後のファイルが前の内容を上書きします。
-- パスは最初の `-f` のディレクトリを基準に解決されます（必要なら `--project-directory` を使います）。
+- 各モードは **単一ファイル**で完結します。
+- 環境変数を分離したい場合は `--env-file` を併用します（例: `.env.prod`）。
 
 ## クイックスタート
 
@@ -168,17 +169,23 @@ source .venv/bin/activate  # macOS/Linux
 mise run setup:certs
 ```
 
-これにより `~/.esb/certs` に証明書が生成され、ローカル開発環境でHTTPSが利用可能になります。
+これにより `~/.<brand>/certs` に証明書が生成され、ローカル開発環境でHTTPSが利用可能になります。
 初回実行時に `mkcert -install` が実行され、ローカルのルートCAがシステムにインストールされます。
 
 
-### プロジェクトの初期化 (`esb init`)
+### ビルドと起動
 
-新しいプロジェクトで ESB を使い始める場合、まず `esb init` を実行して設定ファイルを生成します。
+`esb build` は SAM テンプレートを基に Dockerfile・`functions.yml`/`routing.yml`・`resources.yml` を生成し、関数コンテナと control-plane イメージをビルドします。`Parameters` に `Default` がない場合は対話入力されます。
 
-`esb build` は先ほどの CLI コマンド一覧に記載した通り、SAM テンプレートを基に Dockerfile・`functions.yml`/`routing.yml`・`resources.yml` を生成し、関数コンテナと control-plane イメージをビルドします。
+出力先は既定で `<template_dir>/.<brand>/<env>` になります（`--output` で変更可能）。
 
-生成された構成は `output/<env>/config/` 配下に出力されるため、その後の起動やログは `docker compose -f docker-compose.yml ...` などを使って制御してください。
+```bash
+# ビルド
+esb build --template template.yaml --env prod --mode docker
+
+# 起動（必要なら env ファイルを分離）
+docker compose -f docker-compose.docker.yml --env-file .env.prod up -d
+```
 
 ## ドキュメント
 
@@ -195,8 +202,8 @@ mise run setup:certs
 ## 実行ガイド
 
 1. SAM テンプレートのあるディレクトリで `esb build --template template.yaml --env prod --mode docker` を実行します。`Parameters` に `Default` がないものは対話的に尋ねられます。
-2. `docker compose -f compose/base.yml -f compose/worker.yml up -d` を使って Gateway/Agent/runtime-node を起動します。Firecracker/Containerd では `docker-compose.containerd.yml` を追加してください。
-3. `docker compose logs` / `docker compose down` などで監視・停止を行います。生成済 `output/<env>/config/` には `functions.yml` / `routing.yml` / `resources.yml` が収められています。
+2. `docker compose -f docker-compose.docker.yml --env-file .env.prod up -d` を使って Gateway/Agent を起動します。Containerd は `docker-compose.containerd.yml`、Firecracker は `docker-compose.fc.yml` / `docker-compose.fc-node.yml` を使用します。
+3. `docker compose logs` / `docker compose down` などで監視・停止を行います。生成済 `.<brand>/<env>/config/`（または `--output` で指定したパス）には `functions.yml` / `routing.yml` / `resources.yml` が収められています。
 
 ### シェル補完
 
@@ -229,4 +236,4 @@ esb completion fish > ~/.config/fish/completions/esb.fish
 A. `.venv` を有効化するか、`uv run esb ...` を利用してください。
 
 **Q. ビルド成果物をクリアしたい**  
-A. `output/<env>/` を削除して再度 `esb build` を実行してください。
+A. `.<brand>/<env>/` を削除して再度 `esb build` を実行してください。

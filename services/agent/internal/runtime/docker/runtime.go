@@ -17,6 +17,7 @@ import (
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/go-connections/nat"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/poruru/edge-serverless-box/meta"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/config"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
 	"google.golang.org/grpc/codes"
@@ -70,10 +71,10 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 		}
 	}
 
-	// Phase 7: Use new container name format: esb-{env}-{func}-{uuid}
+	// Phase 7: Use new container name format: {brand}-{env}-{func}-{uuid}
 	u := uuid.New()
 	id := hex.EncodeToString(u[:4])
-	containerName := fmt.Sprintf("esb-%s-%s-%s", r.env, req.FunctionName, id)
+	containerName := fmt.Sprintf("%s-%s-%s-%s", meta.Slug, r.env, req.FunctionName, id)
 
 	// Phase 5 Step 0: Pull image from registry if set
 	registry := os.Getenv("CONTAINER_REGISTRY")

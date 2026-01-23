@@ -84,7 +84,7 @@ def calculate_runtime_env(
 
     # Image Prefix
     if constants.ENV_IMAGE_PREFIX not in env:
-        env[constants.ENV_IMAGE_PREFIX] = project_name
+        env[constants.ENV_IMAGE_PREFIX] = BRAND_SLUG
 
     # If using local dev, point to the Go CLI source root for template resolution
     # (matching logic in cli/internal/config/config.go)

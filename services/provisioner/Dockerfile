@@ -1,5 +1,6 @@
 # syntax=docker/dockerfile:1.4
-FROM esb-python-base:latest
+ARG IMAGE_PREFIX=esb
+FROM ${IMAGE_PREFIX}-python-base:latest
 
 # Install uv (standardized via official image)
 COPY --from=ghcr.io/astral-sh/uv:0.8.13@sha256:4de5495181a281bc744845b9579acf7b221d6791f99bcc211b9ec13f417c2853 /uv /uvx /usr/local/bin/

@@ -95,62 +95,88 @@ func resolveBuildInputs(cli CLI, deps Dependencies) (buildInputs, error) {
 	isTTY := interaction.IsTerminal(os.Stdin)
 	prompter := deps.Prompter
 
-	templatePath, err := resolveBuildTemplate(cli.Template, isTTY, prompter)
-	if err != nil {
-		return buildInputs{}, err
-	}
-
-	env, err := resolveBuildEnv(cli.EnvFlag, isTTY, prompter)
-	if err != nil {
-		return buildInputs{}, err
-	}
-
-	mode, err := resolveBuildMode(cli.Build.Mode, isTTY, prompter)
-	if err != nil {
-		return buildInputs{}, err
-	}
-
-	outputDir := strings.TrimSpace(cli.Build.Output)
-
-	params, err := promptTemplateParameters(templatePath, isTTY, prompter)
-	if err != nil {
-		return buildInputs{}, err
-	}
-
-	projectDir, err := os.Getwd()
-	if err != nil {
-		return buildInputs{}, err
-	}
-
-	composeProject := strings.TrimSpace(os.Getenv(constants.EnvProjectName))
-	if composeProject == "" {
-		brandName := strings.ToLower(strings.TrimSpace(os.Getenv("CLI_CMD")))
-		if brandName == "" {
-			brandName = meta.Slug
+	var last buildInputs
+	for {
+		templatePath, err := resolveBuildTemplate(cli.Template, isTTY, prompter, last.TemplatePath)
+		if err != nil {
+			return buildInputs{}, err
 		}
-		composeProject = fmt.Sprintf("%s-%s", brandName, strings.ToLower(env))
-	}
+		env, err := resolveBuildEnv(cli.EnvFlag, isTTY, prompter, last.Env)
+		if err != nil {
+			return buildInputs{}, err
+		}
 
-	ctx := state.Context{
-		ProjectDir:     projectDir,
-		TemplatePath:   templatePath,
-		OutputDir:      outputDir,
-		Env:            env,
-		Mode:           mode,
-		ComposeProject: composeProject,
-	}
+		mode, err := resolveBuildMode(cli.Build.Mode, isTTY, prompter, last.Mode)
+		if err != nil {
+			return buildInputs{}, err
+		}
 
-	return buildInputs{
-		Context:      ctx,
-		Env:          env,
-		Mode:         mode,
-		TemplatePath: templatePath,
-		OutputDir:    outputDir,
-		Parameters:   params,
-	}, nil
+		outputDir, err := resolveBuildOutput(
+			cli.Build.Output,
+			templatePath,
+			env,
+			isTTY,
+			prompter,
+			last.OutputDir,
+		)
+		if err != nil {
+			return buildInputs{}, err
+		}
+
+		params, err := promptTemplateParameters(templatePath, isTTY, prompter, last.Parameters)
+		if err != nil {
+			return buildInputs{}, err
+		}
+
+		projectDir, err := os.Getwd()
+		if err != nil {
+			return buildInputs{}, err
+		}
+
+		composeProject := strings.TrimSpace(os.Getenv(constants.EnvProjectName))
+		if composeProject == "" {
+			brandName := strings.ToLower(strings.TrimSpace(os.Getenv("CLI_CMD")))
+			if brandName == "" {
+				brandName = meta.Slug
+			}
+			composeProject = fmt.Sprintf("%s-%s", brandName, strings.ToLower(env))
+		}
+
+		ctx := state.Context{
+			ProjectDir:     projectDir,
+			TemplatePath:   templatePath,
+			OutputDir:      outputDir,
+			Env:            env,
+			Mode:           mode,
+			ComposeProject: composeProject,
+		}
+
+		inputs := buildInputs{
+			Context:      ctx,
+			Env:          env,
+			Mode:         mode,
+			TemplatePath: templatePath,
+			OutputDir:    outputDir,
+			Parameters:   params,
+		}
+
+		confirmed, err := confirmBuildInputs(inputs, isTTY, prompter)
+		if err != nil {
+			return buildInputs{}, err
+		}
+		if confirmed {
+			return inputs, nil
+		}
+		last = inputs
+	}
 }
 
-func resolveBuildTemplate(value string, isTTY bool, prompter interaction.Prompter) (string, error) {
+func resolveBuildTemplate(
+	value string,
+	isTTY bool,
+	prompter interaction.Prompter,
+	previous string,
+) (string, error) {
 	trimmed := strings.TrimSpace(value)
 	if trimmed != "" {
 		return normalizeTemplatePath(trimmed)
@@ -158,41 +184,72 @@ func resolveBuildTemplate(value string, isTTY bool, prompter interaction.Prompte
 	if !isTTY || prompter == nil {
 		return "", fmt.Errorf("template path is required")
 	}
-	candidates := discoverTemplateCandidates()
-	title := "Template path"
-	if len(candidates) > 0 {
-		title = fmt.Sprintf("Template path (default: %s)", candidates[0])
-	}
-	input, err := prompter.Input(title, candidates)
-	if err != nil {
-		return "", err
-	}
-	input = strings.TrimSpace(input)
-	if input == "" {
-		if len(candidates) > 0 {
-			if path, err := normalizeTemplatePath(candidates[0]); err == nil {
+	for {
+		candidates := discoverTemplateCandidates()
+		suggestions := make([]string, 0, len(candidates)+1)
+		if strings.TrimSpace(previous) != "" {
+			suggestions = append(suggestions, previous)
+		}
+		for _, candidate := range candidates {
+			if candidate == previous {
+				continue
+			}
+			suggestions = append(suggestions, candidate)
+		}
+		title := "Template path"
+		if strings.TrimSpace(previous) != "" {
+			title = fmt.Sprintf("Template path (default: %s)", previous)
+		} else if len(candidates) > 0 {
+			title = fmt.Sprintf("Template path (default: %s)", candidates[0])
+		}
+		input, err := prompter.Input(title, suggestions)
+		if err != nil {
+			return "", err
+		}
+		input = strings.TrimSpace(input)
+		if input == "" {
+			if strings.TrimSpace(previous) != "" {
+				if path, err := normalizeTemplatePath(previous); err == nil {
+					return path, nil
+				}
+			}
+			if len(candidates) > 0 {
+				if path, err := normalizeTemplatePath(candidates[0]); err == nil {
+					return path, nil
+				}
+			}
+			if path, err := normalizeTemplatePath("."); err == nil {
 				return path, nil
 			}
+			fmt.Fprintln(os.Stderr, "Template path is required.")
+			continue
 		}
-		if path, err := normalizeTemplatePath("."); err == nil {
-			return path, nil
+		path, err := normalizeTemplatePath(input)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Invalid template path: %v\n", err)
+			continue
 		}
-		return "", fmt.Errorf("template path is required")
+		return path, nil
 	}
-	return normalizeTemplatePath(input)
 }
 
 func discoverTemplateCandidates() []string {
 	candidates := []string{}
+	baseDir := resolvePromptBaseDir()
 	for _, name := range []string{"template.yaml", "template.yml"} {
-		if info, err := os.Stat(name); err == nil && !info.IsDir() {
+		if info, err := os.Stat(filepath.Join(baseDir, name)); err == nil && !info.IsDir() {
 			candidates = append(candidates, name)
 		}
 	}
 	return candidates
 }
 
-func resolveBuildEnv(value string, isTTY bool, prompter interaction.Prompter) (string, error) {
+func resolveBuildEnv(
+	value string,
+	isTTY bool,
+	prompter interaction.Prompter,
+	previous string,
+) (string, error) {
 	trimmed := strings.TrimSpace(value)
 	if trimmed != "" {
 		return trimmed, nil
@@ -200,18 +257,28 @@ func resolveBuildEnv(value string, isTTY bool, prompter interaction.Prompter) (s
 	if !isTTY || prompter == nil {
 		return "", fmt.Errorf("environment is required")
 	}
-	input, err := prompter.Input("Environment name", nil)
+	defaultValue := strings.TrimSpace(previous)
+	if defaultValue == "" {
+		defaultValue = "default"
+	}
+	title := fmt.Sprintf("Environment name (default: %s)", defaultValue)
+	input, err := prompter.Input(title, []string{defaultValue})
 	if err != nil {
 		return "", err
 	}
 	input = strings.TrimSpace(input)
 	if input == "" {
-		return "", fmt.Errorf("environment is required")
+		return defaultValue, nil
 	}
 	return input, nil
 }
 
-func resolveBuildMode(value string, isTTY bool, prompter interaction.Prompter) (string, error) {
+func resolveBuildMode(
+	value string,
+	isTTY bool,
+	prompter interaction.Prompter,
+	previous string,
+) (string, error) {
 	trimmed := strings.TrimSpace(strings.ToLower(value))
 	if trimmed != "" {
 		return normalizeMode(trimmed)
@@ -219,15 +286,73 @@ func resolveBuildMode(value string, isTTY bool, prompter interaction.Prompter) (
 	if !isTTY || prompter == nil {
 		return "", fmt.Errorf("mode is required")
 	}
-	selected, err := prompter.Select("Runtime mode", []string{"docker", "containerd", "firecracker"})
+	defaultValue := strings.TrimSpace(strings.ToLower(previous))
+	if defaultValue == "" {
+		defaultValue = "docker"
+	}
+	for {
+		options := []string{defaultValue}
+		for _, opt := range []string{"docker", "containerd", "firecracker"} {
+			if opt == defaultValue {
+				continue
+			}
+			options = append(options, opt)
+		}
+		title := fmt.Sprintf("Runtime mode (default: %s)", defaultValue)
+		selected, err := prompter.Select(title, options)
+		if err != nil {
+			return "", err
+		}
+		selected = strings.TrimSpace(strings.ToLower(selected))
+		if selected == "" {
+			fmt.Fprintln(os.Stderr, "Runtime mode is required.")
+			continue
+		}
+		return normalizeMode(selected)
+	}
+}
+
+func resolveBuildOutput(
+	value string,
+	templatePath string,
+	env string,
+	isTTY bool,
+	prompter interaction.Prompter,
+	previous string,
+) (string, error) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed != "" {
+		return trimmed, nil
+	}
+	if !isTTY || prompter == nil {
+		return "", nil
+	}
+
+	defaultBase := meta.OutputDir
+	defaultResolved := filepath.Join(filepath.Dir(templatePath), defaultBase, env)
+
+	suggestions := []string{}
+	if prev := strings.TrimSpace(previous); prev != "" {
+		suggestions = append(suggestions, prev)
+	}
+	if defaultBase != "" && defaultBase != previous {
+		suggestions = append(suggestions, defaultBase)
+	}
+
+	title := fmt.Sprintf("Output directory (default: %s)", defaultResolved)
+	input, err := prompter.Input(title, suggestions)
 	if err != nil {
 		return "", err
 	}
-	selected = strings.TrimSpace(strings.ToLower(selected))
-	if selected == "" {
-		return "", fmt.Errorf("mode is required")
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return "", nil
 	}
-	return normalizeMode(selected)
+	cleaned := filepath.Clean(input)
+	if filepath.Clean(defaultResolved) == cleaned {
+		return defaultBase, nil
+	}
+	return cleaned, nil
 }
 
 func normalizeMode(mode string) (string, error) {
@@ -240,10 +365,12 @@ func normalizeMode(mode string) (string, error) {
 }
 
 func normalizeTemplatePath(path string) (string, error) {
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		return "", err
+	baseDir := resolvePromptBaseDir()
+	absPath := path
+	if !filepath.IsAbs(absPath) {
+		absPath = filepath.Join(baseDir, absPath)
 	}
+	absPath = filepath.Clean(absPath)
 	info, err := os.Stat(absPath)
 	if err != nil {
 		return "", err
@@ -260,7 +387,22 @@ func normalizeTemplatePath(path string) (string, error) {
 	return "", fmt.Errorf("no template.yaml or template.yml found in directory: %s", path)
 }
 
-func promptTemplateParameters(templatePath string, isTTY bool, prompter interaction.Prompter) (map[string]string, error) {
+func resolvePromptBaseDir() string {
+	if pwd := strings.TrimSpace(os.Getenv("PWD")); pwd != "" {
+		return pwd
+	}
+	if cwd, err := os.Getwd(); err == nil {
+		return cwd
+	}
+	return "."
+}
+
+func promptTemplateParameters(
+	templatePath string,
+	isTTY bool,
+	prompter interaction.Prompter,
+	previous map[string]string,
+) (map[string]string, error) {
 	params, err := parseTemplateParameters(templatePath)
 	if err != nil || len(params) == 0 {
 		return map[string]string{}, err
@@ -280,10 +422,18 @@ func promptTemplateParameters(templatePath string, isTTY bool, prompter interact
 		if hasDefault {
 			defaultStr = fmt.Sprint(param.Default)
 		}
+		prevValue := ""
+		if previous != nil {
+			prevValue = strings.TrimSpace(previous[name])
+		}
 
 		if !isTTY || prompter == nil {
 			if hasDefault {
 				values[name] = defaultStr
+				continue
+			}
+			if prevValue != "" {
+				values[name] = prevValue
 				continue
 			}
 			return nil, fmt.Errorf("parameter %q requires a value", name)
@@ -301,23 +451,91 @@ func promptTemplateParameters(templatePath string, isTTY bool, prompter interact
 				displayDefault = "''"
 			}
 			title = fmt.Sprintf("%s [Default: %s]", label, displayDefault)
+		} else if prevValue != "" {
+			title = fmt.Sprintf("%s [Previous: %s]", label, prevValue)
 		} else {
 			title = fmt.Sprintf("%s [Required]", label)
 		}
 
-		input, err := prompter.Input(title, nil)
-		if err != nil {
-			return nil, err
+		suggestions := []string{}
+		if prevValue != "" {
+			suggestions = append(suggestions, prevValue)
 		}
-		input = strings.TrimSpace(input)
-		if input == "" && hasDefault {
-			input = defaultStr
+		for {
+			input, err := prompter.Input(title, suggestions)
+			if err != nil {
+				return nil, err
+			}
+			input = strings.TrimSpace(input)
+			if input == "" && hasDefault {
+				input = defaultStr
+			}
+			if input == "" && prevValue != "" {
+				input = prevValue
+			}
+			if input == "" && !hasDefault {
+				fmt.Fprintf(os.Stderr, "Parameter %q is required.\n", name)
+				continue
+			}
+			values[name] = input
+			break
 		}
-		if input == "" && !hasDefault {
-			return nil, fmt.Errorf("parameter %q is required", name)
-		}
-		values[name] = input
 	}
 
 	return values, nil
+}
+
+func confirmBuildInputs(inputs buildInputs, isTTY bool, prompter interaction.Prompter) (bool, error) {
+	if !isTTY || prompter == nil {
+		return true, nil
+	}
+
+	output := resolveOutputSummary(inputs.TemplatePath, inputs.OutputDir, inputs.Env)
+
+	summaryLines := []string{
+		fmt.Sprintf("Template: %s", inputs.TemplatePath),
+		fmt.Sprintf("Env: %s", inputs.Env),
+		fmt.Sprintf("Mode: %s", inputs.Mode),
+		fmt.Sprintf("Output: %s", output),
+	}
+	if len(inputs.Parameters) > 0 {
+		keys := make([]string, 0, len(inputs.Parameters))
+		for k := range inputs.Parameters {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		paramLines := make([]string, 0, len(keys)+1)
+		paramLines = append(paramLines, "Parameters:")
+		for _, key := range keys {
+			paramLines = append(paramLines, fmt.Sprintf("  %s = %s", key, inputs.Parameters[key]))
+		}
+		summaryLines = append(summaryLines, paramLines...)
+	}
+
+	summary := "Review inputs:\n" + strings.Join(summaryLines, "\n")
+
+	choice, err := prompter.SelectValue(
+		summary,
+		[]interaction.SelectOption{
+			{Label: "Proceed", Value: "proceed"},
+			{Label: "Edit", Value: "edit"},
+		},
+	)
+	if err != nil {
+		return false, err
+	}
+	return choice == "proceed", nil
+}
+
+func resolveOutputSummary(templatePath, outputDir, env string) string {
+	baseDir := filepath.Dir(templatePath)
+	trimmed := strings.TrimRight(strings.TrimSpace(outputDir), "/\\")
+	if trimmed == "" {
+		return filepath.Join(baseDir, meta.OutputDir, env)
+	}
+	path := trimmed
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(baseDir, path)
+	}
+	return filepath.Join(filepath.Clean(path), env)
 }

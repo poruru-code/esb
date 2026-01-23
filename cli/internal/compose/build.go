@@ -6,6 +6,7 @@ package compose
 import (
 	"context"
 	"fmt"
+	"os"
 )
 
 // BuildOptions contains configuration for building Docker Compose services.
@@ -51,7 +52,14 @@ func BuildProject(ctx context.Context, runner CommandRunner, opts BuildOptions) 
 	if opts.Verbose {
 		return runner.Run(ctx, opts.RootDir, "docker", args...)
 	}
-	return runner.RunQuiet(ctx, opts.RootDir, "docker", args...)
+	output, err := runner.RunOutput(ctx, opts.RootDir, "docker", args...)
+	if err != nil {
+		if len(output) > 0 {
+			_, _ = os.Stderr.Write(output)
+		}
+		return fmt.Errorf("compose build failed: %w", err)
+	}
+	return nil
 }
 
 // ensureService adds a service to the list if not already present.

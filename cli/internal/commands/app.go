@@ -180,5 +180,30 @@ func runNoArgs(out io.Writer) int {
 func handleParseError(args []string, err error, deps Dependencies, out io.Writer) int {
 	_ = args
 	_ = deps
+	msg := err.Error()
+	if strings.Contains(msg, "expected string value") {
+		ui := legacyUI(out)
+		switch {
+		case strings.Contains(msg, "--template"):
+			ui.Warn("`-t/--template` expects a value. Provide a path or omit the flag for interactive input.")
+			ui.Info("Example: esb build -t ./template.yaml")
+			ui.Info("Interactive: esb build")
+			return 1
+		case strings.Contains(msg, "--env"):
+			ui.Warn("`-e/--env` expects a value. Provide a name or omit the flag for interactive input.")
+			ui.Info("Example: esb build -e prod")
+			ui.Info("Interactive: esb build")
+			return 1
+		case strings.Contains(msg, "--mode"):
+			ui.Warn("`-m/--mode` expects a value. Use docker/containerd/firecracker or omit the flag for interactive input.")
+			ui.Info("Example: esb build -m docker")
+			ui.Info("Interactive: esb build")
+			return 1
+		case strings.Contains(msg, "--env-file"):
+			ui.Warn("`--env-file` expects a value. Provide a file path.")
+			ui.Info("Example: esb build --env-file .env.prod")
+			return 1
+		}
+	}
 	return exitWithError(out, err)
 }

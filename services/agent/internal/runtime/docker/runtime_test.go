@@ -3,12 +3,14 @@ package docker
 import (
 	"context"
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/poruru/edge-serverless-box/meta"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -68,13 +70,13 @@ func TestRuntime_Ensure(t *testing.T) {
 	}
 
 	// 1. Create
-	// Expect container name to follow pattern: esb-{env}-{func}-{uuid}
+	// Expect container name to follow pattern: {brand}-{env}-{func}-{uuid}
 	// And label esb_env={env}
 	mockClient.On("ContainerCreate", ctx, mock.Anything, mock.Anything, mock.Anything, mock.Anything,
 		mock.MatchedBy(func(name string) bool {
-			// Needs to start with esb-test-env-
+			// Needs to start with {brand}-test-env-
 			// We trust uuid part
-			return len(name) > 0
+			return strings.HasPrefix(name, meta.Slug+"-test-env-")
 		})).
 		Return(container.CreateResponse{ID: "new-id"}, nil).Once()
 

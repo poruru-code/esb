@@ -18,7 +18,7 @@ esb build --template <path> --env <name> --mode <docker|containerd|firecracker> 
 | `--env-file` | | 読み込む `.env` ファイルパス（任意）。未指定時はカレントディレクトリの `.env` を自動で読み込みます。 |
 | `--mode` | `-m` | ランタイムモード（必須）。未指定時は対話入力。 |
 | `--template` | `-t` | SAMテンプレートへのパス（必須）。未指定時は対話入力。 |
-| `--output` | `-o` | 生成物の出力先（任意）。未指定時は既定の構成を使用。 |
+| `--output` | `-o` | 生成物の出力先（任意）。未指定時は `<template_dir>/.<brand>/<env>` を使用。 |
 | `--no-cache` | | イメージビルド時にキャッシュを使用しません。 |
 | `--verbose` | `-v` | 詳細な出力を有効にします。デフォルトでは進行状況のみを表示する静音モードです。 |
 | `--force` | | 無効な `ESB_PROJECT`/`ESB_ENV` 環境変数を自動的に解除します。 |

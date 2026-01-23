@@ -11,7 +11,7 @@ Why: Preserve decisions, constraints, and executable next steps.
 - テンプレートの更新漏れを防ぎ、ESB 側は最小限の連携だけを残す。
 
 ## 前提・制約
-- ベースは `brand: esb` を維持（`config/branding.yaml` は esb）。
+- ベースは `CLI_CMD=esb` を維持（`config/defaults.env` を基準にする）。
 - 下流固有の値・秘密情報はベースに含めない。
 - 下流リポジトリにはツールを残さない（生成物のみ固定）。
 - ベース変更はパッチ取り込み前提（履歴共有が理想）。
@@ -27,7 +27,7 @@ Why: Preserve decisions, constraints, and executable next steps.
 
 ## 役割分担
 ### ESB リポジトリ
-- `config/branding.yaml` は常に `brand: esb` を維持。
+- `config/defaults.env` は常に `CLI_CMD=esb` / `IMAGE_PREFIX=esb` / `ENV_PREFIX=ESB` を維持。
 - ツール repo への `repository_dispatch` を送るワークフローのみ保持。
 - `tools/branding` と `mise` の generator タスクは、ツール運用確立後に削除。
 

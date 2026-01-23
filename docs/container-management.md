@@ -128,8 +128,9 @@ sequenceDiagram
 # 全イメージを強制リビルド
 esb build --no-cache
 
-# サービス起動時にリビルド
-esb up --build
+# Control-plane イメージを再ビルドして起動
+docker compose -f docker-compose.docker.yml build
+docker compose -f docker-compose.docker.yml up -d
 ```
 
 ### 未使用イメージのクリーンアップ
@@ -145,11 +146,11 @@ docker image prune -f
 ### コンテナログの確認
 
 ```bash
-# Go Agent のログ
-docker logs esb-agent
+# Go Agent のログ（例: esb-prod-agent）
+docker logs <project>-agent
 
-# containerd 側の状態確認
-ctr -n esb-runtime containers list
+# containerd 側の状態確認（namespace は brand 名）
+ctr -n <brand> containers list
 ```
 
 ## トラブルシューティング
@@ -161,7 +162,8 @@ ctr -n esb-runtime containers list
 **解決策**:
 ```bash
 esb build --no-cache
-esb up --build
+docker compose -f docker-compose.docker.yml build
+docker compose -f docker-compose.docker.yml up -d
 ```
 
 ### 問題: 大量の `<untagged>` イメージ
@@ -178,8 +180,8 @@ docker image prune -f
 **確認手順**:
 ```bash
 # Go Agent ログの確認
-docker logs esb-agent
+docker logs <project>-agent
 
-# containerd 側の状態確認
-ctr -n esb-runtime containers list
+# containerd 側の状態確認（namespace は brand 名）
+ctr -n <brand> containers list
 ```

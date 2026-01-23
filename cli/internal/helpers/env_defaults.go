@@ -56,7 +56,7 @@ func applyRuntimeEnv(ctx state.Context, resolver func(string) (string, error)) {
 	}
 	imagePrefix := os.Getenv(constants.EnvImagePrefix)
 	if imagePrefix == "" {
-		imagePrefix = ctx.ComposeProject
+		imagePrefix = meta.Slug
 	}
 	setEnvIfEmpty(constants.EnvImagePrefix, imagePrefix)
 

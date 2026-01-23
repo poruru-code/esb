@@ -35,4 +35,4 @@ graph TD
 
 - `generator.yml` は参照しません
 - SAM `Parameters` は **ビルド時に対話入力**し、そのビルドのみ有効
-- 出力先は `--output` 指定時は `<output>/<env>`、未指定時は `<template_dir>/.esb/<env>`
+- 出力先は `--output` 指定時は `<output>/<env>`、未指定時は `<template_dir>/.<brand>/<env>`

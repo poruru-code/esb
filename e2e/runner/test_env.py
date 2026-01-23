@@ -45,7 +45,7 @@ def test_calculate_runtime_env_defaults():
         assert env[constants.ENV_MODE] == "docker"
         assert env[constants.ENV_PROJECT_NAME] == "myproj"
         assert env[constants.ENV_IMAGE_TAG] == "docker"
-        assert env[constants.ENV_IMAGE_PREFIX] == "myproj"
+        assert env[constants.ENV_IMAGE_PREFIX] == BRAND_SLUG
 
         # Check Subnets are present
         assert constants.ENV_SUBNET_EXTERNAL in env
