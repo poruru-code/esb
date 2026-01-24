@@ -262,6 +262,8 @@ services/agent/Dockerfile.containerd
   - 対策: 自動化されたマトリクスビルド
 - リスク: 依存差分の逸脱
   - 対策: 構造テストと依存リストの明文化
+- リスク: branding 生成に失敗し ENV_PREFIX が設定されない
+  - 対策: applyRuntimeEnv の先頭で ENV_PREFIX を検証し即失敗
 
 ## 18. 実装計画（フェーズ分割）
 ### 18.1 Phase 0: 影響範囲の棚卸し
@@ -269,6 +271,7 @@ services/agent/Dockerfile.containerd
 - branding 生成値（meta.EnvPrefix / meta.ImagePrefix / meta.LabelPrefix）の利用箇所を整理。
 受け入れ条件:
 - 影響範囲一覧が完成し、変更対象が確定している。
+- branding 生成が失敗した場合の停止条件が合意されている。
 
 ### 18.2 Phase 1: 画像命名・タグの統一
 - 画像名を `<brand>-<component>-{docker|containerd}` に統一。
@@ -300,7 +303,7 @@ services/agent/Dockerfile.containerd
 
 ### 18.6 Phase 5: containerd / firecracker 切替の統一
 - `CONTAINERD_RUNTIME=aws.firecracker` のみで切替できることを保証。
-- firecracker モードでは containerd 画像を流用し、entrypoint を切替。
+- firecracker モードでは containerd 画像を流用し、**entrypoint ラッパー**で切替する。
 受け入れ条件:
 - containerd / firecracker どちらでも同一イメージが使える。
 
@@ -310,21 +313,35 @@ services/agent/Dockerfile.containerd
 受け入れ条件:
 - すべての E2E プロファイルが成功する。
 
+### 18.8 Phase 7: 運用ルールと移行ガイドの整備
+- 生成物再作成（`functions.yml` の image 完全埋め込み）の運用ルールを明文化。
+- 旧環境変数（`IMAGE_TAG` など）の廃止をリリースノートに明記。
+受け入れ条件:
+- “タグ変更時は再生成が必須” が運用ドキュメントに記載されている。
+- 旧変数を使った運用が禁止されている。
+
 ## 19. 詳細設計（コードレベル）
 ### 19.1 環境変数の解決方法
 - 外部入力は `<BRAND>_REGISTRY` / `<BRAND>_TAG` のみ。
 - `<BRAND>` は `meta.EnvPrefix` から動的に生成する。
 - `envutil.HostEnvKey` は `ENV_PREFIX` を前提にし、固定デフォルトは使わない。
+- `ENV_PREFIX` は **必ず `applyBrandingEnv` により先に設定される**ことを保証する。
+- `ENV_PREFIX` が未設定の場合は **即エラー**とし、暗黙のデフォルトは持たない。
+- `applyRuntimeEnv` 冒頭で `ENV_PREFIX` を検証する専用チェックを追加する。
 
 ### 19.2 CLI の環境反映
 対象:
 - `cli/internal/helpers/env_defaults.go`
 - `cli/internal/envutil/envutil.go`
+ - `cli/internal/workflows/build.go`
+ - `cli/internal/generator/go_builder.go`
 
 設計:
 - `applyRuntimeEnv` の先頭で `applyBrandingEnv` を実行し、`ENV_PREFIX` を必ず先に設定する。
 - `IMAGE_TAG` / `IMAGE_PREFIX` を設定する処理を削除する。
 - `<BRAND>_TAG` が未設定の場合は `latest` を使用（開発用途のみ想定）。
+- `<BRAND>_VERSION` は **CLI または CI が必ず供給**する。未設定はビルド失敗とする。
+- BuildRequest に `<BRAND>_VERSION` を明示的に渡し、generator 側で必須チェックする。
 
 ### 19.3 関数イメージの埋め込み生成
 対象:
@@ -339,6 +356,7 @@ services/agent/Dockerfile.containerd
   - `image: "{{ .Registry }}{{ .ImagePrefix }}-{{ .ImageName }}:{{ .Tag }}"`
 - `Registry` は末尾 `/` を含む形に正規化して渡す（空の場合は空文字）。
 - `ImagePrefix` は `meta.ImagePrefix` を使用し、外部入力にしない。
+- `functions.yml` は **タグ変更時に必ず再生成**する運用ルールとする。
 
 ### 19.4 サービスイメージの命名とビルド
 対象:
@@ -366,6 +384,7 @@ services/agent/Dockerfile.containerd
 - `services/gateway/entrypoint.sh`
 - `services/runtime-node/entrypoint.containerd.sh`
 - `services/runtime-node/entrypoint.firecracker.sh`
+ - `services/runtime-node/entrypoint.sh`（新規ラッパー）
 
 設計（擬似コード）:
 ```
@@ -386,6 +405,7 @@ esac
 ```
 - gateway / provisioner は `IMAGE_RUNTIME` の値検証のみを行う。
 - runtime-node は `IMAGE_RUNTIME=containerd` 以外で即終了する。
+- 終了コードは `exit 1` に統一し、ログは `ERROR: <reason>` の形式で出力する。
 
 ### 19.7 Dockerfile の整理
 対象:
@@ -410,10 +430,13 @@ esac
 対象:
 - `services/runtime-node/entrypoint.containerd.sh`
 - `services/runtime-node/entrypoint.firecracker.sh`
+ - `services/runtime-node/entrypoint.sh`（新規ラッパー）
 
 設計:
-- `CONTAINERD_RUNTIME=aws.firecracker` の場合は firecracker 用 entrypoint を使用。
-- それ以外は containerd 用 entrypoint を使用。
+- `CONTAINERD_RUNTIME=aws.firecracker` の場合は **entrypoint ラッパー**が firecracker 用を実行する。
+- それ以外は containerd 用を実行する。
+- ラッパーは `IMAGE_RUNTIME` の guard を最初に実行した後に分岐する。
+ - Compose は常に `entrypoint: /entrypoint.sh` を使用する。
 
 ### 19.10 WireGuard 条件
 対象:
@@ -438,6 +461,7 @@ esac
 - compose / 起動プロファイル:
   - docker / containerd の2系統で E2E シナリオを整理する。
   - firecracker は containerd 系統の runtime 切替で検証する。
+  - entrypoint ラッパーの分岐が反映される起動方法に統一する。
 
 ### 20.3 修正内容（実装指針）
 1) E2E で使用している環境変数を棚卸しする。
