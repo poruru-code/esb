@@ -344,6 +344,7 @@ services/agent/Dockerfile.containerd
 - `<BRAND>_TAG` が未設定の場合は `latest` を使用（開発用途のみ想定）。
 - `<BRAND>_VERSION` は **CLI または CI が必ず供給**する。未設定はビルド失敗とする。
 - BuildRequest に `<BRAND>_VERSION` を明示的に渡し、generator 側で必須チェックする。
+ - `buildCommand.Run` の直後に `<BRAND>_VERSION` を検証し、未設定なら CLI で即失敗する。
 
 #### 19.2.1 `<BRAND>_VERSION` 解決手順（CLI）
 1) `applyBrandingEnv` により `ENV_PREFIX` を設定する。  
@@ -361,8 +362,19 @@ services/agent/Dockerfile.containerd
 #### 19.2.3 BuildRequest のフィールド追加（明示仕様）
 - `cli/internal/workflows/build.go` の `BuildRequest` に `Version string` を追加する。  
 - `cli/internal/generator/build_request.go` の `BuildRequest` に `Version string` を追加する。  
+- `cli/internal/commands/build.go` の `buildCommand.Run` で `Version` を設定する。  
 - 伝播ルール: workflow の `BuildRequest.Version` を generator の `BuildRequest.Version` にコピーする。  
 - generator 側で `Version` が空の場合は即エラー（`ERROR: <BRAND>_VERSION is required`）。  
+ - `Version` は **必ず `<BRAND>_VERSION` 由来**であること（`<BRAND>_TAG` からは設定しない）。  
+
+#### 19.2.6 既存関数の置換位置（明示仕様）
+- `cli/internal/generator/go_builder_helpers.go` の以下を置換:  
+  - `resolveImageTag` → `<BRAND>_TAG` 解決ロジックに置換  
+  - `resolveRegistryConfig` → `<BRAND>_REGISTRY` 解決ロジックに置換  
+- `cli/internal/generator/go_builder.go` の `resolveImageTag(request.Env)` 呼び出しを削除し、  
+  `request.Version` をタグとして使用する。  
+- `resolveRegistryConfig(mode)` は registry 設定の自動生成を廃止し、  
+  `<BRAND>_REGISTRY` の値のみを使用する。  
 
 #### 19.2.4 GIT_SHA / BUILD_DATE の解決手順（内部管理）
 - これらは外部入力ではなく **CLI が内部で決定**する。  
@@ -373,6 +385,7 @@ services/agent/Dockerfile.containerd
 - `BUILD_DATE`:
   - 環境変数 `BUILD_DATE` があればそれを優先。  
   - 未設定なら `UTC` の ISO8601 で生成する（例: `2026-01-24T12:00:00Z`）。  
+  - 生成は `applyRuntimeEnv` 内で一度だけ行い、以後は上書きしない。  
 
 #### 19.2.5 `<BRAND>_TAG` / `<BRAND>_REGISTRY` 解決手順（CLI）
 - `tagKey := envutil.HostEnvKey("TAG")` を生成し、`<BRAND>_TAG` を取得する。  
@@ -382,6 +395,7 @@ services/agent/Dockerfile.containerd
   - 空の場合は空文字（レジストリ指定なし）。  
   - 末尾に `/` が無ければ付与する。  
 - `resolveImageTag` / `resolveRegistryConfig` は上記ロジックに置き換える。  
+- **優先順位:** `BuildRequest.Version`（必須） → `<BRAND>_TAG`（開発のみ）。  
 
 ### 19.3 関数イメージの埋め込み生成
 対象:
@@ -477,6 +491,7 @@ exec /entrypoint.containerd.sh "$@"
 - ラッパーは `IMAGE_RUNTIME` の guard を最初に実行する。
 - `CONTAINERD_RUNTIME` が未設定または別値なら containerd 側へ分岐する。
 - Compose は常に `entrypoint: /entrypoint.sh` を使用する。
+- `RUNTIME_MODE` ベースの既存分岐は廃止する（既存の `entrypoint.sh` を置換）。
 
 ### 19.7 Dockerfile の整理
 対象:
