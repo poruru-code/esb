@@ -58,7 +58,7 @@ Why: 実装者がこの1文書だけで作業できる設計仕様を提供す�
 - `vX`（長期互換）
 - `vX.Y.Z-rc.N`（プレリリース）
 - `sha-<git-short>`（CI検証）
-- `latest`（開発用途のみ）
+- `latest`（開発用途のみ・本番禁止）
 
 ### 6.2 ポリシー
 - 本番は不変タグのみ使用。
@@ -220,6 +220,52 @@ services/agent/Dockerfile.containerd
 - `<BRAND>_` は branding 生成の `meta.EnvPrefix` を使用する。
 - 例: brand が `acme` の場合 `ACME_REGISTRY` / `ACME_TAG` / `ACME_VERSION` を使用する。
 - 固定プレフィクスの外部変数は使用しない（後方互換は設計範囲外）。
+
+## 18. 詳細設計（実装仕様）
+### 18.1 画像名・タグ（確定仕様）
+- 画像名は `<brand>-<component>-<runtime>` に固定する。
+- `<runtime>` は `docker` / `containerd` の2系統のみ。
+- `containerd` 画像は firecracker を包含する（`CONTAINERD_RUNTIME=aws.firecracker` で切替）。
+- タグは `vX.Y.Z` を正とし、`latest` は開発用途のみで許容する。
+
+### 18.2 Build Args / ENV / ラベル
+- Build Args（固定）: `<BRAND>_VERSION`, `GIT_SHA`, `BUILD_DATE`, `IMAGE_RUNTIME`, `COMPONENT`
+- ENV（イメージに焼き込み）: `<BRAND>_VERSION`, `IMAGE_RUNTIME`, `COMPONENT`
+- OCI ラベル: `org.opencontainers.*` + `com.<brand>.*` を必須とする。
+
+### 18.3 Runtime Guard 実装位置（確定仕様）
+- guard は **entrypoint** で実施する（最優先）。
+- 追加の環境変数は導入しない。
+- 判定に使う環境変数は既存の `IMAGE_RUNTIME`, `AGENT_RUNTIME`, `CONTAINERD_RUNTIME` のみ。
+
+#### 18.3.1 agent の guard（必須）
+- `IMAGE_RUNTIME=docker` の場合: `AGENT_RUNTIME` が `docker` 以外なら即終了。
+- `IMAGE_RUNTIME=containerd` の場合: `AGENT_RUNTIME` が `containerd` 以外なら即終了。
+- `AGENT_RUNTIME` が未設定の場合は **即終了**（曖昧さを許さない）。
+
+#### 18.3.2 runtime-node の guard（必須）
+- `IMAGE_RUNTIME=containerd` でのみ起動する。
+- `CONTAINERD_RUNTIME=aws.firecracker` の場合は firecracker ルートを使用する。
+- それ以外は containerd ルートを使用する。
+
+#### 18.3.3 gateway / provisioner の guard（必須）
+- `IMAGE_RUNTIME` が `docker` または `containerd` 以外なら即終了。
+- runtime 判定のための新しい外部変数は導入しない。
+- コンテナは **選択されたイメージ名が正**であることを前提とする。
+
+### 18.4 Compose / CLI の運用規約
+- 外部入力は `<BRAND>_REGISTRY` と `<BRAND>_TAG` のみ。
+- `latest` を指定できるのは開発用途のみ。運用用途では禁止。
+- `AGENT_RUNTIME` と `CONTAINERD_RUNTIME` は CLI/Compose で明示設定する。
+
+### 18.5 containerd / firecracker 切替（確定仕様）
+- 切替キーは `CONTAINERD_RUNTIME=aws.firecracker`。
+- 切替は runtime-node / agent の起動時判定にのみ利用する。
+
+### 18.6 WireGuard（最小環境変数での運用）
+- 追加の外部変数は導入しない。
+- gateway: `WG_CONF_PATH` が存在する場合のみ WireGuard 起動。
+- runtime-node: `WG_CONTROL_NET` が指定された場合のみルート設定。
 
 ### 12.2 Compose 記述例
 - `image: ${<BRAND>_REGISTRY}/<brand>-agent-containerd:${<BRAND>_TAG}`
