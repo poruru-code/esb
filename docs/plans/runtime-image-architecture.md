@@ -193,6 +193,13 @@ services/agent/Dockerfile.containerd
 - `<BRAND>_TAG`
 - `<BRAND>_VERSION`
 
+### 12.2 Compose 記述例
+- `image: ${<BRAND>_REGISTRY}/<brand>-agent-containerd:${<BRAND>_TAG}`
+
+### 12.3 CLI マッピング
+- docker -> `<brand>-<component>-docker`
+- containerd / firecracker -> `<brand>-<component>-containerd`
+
 ### 12.4 環境変数の最小化と分類
 #### 外部指定（運用者が必要時のみ設定）
 - `<BRAND>_REGISTRY`: 取得先レジストリを切替える場合のみ。
@@ -201,8 +208,8 @@ services/agent/Dockerfile.containerd
 
 #### 内部管理（実装またはCLI/Composeが設定）
 - `<BRAND>_VERSION`: ビルド時に埋め込む。
-- `IMAGE_RUNTIME`: イメージに焼き込む（ブランド非依存）。
-- `COMPONENT`: イメージに焼き込む（ブランド非依存）。
+- `IMAGE_RUNTIME`: イメージに焼き込む。
+- `COMPONENT`: イメージに焼き込む。
 - `AGENT_RUNTIME`: CLI/Compose が設定（運用者が変更しない）。
 - `CONTAINERD_RUNTIME`: firecracker を選択する場合に CLI/Compose が設定。
 - `WG_QUICK_USERSPACE_IMPLEMENTATION`: gateway の起動中に内部で設定。
@@ -220,59 +227,6 @@ services/agent/Dockerfile.containerd
 - `<BRAND>_` は branding 生成の `meta.EnvPrefix` を使用する。
 - 例: brand が `acme` の場合 `ACME_REGISTRY` / `ACME_TAG` / `ACME_VERSION` を使用する。
 - 固定プレフィクスの外部変数は使用しない（後方互換は設計範囲外）。
-
-## 18. 詳細設計（実装仕様）
-### 18.1 画像名・タグ（確定仕様）
-- 画像名は `<brand>-<component>-<runtime>` に固定する。
-- `<runtime>` は `docker` / `containerd` の2系統のみ。
-- `containerd` 画像は firecracker を包含する（`CONTAINERD_RUNTIME=aws.firecracker` で切替）。
-- タグは `vX.Y.Z` を正とし、`latest` は開発用途のみで許容する。
-
-### 18.2 Build Args / ENV / ラベル
-- Build Args（固定）: `<BRAND>_VERSION`, `GIT_SHA`, `BUILD_DATE`, `IMAGE_RUNTIME`, `COMPONENT`
-- ENV（イメージに焼き込み）: `<BRAND>_VERSION`, `IMAGE_RUNTIME`, `COMPONENT`
-- OCI ラベル: `org.opencontainers.*` + `com.<brand>.*` を必須とする。
-
-### 18.3 Runtime Guard 実装位置（確定仕様）
-- guard は **entrypoint** で実施する（最優先）。
-- 追加の環境変数は導入しない。
-- 判定に使う環境変数は既存の `IMAGE_RUNTIME`, `AGENT_RUNTIME`, `CONTAINERD_RUNTIME` のみ。
-
-#### 18.3.1 agent の guard（必須）
-- `IMAGE_RUNTIME=docker` の場合: `AGENT_RUNTIME` が `docker` 以外なら即終了。
-- `IMAGE_RUNTIME=containerd` の場合: `AGENT_RUNTIME` が `containerd` 以外なら即終了。
-- `AGENT_RUNTIME` が未設定の場合は **即終了**（曖昧さを許さない）。
-
-#### 18.3.2 runtime-node の guard（必須）
-- `IMAGE_RUNTIME=containerd` でのみ起動する。
-- `CONTAINERD_RUNTIME=aws.firecracker` の場合は firecracker ルートを使用する。
-- それ以外は containerd ルートを使用する。
-
-#### 18.3.3 gateway / provisioner の guard（必須）
-- `IMAGE_RUNTIME` が `docker` または `containerd` 以外なら即終了。
-- runtime 判定のための新しい外部変数は導入しない。
-- コンテナは **選択されたイメージ名が正**であることを前提とする。
-
-### 18.4 Compose / CLI の運用規約
-- 外部入力は `<BRAND>_REGISTRY` と `<BRAND>_TAG` のみ。
-- `latest` を指定できるのは開発用途のみ。運用用途では禁止。
-- `AGENT_RUNTIME` と `CONTAINERD_RUNTIME` は CLI/Compose で明示設定する。
-
-### 18.5 containerd / firecracker 切替（確定仕様）
-- 切替キーは `CONTAINERD_RUNTIME=aws.firecracker`。
-- 切替は runtime-node / agent の起動時判定にのみ利用する。
-
-### 18.6 WireGuard（最小環境変数での運用）
-- 追加の外部変数は導入しない。
-- gateway: `WG_CONF_PATH` が存在する場合のみ WireGuard 起動。
-- runtime-node: `WG_CONTROL_NET` が指定された場合のみルート設定。
-
-### 12.2 Compose 記述例
-- `image: ${<BRAND>_REGISTRY}/<brand>-agent-containerd:${<BRAND>_TAG}`
-
-### 12.3 CLI マッピング
-- docker -> `<brand>-<component>-docker`
-- containerd / firecracker -> `<brand>-<component>-containerd`
 
 ## 13. CI/CD ビルドマトリクス
 - 次元: component × runtime系統 × arch
@@ -309,29 +263,190 @@ services/agent/Dockerfile.containerd
 - リスク: 依存差分の逸脱
   - 対策: 構造テストと依存リストの明文化
 
-## 19. E2E テスト修正計画（必須）
-### 19.1 目的
+## 18. 実装計画（フェーズ分割）
+### 18.1 Phase 0: 影響範囲の棚卸し
+- 対象ファイルと環境変数の洗い出し（IMAGE_* / 旧プレフィクスの残存確認）。
+- branding 生成値（meta.EnvPrefix / meta.ImagePrefix / meta.LabelPrefix）の利用箇所を整理。
+受け入れ条件:
+- 影響範囲一覧が完成し、変更対象が確定している。
+
+### 18.2 Phase 1: 画像命名・タグの統一
+- 画像名を `<brand>-<component>-{docker|containerd}` に統一。
+- `latest` は開発用途のみ許容、運用は `vX.Y.Z` のみ。
+受け入れ条件:
+- 画像名の命名規則が実装全体で一致している。
+- 開発以外で `latest` を使う経路がない。
+
+### 18.3 Phase 2: 外部入力の最小化
+- 外部入力を `<BRAND>_REGISTRY` / `<BRAND>_TAG` のみに統一。
+- `IMAGE_PREFIX` / `IMAGE_TAG` / `FUNCTION_IMAGE_PREFIX` の外部利用を廃止。
+受け入れ条件:
+- 生成物に `${IMAGE_TAG}` 等のプレースホルダが残っていない。
+- Compose と CLI に外部入力が2つだけになっている。
+
+### 18.4 Phase 3: Dockerfile とビルド引数の整理
+- Dockerfile の `ARG IMAGE_PREFIX=<brand>` など固定デフォルトを撤去。
+- `IMAGE_RUNTIME` / `COMPONENT` / `<BRAND>_VERSION` を ENV に焼き込む。
+受け入れ条件:
+- すべてのサービスイメージに `IMAGE_RUNTIME` と `COMPONENT` が入っている。
+- ブランド固定のデフォルト値が残っていない。
+
+### 18.5 Phase 4: Runtime Guard 実装
+- entrypoint に `IMAGE_RUNTIME` と `AGENT_RUNTIME` の整合チェックを追加。
+- 不一致時は明確なエラーで即終了。
+受け入れ条件:
+- 不一致条件で必ず起動失敗する。
+- 一致条件では従来通りに起動する。
+
+### 18.6 Phase 5: containerd / firecracker 切替の統一
+- `CONTAINERD_RUNTIME=aws.firecracker` のみで切替できることを保証。
+- firecracker モードでは containerd 画像を流用し、entrypoint を切替。
+受け入れ条件:
+- containerd / firecracker どちらでも同一イメージが使える。
+
+### 18.7 Phase 6: E2E 更新
+- E2E で新しい命名規則と外部入力のみを使用。
+- firecracker 相当は `CONTAINERD_RUNTIME=aws.firecracker` で再現。
+受け入れ条件:
+- すべての E2E プロファイルが成功する。
+
+## 19. 詳細設計（コードレベル）
+### 19.1 環境変数の解決方法
+- 外部入力は `<BRAND>_REGISTRY` / `<BRAND>_TAG` のみ。
+- `<BRAND>` は `meta.EnvPrefix` から動的に生成する。
+- `envutil.HostEnvKey` は `ENV_PREFIX` を前提にし、固定デフォルトは使わない。
+
+### 19.2 CLI の環境反映
+対象:
+- `cli/internal/helpers/env_defaults.go`
+- `cli/internal/envutil/envutil.go`
+
+設計:
+- `applyRuntimeEnv` の先頭で `applyBrandingEnv` を実行し、`ENV_PREFIX` を必ず先に設定する。
+- `IMAGE_TAG` / `IMAGE_PREFIX` を設定する処理を削除する。
+- `<BRAND>_TAG` が未設定の場合は `latest` を使用（開発用途のみ想定）。
+
+### 19.3 関数イメージの埋め込み生成
+対象:
+- `cli/internal/generator/templates/functions.yml.tmpl`
+- `cli/internal/generator/renderer.go`
+- `cli/internal/generator/renderer_test.go`
+- `cli/internal/generator/testdata/renderer/functions_simple.golden`
+
+設計:
+- `functions.yml` の `image` は **完全な文字列**で出力する。
+- テンプレートは以下の形式に変更:
+  - `image: "{{ .Registry }}{{ .ImagePrefix }}-{{ .ImageName }}:{{ .Tag }}"`
+- `Registry` は末尾 `/` を含む形に正規化して渡す（空の場合は空文字）。
+- `ImagePrefix` は `meta.ImagePrefix` を使用し、外部入力にしない。
+
+### 19.4 サービスイメージの命名とビルド
+対象:
+- `cli/internal/generator/go_builder.go`
+- `cli/internal/generator/go_builder_helpers.go`
+- 各 `docker-compose.*.yml`
+
+設計:
+- サービスイメージ名は `<brand>-<component>-{docker|containerd}` に固定。
+- Compose は `<BRAND>_REGISTRY` / `<BRAND>_TAG` だけ参照する。
+- `IMAGE_TAG` / `FUNCTION_IMAGE_PREFIX` / `IMAGE_PREFIX` は Compose から削除する。
+
+### 19.5 agent の関数イメージ解決
+対象:
+- `services/agent/internal/runtime/image_naming.go`
+- `services/agent/internal/runtime/image_naming_test.go`
+
+設計:
+- `IMAGE_PREFIX` の環境変数参照を削除し、`meta.ImagePrefix` 固定にする。
+- これにより関数イメージ名は `meta.ImagePrefix` に完全追随する。
+
+### 19.6 Runtime Guard の実装
+対象:
+- `services/agent/entrypoint.sh`
+- `services/gateway/entrypoint.sh`
+- `services/runtime-node/entrypoint.containerd.sh`
+- `services/runtime-node/entrypoint.firecracker.sh`
+
+設計（擬似コード）:
+```
+if [ -z "$IMAGE_RUNTIME" ]; then
+  echo "ERROR: IMAGE_RUNTIME is required"; exit 1
+fi
+case "$IMAGE_RUNTIME" in
+  docker)
+    [ "$AGENT_RUNTIME" = "docker" ] || { echo "ERROR: runtime mismatch"; exit 1; }
+    ;;
+  containerd)
+    [ "$AGENT_RUNTIME" = "containerd" ] || { echo "ERROR: runtime mismatch"; exit 1; }
+    ;;
+  *)
+    echo "ERROR: invalid IMAGE_RUNTIME"; exit 1
+    ;;
+esac
+```
+- gateway / provisioner は `IMAGE_RUNTIME` の値検証のみを行う。
+- runtime-node は `IMAGE_RUNTIME=containerd` 以外で即終了する。
+
+### 19.7 Dockerfile の整理
+対象:
+- `services/*/Dockerfile*`
+
+設計:
+- `ARG IMAGE_PREFIX=<brand>` のような固定デフォルトを廃止。
+- `IMAGE_RUNTIME` / `COMPONENT` / `<BRAND>_VERSION` を `ENV` に焼き込む。
+- `IMAGE_PREFIX` はビルド時に明示的に渡す（外部入力ではない）。
+- 2系統（docker / containerd）の Dockerfile を用意する。
+
+### 19.8 OCI ラベル
+対象:
+- `cli/internal/generator/go_builder_helpers.go`
+- `cli/internal/compose/docker.go`
+
+設計:
+- `meta.LabelPrefix` を使用し、`com.<brand>.*` のラベルを付与する。
+- 既存の label キー名は保持し、値のみブランドに追随させる。
+
+### 19.9 containerd / firecracker 切替
+対象:
+- `services/runtime-node/entrypoint.containerd.sh`
+- `services/runtime-node/entrypoint.firecracker.sh`
+
+設計:
+- `CONTAINERD_RUNTIME=aws.firecracker` の場合は firecracker 用 entrypoint を使用。
+- それ以外は containerd 用 entrypoint を使用。
+
+### 19.10 WireGuard 条件
+対象:
+- `services/gateway/entrypoint.sh`
+- `services/runtime-node/entrypoint.common.sh`
+
+設計:
+- gateway: `WG_CONF_PATH` が存在する場合のみ起動。
+- runtime-node: `WG_CONTROL_NET` が指定された場合のみルート設定。
+
+## 20. E2E テスト修正計画（必須）
+### 20.1 目的
 - 新しい命名規則と外部入力の最小化が E2E でも一貫していることを保証する。
 - runtime guard と WireGuard 条件が期待通りに動作することを検証する。
 
-### 19.2 影響範囲（更新対象）
+### 20.2 影響範囲（更新対象）
 - E2E ランナーの環境変数生成:
   - `<BRAND>_REGISTRY` / `<BRAND>_TAG` のみを外部入力として扱う。
-  - 旧 `ESB_` 前提や `IMAGE_TAG` 前提があれば撤去する。
+  - `IMAGE_TAG` / `IMAGE_PREFIX` / `FUNCTION_IMAGE_PREFIX` 前提を撤去する。
 - 画像名の期待値:
   - `<brand>-<component>-{docker|containerd}` を前提に期待値を更新する。
 - compose / 起動プロファイル:
   - docker / containerd の2系統で E2E シナリオを整理する。
   - firecracker は containerd 系統の runtime 切替で検証する。
 
-### 19.3 修正内容（実装指針）
+### 20.3 修正内容（実装指針）
 1) E2E で使用している環境変数を棚卸しする。
 2) 外部入力を `<BRAND>_REGISTRY` / `<BRAND>_TAG` のみに揃える。
 3) 画像名の期待値を `<brand>-<component>-{docker|containerd}` に置換する。
 4) containerd 系統のケースで `CONTAINERD_RUNTIME=aws.firecracker` を付与し、firecracker 相当のケースを再現する。
-5) 既存 E2E の「タグ=runtime」前提が残る場合はすべて廃止する。
+5) 旧 `IMAGE_TAG` 前提が残る場合はすべて廃止する。
 
-### 19.4 追加・変更テストケース
+### 20.4 追加・変更テストケース
 - runtime guard:
   - `IMAGE_RUNTIME=docker` で `AGENT_RUNTIME=containerd` を与えた場合に起動が失敗すること。
   - `IMAGE_RUNTIME=containerd` で `AGENT_RUNTIME=docker` を与えた場合に起動が失敗すること。
@@ -339,6 +454,6 @@ services/agent/Dockerfile.containerd
   - `WG_CONF_PATH` が存在しない場合に gateway が起動し続けること。
   - `WG_CONTROL_NET` が未指定の場合に runtime-node が起動し続けること。
 
-### 19.5 完了条件
+### 20.5 完了条件
 - すべての E2E プロファイルが新命名規則で成功する。
 - 外部入力の変数が `<BRAND>_REGISTRY` / `<BRAND>_TAG` のみに統一されている。
