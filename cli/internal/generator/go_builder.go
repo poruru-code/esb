@@ -226,14 +226,14 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	if err != nil {
 		return err
 	}
-	functionLabels := imageLabels
+	functionLabels := make(map[string]string, len(imageLabels)+2)
+	for key, value := range imageLabels {
+		functionLabels[key] = value
+	}
 	if imageFingerprint != "" {
-		functionLabels = make(map[string]string, len(imageLabels)+1)
-		for key, value := range imageLabels {
-			functionLabels[key] = value
-		}
 		functionLabels[compose.ESBImageFingerprintLabel] = imageFingerprint
 	}
+	functionLabels[compose.ESBKindLabel] = "function"
 
 	if !request.Verbose {
 		fmt.Print("➜ Building OS base image... ")

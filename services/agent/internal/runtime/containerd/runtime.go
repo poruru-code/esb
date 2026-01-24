@@ -163,23 +163,6 @@ func mapTaskState(status containerd.ProcessStatus) string {
 	}
 }
 
-// extractFunctionName extracts function name from container ID.
-// Format: esb-{env}-{func}-{id}
-func extractFunctionName(containerID, env string) string {
-	prefix := fmt.Sprintf("esb-%s-", env)
-	if !strings.HasPrefix(containerID, prefix) {
-		return ""
-	}
-	trimmed := strings.TrimPrefix(containerID, prefix)
-	// Remaining: {func}-{id}
-	// The id is an 8-character hex string (added in Phase 2 refactor).
-	if len(trimmed) < 9 { // Minimum: {f}-{12345678}
-		return ""
-	}
-	// Last 8 characters + dash = 9 characters to remove.
-	return trimmed[:len(trimmed)-9]
-}
-
 func extractTaskMetrics(metric *types.Metric) (uint64, uint64, uint64, uint64, error) {
 	if metric == nil || metric.Data == nil {
 		return 0, 0, 0, 0, fmt.Errorf("metrics data is empty")
@@ -248,11 +231,14 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 		if registry == "" {
 			registry = config.DefaultContainerRegistry
 		}
+		baseImage, err := runtime.ResolveFunctionImageName(req.FunctionName)
+		if err != nil {
+			return nil, err
+		}
 		if registry != "" {
-			image = fmt.Sprintf("%s/%s:latest", registry, req.FunctionName)
+			image = fmt.Sprintf("%s/%s:latest", registry, baseImage)
 		} else {
-			// Fallback to local image (backward compatibility)
-			image = fmt.Sprintf("%s:latest", req.FunctionName)
+			image = fmt.Sprintf("%s:latest", baseImage)
 		}
 	}
 
@@ -299,6 +285,7 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 			runtime.LabelFunctionName: req.FunctionName,
 			runtime.LabelCreatedBy:    runtime.ValueCreatedByAgent,
 			runtime.LabelEsbEnv:       r.env,
+			runtime.LabelFunctionKind: runtime.ValueFunctionKind,
 		}),
 	}
 	if runtimeName := strings.TrimSpace(os.Getenv("CONTAINERD_RUNTIME")); runtimeName != "" {
@@ -527,7 +514,7 @@ func (r *Runtime) Metrics(ctx context.Context, id string) (*runtime.ContainerMet
 		functionName = labels[runtime.LabelFunctionName]
 	}
 	if functionName == "" {
-		functionName = extractFunctionName(id, r.env)
+		return nil, fmt.Errorf("function name label is required for container %s", id)
 	}
 
 	result := &runtime.ContainerMetrics{
@@ -610,8 +597,8 @@ func (r *Runtime) List(ctx context.Context) ([]runtime.ContainerState, error) {
 			}
 		}
 		if functionName == "" {
-			// Phase 7: Clean fallback
-			functionName = extractFunctionName(containerID, r.env)
+			log.Printf("Warning: missing function label for container %s", containerID)
+			continue
 		}
 
 		if createdAt.IsZero() {

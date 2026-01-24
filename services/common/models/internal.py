@@ -19,8 +19,9 @@ class WorkerInfo:
     """
 
     id: str  # Container ID (Docker ID)
-    name: str  # Container name (lambda-{function}-{suffix})
+    name: str  # Container name
     ip_address: str  # Container IP (for execution)
+    function_name: str = ""  # Function name (from labels)
     port: int = 8080  # Service port
     created_at: float = 0.0  # Creation time
     last_used_at: float = 0.0  # Last used time (for auto-scaling)

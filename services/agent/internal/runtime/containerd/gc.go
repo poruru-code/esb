@@ -74,6 +74,9 @@ func (r *Runtime) isManagedContainer(ctx context.Context, c containerd.Container
 	if labels[runtime.LabelEsbEnv] != r.env {
 		return false, nil
 	}
+	if labels[runtime.LabelFunctionKind] != runtime.ValueFunctionKind {
+		return false, nil
+	}
 	return true, nil
 }
 

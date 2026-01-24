@@ -69,7 +69,8 @@ func TestRenderDockerfileWithRequirementsAndLayers(t *testing.T) {
 func TestRenderFunctionsYml(t *testing.T) {
 	functions := []FunctionSpec{
 		{
-			Name: "lambda-hello",
+			Name:      "Lambda-Hello",
+			ImageName: "lambda-hello",
 			Environment: map[string]string{
 				"S3_ENDPOINT": "http://esb-storage:9000",
 			},
@@ -96,8 +97,16 @@ func TestRenderFunctionsYml(t *testing.T) {
 		t.Fatalf("expected defaults section")
 	}
 	functionsNode, ok := parsed["functions"].(map[string]any)
-	if !ok || functionsNode["lambda-hello"] == nil {
-		t.Fatalf("expected lambda-hello entry")
+	if !ok || functionsNode["Lambda-Hello"] == nil {
+		t.Fatalf("expected Lambda-Hello entry")
+	}
+
+	entry, ok := functionsNode["Lambda-Hello"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected Lambda-Hello config map")
+	}
+	if entry["image"] != "${FUNCTION_IMAGE_PREFIX}${IMAGE_PREFIX}-lambda-hello:${IMAGE_TAG}" {
+		t.Fatalf("unexpected image value: %v", entry["image"])
 	}
 }
 
@@ -123,6 +132,17 @@ func TestRenderRoutingYml(t *testing.T) {
 	routes, ok := parsed["routes"].([]any)
 	if !ok || len(routes) != 1 {
 		t.Fatalf("expected routes entry")
+	}
+}
+
+func TestRenderFunctionsYmlRequiresImageName(t *testing.T) {
+	functions := []FunctionSpec{
+		{
+			Name: "lambda-missing-image",
+		},
+	}
+	if _, err := RenderFunctionsYml(functions, "", "latest"); err == nil {
+		t.Fatalf("expected error for missing image name")
 	}
 }
 

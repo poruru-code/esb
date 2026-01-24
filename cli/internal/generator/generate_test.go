@@ -81,6 +81,9 @@ func TestGenerateFilesUsesParserOverride(t *testing.T) {
 	if len(functions) != 1 {
 		t.Fatalf("expected 1 function, got %d", len(functions))
 	}
+	if functions[0].ImageName != "lambda-hello" {
+		t.Fatalf("unexpected image name: %s", functions[0].ImageName)
+	}
 
 	outputDir := filepath.Join(root, ".esb")
 	dockerfilePath := filepath.Join(outputDir, "functions", "lambda-hello", "Dockerfile")

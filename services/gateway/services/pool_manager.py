@@ -197,23 +197,6 @@ class PoolManager:
         stats = [pool.stats for pool in pools]
         return sorted(stats, key=lambda item: str(item.get("function_name", "")))
 
-    def _extract_function_name(self, name: str) -> Optional[str]:
-        """
-        Extract function name from container name.
-        Format: lambda-{function_name}-{suffix}
-        """
-        if not name.startswith("lambda-"):
-            return None
-
-        parts = name.split("-")
-        if len(parts) < 3:
-            return None
-
-        # parts[0] is "lambda"
-        # parts[-1] is suffix (uuid)
-        # function_name is in between
-        return "-".join(parts[1:-1])
-
     async def cleanup_all_containers(self) -> int:
         """Fetch all containers from Agent and delete them (startup cleanup)."""
         try:
@@ -238,11 +221,16 @@ class PoolManager:
             containers = await self.provision_client.list_containers()
             adopted_count = 0
             for worker in containers:
-                function_name = self._extract_function_name(worker.name)
-                if function_name:
-                    pool = await self.get_pool(function_name)
-                    await pool.adopt(worker)
-                    adopted_count += 1
+                function_name = worker.function_name
+                if not function_name:
+                    logger.warning(
+                        "Skipping container without function label: %s",
+                        worker.name,
+                    )
+                    continue
+                pool = await self.get_pool(function_name)
+                await pool.adopt(worker)
+                adopted_count += 1
             if adopted_count > 0:
                 logger.info(f"Adopted {adopted_count} containers from Orchestrator")
         except Exception as e:

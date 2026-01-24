@@ -99,7 +99,29 @@ def isolate_external_network(project_label: str) -> None:
         )
 
 
-def _load_function_names(env_name: str) -> list[str]:
+def _image_safe_name(name: str) -> str:
+    value = name.strip().lower()
+    if not value:
+        return ""
+    out: list[str] = []
+    prev_sep = False
+    for ch in value:
+        if ch.isascii() and ch.isalnum():
+            out.append(ch)
+            prev_sep = False
+            continue
+        if ch in "._-":
+            if not prev_sep:
+                out.append(ch)
+                prev_sep = True
+            continue
+        if not prev_sep:
+            out.append("-")
+            prev_sep = True
+    return "".join(out).strip("._-")
+
+
+def _load_function_image_names(env_name: str) -> list[str]:
     config_path = E2E_STATE_ROOT / env_name / "config" / "functions.yml"
     if not config_path.exists():
         return []
@@ -113,7 +135,16 @@ def _load_function_names(env_name: str) -> list[str]:
         return []
     functions = data.get("functions", {})
     if isinstance(functions, dict):
-        return sorted([name for name in functions.keys() if isinstance(name, str)])
+        image_prefix = os.environ.get("IMAGE_PREFIX") or BRAND_SLUG
+        image_names: list[str] = []
+        for name in functions.keys():
+            if not isinstance(name, str):
+                continue
+            safe = _image_safe_name(name)
+            if not safe:
+                continue
+            image_names.append(f"{image_prefix}-{safe}")
+        return sorted(image_names)
     return []
 
 
@@ -138,8 +169,8 @@ def verify_registry_images(env_name: str, project: str, mode: str, compose_file:
         print("[WARN] Registry port not discovered; skipping registry integrity check.")
         return
 
-    function_names = _load_function_names(env_name)
-    if not function_names:
+    image_names = _load_function_image_names(env_name)
+    if not image_names:
         print("[WARN] functions.yml not found or empty; skipping registry integrity check.")
         return
 
@@ -149,7 +180,7 @@ def verify_registry_images(env_name: str, project: str, mode: str, compose_file:
     headers_index = {"Accept": "application/vnd.oci.image.index.v1+json"}
     headers_manifest = {"Accept": "application/vnd.oci.image.manifest.v1+json"}
 
-    for name in function_names:
+    for name in image_names:
         tag = mode
         try:
             resp = requests.get(

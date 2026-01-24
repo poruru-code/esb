@@ -42,7 +42,6 @@ def main():
 
     # --- Unit Tests ---
     if args.unit or args.unit_only:
-        os.environ["DISABLE_VICTORIALOGS"] = "1"
         print("\n=== Running Python Unit Tests ===\n")
         python_cmd = [
             sys.executable,

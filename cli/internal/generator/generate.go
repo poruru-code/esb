@@ -72,6 +72,9 @@ func GenerateFiles(cfg config.GeneratorConfig, opts GenerateOptions) ([]Function
 	if err != nil {
 		return nil, err
 	}
+	if err := applyImageNames(parsed.Functions); err != nil {
+		return nil, err
+	}
 
 	functionsDir := filepath.Join(outputDir, "functions")
 	layerCacheDir := filepath.Join(outputDir, ".layers_cache")

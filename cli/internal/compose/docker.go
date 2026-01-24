@@ -22,6 +22,7 @@ const (
 	ESBProjectLabel          = meta.LabelPrefix + ".project"
 	ESBEnvLabel              = meta.LabelPrefix + ".env"
 	ESBManagedLabel          = meta.LabelPrefix + ".managed"
+	ESBKindLabel             = meta.LabelPrefix + ".kind"
 	ESBCAFingerprintLabel    = meta.LabelPrefix + ".ca_fingerprint"
 	ESBImageFingerprintLabel = meta.LabelPrefix + ".image_fingerprint"
 )

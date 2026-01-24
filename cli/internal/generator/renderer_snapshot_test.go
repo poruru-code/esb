@@ -30,7 +30,8 @@ func TestRendererSnapshots(t *testing.T) {
 	t.Run("functions", func(t *testing.T) {
 		functions := []FunctionSpec{
 			{
-				Name: "lambda-hello",
+				Name:      "lambda-hello",
+				ImageName: "lambda-hello",
 				Environment: map[string]string{
 					"S3_ENDPOINT": "http://esb-storage:9000",
 				},
