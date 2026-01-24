@@ -1040,3 +1040,25 @@ image: ${<BRAND>_REGISTRY}/<brand>-agent-containerd:${<BRAND>_TAG}
 #### 追加テスト（推奨）
 - `<BRAND>_VERSION` 未設定時に CLI が失敗すること。  
 - `IMAGE_RUNTIME` mismatch で entrypoint が失敗すること。  
+
+### 20.7 E2E テストケース別の修正方針
+#### `e2e/runner/test_env.py`
+- `test_calculate_runtime_env_defaults`  
+  - `ENV_IMAGE_TAG` / `ENV_IMAGE_PREFIX` の期待値を削除する。  
+  - `ENV_PREFIX` / `CLI_CMD` の検証は維持する。  
+- `test_calculate_runtime_env_mode_tags`  
+  - `ENV_IMAGE_TAG` 依存の asserts を削除する。  
+  - `ENV_CONTAINER_REGISTRY` の検証のみ残す。  
+
+#### `e2e/runner/env.py`
+- `calculate_runtime_env`  
+  - `IMAGE_TAG` / `IMAGE_PREFIX` の計算・設定を削除する。  
+  - `<BRAND>_TAG` / `<BRAND>_REGISTRY` は **外部入力のみ**（関数内で再計算しない）。  
+
+#### `e2e/runner/constants.py`
+- `ENV_IMAGE_TAG` / `ENV_IMAGE_PREFIX` を削除する。  
+- 参照が残る場合はテスト失敗として検知する。  
+
+### 20.8 E2E 実行時の前提
+- E2E 実行環境では `<BRAND>_VERSION` / `<BRAND>_TAG` を明示設定する。  
+- `<BRAND>_TAG` は E2E の実行モードに依存しない（常に固定タグを指定）。  
