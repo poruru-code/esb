@@ -738,6 +738,50 @@ fi
 exec /entrypoint.containerd.sh
 ```
 
+### 19.13 具体変更点（関数/定数/インターフェース）
+#### 19.13.1 `envutil` の仕様変更
+- `HostEnvKey(suffix string)` は **ENV_PREFIX 未設定時にエラー**を返す仕様に変更。  
+  - 例: `HostEnvKey` を `func HostEnvKey(suffix string) (string, error)` に変更。  
+- `GetHostEnv` / `SetHostEnv` は `error` を返すように変更し、  
+  `applyRuntimeEnv` 側で即失敗させる。  
+
+#### 19.13.2 `RuntimeEnvApplier` のエラー伝播
+- `cli/internal/ports/env.go` の `RuntimeEnvApplier` を `Apply(ctx state.Context) error` に変更。  
+- `helpers.NewRuntimeEnvApplier` は `error` を返す実装に修正。  
+- `BuildWorkflow.Run` は `EnvApplier.Apply` のエラーを上位に返す。  
+
+#### 19.13.3 `constants/env.go` の削除対象
+- `EnvImageTag` / `EnvImagePrefix` / `HostSuffixImageTag` を削除。  
+- 参照箇所はすべて削除または `<BRAND>_TAG` / `<BRAND>_REGISTRY` に置換。  
+
+#### 19.13.4 `BuildRequest` の最終形
+- `cli/internal/workflows.BuildRequest` / `cli/internal/generator.BuildRequest` に  
+  `Version string` を追加。  
+- `BuildRequest.Version` は `<BRAND>_VERSION` 由来のみ。  
+
+### 19.14 差分サンプル（具体ファイル）
+#### `cli/internal/envutil/envutil.go`（概略）
+変更前:
+```
+func HostEnvKey(suffix string) string
+```
+
+変更後:
+```
+func HostEnvKey(suffix string) (string, error)
+```
+
+#### `cli/internal/ports/env.go`（概略）
+変更前:
+```
+Apply(ctx state.Context)
+```
+
+変更後:
+```
+Apply(ctx state.Context) error
+```
+
 #### 追加テスト（推奨）
 - `<BRAND>_VERSION` 未設定時に CLI が失敗すること。  
 - `IMAGE_RUNTIME` mismatch で entrypoint が失敗すること。  
