@@ -20,7 +20,12 @@ async def test_pm_sync_with_manager():
     pm = PoolManager(mock_client, mock_loader)
 
     # Mock list_containers response
-    w1 = WorkerInfo(id="c1", name="lambda-func1-c1", ip_address="1.1.1.1")
+    w1 = WorkerInfo(
+        id="c1",
+        name="lambda-func1-c1",
+        ip_address="1.1.1.1",
+        function_name="func1",
+    )
     mock_client.list_containers.return_value = [w1]
 
     # We need to ensure get_pool is called and adopt is called on the pool
@@ -35,15 +40,35 @@ async def test_pm_sync_with_manager():
         mock_client.list_containers.assert_awaited_once()
 
         # Verify pool was retrieved/created for "func1"
-        # We need to know how extract_function_name works.
-        # Assuming name="func1-c1" -> func1 if logic exists.
-        # If logic is missing in PM, this test will fail until we implement it or use simple names.
-        # Current logic usually: name is just container name? Or does it parse?
-        # The proposal said `_extract_function_name`.
         # We need to implement that helper too.
 
         # Verify adopt called
         mock_pool_instance.adopt.assert_awaited_with(w1)
+
+
+@pytest.mark.asyncio
+async def test_pm_sync_with_manager_skips_missing_function_name():
+    """Ensure sync_with_manager skips containers without function label."""
+    from services.gateway.models.function import FunctionEntity, ScalingConfig
+
+    mock_client = AsyncMock()
+    mock_loader = MagicMock(
+        return_value=FunctionEntity(
+            name="func1", image="img", scaling=ScalingConfig(max_capacity=5)
+        )
+    )
+    pm = PoolManager(mock_client, mock_loader)
+
+    w1 = WorkerInfo(id="c1", name="lambda-func1-c1", ip_address="1.1.1.1")
+    mock_client.list_containers.return_value = [w1]
+
+    with patch("services.gateway.services.pool_manager.ContainerPool") as MockPoolCls:
+        mock_pool_instance = MockPoolCls.return_value
+        mock_pool_instance.adopt = AsyncMock()
+
+        await pm.sync_with_manager()
+
+        mock_pool_instance.adopt.assert_not_awaited()
 
 
 @pytest.mark.asyncio

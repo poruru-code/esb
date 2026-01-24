@@ -83,6 +83,9 @@ func RenderFunctionsYml(functions []FunctionSpec, registry, tag string) (string,
 		EnvPrefix: meta.EnvPrefix,
 	}
 	for _, fn := range functions {
+		if strings.TrimSpace(fn.ImageName) == "" {
+			return "", fmt.Errorf("image name is required for function %s", fn.Name)
+		}
 		hasSchedules := false
 		for _, e := range fn.Events {
 			if e.Type == "Schedule" {
@@ -92,6 +95,7 @@ func RenderFunctionsYml(functions []FunctionSpec, registry, tag string) (string,
 		}
 		entry := functionTemplateContext{
 			Name:         fn.Name,
+			ImageName:    fn.ImageName,
 			Timeout:      optionalInt(fn.Timeout),
 			MemorySize:   optionalInt(fn.MemorySize),
 			Environment:  fn.Environment,
@@ -180,6 +184,7 @@ type functionsTemplateData struct {
 
 type functionTemplateContext struct {
 	Name         string
+	ImageName    string
 	Timeout      *int
 	MemorySize   *int
 	Environment  map[string]string

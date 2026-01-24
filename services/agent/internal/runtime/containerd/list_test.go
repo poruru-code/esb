@@ -52,12 +52,14 @@ func TestRuntime_List_ReturnsContainerStates(t *testing.T) {
 			runtime.LabelFunctionName: "test-func",
 			runtime.LabelCreatedBy:    runtime.ValueCreatedByAgent,
 			runtime.LabelEsbEnv:       "test-env",
+			runtime.LabelFunctionKind: runtime.ValueFunctionKind,
 		},
 	}, nil)
 	mockContainer.On("Labels", mock.Anything).Return(map[string]string{
 		runtime.LabelFunctionName: "test-func",
 		runtime.LabelCreatedBy:    runtime.ValueCreatedByAgent,
 		runtime.LabelEsbEnv:       "test-env",
+		runtime.LabelFunctionKind: runtime.ValueFunctionKind,
 	}, nil).Maybe()
 
 	mockTask := new(MockTask)

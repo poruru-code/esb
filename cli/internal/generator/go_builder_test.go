@@ -49,7 +49,7 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		writeTestFile(t, filepath.Join(outputDir, "config", "routing.yml"), "routes: []")
 		writeTestFile(t, filepath.Join(outputDir, "config", "resources.yml"), "resources: {}")
 		writeTestFile(t, filepath.Join(outputDir, "functions", "hello", "Dockerfile"), "FROM scratch\n")
-		return []FunctionSpec{{Name: "hello"}}, nil
+		return []FunctionSpec{{Name: "hello", ImageName: "hello"}}, nil
 	}
 
 	dockerRunner := &recordRunner{}
@@ -160,13 +160,13 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	if !hasDockerBuildTag(dockerRunner.calls, "localhost:5010/"+meta.ImagePrefix+"-lambda-base:staging") {
 		t.Fatalf("expected base image build")
 	}
-	if !hasDockerBuildTag(dockerRunner.calls, "localhost:5010/hello:staging") {
+	if !hasDockerBuildTag(dockerRunner.calls, "localhost:5010/"+meta.ImagePrefix+"-hello:staging") {
 		t.Fatalf("expected function image build")
 	}
 	if !hasDockerPushTag(dockerRunner.calls, "localhost:5010/"+meta.ImagePrefix+"-lambda-base:staging") {
 		t.Fatalf("expected base image push")
 	}
-	if !hasDockerPushTag(dockerRunner.calls, "localhost:5010/hello:staging") {
+	if !hasDockerPushTag(dockerRunner.calls, "localhost:5010/"+meta.ImagePrefix+"-hello:staging") {
 		t.Fatalf("expected function image push")
 	}
 	if !hasDockerBuildLabel(dockerRunner.calls, meta.LabelPrefix+".managed=true") {
@@ -213,7 +213,7 @@ func TestGoBuilderBuildFirecrackerBuildsServiceImages(t *testing.T) {
 		writeTestFile(t, filepath.Join(outputDir, "config", "routing.yml"), "routes: []")
 		writeTestFile(t, filepath.Join(outputDir, "config", "resources.yml"), "resources: {}")
 		writeTestFile(t, filepath.Join(outputDir, "functions", "hello", "Dockerfile"), "FROM scratch\n")
-		return []FunctionSpec{{Name: "hello"}}, nil
+		return []FunctionSpec{{Name: "hello", ImageName: "hello"}}, nil
 	}
 
 	dockerRunner := &recordRunner{}

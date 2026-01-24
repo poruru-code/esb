@@ -264,6 +264,9 @@ func buildFunctionImages(
 		if strings.TrimSpace(fn.Name) == "" {
 			return fmt.Errorf("function name is required")
 		}
+		if strings.TrimSpace(fn.ImageName) == "" {
+			return fmt.Errorf("function image name is required for %s", fn.Name)
+		}
 		functionDir := filepath.Join(outputDir, "functions", fn.Name)
 		dockerfile := filepath.Join(functionDir, "Dockerfile")
 		if _, err := os.Stat(dockerfile); err != nil {
@@ -273,7 +276,11 @@ func buildFunctionImages(
 			return err
 		}
 
-		imageTag := fmt.Sprintf("%s:%s", fn.Name, tag)
+		imagePrefix := strings.TrimSpace(os.Getenv(constants.EnvImagePrefix))
+		if imagePrefix == "" {
+			imagePrefix = meta.ImagePrefix
+		}
+		imageTag := fmt.Sprintf("%s-%s:%s", imagePrefix, fn.ImageName, tag)
 		if registry != "" {
 			imageTag = fmt.Sprintf("%s/%s", registry, imageTag)
 		}

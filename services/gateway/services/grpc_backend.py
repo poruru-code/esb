@@ -104,7 +104,11 @@ class GrpcBackend:
             resp = await self.stub.EnsureContainer(req)
             logger.debug(f"Agent EnsureContainer response: {resp.id} / {resp.ip_address}")
             return WorkerInfo(
-                id=resp.id, name=resp.name, ip_address=resp.ip_address, port=resp.port
+                id=resp.id,
+                name=resp.name,
+                ip_address=resp.ip_address,
+                port=resp.port,
+                function_name=function_name,
             )
         except grpc.RpcError as e:
             self._handle_grpc_error(e, function_name)

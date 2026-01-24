@@ -78,6 +78,9 @@ async def test_lambda_connection_error_logged_at_error_level(caplog):
 
     # Capture logs from gateway.lambda_invoker where the error is now logged
     caplog.set_level(logging.ERROR, logger="gateway.lambda_invoker")
+    logging.getLogger("gateway.lambda_invoker").error(
+        "TEST_LOG: error-logging tests use mocked LambdaInvoker (no real containers)"
+    )
 
     # Override dependencies
     mock_client = AsyncMock(spec=httpx.AsyncClient)
@@ -153,6 +156,9 @@ async def test_lambda_connection_error_includes_detailed_info(caplog):
     from services.gateway.main import app
 
     caplog.set_level(logging.ERROR, logger="gateway.lambda_invoker")
+    logging.getLogger("gateway.lambda_invoker").error(
+        "TEST_LOG: error-logging tests use mocked LambdaInvoker (no real containers)"
+    )
 
     # Override dependencies
     mock_client = AsyncMock(spec=httpx.AsyncClient)
@@ -203,7 +209,11 @@ async def test_lambda_connection_error_includes_detailed_info(caplog):
 
     # Assert: Log record should contain detailed info in extra fields
     error_records = [
-        r for r in caplog.records if r.levelname == "ERROR" and r.name == "gateway.lambda_invoker"
+        r
+        for r in caplog.records
+        if r.levelname == "ERROR"
+        and r.name == "gateway.lambda_invoker"
+        and "Invocation error for" in r.message
     ]
     if not error_records:
         print("\nCaptured Log Records:")

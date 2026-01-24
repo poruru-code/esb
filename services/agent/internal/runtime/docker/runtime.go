@@ -63,11 +63,14 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 		if registry == "" {
 			registry = config.DefaultContainerRegistry
 		}
+		baseImage, err := runtime.ResolveFunctionImageName(req.FunctionName)
+		if err != nil {
+			return nil, err
+		}
 		if registry != "" {
-			imageName = fmt.Sprintf("%s/%s:latest", registry, req.FunctionName)
+			imageName = fmt.Sprintf("%s/%s:latest", registry, baseImage)
 		} else {
-			// Fallback to local image (backward compatibility)
-			imageName = fmt.Sprintf("%s:latest", req.FunctionName)
+			imageName = fmt.Sprintf("%s:latest", baseImage)
 		}
 	}
 
@@ -107,6 +110,7 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 			runtime.LabelFunctionName: req.FunctionName,
 			runtime.LabelCreatedBy:    runtime.ValueCreatedByAgent,
 			runtime.LabelEsbEnv:       r.env,
+			runtime.LabelFunctionKind: runtime.ValueFunctionKind,
 		},
 		ExposedPorts: nat.PortSet{
 			"8080/tcp": struct{}{},
@@ -222,6 +226,7 @@ func (r *Runtime) List(ctx context.Context) ([]runtime.ContainerState, error) {
 	filter.Add("label", fmt.Sprintf("%s=%s", runtime.LabelCreatedBy, runtime.ValueCreatedByAgent))
 	// Phase 7: Filter by environment label
 	filter.Add("label", fmt.Sprintf("%s=%s", runtime.LabelEsbEnv, r.env))
+	filter.Add("label", fmt.Sprintf("%s=%s", runtime.LabelFunctionKind, runtime.ValueFunctionKind))
 
 	containers, err := r.client.ContainerList(ctx, container.ListOptions{
 		Filters: filter,

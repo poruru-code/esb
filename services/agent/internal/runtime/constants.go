@@ -14,4 +14,10 @@ const (
 
 	// LabelEsbEnv is the label key for the environment identifier.
 	LabelEsbEnv = meta.RuntimeLabelEnv
+
+	// LabelFunctionKind is the label key for function containers/images.
+	LabelFunctionKind = meta.LabelPrefix + ".kind"
+
+	// ValueFunctionKind is the label value for function containers/images.
+	ValueFunctionKind = "function"
 )

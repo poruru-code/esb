@@ -107,6 +107,7 @@ class GrpcProvisionClient:
                 name=resp.name,
                 ip_address=resp.ip_address,
                 port=resp.port or 8080,
+                function_name=function_name,
                 created_at=now,
                 last_used_at=now,
             )
@@ -196,6 +197,7 @@ class GrpcProvisionClient:
                     name=c.container_name,
                     ip_address="",
                     port=8080,
+                    function_name=c.function_name,
                     created_at=float(c.created_at),
                     last_used_at=c.last_used_at,
                 )

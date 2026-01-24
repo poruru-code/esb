@@ -34,8 +34,9 @@ func TestRuntime_GC_SkipsUnmanagedContainers(t *testing.T) {
 	managed.On("ID").Return(managedID)
 	managed.On("Info", mock.Anything, mock.Anything).Return(containers.Container{
 		Labels: map[string]string{
-			runtime.LabelCreatedBy: runtime.ValueCreatedByAgent,
-			runtime.LabelEsbEnv:    "test-env",
+			runtime.LabelCreatedBy:    runtime.ValueCreatedByAgent,
+			runtime.LabelEsbEnv:       "test-env",
+			runtime.LabelFunctionKind: runtime.ValueFunctionKind,
 		},
 	}, nil)
 	managed.On("Task", mock.Anything, mock.Anything).Return(nil, errors.New("no task"))
@@ -46,8 +47,9 @@ func TestRuntime_GC_SkipsUnmanagedContainers(t *testing.T) {
 	unmanaged.On("ID").Return(unmanagedID)
 	unmanaged.On("Info", mock.Anything, mock.Anything).Return(containers.Container{
 		Labels: map[string]string{
-			runtime.LabelCreatedBy: runtime.ValueCreatedByAgent,
-			runtime.LabelEsbEnv:    "other-env",
+			runtime.LabelCreatedBy:    runtime.ValueCreatedByAgent,
+			runtime.LabelEsbEnv:       "other-env",
+			runtime.LabelFunctionKind: runtime.ValueFunctionKind,
 		},
 	}, nil)
 
@@ -73,8 +75,9 @@ func TestRuntime_GC_RemovesCNIWhenTaskExists(t *testing.T) {
 	mockContainer.On("ID").Return(containerID)
 	mockContainer.On("Info", mock.Anything, mock.Anything).Return(containers.Container{
 		Labels: map[string]string{
-			runtime.LabelCreatedBy: runtime.ValueCreatedByAgent,
-			runtime.LabelEsbEnv:    "test-env",
+			runtime.LabelCreatedBy:    runtime.ValueCreatedByAgent,
+			runtime.LabelEsbEnv:       "test-env",
+			runtime.LabelFunctionKind: runtime.ValueFunctionKind,
 		},
 	}, nil)
 
