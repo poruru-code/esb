@@ -366,6 +366,7 @@ services/agent/Dockerfile.containerd
 - 伝播ルール: workflow の `BuildRequest.Version` を generator の `BuildRequest.Version` にコピーする。  
 - generator 側で `Version` が空の場合は即エラー（`ERROR: <BRAND>_VERSION is required`）。  
  - `Version` は **必ず `<BRAND>_VERSION` 由来**であること（`<BRAND>_TAG` からは設定しない）。  
+ - `Version` は `buildDockerImage` の build args に `<BRAND>_VERSION` として渡す。  
 
 #### 19.2.6 既存関数の置換位置（明示仕様）
 - `cli/internal/generator/go_builder_helpers.go` の以下を置換:  
@@ -375,6 +376,15 @@ services/agent/Dockerfile.containerd
   `request.Version` をタグとして使用する。  
 - `resolveRegistryConfig(mode)` は registry 設定の自動生成を廃止し、  
   `<BRAND>_REGISTRY` の値のみを使用する。  
+ - `resolveImageTag` は `error` を返すため、`GoBuilder.Build` でエラー処理を追加する。  
+
+#### 19.2.7 置換後の関数仕様（明示）
+- `resolveImageTag(version string) (string, error)`  
+  - `version` が空なら `ERROR: <BRAND>_VERSION is required` を返す。  
+  - 返値は `version` をそのまま返す。  
+- `resolveRegistryConfig() registryConfig`  
+  - 外部入力 `<BRAND>_REGISTRY` を正規化した値のみを返す。  
+  - `Internal` は空（内部レジストリの自動設定は廃止）。  
 
 #### 19.2.4 GIT_SHA / BUILD_DATE の解決手順（内部管理）
 - これらは外部入力ではなく **CLI が内部で決定**する。  
@@ -431,6 +441,15 @@ services/agent/Dockerfile.containerd
 - `<BRAND>_VERSION` は `BuildRequest.Version` から取得する。  
 - `GIT_SHA` / `BUILD_DATE` は `applyRuntimeEnv` で解決済みの値を使う。  
 - すべてのサービスイメージに同一のラベルセットを付与する。  
+
+#### 19.4.2 buildDockerImage の引数順序（固定）
+- build args は **同一順序**で渡す（差分を抑制するため）。  
+  1) `<BRAND>_VERSION`  
+  2) `GIT_SHA`  
+  3) `BUILD_DATE`  
+  4) `IMAGE_RUNTIME`  
+  5) `COMPONENT`  
+- labels は build args の後に渡す。  
 
 ### 19.5 agent の関数イメージ解決
 対象:
