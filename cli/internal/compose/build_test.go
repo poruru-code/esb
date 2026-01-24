@@ -76,38 +76,6 @@ func TestBuildProjectAddsRuntimeNodeForContainerd(t *testing.T) {
 	}
 }
 
-func TestBuildProjectAddsRuntimeNodeForFirecracker(t *testing.T) {
-	root := t.TempDir()
-	writeComposeFiles(t, root,
-		"docker-compose.fc.yml",
-	)
-
-	runner := &fakeRunner{}
-	opts := BuildOptions{
-		RootDir:  root,
-		Project:  "esb-default",
-		Mode:     ModeFirecracker,
-		Services: []string{"gateway", "agent"},
-	}
-
-	if err := BuildProject(context.Background(), runner, opts); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	expected := []string{
-		"compose",
-		"-p", "esb-default",
-		"-f", filepath.Join(root, "docker-compose.fc.yml"),
-		"build",
-		"gateway",
-		"agent",
-		"runtime-node",
-	}
-	if !reflect.DeepEqual(runner.args, expected) {
-		t.Fatalf("unexpected args: %v", runner.args)
-	}
-}
-
 func TestBuildProjectUsesNoCacheFlag(t *testing.T) {
 	root := t.TempDir()
 	writeComposeFiles(t, root,

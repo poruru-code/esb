@@ -23,34 +23,26 @@ import (
 )
 
 type registryConfig struct {
-	External string
-	Internal string
+	Registry string
 }
 
-func resolveRegistryConfig(mode string) registryConfig {
-	switch strings.ToLower(strings.TrimSpace(mode)) {
-	case compose.ModeContainerd, compose.ModeFirecracker:
-		port := strings.TrimSpace(os.Getenv(constants.EnvPortRegistry))
-		if port == "" {
-			port = "5010"
+func resolveRegistryConfig(mode string) (registryConfig, error) {
+	normalized := strings.ToLower(strings.TrimSpace(mode))
+	key, err := envutil.HostEnvKey(constants.HostSuffixRegistry)
+	if err != nil {
+		return registryConfig{}, err
+	}
+	registry := strings.TrimSpace(os.Getenv(key))
+	if registry == "" {
+		if normalized == compose.ModeContainerd {
+			return registryConfig{}, fmt.Errorf("ERROR: %s is required for containerd", key)
 		}
-		return registryConfig{
-			External: fmt.Sprintf("localhost:%s", port),
-			Internal: "registry:5010",
-		}
-	default:
-		return registryConfig{}
+		return registryConfig{}, nil
 	}
-}
-
-func resolveImageTag(env string) string {
-	if tag := strings.TrimSpace(os.Getenv(constants.EnvImageTag)); tag != "" {
-		return tag
+	if !strings.HasSuffix(registry, "/") {
+		registry += "/"
 	}
-	if strings.TrimSpace(env) != "" {
-		return env
-	}
-	return "latest"
+	return registryConfig{Registry: registry}, nil
 }
 
 func defaultGeneratorParameters() map[string]string {
@@ -155,31 +147,6 @@ func stageConfigFiles(outputDir, repoRoot, composeProject, env string) error {
 	return nil
 }
 
-func ensureRegistryRunning(
-	ctx context.Context,
-	runner compose.CommandRunner,
-	rootDir string,
-	project string,
-	mode string,
-) error {
-	if runner == nil {
-		return fmt.Errorf("compose runner is nil")
-	}
-	files, err := compose.ResolveComposeFiles(rootDir, mode, "control")
-	if err != nil {
-		return err
-	}
-	args := []string{"compose"}
-	if project != "" {
-		args = append(args, "-p", project)
-	}
-	for _, file := range files {
-		args = append(args, "-f", file)
-	}
-	args = append(args, "up", "-d", "registry")
-	return runner.Run(ctx, rootDir, "docker", args...)
-}
-
 func buildBaseImage(
 	ctx context.Context,
 	runner compose.CommandRunner,
@@ -236,10 +203,17 @@ func withBuildLock(name string, fn func() error) error {
 
 func lambdaBaseImageTag(registry, tag string) string {
 	imageTag := fmt.Sprintf("%s-lambda-base:%s", meta.ImagePrefix, tag)
-	if registry != "" {
-		return fmt.Sprintf("%s/%s", registry, imageTag)
+	return joinRegistry(registry, imageTag)
+}
+
+func joinRegistry(registry, image string) string {
+	if registry == "" {
+		return image
 	}
-	return imageTag
+	if strings.HasSuffix(registry, "/") {
+		return registry + image
+	}
+	return registry + "/" + image
 }
 
 func buildFunctionImages(
@@ -276,14 +250,8 @@ func buildFunctionImages(
 			return err
 		}
 
-		imagePrefix := strings.TrimSpace(os.Getenv(constants.EnvImagePrefix))
-		if imagePrefix == "" {
-			imagePrefix = meta.ImagePrefix
-		}
-		imageTag := fmt.Sprintf("%s-%s:%s", imagePrefix, fn.ImageName, tag)
-		if registry != "" {
-			imageTag = fmt.Sprintf("%s/%s", registry, imageTag)
-		}
+		imageTag := fmt.Sprintf("%s-%s:%s", meta.ImagePrefix, fn.ImageName, tag)
+		imageTag = joinRegistry(registry, imageTag)
 
 		dockerfileRel, err := filepath.Rel(outputDir, dockerfile)
 		if err != nil {
@@ -307,53 +275,6 @@ func buildFunctionImages(
 		}
 		if registry != "" {
 			if err := pushDockerImage(ctx, runner, outputDir, imageTag, verbose); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func buildServiceImages(
-	ctx context.Context,
-	runner compose.CommandRunner,
-	repoRoot string,
-	registry string,
-	tag string,
-	noCache bool,
-	verbose bool,
-	labels map[string]string,
-) error {
-	if verbose {
-		fmt.Println("Building service images...")
-	}
-	services := map[string]struct {
-		dir        string
-		dockerfile string
-	}{
-		fmt.Sprintf("%s-runtime-node", meta.ImagePrefix): {
-			dir:        filepath.Join(repoRoot, "services", "runtime-node"),
-			dockerfile: "Dockerfile.firecracker",
-		},
-		fmt.Sprintf("%s-agent", meta.ImagePrefix): {
-			dir:        filepath.Join(repoRoot, "services", "agent"),
-			dockerfile: "Dockerfile",
-		},
-	}
-	for name, info := range services {
-		dockerfile := filepath.Join(info.dir, info.dockerfile)
-		if _, err := os.Stat(dockerfile); err != nil {
-			return fmt.Errorf("service dockerfile not found: %w", err)
-		}
-		imageTag := fmt.Sprintf("%s:%s", name, tag)
-		if registry != "" {
-			imageTag = fmt.Sprintf("%s/%s", registry, imageTag)
-		}
-		if err := buildDockerImage(ctx, runner, info.dir, info.dockerfile, imageTag, noCache, verbose, labels); err != nil {
-			return err
-		}
-		if registry != "" {
-			if err := pushDockerImage(ctx, runner, info.dir, imageTag, verbose); err != nil {
 				return err
 			}
 		}
@@ -479,10 +400,18 @@ func needsRootCASecret(dockerfile string) bool {
 }
 
 func resolveRootCAPath() (string, error) {
-	if value := strings.TrimSpace(envutil.GetHostEnv(constants.HostSuffixCACertPath)); value != "" {
+	value, err := envutil.GetHostEnv(constants.HostSuffixCACertPath)
+	if err != nil {
+		return "", err
+	}
+	if value := strings.TrimSpace(value); value != "" {
 		return ensureRootCAPath(expandHome(value))
 	}
-	if value := strings.TrimSpace(envutil.GetHostEnv(constants.HostSuffixCertDir)); value != "" {
+	value, err = envutil.GetHostEnv(constants.HostSuffixCertDir)
+	if err != nil {
+		return "", err
+	}
+	if value := strings.TrimSpace(value); value != "" {
 		return ensureRootCAPath(filepath.Join(expandHome(value), meta.RootCACertFilename))
 	}
 	if value := strings.TrimSpace(os.Getenv("CAROOT")); value != "" {

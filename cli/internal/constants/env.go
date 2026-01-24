@@ -3,7 +3,6 @@ package constants
 const (
 	// Compose variables (no prefix)
 	EnvProjectName       = "PROJECT_NAME"
-	EnvImagePrefix       = "IMAGE_PREFIX"
 	EnvPortS3            = "PORT_S3"
 	EnvPortS3Mgmt        = "PORT_S3_MGMT"
 	EnvPortDatabase      = "PORT_DATABASE"
@@ -20,7 +19,6 @@ const (
 	EnvLambdaNetwork     = "LAMBDA_NETWORK"
 	EnvContainerRegistry = "CONTAINER_REGISTRY"
 	EnvConfigDir         = "CONFIG_DIR"
-	EnvImageTag          = "IMAGE_TAG"
 	EnvRootCAMountID     = "ROOT_CA_MOUNT_ID"
 
 	// Host variable suffixes (used with envutil.HostEnvKey)
@@ -37,7 +35,9 @@ const (
 	HostSuffixNoProxyExtra     = "NO_PROXY_EXTRA"
 	HostSuffixCACertPath       = "CA_CERT_PATH"
 	HostSuffixCertDir          = "CERT_DIR"
-	HostSuffixImageTag         = "IMAGE_TAG"
+	HostSuffixVersion          = "VERSION"
+	HostSuffixTag              = "TAG"
+	HostSuffixRegistry         = "REGISTRY"
 	HostSuffixProvisionerTrace = "PROVISIONER_TRACE"
 
 	// Old Constants (kept temporarily for migration if needed, but renamed/cleaned up)

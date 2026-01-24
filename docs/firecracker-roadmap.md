@@ -222,8 +222,8 @@ flowchart LR
 ## Phase C 切り替え運用（現行との共存）
 
 - 基本は **Phase B の構成を維持**し、Firecracker 検証は compose mixin で切り替える。
-- 例: `docker compose -f docker-compose.fc.yml up -d`
-- runtime-node/agent の Firecracker 設定は `docker-compose.fc.yml` に集約する。
+- 例: `CONTAINERD_RUNTIME=aws.firecracker docker compose -f docker-compose.containerd.yml up -d`
+- runtime-node/agent の Firecracker 設定は `docker-compose.containerd.yml` + `CONTAINERD_RUNTIME` に集約する。
 
 ---
 

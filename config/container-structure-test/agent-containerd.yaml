@@ -1,0 +1,30 @@
+# Where: config/container-structure-test/agent-containerd.yaml
+# What: Container Structure Tests for the agent containerd image.
+# Why: Ensure CNI plugins are bundled for containerd runtime.
+
+schemaVersion: "2.0.0"
+
+metadataTest:
+  exposedPorts: ["50051"]
+  entrypoint: ["/app/entrypoint.sh"]
+  cmd: ["/app/agent"]
+
+fileExistenceTests:
+  - name: "agent-binary"
+    path: "/app/agent"
+    shouldExist: true
+  - name: "entrypoint"
+    path: "/app/entrypoint.sh"
+    shouldExist: true
+  - name: "cni-bridge"
+    path: "/opt/cni/bin/bridge"
+    shouldExist: true
+  - name: "cni-host-local"
+    path: "/opt/cni/bin/host-local"
+    shouldExist: true
+  - name: "cni-loopback"
+    path: "/opt/cni/bin/loopback"
+    shouldExist: true
+  - name: "cni-portmap"
+    path: "/opt/cni/bin/portmap"
+    shouldExist: true

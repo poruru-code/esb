@@ -44,8 +44,10 @@ def test_calculate_runtime_env_defaults():
         assert env[constants.ENV_ENV] == "myenv"
         assert env[constants.ENV_MODE] == "docker"
         assert env[constants.ENV_PROJECT_NAME] == "myproj"
-        assert env[constants.ENV_IMAGE_TAG] == "docker"
-        assert env[constants.ENV_IMAGE_PREFIX] == BRAND_SLUG
+        version_key = env_key(constants.ENV_VERSION)
+        tag_key = env_key(constants.ENV_TAG)
+        assert env[version_key] == "0.0.0-dev.e2e"
+        assert env[tag_key] == env[version_key]
 
         # Check Subnets are present
         assert constants.ENV_SUBNET_EXTERNAL in env
@@ -92,19 +94,16 @@ def test_calculate_runtime_env_override():
         assert env[gw_port_key] == "8443"
 
 
-def test_calculate_runtime_env_mode_tags():
-    # docker mode
+def test_calculate_runtime_env_mode_registry_defaults():
+    # docker mode: registry is not required
     env_docker = calculate_runtime_env("p", "e", "docker")
-    assert env_docker[constants.ENV_IMAGE_TAG] == "docker"
+    registry_key = env_key(constants.ENV_REGISTRY)
+    assert registry_key not in env_docker
 
-    # containerd mode
+    # containerd mode: registry is required and normalized
     env_containerd = calculate_runtime_env("p", "e", "containerd")
-    assert env_containerd[constants.ENV_IMAGE_TAG] == "containerd"
+    assert env_containerd[registry_key] == "registry:5010/"
     assert env_containerd[constants.ENV_CONTAINER_REGISTRY] == "registry:5010"
-
-    # custom mode (should fallback to env name or latest)
-    env_custom = calculate_runtime_env("p", "prod", "firecracker")
-    assert env_custom[constants.ENV_IMAGE_TAG] == "firecracker"
 
 
 def test_calculate_staging_dir_logic():

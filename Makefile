@@ -11,19 +11,20 @@ DOCKLE_IMAGE ?= goodwithtech/dockle:v0.4.14
 DOCKLE_TMP_DIR ?= /tmp
 DOCKLE_TMP_MODE ?= file
 BRAND_SLUG ?= esb
-IMAGE_PREFIX ?= esb
+IMAGE_TAG ?= latest
 DOCKLE_TMP_VOLUME ?= $(BRAND_SLUG)-dockle-tmp
 DOCKLE_IGNORES ?= $(shell if [ -f .dockleignore ]; then grep -vE '^[[:space:]]*(#|$$)' .dockleignore | paste -sd, -; fi)
 
 CST_CONFIG_DIR := config/container-structure-test
 
-OS_BASE_IMAGE ?= $(IMAGE_PREFIX)-os-base:latest
-PYTHON_BASE_IMAGE ?= $(IMAGE_PREFIX)-python-base:latest
-GATEWAY_IMAGE ?= $(IMAGE_PREFIX)-gateway:latest
-GATEWAY_FC_IMAGE ?= $(IMAGE_PREFIX)-gateway-firecracker:latest
-AGENT_IMAGE ?= $(IMAGE_PREFIX)-agent:latest
-RUNTIME_NODE_IMAGE ?= $(IMAGE_PREFIX)-runtime-node:latest
-RUNTIME_NODE_FC_IMAGE ?= $(IMAGE_PREFIX)-runtime-node-firecracker:latest
+OS_BASE_IMAGE ?= $(BRAND_SLUG)-os-base:latest
+PYTHON_BASE_IMAGE ?= $(BRAND_SLUG)-python-base:latest
+GATEWAY_IMAGE ?= $(BRAND_SLUG)-gateway-docker:$(IMAGE_TAG)
+GATEWAY_FC_IMAGE ?= $(BRAND_SLUG)-gateway-containerd:$(IMAGE_TAG)
+AGENT_IMAGE ?= $(BRAND_SLUG)-agent-docker:$(IMAGE_TAG)
+AGENT_CONTAINERD_IMAGE ?= $(BRAND_SLUG)-agent-containerd:$(IMAGE_TAG)
+RUNTIME_NODE_IMAGE ?= $(BRAND_SLUG)-runtime-node-containerd:$(IMAGE_TAG)
+RUNTIME_NODE_FC_IMAGE ?= $(BRAND_SLUG)-runtime-node-containerd:$(IMAGE_TAG)
 
 CST_RUN := docker run --rm \
 	-v /var/run/docker.sock:/var/run/docker.sock \
@@ -67,7 +68,7 @@ endef
 
 .PHONY: \
 	cst cst-all \
-	cst-os-base cst-python-base cst-gateway cst-gateway-firecracker cst-agent \
+	cst-os-base cst-python-base cst-gateway cst-gateway-firecracker cst-agent cst-agent-containerd \
 	cst-runtime-node cst-runtime-node-firecracker \
 	dockle dockle-all \
 	dockle-os-base dockle-python-base dockle-gateway dockle-gateway-firecracker \
@@ -75,7 +76,7 @@ endef
 
 cst: cst-os-base cst-python-base cst-gateway cst-agent
 
-cst-all: cst cst-runtime-node cst-runtime-node-firecracker cst-gateway-firecracker
+cst-all: cst cst-agent-containerd cst-runtime-node cst-runtime-node-firecracker cst-gateway-firecracker
 
 cst-os-base:
 	$(CST_RUN) test --config $(CST_CONFIG_DIR)/os-base.yaml --image $(OS_BASE_IMAGE)
@@ -91,6 +92,9 @@ cst-gateway-firecracker:
 
 cst-agent:
 	$(CST_RUN) test --config $(CST_CONFIG_DIR)/agent.yaml --image $(AGENT_IMAGE)
+
+cst-agent-containerd:
+	$(CST_RUN) test --config $(CST_CONFIG_DIR)/agent-containerd.yaml --image $(AGENT_CONTAINERD_IMAGE)
 
 cst-runtime-node:
 	$(CST_RUN) test --config $(CST_CONFIG_DIR)/runtime-node.yaml --image $(RUNTIME_NODE_IMAGE)

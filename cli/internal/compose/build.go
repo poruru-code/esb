@@ -24,7 +24,7 @@ type BuildOptions struct {
 
 // BuildProject runs docker compose build with the appropriate configuration
 // files for the specified mode and target. Automatically includes runtime-node
-// for containerd/firecracker modes.
+// for containerd mode.
 func BuildProject(ctx context.Context, runner CommandRunner, opts BuildOptions) error {
 	if runner == nil {
 		return fmt.Errorf("command runner is nil")
@@ -32,7 +32,7 @@ func BuildProject(ctx context.Context, runner CommandRunner, opts BuildOptions) 
 
 	mode := resolveMode(opts.Mode)
 	services := append([]string{}, opts.Services...)
-	if mode == ModeContainerd || mode == ModeFirecracker {
+	if mode == ModeContainerd {
 		services = ensureService(services, "runtime-node")
 	}
 

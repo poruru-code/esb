@@ -27,7 +27,7 @@ matrix:
   - smoke
   - standard
 
-# firecracker runtime
+# containerd + firecracker runtime (CONTAINERD_RUNTIME=aws.firecracker)
 # - esb_env: e2e-firecracker
 #   suites:
 #   - smoke

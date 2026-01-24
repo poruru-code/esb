@@ -27,7 +27,7 @@ Why: Preserve decisions, constraints, and executable next steps.
 
 ## 役割分担
 ### ESB リポジトリ
-- `config/defaults.env` は常に `CLI_CMD=esb` / `IMAGE_PREFIX=esb` / `ENV_PREFIX=ESB` を維持。
+- `config/defaults.env` は常に `CLI_CMD=esb` / `ENV_PREFIX=ESB` を維持。
 - ツール repo への `repository_dispatch` を送るワークフローのみ保持。
 - `tools/branding` と `mise` の generator タスクは、ツール運用確立後に削除。
 

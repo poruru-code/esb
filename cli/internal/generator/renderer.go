@@ -38,6 +38,7 @@ func RenderDockerfile(
 	if tag == "" {
 		tag = "latest"
 	}
+	registry = normalizeRegistry(registry)
 	runtime := fn.Runtime
 	if runtime == "" {
 		runtime = "python3.12"
@@ -55,7 +56,7 @@ func RenderDockerfile(
 	lambdaBase := meta.ImagePrefix + "-lambda-base"
 	baseImage := lambdaBase + ":" + tag
 	if registry != "" {
-		baseImage = fmt.Sprintf("%s/%s:%s", registry, lambdaBase, tag)
+		baseImage = fmt.Sprintf("%s%s:%s", registry, lambdaBase, tag)
 	}
 
 	data := dockerfileTemplateData{
@@ -76,11 +77,12 @@ func RenderFunctionsYml(functions []FunctionSpec, registry, tag string) (string,
 	if tag == "" {
 		tag = "latest"
 	}
+	registry = normalizeRegistry(registry)
 
 	data := functionsTemplateData{
-		Registry:  registry,
-		Tag:       tag,
-		EnvPrefix: meta.EnvPrefix,
+		Registry:    registry,
+		Tag:         tag,
+		ImagePrefix: meta.ImagePrefix,
 	}
 	for _, fn := range functions {
 		if strings.TrimSpace(fn.ImageName) == "" {
@@ -176,10 +178,10 @@ type dockerfileTemplateData struct {
 }
 
 type functionsTemplateData struct {
-	Registry  string
-	Tag       string
-	EnvPrefix string
-	Functions []functionTemplateContext
+	Registry    string
+	Tag         string
+	ImagePrefix string
+	Functions   []functionTemplateContext
 }
 
 type functionTemplateContext struct {
@@ -200,6 +202,17 @@ type routingTemplateData struct {
 type routingFunction struct {
 	Name   string
 	Events []EventSpec
+}
+
+func normalizeRegistry(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	if strings.HasSuffix(value, "/") {
+		return value
+	}
+	return value + "/"
 }
 
 func optionalInt(value int) *int {

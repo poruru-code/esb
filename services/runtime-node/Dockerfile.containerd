@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1
-# Runtime node image with Firecracker support.
-# Why: Separate heavyweight Firecracker tooling from containerd-only image.
+# Where: services/runtime-node/Dockerfile.containerd
+# What: Runtime node image for containerd with Firecracker support.
+# Why: Use a single containerd-family image and switch via CONTAINERD_RUNTIME.
 
-ARG IMAGE_PREFIX=esb
-ARG OS_BASE_IMAGE=esb-os-base:latest
+ARG OS_BASE_IMAGE
 ARG GO_VERSION=1.25.1
 ARG DEBIAN_VERSION=bookworm
 ARG GOLANG_DIGEST=sha256:c423747fbd96fd8f0b1102d947f51f9b266060217478e5f9bf86f145969562ee
@@ -78,6 +78,23 @@ RUN set -eu; \
 # -----------------------------------------------------------------------------
 FROM ${OS_BASE_IMAGE}
 
+ARG ESB_VERSION
+ARG GIT_SHA
+ARG BUILD_DATE
+ARG IMAGE_RUNTIME
+ARG COMPONENT
+
+RUN set -eu; \
+    if [ -z "$ESB_VERSION" ]; then echo "ERROR: ESB_VERSION is required" >&2; exit 1; fi; \
+    if [ -z "$GIT_SHA" ]; then echo "ERROR: GIT_SHA is required" >&2; exit 1; fi; \
+    if [ -z "$BUILD_DATE" ]; then echo "ERROR: BUILD_DATE is required" >&2; exit 1; fi; \
+    if [ -z "$IMAGE_RUNTIME" ]; then echo "ERROR: IMAGE_RUNTIME is required" >&2; exit 1; fi; \
+    if [ -z "$COMPONENT" ]; then echo "ERROR: COMPONENT is required" >&2; exit 1; fi
+
+ENV ESB_VERSION="${ESB_VERSION}"
+ENV IMAGE_RUNTIME="${IMAGE_RUNTIME}"
+ENV COMPONENT="${COMPONENT}"
+
 # System dependencies for containerd and firecracker networking/devmapper
 RUN apt-get update && apt-get install -y --no-install-recommends \
     containerd \
@@ -87,10 +104,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     runc \
     udev \
     util-linux \
+    wireguard-tools \
+    wireguard-go \
   && rm -rf /var/lib/apt/lists/*
 
 # -- Firecracker Components --
-# Comment out these COPY instructions to remove Firecracker support
 COPY --from=firecracker-builder /src/runtime/containerd-shim-aws-firecracker /usr/local/bin/
 COPY --from=firecracker-builder /src/firecracker-control/cmd/containerd/firecracker-containerd /usr/local/bin/
 COPY --from=firecracker-builder /src/firecracker-control/cmd/containerd/firecracker-ctr /usr/local/bin/

@@ -16,7 +16,6 @@ from e2e.runner.env import (
     apply_ports_to_env,
     calculate_runtime_env,
     discover_ports,
-    ensure_firecracker_node_up,
 )
 from e2e.runner.utils import (
     BRAND_SLUG,
@@ -135,7 +134,7 @@ def _load_function_image_names(env_name: str) -> list[str]:
         return []
     functions = data.get("functions", {})
     if isinstance(functions, dict):
-        image_prefix = os.environ.get("IMAGE_PREFIX") or BRAND_SLUG
+        image_prefix = BRAND_SLUG
         image_names: list[str] = []
         for name in functions.keys():
             if not isinstance(name, str):
@@ -161,7 +160,7 @@ def _pick_manifest_digest(index: dict) -> str | None:
 
 def verify_registry_images(env_name: str, project: str, mode: str, compose_file: Path) -> None:
     """Validate that registry blobs exist for built function images."""
-    if mode not in ("containerd", "firecracker"):
+    if mode != "containerd":
         return
 
     port = _registry_port(project, compose_file)
@@ -181,7 +180,10 @@ def verify_registry_images(env_name: str, project: str, mode: str, compose_file:
     headers_manifest = {"Accept": "application/vnd.oci.image.manifest.v1+json"}
 
     for name in image_names:
-        tag = mode
+        tag = os.environ.get(env_key(constants.ENV_TAG), "")
+        if not tag:
+            print("[WARN] TAG is empty; skipping registry integrity check.")
+            return
         try:
             resp = requests.get(
                 f"{base_url}/v2/{name}/manifests/{tag}",
@@ -369,8 +371,6 @@ def run_scenario(args, scenario):
 
     # Merge scenario-specific environment variables
     env.update(env_vars_override)
-
-    ensure_firecracker_node_up()
 
     # 1.5 Calculate Runtime Env (needed for reset/build too)
     mode = scenario.get("mode", "docker")

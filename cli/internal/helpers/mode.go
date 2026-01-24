@@ -12,13 +12,17 @@ import (
 
 // applyModeEnv sets the mode environment variable if not already set.
 // This ensures consistent mode propagation across all CLI commands.
-func applyModeEnv(mode string) {
+func applyModeEnv(mode string) error {
 	trimmed := strings.TrimSpace(mode)
 	if trimmed == "" {
-		return
+		return nil
 	}
-	if strings.TrimSpace(envutil.GetHostEnv(constants.HostSuffixMode)) != "" {
-		return
+	existing, err := envutil.GetHostEnv(constants.HostSuffixMode)
+	if err != nil {
+		return err
 	}
-	envutil.SetHostEnv(constants.HostSuffixMode, strings.ToLower(trimmed))
+	if strings.TrimSpace(existing) != "" {
+		return nil
+	}
+	return envutil.SetHostEnv(constants.HostSuffixMode, strings.ToLower(trimmed))
 }

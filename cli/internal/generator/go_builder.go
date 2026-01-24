@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/meta"
@@ -59,6 +58,12 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	if strings.TrimSpace(request.Mode) == "" {
 		return fmt.Errorf("mode is required")
 	}
+	if strings.TrimSpace(request.Version) == "" {
+		return fmt.Errorf("version is required")
+	}
+	if strings.TrimSpace(request.Tag) == "" {
+		return fmt.Errorf("tag is required")
+	}
 	if b.Runner == nil {
 		return fmt.Errorf("runner is nil")
 	}
@@ -89,7 +94,9 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 			OutputDir:   strings.TrimSpace(request.OutputDir),
 		},
 	}
-	applyModeFromRequest(request.Mode)
+	if err := applyModeFromRequest(request.Mode); err != nil {
+		return err
+	}
 
 	repoRoot, err := b.FindRepoRoot(request.ProjectDir)
 	if err != nil {
@@ -97,8 +104,11 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	}
 
 	mode := strings.TrimSpace(request.Mode)
-	registry := resolveRegistryConfig(mode)
-	imageTag := resolveImageTag(request.Env)
+	registry, err := resolveRegistryConfig(mode)
+	if err != nil {
+		return err
+	}
+	imageTag := strings.TrimSpace(request.Tag)
 
 	outputBase, err := resolveOutputDir(cfg.Paths.OutputDir, filepath.Dir(templatePath))
 	if err != nil {
@@ -133,34 +143,6 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	}
 	baseImageLabels[compose.ESBCAFingerprintLabel] = rootFingerprint
 
-	// Discover registry port first so we can use it in generation
-	if registry.External != "" {
-		if err := ensureRegistryRunning(
-			context.Background(),
-			b.ComposeRunner,
-			repoRoot,
-			composeProject,
-			mode,
-		); err != nil {
-			return err
-		}
-
-		// Discover the dynamically assigned registry port
-		discovered, err := b.PortDiscoverer.Discover(context.Background(), repoRoot, composeProject, mode)
-		if err != nil {
-			return fmt.Errorf("discover registry port: %w", err)
-		}
-		if port, ok := discovered[constants.EnvPortRegistry]; ok {
-			registry.External = fmt.Sprintf("localhost:%d", port)
-			_ = os.Setenv(constants.EnvPortRegistry, strconv.Itoa(port))
-			if request.Verbose {
-				fmt.Printf("Discovered registry port: %d\n", port)
-			}
-		} else {
-			return fmt.Errorf("registry port not discovered")
-		}
-	}
-
 	if request.Verbose {
 		fmt.Println("Generating files...")
 		fmt.Printf("Using Template: %s\n", templatePath)
@@ -180,12 +162,11 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		cfg.Parameters[key] = value
 	}
 	functions, err := b.Generate(cfg, GenerateOptions{
-		ProjectRoot:      repoRoot,
-		RegistryExternal: registry.External,
-		RegistryInternal: registry.Internal,
-		Tag:              imageTag,
-		Parameters:       request.Parameters,
-		Verbose:          request.Verbose,
+		ProjectRoot: repoRoot,
+		Registry:    registry.Registry,
+		Tag:         imageTag,
+		Parameters:  request.Parameters,
+		Verbose:     request.Verbose,
 	})
 	if err != nil {
 		if !request.Verbose {
@@ -204,8 +185,8 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	if !request.Verbose {
 		fmt.Print("➜ Building base image... ")
 	}
-	lambdaBaseTag := lambdaBaseImageTag(registry.External, imageTag)
-	if err := buildBaseImage(context.Background(), b.Runner, repoRoot, registry.External, imageTag, request.NoCache, request.Verbose, imageLabels); err != nil {
+	lambdaBaseTag := lambdaBaseImageTag(registry.Registry, imageTag)
+	if err := buildBaseImage(context.Background(), b.Runner, repoRoot, registry.Registry, imageTag, request.NoCache, request.Verbose, imageLabels); err != nil {
 		if !request.Verbose {
 			fmt.Println("Failed")
 		}
@@ -315,7 +296,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		b.Runner,
 		cfg.Paths.OutputDir,
 		functions,
-		registry.External,
+		registry.Registry,
 		imageTag,
 		request.NoCache,
 		request.Verbose,
@@ -329,21 +310,6 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	if !request.Verbose {
 		fmt.Println("Done")
 	}
-	if strings.EqualFold(mode, compose.ModeFirecracker) {
-		if !request.Verbose {
-			fmt.Print("➜ Building service images... ")
-		}
-		if err := buildServiceImages(context.Background(), b.Runner, repoRoot, registry.External, imageTag, request.NoCache, request.Verbose, imageLabels); err != nil {
-			if !request.Verbose {
-				fmt.Println("Failed")
-			}
-			return err
-		}
-		if !request.Verbose {
-			fmt.Println("Done")
-		}
-	}
-
 	if !request.Verbose {
 		fmt.Print("➜ Building control plane images... ")
 	}

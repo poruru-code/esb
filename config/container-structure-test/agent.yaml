@@ -18,3 +18,6 @@ fileExistenceTests:
   - name: "entrypoint"
     path: "/app/entrypoint.sh"
     shouldExist: true
+  - name: "cni-bridge"
+    path: "/opt/cni/bin/bridge"
+    shouldExist: false

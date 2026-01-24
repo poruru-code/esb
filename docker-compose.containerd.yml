@@ -129,14 +129,19 @@ services:
   # ============================================
   provisioner:
     env_file: config/defaults.env
-    image: esb-provisioner:containerd
+    image: ${ESB_REGISTRY}esb-provisioner-containerd:${ESB_TAG}
     build:
       context: .
-      dockerfile: services/provisioner/Dockerfile
+      dockerfile: services/provisioner/Dockerfile.containerd
       additional_contexts:
         config: ${CONFIG_DIR:-services/gateway/config}
       args:
-        IMAGE_PREFIX: ${IMAGE_PREFIX:-esb}
+        PYTHON_BASE_IMAGE: esb-python-base:latest
+        ESB_VERSION: ${ESB_VERSION}
+        GIT_SHA: ${GIT_SHA}
+        BUILD_DATE: ${BUILD_DATE}
+        IMAGE_RUNTIME: containerd
+        COMPONENT: provisioner
     container_name: ${PROJECT_NAME:-esb-${ENV:-default}}-provisioner
     depends_on:
       database:
@@ -153,6 +158,7 @@ services:
       - AWS_DEFAULT_REGION=us-east-1
       - AWS_ACCESS_KEY_ID=${RUSTFS_ACCESS_KEY:-esb}
       - AWS_SECRET_ACCESS_KEY=${RUSTFS_SECRET_KEY:-esbsecret}
+      - AGENT_RUNTIME=containerd
     networks:
       external_network: {}
 
@@ -161,13 +167,18 @@ services:
   # ============================================
   runtime-node:
     env_file: config/defaults.env
+    image: ${ESB_REGISTRY}esb-runtime-node-containerd:${ESB_TAG}
     build:
       context: services/runtime-node
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.containerd
       args:
         OS_BASE_IMAGE: esb-os-base:latest
+        ESB_VERSION: ${ESB_VERSION}
+        GIT_SHA: ${GIT_SHA}
+        BUILD_DATE: ${BUILD_DATE}
+        IMAGE_RUNTIME: containerd
+        COMPONENT: runtime-node
     container_name: ${PROJECT_NAME:-esb-${ENV:-default}}-runtime-node
-    entrypoint: /entrypoint.containerd.sh
     privileged: true
     ports:
       - "${PORT_AGENT_GRPC:-50051}:50051"
@@ -178,6 +189,8 @@ services:
     environment:
       - CNI_GW_IP=${DATA_PLANE_HOST:-10.88.0.1}
       - VHOST_VSOCK_REQUIRED=0
+      - AGENT_RUNTIME=containerd
+      - CONTAINERD_RUNTIME=${CONTAINERD_RUNTIME:-}
     volumes:
       - runtime_containerd_run:/run/containerd
       - runtime_containerd_lib:/var/lib/containerd
@@ -208,14 +221,19 @@ services:
   # ============================================
   agent:
     env_file: config/defaults.env
-    image: esb-agent:containerd
+    image: ${ESB_REGISTRY}esb-agent-containerd:${ESB_TAG}
     build:
       context: services/agent
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.containerd
       additional_contexts:
         meta: meta
       args:
         OS_BASE_IMAGE: esb-os-base:latest
+        ESB_VERSION: ${ESB_VERSION}
+        GIT_SHA: ${GIT_SHA}
+        BUILD_DATE: ${BUILD_DATE}
+        IMAGE_RUNTIME: containerd
+        COMPONENT: agent
     container_name: ${PROJECT_NAME:-esb-${ENV:-default}}-agent
     cap_add: [NET_ADMIN, SYS_ADMIN]
     network_mode: "service:runtime-node"
@@ -235,6 +253,7 @@ services:
       - CONTAINER_REGISTRY=registry:5010
       - CNI_SUBNET=${CNI_SUBNET:-}
       - AGENT_RUNTIME=containerd
+      - CONTAINERD_RUNTIME=${CONTAINERD_RUNTIME:-}
       - AGENT_GRPC_TLS_ENABLED=1
       - AGENT_GRPC_CERT_PATH=/app/config/ssl/server.crt
       - AGENT_GRPC_KEY_PATH=/app/config/ssl/server.key
@@ -275,17 +294,23 @@ services:
   # ============================================
   gateway:
     env_file: config/defaults.env
-    image: esb-gateway:containerd
+    image: ${ESB_REGISTRY}esb-gateway-containerd:${ESB_TAG}
+    user: "0:0"
     build:
       context: .
-      dockerfile: services/gateway/Dockerfile
+      dockerfile: services/gateway/Dockerfile.containerd
       additional_contexts:
         config: ${CONFIG_DIR:-services/gateway/config}
       args:
-        IMAGE_PREFIX: ${IMAGE_PREFIX:-esb}
+        PYTHON_BASE_IMAGE: esb-python-base:latest
         SERVICE_USER: ${PROJECT_NAME:-esb-${ENV:-default}}
         SERVICE_UID: ${RUN_UID:-1000}
         SERVICE_GID: ${RUN_GID:-1000}
+        ESB_VERSION: ${ESB_VERSION}
+        GIT_SHA: ${GIT_SHA}
+        BUILD_DATE: ${BUILD_DATE}
+        IMAGE_RUNTIME: containerd
+        COMPONENT: gateway
     container_name: ${PROJECT_NAME:-esb-${ENV:-default}}-gateway
     network_mode: "service:runtime-node"
     depends_on:
@@ -296,7 +321,13 @@ services:
       s3-storage:
         condition: service_healthy
     volumes:
+      - ${WG_GATEWAY_CONF:-~/.esb/wireguard/gateway/wg0.conf}:/app/config/wireguard/wg0.conf:ro
+      - ./config/haproxy.gateway.cfg:/app/config/haproxy.gateway.cfg:ro
       - ${CERT_DIR:-~/.esb/certs}:/app/config/ssl:ro
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
     environment:
       # --- Required / Core Authentication (auto-generated if unset) ---
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-}
@@ -314,8 +345,6 @@ services:
       - CONTAINERS_NETWORK=${NETWORK_EXTERNAL:-${PROJECT_NAME:-esb-${ENV:-default}}-external}
       - AUTH_ENDPOINT_PATH
       - PROJECT_NAME=${PROJECT_NAME:-esb-${ENV:-default}}
-      - IMAGE_TAG=containerd
-      - FUNCTION_IMAGE_PREFIX=registry:5010/
 
       # --- Tuning & Resilience (Pass-through) ---
       - AGENT_INVOKE_PROXY
@@ -342,6 +371,7 @@ services:
       - GRPC_VERBOSITY=ERROR
 
       # --- Containerd Mode Wiring ---
+      - AGENT_RUNTIME=containerd
       - AGENT_GRPC_ADDRESS=localhost:50051
       - AGENT_GRPC_TLS_ENABLED=1
       - AGENT_GRPC_TLS_CA_CERT_PATH=/app/config/ssl/rootCA.crt

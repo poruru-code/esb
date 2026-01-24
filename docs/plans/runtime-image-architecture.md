@@ -22,8 +22,8 @@ Why: 実装者がこの1文書だけで作業できる設計仕様を提供す�
 
 ## 3. 用語
 - コンポーネント: agent / gateway / runtime-node / provisioner
-- ランタイム: docker / containerd / firecracker
-- ランタイム系統: docker / containerd（containerd + firecracker を包含）
+- ランタイム系統: docker / containerd
+- containerd ランタイム切替: `CONTAINERD_RUNTIME`（既定 `containerd` / `aws.firecracker`）
 - 変種: コンポーネント × ランタイム系統の組み合わせ
 - 不変タグ: 公開後に内容が変わらないタグ
 
@@ -120,11 +120,10 @@ Why: 実装者がこの1文書だけで作業できる設計仕様を提供す�
 
 ## 9. Dockerfile 構成
 - ランタイム変種ごとに Dockerfile を分割する。
-- 共通ビルドは `Dockerfile.builder` に集約する。
+- 共通ビルドは各 Dockerfile の builder ステージに集約する。
 
 ### 9.1 ファイル配置例
 ```
-services/agent/Dockerfile.builder
 services/agent/Dockerfile.docker
 services/agent/Dockerfile.containerd
 ```
@@ -226,6 +225,7 @@ services/agent/Dockerfile.containerd
 - `COMPONENT`: イメージに焼き込む。
 - `AGENT_RUNTIME`: CLI/Compose が設定（運用者が変更しない）。
 - `CONTAINERD_RUNTIME`: firecracker を選択する場合に CLI/Compose が設定。
+- `CONTAINER_REGISTRY`: containerd の関数イメージ取得先（Compose が設定、外部入力ではない）。
 - `WG_QUICK_USERSPACE_IMPLEMENTATION`: gateway の起動中に内部で設定。
 - `WG_QUICK_USERSPACE_IMPLEMENTATION_FORCE`: gateway の起動中に内部で設定。
 - `WG_CONF_PATH`: gateway の WireGuard 設定パス（既定値を使用）。
@@ -608,7 +608,7 @@ exec /entrypoint.containerd.sh "$@"
 設計:
 - `ARG IMAGE_PREFIX=<brand>` のような固定デフォルトを廃止。
 - `IMAGE_RUNTIME` / `COMPONENT` / `<BRAND>_VERSION` を `ENV` に焼き込む。
-- `IMAGE_PREFIX` はビルド時に明示的に渡す（外部入力ではない）。
+- `IMAGE_PREFIX` は環境変数/ビルド引数として使用しない（`meta.ImagePrefix` を使用）。
 - 2系統（docker / containerd）の Dockerfile を用意する。
 
 ### 19.8 OCI ラベル
@@ -692,13 +692,11 @@ exec /entrypoint.containerd.sh "$@"
   - `IMAGE_TAG` / `FUNCTION_IMAGE_PREFIX` / `IMAGE_PREFIX` を廃止。  
   - Compose の参照は `<BRAND>_REGISTRY` / `<BRAND>_TAG` のみに統一。  
   - `<BRAND>_TAG` は `<BRAND>_VERSION` を既定とする。  
-- `docker-compose.fc.yml`  
-  - 廃止（containerd compose + `CONTAINERD_RUNTIME=aws.firecracker` に統一）。  
 - `config/defaults.env`  
   - `IMAGE_PREFIX` の固定値は削除（branding 生成に依存）。  
 
 #### Runtime-node Dockerfile
-- `services/runtime-node/Dockerfile` / `Dockerfile.firecracker`  
+- `services/runtime-node/Dockerfile.containerd`  
   - `ENTRYPOINT` は `/entrypoint.sh` を維持。  
   - `ARG IMAGE_PREFIX=<brand>` の固定値を撤去。  
 
@@ -1049,10 +1047,6 @@ image: ${<BRAND>_REGISTRY}/<brand>-agent-containerd:${<BRAND>_TAG}
 ```
 # IMAGE_TAG / FUNCTION_IMAGE_PREFIX は廃止
 ```
-
-#### `docker-compose.fc.yml`（gateway 環境変数）
-変更後:
-- ファイル自体を廃止し、`docker-compose.containerd.yml` + `CONTAINERD_RUNTIME=aws.firecracker` に統一する。
 
 ## 20. E2E テスト修正計画（必須）
 ### 20.1 目的

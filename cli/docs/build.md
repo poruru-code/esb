@@ -7,7 +7,7 @@
 ## 使用方法
 
 ```bash
-esb build --template <path> --env <name> --mode <docker|containerd|firecracker> [flags]
+esb build --template <path> --env <name> --mode <docker|containerd> [flags]
 ```
 
 ### フラグ
@@ -21,7 +21,7 @@ esb build --template <path> --env <name> --mode <docker|containerd|firecracker> 
 | `--output` | `-o` | 生成物の出力先（任意）。未指定時は `<template_dir>/.<brand>/<env>` を使用。 |
 | `--no-cache` | | イメージビルド時にキャッシュを使用しません。 |
 | `--verbose` | `-v` | 詳細な出力を有効にします。デフォルトでは進行状況のみを表示する静音モードです。 |
-| `--force` | | 無効な `ESB_PROJECT`/`ESB_ENV` 環境変数を自動的に解除します。 |
+| `--force` | | 無効な `<BRAND>_PROJECT`/`<BRAND>_ENV` 環境変数を自動的に解除します。 |
 
 ## 実装詳細
 
@@ -31,7 +31,7 @@ CLIアダプタは `cli/internal/commands/build.go` にあり、オーケスト�
 
 - **`BuildWorkflow`**: ランタイム環境適用とBuilder呼び出しを行うオーケストレーター。
 - **`BuildRequest`**: CLI から Workflow に渡される入力DTO（Workflow 内で `generator.BuildRequest` に変換）。
-- **`RuntimeEnvApplier`**: `applyRuntimeEnv` を通じてESB環境変数を適用。
+- **`RuntimeEnvApplier`**: `applyRuntimeEnv` を通じて `ENV_PREFIX` 付きの環境変数を適用。
 - **`UserInterface`**: 成功メッセージの出力（互換のため `LegacyUI` を使用）。
 - **`GoBuilder`**: `ports.Builder` インターフェースの実装。
   - **`Generate`**: ビルド成果物 (Dockerfile, `functions.yml`, `routing.yml`) を出力ディレクトリに生成します。
@@ -41,7 +41,7 @@ CLIアダプタは `cli/internal/commands/build.go` にあり、オーケスト�
 ### ビルドロジック
 
 1. **入力解決**: `template` / `env` / `mode` / `output` を解決します。省略された値は対話で補完されます。
-2. **ランタイム環境適用**: `RuntimeEnvApplier` が `ESB_*` 変数を適用します。
+2. **ランタイム環境適用**: `RuntimeEnvApplier` が `ENV_PREFIX` 付きの変数を適用します。
 3. **パラメータ入力**: SAMテンプレートの `Parameters` が定義されている場合、対話的に入力を求めます（入力値はそのビルドのみ有効）。
 4. **コード生成**:
    - `template.yaml` を解析します。
@@ -51,7 +51,6 @@ CLIアダプタは `cli/internal/commands/build.go` にあり、オーケスト�
    - ローカルレジストリが稼働していることを確認します (必要な場合)。
    - ベースイメージ (共有レイヤー) をビルドします。
    - 個別の関数イメージをビルドします。
-   - サービスイメージをビルドします (Firecrackerモードの場合)。
    - コントロールプレーン (Gateway/Agent) をDocker Compose経由でビルドします。
 
 ## シーケンス図
@@ -83,10 +82,6 @@ sequenceDiagram
 
     loop 各関数に対して
         Builder->>Docker: 関数イメージのビルド
-    end
-
-    opt Firecrackerモード
-        Builder->>Docker: サービスイメージのビルド
     end
 
     Builder->>Docker: コントロールプレーンのビルド (Gateway/Agent)

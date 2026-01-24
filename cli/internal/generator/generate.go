@@ -19,8 +19,7 @@ type GenerateOptions struct {
 	ProjectRoot         string
 	DryRun              bool
 	Verbose             bool
-	RegistryExternal    string
-	RegistryInternal    string
+	Registry            string
 	Tag                 string
 	Parameters          map[string]string
 	SitecustomizeSource string
@@ -115,7 +114,7 @@ func GenerateFiles(cfg config.GeneratorConfig, opts GenerateOptions) ([]Function
 		dockerConfig := DockerConfig{
 			SitecustomizeSource: staged.SitecustomizeRef,
 		}
-		dockerfile, err := RenderDockerfile(staged.Function, dockerConfig, opts.RegistryExternal, resolvedTag)
+		dockerfile, err := RenderDockerfile(staged.Function, dockerConfig, opts.Registry, resolvedTag)
 		if err != nil {
 			return nil, err
 		}
@@ -131,7 +130,7 @@ func GenerateFiles(cfg config.GeneratorConfig, opts GenerateOptions) ([]Function
 	sortFunctionsByName(functions)
 
 	functionsYmlPath := resolveConfigPath(cfg.Paths.FunctionsYml, baseDir, outputDir, "functions.yml")
-	functionsContent, err := RenderFunctionsYml(functions, opts.RegistryInternal, resolvedTag)
+	functionsContent, err := RenderFunctionsYml(functions, opts.Registry, resolvedTag)
 	if err != nil {
 		return nil, err
 	}

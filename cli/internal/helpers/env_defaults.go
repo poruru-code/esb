@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
@@ -31,8 +33,13 @@ var defaultPorts = []string{
 
 // applyRuntimeEnv sets all environment variables required for running commands,
 // including project metadata, ports, networks, and custom generator parameters.
-func applyRuntimeEnv(ctx state.Context, resolver func(string) (string, error)) {
-	applyModeEnv(ctx.Mode)
+func applyRuntimeEnv(ctx state.Context, resolver func(string) (string, error)) error {
+	if err := ApplyBrandingEnv(); err != nil {
+		return err
+	}
+	if err := applyModeEnv(ctx.Mode); err != nil {
+		return err
+	}
 
 	env := strings.TrimSpace(ctx.Env)
 	if env == "" {
@@ -40,41 +47,47 @@ func applyRuntimeEnv(ctx state.Context, resolver func(string) (string, error)) {
 	}
 
 	// Host-level variables (with prefix) for brand-aware logic
-	envutil.SetHostEnv(constants.HostSuffixEnv, env)
-	envutil.SetHostEnv(constants.HostSuffixMode, ctx.Mode)
-	tag := defaultImageTag(ctx.Mode, env)
-	envutil.SetHostEnv(constants.HostSuffixImageTag, tag)
+	if err := envutil.SetHostEnv(constants.HostSuffixEnv, env); err != nil {
+		return err
+	}
+	if err := envutil.SetHostEnv(constants.HostSuffixMode, ctx.Mode); err != nil {
+		return err
+	}
 
 	// Compose variables (no prefix) for docker-compose.yml reference
 	setEnvIfEmpty("ENV", env)
 	setEnvIfEmpty("MODE", ctx.Mode)
-	setEnvIfEmpty(constants.EnvImageTag, tag)
 
 	// Compose project metadata
 	if os.Getenv(constants.EnvProjectName) == "" {
 		_ = os.Setenv(constants.EnvProjectName, ctx.ComposeProject)
 	}
-	imagePrefix := os.Getenv(constants.EnvImagePrefix)
-	if imagePrefix == "" {
-		imagePrefix = meta.Slug
-	}
-	setEnvIfEmpty(constants.EnvImagePrefix, imagePrefix)
 
 	applyPortDefaults(env)
 	applySubnetDefaults(env)
-	applyRegistryDefaults(ctx.Mode)
 
-	applyConfigDirEnv(ctx, resolver)
-	applyBrandingEnv(ctx)
-	applyProxyDefaults()
+	if err := applyConfigDirEnv(ctx, resolver); err != nil {
+		return err
+	}
+	if err := applyProxyDefaults(); err != nil {
+		return err
+	}
+	if err := normalizeRegistryEnv(); err != nil {
+		return err
+	}
+	applyBuildMetadata()
 	if os.Getenv("DOCKER_BUILDKIT") == "" {
 		_ = os.Setenv("DOCKER_BUILDKIT", "1")
 	}
+	return nil
 }
 
-// applyBrandingEnv synchronizes branding constants from the meta package
+// ApplyBrandingEnv synchronizes branding constants from the meta package
 // to environment variables used by Docker Compose and scripts.
-func applyBrandingEnv(_ state.Context) {
+func ApplyBrandingEnv() error {
+	if strings.TrimSpace(meta.EnvPrefix) == "" {
+		return fmt.Errorf("ENV_PREFIX is required")
+	}
 	_ = os.Setenv(constants.EnvRootCAMountID, meta.RootCAMountID)
 	setEnvIfEmpty("ROOT_CA_CERT_FILENAME", meta.RootCACertFilename)
 	_ = os.Setenv("ENV_PREFIX", meta.EnvPrefix)
@@ -94,31 +107,13 @@ func applyBrandingEnv(_ state.Context) {
 		fp := fmt.Sprintf("%x", md5.Sum(data))
 		_ = os.Setenv("ROOT_CA_FINGERPRINT", fp)
 	}
-}
-
-func defaultImageTag(mode, env string) string {
-	normalized := strings.ToLower(strings.TrimSpace(mode))
-	if normalized == "" {
-		normalized = strings.ToLower(strings.TrimSpace(envutil.GetHostEnv(constants.HostSuffixMode)))
-	}
-	switch normalized {
-	case "docker":
-		return "docker"
-	case "containerd":
-		return "containerd"
-	case "firecracker":
-		return "firecracker"
-	}
-	if strings.TrimSpace(env) != "" {
-		return env
-	}
-	return "latest"
+	return nil
 }
 
 // applyProxyDefaults ensures that proxy-related environment variables are consistent
 // and that NO_PROXY includes necessary local targets to avoid connection issues
 // in proxy environments. Matches the behavior of the Python E2E runner.
-func applyProxyDefaults() {
+func applyProxyDefaults() error {
 	proxyKeys := []string{"HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy"}
 	hasProxy := false
 	for _, key := range proxyKeys {
@@ -133,10 +128,13 @@ func applyProxyDefaults() {
 		existingNoProxy = os.Getenv("no_proxy")
 	}
 
-	extraNoProxy := envutil.GetHostEnv(constants.HostSuffixNoProxyExtra)
+	extraNoProxy, err := envutil.GetHostEnv(constants.HostSuffixNoProxyExtra)
+	if err != nil {
+		return err
+	}
 
 	if !hasProxy && existingNoProxy == "" && extraNoProxy == "" {
-		return
+		return nil
 	}
 
 	defaultTargets := []string{
@@ -209,6 +207,23 @@ func applyProxyDefaults() {
 	}
 	sync("HTTP_PROXY", "http_proxy")
 	sync("HTTPS_PROXY", "https_proxy")
+	return nil
+}
+
+func normalizeRegistryEnv() error {
+	key, err := envutil.HostEnvKey(constants.HostSuffixRegistry)
+	if err != nil {
+		return err
+	}
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return nil
+	}
+	if !strings.HasSuffix(value, "/") {
+		value += "/"
+		_ = os.Setenv(key, value)
+	}
+	return nil
 }
 
 // applyPortDefaults sets default port environment variables with an offset
@@ -238,21 +253,7 @@ func applySubnetDefaults(env string) {
 }
 
 // applyRegistryDefaults sets the CONTAINER_REGISTRY environment variable
-// for containerd/firecracker modes when not already specified.
-func applyRegistryDefaults(mode string) {
-	if strings.TrimSpace(os.Getenv(constants.EnvContainerRegistry)) != "" {
-		return
-	}
-	normalized := strings.ToLower(strings.TrimSpace(mode))
-	if normalized == "" {
-		normalized = strings.ToLower(strings.TrimSpace(envutil.GetHostEnv(constants.HostSuffixMode)))
-	}
-	switch normalized {
-	case "containerd", "firecracker":
-		_ = os.Setenv(constants.EnvContainerRegistry, "registry:5010")
-	}
-}
-
+// for containerd mode when not already specified.
 // envExternalSubnetIndex returns the third octet for the external subnet.
 // Uses 50 for "default", otherwise 60 + hash offset.
 func envExternalSubnetIndex(env string) int {
@@ -284,16 +285,19 @@ func hashMod(value string, mod int64) int {
 
 // applyConfigDirEnv sets the CONFIG_DIR environment variable
 // based on the discovered project structure.
-func applyConfigDirEnv(ctx state.Context, resolver func(string) (string, error)) {
+func applyConfigDirEnv(ctx state.Context, resolver func(string) (string, error)) error {
 	_ = resolver
 
 	stagingAbs := staging.ConfigDir(ctx.ComposeProject, ctx.Env)
 	if _, err := os.Stat(stagingAbs); err != nil {
-		return
+		return nil
 	}
 	val := filepath.ToSlash(stagingAbs)
-	envutil.SetHostEnv(constants.HostSuffixConfigDir, val)
+	if err := envutil.SetHostEnv(constants.HostSuffixConfigDir, val); err != nil {
+		return err
+	}
 	setEnvIfEmpty(constants.EnvConfigDir, val)
+	return nil
 }
 
 // setEnvIfEmpty sets an environment variable only if it's currently empty.
@@ -302,4 +306,26 @@ func setEnvIfEmpty(key, value string) {
 		return
 	}
 	_ = os.Setenv(key, value)
+}
+
+func applyBuildMetadata() {
+	if strings.TrimSpace(os.Getenv("GIT_SHA")) == "" {
+		_ = os.Setenv("GIT_SHA", resolveGitSHA())
+	}
+	if strings.TrimSpace(os.Getenv("BUILD_DATE")) == "" {
+		_ = os.Setenv("BUILD_DATE", time.Now().UTC().Format(time.RFC3339))
+	}
+}
+
+func resolveGitSHA() string {
+	cmd := exec.Command("git", "rev-parse", "--short", "HEAD")
+	output, err := cmd.Output()
+	if err != nil {
+		return "unknown"
+	}
+	val := strings.TrimSpace(string(output))
+	if val == "" {
+		return "unknown"
+	}
+	return val
 }

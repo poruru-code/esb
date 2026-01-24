@@ -24,12 +24,11 @@ func main() {
 		repoRoot = filepath.Dir(wd)
 	}
 	opts := generator.GenerateOptions{
-		ProjectRoot:      repoRoot,
-		DryRun:           true,
-		RegistryExternal: "",
-		RegistryInternal: "",
-		Tag:              "preview",
-		Parameters:       map[string]string{},
+		ProjectRoot: repoRoot,
+		DryRun:      true,
+		Registry:    "",
+		Tag:         "preview",
+		Parameters:  map[string]string{},
 	}
 	functions, err := generator.GenerateFiles(cfg, opts)
 	if err != nil {
