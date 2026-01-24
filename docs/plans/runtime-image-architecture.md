@@ -814,6 +814,51 @@ Apply(ctx state.Context) error
 - `cli/internal/generator/build_env.go`
 - `cli/internal/generator/go_builder_helpers.go`
 
+### 19.17 コンパイル影響一覧（シグネチャ変更）
+#### 19.17.1 `envutil.HostEnvKey` / `GetHostEnv` / `SetHostEnv` の変更影響
+**変更内容:**  
+- `HostEnvKey(suffix string) (string, error)`  
+- `GetHostEnv(suffix string) (string, error)`  
+- `SetHostEnv(suffix, value string) error`  
+
+**修正必須箇所:**  
+- `cli/internal/helpers/env_defaults.go`  
+  - すべての `envutil.SetHostEnv` / `GetHostEnv` 呼び出しを `error` ハンドリング付きに修正。  
+- `cli/internal/helpers/mode.go`  
+  - `GetHostEnv` / `SetHostEnv` を error 対応に修正。  
+- `cli/internal/config/global.go`  
+  - `GetHostEnv` の error を処理し、失敗時は上位に返す。  
+- `cli/internal/config/repo.go`  
+  - `HostEnvKey` の error を処理してメッセージに含める。  
+- `cli/internal/generator/build_env.go`  
+  - `GetHostEnv` / `SetHostEnv` を error 対応に修正。  
+- `cli/internal/generator/go_builder_helpers.go`  
+  - `GetHostEnv` の error を処理して `resolveRootCAPath` に伝播する。  
+- `cli/internal/generator/go_builder_test.go`  
+  - `HostEnvKey` の戻り値を受け取って `t.Setenv` を実行する。  
+
+#### 19.17.2 `RuntimeEnvApplier` の変更影響
+**変更内容:**  
+- `Apply(ctx state.Context) error`  
+
+**修正必須箇所:**  
+- `cli/internal/helpers/runtime_env.go`  
+  - `Apply` が error を返す実装へ変更。  
+- `cli/internal/commands/build.go`  
+  - `EnvApplier.Apply` の error をハンドリング。  
+- `cli/internal/workflows/build.go`  
+  - `EnvApplier.Apply` の error を上位へ返却。  
+
+#### 19.17.3 `resolveImageTag` の変更影響
+**変更内容:**  
+- `resolveImageTag(version string) (string, error)`  
+
+**修正必須箇所:**  
+- `cli/internal/generator/go_builder.go`  
+  - 返却エラーを処理して `Build` を失敗させる。  
+- `cli/internal/generator/go_builder_helpers.go`  
+  - 関数シグネチャ変更と新ロジックへの置換。  
+
 #### 追加テスト（推奨）
 - `<BRAND>_VERSION` 未設定時に CLI が失敗すること。  
 - `IMAGE_RUNTIME` mismatch で entrypoint が失敗すること。  
