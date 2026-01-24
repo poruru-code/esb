@@ -589,6 +589,67 @@ exec /entrypoint.containerd.sh "$@"
 - gateway: `WG_CONF_PATH` が存在する場合のみ起動。
 - runtime-node: `WG_CONTROL_NET` が指定された場合のみルート設定。
 
+### 19.11 変更チェックリスト（ファイル単位）
+#### CLI / Generator
+- `cli/internal/commands/build.go`  
+  - `<BRAND>_VERSION` を解決して `BuildRequest.Version` に設定。未設定は即エラー。  
+- `cli/internal/workflows/build.go`  
+  - `BuildRequest` に `Version` を追加し、generator へ伝播。  
+- `cli/internal/generator/build_request.go`  
+  - `BuildRequest.Version` を追加。  
+- `cli/internal/helpers/env_defaults.go`  
+  - `IMAGE_TAG` / `IMAGE_PREFIX` の設定を削除。  
+  - `ENV_PREFIX` 未設定時は即失敗。  
+  - `GIT_SHA` / `BUILD_DATE` を一度だけ決定し保持。  
+- `cli/internal/generator/go_builder.go`  
+  - `resolveImageTag(request.Env)` を削除し `request.Version` を使用。  
+  - `resolveImageTag` の `error` を処理。  
+- `cli/internal/generator/go_builder_helpers.go`  
+  - `resolveImageTag(env string)` → `resolveImageTag(version string) (string, error)`  
+  - `resolveRegistryConfig(mode string)` → `resolveRegistryConfig()`  
+  - registry の自動生成は廃止（`<BRAND>_REGISTRY` のみ）。  
+- `cli/internal/generator/templates/functions.yml.tmpl`  
+  - `IMAGE_TAG` / `IMAGE_PREFIX` / `FUNCTION_IMAGE_PREFIX` を使用しない。  
+  - 完全な `image` 文字列を出力する。  
+- `cli/internal/generator/renderer.go`  
+  - `ImagePrefix` は `meta.ImagePrefix` 固定。  
+  - `Registry` 正規化（末尾 `/` 付与）。  
+- `cli/internal/generator/renderer_test.go` / `testdata/*.golden`  
+  - 期待値を新しい `image` 文字列に更新。  
+
+#### Services
+- `services/agent/entrypoint.sh`  
+  - `IMAGE_RUNTIME` / `AGENT_RUNTIME` guard を追加。  
+- `services/gateway/entrypoint.sh`  
+  - `IMAGE_RUNTIME` guard を追加。  
+- `services/runtime-node/entrypoint.sh`  
+  - `RUNTIME_MODE` 分岐を廃止し、新仕様のラッパーに置換。  
+- `services/runtime-node/entrypoint.containerd.sh` / `entrypoint.firecracker.sh`  
+  - guard 前提で動作する前提に整理。  
+- `services/agent/internal/runtime/image_naming.go`  
+  - `IMAGE_PREFIX` 参照を削除し `meta.ImagePrefix` 固定。  
+
+#### Compose / Config
+- `docker-compose.docker.yml` / `docker-compose.containerd.yml` / `docker-compose.fc.yml`  
+  - `IMAGE_TAG` / `FUNCTION_IMAGE_PREFIX` / `IMAGE_PREFIX` を廃止。  
+  - `<BRAND>_REGISTRY` / `<BRAND>_TAG` のみに統一。  
+- `config/defaults.env`  
+  - `IMAGE_PREFIX` の固定値は削除（branding 生成に依存）。  
+
+#### Runtime-node Dockerfile
+- `services/runtime-node/Dockerfile` / `Dockerfile.firecracker`  
+  - `ENTRYPOINT` は `/entrypoint.sh` を維持。  
+  - `ARG IMAGE_PREFIX=<brand>` の固定値を撤去。  
+
+#### E2E
+- `e2e/runner/env.py`  
+  - `IMAGE_TAG` / `IMAGE_PREFIX` の計算を廃止。  
+  - `<BRAND>_TAG` / `<BRAND>_REGISTRY` のみを外部入力として扱う。  
+- `e2e/runner/constants.py`  
+  - `ENV_IMAGE_TAG` / `ENV_IMAGE_PREFIX` を撤去。  
+- `e2e/runner/test_env.py`  
+  - `IMAGE_TAG` / `IMAGE_PREFIX` の期待値を削除。  
+
 ## 20. E2E テスト修正計画（必須）
 ### 20.1 目的
 - 新しい命名規則と外部入力の最小化が E2E でも一貫していることを保証する。
@@ -623,3 +684,17 @@ exec /entrypoint.containerd.sh "$@"
 ### 20.5 完了条件
 - すべての E2E プロファイルが新命名規則で成功する。
 - 外部入力の変数が `<BRAND>_REGISTRY` / `<BRAND>_TAG` のみに統一されている。
+
+### 20.6 E2E 修正チェックリスト（具体）
+#### 変更対象（必須）
+- `e2e/runner/env.py`  
+  - `IMAGE_TAG` / `IMAGE_PREFIX` の生成と注入を削除。  
+  - `<BRAND>_TAG` / `<BRAND>_REGISTRY` を環境から取得し、未設定は `latest` を使用。  
+- `e2e/runner/constants.py`  
+  - `ENV_IMAGE_TAG` / `ENV_IMAGE_PREFIX` を削除。  
+- `e2e/runner/test_env.py`  
+  - `IMAGE_TAG` / `IMAGE_PREFIX` に関する期待値を削除または置換。  
+
+#### 追加テスト（推奨）
+- `<BRAND>_VERSION` 未設定時に CLI が失敗すること。  
+- `IMAGE_RUNTIME` mismatch で entrypoint が失敗すること。  
