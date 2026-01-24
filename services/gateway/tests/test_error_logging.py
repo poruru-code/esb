@@ -209,7 +209,11 @@ async def test_lambda_connection_error_includes_detailed_info(caplog):
 
     # Assert: Log record should contain detailed info in extra fields
     error_records = [
-        r for r in caplog.records if r.levelname == "ERROR" and r.name == "gateway.lambda_invoker"
+        r
+        for r in caplog.records
+        if r.levelname == "ERROR"
+        and r.name == "gateway.lambda_invoker"
+        and "Invocation error for" in r.message
     ]
     if not error_records:
         print("\nCaptured Log Records:")
