@@ -1087,3 +1087,10 @@ image: ${<BRAND>_REGISTRY}/<brand>-agent-containerd:${<BRAND>_TAG}
 ### 21.5 ブランド反映チェック
 - `<BRAND>_REGISTRY` / `<BRAND>_TAG` が外部入力の唯一の経路になっている。  
 - `com.<brand>.*` の OCI ラベルが全イメージに付与される。  
+
+### 21.6 レビュー時に求める証跡
+- `go test ./cli/...` の結果ログ（成功が分かる範囲）。  
+- `python -m pytest e2e/runner/test_env.py` の結果ログ。  
+- `docker image inspect` で `com.<brand>.*` ラベルが確認できるスクリーンショットまたはログ。  
+- `functions.yml` の `image` が完全文字列になっていることを示す抜粋。  
+- Compose から `IMAGE_TAG` / `FUNCTION_IMAGE_PREFIX` / `IMAGE_PREFIX` が消えていることを示す差分。  
