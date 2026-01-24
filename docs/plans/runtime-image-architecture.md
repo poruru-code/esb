@@ -207,6 +207,7 @@ services/agent/Dockerfile.containerd
 ### 12.2 Compose 記述例
 - `image: ${<BRAND>_REGISTRY}/<brand>-agent-containerd:${<BRAND>_TAG}`
 - `<BRAND>_TAG` は既定で `<BRAND>_VERSION` を使用する。
+- `<BRAND>_VERSION` は **ビルド時のみ**使用し、Compose からは参照しない。
 
 ### 12.3 CLI マッピング
 - docker -> `<brand>-<component>-docker`
@@ -1164,7 +1165,8 @@ image: ${<BRAND>_REGISTRY}/<brand>-agent-containerd:${<BRAND>_TAG}
 - `functions.yml` の `image` が **完全な文字列**で埋め込まれている。  
 - `functions.yml` 内に `${IMAGE_TAG}` / `${IMAGE_PREFIX}` が残っていない。  
 - Compose から `IMAGE_TAG` / `FUNCTION_IMAGE_PREFIX` / `IMAGE_PREFIX` が削除されている。  
-- `functions.yml` とサービスイメージで `<BRAND>_TAG` が `<BRAND>_VERSION` と一致している。  
+- `functions.yml` とサービスイメージで `<BRAND>_TAG` が `<BRAND>_VERSION` と一致している  
+  （dev の `latest` 例外を除く）。  
 - containerd 系で `<BRAND>_REGISTRY` 未設定の起動経路が存在しない。  
 
 ### 21.5 ブランド反映チェック
