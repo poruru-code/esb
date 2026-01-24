@@ -782,6 +782,38 @@ Apply(ctx state.Context)
 Apply(ctx state.Context) error
 ```
 
+### 19.15 変更適用の順序（推奨）
+1) `envutil` の関数シグネチャ変更  
+2) `RuntimeEnvApplier` のインターフェース変更  
+3) `applyRuntimeEnv` のエラーチェック追加と `ENV_PREFIX` 必須化  
+4) `<BRAND>_VERSION` の解決と `BuildRequest.Version` 追加  
+5) `resolveImageTag` / `resolveRegistryConfig` の置換  
+6) generator テンプレートとテストの更新  
+7) entrypoint ラッパー置換と runtime guard 実装  
+8) compose の環境変数整理  
+9) E2E 更新  
+
+### 19.16 影響範囲一覧（呼び出し元）
+#### `envutil.HostEnvKey` の呼び出し元
+- `cli/internal/config/repo.go`
+- `cli/internal/envutil/envutil.go`
+- `cli/internal/generator/go_builder_test.go`
+
+#### `RuntimeEnvApplier` の呼び出し元
+- `cli/internal/commands/build.go`
+- `cli/internal/workflows/build.go`
+
+#### `resolveImageTag` / `resolveRegistryConfig` の呼び出し元
+- `cli/internal/generator/go_builder.go`
+
+#### `envutil.GetHostEnv` の呼び出し元（主な箇所）
+- `cli/internal/helpers/env_defaults.go`
+- `cli/internal/helpers/mode.go`
+- `cli/internal/config/global.go`
+- `cli/internal/config/repo.go`
+- `cli/internal/generator/build_env.go`
+- `cli/internal/generator/go_builder_helpers.go`
+
 #### 追加テスト（推奨）
 - `<BRAND>_VERSION` 未設定時に CLI が失敗すること。  
 - `IMAGE_RUNTIME` mismatch で entrypoint が失敗すること。  
