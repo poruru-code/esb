@@ -13,6 +13,7 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/joho/godotenv"
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/generator"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 	"github.com/poruru/edge-serverless-box/cli/internal/version"
 )
@@ -36,6 +37,7 @@ type Dependencies struct {
 	Out             io.Writer
 	DetectorFactory DetectorFactory
 	Builder         Builder
+	Parser          generator.Parser
 	Downer          Downer
 	Upper           Upper
 	Stopper         Stopper

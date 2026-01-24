@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
 )
 
 type stubParser struct {
@@ -132,7 +133,7 @@ func TestGenerateFilesStagesLayersAndZip(t *testing.T) {
 				{
 					Name:    "lambda-one",
 					CodeURI: "functions/one/",
-					Layers: []LayerSpec{
+					Layers: []manifest.LayerSpec{
 						{Name: "common-layer", ContentURI: "layers/common/"},
 						{Name: "zip-layer", ContentURI: "layers/zip-layer.zip"},
 					},
@@ -140,7 +141,7 @@ func TestGenerateFilesStagesLayersAndZip(t *testing.T) {
 				{
 					Name:    "lambda-two",
 					CodeURI: "functions/two/",
-					Layers: []LayerSpec{
+					Layers: []manifest.LayerSpec{
 						{Name: "common-layer", ContentURI: "layers/common/"},
 						{Name: "zip-layer", ContentURI: "layers/zip-layer.zip"},
 					},
@@ -247,7 +248,7 @@ func TestGenerateFilesLayerNesting(t *testing.T) {
 					Name:    "lambda-nesting-test",
 					Runtime: "python3.12",
 					CodeURI: "functions/my-func/",
-					Layers: []LayerSpec{
+					Layers: []manifest.LayerSpec{
 						{Name: "layer-flat-dir", ContentURI: "layers/flat_dir/"},
 						{Name: "layer-nested-dir", ContentURI: "layers/nested_dir/"},
 						{Name: "layer-flat-zip", ContentURI: "layers/flat.zip"},

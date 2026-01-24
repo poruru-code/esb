@@ -4,10 +4,13 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
+	"github.com/poruru/edge-serverless-box/cli/internal/generator"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
@@ -84,7 +87,7 @@ func runUp(cli CLI, deps Dependencies, out io.Writer) int {
 			return 1
 		}
 
-		request := BuildRequest{
+		request := generator.BuildRequest{
 			ProjectDir:   ctx.ProjectDir,
 			TemplatePath: templatePath,
 			Env:          ctxInfo.Env,
@@ -106,13 +109,30 @@ func runUp(cli CLI, deps Dependencies, out io.Writer) int {
 
 	ports := DiscoverAndPersistPorts(ctx, deps.PortDiscoverer, out)
 
-	if err := deps.Provisioner.Provision(ProvisionRequest{
-		TemplatePath:   templatePath,
-		ProjectDir:     ctx.ProjectDir,
-		Env:            ctxInfo.Env,
-		ComposeProject: ctx.ComposeProject,
-		Mode:           ctx.Mode,
-	}); err != nil {
+	absTemplatePath, err := filepath.Abs(templatePath)
+	if err != nil {
+		return exitWithError(out, err)
+	}
+	if _, err := os.Stat(absTemplatePath); err != nil {
+		return exitWithError(out, fmt.Errorf("template not found: %w", err))
+	}
+
+	content, err := os.ReadFile(absTemplatePath)
+	if err != nil {
+		return exitWithError(out, err)
+	}
+
+	if deps.Parser == nil {
+		fmt.Fprintln(out, "up: parser not configured")
+		return 1
+	}
+
+	parsed, err := deps.Parser.Parse(string(content), nil)
+	if err != nil {
+		return exitWithError(out, err)
+	}
+
+	if err := deps.Provisioner.Apply(context.Background(), parsed.Resources, ctx.ComposeProject); err != nil {
 		return exitWithError(out, err)
 	}
 

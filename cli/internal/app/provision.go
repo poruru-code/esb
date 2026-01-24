@@ -3,6 +3,12 @@
 // Why: Allow up to trigger resource provisioning.
 package app
 
+import (
+	"context"
+
+	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
+)
+
 // ProvisionRequest contains parameters for provisioning Lambda functions.
 // It specifies template location, project setup, and runtime mode.
 type ProvisionRequest struct {
@@ -14,7 +20,7 @@ type ProvisionRequest struct {
 }
 
 // Provisioner defines the interface for provisioning Lambda functions.
-// Implementations parse the SAM template and configure the Lambda runtime.
+// Implementations configure the Lambda runtime based on parsed resources.
 type Provisioner interface {
-	Provision(request ProvisionRequest) error
+	Apply(ctx context.Context, resources manifest.ResourcesSpec, composeProject string) error
 }

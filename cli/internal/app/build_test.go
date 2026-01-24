@@ -11,14 +11,15 @@ import (
 	"testing"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/generator"
 )
 
 type fakeBuilder struct {
-	requests []BuildRequest
+	requests []generator.BuildRequest
 	err      error
 }
 
-func (f *fakeBuilder) Build(req BuildRequest) error {
+func (f *fakeBuilder) Build(req generator.BuildRequest) error {
 	f.requests = append(f.requests, req)
 	return f.err
 }

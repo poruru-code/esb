@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/generator"
+	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
 	"github.com/poruru/edge-serverless-box/cli/internal/provisioner"
 )
 
@@ -39,6 +41,7 @@ func buildDependencies() (app.Dependencies, io.Closer, error) {
 		Out:             os.Stdout,
 		DetectorFactory: app.NewDetectorFactory(client, warnf),
 		Builder:         generator.NewGoBuilder(),
+		Parser:          generator.DefaultParser{},
 		Downer:          app.NewDowner(client),
 		Upper:           app.NewUpper(config.ResolveRepoRoot),
 		Stopper:         app.NewStopper(config.ResolveRepoRoot),
@@ -61,20 +64,12 @@ type provisionerAdapter struct {
 	runner *provisioner.Runner
 }
 
-// Provision executes the provisioning workflow by delegating to the underlying runner.
-// It converts the application-level request to a provisioner-specific request and
-// returns any error encountered during the provisioning process.
-func (p provisionerAdapter) Provision(request app.ProvisionRequest) error {
+// Apply executes the provisioning workflow by delegating to the underlying runner.
+func (p provisionerAdapter) Apply(ctx context.Context, resources manifest.ResourcesSpec, composeProject string) error {
 	if p.runner == nil {
 		return fmt.Errorf("provisioner is nil")
 	}
-	return p.runner.Provision(provisioner.Request{
-		TemplatePath:   request.TemplatePath,
-		ProjectDir:     request.ProjectDir,
-		Env:            request.Env,
-		ComposeProject: request.ComposeProject,
-		Mode:           request.Mode,
-	})
+	return p.runner.Apply(ctx, resources, composeProject)
 }
 
 // warnf writes a warning message to stderr.

@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/poruru-code/aws-sam-parser-go/schema"
-	"github.com/poruru/edge-serverless-box/cli/internal/generator"
+	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
 )
 
 type DynamoDBAPI interface {
@@ -57,7 +57,7 @@ type GlobalSecondaryIndex struct {
 func provisionDynamo(
 	ctx context.Context,
 	client DynamoDBAPI,
-	tables []generator.DynamoDBSpec,
+	tables []manifest.DynamoDBSpec,
 	out io.Writer,
 ) {
 	if client == nil || len(tables) == 0 {
@@ -98,7 +98,7 @@ func provisionDynamo(
 	}
 }
 
-func buildDynamoCreateInput(table generator.DynamoDBSpec) (DynamoCreateInput, error) {
+func buildDynamoCreateInput(table manifest.DynamoDBSpec) (DynamoCreateInput, error) {
 	keySchema, err := parseKeySchema(table.KeySchema)
 	if err != nil {
 		return DynamoCreateInput{}, err
