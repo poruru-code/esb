@@ -837,6 +837,19 @@ Apply(ctx state.Context) error
 - `cli/internal/generator/go_builder_test.go`  
   - `HostEnvKey` の戻り値を受け取って `t.Setenv` を実行する。  
 
+#### 19.17.1a 具体的なエラー処理パターン
+**原則:**  
+- `ENV_PREFIX` 未設定は **即エラー**（return error）。  
+- それ以外のエラーは上位へ返却し、CLI 側で失敗させる。  
+
+**例: `applyModeEnv` の修正方針（擬似）**  
+```
+val, err := envutil.GetHostEnv(constants.HostSuffixMode)
+if err != nil { return err }
+if strings.TrimSpace(val) != "" { return nil }
+return envutil.SetHostEnv(constants.HostSuffixMode, strings.ToLower(trimmed))
+```
+
 #### 19.17.2 `RuntimeEnvApplier` の変更影響
 **変更内容:**  
 - `Apply(ctx state.Context) error`  
@@ -849,6 +862,15 @@ Apply(ctx state.Context) error
 - `cli/internal/workflows/build.go`  
   - `EnvApplier.Apply` の error を上位へ返却。  
 
+#### 19.17.2a 具体的な error 伝播（擬似）
+```
+if w.EnvApplier != nil {
+  if err := w.EnvApplier.Apply(req.Context); err != nil {
+    return err
+  }
+}
+```
+
 #### 19.17.3 `resolveImageTag` の変更影響
 **変更内容:**  
 - `resolveImageTag(version string) (string, error)`  
@@ -858,6 +880,14 @@ Apply(ctx state.Context) error
   - 返却エラーを処理して `Build` を失敗させる。  
 - `cli/internal/generator/go_builder_helpers.go`  
   - 関数シグネチャ変更と新ロジックへの置換。  
+
+#### 19.17.3a 具体的な呼び出し変更（擬似）
+```
+imageTag, err := resolveImageTag(request.Version)
+if err != nil {
+  return err
+}
+```
 
 #### 追加テスト（推奨）
 - `<BRAND>_VERSION` 未設定時に CLI が失敗すること。  
