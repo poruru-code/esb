@@ -358,6 +358,31 @@ services/agent/Dockerfile.containerd
 - 開発/検証: `0.0.0-dev.<shortsha>` など明示的な値を設定する。  
 - 未設定でのビルドは禁止（ビルド失敗）。  
 
+#### 19.2.3 BuildRequest のフィールド追加（明示仕様）
+- `cli/internal/workflows/build.go` の `BuildRequest` に `Version string` を追加する。  
+- `cli/internal/generator/build_request.go` の `BuildRequest` に `Version string` を追加する。  
+- 伝播ルール: workflow の `BuildRequest.Version` を generator の `BuildRequest.Version` にコピーする。  
+- generator 側で `Version` が空の場合は即エラー（`ERROR: <BRAND>_VERSION is required`）。  
+
+#### 19.2.4 GIT_SHA / BUILD_DATE の解決手順（内部管理）
+- これらは外部入力ではなく **CLI が内部で決定**する。  
+- `GIT_SHA`:
+  - 環境変数 `GIT_SHA` があればそれを優先。  
+  - 未設定なら `git rev-parse --short HEAD` を実行して取得。  
+  - 取得失敗時は `unknown` とし、ビルドは継続。  
+- `BUILD_DATE`:
+  - 環境変数 `BUILD_DATE` があればそれを優先。  
+  - 未設定なら `UTC` の ISO8601 で生成する（例: `2026-01-24T12:00:00Z`）。  
+
+#### 19.2.5 `<BRAND>_TAG` / `<BRAND>_REGISTRY` 解決手順（CLI）
+- `tagKey := envutil.HostEnvKey("TAG")` を生成し、`<BRAND>_TAG` を取得する。  
+- 未設定の場合は **`latest`** を使用（開発用途のみ）。  
+- `registryKey := envutil.HostEnvKey("REGISTRY")` を生成し、`<BRAND>_REGISTRY` を取得する。  
+- `Registry` は以下の正規化を行う:  
+  - 空の場合は空文字（レジストリ指定なし）。  
+  - 末尾に `/` が無ければ付与する。  
+- `resolveImageTag` / `resolveRegistryConfig` は上記ロジックに置き換える。  
+
 ### 19.3 関数イメージの埋め込み生成
 対象:
 - `cli/internal/generator/templates/functions.yml.tmpl`
@@ -383,6 +408,15 @@ services/agent/Dockerfile.containerd
 - サービスイメージ名は `<brand>-<component>-{docker|containerd}` に固定。
 - Compose は `<BRAND>_REGISTRY` / `<BRAND>_TAG` だけ参照する。
 - `IMAGE_TAG` / `FUNCTION_IMAGE_PREFIX` / `IMAGE_PREFIX` は Compose から削除する。
+
+#### 19.4.1 Build Args 注入ルール
+- `buildDockerImage` に渡す build args は以下に固定する:  
+  - `<BRAND>_VERSION`, `GIT_SHA`, `BUILD_DATE`, `IMAGE_RUNTIME`, `COMPONENT`  
+- `IMAGE_RUNTIME` / `COMPONENT` は **サービスごとに固定値**を渡す。  
+  - 例: agent-containerd -> `IMAGE_RUNTIME=containerd`, `COMPONENT=agent`  
+- `<BRAND>_VERSION` は `BuildRequest.Version` から取得する。  
+- `GIT_SHA` / `BUILD_DATE` は `applyRuntimeEnv` で解決済みの値を使う。  
+- すべてのサービスイメージに同一のラベルセットを付与する。  
 
 ### 19.5 agent の関数イメージ解決
 対象:
