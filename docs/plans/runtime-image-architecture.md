@@ -695,6 +695,49 @@ exec /entrypoint.containerd.sh "$@"
 - `e2e/runner/test_env.py`  
   - `IMAGE_TAG` / `IMAGE_PREFIX` に関する期待値を削除または置換。  
 
+### 19.12 差分サンプル（代表例）
+#### functions.yml テンプレート
+変更前:
+```
+image: "${FUNCTION_IMAGE_PREFIX}${IMAGE_PREFIX}-{{ .ImageName }}:${IMAGE_TAG}"
+```
+
+変更後:
+```
+image: "{{ .Registry }}{{ .ImagePrefix }}-{{ .ImageName }}:{{ .Tag }}"
+```
+
+#### generator テスト期待値
+変更前:
+```
+${FUNCTION_IMAGE_PREFIX}${IMAGE_PREFIX}-lambda-hello:${IMAGE_TAG}
+```
+
+変更後（例）:
+```
+<registry>/<brand>-lambda-hello:vX.Y.Z
+```
+
+#### runtime-node entrypoint 分岐
+変更前（概略）:
+```
+mode="${RUNTIME_MODE:-containerd}"
+case "$mode" in
+  firecracker|fc) exec /entrypoint.firecracker.sh ;;
+  containerd|"") exec /entrypoint.containerd.sh ;;
+  *) exit 1 ;;
+esac
+```
+
+変更後（概略）:
+```
+if [ "$IMAGE_RUNTIME" != "containerd" ]; then exit 1; fi
+if [ "$CONTAINERD_RUNTIME" = "aws.firecracker" ]; then
+  exec /entrypoint.firecracker.sh
+fi
+exec /entrypoint.containerd.sh
+```
+
 #### 追加テスト（推奨）
 - `<BRAND>_VERSION` 未設定時に CLI が失敗すること。  
 - `IMAGE_RUNTIME` mismatch で entrypoint が失敗すること。  
