@@ -46,7 +46,7 @@ IMAGES=()
 EXTERNAL_IMAGES=(
     "scylladb/scylla:latest"
     "rustfs/rustfs:latest"
-    "victorialogs/victoria-logs:latest"
+    "victoriametrics/victoria-logs:latest"
     "alpine:latest"
 )
 
