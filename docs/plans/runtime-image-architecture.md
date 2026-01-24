@@ -290,9 +290,11 @@ services/agent/Dockerfile.containerd
 ### 18.4 Phase 3: Dockerfile とビルド引数の整理
 - Dockerfile の `ARG IMAGE_PREFIX=<brand>` など固定デフォルトを撤去。
 - `IMAGE_RUNTIME` / `COMPONENT` / `<BRAND>_VERSION` を ENV に焼き込む。
+- `<BRAND>_VERSION` の注入経路（CLI/CI）を確定する。
 受け入れ条件:
 - すべてのサービスイメージに `IMAGE_RUNTIME` と `COMPONENT` が入っている。
 - ブランド固定のデフォルト値が残っていない。
+- `<BRAND>_VERSION` が未設定の場合にビルドが失敗する。
 
 ### 18.5 Phase 4: Runtime Guard 実装
 - entrypoint に `IMAGE_RUNTIME` と `AGENT_RUNTIME` の整合チェックを追加。
@@ -342,6 +344,19 @@ services/agent/Dockerfile.containerd
 - `<BRAND>_TAG` が未設定の場合は `latest` を使用（開発用途のみ想定）。
 - `<BRAND>_VERSION` は **CLI または CI が必ず供給**する。未設定はビルド失敗とする。
 - BuildRequest に `<BRAND>_VERSION` を明示的に渡し、generator 側で必須チェックする。
+
+#### 19.2.1 `<BRAND>_VERSION` 解決手順（CLI）
+1) `applyBrandingEnv` により `ENV_PREFIX` を設定する。  
+2) `versionKey := envutil.HostEnvKey("VERSION")` を生成する。  
+3) `version := os.Getenv(versionKey)` を取得する。  
+4) 空の場合は **即エラー**（例: `ERROR: <BRAND>_VERSION is required`）。  
+5) `BuildRequest.Version` に格納し、generator/build に伝播する。  
+
+#### 19.2.2 `<BRAND>_VERSION` 供給責務（CI/運用）
+- CI は必ず `<BRAND>_VERSION` を設定してビルドする。  
+- リリース: Git タグ `vX.Y.Z` を `<BRAND>_VERSION` に設定する。  
+- 開発/検証: `0.0.0-dev.<shortsha>` など明示的な値を設定する。  
+- 未設定でのビルドは禁止（ビルド失敗）。  
 
 ### 19.3 関数イメージの埋め込み生成
 対象:
@@ -407,6 +422,28 @@ esac
 - runtime-node は `IMAGE_RUNTIME=containerd` 以外で即終了する。
 - 終了コードは `exit 1` に統一し、ログは `ERROR: <reason>` の形式で出力する。
 
+#### 19.6.1 runtime-node entrypoint ラッパー仕様
+目的: containerd / firecracker の分岐を **1つの entrypoint** に集約する。  
+
+擬似コード:
+```
+if [ -z "$IMAGE_RUNTIME" ]; then
+  echo "ERROR: IMAGE_RUNTIME is required"; exit 1
+fi
+if [ "$IMAGE_RUNTIME" != "containerd" ]; then
+  echo "ERROR: IMAGE_RUNTIME must be containerd"; exit 1
+fi
+if [ "$CONTAINERD_RUNTIME" = "aws.firecracker" ]; then
+  exec /entrypoint.firecracker.sh "$@"
+fi
+exec /entrypoint.containerd.sh "$@"
+```
+
+必須条件:
+- ラッパーは `IMAGE_RUNTIME` の guard を最初に実行する。
+- `CONTAINERD_RUNTIME` が未設定または別値なら containerd 側へ分岐する。
+- Compose は常に `entrypoint: /entrypoint.sh` を使用する。
+
 ### 19.7 Dockerfile の整理
 対象:
 - `services/*/Dockerfile*`
@@ -436,7 +473,7 @@ esac
 - `CONTAINERD_RUNTIME=aws.firecracker` の場合は **entrypoint ラッパー**が firecracker 用を実行する。
 - それ以外は containerd 用を実行する。
 - ラッパーは `IMAGE_RUNTIME` の guard を最初に実行した後に分岐する。
- - Compose は常に `entrypoint: /entrypoint.sh` を使用する。
+- Compose は常に `entrypoint: /entrypoint.sh` を使用する。
 
 ### 19.10 WireGuard 条件
 対象:
