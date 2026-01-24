@@ -386,6 +386,23 @@ services/agent/Dockerfile.containerd
   - 外部入力 `<BRAND>_REGISTRY` を正規化した値のみを返す。  
   - `Internal` は空（内部レジストリの自動設定は廃止）。  
 
+#### 19.2.8 関数/呼び出しの差分イメージ（コード例）
+**変更前（概略）**
+```
+mode := strings.TrimSpace(request.Mode)
+registry := resolveRegistryConfig(mode)
+imageTag := resolveImageTag(request.Env)
+```
+
+**変更後（概略）**
+```
+registry := resolveRegistryConfig()
+imageTag, err := resolveImageTag(request.Version)
+if err != nil {
+  return err
+}
+```
+
 #### 19.2.4 GIT_SHA / BUILD_DATE の解決手順（内部管理）
 - これらは外部入力ではなく **CLI が内部で決定**する。  
 - `GIT_SHA`:
@@ -451,6 +468,17 @@ services/agent/Dockerfile.containerd
   5) `COMPONENT`  
 - labels は build args の後に渡す。  
 
+#### 19.4.3 buildDockerImage の呼び出し例（擬似）
+```
+args := []string{
+  "--build-arg", "<BRAND>_VERSION="+request.Version,
+  "--build-arg", "GIT_SHA="+os.Getenv("GIT_SHA"),
+  "--build-arg", "BUILD_DATE="+os.Getenv("BUILD_DATE"),
+  "--build-arg", "IMAGE_RUNTIME=containerd",
+  "--build-arg", "COMPONENT=agent",
+}
+```
+
 ### 19.5 agent の関数イメージ解決
 対象:
 - `services/agent/internal/runtime/image_naming.go`
@@ -459,6 +487,10 @@ services/agent/Dockerfile.containerd
 設計:
 - `IMAGE_PREFIX` の環境変数参照を削除し、`meta.ImagePrefix` 固定にする。
 - これにより関数イメージ名は `meta.ImagePrefix` に完全追随する。
+
+#### 19.5.1 関数イメージ名の最終形
+- `meta.ImagePrefix + "-" + <function-image-name>` を固定形とする。  
+- `<function-image-name>` は `imageSafeName` の出力を使用する。  
 
 ### 19.6 Runtime Guard の実装
 対象:
@@ -511,6 +543,11 @@ exec /entrypoint.containerd.sh "$@"
 - `CONTAINERD_RUNTIME` が未設定または別値なら containerd 側へ分岐する。
 - Compose は常に `entrypoint: /entrypoint.sh` を使用する。
 - `RUNTIME_MODE` ベースの既存分岐は廃止する（既存の `entrypoint.sh` を置換）。
+
+#### 19.6.2 entrypoint 差し替え手順（明示）
+- `services/runtime-node/entrypoint.sh` を新仕様（IMAGE_RUNTIME + CONTAINERD_RUNTIME 分岐）に置換。  
+- 既存の `RUNTIME_MODE` 分岐は削除。  
+- `ENTRYPOINT [\"/entrypoint.sh\"]` は維持。  
 
 ### 19.7 Dockerfile の整理
 対象:
