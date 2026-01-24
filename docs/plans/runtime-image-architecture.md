@@ -1062,3 +1062,28 @@ image: ${<BRAND>_REGISTRY}/<brand>-agent-containerd:${<BRAND>_TAG}
 ### 20.8 E2E 実行時の前提
 - E2E 実行環境では `<BRAND>_VERSION` / `<BRAND>_TAG` を明示設定する。  
 - `<BRAND>_TAG` は E2E の実行モードに依存しない（常に固定タグを指定）。  
+
+## 21. 実装完了チェック（レビュー観点）
+### 21.1 コンパイル/静的確認
+- `go test ./cli/...` が通る（envutil / RuntimeEnvApplier のシグネチャ変更を含む）。  
+- `python -m pytest e2e/runner/test_env.py` が通る（IMAGE_TAG/IMAGE_PREFIX 撤去後）。  
+
+### 21.2 ランタイムガード動作確認
+- `IMAGE_RUNTIME=docker` かつ `AGENT_RUNTIME=containerd` で agent が即終了する。  
+- `IMAGE_RUNTIME=containerd` かつ `AGENT_RUNTIME=docker` で agent が即終了する。  
+- runtime-node の `IMAGE_RUNTIME` が `containerd` 以外なら即終了する。  
+
+### 21.3 構造テスト（イメージ依存）
+- agent-docker に CNI が存在しないこと。  
+- agent-containerd に CNI が存在すること。  
+- gateway-containerd に WireGuard バイナリが存在すること。  
+- runtime-node-containerd に WireGuard バイナリが存在すること。  
+
+### 21.4 生成物チェック
+- `functions.yml` の `image` が **完全な文字列**で埋め込まれている。  
+- `functions.yml` 内に `${IMAGE_TAG}` / `${IMAGE_PREFIX}` が残っていない。  
+- Compose から `IMAGE_TAG` / `FUNCTION_IMAGE_PREFIX` / `IMAGE_PREFIX` が削除されている。  
+
+### 21.5 ブランド反映チェック
+- `<BRAND>_REGISTRY` / `<BRAND>_TAG` が外部入力の唯一の経路になっている。  
+- `com.<brand>.*` の OCI ラベルが全イメージに付与される。  
