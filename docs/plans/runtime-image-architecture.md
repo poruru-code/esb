@@ -889,6 +889,120 @@ if err != nil {
 }
 ```
 
+### 19.18 ファイル別の変更テンプレート（抜粋）
+#### 19.18.1 `cli/internal/envutil/envutil.go`
+変更前（概略）:
+```
+func HostEnvKey(suffix string) string
+func GetHostEnv(suffix string) string
+func SetHostEnv(suffix, value string)
+```
+変更後（概略）:
+```
+func HostEnvKey(suffix string) (string, error)
+func GetHostEnv(suffix string) (string, error)
+func SetHostEnv(suffix, value string) error
+```
+
+#### 19.18.2 `cli/internal/helpers/env_defaults.go`
+変更前（概略）:
+```
+envutil.SetHostEnv(constants.HostSuffixMode, ctx.Mode)
+tag := defaultImageTag(ctx.Mode, env)
+envutil.SetHostEnv(constants.HostSuffixImageTag, tag)
+setEnvIfEmpty(constants.EnvImageTag, tag)
+setEnvIfEmpty(constants.EnvImagePrefix, imagePrefix)
+```
+変更後（概略）:
+```
+if err := envutil.SetHostEnv(constants.HostSuffixMode, ctx.Mode); err != nil { return err }
+// IMAGE_TAG / IMAGE_PREFIX の設定は削除
+// <BRAND>_TAG は BuildRequest.Version を優先し、未設定時のみ latest
+```
+
+#### 19.18.3 `cli/internal/helpers/runtime_env.go`
+変更前（概略）:
+```
+func (r runtimeEnvApplier) Apply(ctx state.Context) {
+  applyRuntimeEnv(ctx, r.resolver)
+}
+```
+変更後（概略）:
+```
+func (r runtimeEnvApplier) Apply(ctx state.Context) error {
+  return applyRuntimeEnv(ctx, r.resolver)
+}
+```
+
+#### 19.18.4 `cli/internal/commands/build.go`
+変更後（概略）:
+```
+version, err := resolveBrandVersion()
+if err != nil { return err }
+request.Version = version
+```
+
+#### 19.18.5 `cli/internal/workflows/build.go`
+変更後（概略）:
+```
+buildRequest := generator.BuildRequest{ Version: req.Version, ... }
+```
+
+#### 19.18.6 `cli/internal/generator/build_request.go`
+変更後（概略）:
+```
+type BuildRequest struct {
+  Version string
+  ...
+}
+```
+
+#### 19.18.7 `cli/internal/generator/go_builder.go`
+変更後（概略）:
+```
+registry := resolveRegistryConfig()
+imageTag, err := resolveImageTag(request.Version)
+if err != nil { return err }
+```
+
+#### 19.18.8 `cli/internal/generator/go_builder_helpers.go`
+変更後（概略）:
+```
+func resolveRegistryConfig() registryConfig { ... }
+func resolveImageTag(version string) (string, error) { ... }
+```
+
+#### 19.18.9 `cli/internal/generator/templates/functions.yml.tmpl`
+変更前:
+```
+image: "${FUNCTION_IMAGE_PREFIX}${IMAGE_PREFIX}-{{ .ImageName }}:${IMAGE_TAG}"
+```
+変更後:
+```
+image: "{{ .Registry }}{{ .ImagePrefix }}-{{ .ImageName }}:{{ .Tag }}"
+```
+
+#### 19.18.10 `services/runtime-node/entrypoint.sh`
+変更後（概略）:
+```
+if [ "$IMAGE_RUNTIME" != "containerd" ]; then exit 1; fi
+if [ "$CONTAINERD_RUNTIME" = "aws.firecracker" ]; then exec /entrypoint.firecracker.sh; fi
+exec /entrypoint.containerd.sh
+```
+
+#### 19.18.11 `docker-compose.*.yml`
+変更後（概略）:
+```
+image: ${<BRAND>_REGISTRY}/<brand>-agent-containerd:${<BRAND>_TAG}
+```
+
+#### 19.18.12 `e2e/runner/env.py`
+変更後（概略）:
+```
+// IMAGE_TAG / IMAGE_PREFIX の計算を削除
+// <BRAND>_TAG / <BRAND>_REGISTRY のみを参照
+```
+
 #### 追加テスト（推奨）
 - `<BRAND>_VERSION` 未設定時に CLI が失敗すること。  
 - `IMAGE_RUNTIME` mismatch で entrypoint が失敗すること。  
