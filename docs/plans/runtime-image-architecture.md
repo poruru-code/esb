@@ -1003,6 +1003,40 @@ image: ${<BRAND>_REGISTRY}/<brand>-agent-containerd:${<BRAND>_TAG}
 // <BRAND>_TAG / <BRAND>_REGISTRY のみを参照
 ```
 
+### 19.19 Compose 変更の具体サンプル
+#### `docker-compose.docker.yml`（gateway 環境変数）
+変更前:
+```
+- IMAGE_TAG=docker
+- FUNCTION_IMAGE_PREFIX=
+```
+変更後:
+```
+# IMAGE_TAG / FUNCTION_IMAGE_PREFIX は廃止
+```
+
+#### `docker-compose.containerd.yml`（gateway 環境変数）
+変更前:
+```
+- IMAGE_TAG=containerd
+- FUNCTION_IMAGE_PREFIX=registry:5010/
+```
+変更後:
+```
+# IMAGE_TAG / FUNCTION_IMAGE_PREFIX は廃止
+```
+
+#### `docker-compose.fc.yml`（gateway 環境変数）
+変更前:
+```
+- IMAGE_TAG=firecracker
+- FUNCTION_IMAGE_PREFIX=registry:5010/
+```
+変更後:
+```
+# IMAGE_TAG / FUNCTION_IMAGE_PREFIX は廃止
+```
+
 #### 追加テスト（推奨）
 - `<BRAND>_VERSION` 未設定時に CLI が失敗すること。  
 - `IMAGE_RUNTIME` mismatch で entrypoint が失敗すること。  
