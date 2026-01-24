@@ -308,3 +308,37 @@ services/agent/Dockerfile.containerd
   - 対策: 自動化されたマトリクスビルド
 - リスク: 依存差分の逸脱
   - 対策: 構造テストと依存リストの明文化
+
+## 19. E2E テスト修正計画（必須）
+### 19.1 目的
+- 新しい命名規則と外部入力の最小化が E2E でも一貫していることを保証する。
+- runtime guard と WireGuard 条件が期待通りに動作することを検証する。
+
+### 19.2 影響範囲（更新対象）
+- E2E ランナーの環境変数生成:
+  - `<BRAND>_REGISTRY` / `<BRAND>_TAG` のみを外部入力として扱う。
+  - 旧 `ESB_` 前提や `IMAGE_TAG` 前提があれば撤去する。
+- 画像名の期待値:
+  - `<brand>-<component>-{docker|containerd}` を前提に期待値を更新する。
+- compose / 起動プロファイル:
+  - docker / containerd の2系統で E2E シナリオを整理する。
+  - firecracker は containerd 系統の runtime 切替で検証する。
+
+### 19.3 修正内容（実装指針）
+1) E2E で使用している環境変数を棚卸しする。
+2) 外部入力を `<BRAND>_REGISTRY` / `<BRAND>_TAG` のみに揃える。
+3) 画像名の期待値を `<brand>-<component>-{docker|containerd}` に置換する。
+4) containerd 系統のケースで `CONTAINERD_RUNTIME=aws.firecracker` を付与し、firecracker 相当のケースを再現する。
+5) 既存 E2E の「タグ=runtime」前提が残る場合はすべて廃止する。
+
+### 19.4 追加・変更テストケース
+- runtime guard:
+  - `IMAGE_RUNTIME=docker` で `AGENT_RUNTIME=containerd` を与えた場合に起動が失敗すること。
+  - `IMAGE_RUNTIME=containerd` で `AGENT_RUNTIME=docker` を与えた場合に起動が失敗すること。
+- WireGuard 条件:
+  - `WG_CONF_PATH` が存在しない場合に gateway が起動し続けること。
+  - `WG_CONTROL_NET` が未指定の場合に runtime-node が起動し続けること。
+
+### 19.5 完了条件
+- すべての E2E プロファイルが新命名規則で成功する。
+- 外部入力の変数が `<BRAND>_REGISTRY` / `<BRAND>_TAG` のみに統一されている。
