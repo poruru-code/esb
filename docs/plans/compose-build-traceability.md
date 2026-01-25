@@ -88,9 +88,12 @@ Why: provenance 未使用の前提で、ビルド由来メタデータを成果�
 - `source`:
   - 固定で `git`。
 - `component`:
-  - `gateway` / `agent` / `runtime-node` / `provisioner`。
+  - runtime 系: `gateway` / `agent` / `runtime-node` / `provisioner`
+  - base 系: `base`（os-base / python-base / lambda-base）
+  - function 系: `function`
 - `image_runtime`:
-  - `docker` / `containerd`。
+  - runtime 系: `docker` / `containerd`
+  - base / function 系: `shared`
 
 ## 6. ビルド処理詳細
 ### 6.1 共通アルゴリズム
@@ -106,7 +109,9 @@ Why: provenance 未使用の前提で、ビルド由来メタデータを成果�
 - 依存: Python 3 標準ライブラリのみ（追加パッケージ不要）
 - 入力（必須）:
   - `--git-dir` / `--git-common-dir`
-  - `--component` / `--image-runtime`
+- `--component` / `--image-runtime`
+  - `component`: `gateway|agent|runtime-node|provisioner|base|function`
+  - `image_runtime`: `docker|containerd|shared`
   - `--output`
 - 出力:
   - `--output` で指定した JSON ファイル（UTF-8, `ensure_ascii=True`）
@@ -150,6 +155,10 @@ RUN --mount=type=bind,from=trace_tools,source=.,target=/trace_tools \
 ```
 
 `ARG COMPONENT/IMAGE_RUNTIME` は build-meta ステージで使用するため、`FROM` より前に宣言する。
+値の方針:
+- runtime 系: `COMPONENT=<component>` / `IMAGE_RUNTIME=docker|containerd`
+- base 系: `COMPONENT=base` / `IMAGE_RUNTIME=shared`
+- function 系: `COMPONENT=function` / `IMAGE_RUNTIME=shared`
 
 ### 6.3 最終ステージへのコピー
 最終ステージに以下を追加する。
@@ -161,8 +170,9 @@ COPY --from=build-meta /out/version.json /app/version.json
 ### 6.4 既存ビルドメタの整理
 - Dockerfile 内の `ARG ESB_VERSION/GIT_SHA/BUILD_DATE` と必須チェックは廃止する。
 - ランタイム `ENV ESB_VERSION/GIT_SHA/BUILD_DATE` は不要。
-- `IMAGE_RUNTIME` / `COMPONENT` は引き続き `ARG` で必須化する。
-- `IMAGE_RUNTIME` / `COMPONENT` は entrypoint が参照するため、`ENV` は維持する。
+- `IMAGE_RUNTIME` / `COMPONENT` は **全イメージで `ARG` 必須**とする（`version.json` 生成のため）。
+- runtime 系のみ `IMAGE_RUNTIME` / `COMPONENT` を `ENV` に焼き込む（entrypoint が参照）。
+- base / function 系は `ENV` に焼き込まない（不要な環境変数を増やさない）。
 
 ## 7. Compose 設定
 ### 7.1 追加コンテキスト
@@ -277,11 +287,11 @@ func resolveGitContext(ctx context.Context, runner gitRunner, repoRoot string) (
 	if err != nil {
 		return gitContext{}, err
 	}
-	gitDir, err := resolveGitDir(root, gitDirRaw)
+	gitDir, gitDirIsFile, err := resolveGitDir(root, gitDirRaw)
 	if err != nil {
 		return gitContext{}, err
 	}
-	gitCommon, err := resolveGitCommon(root, gitCommonRaw)
+	gitCommon, err := resolveGitCommon(root, gitDir, gitDirIsFile, gitCommonRaw)
 	if err != nil {
 		return gitContext{}, err
 	}
@@ -307,32 +317,36 @@ func runGit(ctx context.Context, runner gitRunner, root string, args ...string) 
 	return val, nil
 }
 
-func resolveGitDir(root, gitDirRaw string) (string, error) {
+func resolveGitDir(root, gitDirRaw string) (string, bool, error) {
 	gitDirPath := resolveAbs(root, gitDirRaw)
 	info, err := os.Stat(gitDirPath)
 	if err != nil {
-		return "", fmt.Errorf("gitdir not found: %w", err)
+		return "", false, fmt.Errorf("gitdir not found: %w", err)
 	}
 	if info.IsDir() {
-		return gitDirPath, nil
+		return gitDirPath, false, nil
 	}
 	content, err := os.ReadFile(gitDirPath)
 	if err != nil {
-		return "", fmt.Errorf("gitdir read failed: %w", err)
+		return "", false, fmt.Errorf("gitdir read failed: %w", err)
 	}
 	line := strings.TrimSpace(string(content))
 	if !strings.HasPrefix(line, "gitdir: ") {
-		return "", fmt.Errorf("gitdir file format invalid")
+		return "", false, fmt.Errorf("gitdir file format invalid")
 	}
 	target := strings.TrimSpace(strings.TrimPrefix(line, "gitdir: "))
 	if target == "" {
-		return "", fmt.Errorf("gitdir file is empty")
+		return "", false, fmt.Errorf("gitdir file is empty")
 	}
-	return resolveAbs(filepath.Dir(gitDirPath), target), nil
+	return resolveAbs(filepath.Dir(gitDirPath), target), true, nil
 }
 
-func resolveGitCommon(root, gitCommonRaw string) (string, error) {
-	return resolveAbs(root, gitCommonRaw), nil
+func resolveGitCommon(root, gitDir string, gitDirIsFile bool, gitCommonRaw string) (string, error) {
+	base := root
+	if gitDirIsFile {
+		base = gitDir
+	}
+	return resolveAbs(base, gitCommonRaw), nil
 }
 
 func resolveAbs(base, path string) string {
@@ -445,12 +459,19 @@ cat ./version.json
 root="$(git rev-parse --show-toplevel)"
 gitdir="$(git rev-parse --git-dir)"
 commondir="$(git rev-parse --git-common-dir)"
+resolve() { case "$1" in /*) echo "$1" ;; *) echo "$2/$1" ;; esac; }
 if [ -f "${gitdir}" ]; then
+  base_dir="$(dirname "${gitdir}")"
   gitdir="$(sed -n 's/^gitdir: //p' "${gitdir}")"
+  gitdir="$(resolve "$gitdir" "$base_dir")"
+  common_base="${gitdir}"
+else
+  gitdir="$(resolve "$gitdir" "$root")"
+  common_base="${root}"
 fi
-resolve() { case "$1" in /*) echo "$1" ;; *) echo "$root/$1" ;; esac; }
-export GIT_DIR_CONTEXT="$(resolve "$gitdir")"
-export GIT_COMMON_DIR_CONTEXT="$(resolve "$commondir")"
+commondir="$(resolve "$commondir" "$common_base")"
+export GIT_DIR_CONTEXT="${gitdir}"
+export GIT_COMMON_DIR_CONTEXT="${commondir}"
 docker compose up --build
 ```
 

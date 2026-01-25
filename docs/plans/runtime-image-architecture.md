@@ -22,7 +22,7 @@ Why: 実装者がこの1文書だけで作業できる設計仕様を提供す�
 
 ## 3. 用語
 - コンポーネント: agent / gateway / runtime-node / provisioner
-- ランタイム系統: docker / containerd
+- ランタイム系統: docker / containerd（runtime 系）、shared（base / function の traceability 用）
 - containerd ランタイム切替: `CONTAINERD_RUNTIME`（既定 `containerd` / `aws.firecracker`）
 - 変種: コンポーネント × ランタイム系統の組み合わせ
 - 不変タグ: 公開後に内容が変わらないタグ
@@ -85,6 +85,7 @@ Why: 実装者がこの1文書だけで作業できる設計仕様を提供す�
 - SAM テンプレートから生成される関数イメージは **ランタイム非依存の共通成果物**とする。
 - ランタイム差分は制御面（agent / runtime-node / gateway）が吸収し、関数イメージには持ち込まない。
 - 例外: Firecracker 固有の制約によりベースイメージや依存が変わる必要がある場合のみ、関数イメージの分岐を許可する。
+- base / function の `/app/version.json` は `component=base|function`, `image_runtime=shared` とする。
 
 ## 8. コンポーネント要件
 ### 8.1 agent
@@ -133,11 +134,17 @@ services/agent/Dockerfile.containerd
 
 ### 9.2 必須 Build Args
 - `IMAGE_RUNTIME`
+  - runtime 系: `docker` / `containerd`
+  - base / function 系: `shared`
 - `COMPONENT`
+  - runtime 系: `agent` / `gateway` / `runtime-node` / `provisioner`
+  - base 系: `base`
+  - function 系: `function`
 
-### 9.3 必須 ENV（イメージに焼き込み）
+### 9.3 必須 ENV（runtime 系のみ）
 - `IMAGE_RUNTIME`
 - `COMPONENT`
+※ base / function 系は `ENV` に焼き込まない。
 
 ### 9.4 トレーサビリティ
 - `/app/version.json` を唯一のトレーサビリティ情報とする。
@@ -187,18 +194,21 @@ services/agent/Dockerfile.containerd
 - `WG_CONTROL_GW`: ルート next-hop IP（直接指定）  
 - `WG_CONTROL_GW_HOST`: ルート next-hop のホスト名  
 
-## 11. OCI ラベル（必須）
-- `org.opencontainers.image.title`
-- `org.opencontainers.image.version`
-- `org.opencontainers.image.revision`
-- `org.opencontainers.image.source`
-- `org.opencontainers.image.created`
-- `org.opencontainers.image.vendor`
-- `com.<brand>.component`
-- `com.<brand>.runtime`
-- `com.<brand>.version`
+## 11. OCI ラベル（情報用途）
+- 必須（静的）:
+  - `com.<brand>.component`
+  - `com.<brand>.runtime`
+- 任意（情報用途）:
+  - `org.opencontainers.image.title`
+  - `org.opencontainers.image.version`
+  - `org.opencontainers.image.revision`
+  - `org.opencontainers.image.source`
+  - `org.opencontainers.image.created`
+  - `org.opencontainers.image.vendor`
+  - `com.<brand>.version`
 ※ `<brand>` は branding で生成される `meta` の値（例: acme）を使用し、ハードコードしない。
-※ `com.<brand>.version` は `/app/version.json` の `version` と一致させる（外部入力しない）。
+※ トレーサビリティは `/app/version.json` を正とし、OCI ラベルに依存しない。
+※ `com.<brand>.version` を設定する場合は `/app/version.json` の `version` と一致させる。
 
 ## 12. Compose / CLI 仕様
 ### 12.1 共通環境変数（外部入力）
@@ -206,7 +216,7 @@ services/agent/Dockerfile.containerd
 - `<BRAND>_TAG`
 
 ### 12.2 Compose 記述例
-- `image: ${<BRAND>_REGISTRY}/<brand>-agent-containerd:${<BRAND>_TAG}`
+- `image: ${<BRAND>_REGISTRY}<brand>-agent-containerd:${<BRAND>_TAG}`
 - `<BRAND>_TAG` は未設定時 `latest` を使用する。
 - 本番は `latest` を禁止し、固定タグのみを使用する。
 
@@ -247,8 +257,7 @@ services/agent/Dockerfile.containerd
 - arch: amd64 / arm64
 - 出力:
   - 不変タグの全変種
-  - SBOM
-  - 署名付き provenance（推奨）
+  - SBOM（任意）
 
 ## 14. 構造テスト（必須）
 - agent-docker: CNI が存在しないこと
@@ -266,9 +275,10 @@ services/agent/Dockerfile.containerd
 - 全ランタイムで別イメージが存在する。
 - runtime 不一致は起動時に必ず失敗する。
 - 本番は不変タグのみで運用可能。
-- すべてのイメージに必須 OCI ラベルが付与されている。
+- すべてのイメージに `com.<brand>.component` / `com.<brand>.runtime` が付与されている。
 - 構造テストが全変種で通過する。
-- `/app/version.json` が生成され、OCI ラベルと整合している。
+- `/app/version.json` が生成されている。
+- `com.<brand>.version` を設定する場合は `/app/version.json` と整合している。
 - containerd 系は `<BRAND>_REGISTRY` 未設定で必ず失敗する。
 
 ## 17. リスクと対策
@@ -308,9 +318,9 @@ services/agent/Dockerfile.containerd
 
 ### 18.4 Phase 3: Dockerfile とビルド引数の整理
 - Dockerfile の `ARG IMAGE_PREFIX=<brand>` など固定デフォルトを撤去。
-- `IMAGE_RUNTIME` / `COMPONENT` を ENV に焼き込む。
+- runtime 系のみ `IMAGE_RUNTIME` / `COMPONENT` を ENV に焼き込む。
 受け入れ条件:
-- すべてのサービスイメージに `IMAGE_RUNTIME` と `COMPONENT` が入っている。
+- runtime 系のサービスイメージに `IMAGE_RUNTIME` と `COMPONENT` が入っている。
 - ブランド固定のデフォルト値が残っていない。
 - `/app/version.json` が生成されている。
 
@@ -580,7 +590,7 @@ exec /entrypoint.containerd.sh "$@"
 
 設計:
 - `ARG IMAGE_PREFIX=<brand>` のような固定デフォルトを廃止。
-- `IMAGE_RUNTIME` / `COMPONENT` を `ENV` に焼き込む。
+- runtime 系のみ `IMAGE_RUNTIME` / `COMPONENT` を `ENV` に焼き込む。
 - `IMAGE_PREFIX` は環境変数/ビルド引数として使用しない（`meta.ImagePrefix` を使用）。
 - 2系統（docker / containerd）の Dockerfile を用意する。
 
@@ -590,9 +600,9 @@ exec /entrypoint.containerd.sh "$@"
 - `cli/internal/compose/docker.go`
 
 設計:
-- `meta.LabelPrefix` を使用し、`com.<brand>.*` のラベルを付与する。
+- `meta.LabelPrefix` を使用し、`com.<brand>.component` / `com.<brand>.runtime` を付与する。
 - 既存の label キー名は保持し、値のみブランドに追随させる。
-- `com.<brand>.version` は `/app/version.json` の `version` と一致させる。
+- `com.<brand>.version` を設定する場合は `/app/version.json` の `version` と一致させる。
 
 ### 19.9 containerd / firecracker 切替
 対象:
@@ -982,7 +992,7 @@ exec /entrypoint.containerd.sh
 #### 19.18.11 `docker-compose.*.yml`
 変更後（概略）:
 ```
-image: ${<BRAND>_REGISTRY}/<brand>-agent-containerd:${<BRAND>_TAG}
+image: ${<BRAND>_REGISTRY}<brand>-agent-containerd:${<BRAND>_TAG}
 ```
 
 #### 19.18.12 `e2e/runner/env.py`
@@ -1130,12 +1140,12 @@ image: ${<BRAND>_REGISTRY}/<brand>-agent-containerd:${<BRAND>_TAG}
 
 ### 21.5 ブランド反映チェック
 - `<BRAND>_REGISTRY` / `<BRAND>_TAG` が外部入力の唯一の経路になっている。  
-- `com.<brand>.*` の OCI ラベルが全イメージに付与される。  
- - `com.<brand>.version` が `/app/version.json` と整合している。  
+- `com.<brand>.component` / `com.<brand>.runtime` が全イメージに付与される。  
+- `com.<brand>.version` を設定する場合は `/app/version.json` と整合している。  
 
 ### 21.6 レビュー時に求める証跡
 - `go test ./cli/...` の結果ログ（成功が分かる範囲）。  
 - `python -m pytest e2e/runner/test_env.py` の結果ログ。  
-- `docker image inspect` で `com.<brand>.*` ラベルが確認できるスクリーンショットまたはログ。  
+- `docker image inspect` で `com.<brand>.component` / `com.<brand>.runtime` が確認できるスクリーンショットまたはログ。  
 - `functions.yml` の `image` が完全文字列になっていることを示す抜粋。  
 - Compose から `IMAGE_TAG` / `FUNCTION_IMAGE_PREFIX` / `IMAGE_PREFIX` が消えていることを示す差分。  
