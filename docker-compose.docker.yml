@@ -170,6 +170,7 @@ services:
       - AWS_DEFAULT_REGION=us-east-1
       - AWS_ACCESS_KEY_ID=${RUSTFS_ACCESS_KEY:-esb}
       - AWS_SECRET_ACCESS_KEY=${RUSTFS_SECRET_KEY:-esbsecret}
+      - AGENT_RUNTIME=docker
     networks:
       external_network: {}
 
@@ -218,8 +219,6 @@ services:
       - CONTAINERS_NETWORK=${NETWORK_EXTERNAL:-${PROJECT_NAME:-esb-${ENV:-default}}-external}
       - AUTH_ENDPOINT_PATH
       - PROJECT_NAME=${PROJECT_NAME:-esb-${ENV:-default}}
-      - IMAGE_TAG=docker
-      - FUNCTION_IMAGE_PREFIX=
 
       # --- Tuning & Resilience (Pass-through) ---
       - AGENT_INVOKE_PROXY
@@ -246,6 +245,7 @@ services:
       - GRPC_VERBOSITY=ERROR
 
       # --- Docker Mode Wiring ---
+      - AGENT_RUNTIME=docker
       - AGENT_GRPC_ADDRESS=agent:50051
       - AGENT_GRPC_TLS_ENABLED=1
       - AGENT_GRPC_TLS_CA_CERT_PATH=/app/config/ssl/rootCA.crt
