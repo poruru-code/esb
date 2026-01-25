@@ -39,7 +39,7 @@ jobs:
           docker compose -f docker-compose.docker.yml build gateway agent
 
       - name: Run container structure tests
-        run: make cst GATEWAY_IMAGE=esb-gateway:docker AGENT_IMAGE=esb-agent:docker
+        run: make cst IMAGE_TAG=latest
 
       - name: Run dockle checks
-        run: make dockle GATEWAY_IMAGE=esb-gateway:docker AGENT_IMAGE=esb-agent:docker
+        run: make dockle IMAGE_TAG=latest
