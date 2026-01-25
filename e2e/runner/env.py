@@ -75,24 +75,14 @@ def calculate_runtime_env(
     # Normalize mode for registry checks
     norm_mode = mode.lower() if mode else "docker"
 
-    # Brand-scoped version/tag/registry
-    version_key = env_key(constants.ENV_VERSION)
+    # Brand-scoped tag/registry
     tag_key = env_key(constants.ENV_TAG)
     registry_key = env_key(constants.ENV_REGISTRY)
 
-    if not env.get(version_key):
-        env[version_key] = "0.0.0-dev.e2e"
-    version = env.get(version_key, "").strip()
-    if not version:
-        raise RuntimeError(f"{version_key} is required")
-
     tag = env.get(tag_key, "").strip()
     if not tag:
-        tag = version
+        tag = "latest"
         env[tag_key] = tag
-    if tag != version:
-        if not (tag == "latest" and version.startswith("0.0.0-dev.")):
-            raise RuntimeError(f"{tag_key} must match {version_key}")
 
     registry = env.get(registry_key, "").strip()
     if norm_mode == "containerd" and not registry:

@@ -44,10 +44,8 @@ def test_calculate_runtime_env_defaults():
         assert env[constants.ENV_ENV] == "myenv"
         assert env[constants.ENV_MODE] == "docker"
         assert env[constants.ENV_PROJECT_NAME] == "myproj"
-        version_key = env_key(constants.ENV_VERSION)
         tag_key = env_key(constants.ENV_TAG)
-        assert env[version_key] == "0.0.0-dev.e2e"
-        assert env[tag_key] == env[version_key]
+        assert env[tag_key] == "latest"
 
         # Check Subnets are present
         assert constants.ENV_SUBNET_EXTERNAL in env
