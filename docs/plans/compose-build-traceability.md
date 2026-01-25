@@ -25,14 +25,14 @@ Why: provenance 未使用の前提で、ビルド由来メタデータを成果�
 ## 3. 前提・制約
 - BuildKit が有効であること（`docker build` / `docker compose` の双方で必須）。
 - `.git` がローカルに存在すること（git クローン前提）。
-- 操作コマンドは `docker compose up --build` のまま変更しない。
+- 開発/検証/E2E の起動は `docker compose up --build` を維持する（本番は 8.2 に従う）。
 - `.env` にビルドメタを置かない。
 - `DOCKER_BUILDKIT=0` の無効化は非対応。
 - `additional_contexts` を使うため、Docker Compose プラグインは `v2.20+` を必須とする（README に明記）。
 - `docker build --build-context` をサポートしていること（`docker build --help` に含まれることを確認）。
 
-### 3.1 worktree 前提の追加条件
-- worktree 利用時は `.git` が **ファイル**になるため、そのまま `additional_contexts` には渡せない。
+### 3.1 `.git` がファイルのケース（worktree / submodule 等）
+- worktree / submodule では `.git` が **ファイル**になるため、そのまま `additional_contexts` には渡せない。
 - 環境変数 `GIT_DIR_CONTEXT` に **gitdir (HEAD などを持つディレクトリ)** を設定する。
 - 環境変数 `GIT_COMMON_DIR_CONTEXT` に **commondir (object DB を持つディレクトリ)** を設定する。
 - 通常 clone では `GIT_DIR_CONTEXT/GIT_COMMON_DIR_CONTEXT` は未設定でよい（既定 `.git` を使う）。
@@ -243,6 +243,10 @@ func buildDockerImage(
 - `buildContexts` には `git_dir` / `git_common` / `trace_tools` を必須で入れる。
 - `trace_tools` の実体は `filepath.Join(repoRoot, "tools", "traceability")` とし、
   `generate_version_json.py` の存在を確認してからビルドに渡す。
+- build args の値:
+  - runtime 系: `COMPONENT=<component>` / `IMAGE_RUNTIME=docker|containerd`
+  - base 系: `COMPONENT=base` / `IMAGE_RUNTIME=shared`
+  - function 系: `COMPONENT=function` / `IMAGE_RUNTIME=shared`
 
 #### 7.2.2 gitdir/commondir 解決ロジック
 新規ヘルパーを追加し、`compose.ExecRunner`（内部で `exec.Command` を使用）で解決する。
@@ -272,11 +276,19 @@ func resolveGitContext(ctx context.Context, runner gitRunner, repoRoot string) (
 	if root == "" {
 		return gitContext{}, fmt.Errorf("repo root is required")
 	}
+	rootResolved, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return gitContext{}, fmt.Errorf("repo root resolve failed: %w", err)
+	}
 	top, err := runGit(ctx, runner, root, "rev-parse", "--show-toplevel")
 	if err != nil {
 		return gitContext{}, err
 	}
-	if filepath.Clean(top) != root {
+	topResolved, err := filepath.EvalSymlinks(top)
+	if err != nil {
+		return gitContext{}, fmt.Errorf("git top resolve failed: %w", err)
+	}
+	if filepath.Clean(topResolved) != filepath.Clean(rootResolved) {
 		return gitContext{}, fmt.Errorf("repo root mismatch: %s", top)
 	}
 	gitDirRaw, err := runGit(ctx, runner, root, "rev-parse", "--git-dir")
@@ -358,10 +370,10 @@ func resolveAbs(base, path string) string {
 ```
 
 解決手順:
-1) `git rev-parse --show-toplevel` を `repoRoot` で実行。  
+1) `git rev-parse --show-toplevel` を `repoRoot` で実行し、`EvalSymlinks` で正規化したパス同士を比較する。  
 2) `git rev-parse --git-dir` と `git rev-parse --git-common-dir` を同一の `repoRoot` で実行。  
 3) `gitdir` が **ファイル**なら `gitdir: <path>` を読み取り、実体パスへ変換。  
-4) 相対パスは `repoRoot` 起点で絶対パス化する。  
+4) 相対パスは `gitdir` がファイルの場合は **gitdir 実体**起点、通常は `repoRoot` 起点で絶対パス化する。  
 5) `GitDir/HEAD` の存在を確認し、無ければエラー。  
 6) `GitCommon/objects` の存在を確認し、無ければエラー。  
 
@@ -404,7 +416,7 @@ docker build \
 
 ## 8. 運用時のコマンド例
 ### 8.0 目次
-- 8.1 起動（変更なし）
+- 8.1 開発/検証 起動
 - 8.2 本番リリース運用（タグ付与/起動）
 - 8.3 worktree 使用時の前準備（compose 手動実行のみ）
 - 8.4 esb build
@@ -413,10 +425,11 @@ docker build \
 - 8.7 主要項目の簡易確認
 - 8.8 注意（imagetools inspect）
 
-### 8.1 起動（変更なし）
+### 8.1 開発/検証 起動
 ```bash
 docker compose up --build
 ```
+※ containerd モードで起動する場合は `<BRAND>_REGISTRY` の指定が必須。
 
 ### 8.2 本番リリース運用（タグ付与/起動）
 #### 8.2.1 タグ付与フロー
@@ -452,7 +465,7 @@ docker rm "$cid"
 cat ./version.json
 ```
 
-### 8.3 worktree 使用時の前準備（compose 手動実行のみ）
+### 8.3 `.git` がファイルのケースの前準備（worktree / submodule / compose 手動実行のみ）
 `GIT_DIR_CONTEXT` と `GIT_COMMON_DIR_CONTEXT` に実体パス（ディレクトリ）を設定する。
 
 ```bash
@@ -520,9 +533,9 @@ cat ./version.json | jq -r '.version,.git_sha,.build_date'
   - `ERROR: gitdir is required for traceability` でビルド失敗。
 - `git describe` が失敗:
   - `version` を `0.0.0-dev.<shortsha>` にフォールバック。
-- worktree で `GIT_DIR_CONTEXT` 未設定の場合:
+- `.git` がファイルのケースで `GIT_DIR_CONTEXT` 未設定の場合:
   - `.git` がファイルであるため追加コンテキストが不正となりビルド失敗。
-- worktree で `GIT_COMMON_DIR_CONTEXT` 未設定の場合:
+- `.git` がファイルのケースで `GIT_COMMON_DIR_CONTEXT` 未設定の場合:
   - object DB にアクセスできず `git rev-parse` が失敗する。
 - `docker build` が `--build-context` をサポートしない場合:
   - 追加コンテキストを渡せずビルド失敗。

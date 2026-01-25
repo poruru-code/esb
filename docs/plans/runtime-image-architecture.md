@@ -21,7 +21,8 @@ Why: 実装者がこの1文書だけで作業できる設計仕様を提供す�
 - 後方互換は考慮しない。単一リリースで全面切替を行う。
 
 ## 3. 用語
-- コンポーネント: agent / gateway / runtime-node / provisioner
+- コンポーネント: agent / gateway / runtime-node / provisioner（runtime 系）
+- 追加のコンポーネント値: base / function（traceability 用）
 - ランタイム系統: docker / containerd（runtime 系）、shared（base / function の traceability 用）
 - containerd ランタイム切替: `CONTAINERD_RUNTIME`（既定 `containerd` / `aws.firecracker`）
 - 変種: コンポーネント × ランタイム系統の組み合わせ
@@ -209,6 +210,8 @@ services/agent/Dockerfile.containerd
 ※ `<brand>` は branding で生成される `meta` の値（例: acme）を使用し、ハードコードしない。
 ※ トレーサビリティは `/app/version.json` を正とし、OCI ラベルに依存しない。
 ※ `com.<brand>.version` を設定する場合は `/app/version.json` の `version` と一致させる。
+※ base / function は `com.<brand>.runtime=shared` を使用する。
+※ base / function の `com.<brand>.component` は `base` / `function` を使用する。
 
 ## 12. Compose / CLI 仕様
 ### 12.1 共通環境変数（外部入力）
@@ -216,9 +219,12 @@ services/agent/Dockerfile.containerd
 - `<BRAND>_TAG`
 
 ### 12.2 Compose 記述例
-- `image: ${<BRAND>_REGISTRY}<brand>-agent-containerd:${<BRAND>_TAG}`
+- Docker モード例: `image: ${<BRAND>_REGISTRY:-}<brand>-agent-docker:${<BRAND>_TAG:-latest}`
+- containerd モード例: `image: ${<BRAND>_REGISTRY:?required}<brand>-agent-containerd:${<BRAND>_TAG:-latest}`
 - `<BRAND>_TAG` は未設定時 `latest` を使用する。
 - 本番は `latest` を禁止し、固定タグのみを使用する。
+- `<BRAND>_REGISTRY` は末尾 `/` を含む前提とする（Compose は自動正規化しない）。
+- containerd compose は `CONTAINER_REGISTRY=${<BRAND>_REGISTRY}` を内部注入する。
 
 ### 12.3 CLI マッピング
 - docker -> `<brand>-<component>-docker`
@@ -231,11 +237,11 @@ services/agent/Dockerfile.containerd
 ※ 外部指定は原則この2つのみとし、追加は設計変更として扱う。
 
 #### 内部管理（実装またはCLI/Composeが設定）
-- `IMAGE_RUNTIME`: イメージに焼き込む。
-- `COMPONENT`: イメージに焼き込む。
+- `IMAGE_RUNTIME`: runtime 系のみイメージに焼き込む（base / function は ENV なし）。
+- `COMPONENT`: runtime 系のみイメージに焼き込む（base / function は ENV なし）。
 - `AGENT_RUNTIME`: CLI/Compose が設定（運用者が変更しない）。
 - `CONTAINERD_RUNTIME`: firecracker を選択する場合に CLI/Compose が設定。
-- `CONTAINER_REGISTRY`: containerd の関数イメージ取得先（Compose が設定、外部入力ではない）。
+- `CONTAINER_REGISTRY`: containerd の関数イメージ取得先（Compose が `<BRAND>_REGISTRY` から設定、外部入力ではない）。
 - `WG_QUICK_USERSPACE_IMPLEMENTATION`: gateway の起動中に内部で設定。
 - `WG_QUICK_USERSPACE_IMPLEMENTATION_FORCE`: gateway の起動中に内部で設定。
 - `WG_CONF_PATH`: gateway の WireGuard 設定パス（既定値を使用）。
@@ -280,6 +286,7 @@ services/agent/Dockerfile.containerd
 - `/app/version.json` が生成されている。
 - `com.<brand>.version` を設定する場合は `/app/version.json` と整合している。
 - containerd 系は `<BRAND>_REGISTRY` 未設定で必ず失敗する。
+- base / function の `com.<brand>.runtime` は `shared` である。
 
 ## 17. リスクと対策
 - リスク: 一括切替の混乱
@@ -305,7 +312,7 @@ services/agent/Dockerfile.containerd
 受け入れ条件:
 - 画像名の命名規則が実装全体で一致している。
 - 開発以外で `latest` を使う経路がない。
- - `latest` が本番経路で使われないことが検知される。
+- `latest` が本番経路で使われないことが検知される。
 
 ### 18.3 Phase 2: 外部入力の最小化
 - 外部入力を `<BRAND>_REGISTRY` / `<BRAND>_TAG` のみに統一。
@@ -486,8 +493,10 @@ imageTag := request.Tag
   - `IMAGE_RUNTIME`, `COMPONENT`  
 - `IMAGE_RUNTIME` / `COMPONENT` は **サービスごとに固定値**を渡す。  
   - 例: agent-containerd -> `IMAGE_RUNTIME=containerd`, `COMPONENT=agent`  
+- base 系: `IMAGE_RUNTIME=shared`, `COMPONENT=base`  
+- function 系: `IMAGE_RUNTIME=shared`, `COMPONENT=function`  
 - 画像のタグは `BuildRequest.Tag` を使用する。  
-- すべてのサービスイメージに同一のラベルセットを付与する。  
+- すべてのビルド対象イメージに同一のラベルセットを付与する。  
 
 #### 19.4.2 buildDockerImage の引数順序（固定）
 - build args は **同一順序**で渡す（差分を抑制するため）。  
@@ -523,7 +532,7 @@ args := []string{
 - `services/gateway/entrypoint.sh`
 - `services/runtime-node/entrypoint.containerd.sh`
 - `services/runtime-node/entrypoint.firecracker.sh`
- - `services/runtime-node/entrypoint.sh`（新規ラッパー）
+- `services/runtime-node/entrypoint.sh`（新規ラッパー）
 
 設計（擬似コード）:
 ```
@@ -603,12 +612,14 @@ exec /entrypoint.containerd.sh "$@"
 - `meta.LabelPrefix` を使用し、`com.<brand>.component` / `com.<brand>.runtime` を付与する。
 - 既存の label キー名は保持し、値のみブランドに追随させる。
 - `com.<brand>.version` を設定する場合は `/app/version.json` の `version` と一致させる。
+- base / function は `com.<brand>.runtime=shared` を使用する。
+- base / function の `com.<brand>.component` は `base` / `function` を使用する。
 
 ### 19.9 containerd / firecracker 切替
 対象:
 - `services/runtime-node/entrypoint.containerd.sh`
 - `services/runtime-node/entrypoint.firecracker.sh`
- - `services/runtime-node/entrypoint.sh`（新規ラッパー）
+- `services/runtime-node/entrypoint.sh`（新規ラッパー）
 
 設計:
 - `CONTAINERD_RUNTIME=aws.firecracker` の場合は **entrypoint ラッパー**が firecracker 用を実行する。
@@ -992,7 +1003,7 @@ exec /entrypoint.containerd.sh
 #### 19.18.11 `docker-compose.*.yml`
 変更後（概略）:
 ```
-image: ${<BRAND>_REGISTRY}<brand>-agent-containerd:${<BRAND>_TAG}
+image: ${<BRAND>_REGISTRY:?required}<brand>-agent-containerd:${<BRAND>_TAG:-latest}
 ```
 
 #### 19.18.12 `e2e/runner/env.py`
@@ -1096,6 +1107,7 @@ image: ${<BRAND>_REGISTRY}<brand>-agent-containerd:${<BRAND>_TAG}
 - `test_calculate_runtime_env_mode_tags`  
   - `ENV_IMAGE_TAG` 依存の asserts を削除する。  
   - `ENV_CONTAINER_REGISTRY` の検証を残す。  
+  - `ENV_CONTAINER_REGISTRY` が `<BRAND>_REGISTRY` と一致することを検証する。  
   - containerd 系で `<BRAND>_REGISTRY` 未設定時はエラーになることを検証する。  
 
 #### `e2e/runner/env.py`

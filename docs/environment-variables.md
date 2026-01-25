@@ -54,7 +54,7 @@ Gateway は Lambda 環境の "Master Config" として機能し、サービス�
 | `CNI_DNS_SERVER`     | (任意)                    | **Networking**: ワーカー DNS の明示的なネームサーバー。未指定時は `CNI_GW_IP` または `10.88.0.1`。     |
 | `CNI_SUBNET`         | (任意)                    | **Networking**: CNI のサブネット範囲。IPAM の subnet/range に反映される。                             |
 | `CNI_NET_DIR`        | `/var/lib/cni/networks`   | **Networking**: CNI IP 割り当てファイルの保存先。Agent が `List` 時に IP を再解決する際に参照する。     |
-| `CONTAINER_REGISTRY` | (内部管理)               | **Distribution**: Containerd モードの関数イメージ取得先。Compose が設定する内部値であり、運用者は変更しない。HTTPS が必須（Insecure は非サポート）。 |
+| `CONTAINER_REGISTRY` | (内部管理)               | **Distribution**: Containerd モードの関数イメージ取得先。Compose が `<BRAND>_REGISTRY` から設定する内部値であり、運用者は変更しない。HTTPS が必須（Insecure は非サポート）。 |
 | `CONTAINERD_RUNTIME` | (任意)                    | **Runtime**: `aws.firecracker` を指定すると Firecracker runtime/shim を使用する。 |
 | `AGENT_INVOKE_MAX_RESPONSE_SIZE` | `10485760` (10MB) | **Security**: `InvokeWorker` レスポンスの最大サイズ制限（バイト）。                                   |
 | `AGENT_GRPC_TLS_DISABLED` | (空) | **Security**: `1` を設定すると gRPC TLS を無効化します（デフォルトは有効）。                             |
