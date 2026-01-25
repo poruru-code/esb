@@ -105,6 +105,13 @@ CLI は現在 `esb build` に特化しており、生成された構成は下の
 | `docker-compose.docker.yml`     | Docker モード                           | Docker ランタイムでの単一ノード構成         |
 | `docker-compose.containerd.yml` | Containerd モード                        | Core + Compute を同一ホストで統合           |
 
+#### Compose 要件
+- Docker Compose プラグイン `v2.20+`（`additional_contexts` を使用するため）
+
+#### Build 要件
+- Docker Engine/CLI `23.0+`（`docker build --build-context` を使用するため）
+- `DOCKER_BUILDKIT=0` は非対応（BuildKit 必須）
+
 #### 起動パターン（docker compose）
 
 単一ノード（containerd）:
@@ -233,11 +240,20 @@ mise run setup:certs
 # .env.example を .env にリネームして環境変数を用意
 mv .env.example .env
 
+# 本番は不変タグを明示
+export <BRAND>_TAG=vX.Y.Z
+
 # ビルド
 esb build --template template.yaml --env prod --mode docker
 
 # 起動（必要なら env ファイルを分離）
 docker compose -f docker-compose.docker.yml --env-file .env.prod up -d
+
+# containerd 本番（registry 必須）
+export <BRAND>_TAG=vX.Y.Z
+export <BRAND>_REGISTRY=registry.example.com/
+esb build --template template.yaml --env prod --mode containerd
+CONTAINERD_RUNTIME=aws.firecracker docker compose -f docker-compose.containerd.yml --env-file .env.prod up -d
 ```
 
 ## ドキュメント
@@ -255,7 +271,7 @@ docker compose -f docker-compose.docker.yml --env-file .env.prod up -d
 ## 実行ガイド
 
 1. SAM テンプレートのあるディレクトリで `esb build --template template.yaml --env prod --mode docker` を実行します。`Parameters` に `Default` がないものは対話的に尋ねられます。
-2. `docker compose -f docker-compose.docker.yml --env-file .env.prod up -d` を使って Gateway/Agent を起動します。Containerd は `docker-compose.containerd.yml` を使用し、Firecracker は `CONTAINERD_RUNTIME=aws.firecracker` で切替えます。
+2. 本番は `<BRAND>_TAG=vX.Y.Z` を設定してから `docker compose -f docker-compose.docker.yml --env-file .env.prod up -d` を実行します。Containerd は `docker-compose.containerd.yml` を使用し、`<BRAND>_REGISTRY` を必ず設定します。Firecracker は `CONTAINERD_RUNTIME=aws.firecracker` で切替えます。
 3. `docker compose logs` / `docker compose down` などで監視・停止を行います。生成済 `.<brand>/<env>/config/`（または `--output` で指定したパス）には `functions.yml` / `routing.yml` / `resources.yml` が収められています。
 
 ### シェル補完

@@ -25,10 +25,11 @@ ESB の設定は以下の3段階で伝播します：
 | --- | --- | --- |
 | `ENV` | `default` | 環境名の識別子。`PROJECT_NAME` やコンテナ名の suffix に使われます。 |
 | `PROJECT_NAME` | `<brand>-<env>` | Compose のプロジェクト名/接頭辞。未指定時は `CLI_CMD + ENV` で自動生成されます。 |
-| `<BRAND>_VERSION` | なし | ビルド時の真のバージョン（必須）。 |
-| `<BRAND>_TAG` | `<BRAND>_VERSION` | イメージタグ。原則 `<BRAND>_VERSION` と一致。 |
+| `<BRAND>_TAG` | `latest` | イメージタグ。本番は不変タグ（`vX.Y.Z` / `sha-<git-short>`）を指定します。 |
 | `<BRAND>_REGISTRY` | なし | containerd 系のイメージレジストリ（末尾 `/` で正規化）。 |
 | `CERT_DIR` | `~/.<brand>/certs` | mTLS 証明書のマウント元パス。 |
+
+補足: ビルド由来のトレーサビリティ情報は `/app/version.json` に焼き込みます。環境変数での指定は不要です。
 
 ### 1. Gateway (`services/gateway`)
 

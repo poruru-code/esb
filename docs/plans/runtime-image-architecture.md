@@ -64,15 +64,18 @@ Why: 実装者がこの1文書だけで作業できる設計仕様を提供す�
 - 本番は不変タグのみ使用。
 - 全ランタイムで同一バージョンを同時公開する。
 - `latest` は開発用途限定とし、本番利用を禁止する。
-- `<BRAND>_TAG` は既定で `<BRAND>_VERSION` と一致させる（不一致はエラー）。
+- `<BRAND>_TAG` を唯一のタグ入力とし、未設定時は `latest` とする。
 
-### 6.3 VERSION/TAG 関係（必須）
-- `<BRAND>_VERSION` は必須（ビルドとラベルの真のバージョン）。
-- `<BRAND>_TAG` は既定で `<BRAND>_VERSION` を使用する。
-- `<BRAND>_TAG` の明示指定は以下のみ許容する:
-  - `<BRAND>_TAG` = `<BRAND>_VERSION`
-  - `<BRAND>_TAG` = `latest` かつ `<BRAND>_VERSION` が `0.0.0-dev.` で始まる
-- 上記条件を満たさない場合は CLI が即失敗する。
+### 6.3 TAG 方針（必須）
+- `<BRAND>_TAG` は既定で `latest`。
+- 本番/CI は `vX.Y.Z` / `sha-<git-short>` などの不変タグを必須とする。
+- `latest` は開発用途のみとし、本番では禁止する。
+
+### 6.4 本番リリース運用（概要）
+- 本番は不変タグのみを使用し、`<BRAND>_TAG` を必ず明示する。
+- containerd 系は `<BRAND>_REGISTRY` が必須。
+- タグ付与/起動/確認の詳細手順は
+  `docs/plans/compose-build-traceability.md` の **8.2** を参照する。
 
 ## 7. ベースイメージ方針
 - `os-base` / `python-base` はランタイム非依存とする。
@@ -129,16 +132,16 @@ services/agent/Dockerfile.containerd
 ```
 
 ### 9.2 必須 Build Args
-- `<BRAND>_VERSION`
-- `GIT_SHA`
-- `BUILD_DATE`
 - `IMAGE_RUNTIME`
 - `COMPONENT`
 
 ### 9.3 必須 ENV（イメージに焼き込み）
-- `<BRAND>_VERSION`
 - `IMAGE_RUNTIME`
 - `COMPONENT`
+
+### 9.4 トレーサビリティ
+- `/app/version.json` を唯一のトレーサビリティ情報とする。
+- 生成ロジックは `docs/plans/compose-build-traceability.md` に従う。
 
 ## 10. Runtime Guard（Fail-Fast）
 - 起動時に runtime 不一致を必ず検出し終了する。
@@ -195,18 +198,17 @@ services/agent/Dockerfile.containerd
 - `com.<brand>.runtime`
 - `com.<brand>.version`
 ※ `<brand>` は branding で生成される `meta` の値（例: acme）を使用し、ハードコードしない。
-※ `com.<brand>.version` は `<BRAND>_VERSION` を使用する。
+※ `com.<brand>.version` は `/app/version.json` の `version` と一致させる（外部入力しない）。
 
 ## 12. Compose / CLI 仕様
 ### 12.1 共通環境変数（外部入力）
-- `<BRAND>_VERSION`
 - `<BRAND>_REGISTRY`
 - `<BRAND>_TAG`
 
 ### 12.2 Compose 記述例
 - `image: ${<BRAND>_REGISTRY}/<brand>-agent-containerd:${<BRAND>_TAG}`
-- `<BRAND>_TAG` は既定で `<BRAND>_VERSION` を使用する。
-- `<BRAND>_VERSION` は **ビルド時のみ**使用し、Compose からは参照しない。
+- `<BRAND>_TAG` は未設定時 `latest` を使用する。
+- 本番は `latest` を禁止し、固定タグのみを使用する。
 
 ### 12.3 CLI マッピング
 - docker -> `<brand>-<component>-docker`
@@ -214,11 +216,9 @@ services/agent/Dockerfile.containerd
 
 ### 12.4 環境変数の最小化と分類
 #### 外部指定（運用者/CI が必要時のみ設定）
-- `<BRAND>_VERSION`: ビルド時の真のバージョン（必須、CI が設定）。
-- `<BRAND>_TAG`: 既定は `<BRAND>_VERSION`。明示指定時は一致必須。  
-  - 例外: `latest` は開発用途のみ（`<BRAND>_VERSION` が `0.0.0-dev.` の場合のみ許容）。
+- `<BRAND>_TAG`: 既定は `latest`。本番は `vX.Y.Z` / `sha-<git-short>` 等の不変タグを使用。
 - `<BRAND>_REGISTRY`: containerd 系は必須、docker 系は任意。
-※ 外部指定は原則この3つのみとし、追加は設計変更として扱う。
+※ 外部指定は原則この2つのみとし、追加は設計変更として扱う。
 
 #### 内部管理（実装またはCLI/Composeが設定）
 - `IMAGE_RUNTIME`: イメージに焼き込む。
@@ -239,7 +239,7 @@ services/agent/Dockerfile.containerd
 
 ### 12.5 ブランド反映ルール
 - `<BRAND>_` は branding 生成の `meta.EnvPrefix` を使用する。
-- 例: brand が `acme` の場合 `ACME_REGISTRY` / `ACME_TAG` / `ACME_VERSION` を使用する。
+- 例: brand が `acme` の場合 `ACME_REGISTRY` / `ACME_TAG` を使用する。
 - 固定プレフィクスの外部変数は使用しない（後方互換は設計範囲外）。
 
 ## 13. CI/CD ビルドマトリクス
@@ -268,8 +268,7 @@ services/agent/Dockerfile.containerd
 - 本番は不変タグのみで運用可能。
 - すべてのイメージに必須 OCI ラベルが付与されている。
 - 構造テストが全変種で通過する。
-- `<BRAND>_VERSION` が build args とラベルに反映されている。
-- `<BRAND>_TAG` と `<BRAND>_VERSION` の不一致は許容されない（dev の `latest` のみ例外）。
+- `/app/version.json` が生成され、OCI ラベルと整合している。
 - containerd 系は `<BRAND>_REGISTRY` 未設定で必ず失敗する。
 
 ## 17. リスクと対策
@@ -293,29 +292,27 @@ services/agent/Dockerfile.containerd
 ### 18.2 Phase 1: 画像命名・タグの統一
 - 画像名を `<brand>-<component>-{docker|containerd}` に統一。
 - `latest` は開発用途のみ許容、運用は `vX.Y.Z` のみ。
-- `<BRAND>_TAG` は `<BRAND>_VERSION` と一致させる（例外は dev の `latest` のみ）。
 受け入れ条件:
 - 画像名の命名規則が実装全体で一致している。
 - 開発以外で `latest` を使う経路がない。
- - `<BRAND>_TAG` と `<BRAND>_VERSION` の不一致が検出される。
+ - `latest` が本番経路で使われないことが検知される。
 
 ### 18.3 Phase 2: 外部入力の最小化
-- 外部入力を `<BRAND>_VERSION` / `<BRAND>_REGISTRY` / `<BRAND>_TAG` のみに統一。
+- 外部入力を `<BRAND>_REGISTRY` / `<BRAND>_TAG` のみに統一。
 - `IMAGE_PREFIX` / `IMAGE_TAG` / `FUNCTION_IMAGE_PREFIX` の外部利用を廃止。
 - CLI 起動時に `ENV_PREFIX` を先に設定し、全コマンドで共有する。
 受け入れ条件:
 - 生成物に `${IMAGE_TAG}` 等のプレースホルダが残っていない。
-- Compose と CLI に外部入力が3つだけになっている。
+- Compose と CLI に外部入力が2つだけになっている。
 - containerd 系で `<BRAND>_REGISTRY` が未設定なら即失敗する。
 
 ### 18.4 Phase 3: Dockerfile とビルド引数の整理
 - Dockerfile の `ARG IMAGE_PREFIX=<brand>` など固定デフォルトを撤去。
-- `IMAGE_RUNTIME` / `COMPONENT` / `<BRAND>_VERSION` を ENV に焼き込む。
-- `<BRAND>_VERSION` の注入経路（CLI/CI）を確定する。
+- `IMAGE_RUNTIME` / `COMPONENT` を ENV に焼き込む。
 受け入れ条件:
 - すべてのサービスイメージに `IMAGE_RUNTIME` と `COMPONENT` が入っている。
 - ブランド固定のデフォルト値が残っていない。
-- `<BRAND>_VERSION` が未設定の場合にビルドが失敗する。
+- `/app/version.json` が生成されている。
 
 ### 18.5 Phase 4: Runtime Guard 実装
 - entrypoint に `IMAGE_RUNTIME` と `AGENT_RUNTIME` の整合チェックを追加。
@@ -336,7 +333,7 @@ services/agent/Dockerfile.containerd
 - firecracker 相当は `CONTAINERD_RUNTIME=aws.firecracker` で再現。
 受け入れ条件:
 - すべての E2E プロファイルが成功する。
-- `<BRAND>_TAG` と `<BRAND>_VERSION` の整合チェックが E2E で通る。
+- `<BRAND>_TAG` が許容ルール（dev の `latest` / 本番の不変タグ）に従う。
 
 ### 18.8 Phase 7: 運用ルールと移行ガイドの整備
 - 生成物再作成（`functions.yml` の image 完全埋め込み）の運用ルールを明文化。
@@ -347,9 +344,9 @@ services/agent/Dockerfile.containerd
 
 ## 19. 詳細設計（コードレベル）
 ### 19.1 環境変数の解決方法
-- 外部入力は `<BRAND>_VERSION` / `<BRAND>_REGISTRY` / `<BRAND>_TAG` のみ。
-- `<BRAND>_TAG` は既定で `<BRAND>_VERSION` を使用し、不一致はエラーとする。  
-  - 例外: `latest` は `<BRAND>_VERSION` が `0.0.0-dev.` の場合のみ許容。
+- 外部入力は `<BRAND>_REGISTRY` / `<BRAND>_TAG` のみ。
+- `<BRAND>_TAG` は未設定時 `latest` を使用する。  
+  - 本番/CI は不変タグの指定を必須とする（`vX.Y.Z` / `sha-<git-short>` など）。
 - containerd 系は `<BRAND>_REGISTRY` が必須（未設定は即失敗）。
 - `<BRAND>` は `meta.EnvPrefix` から動的に生成する。
 - `envutil.HostEnvKey` は `ENV_PREFIX` を前提にし、固定デフォルトは使わない。
@@ -369,64 +366,48 @@ services/agent/Dockerfile.containerd
 - CLI 起動直後に `applyBrandingEnv`（または同等の初期化）を実行し、`ENV_PREFIX` を先に設定する。
 - `applyRuntimeEnv` は `ENV_PREFIX` 未設定を検出したら即失敗する。
 - `IMAGE_TAG` / `IMAGE_PREFIX` の設定は削除する。
-- `<BRAND>_VERSION` は **CLI または CI が必ず供給**する。未設定はビルド失敗とする。
-- `<BRAND>_TAG` は既定で `<BRAND>_VERSION` を使用し、条件外は即失敗する。
+- `<BRAND>_TAG` は未設定時 `latest` を使用する（本番は不変タグ必須）。
 - containerd 系は `<BRAND>_REGISTRY` 未設定で即失敗する。
-- BuildRequest に `<BRAND>_VERSION` / `<BRAND>_TAG` を明示的に渡し、generator 側で必須チェックする。
-  - `buildCommand.Run` の直後に `<BRAND>_VERSION` / `<BRAND>_TAG` を検証し、未設定なら CLI で即失敗する。
+- BuildRequest に `<BRAND>_TAG` を明示的に渡し、generator 側で必須チェックする。
+  - `buildCommand.Run` の直後に `<BRAND>_TAG` を検証する。
+- `GIT_SHA` / `BUILD_DATE` は CLI で設定しない（ビルド内の生成スクリプトが確定する）。
 
 #### 19.2.1 CLI 起動時の ENV_PREFIX ブートストラップ
 1) CLI エントリ（`cli/cmd/<brand>/main.go` など）で `applyBrandingEnv` を最初に実行する。  
 2) これ以降の `envutil.HostEnvKey/Get/Set` はすべて `ENV_PREFIX` を前提にする。  
 3) 未設定の場合は **即エラー**で終了する。  
 
-#### 19.2.2 `<BRAND>_VERSION` 解決手順（CLI）
+#### 19.2.2 `<BRAND>_TAG` 解決手順（CLI）
 1) `applyBrandingEnv` により `ENV_PREFIX` を設定する。  
-2) `versionKey := envutil.HostEnvKey("VERSION")` を生成する。  
-3) `version := os.Getenv(versionKey)` を取得する。  
-4) 空の場合は **即エラー**（例: `ERROR: <BRAND>_VERSION is required`）。  
-5) `BuildRequest.Version` に格納し、generator/build に伝播する。  
+2) `tagKey := envutil.HostEnvKey("TAG")` を生成する。  
+3) `tag := os.Getenv(tagKey)` を取得する。  
+4) 空の場合は `latest` を設定する。  
+5) `BuildRequest.Tag` に格納し、generator/build に伝播する。  
 
-#### 19.2.3 `<BRAND>_VERSION` 供給責務（CI/運用）
-- CI は必ず `<BRAND>_VERSION` を設定してビルドする。  
-- リリース: Git タグ `vX.Y.Z` を `<BRAND>_VERSION` に設定する。  
-- 開発/検証: `0.0.0-dev.<shortsha>` など明示的な値を設定する。  
-- 未設定でのビルドは禁止（ビルド失敗）。  
+#### 19.2.3 `<BRAND>_TAG` 供給責務（CI/運用）
+- CI は不変タグ（`vX.Y.Z` / `sha-<git-short>`）を設定してビルドする。  
+- 開発/検証: `latest` を許容する。  
 
 #### 19.2.4 BuildRequest のフィールド追加（明示仕様）
-- `cli/internal/workflows/build.go` の `BuildRequest` に `Version string` / `Tag string` を追加する。  
-- `cli/internal/generator/build_request.go` の `BuildRequest` に `Version string` / `Tag string` を追加する。  
-- `cli/internal/commands/build.go` の `buildCommand.Run` で `Version` / `Tag` を設定する。  
-- 伝播ルール: workflow の `BuildRequest.Version` / `Tag` を generator の `BuildRequest.Version` / `Tag` にコピーする。  
-- generator 側で `Version` / `Tag` が空の場合は即エラー（`ERROR: <BRAND>_VERSION is required` / `ERROR: <BRAND>_TAG is required`）。  
-  - `Version` は **必ず `<BRAND>_VERSION` 由来**であること。  
+- `cli/internal/workflows/build.go` の `BuildRequest` に `Tag string` を追加する。  
+- `cli/internal/generator/build_request.go` の `BuildRequest` に `Tag string` を追加する。  
+- `cli/internal/commands/build.go` の `buildCommand.Run` で `Tag` を設定する。  
+- 伝播ルール: workflow の `BuildRequest.Tag` を generator の `BuildRequest.Tag` にコピーする。  
+- generator 側で `Tag` が空の場合は即エラー（`ERROR: <BRAND>_TAG is required`）。  
   - `Tag` は **必ず `<BRAND>_TAG` 由来**であること。  
-  - `Version` は `buildDockerImage` の build args に `<BRAND>_VERSION` として渡す。  
 
-#### 19.2.5 GIT_SHA / BUILD_DATE の解決手順（内部管理）
-- これらは外部入力ではなく **CLI が内部で決定**する。  
-- `GIT_SHA`:
-  - 環境変数 `GIT_SHA` があればそれを優先。  
-  - 未設定なら `git rev-parse --short HEAD` を実行して取得。  
-  - 取得失敗時は `unknown` とし、ビルドは継続。  
-- `BUILD_DATE`:
-  - 環境変数 `BUILD_DATE` があればそれを優先。  
-  - 未設定なら `UTC` の ISO8601 で生成する（例: `2026-01-24T12:00:00Z`）。  
-  - 生成は `applyRuntimeEnv` 内で一度だけ行い、以後は上書きしない。  
+#### 19.2.5 GIT_SHA / BUILD_DATE の扱い
+- これらは **外部入力としても CLI 生成としても使用しない**。  
+- ビルド内で生成される `/app/version.json` が唯一のトレーサビリティ情報となる。  
+- 生成ロジックは `tools/traceability/generate_version_json.py` を参照する。  
 
-#### 19.2.6 `<BRAND>_TAG` / `<BRAND>_REGISTRY` 解決手順（CLI）
-- `tagKey := envutil.HostEnvKey("TAG")` を生成し、`<BRAND>_TAG` を取得する。  
-- 未設定の場合は **`<BRAND>_VERSION` を使用**する。  
-- `<BRAND>_TAG` が `<BRAND>_VERSION` と一致しない場合は以下のみ許容する:  
-  - `<BRAND>_TAG = latest` かつ `<BRAND>_VERSION` が `0.0.0-dev.` で始まる  
-- 上記以外は **即エラー**（例: `ERROR: <BRAND>_TAG must match <BRAND>_VERSION`）。  
+#### 19.2.6 `<BRAND>_REGISTRY` 解決手順（CLI）
 - `registryKey := envutil.HostEnvKey("REGISTRY")` を生成し、`<BRAND>_REGISTRY` を取得する。  
 - containerd 系（`ctx.Mode=containerd`）では `<BRAND>_REGISTRY` が空なら即エラー。  
 - `Registry` は以下の正規化を行う:  
   - 空の場合は空文字（docker 系のみ許容）。  
   - 末尾に `/` が無ければ付与する。  
 - `<BRAND>_REGISTRY` の自動生成は行わない。  
-- `BuildRequest.Tag` に **有効化済みタグ**を格納する。  
 
 #### 19.2.7 既存関数の置換位置（明示仕様）
 - `cli/internal/generator/go_builder_helpers.go` の以下を置換:  
@@ -487,35 +468,27 @@ imageTag := request.Tag
 - サービスイメージ名は `<brand>-<component>-{docker|containerd}` に固定。
 - Compose は `<BRAND>_REGISTRY` / `<BRAND>_TAG` だけ参照する。
 - containerd 系では `<BRAND>_REGISTRY` が必須で、未設定なら失敗させる。
-- 実際のタグは `BuildRequest.Tag` を使用し、`BuildRequest.Version` はラベル用にのみ使う。
+- 実際のタグは `BuildRequest.Tag` を使用する。
 - `IMAGE_TAG` / `FUNCTION_IMAGE_PREFIX` / `IMAGE_PREFIX` は Compose から削除する。
 
 #### 19.4.1 Build Args 注入ルール
 - `buildDockerImage` に渡す build args は以下に固定する:  
-  - `<BRAND>_VERSION`, `GIT_SHA`, `BUILD_DATE`, `IMAGE_RUNTIME`, `COMPONENT`  
+  - `IMAGE_RUNTIME`, `COMPONENT`  
 - `IMAGE_RUNTIME` / `COMPONENT` は **サービスごとに固定値**を渡す。  
   - 例: agent-containerd -> `IMAGE_RUNTIME=containerd`, `COMPONENT=agent`  
-- `<BRAND>_VERSION` は `BuildRequest.Version` から取得する。  
 - 画像のタグは `BuildRequest.Tag` を使用する。  
-- `GIT_SHA` / `BUILD_DATE` は `applyRuntimeEnv` で解決済みの値を使う。  
 - すべてのサービスイメージに同一のラベルセットを付与する。  
 
 #### 19.4.2 buildDockerImage の引数順序（固定）
 - build args は **同一順序**で渡す（差分を抑制するため）。  
-  1) `<BRAND>_VERSION`  
-  2) `GIT_SHA`  
-  3) `BUILD_DATE`  
-  4) `IMAGE_RUNTIME`  
-  5) `COMPONENT`  
+  1) `IMAGE_RUNTIME`  
+  2) `COMPONENT`  
 - labels は build args の後に渡す。  
 
 #### 19.4.3 buildDockerImage の呼び出し例（擬似）
 ```
 imageTag := request.Tag
 args := []string{
-  "--build-arg", "<BRAND>_VERSION="+request.Version,
-  "--build-arg", "GIT_SHA="+os.Getenv("GIT_SHA"),
-  "--build-arg", "BUILD_DATE="+os.Getenv("BUILD_DATE"),
   "--build-arg", "IMAGE_RUNTIME=containerd",
   "--build-arg", "COMPONENT=agent",
 }
@@ -607,7 +580,7 @@ exec /entrypoint.containerd.sh "$@"
 
 設計:
 - `ARG IMAGE_PREFIX=<brand>` のような固定デフォルトを廃止。
-- `IMAGE_RUNTIME` / `COMPONENT` / `<BRAND>_VERSION` を `ENV` に焼き込む。
+- `IMAGE_RUNTIME` / `COMPONENT` を `ENV` に焼き込む。
 - `IMAGE_PREFIX` は環境変数/ビルド引数として使用しない（`meta.ImagePrefix` を使用）。
 - 2系統（docker / containerd）の Dockerfile を用意する。
 
@@ -619,7 +592,7 @@ exec /entrypoint.containerd.sh "$@"
 設計:
 - `meta.LabelPrefix` を使用し、`com.<brand>.*` のラベルを付与する。
 - 既存の label キー名は保持し、値のみブランドに追随させる。
-- `com.<brand>.version` は `<BRAND>_VERSION` を使用する（`<BRAND>_TAG` ではない）。
+- `com.<brand>.version` は `/app/version.json` の `version` と一致させる。
 
 ### 19.9 containerd / firecracker 切替
 対象:
@@ -648,16 +621,16 @@ exec /entrypoint.containerd.sh "$@"
 - `cli/cmd/<brand>/main.go`  
   - CLI 起動時に `applyBrandingEnv` を実行し `ENV_PREFIX` を先に設定。  
 - `cli/internal/commands/build.go`  
-  - `<BRAND>_VERSION` / `<BRAND>_TAG` を解決して `BuildRequest.Version` / `Tag` に設定。未設定は即エラー。  
+  - `<BRAND>_TAG` を解決して `BuildRequest.Tag` に設定。未設定は即エラー。  
 - `cli/internal/workflows/build.go`  
-  - `BuildRequest` に `Version` / `Tag` を追加し、generator へ伝播。  
+  - `BuildRequest` に `Tag` を追加し、generator へ伝播。  
 - `cli/internal/generator/build_request.go`  
-  - `BuildRequest.Version` / `Tag` を追加。  
+  - `BuildRequest.Tag` を追加。  
 - `cli/internal/helpers/env_defaults.go`  
   - `IMAGE_TAG` / `IMAGE_PREFIX` の設定を削除。  
   - `ENV_PREFIX` 未設定時は即失敗。  
-  - `GIT_SHA` / `BUILD_DATE` を一度だけ決定し保持。  
-  - `<BRAND>_TAG` のデフォルト/整合チェックを追加。  
+  - `GIT_SHA` / `BUILD_DATE` の生成は廃止。  
+  - `<BRAND>_TAG` のデフォルト（`latest`）を適用。  
   - containerd 系で `<BRAND>_REGISTRY` 未設定なら即失敗。  
 - `cli/internal/generator/go_builder.go`  
   - `resolveImageTag` を削除し `request.Tag` を使用。  
@@ -691,7 +664,7 @@ exec /entrypoint.containerd.sh "$@"
 - `docker-compose.docker.yml` / `docker-compose.containerd.yml`  
   - `IMAGE_TAG` / `FUNCTION_IMAGE_PREFIX` / `IMAGE_PREFIX` を廃止。  
   - Compose の参照は `<BRAND>_REGISTRY` / `<BRAND>_TAG` のみに統一。  
-  - `<BRAND>_TAG` は `<BRAND>_VERSION` を既定とする。  
+  - `<BRAND>_TAG` は未設定時 `latest` を使用する。  
 - `config/defaults.env`  
   - `IMAGE_PREFIX` の固定値は削除（branding 生成に依存）。  
 
@@ -703,8 +676,8 @@ exec /entrypoint.containerd.sh "$@"
 #### E2E
 - `e2e/runner/env.py`  
   - `IMAGE_TAG` / `IMAGE_PREFIX` の計算を廃止。  
-  - `<BRAND>_VERSION` / `<BRAND>_TAG` / `<BRAND>_REGISTRY` を外部入力として扱う。  
-  - `<BRAND>_TAG` は `<BRAND>_VERSION` と整合チェックする。  
+  - `<BRAND>_TAG` / `<BRAND>_REGISTRY` を外部入力として扱う。  
+  - `<BRAND>_TAG` のデフォルトは `latest` とする。  
 - `e2e/runner/constants.py`  
   - `ENV_IMAGE_TAG` / `ENV_IMAGE_PREFIX` を撤去。  
 - `e2e/runner/test_env.py`  
@@ -772,9 +745,8 @@ exec /entrypoint.containerd.sh
 
 #### 19.13.4 `BuildRequest` の最終形
 - `cli/internal/workflows.BuildRequest` / `cli/internal/generator.BuildRequest` に  
-  `Version string` / `Tag string` を追加。  
-- `BuildRequest.Version` は `<BRAND>_VERSION` 由来のみ。  
-- `BuildRequest.Tag` は `<BRAND>_TAG` 由来のみ（未設定時は `<BRAND>_VERSION` を採用）。  
+  `Tag string` を追加。  
+- `BuildRequest.Tag` は `<BRAND>_TAG` 由来のみ（未設定時は `latest`）。  
 
 ### 19.14 差分サンプル（具体ファイル）
 #### `cli/internal/envutil/envutil.go`（概略）
@@ -803,7 +775,7 @@ Apply(ctx state.Context) error
 1) `envutil` の関数シグネチャ変更  
 2) `RuntimeEnvApplier` のインターフェース変更  
 3) `applyRuntimeEnv` のエラーチェック追加と `ENV_PREFIX` 必須化  
-4) `<BRAND>_VERSION` / `<BRAND>_TAG` の解決と `BuildRequest.Version` / `Tag` 追加  
+4) `<BRAND>_TAG` の解決と `BuildRequest.Tag` 追加  
 5) `resolveRegistryConfig` の置換（`resolveImageTag` は削除）  
 6) generator テンプレートとテストの更新  
 7) entrypoint ラッパー置換と runtime guard 実装  
@@ -934,7 +906,7 @@ setEnvIfEmpty(constants.EnvImagePrefix, imagePrefix)
 ```
 if err := envutil.SetHostEnv(constants.HostSuffixMode, ctx.Mode); err != nil { return err }
 // IMAGE_TAG / IMAGE_PREFIX の設定は削除
-// <BRAND>_TAG は <BRAND>_VERSION を既定とし、条件外はエラー
+// <BRAND>_TAG は未設定時 latest を使用
 ```
 
 #### 19.18.3 `cli/internal/helpers/runtime_env.go`
@@ -954,25 +926,21 @@ func (r runtimeEnvApplier) Apply(ctx state.Context) error {
 #### 19.18.4 `cli/internal/commands/build.go`
 変更後（概略）:
 ```
-version, err := resolveBrandVersion()
+tag, err := resolveBrandTag()
 if err != nil { return err }
-tag, err := resolveBrandTag(version)
-if err != nil { return err }
-request.Version = version
 request.Tag = tag
 ```
 
 #### 19.18.5 `cli/internal/workflows/build.go`
 変更後（概略）:
 ```
-buildRequest := generator.BuildRequest{ Version: req.Version, Tag: req.Tag, ... }
+buildRequest := generator.BuildRequest{ Tag: req.Tag, ... }
 ```
 
 #### 19.18.6 `cli/internal/generator/build_request.go`
 変更後（概略）:
 ```
 type BuildRequest struct {
-  Version string
   Tag string
   ...
 }
@@ -1021,8 +989,8 @@ image: ${<BRAND>_REGISTRY}/<brand>-agent-containerd:${<BRAND>_TAG}
 変更後（概略）:
 ```
 // IMAGE_TAG / IMAGE_PREFIX の計算を削除
-// <BRAND>_VERSION / <BRAND>_TAG / <BRAND>_REGISTRY を参照
-// <BRAND>_TAG は <BRAND>_VERSION と整合チェック
+// <BRAND>_TAG / <BRAND>_REGISTRY を参照
+// <BRAND>_TAG は未設定時 latest
 ```
 
 ### 19.19 Compose 変更の具体サンプル
@@ -1055,8 +1023,8 @@ image: ${<BRAND>_REGISTRY}/<brand>-agent-containerd:${<BRAND>_TAG}
 
 ### 20.2 影響範囲（更新対象）
 - E2E ランナーの環境変数生成:
-  - `<BRAND>_VERSION` / `<BRAND>_REGISTRY` / `<BRAND>_TAG` を外部入力として扱う。
-  - `<BRAND>_TAG` は `<BRAND>_VERSION` と整合させる（dev の `latest` のみ例外）。
+  - `<BRAND>_REGISTRY` / `<BRAND>_TAG` を外部入力として扱う。
+  - `<BRAND>_TAG` は未設定時 `latest` を使用する。
   - `IMAGE_TAG` / `IMAGE_PREFIX` / `FUNCTION_IMAGE_PREFIX` 前提を撤去する。
 - 画像名の期待値:
   - `<brand>-<component>-{docker|containerd}` を前提に期待値を更新する。
@@ -1068,8 +1036,8 @@ image: ${<BRAND>_REGISTRY}/<brand>-agent-containerd:${<BRAND>_TAG}
 
 ### 20.3 修正内容（実装指針）
 1) E2E で使用している環境変数を棚卸しする。
-2) 外部入力を `<BRAND>_VERSION` / `<BRAND>_REGISTRY` / `<BRAND>_TAG` のみに揃える。
-3) `<BRAND>_TAG` と `<BRAND>_VERSION` の整合チェックを追加する（dev の `latest` のみ例外）。  
+2) 外部入力を `<BRAND>_REGISTRY` / `<BRAND>_TAG` のみに揃える。
+3) `<BRAND>_TAG` のデフォルト（`latest`）と不変タグ運用を明確化する。  
 4) 画像名の期待値を `<brand>-<component>-{docker|containerd}` に置換する。
 5) containerd 系統のケースで `CONTAINERD_RUNTIME=aws.firecracker` を付与し、firecracker 相当のケースを再現する。
 6) 旧 `IMAGE_TAG` 前提が残る場合はすべて廃止する。
@@ -1079,9 +1047,9 @@ image: ${<BRAND>_REGISTRY}/<brand>-agent-containerd:${<BRAND>_TAG}
   - `IMAGE_RUNTIME=docker` で `AGENT_RUNTIME=containerd` を与えた場合に起動が失敗すること。
   - `IMAGE_RUNTIME=containerd` で `AGENT_RUNTIME=docker` を与えた場合に起動が失敗すること。
   - `COMPONENT` が期待値と不一致の場合に起動が失敗すること。
-- tag / version 整合:
-  - `<BRAND>_TAG` が `<BRAND>_VERSION` と不一致なら CLI が失敗すること。
-  - `<BRAND>_TAG=latest` かつ `<BRAND>_VERSION` が `0.0.0-dev.` 以外の場合に失敗すること。
+- tag ポリシー:
+  - `<BRAND>_TAG` 未設定時に `latest` が設定されること。
+  - CI/E2E では固定タグが使われること（設定値が尊重されること）。
 - registry:
   - containerd 系で `<BRAND>_REGISTRY` 未設定なら CLI が失敗すること。
 - WireGuard 条件:
@@ -1090,24 +1058,22 @@ image: ${<BRAND>_REGISTRY}/<brand>-agent-containerd:${<BRAND>_TAG}
 
 ### 20.5 完了条件
 - すべての E2E プロファイルが新命名規則で成功する。
-- 外部入力の変数が `<BRAND>_VERSION` / `<BRAND>_REGISTRY` / `<BRAND>_TAG` のみに統一されている。
-- `<BRAND>_TAG` と `<BRAND>_VERSION` の整合チェックが有効化されている。
+- 外部入力の変数が `<BRAND>_REGISTRY` / `<BRAND>_TAG` のみに統一されている。
 
 ### 20.6 E2E 修正チェックリスト（具体）
 #### 変更対象（必須）
 - `e2e/runner/env.py`  
   - `IMAGE_TAG` / `IMAGE_PREFIX` の生成と注入を削除。  
-  - `<BRAND>_VERSION` / `<BRAND>_TAG` / `<BRAND>_REGISTRY` を環境から取得する。  
-  - `<BRAND>_TAG` が未設定なら `<BRAND>_VERSION` を使用し、条件外は失敗させる。  
+  - `<BRAND>_TAG` / `<BRAND>_REGISTRY` を環境から取得する。  
+  - `<BRAND>_TAG` が未設定なら `latest` を使用する。  
   - containerd 系で `<BRAND>_REGISTRY` 未設定なら失敗させる。  
 - `e2e/runner/constants.py`  
   - `ENV_IMAGE_TAG` / `ENV_IMAGE_PREFIX` を削除。  
 - `e2e/runner/test_env.py`  
   - `IMAGE_TAG` / `IMAGE_PREFIX` に関する期待値を削除または置換。  
-  - `<BRAND>_TAG` と `<BRAND>_VERSION` の整合ケースを追加する。  
+  - `<BRAND>_TAG` のデフォルト（`latest`）を検証する。  
 
 #### 追加テスト（推奨）
-- `<BRAND>_VERSION` 未設定時に CLI が失敗すること。  
 - `<BRAND>_TAG` が不整合な場合に CLI が失敗すること。  
 - `IMAGE_RUNTIME` mismatch で entrypoint が失敗すること。  
 
@@ -1116,7 +1082,7 @@ image: ${<BRAND>_REGISTRY}/<brand>-agent-containerd:${<BRAND>_TAG}
 - `test_calculate_runtime_env_defaults`  
   - `ENV_IMAGE_TAG` / `ENV_IMAGE_PREFIX` の期待値を削除する。  
   - `ENV_PREFIX` / `CLI_CMD` の検証は維持する。  
-  - `<BRAND>_VERSION` / `<BRAND>_TAG` の整合（同値）を検証する。  
+  - `<BRAND>_TAG` のデフォルト（`latest`）を検証する。  
 - `test_calculate_runtime_env_mode_tags`  
   - `ENV_IMAGE_TAG` 依存の asserts を削除する。  
   - `ENV_CONTAINER_REGISTRY` の検証を残す。  
@@ -1125,8 +1091,8 @@ image: ${<BRAND>_REGISTRY}/<brand>-agent-containerd:${<BRAND>_TAG}
 #### `e2e/runner/env.py`
 - `calculate_runtime_env`  
   - `IMAGE_TAG` / `IMAGE_PREFIX` の計算・設定を削除する。  
-  - `<BRAND>_VERSION` / `<BRAND>_TAG` / `<BRAND>_REGISTRY` は **外部入力のみ**（関数内で再計算しない）。  
-  - `<BRAND>_TAG` は `<BRAND>_VERSION` と整合チェックする。  
+  - `<BRAND>_TAG` / `<BRAND>_REGISTRY` は **外部入力のみ**（関数内で再計算しない）。  
+  - `<BRAND>_TAG` は未設定時 `latest` を使用する。  
   - containerd 系で `<BRAND>_REGISTRY` 未設定ならエラー。  
 
 #### `e2e/runner/constants.py`
@@ -1134,7 +1100,7 @@ image: ${<BRAND>_REGISTRY}/<brand>-agent-containerd:${<BRAND>_TAG}
 - 参照が残る場合はテスト失敗として検知する。  
 
 ### 20.8 E2E 実行時の前提
-- E2E 実行環境では `<BRAND>_VERSION` / `<BRAND>_TAG` を明示設定する。  
+- E2E 実行環境では `<BRAND>_TAG` を明示設定する。  
 - `<BRAND>_TAG` は E2E の実行モードに依存しない（常に固定タグを指定）。  
 - containerd 系では `<BRAND>_REGISTRY` を必ず指定する。  
 
@@ -1159,14 +1125,13 @@ image: ${<BRAND>_REGISTRY}/<brand>-agent-containerd:${<BRAND>_TAG}
 - `functions.yml` の `image` が **完全な文字列**で埋め込まれている。  
 - `functions.yml` 内に `${IMAGE_TAG}` / `${IMAGE_PREFIX}` が残っていない。  
 - Compose から `IMAGE_TAG` / `FUNCTION_IMAGE_PREFIX` / `IMAGE_PREFIX` が削除されている。  
-- `functions.yml` とサービスイメージで `<BRAND>_TAG` が `<BRAND>_VERSION` と一致している  
-  （dev の `latest` 例外を除く）。  
+- `functions.yml` とサービスイメージが同じ `<BRAND>_TAG` を参照している。  
 - containerd 系で `<BRAND>_REGISTRY` 未設定の起動経路が存在しない。  
 
 ### 21.5 ブランド反映チェック
-- `<BRAND>_VERSION` / `<BRAND>_REGISTRY` / `<BRAND>_TAG` が外部入力の唯一の経路になっている。  
+- `<BRAND>_REGISTRY` / `<BRAND>_TAG` が外部入力の唯一の経路になっている。  
 - `com.<brand>.*` の OCI ラベルが全イメージに付与される。  
- - `<BRAND>_VERSION` が `com.<brand>.version` に反映されている。  
+ - `com.<brand>.version` が `/app/version.json` と整合している。  
 
 ### 21.6 レビュー時に求める証跡
 - `go test ./cli/...` の結果ログ（成功が分かる範囲）。  
@@ -1174,4 +1139,3 @@ image: ${<BRAND>_REGISTRY}/<brand>-agent-containerd:${<BRAND>_TAG}
 - `docker image inspect` で `com.<brand>.*` ラベルが確認できるスクリーンショットまたはログ。  
 - `functions.yml` の `image` が完全文字列になっていることを示す抜粋。  
 - Compose から `IMAGE_TAG` / `FUNCTION_IMAGE_PREFIX` / `IMAGE_PREFIX` が消えていることを示す差分。  
-- `<BRAND>_TAG` と `<BRAND>_VERSION` の整合チェックが有効であることを示すログ。  
