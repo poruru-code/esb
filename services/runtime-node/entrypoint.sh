@@ -4,7 +4,8 @@ set -eu
 
 require_env() {
   name="$1"
-  if [ -z "${!name:-}" ]; then
+  eval "value=\${$name:-}"
+  if [ -z "$value" ]; then
     echo "ERROR: ${name} is required" >&2
     exit 1
   fi

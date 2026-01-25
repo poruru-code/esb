@@ -161,12 +161,60 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	for key, value := range request.Parameters {
 		cfg.Parameters[key] = value
 	}
+	runtimeRegistry := registry.Registry
+	if request.Mode == compose.ModeContainerd {
+		if value := strings.TrimSpace(os.Getenv(constants.EnvContainerRegistry)); value != "" {
+			if !strings.HasSuffix(value, "/") {
+				value += "/"
+			}
+			runtimeRegistry = value
+		}
+	}
+	registryForPush := registry.Registry
+	if request.Mode == compose.ModeContainerd && registryForPush != "" {
+		trimmed := strings.TrimSuffix(registryForPush, "/")
+		host := trimmed
+		if slash := strings.Index(host, "/"); slash != -1 {
+			host = host[:slash]
+		}
+		hostOnly := host
+		if colon := strings.Index(hostOnly, ":"); colon != -1 {
+			hostOnly = hostOnly[:colon]
+		}
+		if hostOnly == "registry" {
+			if err := ensureRegistryRunning(
+				context.Background(),
+				b.ComposeRunner,
+				repoRoot,
+				composeProject,
+				request.Mode,
+			); err != nil {
+				return err
+			}
+			if b.PortDiscoverer != nil {
+				ports, err := b.PortDiscoverer.Discover(
+					context.Background(),
+					repoRoot,
+					composeProject,
+					request.Mode,
+				)
+				if err != nil {
+					return err
+				}
+				if port, ok := ports[constants.EnvPortRegistry]; ok && port > 0 {
+					registryForPush = fmt.Sprintf("localhost:%d/", port)
+				}
+			}
+		}
+	}
 	functions, err := b.Generate(cfg, GenerateOptions{
-		ProjectRoot: repoRoot,
-		Registry:    registry.Registry,
-		Tag:         imageTag,
-		Parameters:  request.Parameters,
-		Verbose:     request.Verbose,
+		ProjectRoot:     repoRoot,
+		Registry:        runtimeRegistry,
+		BuildRegistry:   registryForPush,
+		RuntimeRegistry: runtimeRegistry,
+		Tag:             imageTag,
+		Parameters:      request.Parameters,
+		Verbose:         request.Verbose,
 	})
 	if err != nil {
 		if !request.Verbose {
@@ -185,8 +233,17 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	if !request.Verbose {
 		fmt.Print("➜ Building base image... ")
 	}
-	lambdaBaseTag := lambdaBaseImageTag(registry.Registry, imageTag)
-	if err := buildBaseImage(context.Background(), b.Runner, repoRoot, registry.Registry, imageTag, request.NoCache, request.Verbose, imageLabels); err != nil {
+	lambdaBaseTag := lambdaBaseImageTag(registryForPush, imageTag)
+	if err := buildBaseImage(
+		context.Background(),
+		b.Runner,
+		repoRoot,
+		registryForPush,
+		imageTag,
+		request.NoCache,
+		request.Verbose,
+		imageLabels,
+	); err != nil {
 		if !request.Verbose {
 			fmt.Println("Failed")
 		}
@@ -296,7 +353,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		b.Runner,
 		cfg.Paths.OutputDir,
 		functions,
-		registry.Registry,
+		registryForPush,
 		imageTag,
 		request.NoCache,
 		request.Verbose,

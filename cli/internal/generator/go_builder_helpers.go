@@ -147,6 +147,31 @@ func stageConfigFiles(outputDir, repoRoot, composeProject, env string) error {
 	return nil
 }
 
+func ensureRegistryRunning(
+	ctx context.Context,
+	runner compose.CommandRunner,
+	rootDir string,
+	project string,
+	mode string,
+) error {
+	if runner == nil {
+		return fmt.Errorf("compose runner is nil")
+	}
+	files, err := compose.ResolveComposeFiles(rootDir, mode, "control")
+	if err != nil {
+		return err
+	}
+	args := []string{"compose"}
+	if project != "" {
+		args = append(args, "-p", project)
+	}
+	for _, file := range files {
+		args = append(args, "-f", file)
+	}
+	args = append(args, "up", "-d", "registry")
+	return runner.Run(ctx, rootDir, "docker", args...)
+}
+
 func buildBaseImage(
 	ctx context.Context,
 	runner compose.CommandRunner,

@@ -111,8 +111,11 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	if gotOpts.ProjectRoot != repoRoot {
 		t.Fatalf("unexpected project root: %s", gotOpts.ProjectRoot)
 	}
-	if gotOpts.Registry != "localhost:5010/" {
-		t.Fatalf("unexpected registry: %s", gotOpts.Registry)
+	if gotOpts.BuildRegistry != "localhost:5010/" {
+		t.Fatalf("unexpected build registry: %s", gotOpts.BuildRegistry)
+	}
+	if gotOpts.RuntimeRegistry != "localhost:5010/" {
+		t.Fatalf("unexpected runtime registry: %s", gotOpts.RuntimeRegistry)
 	}
 	if gotOpts.Tag != "v1.2.3" {
 		t.Fatalf("unexpected tag: %s", gotOpts.Tag)

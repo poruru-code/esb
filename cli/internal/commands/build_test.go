@@ -12,6 +12,7 @@ import (
 
 	"github.com/poruru/edge-serverless-box/cli/internal/generator"
 	"github.com/poruru/edge-serverless-box/cli/internal/interaction"
+	"github.com/poruru/edge-serverless-box/meta"
 )
 
 type fakeBuilder struct {
@@ -24,7 +25,14 @@ func (f *fakeBuilder) Build(req generator.BuildRequest) error {
 	return f.err
 }
 
+func setBuildEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("ENV_PREFIX", meta.EnvPrefix)
+	t.Setenv(meta.EnvPrefix+"_VERSION", "0.0.0-dev.test")
+}
+
 func TestRunBuildCallsBuilder(t *testing.T) {
+	setBuildEnv(t)
 	projectDir := t.TempDir()
 	templatePath := filepath.Join(projectDir, "template.yaml")
 	if err := os.WriteFile(templatePath, []byte("Resources: {}"), 0o644); err != nil {
@@ -67,6 +75,7 @@ func TestRunBuildCallsBuilder(t *testing.T) {
 }
 
 func TestRunBuildMissingTemplate(t *testing.T) {
+	setBuildEnv(t)
 	var out bytes.Buffer
 	deps := Dependencies{Out: &out, Build: BuildDeps{Builder: &fakeBuilder{}}}
 
@@ -77,6 +86,7 @@ func TestRunBuildMissingTemplate(t *testing.T) {
 }
 
 func TestRunBuildMissingEnv(t *testing.T) {
+	setBuildEnv(t)
 	projectDir := t.TempDir()
 	templatePath := filepath.Join(projectDir, "template.yaml")
 	if err := os.WriteFile(templatePath, []byte("Resources: {}"), 0o644); err != nil {
@@ -93,6 +103,7 @@ func TestRunBuildMissingEnv(t *testing.T) {
 }
 
 func TestRunBuildMissingMode(t *testing.T) {
+	setBuildEnv(t)
 	projectDir := t.TempDir()
 	templatePath := filepath.Join(projectDir, "template.yaml")
 	if err := os.WriteFile(templatePath, []byte("Resources: {}"), 0o644); err != nil {
@@ -109,6 +120,7 @@ func TestRunBuildMissingMode(t *testing.T) {
 }
 
 func TestRunBuildPassesOutputFlag(t *testing.T) {
+	setBuildEnv(t)
 	projectDir := t.TempDir()
 	templatePath := filepath.Join(projectDir, "template.yaml")
 	if err := os.WriteFile(templatePath, []byte("Resources: {}"), 0o644); err != nil {
@@ -141,6 +153,7 @@ func TestRunBuildPassesOutputFlag(t *testing.T) {
 }
 
 func TestRunBuildBuilderError(t *testing.T) {
+	setBuildEnv(t)
 	projectDir := t.TempDir()
 	templatePath := filepath.Join(projectDir, "template.yaml")
 	if err := os.WriteFile(templatePath, []byte("Resources: {}"), 0o644); err != nil {
@@ -158,6 +171,7 @@ func TestRunBuildBuilderError(t *testing.T) {
 }
 
 func TestRunBuildMissingBuilder(t *testing.T) {
+	setBuildEnv(t)
 	projectDir := t.TempDir()
 	templatePath := filepath.Join(projectDir, "template.yaml")
 	if err := os.WriteFile(templatePath, []byte("Resources: {}"), 0o644); err != nil {
@@ -174,6 +188,7 @@ func TestRunBuildMissingBuilder(t *testing.T) {
 }
 
 func TestRunBuildOutputsLegacySuccess(t *testing.T) {
+	setBuildEnv(t)
 	projectDir := t.TempDir()
 	templatePath := filepath.Join(projectDir, "template.yaml")
 	if err := os.WriteFile(templatePath, []byte("Resources: {}"), 0o644); err != nil {

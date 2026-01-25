@@ -20,6 +20,8 @@ type GenerateOptions struct {
 	DryRun              bool
 	Verbose             bool
 	Registry            string
+	BuildRegistry       string
+	RuntimeRegistry     string
 	Tag                 string
 	Parameters          map[string]string
 	SitecustomizeSource string
@@ -88,6 +90,14 @@ func GenerateFiles(cfg config.GeneratorConfig, opts GenerateOptions) ([]Function
 	}
 
 	resolvedTag := resolveTag(opts.Tag, "")
+	buildRegistry := opts.BuildRegistry
+	if strings.TrimSpace(buildRegistry) == "" {
+		buildRegistry = opts.Registry
+	}
+	runtimeRegistry := opts.RuntimeRegistry
+	if strings.TrimSpace(runtimeRegistry) == "" {
+		runtimeRegistry = opts.Registry
+	}
 	functions := make([]FunctionSpec, 0, len(parsed.Functions))
 
 	for _, fn := range parsed.Functions {
@@ -114,7 +124,7 @@ func GenerateFiles(cfg config.GeneratorConfig, opts GenerateOptions) ([]Function
 		dockerConfig := DockerConfig{
 			SitecustomizeSource: staged.SitecustomizeRef,
 		}
-		dockerfile, err := RenderDockerfile(staged.Function, dockerConfig, opts.Registry, resolvedTag)
+		dockerfile, err := RenderDockerfile(staged.Function, dockerConfig, buildRegistry, resolvedTag)
 		if err != nil {
 			return nil, err
 		}
@@ -130,7 +140,7 @@ func GenerateFiles(cfg config.GeneratorConfig, opts GenerateOptions) ([]Function
 	sortFunctionsByName(functions)
 
 	functionsYmlPath := resolveConfigPath(cfg.Paths.FunctionsYml, baseDir, outputDir, "functions.yml")
-	functionsContent, err := RenderFunctionsYml(functions, opts.Registry, resolvedTag)
+	functionsContent, err := RenderFunctionsYml(functions, runtimeRegistry, resolvedTag)
 	if err != nil {
 		return nil, err
 	}

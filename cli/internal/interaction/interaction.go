@@ -10,6 +10,8 @@ import (
 	"io"
 	"os"
 	"strings"
+
+	"github.com/mattn/go-isatty"
 )
 
 // SelectOption represents a single option in a selection menu.
@@ -31,12 +33,7 @@ var IsTerminal = func(file *os.File) bool {
 		return false
 	}
 	fd := file.Fd()
-	info, err := file.Stat()
-	if err != nil {
-		return false
-	}
-	// Check for character device and ensure it's not a pipe or redirect.
-	return (info.Mode()&os.ModeCharDevice) != 0 && (fd == 0 || fd == 1 || fd == 2)
+	return isatty.IsTerminal(fd) || isatty.IsCygwinTerminal(fd)
 }
 
 // PromptYesNo prints a confirmation prompt and returns true for yes.
