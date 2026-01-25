@@ -12,7 +12,6 @@ type BuildRequest struct {
 	Mode         string
 	OutputDir    string
 	Parameters   map[string]string
-	Version      string
 	Tag          string
 	NoCache      bool
 	Verbose      bool

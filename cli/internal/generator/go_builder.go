@@ -58,9 +58,6 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	if strings.TrimSpace(request.Mode) == "" {
 		return fmt.Errorf("mode is required")
 	}
-	if strings.TrimSpace(request.Version) == "" {
-		return fmt.Errorf("version is required")
-	}
 	if strings.TrimSpace(request.Tag) == "" {
 		return fmt.Errorf("tag is required")
 	}
@@ -101,6 +98,19 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	repoRoot, err := b.FindRepoRoot(request.ProjectDir)
 	if err != nil {
 		return err
+	}
+	gitCtx, err := resolveGitContext(context.Background(), b.Runner, repoRoot)
+	if err != nil {
+		return err
+	}
+	traceTools, err := resolveTraceTools(repoRoot)
+	if err != nil {
+		return err
+	}
+	buildContexts := []buildContext{
+		{Name: "git_dir", Path: gitCtx.GitDir},
+		{Name: "git_common", Path: gitCtx.GitCommon},
+		{Name: "trace_tools", Path: traceTools},
 	}
 
 	mode := strings.TrimSpace(request.Mode)
@@ -243,6 +253,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		request.NoCache,
 		request.Verbose,
 		imageLabels,
+		buildContexts,
 	); err != nil {
 		if !request.Verbose {
 			fmt.Println("Failed")
@@ -295,6 +306,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 			request.NoCache,
 			request.Verbose,
 			baseImageLabels,
+			buildContexts,
 		); err != nil {
 			if !request.Verbose {
 				fmt.Println("Failed")
@@ -331,6 +343,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 			request.NoCache,
 			request.Verbose,
 			baseImageLabels,
+			buildContexts,
 		); err != nil {
 			if !request.Verbose {
 				fmt.Println("Failed")
@@ -358,6 +371,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		request.NoCache,
 		request.Verbose,
 		functionLabels,
+		buildContexts,
 	); err != nil {
 		if !request.Verbose {
 			fmt.Println("Failed")

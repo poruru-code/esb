@@ -1,12 +1,34 @@
-# syntax=docker/dockerfile:1.4
+# syntax=docker/dockerfile:1.7
 # Where: services/gateway/Dockerfile.docker
 # What: Gateway image for docker runtime.
 # Why: Keep docker mode free of WireGuard/HAPRoxy dependencies.
 
+ARG COMPONENT
+ARG IMAGE_RUNTIME
 ARG PYTHON_BASE_IMAGE
 ARG SERVICE_USER=esb
 ARG SERVICE_UID=1000
 ARG SERVICE_GID=1000
+
+# Metadata Stage - Generate version.json from git context.
+FROM alpine:3.20 AS build-meta
+
+ARG COMPONENT
+ARG IMAGE_RUNTIME
+
+RUN apk add --no-cache git ca-certificates python3
+
+WORKDIR /work
+
+RUN --mount=type=bind,from=trace_tools,source=.,target=/trace_tools \
+    --mount=type=bind,from=git_dir,source=.,target=/gitdir \
+    --mount=type=bind,from=git_common,source=.,target=/gitcommon \
+    python3 /trace_tools/generate_version_json.py \
+      --output /out/version.json \
+      --git-dir /gitdir \
+      --git-common-dir /gitcommon \
+      --component "${COMPONENT}" \
+      --image-runtime "${IMAGE_RUNTIME}"
 
 # Builder Stage - Standardized via python base (Debian 12 + Python 3.12)
 FROM ${PYTHON_BASE_IMAGE} AS builder
@@ -40,24 +62,19 @@ FROM ${PYTHON_BASE_IMAGE} AS prod
 ARG SERVICE_USER
 ARG SERVICE_UID
 ARG SERVICE_GID
-ARG ESB_VERSION
-ARG GIT_SHA
-ARG BUILD_DATE
 ARG IMAGE_RUNTIME
 ARG COMPONENT
 
 RUN set -eu; \
-    if [ -z "$ESB_VERSION" ]; then echo "ERROR: ESB_VERSION is required" >&2; exit 1; fi; \
-    if [ -z "$GIT_SHA" ]; then echo "ERROR: GIT_SHA is required" >&2; exit 1; fi; \
-    if [ -z "$BUILD_DATE" ]; then echo "ERROR: BUILD_DATE is required" >&2; exit 1; fi; \
     if [ -z "$IMAGE_RUNTIME" ]; then echo "ERROR: IMAGE_RUNTIME is required" >&2; exit 1; fi; \
     if [ -z "$COMPONENT" ]; then echo "ERROR: COMPONENT is required" >&2; exit 1; fi
 
-ENV ESB_VERSION="${ESB_VERSION}"
 ENV IMAGE_RUNTIME="${IMAGE_RUNTIME}"
 ENV COMPONENT="${COMPONENT}"
 
 WORKDIR /app
+
+COPY --from=build-meta /out/version.json /app/version.json
 
 # Install service-specific runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \

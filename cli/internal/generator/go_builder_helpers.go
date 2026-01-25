@@ -26,6 +26,11 @@ type registryConfig struct {
 	Registry string
 }
 
+type buildContext struct {
+	Name string
+	Path string
+}
+
 func resolveRegistryConfig(mode string) (registryConfig, error) {
 	normalized := strings.ToLower(strings.TrimSpace(mode))
 	key, err := envutil.HostEnvKey(constants.HostSuffixRegistry)
@@ -43,6 +48,19 @@ func resolveRegistryConfig(mode string) (registryConfig, error) {
 		registry += "/"
 	}
 	return registryConfig{Registry: registry}, nil
+}
+
+func resolveTraceTools(repoRoot string) (string, error) {
+	root := strings.TrimSpace(repoRoot)
+	if root == "" {
+		return "", fmt.Errorf("repo root is required")
+	}
+	traceTools := filepath.Join(root, "tools", "traceability")
+	script := filepath.Join(traceTools, "generate_version_json.py")
+	if _, err := os.Stat(script); err != nil {
+		return "", fmt.Errorf("traceability script not found: %w", err)
+	}
+	return traceTools, nil
 }
 
 func defaultGeneratorParameters() map[string]string {
@@ -181,6 +199,7 @@ func buildBaseImage(
 	noCache bool,
 	verbose bool,
 	labels map[string]string,
+	buildContexts []buildContext,
 ) error {
 	if verbose {
 		fmt.Println("Building base image...")
@@ -193,7 +212,17 @@ func buildBaseImage(
 
 	imageTag := lambdaBaseImageTag(registry, tag)
 
-	if err := buildDockerImage(ctx, runner, assetsDir, "Dockerfile.lambda-base", imageTag, noCache, verbose, labels); err != nil {
+	if err := buildDockerImage(
+		ctx,
+		runner,
+		assetsDir,
+		"Dockerfile.lambda-base",
+		imageTag,
+		noCache,
+		verbose,
+		labels,
+		buildContexts,
+	); err != nil {
 		return err
 	}
 	if registry != "" {
@@ -251,6 +280,7 @@ func buildFunctionImages(
 	noCache bool,
 	verbose bool,
 	labels map[string]string,
+	buildContexts []buildContext,
 ) error {
 	if verbose {
 		fmt.Println("Building function images...")
@@ -294,7 +324,17 @@ func buildFunctionImages(
 			}
 		}
 		if !skipBuild {
-			if err := buildDockerImage(ctx, runner, outputDir, dockerfileRel, imageTag, noCache, verbose, labels); err != nil {
+			if err := buildDockerImage(
+				ctx,
+				runner,
+				outputDir,
+				dockerfileRel,
+				imageTag,
+				noCache,
+				verbose,
+				labels,
+				buildContexts,
+			); err != nil {
 				return err
 			}
 		}
@@ -316,6 +356,7 @@ func buildDockerImage(
 	noCache bool,
 	verbose bool,
 	labels map[string]string,
+	buildContexts []buildContext,
 ) error {
 	if runner == nil {
 		return fmt.Errorf("command runner is nil")
@@ -344,6 +385,14 @@ func buildDockerImage(
 		return err
 	}
 	args = append(args, secretArgs...)
+	for _, ctx := range buildContexts {
+		name := strings.TrimSpace(ctx.Name)
+		path := strings.TrimSpace(ctx.Path)
+		if name == "" || path == "" {
+			return fmt.Errorf("build context name and path are required")
+		}
+		args = append(args, "--build-context", fmt.Sprintf("%s=%s", name, path))
+	}
 	args = append(args, ".")
 	if verbose {
 		return runner.Run(ctx, contextDir, "docker", args...)

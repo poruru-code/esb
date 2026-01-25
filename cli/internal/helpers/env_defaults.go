@@ -8,10 +8,8 @@ import (
 	"fmt"
 	"math/big"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
@@ -75,7 +73,6 @@ func applyRuntimeEnv(ctx state.Context, resolver func(string) (string, error)) e
 	if err := normalizeRegistryEnv(); err != nil {
 		return err
 	}
-	applyBuildMetadata()
 	if os.Getenv("DOCKER_BUILDKIT") == "" {
 		_ = os.Setenv("DOCKER_BUILDKIT", "1")
 	}
@@ -306,26 +303,4 @@ func setEnvIfEmpty(key, value string) {
 		return
 	}
 	_ = os.Setenv(key, value)
-}
-
-func applyBuildMetadata() {
-	if strings.TrimSpace(os.Getenv("GIT_SHA")) == "" {
-		_ = os.Setenv("GIT_SHA", resolveGitSHA())
-	}
-	if strings.TrimSpace(os.Getenv("BUILD_DATE")) == "" {
-		_ = os.Setenv("BUILD_DATE", time.Now().UTC().Format(time.RFC3339))
-	}
-}
-
-func resolveGitSHA() string {
-	cmd := exec.Command("git", "rev-parse", "--short", "HEAD")
-	output, err := cmd.Output()
-	if err != nil {
-		return "unknown"
-	}
-	val := strings.TrimSpace(string(output))
-	if val == "" {
-		return "unknown"
-	}
-	return val
 }

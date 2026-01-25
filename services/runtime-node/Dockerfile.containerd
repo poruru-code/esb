@@ -1,8 +1,10 @@
-# syntax=docker/dockerfile:1
+# syntax=docker/dockerfile:1.7
 # Where: services/runtime-node/Dockerfile.containerd
 # What: Runtime node image for containerd with Firecracker support.
 # Why: Use a single containerd-family image and switch via CONTAINERD_RUNTIME.
 
+ARG COMPONENT
+ARG IMAGE_RUNTIME
 ARG OS_BASE_IMAGE
 ARG GO_VERSION=1.25.1
 ARG DEBIAN_VERSION=bookworm
@@ -11,6 +13,28 @@ ARG DEBIAN_SLIM_DIGEST=sha256:56ff6d36d4eb3db13a741b342ec466f121480b5edded42e4b7
 # Specific commit for firecracker-containerd compatibility
 ARG FIRECRACKER_CONTAINERD_REF=d6ffdaa615b8da95dea35e611d0290447fcf8fd1
 ARG FIRECRACKER_VERSION=1.14.0
+
+# -----------------------------------------------------------------------------
+# Metadata Stage: version.json from git context
+# -----------------------------------------------------------------------------
+FROM alpine:3.20 AS build-meta
+
+ARG COMPONENT
+ARG IMAGE_RUNTIME
+
+RUN apk add --no-cache git ca-certificates python3
+
+WORKDIR /work
+
+RUN --mount=type=bind,from=trace_tools,source=.,target=/trace_tools \
+  --mount=type=bind,from=git_dir,source=.,target=/gitdir \
+  --mount=type=bind,from=git_common,source=.,target=/gitcommon \
+  python3 /trace_tools/generate_version_json.py \
+    --output /out/version.json \
+    --git-dir /gitdir \
+    --git-common-dir /gitcommon \
+    --component "${COMPONENT}" \
+    --image-runtime "${IMAGE_RUNTIME}"
 
 # -----------------------------------------------------------------------------
 # Stage 1: Firecracker Builder
@@ -78,22 +102,17 @@ RUN set -eu; \
 # -----------------------------------------------------------------------------
 FROM ${OS_BASE_IMAGE}
 
-ARG ESB_VERSION
-ARG GIT_SHA
-ARG BUILD_DATE
 ARG IMAGE_RUNTIME
 ARG COMPONENT
 
 RUN set -eu; \
-    if [ -z "$ESB_VERSION" ]; then echo "ERROR: ESB_VERSION is required" >&2; exit 1; fi; \
-    if [ -z "$GIT_SHA" ]; then echo "ERROR: GIT_SHA is required" >&2; exit 1; fi; \
-    if [ -z "$BUILD_DATE" ]; then echo "ERROR: BUILD_DATE is required" >&2; exit 1; fi; \
     if [ -z "$IMAGE_RUNTIME" ]; then echo "ERROR: IMAGE_RUNTIME is required" >&2; exit 1; fi; \
     if [ -z "$COMPONENT" ]; then echo "ERROR: COMPONENT is required" >&2; exit 1; fi
 
-ENV ESB_VERSION="${ESB_VERSION}"
 ENV IMAGE_RUNTIME="${IMAGE_RUNTIME}"
 ENV COMPONENT="${COMPONENT}"
+
+COPY --from=build-meta /out/version.json /app/version.json
 
 # System dependencies for containerd and firecracker networking/devmapper
 RUN apt-get update && apt-get install -y --no-install-recommends \

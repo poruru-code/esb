@@ -35,7 +35,6 @@ const (
 	HostSuffixNoProxyExtra     = "NO_PROXY_EXTRA"
 	HostSuffixCACertPath       = "CA_CERT_PATH"
 	HostSuffixCertDir          = "CERT_DIR"
-	HostSuffixVersion          = "VERSION"
 	HostSuffixTag              = "TAG"
 	HostSuffixRegistry         = "REGISTRY"
 	HostSuffixProvisionerTrace = "PROVISIONER_TRACE"

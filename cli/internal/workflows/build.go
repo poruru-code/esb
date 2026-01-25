@@ -19,7 +19,6 @@ type BuildRequest struct {
 	Mode         string
 	OutputDir    string
 	Parameters   map[string]string
-	Version      string
 	Tag          string
 	NoCache      bool
 	Verbose      bool
@@ -60,7 +59,6 @@ func (w BuildWorkflow) Run(req BuildRequest) error {
 		Mode:         req.Mode,
 		OutputDir:    req.OutputDir,
 		Parameters:   req.Parameters,
-		Version:      req.Version,
 		Tag:          req.Tag,
 		NoCache:      req.NoCache,
 		Verbose:      req.Verbose,

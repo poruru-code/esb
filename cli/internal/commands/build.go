@@ -73,11 +73,7 @@ func newBuildCommand(deps BuildDeps, repoResolver func(string) (string, error), 
 }
 
 func (c *buildCommand) Run(inputs buildInputs, flags BuildCmd) error {
-	version, err := resolveBrandVersion()
-	if err != nil {
-		return err
-	}
-	tag, err := resolveBrandTag(version)
+	tag, err := resolveBrandTag()
 	if err != nil {
 		return err
 	}
@@ -88,7 +84,6 @@ func (c *buildCommand) Run(inputs buildInputs, flags BuildCmd) error {
 		TemplatePath: inputs.TemplatePath,
 		OutputDir:    inputs.OutputDir,
 		Parameters:   inputs.Parameters,
-		Version:      version,
 		Tag:          tag,
 		NoCache:      flags.NoCache,
 		Verbose:      flags.Verbose,
@@ -247,39 +242,17 @@ func resolveBuildTemplate(
 	}
 }
 
-func resolveBrandVersion() (string, error) {
-	key, err := envutil.HostEnvKey(constants.HostSuffixVersion)
-	if err != nil {
-		return "", err
-	}
-	version := strings.TrimSpace(os.Getenv(key))
-	if version == "" {
-		return "", fmt.Errorf("ERROR: %s is required", key)
-	}
-	return version, nil
-}
-
-func resolveBrandTag(version string) (string, error) {
+func resolveBrandTag() (string, error) {
 	tagKey, err := envutil.HostEnvKey(constants.HostSuffixTag)
-	if err != nil {
-		return "", err
-	}
-	versionKey, err := envutil.HostEnvKey(constants.HostSuffixVersion)
 	if err != nil {
 		return "", err
 	}
 	tag := strings.TrimSpace(os.Getenv(tagKey))
 	if tag == "" {
-		tag = version
+		tag = "latest"
 		_ = os.Setenv(tagKey, tag)
 	}
-	if tag == version {
-		return tag, nil
-	}
-	if tag == "latest" && strings.HasPrefix(version, "0.0.0-dev.") {
-		return tag, nil
-	}
-	return "", fmt.Errorf("ERROR: %s must match %s", tagKey, versionKey)
+	return tag, nil
 }
 
 func discoverTemplateCandidates() []string {

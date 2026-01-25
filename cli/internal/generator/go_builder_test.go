@@ -7,6 +7,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/poruru/edge-serverless-box/meta"
@@ -34,6 +35,11 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	writeComposeFiles(t, repoRoot,
 		"docker-compose.containerd.yml",
 	)
+	gitDir := filepath.Join(repoRoot, ".git")
+	if err := os.MkdirAll(filepath.Join(gitDir, "objects"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, filepath.Join(gitDir, "HEAD"), "ref: refs/heads/main\n")
 	// Create mock service directories and root files required by staging logic
 	if err := os.MkdirAll(filepath.Join(repoRoot, "services", "common"), 0o755); err != nil {
 		t.Fatal(err)
@@ -43,6 +49,11 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	}
 	writeTestFile(t, filepath.Join(repoRoot, "pyproject.toml"), "[project]\n")
 	writeTestFile(t, filepath.Join(repoRoot, "cli", "internal", "generator", "assets", "Dockerfile.lambda-base"), "FROM scratch\n")
+	traceToolsDir := filepath.Join(repoRoot, "tools", "traceability")
+	if err := os.MkdirAll(traceToolsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, filepath.Join(traceToolsDir, "generate_version_json.py"), "#!/usr/bin/env python3\n")
 
 	var gotCfg config.GeneratorConfig
 	var gotOpts GenerateOptions
@@ -58,7 +69,13 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		return []FunctionSpec{{Name: "hello", ImageName: "hello"}}, nil
 	}
 
-	dockerRunner := &recordRunner{}
+	dockerRunner := &recordRunner{
+		outputs: map[string][]byte{
+			"git rev-parse --show-toplevel":  []byte(repoRoot),
+			"git rev-parse --git-dir":        []byte(".git"),
+			"git rev-parse --git-common-dir": []byte(".git"),
+		},
+	}
 	composeRunner := &recordRunner{}
 	portDiscoverer := &mockPortDiscoverer{
 		ports: map[string]int{
@@ -94,7 +111,6 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		TemplatePath: templatePath,
 		Env:          "staging",
 		Mode:         "containerd",
-		Version:      "v1.2.3",
 		Tag:          "v1.2.3",
 	}
 	if err := builder.Build(request); err != nil {
@@ -188,6 +204,15 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	if !hasDockerBuildLabel(dockerRunner.calls, meta.LabelPrefix+".env=staging") {
 		t.Fatalf("expected env label on build")
 	}
+	if !hasDockerBuildContext(dockerRunner.calls, "git_dir="+gitDir) {
+		t.Fatalf("expected git_dir build context")
+	}
+	if !hasDockerBuildContext(dockerRunner.calls, "git_common="+gitDir) {
+		t.Fatalf("expected git_common build context")
+	}
+	if !hasDockerBuildContext(dockerRunner.calls, "trace_tools="+traceToolsDir) {
+		t.Fatalf("expected trace_tools build context")
+	}
 
 	if hasComposeUpRegistry(composeRunner.calls) {
 		t.Fatalf("unexpected registry compose up")
@@ -195,8 +220,9 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 }
 
 type recordRunner struct {
-	calls []commandCall
-	err   error
+	calls   []commandCall
+	err     error
+	outputs map[string][]byte
 }
 
 type mockPortDiscoverer struct {
@@ -238,7 +264,16 @@ func (r *recordRunner) RunOutput(_ context.Context, dir, name string, args ...st
 		name: name,
 		args: append([]string{}, args...),
 	})
-	return nil, r.err
+	if r.err != nil {
+		return nil, r.err
+	}
+	if r.outputs != nil {
+		key := name + " " + strings.Join(args, " ")
+		if output, ok := r.outputs[key]; ok {
+			return output, nil
+		}
+	}
+	return nil, nil
 }
 
 func hasDockerBuildTag(calls []commandCall, tag string) bool {
@@ -280,6 +315,23 @@ func hasDockerBuildLabel(calls []commandCall, label string) bool {
 		}
 		for i := 0; i+1 < len(call.args); i++ {
 			if call.args[i] == "--label" && call.args[i+1] == label {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func hasDockerBuildContext(calls []commandCall, value string) bool {
+	for _, call := range calls {
+		if call.name != "docker" || len(call.args) < 3 {
+			continue
+		}
+		if call.args[0] != "build" {
+			continue
+		}
+		for i := 0; i+1 < len(call.args); i++ {
+			if call.args[i] == "--build-context" && call.args[i+1] == value {
 				return true
 			}
 		}

@@ -1,5 +1,28 @@
+# syntax=docker/dockerfile:1.7
 # Lambda Base Image
 # Base image containing the shared runtime.
+
+ARG COMPONENT=base
+ARG IMAGE_RUNTIME=shared
+
+FROM alpine:3.20 AS build-meta
+
+ARG COMPONENT
+ARG IMAGE_RUNTIME
+
+RUN apk add --no-cache git ca-certificates python3
+
+WORKDIR /work
+
+RUN --mount=type=bind,from=trace_tools,source=.,target=/trace_tools \
+    --mount=type=bind,from=git_dir,source=.,target=/gitdir \
+    --mount=type=bind,from=git_common,source=.,target=/gitcommon \
+    python3 /trace_tools/generate_version_json.py \
+      --output /out/version.json \
+      --git-dir /gitdir \
+      --git-common-dir /gitcommon \
+      --component "${COMPONENT}" \
+      --image-runtime "${IMAGE_RUNTIME}"
 
 FROM public.ecr.aws/lambda/python:3.12@sha256:43106d427ae78760aee589f55be1b1836b41363feaf0ec19ca27aeddde4cb46f
 
@@ -8,3 +31,5 @@ COPY site-packages/ /var/lang/lib/python3.12/site-packages/
 
 # trace_bridge included in PYTHONPATH as a Lambda Layer.
 COPY python/ /opt/python/
+
+COPY --from=build-meta /out/version.json /app/version.json

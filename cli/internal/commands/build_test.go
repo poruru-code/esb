@@ -28,7 +28,7 @@ func (f *fakeBuilder) Build(req generator.BuildRequest) error {
 func setBuildEnv(t *testing.T) {
 	t.Helper()
 	t.Setenv("ENV_PREFIX", meta.EnvPrefix)
-	t.Setenv(meta.EnvPrefix+"_VERSION", "0.0.0-dev.test")
+	t.Setenv(meta.EnvPrefix+"_TAG", "latest")
 }
 
 func TestRunBuildCallsBuilder(t *testing.T) {
