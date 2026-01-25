@@ -235,10 +235,11 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 		if err != nil {
 			return nil, err
 		}
+		tag := runtime.ResolveFunctionImageTag()
 		if registry != "" {
-			image = fmt.Sprintf("%s/%s:latest", registry, baseImage)
+			image = fmt.Sprintf("%s/%s:%s", registry, baseImage, tag)
 		} else {
-			image = fmt.Sprintf("%s:latest", baseImage)
+			image = fmt.Sprintf("%s:%s", baseImage, tag)
 		}
 	}
 

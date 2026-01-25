@@ -20,8 +20,9 @@ type recordEnvApplier struct {
 	applied []state.Context
 }
 
-func (a *recordEnvApplier) Apply(ctx state.Context) {
+func (a *recordEnvApplier) Apply(ctx state.Context) error {
 	a.applied = append(a.applied, ctx)
+	return nil
 }
 
 type testUI struct {

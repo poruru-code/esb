@@ -27,9 +27,7 @@ def build_control_compose_command(
         cmd = ["docker", "compose"]
 
     mode = (mode or os.getenv("MODE") or "docker").lower()
-    if mode == "firecracker":
-        filename = "docker-compose.fc.yml"
-    elif mode == "containerd":
+    if mode == "containerd":
         filename = "docker-compose.containerd.yml"
     else:
         filename = "docker-compose.docker.yml"

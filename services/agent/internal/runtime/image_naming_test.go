@@ -9,19 +9,7 @@ import (
 	"github.com/poruru/edge-serverless-box/meta"
 )
 
-func TestResolveFunctionImageNameUsesEnvPrefix(t *testing.T) {
-	t.Setenv("IMAGE_PREFIX", "acme")
-	name, err := ResolveFunctionImageName("My Func")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if name != "acme-my-func" {
-		t.Fatalf("unexpected image name: %s", name)
-	}
-}
-
-func TestResolveFunctionImageNameFallsBackToMeta(t *testing.T) {
-	t.Setenv("IMAGE_PREFIX", "")
+func TestResolveFunctionImageNameUsesMetaPrefix(t *testing.T) {
 	name, err := ResolveFunctionImageName("Lambda_One")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -35,5 +23,19 @@ func TestResolveFunctionImageNameFallsBackToMeta(t *testing.T) {
 func TestResolveFunctionImageNameRejectsEmpty(t *testing.T) {
 	if _, err := ResolveFunctionImageName("___"); err == nil {
 		t.Fatalf("expected error for empty image name")
+	}
+}
+
+func TestResolveFunctionImageTagUsesEnv(t *testing.T) {
+	t.Setenv(meta.EnvPrefix+"_TAG", "v1.2.3")
+	if got := ResolveFunctionImageTag(); got != "v1.2.3" {
+		t.Fatalf("unexpected tag: %s", got)
+	}
+}
+
+func TestResolveFunctionImageTagDefaultsLatest(t *testing.T) {
+	t.Setenv(meta.EnvPrefix+"_TAG", "")
+	if got := ResolveFunctionImageTag(); got != "latest" {
+		t.Fatalf("unexpected tag: %s", got)
 	}
 }

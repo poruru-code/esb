@@ -36,15 +36,18 @@ def build_env_scenarios(matrix: list, suites: dict, profile_filter: str | None =
         if env_name not in env_scenarios:
             env_dir = entry.get("env_dir", env_name)
             env_file = entry.get("env_file", "")
-            if "containerd" in env_dir or "containerd" in env_file:
+            is_firecracker = "firecracker" in env_dir or "firecracker" in env_file
+            if "containerd" in env_dir or "containerd" in env_file or is_firecracker:
                 mode = "containerd"
-            elif "firecracker" in env_dir or "firecracker" in env_file:
-                mode = "firecracker"
             else:
                 mode = "docker"
 
             if env_dir:
                 env_file = f"e2e/environments/{env_dir}/.env"
+
+            env_vars = dict(entry.get("env_vars", {}))
+            if is_firecracker:
+                env_vars.setdefault("CONTAINERD_RUNTIME", "aws.firecracker")
 
             env_scenarios[env_name] = {
                 "name": f"Combined Scenarios for {env_name}",
@@ -53,7 +56,7 @@ def build_env_scenarios(matrix: list, suites: dict, profile_filter: str | None =
                 "esb_env": env_name,
                 "esb_project": BRAND_SLUG,
                 "mode": mode,
-                "env_vars": entry.get("env_vars", {}),
+                "env_vars": env_vars,
                 "targets": [],
                 "exclude": [],
             }

@@ -39,7 +39,11 @@ func DefaultGlobalConfig() GlobalConfig {
 // GlobalConfigPath returns the path to the global config file.
 // Respects brand-specific CONFIG_PATH and CONFIG_HOME environment variables.
 func GlobalConfigPath() (string, error) {
-	if override := strings.TrimSpace(envutil.GetHostEnv(constants.HostSuffixConfigPath)); override != "" {
+	override, err := envutil.GetHostEnv(constants.HostSuffixConfigPath)
+	if err != nil {
+		return "", err
+	}
+	if override := strings.TrimSpace(override); override != "" {
 		path := override
 		if !filepath.IsAbs(path) {
 			if abs, err := filepath.Abs(path); err == nil {
@@ -48,7 +52,11 @@ func GlobalConfigPath() (string, error) {
 		}
 		return path, nil
 	}
-	if override := strings.TrimSpace(envutil.GetHostEnv(constants.HostSuffixConfigHome)); override != "" {
+	override, err = envutil.GetHostEnv(constants.HostSuffixConfigHome)
+	if err != nil {
+		return "", err
+	}
+	if override := strings.TrimSpace(override); override != "" {
 		return filepath.Join(override, "config.yaml"), nil
 	}
 	home, err := os.UserHomeDir()

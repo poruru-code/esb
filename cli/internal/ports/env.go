@@ -7,5 +7,5 @@ import "github.com/poruru/edge-serverless-box/cli/internal/state"
 
 // RuntimeEnvApplier applies runtime defaults such as env vars to the current process.
 type RuntimeEnvApplier interface {
-	Apply(ctx state.Context)
+	Apply(ctx state.Context) error
 }

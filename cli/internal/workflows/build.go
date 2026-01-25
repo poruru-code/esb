@@ -19,6 +19,7 @@ type BuildRequest struct {
 	Mode         string
 	OutputDir    string
 	Parameters   map[string]string
+	Tag          string
 	NoCache      bool
 	Verbose      bool
 }
@@ -45,7 +46,9 @@ func (w BuildWorkflow) Run(req BuildRequest) error {
 		return fmt.Errorf("builder port is not configured")
 	}
 	if w.EnvApplier != nil {
-		w.EnvApplier.Apply(req.Context)
+		if err := w.EnvApplier.Apply(req.Context); err != nil {
+			return err
+		}
 	}
 
 	buildRequest := generator.BuildRequest{
@@ -56,6 +59,7 @@ func (w BuildWorkflow) Run(req BuildRequest) error {
 		Mode:         req.Mode,
 		OutputDir:    req.OutputDir,
 		Parameters:   req.Parameters,
+		Tag:          req.Tag,
 		NoCache:      req.NoCache,
 		Verbose:      req.Verbose,
 	}

@@ -1,0 +1,80 @@
+# syntax=docker/dockerfile:1.7
+# Where: services/agent/Dockerfile.docker
+# What: Agent image for docker runtime (no CNI tooling).
+# Why: Keep docker mode lightweight with strict build metadata.
+
+ARG COMPONENT
+ARG IMAGE_RUNTIME
+ARG OS_BASE_IMAGE
+
+# Metadata Stage - Generate version.json from git context.
+FROM alpine:3.20 AS build-meta
+
+ARG COMPONENT
+ARG IMAGE_RUNTIME
+
+RUN apk add --no-cache git ca-certificates python3
+
+WORKDIR /work
+
+RUN --mount=type=bind,from=trace_tools,source=.,target=/trace_tools \
+    --mount=type=bind,from=git_dir,source=.,target=/gitdir \
+    --mount=type=bind,from=git_common,source=.,target=/gitcommon \
+    python3 /trace_tools/generate_version_json.py \
+      --output /out/version.json \
+      --git-dir /gitdir \
+      --git-common-dir /gitcommon \
+      --component "${COMPONENT}" \
+      --image-runtime "${IMAGE_RUNTIME}"
+
+# Builder Stage
+FROM golang:1.25.1-bookworm@sha256:c423747fbd96fd8f0b1102d947f51f9b266060217478e5f9bf86f145969562ee AS builder
+
+WORKDIR /app
+
+# Copy the meta package first (from additional context)
+COPY --from=meta . /meta/
+
+# Copy go.mod and go.sum (local to context=services/agent)
+COPY go.mod go.sum ./
+
+# Update replace directive to point to /meta in container
+RUN sed -i 's|../../meta|/meta|g' go.mod
+
+RUN go mod download
+
+# Copy the entire agent service source code
+COPY . .
+
+# Build the binary
+RUN CGO_ENABLED=0 GOOS=linux go build -o /app/agent ./cmd/agent
+
+# Runtime Stage
+FROM ${OS_BASE_IMAGE} AS runtime
+
+ARG IMAGE_RUNTIME
+ARG COMPONENT
+
+RUN set -eu; \
+    if [ -z "$IMAGE_RUNTIME" ]; then echo "ERROR: IMAGE_RUNTIME is required" >&2; exit 1; fi; \
+    if [ -z "$COMPONENT" ]; then echo "ERROR: COMPONENT is required" >&2; exit 1; fi
+
+ENV IMAGE_RUNTIME="${IMAGE_RUNTIME}"
+ENV COMPONENT="${COMPONENT}"
+
+WORKDIR /app
+
+COPY --from=build-meta /out/version.json /app/version.json
+
+COPY --from=builder /app/agent /app/agent
+
+# entrypoint.sh (local)
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+ENV PORT=50051
+
+EXPOSE ${PORT}
+
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["/app/agent"]

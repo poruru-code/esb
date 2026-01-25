@@ -1,8 +1,31 @@
-# Agent image build (builder + runtime).
-# Keeps base image naming aligned with branding defaults via ARG.
+# syntax=docker/dockerfile:1.7
+# Where: services/agent/Dockerfile.containerd
+# What: Agent image for containerd runtime with CNI tooling.
+# Why: Provide containerd + CNI dependencies explicitly for runtime parity.
 
-ARG IMAGE_PREFIX=esb
-ARG OS_BASE_IMAGE=esb-os-base:latest
+ARG COMPONENT
+ARG IMAGE_RUNTIME
+ARG OS_BASE_IMAGE
+
+# Metadata Stage - Generate version.json from git context.
+FROM alpine:3.20 AS build-meta
+
+ARG COMPONENT
+ARG IMAGE_RUNTIME
+
+RUN apk add --no-cache git ca-certificates python3
+
+WORKDIR /work
+
+RUN --mount=type=bind,from=trace_tools,source=.,target=/trace_tools \
+    --mount=type=bind,from=git_dir,source=.,target=/gitdir \
+    --mount=type=bind,from=git_common,source=.,target=/gitcommon \
+    python3 /trace_tools/generate_version_json.py \
+      --output /out/version.json \
+      --git-dir /gitdir \
+      --git-common-dir /gitcommon \
+      --component "${COMPONENT}" \
+      --image-runtime "${IMAGE_RUNTIME}"
 
 # Builder Stage
 FROM golang:1.25.1-bookworm@sha256:c423747fbd96fd8f0b1102d947f51f9b266060217478e5f9bf86f145969562ee AS builder
@@ -26,12 +49,24 @@ COPY . .
 # Build the binary
 RUN CGO_ENABLED=0 GOOS=linux go build -o /app/agent ./cmd/agent
 
-# Production Stage (Standardized via os base)
-FROM ${OS_BASE_IMAGE} AS prod
+# Runtime Stage
+FROM ${OS_BASE_IMAGE} AS runtime
+
+ARG IMAGE_RUNTIME
+ARG COMPONENT
+
+RUN set -eu; \
+    if [ -z "$IMAGE_RUNTIME" ]; then echo "ERROR: IMAGE_RUNTIME is required" >&2; exit 1; fi; \
+    if [ -z "$COMPONENT" ]; then echo "ERROR: COMPONENT is required" >&2; exit 1; fi
+
+ENV IMAGE_RUNTIME="${IMAGE_RUNTIME}"
+ENV COMPONENT="${COMPONENT}"
 
 WORKDIR /app
 
-# Install containerd runtime tools (apt-get as base is Debian)
+COPY --from=build-meta /out/version.json /app/version.json
+
+# Install containerd runtime tools and CNI plugins (apt-get as base is Debian)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     iproute2 \
     iptables \

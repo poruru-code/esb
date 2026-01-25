@@ -23,6 +23,7 @@ func TestBuildWorkflowRunSuccess(t *testing.T) {
 		TemplatePath: "/repo/template.yaml",
 		OutputDir:    ".out",
 		Parameters:   map[string]string{"ParamA": "value"},
+		Tag:          "v1.2.3",
 		NoCache:      true,
 		Verbose:      true,
 	}
@@ -57,6 +58,9 @@ func TestBuildWorkflowRunSuccess(t *testing.T) {
 	}
 	if got.OutputDir != req.OutputDir {
 		t.Fatalf("output dir mismatch: %s", got.OutputDir)
+	}
+	if got.Tag != req.Tag {
+		t.Fatalf("tag mismatch: %s", got.Tag)
 	}
 	if got.Parameters["ParamA"] != "value" {
 		t.Fatalf("parameters mismatch")

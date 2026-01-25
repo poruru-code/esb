@@ -14,7 +14,7 @@ defaults:
 
 functions:
   lambda-hello:
-    image: "${FUNCTION_IMAGE_PREFIX}${IMAGE_PREFIX}-lambda-hello:${IMAGE_TAG}"
+    image: "esb-lambda-hello:latest"
     timeout: 10
     memory_size: 256
     environment:

@@ -10,7 +10,7 @@ ESB のイメージ設計は、以下の 3 つの核心的原則に基づいて�
 
 ### 1.1 不変性と一貫性 (Immutability & Consistency)
 OS およびランタイムの断片化（例：Alpine と Debian の混在）は、ライブラリ互換性 (libc) やパッケージ管理の複雑化を招きます。
-- **原則**: 全てのシステムサービスは Debian 12 を共通基盤とし、Python サービスは `esb-python-base`、非 Python サービスは `esb-os-base` を起点とする。
+- **原則**: 全てのシステムサービスは Debian 12 を共通基盤とし、Python サービスは `<brand>-python-base`、非 Python サービスは `<brand>-os-base` を起点とする。
 - **利点**: バイナリ互換性の 100% 確保、およびセキュリティ脆弱性スキャンの効率化。
 
 ### 1.2 隔離性とセキュリティ (Isolation & Security)
@@ -33,15 +33,15 @@ ESB のビルドプロセスは、効率的なキャッシュ利用とクリー�
 ```mermaid
 graph TD
     subgraph "Base Layer"
-        OS["esb-os-base (Debian 12)"]
-        PY["esb-python-base (Debian 12 + Python 3.12)"]
+        OS["<brand>-os-base (Debian 12)"]
+        PY["<brand>-python-base (Debian 12 + Python 3.12)"]
         TRUST["Root CA Layer (Build-Time)"]
         OS --> TRUST
         PY --> TRUST
     end
 
     subgraph "Builder Stage"
-        BUILD["Builder Stage (esb-python-base)"]
+        BUILD["Builder Stage (<brand>-python-base)"]
         UV["uv Binary (Installer)"]
         SPEC["Gateway deps (services/gateway/pyproject.toml)"]
         DEPS["Dependencies (venv)"]
@@ -52,7 +52,7 @@ graph TD
     end
 
     subgraph "Production Stage (Final)"
-        PROD["Prod Stage (esb-python-base)"]
+        PROD["Prod Stage (<brand>-python-base)"]
         COPY_VENV["COPY --from=builder /app/.venv"]
         COPY_APP["COPY services/common + services/gateway"]
         ENTRY["entrypoint.sh (Service Init)"]
@@ -72,9 +72,9 @@ graph TD
 
 ### 3.1 Root CA のビルド時焼き込み
 Root CA はビルド時にイメージへ焼き込み、実行時に更新しません。
-- **BuildKit secret `esb_root_ca`**: `${ESB_CERT_DIR}/rootCA.crt` をビルド時に渡し、`/usr/local/share/ca-certificates/esb-rootCA.crt` として配置します。
+- **BuildKit secret `meta.RootCAMountID`**: `${CERT_DIR}/rootCA.crt` をビルド時に渡し、`/usr/local/share/ca-certificates/rootCA.crt` として配置します。
 - **ビルド時更新**: `update-ca-certificates` をビルドで実行し、実行時の権限要件を排除します。
-- **適用対象**: `esb-os-base` と `esb-python-base` の両方で同一の CA ストアを保持します。
+- **適用対象**: `<brand>-os-base` と `<brand>-python-base` の両方で同一の CA ストアを保持します。
 - **BuildKit 必須**: `docker build --secret` / `docker compose build` の build secrets を利用します。
 - **ローテーション**: CA を更新する場合はイメージを再ビルドします。
 - **mTLS クライアント証明書**: `tools/cert-gen/generate.py` が `client.crt`/`client.key`
@@ -84,19 +84,18 @@ Root CA はビルド時にイメージへ焼き込み、実行時に更新しま
 ビルドの高速化と再現性のために `uv` を採用しています。
 - **開発用バイナリの同梱**: `prod` イメージにも `/usr/local/bin/uv` を同梱し、運用時のライブラリデバッグを容易にしています。
 
-### 3.3 モード別イメージ分離
-Firecracker を使う構成は必要なバイナリが多くサイズが肥大化するため、用途別に Dockerfile を分離しています。
-- **Runtime Node**: containerd 用は `services/runtime-node/Dockerfile`、Firecracker 用は `services/runtime-node/Dockerfile.firecracker`。
-- **Gateway**: 通常用は `services/gateway/Dockerfile`、Firecracker 用は `services/gateway/Dockerfile.firecracker`。
+### 3.3 ランタイム系統別イメージ分離
+Docker / containerd の2系統に分離し、containerd 系統が Firecracker 依存を包含します。
+- **Runtime Node**: `services/runtime-node/Dockerfile.containerd` のみを使用します。
+- **Gateway/Agent/Provisioner**: `Dockerfile.docker` / `Dockerfile.containerd` を使い分けます。
 
 ---
 
 ## 4. 今後の拡張への指針
 
-- **非 root 実行**: Gateway は Docker/containerd モードで非 root で動作します。`~/.esb/certs`
+- **非 root 実行**: Gateway は Docker モードで非 root で動作します。`~/.<brand>/certs`
   を読むため、compose の `RUN_UID`/`RUN_GID`（Dockerfile の `SERVICE_UID`/`SERVICE_GID`）を
   ホストの UID/GID に合わせてください。
-  Firecracker モードは WireGuard と `/dev/net/tun` の都合で root 実行を継続し、
-  `docker-compose.fc.yml` で `user: 0:0` を指定しています。
+  containerd 系（WireGuard 利用時）は `user: 0:0` を指定します。
 - **C 拡張への対応**: 新たなライブラリを追加する際は、`builder` ステージでビルドされたバイナリが
   `prod` ステージで必要とする共有ライブラリ (`.so`) を、OS パッケージとして `apt-get` 等で追加することを忘れないでください。

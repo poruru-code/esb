@@ -194,7 +194,7 @@ ensure_wg_route() {
     gw="$(ip route show default 0.0.0.0/0 2>/dev/null | awk '{print $3}' | head -n1)"
   fi
   if [ -z "$gw" ]; then
-    log_warn "default gateway not found; skipping WG route for ${WG_CONTROL_NET}"
+    log_warn "WG default gateway not found; skipping route for ${WG_CONTROL_NET}"
     return
   fi
   ip route replace "$WG_CONTROL_NET" via "$gw" 2>/dev/null || true

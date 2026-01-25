@@ -12,9 +12,6 @@ import (
 )
 
 func resolveImagePrefix() string {
-	if prefix := strings.TrimSpace(os.Getenv("IMAGE_PREFIX")); prefix != "" {
-		return prefix
-	}
 	return meta.ImagePrefix
 }
 
@@ -59,4 +56,12 @@ func ResolveFunctionImageName(functionName string) (string, error) {
 		return "", err
 	}
 	return fmt.Sprintf("%s-%s", resolveImagePrefix(), safeName), nil
+}
+
+func ResolveFunctionImageTag() string {
+	key := meta.EnvPrefix + "_TAG"
+	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+		return value
+	}
+	return "latest"
 }

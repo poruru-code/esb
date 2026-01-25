@@ -1,7 +1,7 @@
 #!/bin/sh
-# Where: /app/entrypoint.sh
-# What: Entrypoint for the agent with runtime guard before start.
-# Why: Fail fast if the runtime or component does not match the image.
+# Where: services/provisioner/entrypoint.sh
+# What: Runtime guard for provisioner startup.
+# Why: Fail fast on component/runtime mismatches.
 set -eu
 
 require_env() {
@@ -24,10 +24,9 @@ print_version_json() {
 
 require_env "COMPONENT"
 require_env "IMAGE_RUNTIME"
-require_env "AGENT_RUNTIME"
 
-if [ "$COMPONENT" != "agent" ]; then
-  echo "ERROR: COMPONENT must be agent (got ${COMPONENT})" >&2
+if [ "$COMPONENT" != "provisioner" ]; then
+  echo "ERROR: COMPONENT must be provisioner (got ${COMPONENT})" >&2
   exit 1
 fi
 
@@ -40,11 +39,11 @@ case "$IMAGE_RUNTIME" in
     ;;
 esac
 
-if [ "$AGENT_RUNTIME" != "$IMAGE_RUNTIME" ]; then
+if [ -n "${AGENT_RUNTIME:-}" ] && [ "$AGENT_RUNTIME" != "$IMAGE_RUNTIME" ]; then
   echo "ERROR: AGENT_RUNTIME=${AGENT_RUNTIME} does not match IMAGE_RUNTIME=${IMAGE_RUNTIME}" >&2
   exit 1
 fi
 
 print_version_json
 
-exec /app/agent "$@"
+exec "$@"

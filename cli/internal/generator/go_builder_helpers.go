@@ -23,34 +23,44 @@ import (
 )
 
 type registryConfig struct {
-	External string
-	Internal string
+	Registry string
 }
 
-func resolveRegistryConfig(mode string) registryConfig {
-	switch strings.ToLower(strings.TrimSpace(mode)) {
-	case compose.ModeContainerd, compose.ModeFirecracker:
-		port := strings.TrimSpace(os.Getenv(constants.EnvPortRegistry))
-		if port == "" {
-			port = "5010"
-		}
-		return registryConfig{
-			External: fmt.Sprintf("localhost:%s", port),
-			Internal: "registry:5010",
-		}
-	default:
-		return registryConfig{}
-	}
+type buildContext struct {
+	Name string
+	Path string
 }
 
-func resolveImageTag(env string) string {
-	if tag := strings.TrimSpace(os.Getenv(constants.EnvImageTag)); tag != "" {
-		return tag
+func resolveRegistryConfig(mode string) (registryConfig, error) {
+	normalized := strings.ToLower(strings.TrimSpace(mode))
+	key, err := envutil.HostEnvKey(constants.HostSuffixRegistry)
+	if err != nil {
+		return registryConfig{}, err
 	}
-	if strings.TrimSpace(env) != "" {
-		return env
+	registry := strings.TrimSpace(os.Getenv(key))
+	if registry == "" {
+		if normalized == compose.ModeContainerd {
+			return registryConfig{}, fmt.Errorf("ERROR: %s is required for containerd", key)
+		}
+		return registryConfig{}, nil
 	}
-	return "latest"
+	if !strings.HasSuffix(registry, "/") {
+		registry += "/"
+	}
+	return registryConfig{Registry: registry}, nil
+}
+
+func resolveTraceTools(repoRoot string) (string, error) {
+	root := strings.TrimSpace(repoRoot)
+	if root == "" {
+		return "", fmt.Errorf("repo root is required")
+	}
+	traceTools := filepath.Join(root, "tools", "traceability")
+	script := filepath.Join(traceTools, "generate_version_json.py")
+	if _, err := os.Stat(script); err != nil {
+		return "", fmt.Errorf("traceability script not found: %w", err)
+	}
+	return traceTools, nil
 }
 
 func defaultGeneratorParameters() map[string]string {
@@ -189,6 +199,7 @@ func buildBaseImage(
 	noCache bool,
 	verbose bool,
 	labels map[string]string,
+	buildContexts []buildContext,
 ) error {
 	if verbose {
 		fmt.Println("Building base image...")
@@ -201,7 +212,17 @@ func buildBaseImage(
 
 	imageTag := lambdaBaseImageTag(registry, tag)
 
-	if err := buildDockerImage(ctx, runner, assetsDir, "Dockerfile.lambda-base", imageTag, noCache, verbose, labels); err != nil {
+	if err := buildDockerImage(
+		ctx,
+		runner,
+		assetsDir,
+		"Dockerfile.lambda-base",
+		imageTag,
+		noCache,
+		verbose,
+		labels,
+		buildContexts,
+	); err != nil {
 		return err
 	}
 	if registry != "" {
@@ -236,10 +257,17 @@ func withBuildLock(name string, fn func() error) error {
 
 func lambdaBaseImageTag(registry, tag string) string {
 	imageTag := fmt.Sprintf("%s-lambda-base:%s", meta.ImagePrefix, tag)
-	if registry != "" {
-		return fmt.Sprintf("%s/%s", registry, imageTag)
+	return joinRegistry(registry, imageTag)
+}
+
+func joinRegistry(registry, image string) string {
+	if registry == "" {
+		return image
 	}
-	return imageTag
+	if strings.HasSuffix(registry, "/") {
+		return registry + image
+	}
+	return registry + "/" + image
 }
 
 func buildFunctionImages(
@@ -252,6 +280,7 @@ func buildFunctionImages(
 	noCache bool,
 	verbose bool,
 	labels map[string]string,
+	buildContexts []buildContext,
 ) error {
 	if verbose {
 		fmt.Println("Building function images...")
@@ -276,14 +305,8 @@ func buildFunctionImages(
 			return err
 		}
 
-		imagePrefix := strings.TrimSpace(os.Getenv(constants.EnvImagePrefix))
-		if imagePrefix == "" {
-			imagePrefix = meta.ImagePrefix
-		}
-		imageTag := fmt.Sprintf("%s-%s:%s", imagePrefix, fn.ImageName, tag)
-		if registry != "" {
-			imageTag = fmt.Sprintf("%s/%s", registry, imageTag)
-		}
+		imageTag := fmt.Sprintf("%s-%s:%s", meta.ImagePrefix, fn.ImageName, tag)
+		imageTag = joinRegistry(registry, imageTag)
 
 		dockerfileRel, err := filepath.Rel(outputDir, dockerfile)
 		if err != nil {
@@ -301,59 +324,22 @@ func buildFunctionImages(
 			}
 		}
 		if !skipBuild {
-			if err := buildDockerImage(ctx, runner, outputDir, dockerfileRel, imageTag, noCache, verbose, labels); err != nil {
+			if err := buildDockerImage(
+				ctx,
+				runner,
+				outputDir,
+				dockerfileRel,
+				imageTag,
+				noCache,
+				verbose,
+				labels,
+				buildContexts,
+			); err != nil {
 				return err
 			}
 		}
 		if registry != "" {
 			if err := pushDockerImage(ctx, runner, outputDir, imageTag, verbose); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func buildServiceImages(
-	ctx context.Context,
-	runner compose.CommandRunner,
-	repoRoot string,
-	registry string,
-	tag string,
-	noCache bool,
-	verbose bool,
-	labels map[string]string,
-) error {
-	if verbose {
-		fmt.Println("Building service images...")
-	}
-	services := map[string]struct {
-		dir        string
-		dockerfile string
-	}{
-		fmt.Sprintf("%s-runtime-node", meta.ImagePrefix): {
-			dir:        filepath.Join(repoRoot, "services", "runtime-node"),
-			dockerfile: "Dockerfile.firecracker",
-		},
-		fmt.Sprintf("%s-agent", meta.ImagePrefix): {
-			dir:        filepath.Join(repoRoot, "services", "agent"),
-			dockerfile: "Dockerfile",
-		},
-	}
-	for name, info := range services {
-		dockerfile := filepath.Join(info.dir, info.dockerfile)
-		if _, err := os.Stat(dockerfile); err != nil {
-			return fmt.Errorf("service dockerfile not found: %w", err)
-		}
-		imageTag := fmt.Sprintf("%s:%s", name, tag)
-		if registry != "" {
-			imageTag = fmt.Sprintf("%s/%s", registry, imageTag)
-		}
-		if err := buildDockerImage(ctx, runner, info.dir, info.dockerfile, imageTag, noCache, verbose, labels); err != nil {
-			return err
-		}
-		if registry != "" {
-			if err := pushDockerImage(ctx, runner, info.dir, imageTag, verbose); err != nil {
 				return err
 			}
 		}
@@ -370,6 +356,7 @@ func buildDockerImage(
 	noCache bool,
 	verbose bool,
 	labels map[string]string,
+	buildContexts []buildContext,
 ) error {
 	if runner == nil {
 		return fmt.Errorf("command runner is nil")
@@ -398,6 +385,14 @@ func buildDockerImage(
 		return err
 	}
 	args = append(args, secretArgs...)
+	for _, ctx := range buildContexts {
+		name := strings.TrimSpace(ctx.Name)
+		path := strings.TrimSpace(ctx.Path)
+		if name == "" || path == "" {
+			return fmt.Errorf("build context name and path are required")
+		}
+		args = append(args, "--build-context", fmt.Sprintf("%s=%s", name, path))
+	}
 	args = append(args, ".")
 	if verbose {
 		return runner.Run(ctx, contextDir, "docker", args...)
@@ -479,10 +474,18 @@ func needsRootCASecret(dockerfile string) bool {
 }
 
 func resolveRootCAPath() (string, error) {
-	if value := strings.TrimSpace(envutil.GetHostEnv(constants.HostSuffixCACertPath)); value != "" {
+	value, err := envutil.GetHostEnv(constants.HostSuffixCACertPath)
+	if err != nil {
+		return "", err
+	}
+	if value := strings.TrimSpace(value); value != "" {
 		return ensureRootCAPath(expandHome(value))
 	}
-	if value := strings.TrimSpace(envutil.GetHostEnv(constants.HostSuffixCertDir)); value != "" {
+	value, err = envutil.GetHostEnv(constants.HostSuffixCertDir)
+	if err != nil {
+		return "", err
+	}
+	if value := strings.TrimSpace(value); value != "" {
 		return ensureRootCAPath(filepath.Join(expandHome(value), meta.RootCACertFilename))
 	}
 	if value := strings.TrimSpace(os.Getenv("CAROOT")); value != "" {

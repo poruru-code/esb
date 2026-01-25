@@ -7,6 +7,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/poruru/edge-serverless-box/meta"
@@ -20,6 +21,12 @@ import (
 
 func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	t.Setenv("ENV_PREFIX", meta.EnvPrefix)
+	registryKey, err := envutil.HostEnvKey(constants.HostSuffixRegistry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(registryKey, "localhost:5010")
 	projectDir := t.TempDir()
 	templatePath := filepath.Join(projectDir, "template.yaml")
 	writeTestFile(t, templatePath, "Resources: {}")
@@ -28,6 +35,11 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	writeComposeFiles(t, repoRoot,
 		"docker-compose.containerd.yml",
 	)
+	gitDir := filepath.Join(repoRoot, ".git")
+	if err := os.MkdirAll(filepath.Join(gitDir, "objects"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, filepath.Join(gitDir, "HEAD"), "ref: refs/heads/main\n")
 	// Create mock service directories and root files required by staging logic
 	if err := os.MkdirAll(filepath.Join(repoRoot, "services", "common"), 0o755); err != nil {
 		t.Fatal(err)
@@ -37,6 +49,11 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	}
 	writeTestFile(t, filepath.Join(repoRoot, "pyproject.toml"), "[project]\n")
 	writeTestFile(t, filepath.Join(repoRoot, "cli", "internal", "generator", "assets", "Dockerfile.lambda-base"), "FROM scratch\n")
+	traceToolsDir := filepath.Join(repoRoot, "tools", "traceability")
+	if err := os.MkdirAll(traceToolsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, filepath.Join(traceToolsDir, "generate_version_json.py"), "#!/usr/bin/env python3\n")
 
 	var gotCfg config.GeneratorConfig
 	var gotOpts GenerateOptions
@@ -52,7 +69,13 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		return []FunctionSpec{{Name: "hello", ImageName: "hello"}}, nil
 	}
 
-	dockerRunner := &recordRunner{}
+	dockerRunner := &recordRunner{
+		outputs: map[string][]byte{
+			"git rev-parse --show-toplevel":  []byte(repoRoot),
+			"git rev-parse --git-dir":        []byte(".git"),
+			"git rev-parse --git-common-dir": []byte(".git"),
+		},
+	}
 	composeRunner := &recordRunner{}
 	portDiscoverer := &mockPortDiscoverer{
 		ports: map[string]int{
@@ -73,10 +96,13 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		FindRepoRoot: func(string) (string, error) { return repoRoot, nil },
 	}
 
-	t.Setenv(envutil.HostEnvKey(constants.HostSuffixMode), "")
+	modeKey, err := envutil.HostEnvKey(constants.HostSuffixMode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(modeKey, "")
 	t.Setenv(constants.EnvConfigDir, "")
 	t.Setenv(constants.EnvProjectName, "")
-	t.Setenv(constants.EnvImageTag, "")
 
 	setupRootCA(t)
 	request := BuildRequest{
@@ -85,6 +111,7 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		TemplatePath: templatePath,
 		Env:          "staging",
 		Mode:         "containerd",
+		Tag:          "v1.2.3",
 	}
 	if err := builder.Build(request); err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -100,13 +127,13 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	if gotOpts.ProjectRoot != repoRoot {
 		t.Fatalf("unexpected project root: %s", gotOpts.ProjectRoot)
 	}
-	if gotOpts.RegistryExternal != "localhost:5010" {
-		t.Fatalf("unexpected registry external: %s", gotOpts.RegistryExternal)
+	if gotOpts.BuildRegistry != "localhost:5010/" {
+		t.Fatalf("unexpected build registry: %s", gotOpts.BuildRegistry)
 	}
-	if gotOpts.RegistryInternal != "registry:5010" {
-		t.Fatalf("unexpected registry internal: %s", gotOpts.RegistryInternal)
+	if gotOpts.RuntimeRegistry != "localhost:5010/" {
+		t.Fatalf("unexpected runtime registry: %s", gotOpts.RuntimeRegistry)
 	}
-	if gotOpts.Tag != "staging" {
+	if gotOpts.Tag != "v1.2.3" {
 		t.Fatalf("unexpected tag: %s", gotOpts.Tag)
 	}
 	if gotCfg.Parameters["S3_ENDPOINT_HOST"] != "s3-storage" {
@@ -145,10 +172,9 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	if got := os.Getenv(constants.EnvProjectName); got != "demo-staging" {
 		t.Fatalf("unexpected %s: %s", constants.EnvProjectName, got)
 	}
-	if got := os.Getenv(constants.EnvImageTag); got != "containerd" {
-		t.Fatalf("unexpected %s: %s", constants.EnvImageTag, got)
-	}
-	if got := envutil.GetHostEnv(constants.HostSuffixMode); got != "containerd" {
+	if got, err := envutil.GetHostEnv(constants.HostSuffixMode); err != nil {
+		t.Fatal(err)
+	} else if got != "containerd" {
 		t.Fatalf("unexpected %s: %s", constants.HostSuffixMode, got)
 	}
 
@@ -157,16 +183,16 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		t.Fatalf("expected staged config: %v", err)
 	}
 
-	if !hasDockerBuildTag(dockerRunner.calls, "localhost:5010/"+meta.ImagePrefix+"-lambda-base:staging") {
+	if !hasDockerBuildTag(dockerRunner.calls, "localhost:5010/"+meta.ImagePrefix+"-lambda-base:v1.2.3") {
 		t.Fatalf("expected base image build")
 	}
-	if !hasDockerBuildTag(dockerRunner.calls, "localhost:5010/"+meta.ImagePrefix+"-hello:staging") {
+	if !hasDockerBuildTag(dockerRunner.calls, "localhost:5010/"+meta.ImagePrefix+"-hello:v1.2.3") {
 		t.Fatalf("expected function image build")
 	}
-	if !hasDockerPushTag(dockerRunner.calls, "localhost:5010/"+meta.ImagePrefix+"-lambda-base:staging") {
+	if !hasDockerPushTag(dockerRunner.calls, "localhost:5010/"+meta.ImagePrefix+"-lambda-base:v1.2.3") {
 		t.Fatalf("expected base image push")
 	}
-	if !hasDockerPushTag(dockerRunner.calls, "localhost:5010/"+meta.ImagePrefix+"-hello:staging") {
+	if !hasDockerPushTag(dockerRunner.calls, "localhost:5010/"+meta.ImagePrefix+"-hello:v1.2.3") {
 		t.Fatalf("expected function image push")
 	}
 	if !hasDockerBuildLabel(dockerRunner.calls, meta.LabelPrefix+".managed=true") {
@@ -178,85 +204,25 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	if !hasDockerBuildLabel(dockerRunner.calls, meta.LabelPrefix+".env=staging") {
 		t.Fatalf("expected env label on build")
 	}
-
-	if !hasComposeUpRegistry(composeRunner.calls) {
-		t.Fatalf("expected registry compose up")
+	if !hasDockerBuildContext(dockerRunner.calls, "git_dir="+gitDir) {
+		t.Fatalf("expected git_dir build context")
 	}
-}
-
-func TestGoBuilderBuildFirecrackerBuildsServiceImages(t *testing.T) {
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
-	projectDir := t.TempDir()
-	templatePath := filepath.Join(projectDir, "template.yaml")
-	writeTestFile(t, templatePath, "Resources: {}")
-
-	repoRoot := projectDir
-	writeComposeFiles(t, repoRoot,
-		"docker-compose.fc.yml",
-	)
-	// Create mock service directories and root files required by staging logic
-	if err := os.MkdirAll(filepath.Join(repoRoot, "services", "common"), 0o755); err != nil {
-		t.Fatal(err)
+	if !hasDockerBuildContext(dockerRunner.calls, "git_common="+gitDir) {
+		t.Fatalf("expected git_common build context")
 	}
-	if err := os.MkdirAll(filepath.Join(repoRoot, "services", "gateway"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	writeTestFile(t, filepath.Join(repoRoot, "pyproject.toml"), "[project]\n")
-	writeTestFile(t, filepath.Join(repoRoot, "cli", "internal", "generator", "assets", "Dockerfile.lambda-base"), "FROM scratch\n")
-	writeTestFile(t, filepath.Join(repoRoot, "services", "runtime-node", "Dockerfile"), "FROM scratch\n")
-	writeTestFile(t, filepath.Join(repoRoot, "services", "runtime-node", "Dockerfile.firecracker"), "FROM scratch\n")
-	writeTestFile(t, filepath.Join(repoRoot, "services", "agent", "Dockerfile"), "FROM scratch\n")
-
-	generate := func(cfg config.GeneratorConfig, _ GenerateOptions) ([]FunctionSpec, error) {
-		outputDir := cfg.Paths.OutputDir
-		writeTestFile(t, filepath.Join(outputDir, "config", "functions.yml"), "functions: {}")
-		writeTestFile(t, filepath.Join(outputDir, "config", "routing.yml"), "routes: []")
-		writeTestFile(t, filepath.Join(outputDir, "config", "resources.yml"), "resources: {}")
-		writeTestFile(t, filepath.Join(outputDir, "functions", "hello", "Dockerfile"), "FROM scratch\n")
-		return []FunctionSpec{{Name: "hello", ImageName: "hello"}}, nil
+	if !hasDockerBuildContext(dockerRunner.calls, "trace_tools="+traceToolsDir) {
+		t.Fatalf("expected trace_tools build context")
 	}
 
-	dockerRunner := &recordRunner{}
-	composeRunner := &recordRunner{}
-	portDiscoverer := &mockPortDiscoverer{
-		ports: map[string]int{
-			constants.EnvPortRegistry: 5010,
-		},
-	}
-	setupRootCA(t)
-	builder := &GoBuilder{
-		Runner:         dockerRunner,
-		ComposeRunner:  composeRunner,
-		PortDiscoverer: portDiscoverer,
-		BuildCompose: func(_ context.Context, _ compose.CommandRunner, _ compose.BuildOptions) error {
-			return nil
-		},
-		Generate:     generate,
-		FindRepoRoot: func(string) (string, error) { return repoRoot, nil },
-	}
-
-	request := BuildRequest{
-		ProjectDir:   projectDir,
-		ProjectName:  "demo-prod",
-		TemplatePath: templatePath,
-		Env:          "prod",
-		Mode:         "firecracker",
-	}
-	if err := builder.Build(request); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if !hasDockerBuildTag(dockerRunner.calls, "localhost:5010/"+meta.ImagePrefix+"-runtime-node:prod") {
-		t.Fatalf("expected runtime-node image build")
-	}
-	if !hasDockerBuildTag(dockerRunner.calls, "localhost:5010/"+meta.ImagePrefix+"-agent:prod") {
-		t.Fatalf("expected agent image build")
+	if hasComposeUpRegistry(composeRunner.calls) {
+		t.Fatalf("unexpected registry compose up")
 	}
 }
 
 type recordRunner struct {
-	calls []commandCall
-	err   error
+	calls   []commandCall
+	err     error
+	outputs map[string][]byte
 }
 
 type mockPortDiscoverer struct {
@@ -298,7 +264,16 @@ func (r *recordRunner) RunOutput(_ context.Context, dir, name string, args ...st
 		name: name,
 		args: append([]string{}, args...),
 	})
-	return nil, r.err
+	if r.err != nil {
+		return nil, r.err
+	}
+	if r.outputs != nil {
+		key := name + " " + strings.Join(args, " ")
+		if output, ok := r.outputs[key]; ok {
+			return output, nil
+		}
+	}
+	return nil, nil
 }
 
 func hasDockerBuildTag(calls []commandCall, tag string) bool {
@@ -347,6 +322,23 @@ func hasDockerBuildLabel(calls []commandCall, label string) bool {
 	return false
 }
 
+func hasDockerBuildContext(calls []commandCall, value string) bool {
+	for _, call := range calls {
+		if call.name != "docker" || len(call.args) < 3 {
+			continue
+		}
+		if call.args[0] != "build" {
+			continue
+		}
+		for i := 0; i+1 < len(call.args); i++ {
+			if call.args[i] == "--build-context" && call.args[i+1] == value {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func hasComposeUpRegistry(calls []commandCall) bool {
 	for _, call := range calls {
 		if call.name != "docker" || len(call.args) < 4 {
@@ -370,7 +362,11 @@ func setupRootCA(t *testing.T) string {
 	caDir := t.TempDir()
 	caPath := filepath.Join(caDir, meta.RootCACertFilename)
 	writeTestFile(t, caPath, "root-CA")
-	t.Setenv(envutil.HostEnvKey(constants.HostSuffixCACertPath), caPath)
+	caKey, err := envutil.HostEnvKey(constants.HostSuffixCACertPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(caKey, caPath)
 	return caPath
 }
 

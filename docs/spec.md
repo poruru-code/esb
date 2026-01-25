@@ -1,7 +1,7 @@
 # システム仕様書
 
 ## 1. 概要
-本システムは、コンテナ技術(Docker / containerd)を用いてエッジサーバーレス環境をシミュレートするための基盤です。モードごとに自己完結した compose ファイルを使用し、Containerd は `docker-compose.containerd.yml`、Docker は `docker-compose.docker.yml`、Firecracker は `docker-compose.fc.yml` / `docker-compose.fc-node.yml` を利用します。
+本システムは、コンテナ技術(Docker / containerd)を用いてエッジサーバーレス環境をシミュレートするための基盤です。モードごとに自己完結した compose ファイルを使用し、Containerd は `docker-compose.containerd.yml`、Docker は `docker-compose.docker.yml` を利用します。Firecracker は `CONTAINERD_RUNTIME=aws.firecracker` による containerd ランタイム切替で再現します。
 
 ## 2. コンポーネント構成
 
@@ -146,7 +146,7 @@ Gateway は external_network 上で起動し、コンテナ内 `8443` をホス�
     - `rustfs_data` -> RustFSデータ
     - `scylladb_data` -> ScyllaDBデータ
     - `victorialogs_data` -> ログデータ
-    - `registry_data` -> レジストリデータ（Containerd/Firecracker のみ）
+    - `registry_data` -> レジストリデータ（Containerd のみ）
 
 ## 5. デプロイメントモデル
 
@@ -156,8 +156,6 @@ Gateway は external_network 上で起動し、コンテナ内 `8443` をホス�
 | ------------------------------- | -------------------------------------- | ------------------------------------------ |
 | `docker-compose.docker.yml`     | Docker モード                           | Docker ランタイムでの単一ノード構成         |
 | `docker-compose.containerd.yml` | Containerd モード                        | Core + Compute を同一ホストで統合           |
-| `docker-compose.fc.yml`         | Firecracker Control Plane               | コントロールプレーンのみ                   |
-| `docker-compose.fc-node.yml`    | Firecracker Compute Node                | コンピュートノードのみ                     |
 
 ### 5.2 起動パターン（docker compose）
 
@@ -166,10 +164,9 @@ Gateway は external_network 上で起動し、コンテナ内 `8443` をホス�
 docker compose -f docker-compose.containerd.yml up -d
 ```
 
-Firecracker:
+Firecracker 相当（containerd ランタイム切替）:
 ```bash
-docker compose -f docker-compose.fc.yml up -d
-docker compose -f docker-compose.fc-node.yml up -d
+CONTAINERD_RUNTIME=aws.firecracker docker compose -f docker-compose.containerd.yml up -d
 ```
 
 注意:

@@ -43,12 +43,6 @@ var DefaultPortMappings = []PortMapping{
 		ContainerPort: 8443,
 		Modes:         []string{ModeContainerd},
 	},
-	{
-		EnvVar:        constants.EnvPortGatewayHTTPS,
-		Service:       "gateway",
-		ContainerPort: 8443,
-		Modes:         []string{ModeFirecracker},
-	},
 	{EnvVar: constants.EnvPortS3, Service: "s3-storage", ContainerPort: 9000},
 	{EnvVar: constants.EnvPortS3Mgmt, Service: "s3-storage", ContainerPort: 9001},
 	{EnvVar: constants.EnvPortDatabase, Service: "database", ContainerPort: 8000},
@@ -57,13 +51,13 @@ var DefaultPortMappings = []PortMapping{
 		EnvVar:        constants.EnvPortRegistry,
 		Service:       "registry",
 		ContainerPort: 5010,
-		Modes:         []string{ModeContainerd, ModeFirecracker},
+		Modes:         []string{ModeContainerd},
 	},
 	{
 		EnvVar:        constants.EnvPortAgentGRPC,
 		Service:       "runtime-node",
 		ContainerPort: 50051,
-		Modes:         []string{ModeContainerd, ModeFirecracker},
+		Modes:         []string{ModeContainerd},
 	},
 	{
 		EnvVar:        constants.EnvPortAgentMetrics,

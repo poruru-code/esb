@@ -11,10 +11,16 @@ services:
     build:
       context: .
       dockerfile: services/common/Dockerfile.os-base
+      additional_contexts:
+        git_dir: ${GIT_DIR_CONTEXT:-.git}
+        git_common: ${GIT_COMMON_DIR_CONTEXT:-.git}
+        trace_tools: tools/traceability
       args:
         ROOT_CA_MOUNT_ID: root_ca
         ROOT_CA_CERT_FILENAME: ${ROOT_CA_CERT_FILENAME:-rootCA.crt}
         ROOT_CA_FINGERPRINT: ${ROOT_CA_FINGERPRINT:-}
+        COMPONENT: base
+        IMAGE_RUNTIME: shared
       secrets:
         - root_ca
 
@@ -24,10 +30,16 @@ services:
     build:
       context: .
       dockerfile: services/common/Dockerfile.python-base
+      additional_contexts:
+        git_dir: ${GIT_DIR_CONTEXT:-.git}
+        git_common: ${GIT_COMMON_DIR_CONTEXT:-.git}
+        trace_tools: tools/traceability
       args:
         ROOT_CA_MOUNT_ID: root_ca
         ROOT_CA_CERT_FILENAME: ${ROOT_CA_CERT_FILENAME:-rootCA.crt}
         ROOT_CA_FINGERPRINT: ${ROOT_CA_FINGERPRINT:-}
+        COMPONENT: base
+        IMAGE_RUNTIME: shared
       secrets:
         - root_ca
 
@@ -129,14 +141,19 @@ services:
   # ============================================
   provisioner:
     env_file: config/defaults.env
-    image: esb-provisioner:firecracker
+    image: ${ESB_REGISTRY:-}esb-provisioner:${ESB_TAG:-latest}-containerd
     build:
       context: .
-      dockerfile: services/provisioner/Dockerfile
+      dockerfile: services/provisioner/Dockerfile.containerd
       additional_contexts:
         config: ${CONFIG_DIR:-services/gateway/config}
+        git_dir: ${GIT_DIR_CONTEXT:-.git}
+        git_common: ${GIT_COMMON_DIR_CONTEXT:-.git}
+        trace_tools: tools/traceability
       args:
-        IMAGE_PREFIX: ${IMAGE_PREFIX:-esb}
+        PYTHON_BASE_IMAGE: esb-python-base:latest
+        IMAGE_RUNTIME: containerd
+        COMPONENT: provisioner
     container_name: ${PROJECT_NAME:-esb-${ENV:-default}}-provisioner
     depends_on:
       database:
@@ -153,8 +170,112 @@ services:
       - AWS_DEFAULT_REGION=us-east-1
       - AWS_ACCESS_KEY_ID=${RUSTFS_ACCESS_KEY:-esb}
       - AWS_SECRET_ACCESS_KEY=${RUSTFS_SECRET_KEY:-esbsecret}
+      - AGENT_RUNTIME=containerd
     networks:
       external_network: {}
+
+  # ============================================
+  # Runtime Node (Containerd Host Container)
+  # ============================================
+  runtime-node:
+    env_file: config/defaults.env
+    image: ${ESB_REGISTRY:-}esb-runtime-node:${ESB_TAG:-latest}-containerd
+    build:
+      context: services/runtime-node
+      dockerfile: Dockerfile.containerd
+      additional_contexts:
+        git_dir: ${GIT_DIR_CONTEXT:-.git}
+        git_common: ${GIT_COMMON_DIR_CONTEXT:-.git}
+        trace_tools: tools/traceability
+      args:
+        OS_BASE_IMAGE: esb-os-base:latest
+        IMAGE_RUNTIME: containerd
+        COMPONENT: runtime-node
+    container_name: ${PROJECT_NAME:-esb-${ENV:-default}}-runtime-node
+    entrypoint: /entrypoint.firecracker.sh
+    privileged: true
+    ports:
+      - "${PORT_AGENT_GRPC:-50051}:50051"
+      - "${PORT_GATEWAY_HTTPS:-443}:8443" # Gateway port (shared network)
+      - "${PORT_AGENT_METRICS:-9091}:9091" # Agent Metrics
+    networks:
+      - external_network
+    environment:
+      - CNI_GW_IP=${DATA_PLANE_HOST:-10.88.0.1}
+      - VHOST_VSOCK_REQUIRED=0
+      - AGENT_RUNTIME=containerd
+      - CONTAINERD_RUNTIME=aws.firecracker
+    volumes:
+      - runtime_containerd_run:/run/containerd
+      - runtime_containerd_lib:/var/lib/containerd
+      - ${CERT_DIR:-~/.esb/certs}:/app/config/ssl:ro
+    healthcheck:
+      test: ["CMD", "ctr", "-a", "/run/containerd/containerd.sock", "version"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # ============================================
+  # coredns (Local DNS for Lambda VMs)
+  # ============================================
+  coredns:
+    env_file: config/defaults.env
+    image: coredns/coredns:1.11.1
+    container_name: ${PROJECT_NAME:-esb-${ENV:-default}}-coredns
+    network_mode: "service:runtime-node"
+    volumes:
+      - ./config/Corefile:/Corefile:ro
+    command: -conf /Corefile
+    depends_on:
+      runtime-node: { condition: service_started }
+    restart: unless-stopped
+
+  # ============================================
+  # Agent (Containerd Runtime)
+  # ============================================
+  agent:
+    env_file: config/defaults.env
+    image: ${ESB_REGISTRY:-}esb-agent:${ESB_TAG:-latest}-containerd
+    build:
+      context: services/agent
+      dockerfile: Dockerfile.containerd
+      additional_contexts:
+        meta: meta
+        git_dir: ${GIT_DIR_CONTEXT:-.git}
+        git_common: ${GIT_COMMON_DIR_CONTEXT:-.git}
+        trace_tools: tools/traceability
+      args:
+        OS_BASE_IMAGE: esb-os-base:latest
+        IMAGE_RUNTIME: containerd
+        COMPONENT: agent
+    container_name: ${PROJECT_NAME:-esb-${ENV:-default}}-agent
+    cap_add: [NET_ADMIN, SYS_ADMIN]
+    network_mode: "service:runtime-node"
+    pid: "service:runtime-node"
+    depends_on:
+      runtime-node: { condition: service_healthy }
+      registry: { condition: service_healthy }
+    volumes:
+      - runtime_containerd_run:/run/containerd
+      - runtime_containerd_lib:/var/lib/containerd
+      - esb_cni_data:/var/lib/cni
+      - esb_cni_conf:/etc/cni/net.d
+      - ${CERT_DIR:-~/.esb/certs}:/app/config/ssl:ro
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - PORT=50051
+      - CONTAINER_REGISTRY=registry:5010
+      - CNI_SUBNET=${CNI_SUBNET:-}
+      - AGENT_RUNTIME=containerd
+      - CONTAINERD_RUNTIME=aws.firecracker
+      - AGENT_GRPC_TLS_ENABLED=1
+      - AGENT_GRPC_CERT_PATH=/app/config/ssl/server.crt
+      - AGENT_GRPC_KEY_PATH=/app/config/ssl/server.key
+      - AGENT_GRPC_CA_CERT_PATH=/app/config/ssl/rootCA.crt
+      - CONTAINERS_NETWORK=${NETWORK_EXTERNAL:-${PROJECT_NAME:-esb-${ENV:-default}}-external}
+      - ENV
+    command: ["/app/agent"]
+    restart: unless-stopped
 
   # ============================================
   # Registry (Local OCI)
@@ -183,40 +304,44 @@ services:
       - external_network
 
   # ============================================
-  # API Gateway (WireGuard for Firecracker)
+  # API Gateway (Facade)
   # ============================================
   gateway:
     env_file: config/defaults.env
-    image: esb-gateway:firecracker
+    image: ${ESB_REGISTRY:-}esb-gateway:${ESB_TAG:-latest}-containerd
     user: "0:0"
     build:
       context: .
-      dockerfile: services/gateway/Dockerfile.firecracker
+      dockerfile: services/gateway/Dockerfile.containerd
       additional_contexts:
         config: ${CONFIG_DIR:-services/gateway/config}
+        git_dir: ${GIT_DIR_CONTEXT:-.git}
+        git_common: ${GIT_COMMON_DIR_CONTEXT:-.git}
+        trace_tools: tools/traceability
       args:
-        IMAGE_PREFIX: ${IMAGE_PREFIX:-esb}
+        PYTHON_BASE_IMAGE: esb-python-base:latest
+        SERVICE_USER: ${PROJECT_NAME:-esb-${ENV:-default}}
         SERVICE_UID: ${RUN_UID:-1000}
         SERVICE_GID: ${RUN_GID:-1000}
+        IMAGE_RUNTIME: containerd
+        COMPONENT: gateway
     container_name: ${PROJECT_NAME:-esb-${ENV:-default}}-gateway
+    network_mode: "service:runtime-node"
     depends_on:
+      agent: { condition: service_started }
       provisioner: { condition: service_completed_successfully }
       database:
         condition: service_healthy
       s3-storage:
         condition: service_healthy
-    ports:
-      - "${PORT_GATEWAY_HTTPS:-443}:8443"
-    networks:
-      - external_network
-    cap_add:
-      - NET_ADMIN
-    devices:
-      - /dev/net/tun:/dev/net/tun
     volumes:
       - ${WG_GATEWAY_CONF:-~/.esb/wireguard/gateway/wg0.conf}:/app/config/wireguard/wg0.conf:ro
       - ./config/haproxy.gateway.cfg:/app/config/haproxy.gateway.cfg:ro
       - ${CERT_DIR:-~/.esb/certs}:/app/config/ssl:ro
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
     environment:
       # --- Required / Core Authentication (auto-generated if unset) ---
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-}
@@ -234,8 +359,6 @@ services:
       - CONTAINERS_NETWORK=${NETWORK_EXTERNAL:-${PROJECT_NAME:-esb-${ENV:-default}}-external}
       - AUTH_ENDPOINT_PATH
       - PROJECT_NAME=${PROJECT_NAME:-esb-${ENV:-default}}
-      - IMAGE_TAG=firecracker
-      - FUNCTION_IMAGE_PREFIX=registry:5010/
 
       # --- Tuning & Resilience (Pass-through) ---
       - AGENT_INVOKE_PROXY
@@ -261,17 +384,27 @@ services:
       # --- System / Proxy ---
       - GRPC_VERBOSITY=ERROR
 
-      # --- Firecracker Mode Wiring ---
-      - AGENT_GRPC_ADDRESS=runtime-node:50051
-      - GATEWAY_INTERNAL_URL=https://10.99.0.1:8443
-      - GATEWAY_WORKER_ROUTE_VIA_HOST=${GATEWAY_WORKER_ROUTE_VIA_HOST:-}
-      - GATEWAY_WORKER_ROUTE_VIA=${GATEWAY_WORKER_ROUTE_VIA:-}
-      - GATEWAY_WORKER_ROUTE_CIDR=${GATEWAY_WORKER_ROUTE_CIDR:-10.88.0.0/16}
+      # --- Containerd Mode Wiring ---
+      - AGENT_RUNTIME=containerd
+      - AGENT_GRPC_ADDRESS=localhost:50051
+      - AGENT_GRPC_TLS_ENABLED=1
+      - AGENT_GRPC_TLS_CA_CERT_PATH=/app/config/ssl/rootCA.crt
+      - AGENT_GRPC_TLS_CERT_PATH=/app/config/ssl/client.crt
+      - AGENT_GRPC_TLS_KEY_PATH=/app/config/ssl/client.key
+      - GATEWAY_INTERNAL_URL=https://${DATA_PLANE_HOST:-10.88.0.1}:8443
+      - DATA_PLANE_HOST=${DATA_PLANE_HOST:-10.88.0.1}
+      - DYNAMODB_ENDPOINT=http://database:8000
+      - S3_ENDPOINT=http://s3-storage:9000
+      - GATEWAY_VICTORIALOGS_URL=http://victorialogs:9428
 volumes:
   scylladb_data:
   rustfs_data:
   victorialogs_data:
   registry_data:
+  runtime_containerd_run:
+  runtime_containerd_lib:
+  esb_cni_data:
+  esb_cni_conf:
 
 secrets:
   root_ca:

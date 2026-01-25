@@ -20,40 +20,24 @@ func applyBuildEnv(env, composeProject string) {
 	if os.Getenv(constants.EnvProjectName) == "" {
 		_ = os.Setenv(constants.EnvProjectName, staging.ComposeProjectKey(composeProject, env))
 	}
-	if os.Getenv(constants.EnvImageTag) == "" {
-		_ = os.Setenv(constants.EnvImageTag, defaultImageTag(env))
-	}
 	if os.Getenv("DOCKER_BUILDKIT") == "" {
 		_ = os.Setenv("DOCKER_BUILDKIT", "1")
 	}
 }
 
-func applyModeFromRequest(mode string) {
-	if strings.TrimSpace(envutil.GetHostEnv(constants.HostSuffixMode)) != "" {
-		return
+func applyModeFromRequest(mode string) error {
+	existing, err := envutil.GetHostEnv(constants.HostSuffixMode)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(existing) != "" {
+		return nil
 	}
 	mode = strings.TrimSpace(mode)
 	if mode == "" {
-		return
+		return nil
 	}
-	envutil.SetHostEnv(constants.HostSuffixMode, strings.ToLower(mode))
-}
-
-func defaultImageTag(env string) string {
-	mode := strings.TrimSpace(envutil.GetHostEnv(constants.HostSuffixMode))
-	normalized := strings.ToLower(mode)
-	switch normalized {
-	case "docker":
-		return "docker"
-	case "containerd":
-		return "containerd"
-	case "firecracker":
-		return "firecracker"
-	}
-	if strings.TrimSpace(env) != "" {
-		return env
-	}
-	return "latest"
+	return envutil.SetHostEnv(constants.HostSuffixMode, strings.ToLower(mode))
 }
 
 // findRepoRoot locates the repository root using shared config logic.

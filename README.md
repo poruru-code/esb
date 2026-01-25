@@ -42,7 +42,7 @@ flowchart TD
         Registry["Registry"]
     end
 
-    subgraph Compute ["Compute Plane (docker-compose.containerd.yml / docker-compose.fc-node.yml)"]
+    subgraph Compute ["Compute Plane (docker-compose.containerd.yml)"]
         RuntimeNode["runtime-node (containerd + CNI)"]
         Agent["Go Agent (gRPC)"]
         CoreDNS["CoreDNS (Sidecar)"]
@@ -81,8 +81,6 @@ CLI は現在 `esb build` に特化しており、生成された構成は下の
 .
 ├── docker-compose.docker.yml     # Docker mode (single file)
 ├── docker-compose.containerd.yml # Containerd mode (single file)
-├── docker-compose.fc.yml         # Firecracker control plane
-├── docker-compose.fc-node.yml    # Firecracker compute node
 ├── services/
 │   ├── gateway/             # API Gateway (FastAPI)
 │   ├── agent/               # Container Orchestrator (Go Agent)
@@ -106,8 +104,13 @@ CLI は現在 `esb build` に特化しており、生成された構成は下の
 | ------------------------------- | -------------------------------------- | ------------------------------------------ |
 | `docker-compose.docker.yml`     | Docker モード                           | Docker ランタイムでの単一ノード構成         |
 | `docker-compose.containerd.yml` | Containerd モード                        | Core + Compute を同一ホストで統合           |
-| `docker-compose.fc.yml`         | Firecracker Control Plane               | コントロールプレーンのみ                   |
-| `docker-compose.fc-node.yml`    | Firecracker Compute Node                | コンピュートノードのみ                     |
+
+#### Compose 要件
+- Docker Compose プラグイン `v2.20+`（`additional_contexts` を使用するため）
+
+#### Build 要件
+- Docker Engine/CLI `23.0+`（`docker build --build-context` を使用するため）
+- `DOCKER_BUILDKIT=0` は非対応（BuildKit 必須）
 
 #### 起動パターン（docker compose）
 
@@ -116,19 +119,15 @@ CLI は現在 `esb build` に特化しており、生成された構成は下の
 docker compose -f docker-compose.containerd.yml up -d
 ```
 
-Control/Compute 分離（Firecracker）:
+Firecracker 相当（containerd ランタイム切替）:
 ```bash
-# Control
-docker compose -f docker-compose.fc.yml up -d
-
-# Compute
-docker compose -f docker-compose.fc-node.yml up -d
+CONTAINERD_RUNTIME=aws.firecracker docker compose -f docker-compose.containerd.yml up -d
 ```
 
 #### Compose を使った起動パターン
 
 - **Containerd**: `docker compose -f docker-compose.containerd.yml up -d`
-- **Firecracker**: `docker compose -f docker-compose.fc.yml up -d` のあと `docker compose -f docker-compose.fc-node.yml up -d`
+- **Containerd + Firecracker**: `CONTAINERD_RUNTIME=aws.firecracker` を指定して起動
 
 注意:
 - 各モードは **単一ファイル**で完結します。
@@ -241,11 +240,20 @@ mise run setup:certs
 # .env.example を .env にリネームして環境変数を用意
 mv .env.example .env
 
+# 本番は不変タグを明示
+export <BRAND>_TAG=vX.Y.Z
+
 # ビルド
 esb build --template template.yaml --env prod --mode docker
 
 # 起動（必要なら env ファイルを分離）
 docker compose -f docker-compose.docker.yml --env-file .env.prod up -d
+
+# containerd 本番（registry 必須）
+export <BRAND>_TAG=vX.Y.Z
+export <BRAND>_REGISTRY=registry.example.com/
+esb build --template template.yaml --env prod --mode containerd
+CONTAINERD_RUNTIME=aws.firecracker docker compose -f docker-compose.containerd.yml --env-file .env.prod up -d
 ```
 
 ## ドキュメント
@@ -263,7 +271,7 @@ docker compose -f docker-compose.docker.yml --env-file .env.prod up -d
 ## 実行ガイド
 
 1. SAM テンプレートのあるディレクトリで `esb build --template template.yaml --env prod --mode docker` を実行します。`Parameters` に `Default` がないものは対話的に尋ねられます。
-2. `docker compose -f docker-compose.docker.yml --env-file .env.prod up -d` を使って Gateway/Agent を起動します。Containerd は `docker-compose.containerd.yml`、Firecracker は `docker-compose.fc.yml` / `docker-compose.fc-node.yml` を使用します。
+2. 本番は `<BRAND>_TAG=vX.Y.Z` を設定してから `docker compose -f docker-compose.docker.yml --env-file .env.prod up -d` を実行します。Containerd は `docker-compose.containerd.yml` を使用し、`<BRAND>_REGISTRY` を必ず設定します。Firecracker は `CONTAINERD_RUNTIME=aws.firecracker` で切替えます。
 3. `docker compose logs` / `docker compose down` などで監視・停止を行います。生成済 `.<brand>/<env>/config/`（または `--output` で指定したパス）には `functions.yml` / `routing.yml` / `resources.yml` が収められています。
 
 ### シェル補完

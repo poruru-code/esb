@@ -20,7 +20,11 @@ import (
 // 3. repo_path in global config (~/.esb/config.yaml) (validated as root or searched upward)
 func ResolveRepoRoot(startDir string) (string, error) {
 	// 1. Try environment variable
-	if repo := strings.TrimSpace(envutil.GetHostEnv(constants.HostSuffixRepo)); repo != "" {
+	repo, err := envutil.GetHostEnv(constants.HostSuffixRepo)
+	if err != nil {
+		return "", err
+	}
+	if repo := strings.TrimSpace(repo); repo != "" {
 		if root, ok := findRepoRoot(repo); ok {
 			return root, nil
 		}
@@ -42,7 +46,11 @@ func ResolveRepoRoot(startDir string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("repository root not found. Run from the repo root or set %s", envutil.HostEnvKey(constants.HostSuffixRepo)) //nolint:revive
+	key, err := envutil.HostEnvKey(constants.HostSuffixRepo)
+	if err != nil {
+		return "", err
+	}
+	return "", fmt.Errorf("repository root not found. Run from the repo root or set %s", key) //nolint:revive
 }
 
 // ResolveRepoRootFromPath determines the ESB repository root path using only the supplied path.
@@ -64,8 +72,6 @@ func findRepoRoot(path string) (string, bool) {
 	markers := []string{
 		"docker-compose.docker.yml",
 		"docker-compose.containerd.yml",
-		"docker-compose.fc.yml",
-		"docker-compose.fc-node.yml",
 	}
 
 	for {

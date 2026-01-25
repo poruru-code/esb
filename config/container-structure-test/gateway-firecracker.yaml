@@ -1,5 +1,5 @@
 # Where: config/container-structure-test/gateway-firecracker.yaml
-# What: Container Structure Tests for the gateway Firecracker image.
+# What: Container Structure Tests for the gateway containerd image.
 # Why: Validate WireGuard and HAProxy tooling presence.
 
 schemaVersion: "2.0.0"

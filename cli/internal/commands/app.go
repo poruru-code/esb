@@ -39,7 +39,7 @@ type CLI struct {
 
 type (
 	BuildCmd struct {
-		Mode    string `short:"m" help:"Runtime mode (docker/containerd/firecracker)"`
+		Mode    string `short:"m" help:"Runtime mode (docker/containerd)"`
 		Output  string `short:"o" help:"Output directory for generated artifacts"`
 		NoCache bool   `name:"no-cache" help:"Do not use cache when building images"`
 		Verbose bool   `short:"v" help:"Enable verbose output"`
@@ -170,7 +170,7 @@ func CommandName(args []string) string {
 func runNoArgs(out io.Writer) int {
 	ui := legacyUI(out)
 	ui.Info("Usage:")
-	ui.Info("  esb build --template <path> --env <name> --mode <docker|containerd|firecracker> [flags]")
+	ui.Info("  esb build --template <path> --env <name> --mode <docker|containerd> [flags]")
 	ui.Info("")
 	ui.Info("Try: esb build --help")
 	return 0
@@ -195,7 +195,7 @@ func handleParseError(args []string, err error, deps Dependencies, out io.Writer
 			ui.Info("Interactive: esb build")
 			return 1
 		case strings.Contains(msg, "--mode"):
-			ui.Warn("`-m/--mode` expects a value. Use docker/containerd/firecracker or omit the flag for interactive input.")
+			ui.Warn("`-m/--mode` expects a value. Use docker/containerd or omit the flag for interactive input.")
 			ui.Info("Example: esb build -m docker")
 			ui.Info("Interactive: esb build")
 			return 1

@@ -13,6 +13,7 @@ import (
 
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
 	"github.com/poruru/edge-serverless-box/cli/internal/helpers"
 	"github.com/poruru/edge-serverless-box/cli/internal/interaction"
 	"github.com/poruru/edge-serverless-box/cli/internal/ports"
@@ -59,7 +60,10 @@ func newBuildCommand(deps BuildDeps, repoResolver func(string) (string, error), 
 	if deps.Builder == nil {
 		return nil, fmt.Errorf("build: builder not configured")
 	}
-	envApplier := helpers.NewRuntimeEnvApplier(repoResolver)
+	envApplier, err := helpers.NewRuntimeEnvApplier(repoResolver)
+	if err != nil {
+		return nil, err
+	}
 	ui := ports.NewLegacyUI(out)
 	return &buildCommand{
 		builder:    deps.Builder,
@@ -69,6 +73,10 @@ func newBuildCommand(deps BuildDeps, repoResolver func(string) (string, error), 
 }
 
 func (c *buildCommand) Run(inputs buildInputs, flags BuildCmd) error {
+	tag, err := resolveBrandTag()
+	if err != nil {
+		return err
+	}
 	request := workflows.BuildRequest{
 		Context:      inputs.Context,
 		Env:          inputs.Env,
@@ -76,6 +84,7 @@ func (c *buildCommand) Run(inputs buildInputs, flags BuildCmd) error {
 		TemplatePath: inputs.TemplatePath,
 		OutputDir:    inputs.OutputDir,
 		Parameters:   inputs.Parameters,
+		Tag:          tag,
 		NoCache:      flags.NoCache,
 		Verbose:      flags.Verbose,
 	}
@@ -233,6 +242,19 @@ func resolveBuildTemplate(
 	}
 }
 
+func resolveBrandTag() (string, error) {
+	tagKey, err := envutil.HostEnvKey(constants.HostSuffixTag)
+	if err != nil {
+		return "", err
+	}
+	tag := strings.TrimSpace(os.Getenv(tagKey))
+	if tag == "" {
+		tag = "latest"
+		_ = os.Setenv(tagKey, tag)
+	}
+	return tag, nil
+}
+
 func discoverTemplateCandidates() []string {
 	candidates := []string{}
 	baseDir := resolvePromptBaseDir()
@@ -292,7 +314,7 @@ func resolveBuildMode(
 	}
 	for {
 		options := []string{defaultValue}
-		for _, opt := range []string{"docker", "containerd", "firecracker"} {
+		for _, opt := range []string{"docker", "containerd"} {
 			if opt == defaultValue {
 				continue
 			}
@@ -357,10 +379,10 @@ func resolveBuildOutput(
 
 func normalizeMode(mode string) (string, error) {
 	switch strings.ToLower(strings.TrimSpace(mode)) {
-	case "docker", "containerd", "firecracker":
+	case "docker", "containerd":
 		return strings.ToLower(strings.TrimSpace(mode)), nil
 	default:
-		return "", fmt.Errorf("invalid mode %q (expected docker, containerd, or firecracker)", mode)
+		return "", fmt.Errorf("invalid mode %q (expected docker or containerd)", mode)
 	}
 }
 

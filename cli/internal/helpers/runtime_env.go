@@ -13,13 +13,13 @@ type runtimeEnvApplier struct {
 	resolver func(string) (string, error)
 }
 
-func NewRuntimeEnvApplier(resolver func(string) (string, error)) ports.RuntimeEnvApplier {
+func NewRuntimeEnvApplier(resolver func(string) (string, error)) (ports.RuntimeEnvApplier, error) {
 	if resolver == nil {
 		resolver = config.ResolveRepoRoot
 	}
-	return runtimeEnvApplier{resolver: resolver}
+	return runtimeEnvApplier{resolver: resolver}, nil
 }
 
-func (r runtimeEnvApplier) Apply(ctx state.Context) {
-	applyRuntimeEnv(ctx, r.resolver)
+func (r runtimeEnvApplier) Apply(ctx state.Context) error {
+	return applyRuntimeEnv(ctx, r.resolver)
 }

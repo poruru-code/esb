@@ -70,20 +70,26 @@ def calculate_runtime_env(
     env[f"{ENV_PREFIX}_ENV"] = env_name
     env[f"{ENV_PREFIX}_MODE"] = mode
 
-    # Normalize mode for tag lookup
-    norm_mode = mode.lower() if mode else "docker"
-    if norm_mode in ("docker", "containerd", "firecracker"):
-        tag = norm_mode
-    else:
-        tag = env_name if env_name else "latest"
-
-    env[constants.ENV_IMAGE_TAG] = tag
-    env[f"{ENV_PREFIX}_IMAGE_TAG"] = tag
     env[constants.ENV_PROJECT_NAME] = project_name
 
-    # Image Prefix
-    if constants.ENV_IMAGE_PREFIX not in env:
-        env[constants.ENV_IMAGE_PREFIX] = BRAND_SLUG
+    # Normalize mode for registry checks
+    norm_mode = mode.lower() if mode else "docker"
+
+    # Brand-scoped tag/registry
+    tag_key = env_key(constants.ENV_TAG)
+    registry_key = env_key(constants.ENV_REGISTRY)
+
+    tag = env.get(tag_key, "").strip()
+    if not tag:
+        tag = "latest"
+        env[tag_key] = tag
+
+    registry = env.get(registry_key, "").strip()
+    if norm_mode == "containerd" and not registry:
+        registry = f"{constants.DEFAULT_AGENT_REGISTRY}/"
+        env[registry_key] = registry
+    if registry and not registry.endswith("/"):
+        env[registry_key] = registry + "/"
 
     # If using local dev, point to the Go CLI source root for template resolution
     # (matching logic in cli/internal/config/config.go)
@@ -123,10 +129,7 @@ def calculate_runtime_env(
         env[constants.ENV_LAMBDA_NETWORK] = f"esb_int_{env_name}"
 
     # 4. Registry Defaults
-    if not env.get(constants.ENV_CONTAINER_REGISTRY) and norm_mode in (
-        "containerd",
-        "firecracker",
-    ):
+    if not env.get(constants.ENV_CONTAINER_REGISTRY) and norm_mode == "containerd":
         env[constants.ENV_CONTAINER_REGISTRY] = constants.DEFAULT_AGENT_REGISTRY
 
     # 5. Credentials (Simplified generation for E2E)
@@ -373,10 +376,3 @@ def apply_gateway_env_from_container(env: dict[str, str], project_name: str) -> 
         )
         env[constants.ENV_AGENT_GRPC_TLS_CERT_PATH] = str(cert_dir / "client.crt")
         env[constants.ENV_AGENT_GRPC_TLS_KEY_PATH] = str(cert_dir / "client.key")
-
-
-def ensure_firecracker_node_up() -> None:
-    """Fail fast if compute services are not running in firecracker mode."""
-    if os.environ.get(env_key("MODE")) != "firecracker":
-        return
-    print("[WARN] firecracker node check is not implemented for Go CLI")
