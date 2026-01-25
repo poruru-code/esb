@@ -446,6 +446,7 @@ export <BRAND>_TAG=vX.Y.Z
 esb build --template template.yaml --env prod --mode docker
 docker compose -f docker-compose.docker.yml --env-file .env.prod up -d
 ```
+※ runtime 系のタグは `<BRAND>_TAG` に `-docker` を付与したものを使用する。
 
 #### 8.2.3 本番起動（containerd / firecracker）
 ```bash
@@ -455,10 +456,11 @@ esb build --template template.yaml --env prod --mode containerd
 CONTAINERD_RUNTIME=aws.firecracker docker compose -f docker-compose.containerd.yml --env-file .env.prod up -d
 ```
 ※ containerd 系は `<BRAND>_REGISTRY` が必須。
+※ runtime 系のタグは `<BRAND>_TAG` に `-containerd` を付与したものを使用する。
 
 #### 8.2.4 トレーサビリティ確認
 ```bash
-image="<brand>-gateway-docker:vX.Y.Z"
+image="<brand>-gateway:vX.Y.Z-docker"
 cid=$(docker create "$image")
 docker cp "$cid:/app/version.json" ./version.json
 docker rm "$cid"
@@ -505,13 +507,13 @@ docker build \
   --build-context git_common="$(resolve "$commondir")" \
   --build-context trace_tools="$root/tools/traceability" \
   -f ./Dockerfile.lambda \
-  -t "<BRAND>-fn:dev" \
+  -t "<brand>-fn:dev" \
   .
 ```
 
 ### 8.6 メタデータ取得（ローカル）
 ```bash
-image_name="<BRAND>-gateway-docker:latest"
+image_name="<brand>-gateway:latest-docker"
 container_id=$(docker create "${image_name}")
 docker cp "${container_id}:/app/version.json" ./version.json
 docker rm "${container_id}"

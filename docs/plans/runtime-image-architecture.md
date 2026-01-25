@@ -37,7 +37,8 @@ Why: 実装者がこの1文書だけで作業できる設計仕様を提供す�
 
 ## 5. イメージ体系
 ### 5.1 命名規則
-- 形式: `<registry>/<brand>-<component>-<runtime>`
+- 形式（runtime 系）: `<registry>/<brand>-<component>:<tag>-<runtime>`
+- 形式（shared 系）: `<registry>/<brand>-<component>:<tag>`
 - runtime: `docker`, `containerd`（containerd と firecracker を包含する系統名として使用）
 - component: `agent`, `gateway`, `runtime-node`, `provisioner`
 
@@ -48,9 +49,11 @@ Why: 実装者がこの1文書だけで作業できる設計仕様を提供す�
 - provisioner: docker / containerd
 
 ### 5.3 例
-- `registry.example.com/<brand>-agent-containerd`
-- `registry.example.com/<brand>-gateway-containerd`
-- `registry.example.com/<brand>-runtime-node-containerd`
+- `registry.example.com/<brand>-agent:vX.Y.Z-docker`
+- `registry.example.com/<brand>-agent:vX.Y.Z-containerd`
+- `registry.example.com/<brand>-gateway:vX.Y.Z-containerd`
+- `registry.example.com/<brand>-runtime-node:vX.Y.Z-containerd`
+- `registry.example.com/<brand>-os-base:vX.Y.Z`
 
 ## 6. タグ戦略
 ### 6.1 許可タグ
@@ -66,6 +69,8 @@ Why: 実装者がこの1文書だけで作業できる設計仕様を提供す�
 - 全ランタイムで同一バージョンを同時公開する。
 - `latest` は開発用途限定とし、本番利用を禁止する。
 - `<BRAND>_TAG` を唯一のタグ入力とし、未設定時は `latest` とする。
+- runtime 系は `<BRAND>_TAG` に `-docker` / `-containerd` を付与して使用する。
+- shared 系（base / function）は `<BRAND>_TAG` をそのまま使用する。
 
 ### 6.3 TAG 方針（必須）
 - `<BRAND>_TAG` は既定で `latest`。
@@ -90,12 +95,12 @@ Why: 実装者がこの1文書だけで作業できる設計仕様を提供す�
 
 ## 8. コンポーネント要件
 ### 8.1 agent
-#### agent-docker
+#### agent (docker tag)
 - CNI プラグインや containerd ツールを同梱しない。
 - CNI 設定生成を行わない。
 - ランタイムガード: `IMAGE_RUNTIME=docker`。
 
-#### agent-containerd
+#### agent (containerd tag)
 - CNI プラグイン（bridge/host-local/loopback/portmap）を同梱する。
 - `iptables`, `iproute2` を必須とする。
 - WireGuard は同梱してよい（containerd / firecracker 両方で利用可能な前提）。
@@ -103,18 +108,18 @@ Why: 実装者がこの1文書だけで作業できる設計仕様を提供す�
 - `CONTAINERD_RUNTIME=aws.firecracker` は起動時設定で切替（デフォルトは containerd）。
 
 ### 8.2 gateway
-#### gateway-docker
+#### gateway (docker tag)
 - WireGuard ツールを同梱しない。
 - ランタイムガード: `IMAGE_RUNTIME=docker`。
 
-#### gateway-containerd
+#### gateway (containerd tag)
 - WireGuard ツール（`wireguard-tools`, `wireguard-go`）を同梱する。
 - ルート適用ヘルパーを含む。
 - WireGuard は明示的に有効化された場合のみ起動すること。
 - ランタイムガード: `IMAGE_RUNTIME=containerd`。
 
 ### 8.3 runtime-node
-#### runtime-node-containerd
+#### runtime-node (containerd tag)
 - containerd + CNI を必須とする。
 - WireGuard を同梱し、必要時のみ起動する。
 - ランタイムガード: `IMAGE_RUNTIME=containerd`。
@@ -219,16 +224,16 @@ services/agent/Dockerfile.containerd
 - `<BRAND>_TAG`
 
 ### 12.2 Compose 記述例
-- Docker モード例: `image: ${<BRAND>_REGISTRY:-}<brand>-agent-docker:${<BRAND>_TAG:-latest}`
-- containerd モード例: `image: ${<BRAND>_REGISTRY:?required}<brand>-agent-containerd:${<BRAND>_TAG:-latest}`
+- Docker モード例: `image: ${<BRAND>_REGISTRY:-}<brand>-agent:${<BRAND>_TAG:-latest}-docker`
+- containerd モード例: `image: ${<BRAND>_REGISTRY:?required}<brand>-agent:${<BRAND>_TAG:-latest}-containerd`
 - `<BRAND>_TAG` は未設定時 `latest` を使用する。
 - 本番は `latest` を禁止し、固定タグのみを使用する。
 - `<BRAND>_REGISTRY` は末尾 `/` を含む前提とする（Compose は自動正規化しない）。
 - containerd compose は `CONTAINER_REGISTRY=${<BRAND>_REGISTRY}` を内部注入する。
 
 ### 12.3 CLI マッピング
-- docker -> `<brand>-<component>-docker`
-- containerd / firecracker -> `<brand>-<component>-containerd`
+- docker -> `<brand>-<component>:<tag>-docker`
+- containerd / firecracker -> `<brand>-<component>:<tag>-containerd`
 
 ### 12.4 環境変数の最小化と分類
 #### 外部指定（運用者/CI が必要時のみ設定）
@@ -266,10 +271,10 @@ services/agent/Dockerfile.containerd
   - SBOM（任意）
 
 ## 14. 構造テスト（必須）
-- agent-docker: CNI が存在しないこと
-- agent-containerd: CNI が存在すること
-- gateway-containerd: WireGuard バイナリが存在すること
-- runtime-node-containerd: WireGuard バイナリが存在すること
+- agent (docker tag): CNI が存在しないこと
+- agent (containerd tag): CNI が存在すること
+- gateway (containerd tag): WireGuard バイナリが存在すること
+- runtime-node (containerd tag): WireGuard バイナリが存在すること
 
 ## 15. 切替方針（後方互換なし）
 - 旧イメージ名・旧タグはすべて廃止。
@@ -307,7 +312,7 @@ services/agent/Dockerfile.containerd
 - branding 生成が失敗した場合の停止条件が合意されている。
 
 ### 18.2 Phase 1: 画像命名・タグの統一
-- 画像名を `<brand>-<component>-{docker|containerd}` に統一。
+- 画像名を `<brand>-<component>` に統一し、runtime はタグ末尾で区別する。
 - `latest` は開発用途のみ許容、運用は `vX.Y.Z` のみ。
 受け入れ条件:
 - 画像名の命名規則が実装全体で一致している。
@@ -428,7 +433,7 @@ services/agent/Dockerfile.containerd
 
 #### 19.2.7 既存関数の置換位置（明示仕様）
 - `cli/internal/generator/go_builder_helpers.go` の以下を置換:  
-  - `resolveImageTag` を削除（タグは `BuildRequest.Tag` を使用）。  
+  - `resolveImageTag` を削除（base / function は `BuildRequest.Tag`、runtime は compose で suffix 付与）。  
   - `resolveRegistryConfig(mode string)` → `resolveRegistryConfig(mode string) (registryConfig, error)`  
   - registry の自動生成は廃止（`<BRAND>_REGISTRY` のみ）。  
 - `cli/internal/generator/go_builder.go` の `resolveImageTag(request.Env)` 呼び出しを削除し、  
@@ -456,7 +461,8 @@ imageTag := resolveImageTag(request.Env)
 ```
 registry, err := resolveRegistryConfig(request.Mode)
 if err != nil { return err }
-imageTag := request.Tag
+baseTag := request.Tag
+// runtime 系のタグは compose の image 設定で baseTag + "-docker"/"-containerd" を使用
 ```
 
 ### 19.3 関数イメージの埋め込み生成
@@ -482,20 +488,21 @@ imageTag := request.Tag
 - 各 `docker-compose.*.yml`
 
 設計:
-- サービスイメージ名は `<brand>-<component>-{docker|containerd}` に固定。
+- サービスイメージ名は `<brand>-<component>` に固定し、runtime はタグ末尾で区別する。
 - Compose は `<BRAND>_REGISTRY` / `<BRAND>_TAG` だけ参照する。
+- runtime 系のタグは `<BRAND>_TAG` に `-docker` / `-containerd` を付与する。
 - containerd 系では `<BRAND>_REGISTRY` が必須で、未設定なら失敗させる。
-- 実際のタグは `BuildRequest.Tag` を使用する。
+- shared 系（base / function）は `BuildRequest.Tag` をそのまま使用する。
 - `IMAGE_TAG` / `FUNCTION_IMAGE_PREFIX` / `IMAGE_PREFIX` は Compose から削除する。
 
 #### 19.4.1 Build Args 注入ルール
 - `buildDockerImage` に渡す build args は以下に固定する:  
   - `IMAGE_RUNTIME`, `COMPONENT`  
 - `IMAGE_RUNTIME` / `COMPONENT` は **サービスごとに固定値**を渡す。  
-  - 例: agent-containerd -> `IMAGE_RUNTIME=containerd`, `COMPONENT=agent`  
+  - 例: agent (containerd tag) -> `IMAGE_RUNTIME=containerd`, `COMPONENT=agent`  
 - base 系: `IMAGE_RUNTIME=shared`, `COMPONENT=base`  
 - function 系: `IMAGE_RUNTIME=shared`, `COMPONENT=function`  
-- 画像のタグは `BuildRequest.Tag` を使用する。  
+- shared 系のタグは `BuildRequest.Tag`、runtime 系のタグは `BuildRequest.Tag` に suffix を付与して使用する。  
 - すべてのビルド対象イメージに同一のラベルセットを付与する。  
 
 #### 19.4.2 buildDockerImage の引数順序（固定）
@@ -506,7 +513,7 @@ imageTag := request.Tag
 
 #### 19.4.3 buildDockerImage の呼び出し例（擬似）
 ```
-imageTag := request.Tag
+runtimeTag := fmt.Sprintf("%s-%s", request.Tag, request.Mode)
 args := []string{
   "--build-arg", "IMAGE_RUNTIME=containerd",
   "--build-arg", "COMPONENT=agent",
@@ -972,7 +979,8 @@ type BuildRequest struct {
 ```
 registry, err := resolveRegistryConfig(request.Mode)
 if err != nil { return err }
-imageTag := request.Tag
+baseTag := request.Tag
+// runtime 系のタグは compose の image 設定で baseTag + "-docker"/"-containerd" を使用
 ```
 
 #### 19.18.8 `cli/internal/generator/go_builder_helpers.go`
@@ -1003,7 +1011,7 @@ exec /entrypoint.containerd.sh
 #### 19.18.11 `docker-compose.*.yml`
 変更後（概略）:
 ```
-image: ${<BRAND>_REGISTRY:?required}<brand>-agent-containerd:${<BRAND>_TAG:-latest}
+image: ${<BRAND>_REGISTRY:?required}<brand>-agent:${<BRAND>_TAG:-latest}-containerd
 ```
 
 #### 19.18.12 `e2e/runner/env.py`
@@ -1048,7 +1056,7 @@ image: ${<BRAND>_REGISTRY:?required}<brand>-agent-containerd:${<BRAND>_TAG:-late
   - `<BRAND>_TAG` は未設定時 `latest` を使用する。
   - `IMAGE_TAG` / `IMAGE_PREFIX` / `FUNCTION_IMAGE_PREFIX` 前提を撤去する。
 - 画像名の期待値:
-  - `<brand>-<component>-{docker|containerd}` を前提に期待値を更新する。
+  - `<brand>-<component>:<tag>-{docker|containerd}` を前提に期待値を更新する。
 - compose / 起動プロファイル:
   - docker / containerd の2系統で E2E シナリオを整理する。
   - firecracker は containerd 系統の runtime 切替で検証する。
@@ -1059,7 +1067,7 @@ image: ${<BRAND>_REGISTRY:?required}<brand>-agent-containerd:${<BRAND>_TAG:-late
 1) E2E で使用している環境変数を棚卸しする。
 2) 外部入力を `<BRAND>_REGISTRY` / `<BRAND>_TAG` のみに揃える。
 3) `<BRAND>_TAG` のデフォルト（`latest`）と不変タグ運用を明確化する。  
-4) 画像名の期待値を `<brand>-<component>-{docker|containerd}` に置換する。
+4) 画像名の期待値を `<brand>-<component>:<tag>-{docker|containerd}` に置換する。
 5) containerd 系統のケースで `CONTAINERD_RUNTIME=aws.firecracker` を付与し、firecracker 相当のケースを再現する。
 6) 旧 `IMAGE_TAG` 前提が残る場合はすべて廃止する。
 
@@ -1138,16 +1146,16 @@ image: ${<BRAND>_REGISTRY:?required}<brand>-agent-containerd:${<BRAND>_TAG:-late
 - `COMPONENT` が期待値と不一致の場合に各 entrypoint が即終了する。  
 
 ### 21.3 構造テスト（イメージ依存）
-- agent-docker に CNI が存在しないこと。  
-- agent-containerd に CNI が存在すること。  
-- gateway-containerd に WireGuard バイナリが存在すること。  
-- runtime-node-containerd に WireGuard バイナリが存在すること。  
+- agent (docker tag) に CNI が存在しないこと。  
+- agent (containerd tag) に CNI が存在すること。  
+- gateway (containerd tag) に WireGuard バイナリが存在すること。  
+- runtime-node (containerd tag) に WireGuard バイナリが存在すること。  
 
 ### 21.4 生成物チェック
 - `functions.yml` の `image` が **完全な文字列**で埋め込まれている。  
 - `functions.yml` 内に `${IMAGE_TAG}` / `${IMAGE_PREFIX}` が残っていない。  
 - Compose から `IMAGE_TAG` / `FUNCTION_IMAGE_PREFIX` / `IMAGE_PREFIX` が削除されている。  
-- `functions.yml` とサービスイメージが同じ `<BRAND>_TAG` を参照している。  
+- `functions.yml` は `<BRAND>_TAG` をそのまま使用し、サービスイメージは `<BRAND>_TAG` に runtime suffix を付与している。  
 - containerd 系で `<BRAND>_REGISTRY` 未設定の起動経路が存在しない。  
 
 ### 21.5 ブランド反映チェック

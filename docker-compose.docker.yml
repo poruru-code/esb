@@ -141,7 +141,7 @@ services:
   # ============================================
   provisioner:
     env_file: config/defaults.env
-    image: ${ESB_REGISTRY:-}esb-provisioner-docker:${ESB_TAG:-latest}
+    image: ${ESB_REGISTRY:-}esb-provisioner:${ESB_TAG:-latest}-docker
     build:
       context: .
       dockerfile: services/provisioner/Dockerfile.docker
@@ -179,7 +179,7 @@ services:
   # ============================================
   gateway:
     env_file: config/defaults.env
-    image: ${ESB_REGISTRY:-}esb-gateway-docker:${ESB_TAG:-latest}
+    image: ${ESB_REGISTRY:-}esb-gateway:${ESB_TAG:-latest}-docker
     build:
       context: .
       dockerfile: services/gateway/Dockerfile.docker
@@ -268,7 +268,7 @@ services:
   # ============================================
   agent:
     env_file: config/defaults.env
-    image: ${ESB_REGISTRY:-}esb-agent-docker:${ESB_TAG:-latest}
+    image: ${ESB_REGISTRY:-}esb-agent:${ESB_TAG:-latest}-docker
     build:
       context: services/agent
       dockerfile: Dockerfile.docker
