@@ -49,7 +49,7 @@ async def test_invoke_function_backend_failure_isolation():
 
     config.LAMBDA_PORT = 8080
 
-    registry.get_function_config.return_value = {}
+    registry.get_function_config.return_value = FunctionEntity(name="test-fn")
     backend.acquire_worker.side_effect = Exception("Provisioning failed")
 
     invoker = LambdaInvoker(client, registry, config, backend)
