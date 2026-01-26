@@ -22,15 +22,10 @@ print_version_json() {
   fi
 }
 
-require_env "COMPONENT"
 require_env "IMAGE_RUNTIME"
 
-if [ "$COMPONENT" != "gateway" ]; then
-  echo "ERROR: COMPONENT must be gateway (got ${COMPONENT})" >&2
-  exit 1
-fi
-
 case "$IMAGE_RUNTIME" in
+
   docker|containerd)
     ;;
   *)

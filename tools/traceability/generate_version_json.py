@@ -15,14 +15,8 @@ import sys
 from typing import Iterable
 from urllib.parse import urlsplit, urlunsplit
 
-ALLOWED_COMPONENTS = {
-    "gateway",
-    "agent",
-    "runtime-node",
-    "provisioner",
-    "base",
-    "function",
-}
+ALLOWED_COMPONENTS = set()  # Deprecated
+
 ALLOWED_IMAGE_RUNTIMES = {"docker", "containerd", "shared"}
 
 
@@ -79,7 +73,6 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate version.json for build traceability")
     parser.add_argument("--git-dir", required=True)
     parser.add_argument("--git-common-dir", required=True)
-    parser.add_argument("--component", required=True)
     parser.add_argument("--image-runtime", required=True)
     parser.add_argument("--output", required=True)
     return parser.parse_args(argv)
@@ -87,10 +80,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
-    component = args.component.strip()
     image_runtime = args.image_runtime.strip()
-    if component not in ALLOWED_COMPONENTS:
-        raise RuntimeError(f"invalid component: {component}")
     if image_runtime not in ALLOWED_IMAGE_RUNTIMES:
         raise RuntimeError(f"invalid image_runtime: {image_runtime}")
 
@@ -120,7 +110,6 @@ def main(argv: list[str]) -> int:
         "build_date": build_date_rfc3339(),
         "repo_url": repo_url,
         "source": "git",
-        "component": component,
         "image_runtime": image_runtime,
     }
 

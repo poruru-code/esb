@@ -65,7 +65,6 @@ Why: provenance 未使用の前提で、ビルド由来メタデータを成果�
   "build_date": "2026-01-25T04:12:55Z",
   "repo_url": "git@github.com:org/repo.git",
   "source": "git",
-  "component": "gateway",
   "image_runtime": "docker"
 }
 ```
@@ -87,13 +86,10 @@ Why: provenance 未使用の前提で、ビルド由来メタデータを成果�
   - 無い場合は空文字。
 - `source`:
   - 固定で `git`。
-- `component`:
-  - runtime 系: `gateway` / `agent` / `runtime-node` / `provisioner`
-  - base 系: `base`（os-base / python-base / lambda-base）
-  - function 系: `function`
 - `image_runtime`:
   - runtime 系: `docker` / `containerd`
   - base / function 系: `shared`
+
 
 ## 6. ビルド処理詳細
 ### 6.1 共通アルゴリズム
@@ -110,9 +106,9 @@ Why: provenance 未使用の前提で、ビルド由来メタデータを成果�
 - 入力（必須）:
   - `--git-dir` / `--git-common-dir`
 - `--component` / `--image-runtime`
-  - `component`: `gateway|agent|runtime-node|provisioner|base|function`
   - `image_runtime`: `docker|containerd|shared`
   - `--output`
+
 - 出力:
   - `--output` で指定した JSON ファイル（UTF-8, `ensure_ascii=True`）
 - 挙動:
@@ -136,10 +132,8 @@ Why: provenance 未使用の前提で、ビルド由来メタデータを成果�
 
 ```Dockerfile
 # syntax=docker/dockerfile:1.7
-ARG COMPONENT
 ARG IMAGE_RUNTIME
 FROM alpine:3.20 AS build-meta
-ARG COMPONENT
 ARG IMAGE_RUNTIME
 RUN apk add --no-cache git ca-certificates python3
 WORKDIR /work
@@ -150,15 +144,14 @@ RUN --mount=type=bind,from=trace_tools,source=.,target=/trace_tools \
       --output /out/version.json \
       --git-dir /gitdir \
       --git-common-dir /gitcommon \
-      --component "${COMPONENT}" \
       --image-runtime "${IMAGE_RUNTIME}"
 ```
 
-`ARG COMPONENT/IMAGE_RUNTIME` は build-meta ステージで使用するため、`FROM` より前に宣言する。
+`ARG IMAGE_RUNTIME` は build-meta ステージで使用するため、`FROM` より前に宣言する。
 値の方針:
-- runtime 系: `COMPONENT=<component>` / `IMAGE_RUNTIME=docker|containerd`
-- base 系: `COMPONENT=base` / `IMAGE_RUNTIME=shared`
-- function 系: `COMPONENT=function` / `IMAGE_RUNTIME=shared`
+- runtime 系: `IMAGE_RUNTIME=docker|containerd`
+- base 系: `IMAGE_RUNTIME=shared`
+- function 系: `IMAGE_RUNTIME=shared`
 
 ### 6.3 最終ステージへのコピー
 最終ステージに以下を追加する。
@@ -168,10 +161,9 @@ COPY --from=build-meta /out/version.json /app/version.json
 ```
 
 ### 6.4 既存ビルドメタの整理
-- Dockerfile 内の `ARG ESB_VERSION/GIT_SHA/BUILD_DATE` と必須チェックは廃止する。
-- ランタイム `ENV ESB_VERSION/GIT_SHA/BUILD_DATE` は不要。
-- `IMAGE_RUNTIME` / `COMPONENT` は **全イメージで `ARG` 必須**とする（`version.json` 生成のため）。
-- runtime 系のみ `IMAGE_RUNTIME` / `COMPONENT` を `ENV` に焼き込む（entrypoint が参照）。
+- Dockerfile 内の `ARG IMAGE_RUNTIME` と必須チェックは廃止する（必要に応じて適宜）。
+- `IMAGE_RUNTIME` は **全イメージで `ARG` 必須**とする（`version.json` 生成のため）。
+- runtime 系のみ `IMAGE_RUNTIME` を `ENV` に焼き込む（entrypoint が参照）。
 - base / function 系は `ENV` に焼き込まない（不要な環境変数を増やさない）。
 
 ## 7. Compose 設定
@@ -244,9 +236,9 @@ func buildDockerImage(
 - `trace_tools` の実体は `filepath.Join(repoRoot, "tools", "traceability")` とし、
   `generate_version_json.py` の存在を確認してからビルドに渡す。
 - build args の値:
-  - runtime 系: `COMPONENT=<component>` / `IMAGE_RUNTIME=docker|containerd`
-  - base 系: `COMPONENT=base` / `IMAGE_RUNTIME=shared`
-  - function 系: `COMPONENT=function` / `IMAGE_RUNTIME=shared`
+  - runtime 系: `IMAGE_RUNTIME=docker|containerd`
+  - base 系: `IMAGE_RUNTIME=shared`
+  - function 系: `IMAGE_RUNTIME=shared`
 
 #### 7.2.2 gitdir/commondir 解決ロジック
 新規ヘルパーを追加し、`compose.ExecRunner`（内部で `exec.Command` を使用）で解決する。

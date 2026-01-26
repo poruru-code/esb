@@ -22,14 +22,9 @@ print_version_json() {
   fi
 }
 
-require_env "COMPONENT"
 require_env "IMAGE_RUNTIME"
 require_env "AGENT_RUNTIME"
 
-if [ "$COMPONENT" != "agent" ]; then
-  echo "ERROR: COMPONENT must be agent (got ${COMPONENT})" >&2
-  exit 1
-fi
 
 case "$IMAGE_RUNTIME" in
   docker|containerd)

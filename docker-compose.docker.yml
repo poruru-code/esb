@@ -19,8 +19,8 @@ services:
         ROOT_CA_MOUNT_ID: root_ca
         ROOT_CA_CERT_FILENAME: ${ROOT_CA_CERT_FILENAME:-rootCA.crt}
         ROOT_CA_FINGERPRINT: ${ROOT_CA_FINGERPRINT:-}
-        COMPONENT: base
         IMAGE_RUNTIME: shared
+
       secrets:
         - root_ca
 
@@ -153,7 +153,7 @@ services:
       args:
         PYTHON_BASE_IMAGE: esb-python-base:latest
         IMAGE_RUNTIME: docker
-        COMPONENT: provisioner
+
     container_name: ${PROJECT_NAME:-esb-${ENV:-default}}-provisioner
     depends_on:
       database:
@@ -194,7 +194,7 @@ services:
         SERVICE_UID: ${RUN_UID:-1000}
         SERVICE_GID: ${RUN_GID:-1000}
         IMAGE_RUNTIME: docker
-        COMPONENT: gateway
+
     container_name: ${PROJECT_NAME:-esb-${ENV:-default}}-gateway
     ports:
       - "${PORT_GATEWAY_HTTPS:-443}:8443"
@@ -280,7 +280,7 @@ services:
       args:
         OS_BASE_IMAGE: esb-os-base:latest
         IMAGE_RUNTIME: docker
-        COMPONENT: agent
+
     container_name: ${PROJECT_NAME:-esb-${ENV:-default}}-agent
     cap_add: [NET_ADMIN, SYS_ADMIN]
     environment:

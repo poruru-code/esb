@@ -3,13 +3,13 @@
 # What: Python 3.12 base image for Python services.
 # Why: Keep Debian 12 + CA trust while minimizing extra packages.
 
-ARG COMPONENT=base
 ARG IMAGE_RUNTIME=shared
+
 
 FROM alpine:3.20 AS build-meta
 
-ARG COMPONENT
 ARG IMAGE_RUNTIME
+
 
 RUN apk add --no-cache git ca-certificates python3
 
@@ -22,7 +22,6 @@ RUN --mount=type=bind,from=trace_tools,source=.,target=/trace_tools \
       --output /out/version.json \
       --git-dir /gitdir \
       --git-common-dir /gitcommon \
-      --component "${COMPONENT}" \
       --image-runtime "${IMAGE_RUNTIME}"
 
 FROM python:3.12-slim-bookworm@sha256:4a3ceab05b4e396df42a042415e43a286bb5793352b9258f889d6c7d38ed01fb

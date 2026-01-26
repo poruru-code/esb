@@ -3,9 +3,9 @@
 # What: Runtime node image for containerd with Firecracker support.
 # Why: Use a single containerd-family image and switch via CONTAINERD_RUNTIME.
 
-ARG COMPONENT
 ARG IMAGE_RUNTIME
 ARG OS_BASE_IMAGE
+
 ARG GO_VERSION=1.25.1
 ARG DEBIAN_VERSION=bookworm
 ARG GOLANG_DIGEST=sha256:c423747fbd96fd8f0b1102d947f51f9b266060217478e5f9bf86f145969562ee
@@ -19,8 +19,8 @@ ARG FIRECRACKER_VERSION=1.14.0
 # -----------------------------------------------------------------------------
 FROM alpine:3.20 AS build-meta
 
-ARG COMPONENT
 ARG IMAGE_RUNTIME
+
 
 RUN apk add --no-cache git ca-certificates python3
 
@@ -33,7 +33,6 @@ RUN --mount=type=bind,from=trace_tools,source=.,target=/trace_tools \
     --output /out/version.json \
     --git-dir /gitdir \
     --git-common-dir /gitcommon \
-    --component "${COMPONENT}" \
     --image-runtime "${IMAGE_RUNTIME}"
 
 # -----------------------------------------------------------------------------
@@ -103,14 +102,12 @@ RUN set -eu; \
 FROM ${OS_BASE_IMAGE}
 
 ARG IMAGE_RUNTIME
-ARG COMPONENT
 
 RUN set -eu; \
-    if [ -z "$IMAGE_RUNTIME" ]; then echo "ERROR: IMAGE_RUNTIME is required" >&2; exit 1; fi; \
-    if [ -z "$COMPONENT" ]; then echo "ERROR: COMPONENT is required" >&2; exit 1; fi
+    if [ -z "$IMAGE_RUNTIME" ]; then echo "ERROR: IMAGE_RUNTIME is required" >&2; exit 1; fi
 
 ENV IMAGE_RUNTIME="${IMAGE_RUNTIME}"
-ENV COMPONENT="${COMPONENT}"
+
 
 COPY --from=build-meta /out/version.json /app/version.json
 

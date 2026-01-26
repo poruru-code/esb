@@ -3,15 +3,14 @@
 # What: Agent image for containerd runtime with CNI tooling.
 # Why: Provide containerd + CNI dependencies explicitly for runtime parity.
 
-ARG COMPONENT
 ARG IMAGE_RUNTIME
 ARG OS_BASE_IMAGE
 
 # Metadata Stage - Generate version.json from git context.
 FROM alpine:3.20 AS build-meta
 
-ARG COMPONENT
 ARG IMAGE_RUNTIME
+
 
 RUN apk add --no-cache git ca-certificates python3
 
@@ -24,7 +23,6 @@ RUN --mount=type=bind,from=trace_tools,source=.,target=/trace_tools \
       --output /out/version.json \
       --git-dir /gitdir \
       --git-common-dir /gitcommon \
-      --component "${COMPONENT}" \
       --image-runtime "${IMAGE_RUNTIME}"
 
 # Builder Stage
@@ -53,14 +51,13 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o /app/agent ./cmd/agent
 FROM ${OS_BASE_IMAGE} AS runtime
 
 ARG IMAGE_RUNTIME
-ARG COMPONENT
+ARG IMAGE_RUNTIME
 
 RUN set -eu; \
-    if [ -z "$IMAGE_RUNTIME" ]; then echo "ERROR: IMAGE_RUNTIME is required" >&2; exit 1; fi; \
-    if [ -z "$COMPONENT" ]; then echo "ERROR: COMPONENT is required" >&2; exit 1; fi
+    if [ -z "$IMAGE_RUNTIME" ]; then echo "ERROR: IMAGE_RUNTIME is required" >&2; exit 1; fi
 
 ENV IMAGE_RUNTIME="${IMAGE_RUNTIME}"
-ENV COMPONENT="${COMPONENT}"
+
 
 WORKDIR /app
 

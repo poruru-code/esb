@@ -3,9 +3,9 @@
 # What: Gateway image for containerd runtime with WireGuard tooling.
 # Why: Support WireGuard and registry proxy when required.
 
-ARG COMPONENT
 ARG IMAGE_RUNTIME
 ARG PYTHON_BASE_IMAGE
+
 ARG SERVICE_USER=esb
 ARG SERVICE_UID=1000
 ARG SERVICE_GID=1000
@@ -27,7 +27,6 @@ RUN --mount=type=bind,from=trace_tools,source=.,target=/trace_tools \
       --output /out/version.json \
       --git-dir /gitdir \
       --git-common-dir /gitcommon \
-      --component "${COMPONENT}" \
       --image-runtime "${IMAGE_RUNTIME}"
 
 # Builder Stage - Standardized via python base (Debian 12 + Python 3.12)
@@ -63,14 +62,12 @@ ARG SERVICE_USER
 ARG SERVICE_UID
 ARG SERVICE_GID
 ARG IMAGE_RUNTIME
-ARG COMPONENT
 
 RUN set -eu; \
-    if [ -z "$IMAGE_RUNTIME" ]; then echo "ERROR: IMAGE_RUNTIME is required" >&2; exit 1; fi; \
-    if [ -z "$COMPONENT" ]; then echo "ERROR: COMPONENT is required" >&2; exit 1; fi
+    if [ -z "$IMAGE_RUNTIME" ]; then echo "ERROR: IMAGE_RUNTIME is required" >&2; exit 1; fi
 
 ENV IMAGE_RUNTIME="${IMAGE_RUNTIME}"
-ENV COMPONENT="${COMPONENT}"
+
 
 WORKDIR /app
 

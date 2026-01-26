@@ -4,13 +4,13 @@
 # Source: template.yaml
 # FunctionName: lambda-hello
 
-ARG COMPONENT=function
 ARG IMAGE_RUNTIME=shared
+
 
 FROM alpine:3.20 AS build-meta
 
-ARG COMPONENT
 ARG IMAGE_RUNTIME
+
 
 RUN apk add --no-cache git ca-certificates python3
 
@@ -23,7 +23,6 @@ RUN --mount=type=bind,from=trace_tools,source=.,target=/trace_tools \
       --output /out/version.json \
       --git-dir /gitdir \
       --git-common-dir /gitcommon \
-      --component "${COMPONENT}" \
       --image-runtime "${IMAGE_RUNTIME}"
 
 FROM esb-lambda-base:latest
