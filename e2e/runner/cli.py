@@ -13,6 +13,16 @@ def parse_args():
     parser.add_argument("--unit", action="store_true", help="Run unit tests")
     parser.add_argument("--unit-only", action="store_true", help="Run unit tests only")
     parser.add_argument(
+        "--build-only",
+        action="store_true",
+        help="Run build phase only (internal use for phased execution)",
+    )
+    parser.add_argument(
+        "--test-only",
+        action="store_true",
+        help="Run test phase only (internal use for phased execution)",
+    )
+    parser.add_argument(
         "--test-target", type=str, help="Specific pytest target (e.g. e2e/test_trace.py)"
     )
     parser.add_argument(

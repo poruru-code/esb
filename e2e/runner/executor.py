@@ -337,8 +337,12 @@ def run_scenario(args, scenario):
     project_name = scenario.get("esb_project", BRAND_SLUG)
     do_reset = scenario.get("perform_reset", args.reset)
     do_build = scenario.get("perform_build", args.build)
-    build_only = scenario.get("build_only", False)
+    build_only = scenario.get("build_only", False) or args.build_only
+    test_only = scenario.get("test_only", False) or args.test_only
     env_vars_override = scenario.get("env_vars", {})
+
+    if build_only and test_only:
+        raise ValueError("build_only and test_only cannot both be true")
 
     # 0.1 Set ESB variables for resolution and safety
     # We set these in os.environ so the CLI doesn't prompt even if .env fails.
@@ -382,102 +386,111 @@ def run_scenario(args, scenario):
 
     did_up = False
     try:
-        # 2. Reset / Build
-        build_args = [
-            "--template",
-            str(template_path.absolute()),
-            "build",
-            "--env",
-            env_name,
-            "--mode",
-            mode,
-        ]
-        if do_reset:
-            print(f"➜ Resetting environment: {env_name}")
-            # 2.1 Robust cleanup using docker compose down
-            # matches the "down" logic from legacy esb up replacement
-            if compose_file_path.exists():
-                proj_key = f"{BRAND_SLUG}-{env_name}"
-                subprocess.run(
-                    [
-                        "docker",
-                        "compose",
-                        "--project-name",
-                        proj_key,
-                        "--file",
-                        str(compose_file_path),
-                        "down",
-                        "--volumes",
-                        "--remove-orphans",
-                    ],
-                    capture_output=True,
+        if not test_only:
+            # 2. Reset / Build
+            build_args = [
+                "--template",
+                str(template_path.absolute()),
+                "build",
+                "--env",
+                env_name,
+                "--mode",
+                mode,
+            ]
+            if do_reset:
+                print(f"➜ Resetting environment: {env_name}")
+                # 2.1 Robust cleanup using docker compose down
+                # matches the "down" logic from legacy esb up replacement
+                if compose_file_path.exists():
+                    proj_key = f"{BRAND_SLUG}-{env_name}"
+                    subprocess.run(
+                        [
+                            "docker",
+                            "compose",
+                            "--project-name",
+                            proj_key,
+                            "--file",
+                            str(compose_file_path),
+                            "down",
+                            "--volumes",
+                            "--remove-orphans",
+                        ],
+                        capture_output=True,
+                    )
+                # Fallback to manual cleanup just in case (e.g. if compose file invalid or project name mismatch previously)
+                thorough_cleanup(env_name)
+                isolate_external_network(f"{BRAND_SLUG}-{env_name}")
+
+                # 2.2 Clean artifact directory for this environment
+                env_state_dir = E2E_STATE_ROOT / env_name
+                if env_state_dir.exists():
+                    print(f"  • Cleaning artifact directory: {env_state_dir}")
+                    import shutil
+
+                    shutil.rmtree(env_state_dir)
+
+                # Re-generate configurations and build images via ESB build
+                # IMPORTANT: Pass runtime_env so (branding) is respected!
+                build_env = runtime_env.copy()
+                # Ensure build uses the same compose project as the runtime stack.
+                # Otherwise containerd images get pushed to the wrong registry.
+                build_env["PROJECT_NAME"] = f"{project_name}-{env_name}"
+
+                run_esb(
+                    build_args + ["--no-cache"],
+                    env_file=env_file,
+                    verbose=args.verbose,
+                    env=build_env,
                 )
-            # Fallback to manual cleanup just in case (e.g. if compose file invalid or project name mismatch previously)
-            thorough_cleanup(env_name)
-            isolate_external_network(f"{BRAND_SLUG}-{env_name}")
+                verify_registry_images(
+                    env_name,
+                    f"{project_name}-{env_name}",
+                    mode,
+                    compose_file_path,
+                )
 
-            # 2.2 Clean artifact directory for this environment
-            env_state_dir = E2E_STATE_ROOT / env_name
-            if env_state_dir.exists():
-                print(f"  • Cleaning artifact directory: {env_state_dir}")
-                import shutil
+                if build_only:
+                    return True
 
-                shutil.rmtree(env_state_dir)
-
-            # Re-generate configurations and build images via ESB build
-            # IMPORTANT: Pass runtime_env so (branding) is respected!
-            build_env = runtime_env.copy()
-            # Ensure build uses the same compose project as the runtime stack.
-            # Otherwise containerd images get pushed to the wrong registry.
-            build_env["PROJECT_NAME"] = f"{project_name}-{env_name}"
-
-            run_esb(
-                build_args + ["--no-cache"],
-                env_file=env_file,
-                verbose=args.verbose,
-                env=build_env,
-            )
-            verify_registry_images(
-                env_name,
-                f"{project_name}-{env_name}",
-                mode,
-                compose_file_path,
-            )
-
-            if build_only:
-                return True
-
-            # Manual orchestration will handle starting the services in Step 3
-            did_up = False
-        elif do_build:
-            if not args.verbose:
-                print(f"➜ Building environment: {env_name}... ", end="", flush=True)
+                # Manual orchestration will handle starting the services in Step 3
+                did_up = False
+            elif do_build:
+                if not args.verbose:
+                    print(f"➜ Building environment: {env_name}... ", end="", flush=True)
+                else:
+                    print(f"➜ Building environment: {env_name}")
+                run_esb(build_args + ["--no-cache"], env_file=env_file, verbose=args.verbose)
+                verify_registry_images(
+                    env_name,
+                    f"{project_name}-{env_name}",
+                    mode,
+                    compose_file_path,
+                )
+                if not args.verbose:
+                    print("Done")
             else:
-                print(f"➜ Building environment: {env_name}")
-            run_esb(build_args + ["--no-cache"], env_file=env_file, verbose=args.verbose)
-            verify_registry_images(
-                env_name,
-                f"{project_name}-{env_name}",
-                mode,
-                compose_file_path,
-            )
-            if not args.verbose:
-                print("Done")
+                if not args.verbose:
+                    print(f"➜ Preparing environment: {env_name}... ", end="", flush=True)
+                else:
+                    print(f"➜ Preparing environment: {env_name}")
+                # In Zero-Config, we just rebuild if needed. stop/sync are gone.
+                run_esb(build_args, env_file=env_file, verbose=args.verbose)
+                verify_registry_images(
+                    env_name,
+                    f"{project_name}-{env_name}",
+                    mode,
+                    compose_file_path,
+                )
+                if not args.verbose:
+                    print("Done")
         else:
-            if not args.verbose:
-                print(f"➜ Preparing environment: {env_name}... ", end="", flush=True)
-            else:
-                print(f"➜ Preparing environment: {env_name}")
-            # In Zero-Config, we just rebuild if needed. stop/sync are gone.
-            run_esb(build_args, env_file=env_file, verbose=args.verbose)
-            verify_registry_images(
-                env_name,
-                f"{project_name}-{env_name}",
-                mode,
-                compose_file_path,
-            )
-            if not args.verbose:
-                print("Done")
+            config_dir = E2E_STATE_ROOT / env_name / "config"
+            if not config_dir.exists():
+                raise FileNotFoundError(
+                    f"Missing build artifacts for {env_name}: {config_dir} (run build phase first)"
+                )
+            if args.verbose:
+                print(f"➜ Skipping build for {env_name} (test-only)")
 
         # If build_only, skip UP and tests
         if build_only:
@@ -754,6 +767,7 @@ def run_profiles_with_executor(
     fail_fast: bool,
     max_workers: int,
     verbose: bool = False,
+    test_only: bool = False,
 ) -> dict[str, tuple[bool, list[str]]]:
     """
     Run environments using a ProcessPoolExecutor.
@@ -780,10 +794,13 @@ def run_profiles_with_executor(
                 "--profile",
                 profile_name,
             ]
-            if reset:
-                cmd.append("--reset")
-            if build:
-                cmd.append("--build")
+            if test_only:
+                cmd.append("--test-only")
+            else:
+                if reset:
+                    cmd.append("--reset")
+                if build:
+                    cmd.append("--build")
             if cleanup:
                 cmd.append("--cleanup")
             if fail_fast:
@@ -826,6 +843,50 @@ def run_profiles_with_executor(
                 results[profile_name] = (False, [f"Environment {profile_name} (exception)"])
 
     return results
+
+
+def run_build_phase_serial(
+    env_scenarios: dict[str, dict[str, Any]],
+    reset: bool,
+    build: bool,
+    fail_fast: bool,
+    verbose: bool = False,
+) -> list[str]:
+    """Run build phase sequentially in isolated subprocesses."""
+    failed: list[str] = []
+    if not env_scenarios:
+        return failed
+
+    max_label_len = max(len(p) for p in env_scenarios.keys()) + 2
+    profiles = list(env_scenarios.keys())
+
+    for idx, profile_name in enumerate(profiles):
+        cmd = [
+            sys.executable,
+            "-u",
+            "-m",
+            "e2e.run_tests",
+            "--profile",
+            profile_name,
+            "--build-only",
+        ]
+        if reset:
+            cmd.append("--reset")
+        if build:
+            cmd.append("--build")
+        if verbose:
+            cmd.append("--verbose")
+
+        color_code = COLORS[idx % len(COLORS)]
+        returncode, _ = run_profile_subprocess(
+            profile_name, cmd, color_code, verbose, max_label_len
+        )
+        if returncode != 0:
+            failed.append(profile_name)
+            if fail_fast:
+                break
+
+    return failed
 
 
 def wait_for_gateway(
