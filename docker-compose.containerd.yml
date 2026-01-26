@@ -40,7 +40,6 @@ services:
       secrets:
         - root_ca
 
-
   # ============================================
   # Permission Helper (for RustFS)
   # ============================================
@@ -316,6 +315,7 @@ services:
         PYTHON_BASE_IMAGE: esb-python-base:latest
         SERVICE_USER: ${PROJECT_NAME:-esb-${ENV:-default}}
         SERVICE_UID: ${RUN_UID:-1000}
+        SERVICE_GID: ${RUN_GID:-1000}
 
     container_name: ${PROJECT_NAME:-esb-${ENV:-default}}-gateway
     network_mode: "service:runtime-node"
