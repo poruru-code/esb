@@ -32,7 +32,7 @@ def test_gateway_handler_propagates_request_id(mock_processor):
     app.dependency_overrides[verify_authorization] = lambda: "test-user"
     app.dependency_overrides[resolve_lambda_target] = lambda: TargetFunction(
         container_name="test-function",
-        function_config={"image": "img", "environment": {}},
+        function_config={"environment": {}},
         path_params={},
         route_path="/api/test",
     )
@@ -66,7 +66,7 @@ def test_gateway_handler_returns_error_result(mock_processor):
     app.dependency_overrides[verify_authorization] = lambda: "test-user"
     app.dependency_overrides[resolve_lambda_target] = lambda: TargetFunction(
         container_name="test-function",
-        function_config={"image": "img", "environment": {}},
+        function_config={"environment": {}},
         path_params={},
         route_path="/api/test",
     )

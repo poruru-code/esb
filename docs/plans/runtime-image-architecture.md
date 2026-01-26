@@ -356,10 +356,10 @@ services/agent/Dockerfile.containerd
 - `<BRAND>_TAG` が許容ルール（dev の `latest` / 本番の不変タグ）に従う。
 
 ### 18.8 Phase 7: 運用ルールと移行ガイドの整備
-- 生成物再作成（`functions.yml` の image 完全埋め込み）の運用ルールを明文化。
+- 生成物再作成（`functions.yml` に image を出力しない）の運用ルールを明文化。
 - 旧環境変数（`IMAGE_TAG` など）の廃止をリリースノートに明記。
 受け入れ条件:
-- “タグ変更時は再生成が必須” が運用ドキュメントに記載されている。
+- `functions.yml` に `image` を含めない方針が運用ドキュメントに記載されている。
 - 旧変数を使った運用が禁止されている。
 
 ## 19. 詳細設計（コードレベル）
@@ -463,7 +463,7 @@ baseTag := request.Tag
 // runtime 系のタグは compose の image 設定で baseTag + "-docker"/"-containerd" を使用
 ```
 
-### 19.3 関数イメージの埋め込み生成
+### 19.3 関数イメージの解決（functions.yml から排除）
 対象:
 - `cli/internal/generator/templates/functions.yml.tmpl`
 - `cli/internal/generator/renderer.go`
@@ -471,13 +471,10 @@ baseTag := request.Tag
 - `cli/internal/generator/testdata/renderer/functions_simple.golden`
 
 設計:
-- `functions.yml` の `image` は **完全な文字列**で出力する。
-- テンプレートは以下の形式に変更:
-  - `image: "{{ .Registry }}{{ .ImagePrefix }}-{{ .ImageName }}:{{ .Tag }}"`
-- `Registry` は末尾 `/` を含む形に正規化して渡す（空の場合は空文字）。
-- `ImagePrefix` は `meta.ImagePrefix` を使用し、外部入力にしない。
-- `Tag` は `BuildRequest.Tag`（検証済み `<BRAND>_TAG`）を使用する。
-- `functions.yml` は **タグ変更時に必ず再生成**する運用ルールとする。
+- `functions.yml` に `image` を出力しない。
+- 関数イメージ名は Agent が `meta.ImagePrefix` + 関数名から解決する。
+- タグ/レジストリは `<BRAND>_TAG` / `<BRAND>_REGISTRY` に従う。
+- `functions.yml` は関数設定変更時のみ再生成する（タグ変更だけでは不要）。
 
 ### 19.4 サービスイメージの命名とビルド
 対象:
@@ -653,12 +650,11 @@ exec /entrypoint.containerd.sh "$@"
   - registry の自動生成は廃止（`<BRAND>_REGISTRY` のみ）。  
 - `cli/internal/generator/templates/functions.yml.tmpl`  
   - `IMAGE_TAG` / `IMAGE_PREFIX` / `FUNCTION_IMAGE_PREFIX` を使用しない。  
-  - 完全な `image` 文字列を出力する。  
+  - `image` を出力しない。  
 - `cli/internal/generator/renderer.go`  
-  - `ImagePrefix` は `meta.ImagePrefix` 固定。  
-  - `Registry` 正規化（末尾 `/` 付与）。  
+  - `functions.yml` は `image` を含めない。  
 - `cli/internal/generator/renderer_test.go` / `testdata/*.golden`  
-  - 期待値を新しい `image` 文字列に更新。  
+  - `image` が含まれないことを検証。  
 
 #### Services
 - `services/agent/entrypoint.sh`  
@@ -704,7 +700,7 @@ image: "${FUNCTION_IMAGE_PREFIX}${IMAGE_PREFIX}-{{ .ImageName }}:${IMAGE_TAG}"
 
 変更後:
 ```
-image: "{{ .Registry }}{{ .ImagePrefix }}-{{ .ImageName }}:{{ .Tag }}"
+# image 行は出力しない
 ```
 
 #### generator テスト期待値
@@ -715,7 +711,7 @@ ${FUNCTION_IMAGE_PREFIX}${IMAGE_PREFIX}-hello:${IMAGE_TAG}
 
 変更後（例）:
 ```
-<registry>/<brand>-hello:vX.Y.Z
+image 行なし
 ```
 
 #### runtime-node entrypoint 分岐
@@ -979,7 +975,7 @@ image: "${FUNCTION_IMAGE_PREFIX}${IMAGE_PREFIX}-{{ .ImageName }}:${IMAGE_TAG}"
 ```
 変更後:
 ```
-image: "{{ .Registry }}{{ .ImagePrefix }}-{{ .ImageName }}:{{ .Tag }}"
+# image 行は出力しない
 ```
 
 #### 19.18.10 `services/runtime-node/entrypoint.sh`
@@ -1134,10 +1130,10 @@ image: ${<BRAND>_REGISTRY:?required}<brand>-agent:${<BRAND>_TAG:-latest}-contain
 - runtime-node (containerd tag) に WireGuard バイナリが存在すること。  
 
 ### 21.4 生成物チェック
-- `functions.yml` の `image` が **完全な文字列**で埋め込まれている。  
+- `functions.yml` に `image` が含まれていない。  
 - `functions.yml` 内に `${IMAGE_TAG}` / `${IMAGE_PREFIX}` が残っていない。  
 - Compose から `IMAGE_TAG` / `FUNCTION_IMAGE_PREFIX` / `IMAGE_PREFIX` が削除されている。  
-- `functions.yml` は `<BRAND>_TAG` をそのまま使用し、サービスイメージは `<BRAND>_TAG` に runtime suffix を付与している。  
+- `functions.yml` はタグ/レジストリに依存しない。  
 - containerd 系で `<BRAND>_REGISTRY` 未設定の起動経路が存在しない。  
 
 ### 21.5 ブランド反映チェック
@@ -1149,5 +1145,5 @@ image: ${<BRAND>_REGISTRY:?required}<brand>-agent:${<BRAND>_TAG:-latest}-contain
 - `go test ./cli/...` の結果ログ（成功が分かる範囲）。  
 - `python -m pytest e2e/runner/test_env.py` の結果ログ。  
 - `docker image inspect` で `com.<brand>.component` / `com.<brand>.runtime` が確認できるスクリーンショットまたはログ。  
-- `functions.yml` の `image` が完全文字列になっていることを示す抜粋。  
+- `functions.yml` に `image` が含まれていないことを示す抜粋。  
 - Compose から `IMAGE_TAG` / `FUNCTION_IMAGE_PREFIX` / `IMAGE_PREFIX` が消えていることを示す差分。  

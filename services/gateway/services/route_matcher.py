@@ -74,7 +74,7 @@ class RouteMatcher:
                 - target_container: container name (None if not found)
                 - path_params: dict of path parameters
                 - route_path: matched route pattern (for resource)
-                - function_config: function settings (image, environment, etc.)
+                - function_config: function settings (environment, scaling, etc.)
         """
         if not self._routing_config:
             self.load_routing_config()

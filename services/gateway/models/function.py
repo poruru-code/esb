@@ -39,7 +39,6 @@ class FunctionEntity(BaseModel):
     """
 
     name: str
-    image: str
     timeout: int = 300
     memory_size: Optional[int] = None
     environment: Dict[str, str] = Field(default_factory=dict)
@@ -60,7 +59,6 @@ class FunctionEntity(BaseModel):
 
         return cls(
             name=name,
-            image=data.get("image", ""),
             timeout=data.get("timeout", 300),
             memory_size=data.get("memory_size"),
             environment=data.get("environment", {}),

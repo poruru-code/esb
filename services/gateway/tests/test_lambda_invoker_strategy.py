@@ -43,7 +43,7 @@ async def test_lambda_invoker_calls_backend_acquire():
 
     invoker = LambdaInvoker(client, registry, config, backend)
 
-    registry.get_function_config.return_value = {"image": "img"}
+    registry.get_function_config.return_value = {}
 
     mock_response = MagicMock()
     mock_response.status_code = 200
@@ -69,7 +69,7 @@ async def test_lambda_invoker_uses_agent_invoker_when_configured():
     mock_worker.port = 8080
     backend.acquire_worker.return_value = mock_worker
 
-    registry.get_function_config.return_value = {"image": "img"}
+    registry.get_function_config.return_value = {}
 
     agent_invoker = MagicMock()
     agent_response = MagicMock()

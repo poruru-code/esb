@@ -21,7 +21,6 @@ def mock_registry():
     registry = MagicMock()
     registry.get_function_config.return_value = FunctionEntity(
         name="test-func",
-        image="test-image:latest",
         environment={"KEY": "VALUE"},
     )
     return registry
@@ -40,7 +39,6 @@ async def test_provision_success(grpc_client, mock_stub, mock_registry):
     # 1. Setup mock
     mock_registry.get_function_config.return_value = FunctionEntity(
         name="my-func",
-        image="my-func:latest",
         environment={"USER_VAR": "val"},
         memory_size=256,
         timeout=60,
@@ -77,7 +75,7 @@ async def test_provision_success(grpc_client, mock_stub, mock_registry):
         request = args[0]
 
         assert request.function_name == "my-func"
-        assert request.image == "my-func:latest"
+        assert request.image == ""
 
         # Check Env injection
         env = request.env
@@ -96,7 +94,6 @@ async def test_provision_fallback_containerd(grpc_client, mock_stub, mock_regist
     # 1. Setup mock
     mock_registry.get_function_config.return_value = FunctionEntity(
         name="my-func",
-        image="my-func:latest",
         environment={},
     )
 

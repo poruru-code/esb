@@ -15,7 +15,6 @@ defaults:
 functions:
 {{- range .Functions }}
   {{ .Name }}:
-    image: "{{ $.Registry }}{{ $.ImagePrefix }}-{{ .ImageName }}:{{ $.Tag }}"
     {{- if .Timeout }}
     timeout: {{ .Timeout }}
     {{- end }}

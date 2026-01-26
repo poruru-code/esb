@@ -20,7 +20,7 @@ async def test_invoke_function_success_isolation():
     config.CIRCUIT_BREAKER_THRESHOLD = 5
     config.CIRCUIT_BREAKER_RECOVERY_TIMEOUT = 30
 
-    registry.get_function_config.return_value = {"image": "test-image", "environment": {}}
+    registry.get_function_config.return_value = {"environment": {}}
 
     worker = WorkerInfo(id="w1", name="w1", ip_address="127.0.0.1", port=8080)
     backend.acquire_worker.return_value = worker
@@ -49,7 +49,7 @@ async def test_invoke_function_backend_failure_isolation():
 
     config.LAMBDA_PORT = 8080
 
-    registry.get_function_config.return_value = {"image": "test-image"}
+    registry.get_function_config.return_value = {}
     backend.acquire_worker.side_effect = Exception("Provisioning failed")
 
     invoker = LambdaInvoker(client, registry, config, backend)
@@ -73,7 +73,7 @@ async def test_invoke_function_http_failure_triggers_evict():
     config.CIRCUIT_BREAKER_THRESHOLD = 5
     config.CIRCUIT_BREAKER_RECOVERY_TIMEOUT = 30
 
-    registry.get_function_config.return_value = FunctionEntity(name="test-fn", image="test-image")
+    registry.get_function_config.return_value = FunctionEntity(name="test-fn")
     worker = WorkerInfo(id="w1", name="w1", ip_address="127.0.0.1", port=8080)
     backend.acquire_worker.return_value = worker
 
