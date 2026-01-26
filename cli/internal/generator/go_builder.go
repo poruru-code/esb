@@ -107,10 +107,12 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	if err != nil {
 		return err
 	}
+	metaDir, err := prepareMetaContext(context.Background(), b.Runner, repoRoot, gitCtx, traceTools)
+	if err != nil {
+		return err
+	}
 	buildContexts := []buildContext{
-		{Name: "git_dir", Path: gitCtx.GitDir},
-		{Name: "git_common", Path: gitCtx.GitCommon},
-		{Name: "trace_tools", Path: traceTools},
+		{Name: "meta", Path: metaDir},
 	}
 
 	mode := strings.TrimSpace(request.Mode)
@@ -139,6 +141,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	}
 
 	applyBuildEnv(request.Env, composeProject)
+	_ = os.Setenv("META_CONTEXT", metaDir)
 	imageLabels := brandingImageLabels(composeProject, request.Env)
 	rootFingerprint, err := resolveRootCAFingerprint()
 	if err != nil {

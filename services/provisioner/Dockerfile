@@ -5,22 +5,6 @@
 
 ARG PYTHON_BASE_IMAGE
 
-# Metadata Stage - Generate version.json from git context.
-FROM python:3.12-alpine AS build-meta
-
-RUN apk add --no-cache git
-
-WORKDIR /work
-
-RUN --mount=type=bind,from=trace_tools,source=.,target=/trace_tools \
-    --mount=type=bind,from=git_dir,source=.,target=/gitdir \
-    --mount=type=bind,from=git_common,source=.,target=/gitcommon \
-    python3 /trace_tools/generate_version_json.py \
-      --output /out/version.json \
-      --git-dir /gitdir \
-      --git-common-dir /gitcommon \
-      --image-runtime "shared"
-
 FROM ${PYTHON_BASE_IMAGE}
 
 ENV IMAGE_RUNTIME="shared"
@@ -30,7 +14,7 @@ COPY --from=ghcr.io/astral-sh/uv:0.8.13@sha256:4de5495181a281bc744845b9579acf7b2
 
 WORKDIR /app
 
-COPY --from=build-meta /out/version.json /app/version.json
+COPY --from=meta /version.json /app/version.json
 
 # Copy dependencies
 COPY services/provisioner/pyproject.toml .

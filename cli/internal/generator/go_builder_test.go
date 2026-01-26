@@ -54,6 +54,7 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeTestFile(t, filepath.Join(traceToolsDir, "generate_version_json.py"), "#!/usr/bin/env python3\n")
+	writeTestFile(t, filepath.Join(traceToolsDir, "docker-bake.hcl"), "target \"meta\" {}\n")
 
 	var gotCfg config.GeneratorConfig
 	var gotOpts GenerateOptions
@@ -204,14 +205,24 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	if !hasDockerBuildLabel(dockerRunner.calls, meta.LabelPrefix+".env=staging") {
 		t.Fatalf("expected env label on build")
 	}
-	if !hasDockerBuildContext(dockerRunner.calls, "git_dir="+gitDir) {
-		t.Fatalf("expected git_dir build context")
+	metaDir := filepath.Join(repoRoot, meta.OutputDir, "meta")
+	if !hasDockerBuildContext(dockerRunner.calls, "meta="+metaDir) {
+		t.Fatalf("expected meta build context")
 	}
-	if !hasDockerBuildContext(dockerRunner.calls, "git_common="+gitDir) {
-		t.Fatalf("expected git_common build context")
+	if !hasDockerBakeTarget(dockerRunner.calls, "meta") {
+		t.Fatalf("expected docker buildx bake meta target")
 	}
-	if !hasDockerBuildContext(dockerRunner.calls, "trace_tools="+traceToolsDir) {
-		t.Fatalf("expected trace_tools build context")
+	if !hasDockerBakeSet(dockerRunner.calls, "meta.contexts.git_dir="+gitDir) {
+		t.Fatalf("expected bake git_dir context")
+	}
+	if !hasDockerBakeSet(dockerRunner.calls, "meta.contexts.git_common="+gitDir) {
+		t.Fatalf("expected bake git_common context")
+	}
+	if !hasDockerBakeSet(dockerRunner.calls, "meta.contexts.trace_tools="+traceToolsDir) {
+		t.Fatalf("expected bake trace_tools context")
+	}
+	if !hasDockerBakeSet(dockerRunner.calls, "meta.output=type=local,dest="+metaDir) {
+		t.Fatalf("expected bake output context")
 	}
 
 	if hasComposeUpRegistry(composeRunner.calls) {
@@ -246,6 +257,7 @@ func (r *recordRunner) Run(_ context.Context, dir, name string, args ...string) 
 		name: name,
 		args: append([]string{}, args...),
 	})
+	r.maybeWriteMetaOutput(dir, name, args)
 	return r.err
 }
 
@@ -255,6 +267,7 @@ func (r *recordRunner) RunQuiet(_ context.Context, dir, name string, args ...str
 		name: name,
 		args: append([]string{}, args...),
 	})
+	r.maybeWriteMetaOutput(dir, name, args)
 	return r.err
 }
 
@@ -274,6 +287,51 @@ func (r *recordRunner) RunOutput(_ context.Context, dir, name string, args ...st
 		}
 	}
 	return nil, nil
+}
+
+func (r *recordRunner) maybeWriteMetaOutput(dir, name string, args []string) {
+	if name != "docker" || len(args) < 2 {
+		return
+	}
+	if args[0] != "buildx" || args[1] != "bake" {
+		return
+	}
+	dest := ""
+	for i := 0; i+1 < len(args); i++ {
+		if args[i] != "--set" {
+			continue
+		}
+		value := args[i+1]
+		if strings.HasPrefix(value, "meta.output=") {
+			dest = strings.TrimPrefix(value, "meta.output=")
+			break
+		}
+	}
+	if dest == "" {
+		return
+	}
+	dest = parseBakeOutputDest(dest)
+	if dest == "" {
+		return
+	}
+	if !filepath.IsAbs(dest) {
+		dest = filepath.Join(dir, dest)
+	}
+	if err := os.MkdirAll(dest, 0o755); err != nil {
+		return
+	}
+	_ = os.WriteFile(filepath.Join(dest, "version.json"), []byte("{}\n"), 0o644)
+}
+
+func parseBakeOutputDest(output string) string {
+	parts := strings.Split(output, ",")
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if strings.HasPrefix(part, "dest=") {
+			return strings.TrimPrefix(part, "dest=")
+		}
+	}
+	return ""
 }
 
 func hasDockerBuildTag(calls []commandCall, tag string) bool {
@@ -332,6 +390,40 @@ func hasDockerBuildContext(calls []commandCall, value string) bool {
 		}
 		for i := 0; i+1 < len(call.args); i++ {
 			if call.args[i] == "--build-context" && call.args[i+1] == value {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func hasDockerBakeTarget(calls []commandCall, target string) bool {
+	for _, call := range calls {
+		if call.name != "docker" || len(call.args) < 2 {
+			continue
+		}
+		if call.args[0] != "buildx" || call.args[1] != "bake" {
+			continue
+		}
+		for _, arg := range call.args {
+			if arg == target {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func hasDockerBakeSet(calls []commandCall, value string) bool {
+	for _, call := range calls {
+		if call.name != "docker" || len(call.args) < 2 {
+			continue
+		}
+		if call.args[0] != "buildx" || call.args[1] != "bake" {
+			continue
+		}
+		for i := 0; i+1 < len(call.args); i++ {
+			if call.args[i] == "--set" && call.args[i+1] == value {
 				return true
 			}
 		}

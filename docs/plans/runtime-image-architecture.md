@@ -91,7 +91,7 @@ Why: 実装者がこの1文書だけで作業できる設計仕様を提供す�
 - SAM テンプレートから生成される関数イメージは **ランタイム非依存の共通成果物**とする。
 - ランタイム差分は制御面（agent / runtime-node / gateway）が吸収し、関数イメージには持ち込まない。
 - 例外: Firecracker 固有の制約によりベースイメージや依存が変わる必要がある場合のみ、関数イメージの分岐を許可する。
-- base / function の `/app/version.json` は `image_runtime=shared` とする。
+- base / function の `/app/version.json` はランタイム差分を持たない。
 
 
 ## 8. コンポーネント要件

@@ -43,7 +43,7 @@ E2E のビルド phase が重い。主因は以下:
 4) **ビルド経路の更新**
    - `esb build`（Go）: `--build-context meta=...` を常に渡す
    - `docker compose build`: `additional_contexts` に `meta=...` を追加
-   - E2E build phase の最初に `docker buildx bake meta` を実行
+   - E2E build phase は `esb build` が Bake を実行する前提で追加作業は不要
 
 5) **検証**
    - Build phase の時間比較（計測ログで確認）

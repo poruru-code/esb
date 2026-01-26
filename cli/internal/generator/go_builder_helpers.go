@@ -63,6 +63,59 @@ func resolveTraceTools(repoRoot string) (string, error) {
 	return traceTools, nil
 }
 
+func prepareMetaContext(
+	ctx context.Context,
+	runner compose.CommandRunner,
+	repoRoot string,
+	gitCtx gitContext,
+	traceTools string,
+) (string, error) {
+	if runner == nil {
+		return "", fmt.Errorf("command runner is nil")
+	}
+	root := strings.TrimSpace(repoRoot)
+	if root == "" {
+		return "", fmt.Errorf("repo root is required")
+	}
+	metaDir := filepath.Join(root, meta.OutputDir, "meta")
+	if err := removeDir(metaDir); err != nil {
+		return "", err
+	}
+	if err := ensureDir(metaDir); err != nil {
+		return "", err
+	}
+	bakeFile := filepath.Join(root, "tools", "traceability", "docker-bake.hcl")
+	if _, err := os.Stat(bakeFile); err != nil {
+		return "", fmt.Errorf("bake file not found: %w", err)
+	}
+	traceTools = strings.TrimSpace(traceTools)
+	if traceTools == "" {
+		return "", fmt.Errorf("trace tools path is required")
+	}
+	args := []string{
+		"buildx",
+		"bake",
+		"-f",
+		bakeFile,
+		"meta",
+		"--set",
+		fmt.Sprintf("meta.contexts.git_dir=%s", gitCtx.GitDir),
+		"--set",
+		fmt.Sprintf("meta.contexts.git_common=%s", gitCtx.GitCommon),
+		"--set",
+		fmt.Sprintf("meta.contexts.trace_tools=%s", traceTools),
+		"--set",
+		fmt.Sprintf("meta.output=type=local,dest=%s", metaDir),
+	}
+	if err := runner.Run(ctx, root, "docker", args...); err != nil {
+		return "", err
+	}
+	if _, err := os.Stat(filepath.Join(metaDir, "version.json")); err != nil {
+		return "", fmt.Errorf("version.json not found: %w", err)
+	}
+	return metaDir, nil
+}
+
 func defaultGeneratorParameters() map[string]string {
 	return map[string]string{
 		"S3_ENDPOINT_HOST":       "s3-storage",

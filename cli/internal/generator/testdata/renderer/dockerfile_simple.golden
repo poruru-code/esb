@@ -3,28 +3,12 @@
 # DO NOT EDIT MANUALLY - Regenerate with: esb build
 # Source: template.yaml
 # FunctionName: lambda-hello
-# Metadata Stage - Generate version.json from git context.
-FROM python:3.12-alpine AS build-meta
-
-RUN apk add --no-cache git
-
-WORKDIR /work
-
-RUN --mount=type=bind,from=trace_tools,source=.,target=/trace_tools \
-    --mount=type=bind,from=git_dir,source=.,target=/gitdir \
-    --mount=type=bind,from=git_common,source=.,target=/gitcommon \
-    python3 /trace_tools/generate_version_json.py \
-      --output /out/version.json \
-      --git-dir /gitdir \
-      --git-common-dir /gitcommon \
-      --image-runtime "shared"
-
 FROM esb-lambda-base:latest
 
 # ESB Runtime
 COPY cli/internal/generator/assets/site-packages/sitecustomize.py /opt/python/sitecustomize.py
 
-COPY --from=build-meta /out/version.json /app/version.json
+COPY --from=meta /version.json /app/version.json
 
 # Function code
 COPY functions/hello/ ${LAMBDA_TASK_ROOT}/
