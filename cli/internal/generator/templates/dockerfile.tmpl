@@ -3,16 +3,10 @@
 # DO NOT EDIT MANUALLY - Regenerate with: esb build
 # Source: template.yaml
 # FunctionName: {{ .Name }}
+# Metadata Stage - Generate version.json from git context.
+FROM python:3.12-alpine AS build-meta
 
-ARG IMAGE_RUNTIME=shared
-
-
-FROM alpine:3.20 AS build-meta
-
-ARG IMAGE_RUNTIME
-
-
-RUN apk add --no-cache git ca-certificates python3
+RUN apk add --no-cache git
 
 WORKDIR /work
 
@@ -23,7 +17,7 @@ RUN --mount=type=bind,from=trace_tools,source=.,target=/trace_tools \
       --output /out/version.json \
       --git-dir /gitdir \
       --git-common-dir /gitcommon \
-      --image-runtime "${IMAGE_RUNTIME}"
+      --image-runtime "shared"
 
 FROM {{ .BaseImage }}
 

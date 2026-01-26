@@ -1,14 +1,8 @@
 # syntax=docker/dockerfile:1.7
 # Lambda Base Image
 # Base image containing the shared runtime.
-
-ARG IMAGE_RUNTIME=shared
-
-
+# Metadata Stage - Generate version.json from git context.
 FROM alpine:3.20 AS build-meta
-
-ARG IMAGE_RUNTIME
-
 
 RUN apk add --no-cache git ca-certificates python3
 
@@ -21,7 +15,7 @@ RUN --mount=type=bind,from=trace_tools,source=.,target=/trace_tools \
       --output /out/version.json \
       --git-dir /gitdir \
       --git-common-dir /gitcommon \
-      --image-runtime "${IMAGE_RUNTIME}"
+      --image-runtime "shared"
 
 FROM public.ecr.aws/lambda/python:3.12@sha256:43106d427ae78760aee589f55be1b1836b41363feaf0ec19ca27aeddde4cb46f
 

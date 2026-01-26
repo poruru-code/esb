@@ -3,8 +3,8 @@
 # What: Runtime node image for containerd with Firecracker support.
 # Why: Use a single containerd-family image and switch via CONTAINERD_RUNTIME.
 
-ARG IMAGE_RUNTIME
 ARG OS_BASE_IMAGE
+
 
 ARG GO_VERSION=1.25.1
 ARG DEBIAN_VERSION=bookworm
@@ -17,12 +17,9 @@ ARG FIRECRACKER_VERSION=1.14.0
 # -----------------------------------------------------------------------------
 # Metadata Stage: version.json from git context
 # -----------------------------------------------------------------------------
-FROM alpine:3.20 AS build-meta
+FROM python:3.12-alpine AS build-meta
 
-ARG IMAGE_RUNTIME
-
-
-RUN apk add --no-cache git ca-certificates python3
+RUN apk add --no-cache git
 
 WORKDIR /work
 
@@ -33,7 +30,7 @@ RUN --mount=type=bind,from=trace_tools,source=.,target=/trace_tools \
     --output /out/version.json \
     --git-dir /gitdir \
     --git-common-dir /gitcommon \
-    --image-runtime "${IMAGE_RUNTIME}"
+    --image-runtime "containerd"
 
 # -----------------------------------------------------------------------------
 # Stage 1: Firecracker Builder
@@ -47,15 +44,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     git \
     make \
+    curl \
+    unzip \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
 
 # Fetch specific version of firecracker-containerd
-RUN git init . \
-  && git remote add origin https://github.com/firecracker-microvm/firecracker-containerd.git \
-  && git fetch --depth 1 origin "${FIRECRACKER_CONTAINERD_REF}" \
-  && git checkout FETCH_HEAD
+# Fetch specific version of firecracker-containerd
+RUN curl -L -o repo.zip "https://github.com/firecracker-microvm/firecracker-containerd/archive/${FIRECRACKER_CONTAINERD_REF}.zip" \
+  && unzip repo.zip \
+  && mv firecracker-containerd-*/* . \
+  && rm -rf repo.zip firecracker-containerd-*
 
 # Apply patches
 COPY patches/firecracker-fifo-reader.patch /tmp/firecracker-fifo-reader.patch
@@ -101,12 +101,13 @@ RUN set -eu; \
 # -----------------------------------------------------------------------------
 FROM ${OS_BASE_IMAGE}
 
-ARG IMAGE_RUNTIME
+# -----------------------------------------------------------------------------
+# Stage 3: Final Runtime Image
+# Assembles the runtime with containerd and firecracker support
+# -----------------------------------------------------------------------------
+FROM ${OS_BASE_IMAGE}
 
-RUN set -eu; \
-    if [ -z "$IMAGE_RUNTIME" ]; then echo "ERROR: IMAGE_RUNTIME is required" >&2; exit 1; fi
-
-ENV IMAGE_RUNTIME="${IMAGE_RUNTIME}"
+ENV IMAGE_RUNTIME="containerd"
 
 
 COPY --from=build-meta /out/version.json /app/version.json
