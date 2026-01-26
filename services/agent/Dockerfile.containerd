@@ -10,7 +10,7 @@ FROM golang:1.25.1-bookworm@sha256:c423747fbd96fd8f0b1102d947f51f9b266060217478e
 WORKDIR /app
 
 # Copy the meta package first (from additional context)
-COPY --from=meta . /meta/
+COPY --from=meta_module . /meta/
 
 # Copy go.mod and go.sum (local to context=services/agent)
 COPY go.mod go.sum ./
