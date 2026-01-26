@@ -5,6 +5,7 @@
 target "meta" {
   context    = "."
   dockerfile = "tools/traceability/Dockerfile.meta"
+  target     = "out"
   contexts = {
     git_dir    = ".git"
     git_common = ".git"
