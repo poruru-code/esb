@@ -22,27 +22,18 @@ print_version_json() {
   fi
 }
 
-require_env "COMPONENT"
 require_env "IMAGE_RUNTIME"
 
-if [ "$COMPONENT" != "provisioner" ]; then
-  echo "ERROR: COMPONENT must be provisioner (got ${COMPONENT})" >&2
-  exit 1
-fi
-
 case "$IMAGE_RUNTIME" in
-  docker|containerd)
+  shared|docker|containerd)
     ;;
   *)
-    echo "ERROR: IMAGE_RUNTIME must be docker or containerd (got ${IMAGE_RUNTIME})" >&2
+    echo "ERROR: IMAGE_RUNTIME must be shared, docker or containerd (got ${IMAGE_RUNTIME})" >&2
     exit 1
     ;;
 esac
 
-if [ -n "${AGENT_RUNTIME:-}" ] && [ "$AGENT_RUNTIME" != "$IMAGE_RUNTIME" ]; then
-  echo "ERROR: AGENT_RUNTIME=${AGENT_RUNTIME} does not match IMAGE_RUNTIME=${IMAGE_RUNTIME}" >&2
-  exit 1
-fi
+# Provisioner (shared) can run on any AGENT_RUNTIME, so no mismatch check is needed.
 
 print_version_json
 

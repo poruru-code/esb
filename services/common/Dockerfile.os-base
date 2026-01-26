@@ -2,16 +2,10 @@
 # Where: services/common/Dockerfile.os-base
 # What: Minimal Debian 12 base for non-Python services.
 # Why: Reduce size/attack surface while keeping Debian uniformity.
+# Metadata Stage - Generate version.json from git context.
+FROM python:3.12-alpine AS build-meta
 
-ARG COMPONENT=base
-ARG IMAGE_RUNTIME=shared
-
-FROM alpine:3.20 AS build-meta
-
-ARG COMPONENT
-ARG IMAGE_RUNTIME
-
-RUN apk add --no-cache git ca-certificates python3
+RUN apk add --no-cache git
 
 WORKDIR /work
 
@@ -22,8 +16,7 @@ RUN --mount=type=bind,from=trace_tools,source=.,target=/trace_tools \
       --output /out/version.json \
       --git-dir /gitdir \
       --git-common-dir /gitcommon \
-      --component "${COMPONENT}" \
-      --image-runtime "${IMAGE_RUNTIME}"
+      --image-runtime "shared"
 
 FROM debian:bookworm-slim@sha256:56ff6d36d4eb3db13a741b342ec466f121480b5edded42e4b7ee850ce7a418ee
 

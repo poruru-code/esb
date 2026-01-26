@@ -21,9 +21,9 @@ Why: 実装者がこの1文書だけで作業できる設計仕様を提供す�
 - 後方互換は考慮しない。単一リリースで全面切替を行う。
 
 ## 3. 用語
-- コンポーネント: agent / gateway / runtime-node / provisioner（runtime 系）
 - 追加のコンポーネント値: base / function（traceability 用）
 - ランタイム系統: docker / containerd（runtime 系）、shared（base / function の traceability 用）
+
 - containerd ランタイム切替: `CONTAINERD_RUNTIME`（既定 `containerd` / `aws.firecracker`）
 - 変種: コンポーネント × ランタイム系統の組み合わせ
 - 不変タグ: 公開後に内容が変わらないタグ
@@ -91,7 +91,8 @@ Why: 実装者がこの1文書だけで作業できる設計仕様を提供す�
 - SAM テンプレートから生成される関数イメージは **ランタイム非依存の共通成果物**とする。
 - ランタイム差分は制御面（agent / runtime-node / gateway）が吸収し、関数イメージには持ち込まない。
 - 例外: Firecracker 固有の制約によりベースイメージや依存が変わる必要がある場合のみ、関数イメージの分岐を許可する。
-- base / function の `/app/version.json` は `component=base|function`, `image_runtime=shared` とする。
+- base / function の `/app/version.json` は `image_runtime=shared` とする。
+
 
 ## 8. コンポーネント要件
 ### 8.1 agent
@@ -142,15 +143,12 @@ services/agent/Dockerfile.containerd
 - `IMAGE_RUNTIME`
   - runtime 系: `docker` / `containerd`
   - base / function 系: `shared`
-- `COMPONENT`
-  - runtime 系: `agent` / `gateway` / `runtime-node` / `provisioner`
-  - base 系: `base`
-  - function 系: `function`
+
 
 ### 9.3 必須 ENV（runtime 系のみ）
 - `IMAGE_RUNTIME`
-- `COMPONENT`
 ※ base / function 系は `ENV` に焼き込まない。
+
 
 ### 9.4 トレーサビリティ
 - `/app/version.json` を唯一のトレーサビリティ情報とする。
@@ -201,10 +199,9 @@ services/agent/Dockerfile.containerd
 - `WG_CONTROL_GW_HOST`: ルート next-hop のホスト名  
 
 ## 11. OCI ラベル（情報用途）
-- 必須（静的）:
+- OCI ラベル（情報用途）:
   - `com.<brand>.component`
   - `com.<brand>.runtime`
-- 任意（情報用途）:
   - `org.opencontainers.image.title`
   - `org.opencontainers.image.version`
   - `org.opencontainers.image.revision`
@@ -217,6 +214,7 @@ services/agent/Dockerfile.containerd
 ※ `com.<brand>.version` を設定する場合は `/app/version.json` の `version` と一致させる。
 ※ base / function は `com.<brand>.runtime=shared` を使用する。
 ※ base / function の `com.<brand>.component` は `base` / `function` を使用する。
+
 
 ## 12. Compose / CLI 仕様
 ### 12.1 共通環境変数（外部入力）
@@ -243,9 +241,9 @@ services/agent/Dockerfile.containerd
 
 #### 内部管理（実装またはCLI/Composeが設定）
 - `IMAGE_RUNTIME`: runtime 系のみイメージに焼き込む（base / function は ENV なし）。
-- `COMPONENT`: runtime 系のみイメージに焼き込む（base / function は ENV なし）。
 - `AGENT_RUNTIME`: CLI/Compose が設定（運用者が変更しない）。
 - `CONTAINERD_RUNTIME`: firecracker を選択する場合に CLI/Compose が設定。
+
 - `CONTAINER_REGISTRY`: containerd の関数イメージ取得先（Compose が `<BRAND>_REGISTRY` から設定、外部入力ではない）。
 - `WG_QUICK_USERSPACE_IMPLEMENTATION`: gateway の起動中に内部で設定。
 - `WG_QUICK_USERSPACE_IMPLEMENTATION_FORCE`: gateway の起動中に内部で設定。
@@ -287,6 +285,7 @@ services/agent/Dockerfile.containerd
 - runtime 不一致は起動時に必ず失敗する。
 - 本番は不変タグのみで運用可能。
 - すべてのイメージに `com.<brand>.component` / `com.<brand>.runtime` が付与されている。
+
 - 構造テストが全変種で通過する。
 - `/app/version.json` が生成されている。
 - `com.<brand>.version` を設定する場合は `/app/version.json` と整合している。
@@ -330,18 +329,17 @@ services/agent/Dockerfile.containerd
 
 ### 18.4 Phase 3: Dockerfile とビルド引数の整理
 - Dockerfile の `ARG IMAGE_PREFIX=<brand>` など固定デフォルトを撤去。
-- runtime 系のみ `IMAGE_RUNTIME` / `COMPONENT` を ENV に焼き込む。
+- runtime 系のみ `IMAGE_RUNTIME` を ENV に焼き込む。
 受け入れ条件:
-- runtime 系のサービスイメージに `IMAGE_RUNTIME` と `COMPONENT` が入っている。
+- runtime 系のサービスイメージに `IMAGE_RUNTIME` が入っている。
 - ブランド固定のデフォルト値が残っていない。
 - `/app/version.json` が生成されている。
+
 
 ### 18.5 Phase 4: Runtime Guard 実装
 - entrypoint に `IMAGE_RUNTIME` と `AGENT_RUNTIME` の整合チェックを追加。
 - 不一致時は明確なエラーで即終了。
-受け入れ条件:
-- 不一致条件で必ず起動失敗する。
-- 一致条件では従来通りに起動する。
+
 
 ### 18.6 Phase 5: containerd / firecracker 切替の統一
 - `CONTAINERD_RUNTIME=aws.firecracker` のみで切替できることを保証。
@@ -497,18 +495,17 @@ baseTag := request.Tag
 
 #### 19.4.1 Build Args 注入ルール
 - `buildDockerImage` に渡す build args は以下に固定する:  
-  - `IMAGE_RUNTIME`, `COMPONENT`  
-- `IMAGE_RUNTIME` / `COMPONENT` は **サービスごとに固定値**を渡す。  
-  - 例: agent (containerd tag) -> `IMAGE_RUNTIME=containerd`, `COMPONENT=agent`  
-- base 系: `IMAGE_RUNTIME=shared`, `COMPONENT=base`  
-- function 系: `IMAGE_RUNTIME=shared`, `COMPONENT=function`  
+  - `IMAGE_RUNTIME`  
+- `IMAGE_RUNTIME` は **サービスごとに固定値**を渡す。  
+  - 例: agent (containerd tag) -> `IMAGE_RUNTIME=containerd`  
+- base 系: `IMAGE_RUNTIME=shared`  
+- function 系: `IMAGE_RUNTIME=shared`  
 - shared 系のタグは `BuildRequest.Tag`、runtime 系のタグは `BuildRequest.Tag` に suffix を付与して使用する。  
 - すべてのビルド対象イメージに同一のラベルセットを付与する。  
 
 #### 19.4.2 buildDockerImage の引数順序（固定）
 - build args は **同一順序**で渡す（差分を抑制するため）。  
   1) `IMAGE_RUNTIME`  
-  2) `COMPONENT`  
 - labels は build args の後に渡す。  
 
 #### 19.4.3 buildDockerImage の呼び出し例（擬似）
@@ -516,7 +513,6 @@ baseTag := request.Tag
 runtimeTag := fmt.Sprintf("%s-%s", request.Tag, request.Mode)
 args := []string{
   "--build-arg", "IMAGE_RUNTIME=containerd",
-  "--build-arg", "COMPONENT=agent",
 }
 ```
 
@@ -543,15 +539,6 @@ args := []string{
 
 設計（擬似コード）:
 ```
-if [ -z "$COMPONENT" ]; then
-  echo "ERROR: COMPONENT is required"; exit 1
-fi
-if [ "$COMPONENT" != "agent" ]; then
-  echo "ERROR: invalid COMPONENT"; exit 1
-fi
-if [ -z "$IMAGE_RUNTIME" ]; then
-  echo "ERROR: IMAGE_RUNTIME is required"; exit 1
-fi
 case "$IMAGE_RUNTIME" in
   docker)
     [ "$AGENT_RUNTIME" = "docker" ] || { echo "ERROR: runtime mismatch"; exit 1; }
@@ -564,10 +551,9 @@ case "$IMAGE_RUNTIME" in
     ;;
 esac
 ```
-- gateway / provisioner は `COMPONENT` の一致と `IMAGE_RUNTIME` の値検証のみを行う。
+- gateway / provisioner は `IMAGE_RUNTIME` の値検証のみを行う。
 - runtime-node は `IMAGE_RUNTIME=containerd` 以外で即終了する。
-- 終了コードは `exit 1` に統一し、ログは `ERROR: <reason>` の形式で出力する。
-- 各 entrypoint は `COMPONENT` が期待値（agent/gateway/runtime-node/provisioner）と一致しない場合に即終了する。
+
 
 #### 19.6.1 runtime-node entrypoint ラッパー仕様
 目的: containerd / firecracker の分岐を **1つの entrypoint** に集約する。  
@@ -576,9 +562,6 @@ esac
 ```
 if [ -z "$IMAGE_RUNTIME" ]; then
   echo "ERROR: IMAGE_RUNTIME is required"; exit 1
-fi
-if [ "$COMPONENT" != "runtime-node" ]; then
-  echo "ERROR: invalid COMPONENT"; exit 1
 fi
 if [ "$IMAGE_RUNTIME" != "containerd" ]; then
   echo "ERROR: IMAGE_RUNTIME must be containerd"; exit 1
@@ -621,6 +604,7 @@ exec /entrypoint.containerd.sh "$@"
 - `com.<brand>.version` を設定する場合は `/app/version.json` の `version` と一致させる。
 - base / function は `com.<brand>.runtime=shared` を使用する。
 - base / function の `com.<brand>.component` は `base` / `function` を使用する。
+
 
 ### 19.9 containerd / firecracker 切替
 対象:
@@ -678,11 +662,11 @@ exec /entrypoint.containerd.sh "$@"
 
 #### Services
 - `services/agent/entrypoint.sh`  
-  - `COMPONENT` / `IMAGE_RUNTIME` / `AGENT_RUNTIME` guard を追加。  
+  - `IMAGE_RUNTIME` / `AGENT_RUNTIME` guard を追加。  
 - `services/gateway/entrypoint.sh`  
-  - `COMPONENT` / `IMAGE_RUNTIME` guard を追加。  
+  - `IMAGE_RUNTIME` guard を追加。  
 - `services/runtime-node/entrypoint.sh`  
-  - `RUNTIME_MODE` 分岐を廃止し、`COMPONENT` / `IMAGE_RUNTIME` guard を含むラッパーに置換。  
+  - `RUNTIME_MODE` 分岐を廃止し、`IMAGE_RUNTIME` guard を含むラッパーに置換。  
 - `services/runtime-node/entrypoint.containerd.sh` / `entrypoint.firecracker.sh`  
   - guard 前提で動作する前提に整理。  
 - `services/agent/internal/runtime/image_naming.go`  
@@ -747,7 +731,6 @@ esac
 
 変更後（概略）:
 ```
-if [ "$COMPONENT" != "runtime-node" ]; then exit 1; fi
 if [ "$IMAGE_RUNTIME" != "containerd" ]; then exit 1; fi
 if [ "$CONTAINERD_RUNTIME" = "aws.firecracker" ]; then
   exec /entrypoint.firecracker.sh
@@ -1143,7 +1126,6 @@ image: ${<BRAND>_REGISTRY:?required}<brand>-agent:${<BRAND>_TAG:-latest}-contain
 - `IMAGE_RUNTIME=docker` かつ `AGENT_RUNTIME=containerd` で agent が即終了する。  
 - `IMAGE_RUNTIME=containerd` かつ `AGENT_RUNTIME=docker` で agent が即終了する。  
 - runtime-node の `IMAGE_RUNTIME` が `containerd` 以外なら即終了する。  
-- `COMPONENT` が期待値と不一致の場合に各 entrypoint が即終了する。  
 
 ### 21.3 構造テスト（イメージ依存）
 - agent (docker tag) に CNI が存在しないこと。  

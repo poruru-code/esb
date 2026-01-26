@@ -20,15 +20,10 @@ print_version_json() {
   fi
 }
 
-require_env "COMPONENT"
 require_env "IMAGE_RUNTIME"
 
-if [ "$COMPONENT" != "runtime-node" ]; then
-  echo "ERROR: COMPONENT must be runtime-node (got ${COMPONENT})" >&2
-  exit 1
-fi
-
 if [ "$IMAGE_RUNTIME" != "containerd" ]; then
+
   echo "ERROR: IMAGE_RUNTIME must be containerd (got ${IMAGE_RUNTIME})" >&2
   exit 1
 fi
