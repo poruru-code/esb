@@ -226,7 +226,6 @@ services:
       context: services/agent
       dockerfile: Dockerfile.containerd
       additional_contexts:
-        meta: meta
         meta: ${META_CONTEXT:-.esb/meta}
       args:
         OS_BASE_IMAGE: esb-os-base:latest
