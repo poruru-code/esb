@@ -248,6 +248,37 @@ def verify_registry_images(env_name: str, project: str, mode: str, compose_file:
         raise RuntimeError("registry missing blobs")
 
 
+def print_built_images(env_name: str, project_name: str) -> None:
+    label_prefix = f"com.{BRAND_SLUG}"
+    project_label = f"{project_name}-{env_name}"
+    cmd = [
+        "docker",
+        "images",
+        "--filter",
+        f"label={label_prefix}.managed=true",
+        "--filter",
+        f"label={label_prefix}.project={project_label}",
+        "--filter",
+        f"label={label_prefix}.env={env_name}",
+        "--format",
+        "{{.Repository}}:{{.Tag}}\t{{.ID}}\t{{.CreatedSince}}\t{{.Size}}",
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"[WARN] Failed to list built images for {env_name}: {result.stderr.strip()}")
+        return
+
+    lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    if not lines:
+        print(f"[WARN] No built images found for {env_name} ({project_label}).")
+        return
+
+    print(f"\n🧱 Built Images for {env_name} ({project_label}):")
+    for line in lines:
+        print(f"   {line}")
+    print("")
+
+
 def thorough_cleanup(env_name: str):
     """Exhaustively remove Docker resources associated with an environment."""
     project_label = f"{BRAND_SLUG}-{env_name}"
@@ -448,6 +479,7 @@ def run_scenario(args, scenario):
                     mode,
                     compose_file_path,
                 )
+                print_built_images(env_name, project_name)
 
                 if build_only:
                     return True
@@ -466,6 +498,7 @@ def run_scenario(args, scenario):
                     mode,
                     compose_file_path,
                 )
+                print_built_images(env_name, project_name)
                 if not args.verbose:
                     print("Done")
             else:
@@ -481,6 +514,7 @@ def run_scenario(args, scenario):
                     mode,
                     compose_file_path,
                 )
+                print_built_images(env_name, project_name)
                 if not args.verbose:
                     print("Done")
         else:
@@ -857,6 +891,8 @@ def run_build_phase_serial(
     if not env_scenarios:
         return failed
 
+    durations: dict[str, float] = {}
+    total_start = time.monotonic()
     max_label_len = max(len(p) for p in env_scenarios.keys()) + 2
     profiles = list(env_scenarios.keys())
 
@@ -878,13 +914,24 @@ def run_build_phase_serial(
             cmd.append("--verbose")
 
         color_code = COLORS[idx % len(COLORS)]
+        start = time.monotonic()
         returncode, _ = run_profile_subprocess(
             profile_name, cmd, color_code, verbose, max_label_len
         )
+        durations[profile_name] = time.monotonic() - start
+        print(f"[BUILD] {profile_name} finished in {durations[profile_name]:.1f}s")
         if returncode != 0:
             failed.append(profile_name)
             if fail_fast:
                 break
+
+    total_elapsed = time.monotonic() - total_start
+    if durations:
+        print("\n=== Build Phase Summary ===")
+        for profile_name in profiles:
+            if profile_name in durations:
+                print(f"- {profile_name}: {durations[profile_name]:.1f}s")
+        print(f"Total: {total_elapsed:.1f}s\n")
 
     return failed
 
