@@ -137,6 +137,8 @@ Compose ファイルは **branding ツール（esb-branding-tool）で生成**�
   - 例: `docker buildx bake -f tools/traceability/docker-bake.hcl meta`
   - `.git` がファイルのケースは `--set meta.contexts.git_dir=...` /
     `--set meta.contexts.git_common=...` を追加する（詳細は 3.1）。
+- agent のビルドでは Go module `meta` を参照するため、`meta_module` を追加する。
+  - `META_MODULE_CONTEXT` 未設定時は `meta` を使用する。
 
 例: `docker-compose.docker.yml`（gateway の場合）
 
@@ -149,6 +151,13 @@ services:
       additional_contexts:
         config: ${CONFIG_DIR:-services/gateway/config}
         meta: ${META_CONTEXT:-.esb/meta}
+  agent:
+    build:
+      context: services/agent
+      dockerfile: Dockerfile.docker
+      additional_contexts:
+        meta: ${META_CONTEXT:-.esb/meta}
+        meta_module: ${META_MODULE_CONTEXT:-meta}
 ```
 
 ### 7.1.1 必須 build args

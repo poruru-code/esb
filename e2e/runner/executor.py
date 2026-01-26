@@ -414,6 +414,9 @@ def run_scenario(args, scenario):
     if not template_path.exists():
         raise FileNotFoundError(f"Missing E2E template: {template_path}")
     runtime_env = calculate_runtime_env(project_name, env_name, mode, env_file)
+    build_env_base = runtime_env.copy()
+    build_env_base["PROJECT_NAME"] = f"{project_name}-{env_name}"
+    build_env_base["ESB_META_REUSE"] = "1"
 
     did_up = False
     try:
@@ -461,17 +464,11 @@ def run_scenario(args, scenario):
                     shutil.rmtree(env_state_dir)
 
                 # Re-generate configurations and build images via ESB build
-                # IMPORTANT: Pass runtime_env so (branding) is respected!
-                build_env = runtime_env.copy()
-                # Ensure build uses the same compose project as the runtime stack.
-                # Otherwise containerd images get pushed to the wrong registry.
-                build_env["PROJECT_NAME"] = f"{project_name}-{env_name}"
-
                 run_esb(
                     build_args + ["--no-cache"],
                     env_file=env_file,
                     verbose=args.verbose,
-                    env=build_env,
+                    env=build_env_base,
                 )
                 verify_registry_images(
                     env_name,
@@ -491,7 +488,12 @@ def run_scenario(args, scenario):
                     print(f"➜ Building environment: {env_name}... ", end="", flush=True)
                 else:
                     print(f"➜ Building environment: {env_name}")
-                run_esb(build_args + ["--no-cache"], env_file=env_file, verbose=args.verbose)
+                run_esb(
+                    build_args + ["--no-cache"],
+                    env_file=env_file,
+                    verbose=args.verbose,
+                    env=build_env_base,
+                )
                 verify_registry_images(
                     env_name,
                     f"{project_name}-{env_name}",
@@ -507,7 +509,7 @@ def run_scenario(args, scenario):
                 else:
                     print(f"➜ Preparing environment: {env_name}")
                 # In Zero-Config, we just rebuild if needed. stop/sync are gone.
-                run_esb(build_args, env_file=env_file, verbose=args.verbose)
+                run_esb(build_args, env_file=env_file, verbose=args.verbose, env=build_env_base)
                 verify_registry_images(
                     env_name,
                     f"{project_name}-{env_name}",

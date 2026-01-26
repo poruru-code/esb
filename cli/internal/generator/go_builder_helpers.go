@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -78,12 +79,6 @@ func prepareMetaContext(
 		return "", fmt.Errorf("repo root is required")
 	}
 	metaDir := filepath.Join(root, meta.OutputDir, "meta")
-	if err := removeDir(metaDir); err != nil {
-		return "", err
-	}
-	if err := ensureDir(metaDir); err != nil {
-		return "", err
-	}
 	bakeFile := filepath.Join(root, "tools", "traceability", "docker-bake.hcl")
 	if _, err := os.Stat(bakeFile); err != nil {
 		return "", fmt.Errorf("bake file not found: %w", err)
@@ -92,28 +87,79 @@ func prepareMetaContext(
 	if traceTools == "" {
 		return "", fmt.Errorf("trace tools path is required")
 	}
-	args := []string{
-		"buildx",
-		"bake",
-		"-f",
-		bakeFile,
-		"meta",
-		"--set",
-		fmt.Sprintf("meta.contexts.git_dir=%s", gitCtx.GitDir),
-		"--set",
-		fmt.Sprintf("meta.contexts.git_common=%s", gitCtx.GitCommon),
-		"--set",
-		fmt.Sprintf("meta.contexts.trace_tools=%s", traceTools),
-		"--set",
-		fmt.Sprintf("meta.output=type=local,dest=%s", metaDir),
+	versionPath := filepath.Join(metaDir, "version.json")
+	reuse := strings.TrimSpace(os.Getenv("ESB_META_REUSE")) != ""
+	gitSha := ""
+	if reuse {
+		if sha, err := runGit(ctx, runner, root, "rev-parse", "HEAD"); err == nil {
+			gitSha = sha
+		}
 	}
-	if err := runner.Run(ctx, root, "docker", args...); err != nil {
+	if err := withBuildLock("meta", func() error {
+		if reuse && gitSha != "" {
+			if ok, err := metaMatchesGit(versionPath, gitSha); err == nil && ok {
+				return nil
+			}
+		}
+		if err := ensureDir(metaDir); err != nil {
+			return err
+		}
+		tmpDir, err := os.MkdirTemp(filepath.Dir(metaDir), "meta-tmp-")
+		if err != nil {
+			return err
+		}
+		defer func() { _ = removeDir(tmpDir) }()
+
+		args := []string{
+			"buildx",
+			"bake",
+			"-f",
+			bakeFile,
+			"meta",
+			"--set",
+			fmt.Sprintf("meta.contexts.git_dir=%s", gitCtx.GitDir),
+			"--set",
+			fmt.Sprintf("meta.contexts.git_common=%s", gitCtx.GitCommon),
+			"--set",
+			fmt.Sprintf("meta.contexts.trace_tools=%s", traceTools),
+			"--set",
+			fmt.Sprintf("meta.output=type=local,dest=%s", tmpDir),
+		}
+		if err := runner.Run(ctx, root, "docker", args...); err != nil {
+			return err
+		}
+		tmpVersion := filepath.Join(tmpDir, "version.json")
+		if _, err := os.Stat(tmpVersion); err != nil {
+			return fmt.Errorf("version.json not found: %w", err)
+		}
+		if err := copyFile(tmpVersion, versionPath); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
 		return "", err
 	}
-	if _, err := os.Stat(filepath.Join(metaDir, "version.json")); err != nil {
+	if _, err := os.Stat(versionPath); err != nil {
 		return "", fmt.Errorf("version.json not found: %w", err)
 	}
 	return metaDir, nil
+}
+
+func metaMatchesGit(path, gitSha string) (bool, error) {
+	if path == "" || gitSha == "" {
+		return false, nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false, err
+	}
+	var payload struct {
+		GitSha string `json:"git_sha"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return false, err
+	}
+	return strings.TrimSpace(payload.GitSha) == strings.TrimSpace(gitSha), nil
 }
 
 func defaultGeneratorParameters() map[string]string {
