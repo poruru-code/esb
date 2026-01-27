@@ -398,6 +398,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		Services: controlServices,
 		NoCache:  request.NoCache,
 		Verbose:  request.Verbose,
+		Stream:   !request.Verbose,
 	}
 	if err := b.BuildCompose(context.Background(), b.ComposeRunner, opts); err != nil {
 		if !request.Verbose {

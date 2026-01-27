@@ -20,6 +20,7 @@ type BuildOptions struct {
 	ExtraFiles []string
 	NoCache    bool
 	Verbose    bool
+	Stream     bool
 }
 
 // BuildProject runs docker compose build with the appropriate configuration
@@ -49,7 +50,7 @@ func BuildProject(ctx context.Context, runner CommandRunner, opts BuildOptions) 
 		args = append(args, services...)
 	}
 
-	if opts.Verbose {
+	if opts.Verbose || opts.Stream {
 		return runner.Run(ctx, opts.RootDir, "docker", args...)
 	}
 	output, err := runner.RunOutput(ctx, opts.RootDir, "docker", args...)

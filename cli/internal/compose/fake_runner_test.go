@@ -5,15 +5,17 @@ import (
 )
 
 type fakeRunner struct {
-	dir  string
-	name string
-	args []string
+	dir      string
+	name     string
+	args     []string
+	lastCall string
 }
 
 func (f *fakeRunner) Run(_ context.Context, dir, name string, args ...string) error {
 	f.dir = dir
 	f.name = name
 	f.args = args
+	f.lastCall = "run"
 	return nil
 }
 
@@ -21,9 +23,14 @@ func (f *fakeRunner) RunOutput(_ context.Context, dir, name string, args ...stri
 	f.dir = dir
 	f.name = name
 	f.args = args
+	f.lastCall = "runoutput"
 	return []byte(""), nil
 }
 
-func (f *fakeRunner) RunQuiet(ctx context.Context, dir, name string, args ...string) error {
-	return f.Run(ctx, dir, name, args...)
+func (f *fakeRunner) RunQuiet(_ context.Context, dir, name string, args ...string) error {
+	f.dir = dir
+	f.name = name
+	f.args = args
+	f.lastCall = "runquiet"
+	return nil
 }

@@ -108,6 +108,30 @@ func TestBuildProjectUsesNoCacheFlag(t *testing.T) {
 	}
 }
 
+func TestBuildProjectStreamsWhenEnabled(t *testing.T) {
+	root := t.TempDir()
+	writeComposeFiles(t, root,
+		"docker-compose.docker.yml",
+	)
+
+	runner := &fakeRunner{}
+	opts := BuildOptions{
+		RootDir:  root,
+		Project:  "esb-default",
+		Mode:     ModeDocker,
+		Services: []string{"gateway"},
+		Stream:   true,
+	}
+
+	if err := BuildProject(context.Background(), runner, opts); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if runner.lastCall != "run" {
+		t.Fatalf("expected stream build to use Run, got %s", runner.lastCall)
+	}
+}
+
 func writeComposeFiles(t *testing.T, root string, names ...string) {
 	t.Helper()
 	for _, name := range names {
