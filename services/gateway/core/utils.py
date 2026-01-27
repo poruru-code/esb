@@ -49,17 +49,31 @@ def parse_lambda_response(
         # When Lambda response uses API Gateway format.
         if isinstance(response_data, dict) and "statusCode" in response_data:
             status_code = response_data.get("statusCode", 200)
-            response_headers = response_data.get("headers", {})
-            response_multi_headers = response_data.get("multiValueHeaders", {})
+            response_headers = response_data.get("headers") or {}
+            response_multi_headers = response_data.get("multiValueHeaders") or {}
+
+            if not isinstance(response_headers, dict):
+                response_headers = {}
+            if not isinstance(response_multi_headers, dict):
+                response_multi_headers = {}
             response_body = response_data.get("body", "")
 
-            # Merge single headers into multi headers for consistent handling
-            # Note: API Gateway behavior is that multiValueHeaders takes precedence if both exist,
-            # but usually developers use one or the other. We'll merge.
-            final_multi_headers = dict(response_multi_headers)
-            for k, v in response_headers.items():
-                if k not in final_multi_headers:
-                    final_multi_headers[k] = [str(v)]
+            normalized_multi_headers: Dict[str, list[str]] = {}
+            for key, values in response_multi_headers.items():
+                if values is None:
+                    continue
+                if isinstance(values, list):
+                    normalized_multi_headers[key] = [str(v) for v in values]
+                else:
+                    normalized_multi_headers[key] = [str(values)]
+
+            # multiValueHeaders takes precedence when both are provided.
+            multi_keys_lower = {key.lower() for key in normalized_multi_headers.keys()}
+            filtered_headers = {
+                key: str(value)
+                for key, value in response_headers.items()
+                if key.lower() not in multi_keys_lower
+            }
 
             # Parse body if it's a JSON string.
             if isinstance(response_body, str):
@@ -76,8 +90,8 @@ def parse_lambda_response(
             return {
                 "status_code": status_code,
                 "content": response_body,
-                "headers": response_headers,
-                "multi_headers": final_multi_headers,
+                "headers": filtered_headers,
+                "multi_headers": normalized_multi_headers,
             }
         else:
             return {"status_code": 200, "content": response_data, "headers": headers}

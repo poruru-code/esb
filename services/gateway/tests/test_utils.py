@@ -29,3 +29,21 @@ def test_parse_lambda_response_logs_warning_on_invalid_json_body():
 
         # Result should remain the original string.
         assert result["content"] == "{invalid json here"
+
+
+def test_parse_lambda_response_multi_value_headers_precedence():
+    response_data = {
+        "statusCode": 200,
+        "headers": {"Set-Cookie": "a=1", "X-Foo": "bar", "x-baz": "lower"},
+        "multiValueHeaders": {"set-cookie": ["b=2", "c=3"], "X-Baz": ["one", "two"]},
+        "body": '{"ok": true}',
+    }
+    mock_response = httpx.Response(200, json=response_data)
+
+    result = parse_lambda_response(mock_response)
+
+    assert result["status_code"] == 200
+    assert result["content"] == {"ok": True}
+    assert result["headers"] == {"X-Foo": "bar"}
+    assert result["multi_headers"]["set-cookie"] == ["b=2", "c=3"]
+    assert result["multi_headers"]["X-Baz"] == ["one", "two"]
