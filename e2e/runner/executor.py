@@ -476,7 +476,8 @@ def run_scenario(args, scenario):
                     mode,
                     compose_file_path,
                 )
-                print_built_images(env_name, project_name)
+                if not (build_only and os.environ.get("E2E_WORKER") == "1"):
+                    print_built_images(env_name, project_name)
 
                 if build_only:
                     return True
@@ -500,7 +501,8 @@ def run_scenario(args, scenario):
                     mode,
                     compose_file_path,
                 )
-                print_built_images(env_name, project_name)
+                if not (build_only and os.environ.get("E2E_WORKER") == "1"):
+                    print_built_images(env_name, project_name)
                 if not args.verbose:
                     print("Done")
             else:
@@ -516,7 +518,8 @@ def run_scenario(args, scenario):
                     mode,
                     compose_file_path,
                 )
-                print_built_images(env_name, project_name)
+                if not (build_only and os.environ.get("E2E_WORKER") == "1"):
+                    print_built_images(env_name, project_name)
                 if not args.verbose:
                     print("Done")
         else:
@@ -922,6 +925,10 @@ def run_build_phase_serial(
         )
         durations[profile_name] = time.monotonic() - start
         print(f"[BUILD] {profile_name} finished in {durations[profile_name]:.1f}s")
+        if returncode == 0:
+            scenario = env_scenarios.get(profile_name, {})
+            project_name = scenario.get("esb_project", BRAND_SLUG)
+            print_built_images(profile_name, project_name)
         if returncode != 0:
             failed.append(profile_name)
             if fail_fast:
