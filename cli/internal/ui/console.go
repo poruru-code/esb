@@ -56,9 +56,9 @@ func (c *Console) Success(msg string) {
 	fmt.Fprintf(c.Out, "✅ %s\n", msg)
 }
 
-// Info prints an info message with an arrow.
+// Info prints an info message.
 func (c *Console) Info(msg string) {
-	fmt.Fprintf(c.Out, "➜ %s\n", msg)
+	fmt.Fprintf(c.Out, "%s\n", msg)
 }
 
 // Warn prints a warning message with an emoji.

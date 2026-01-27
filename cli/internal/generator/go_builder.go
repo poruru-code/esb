@@ -168,7 +168,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	}
 
 	if !request.Verbose {
-		fmt.Print("➜ Generating files... ")
+		fmt.Print("Generating files... ")
 	}
 
 	cfg.Parameters = toAnyMap(defaultGeneratorParameters())
@@ -245,7 +245,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	}
 
 	if !request.Verbose {
-		fmt.Print("➜ Building base image... ")
+		fmt.Print("Building base image... ")
 	}
 	lambdaBaseTag := lambdaBaseImageTag(registryForPush, imageTag)
 	if err := buildBaseImage(
@@ -289,7 +289,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	functionLabels[compose.ESBKindLabel] = "function"
 
 	if !request.Verbose {
-		fmt.Print("➜ Building OS base image... ")
+		fmt.Print("Building OS base image... ")
 	}
 	osBaseTag := fmt.Sprintf("%s-os-base:latest", meta.ImagePrefix)
 	if err := withBuildLock("os-base", func() error {
@@ -326,7 +326,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	}
 
 	if !request.Verbose {
-		fmt.Print("➜ Building Python base image... ")
+		fmt.Print("Building Python base image... ")
 	}
 	pythonBaseTag := fmt.Sprintf("%s-python-base:latest", meta.ImagePrefix)
 	if err := withBuildLock("python-base", func() error {
@@ -363,7 +363,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	}
 
 	if !request.Verbose {
-		fmt.Printf("➜ Building function images (%d functions)... ", len(functions))
+		fmt.Printf("Building function images (%d functions)...\n", len(functions))
 	}
 	if err := buildFunctionImages(
 		context.Background(),
@@ -378,34 +378,38 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		buildContexts,
 	); err != nil {
 		if !request.Verbose {
-			fmt.Println("Failed")
+			fmt.Printf("Building function images (%d functions)... Failed\n", len(functions))
 		}
 		return err
 	}
 	if !request.Verbose {
-		fmt.Println("Done")
+		fmt.Printf("Building function images (%d functions)... Done\n", len(functions))
 	}
 	if !request.Verbose {
-		fmt.Print("➜ Building control plane images... ")
+		fmt.Println("Building control plane images...")
 	}
 
+	controlServices := []string{"os-base", "python-base", "gateway", "agent", "provisioner"}
 	opts := compose.BuildOptions{
 		RootDir:  repoRoot,
 		Project:  composeProject,
 		Mode:     mode,
 		Target:   "control",
-		Services: []string{"os-base", "python-base", "gateway", "agent", "provisioner"},
+		Services: controlServices,
 		NoCache:  request.NoCache,
 		Verbose:  request.Verbose,
 	}
 	if err := b.BuildCompose(context.Background(), b.ComposeRunner, opts); err != nil {
 		if !request.Verbose {
-			fmt.Println("Failed")
+			fmt.Println("Building control plane images... Failed")
 		}
 		return err
 	}
 	if !request.Verbose {
-		fmt.Println("Done")
+		for _, svc := range controlServices {
+			fmt.Printf("  - Built control plane image: %s\n", svc)
+		}
+		fmt.Println("Building control plane images... Done")
 	}
 	return nil
 }

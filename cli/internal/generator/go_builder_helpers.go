@@ -388,8 +388,6 @@ func buildFunctionImages(
 	for _, fn := range functions {
 		if verbose {
 			fmt.Printf("  Building image for %s...\n", fn.Name)
-		} else {
-			fmt.Printf("➜ Building function image: %s\n", fn.Name)
 		}
 		if strings.TrimSpace(fn.Name) == "" {
 			return fmt.Errorf("function name is required")
@@ -422,7 +420,7 @@ func buildFunctionImages(
 				if verbose {
 					fmt.Printf("  Skipping %s (up-to-date)\n", fn.Name)
 				} else {
-					fmt.Printf("➜ Skipping function image (up-to-date): %s\n", fn.Name)
+					fmt.Printf("  - Skipped function image (up-to-date): %s\n", fn.Name)
 				}
 			}
 		}
@@ -441,7 +439,7 @@ func buildFunctionImages(
 				return err
 			}
 			if !verbose {
-				fmt.Printf("➜ Built function image: %s\n", fn.Name)
+				fmt.Printf("  - Built function image: %s\n", fn.Name)
 			}
 		}
 		if registry != "" {

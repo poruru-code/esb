@@ -36,6 +36,33 @@ COLORS = [
 COLOR_RESET = "\033[0m"
 
 
+def _is_progress_line(line: str) -> bool:
+    prefixes = (
+        "Resetting environment:",
+        "Generating files...",
+        "Building base image...",
+        "Building OS base image...",
+        "Building Python base image...",
+        "Building function images",
+        "Building control plane images",
+        "Built Images for ",
+        "Preparing environment:",
+        "Building environment:",
+        "Cleaning up environment:",
+        "Skipping build for ",
+        "Waiting for Gateway readiness",
+    )
+    if line.startswith(prefixes):
+        return True
+    stripped = line.lstrip()
+    indented_prefixes = (
+        "- Built function image:",
+        "- Skipped function image",
+        "- Built control plane image:",
+    )
+    return stripped.startswith(indented_prefixes)
+
+
 def _registry_port(project: str, compose_file: Path) -> int | None:
     """Resolve host port mapped to registry:5010 for the given compose project."""
     try:
@@ -262,7 +289,10 @@ def print_built_images(env_name: str, project_name: str) -> None:
         "--filter",
         f"label={label_prefix}.env={env_name}",
         "--format",
-        f"{{{{.Repository}}}}:{{{{.Tag}}}}{sep}{{{{.ID}}}}{sep}{{{{.CreatedSince}}}}{sep}{{{{.Size}}}}",
+        (
+            f"{{{{.Repository}}}}:{{{{.Tag}}}}{sep}{{{{.ID}}}}{sep}"
+            f"{{{{.CreatedSince}}}}{sep}{{{{.Size}}}}{sep}{{{{.CreatedAt}}}}"
+        ),
     ]
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
@@ -277,20 +307,45 @@ def print_built_images(env_name: str, project_name: str) -> None:
     rows = []
     for line in raw_lines:
         parts = [part.strip() for part in line.split(sep)]
-        if len(parts) != 4:
+        if len(parts) != 5:
             continue
         rows.append(parts)
     if not rows:
         print(f"[WARN] No built images found for {env_name} ({project_label}).")
         return
 
+    # If multiple localhost registry ports exist, show only the most recent one.
+    localhost_ports: dict[str, str] = {}
+    for repo, _, _, _, created_at in rows:
+        if not repo.startswith("localhost:"):
+            continue
+        host = repo.split("/", 1)[0]
+        if ":" not in host:
+            continue
+        port = host.split(":", 1)[1]
+        if not port.isdigit():
+            continue
+        created_key = created_at[:19]
+        if port not in localhost_ports or created_key > localhost_ports[port]:
+            localhost_ports[port] = created_key
+
+    if len(localhost_ports) > 1:
+        latest_port = max(localhost_ports.items(), key=lambda item: item[1])[0]
+        rows = [
+            row
+            for row in rows
+            if not row[0].startswith("localhost:") or row[0].startswith(f"localhost:{latest_port}/")
+        ]
+
     widths = [0, 0, 0, 0]
-    for row in rows:
-        for idx, value in enumerate(row):
-            widths[idx] = max(widths[idx], len(value))
+    for repo, image_id, created, size, _ in rows:
+        widths[0] = max(widths[0], len(repo))
+        widths[1] = max(widths[1], len(image_id))
+        widths[2] = max(widths[2], len(created))
+        widths[3] = max(widths[3], len(size))
 
     print(f"\n🧱 Built Images for {env_name} ({project_label}):")
-    for repo, image_id, created, size in rows:
+    for repo, image_id, created, size, _ in rows:
         print(
             f"   {repo.ljust(widths[0])}  "
             f"{image_id.ljust(widths[1])}  "
@@ -453,7 +508,7 @@ def run_scenario(args, scenario):
                 mode,
             ]
             if do_reset:
-                print(f"➜ Resetting environment: {env_name}")
+                print(f"Resetting environment: {env_name}")
                 # 2.1 Robust cleanup using docker compose down
                 # matches the "down" logic from legacy esb up replacement
                 if compose_file_path.exists():
@@ -507,9 +562,9 @@ def run_scenario(args, scenario):
                 did_up = False
             elif do_build:
                 if not args.verbose:
-                    print(f"➜ Building environment: {env_name}... ", end="", flush=True)
+                    print(f"Building environment: {env_name}... ", end="", flush=True)
                 else:
-                    print(f"➜ Building environment: {env_name}")
+                    print(f"Building environment: {env_name}")
                 run_esb(
                     build_args + ["--no-cache"],
                     env_file=env_file,
@@ -528,9 +583,9 @@ def run_scenario(args, scenario):
                     print("Done")
             else:
                 if not args.verbose:
-                    print(f"➜ Preparing environment: {env_name}... ", end="", flush=True)
+                    print(f"Preparing environment: {env_name}... ", end="", flush=True)
                 else:
-                    print(f"➜ Preparing environment: {env_name}")
+                    print(f"Preparing environment: {env_name}")
                 # In Zero-Config, we just rebuild if needed. stop/sync are gone.
                 run_esb(build_args, env_file=env_file, verbose=args.verbose, env=build_env_base)
                 verify_registry_images(
@@ -550,7 +605,7 @@ def run_scenario(args, scenario):
                     f"Missing build artifacts for {env_name}: {config_dir} (run build phase first)"
                 )
             if args.verbose:
-                print(f"➜ Skipping build for {env_name} (test-only)")
+                print(f"Skipping build for {env_name} (test-only)")
 
         # If build_only, skip UP and tests
         if build_only:
@@ -693,9 +748,9 @@ def run_scenario(args, scenario):
     finally:
         if args.cleanup:
             if not args.verbose:
-                print(f"➜ Cleaning up environment: {env_name}... ", end="", flush=True)
+                print(f"Cleaning up environment: {env_name}... ", end="", flush=True)
             else:
-                print(f"➜ Cleaning up environment: {env_name}")
+                print(f"Cleaning up environment: {env_name}")
             # esb down is gone, use docker compose directly
             proj_key = f"{BRAND_SLUG}-{env_name}"
             subprocess.run(
@@ -768,7 +823,7 @@ def run_profile_subprocess(
                     should_print = (
                         verbose
                         or tests_started
-                        or clean_line.startswith("➜")
+                        or _is_progress_line(clean_line)
                         or in_special_block
                         or is_buildkit_progress
                     )
@@ -780,14 +835,14 @@ def run_profile_subprocess(
                     # End of special block if we encounter a new progress line
                     # or if the line is not indented (and not the header itself)
                     if in_special_block and not is_special_header:
-                        if clean_line.startswith("➜") or not clean_line.startswith(" "):
+                        if _is_progress_line(clean_line) or not clean_line.startswith(" "):
                             in_special_block = False
 
                     if not tests_started and any(
                         pat in clean_line for pat in early_failure_patterns
                     ):
                         early_failure = True
-                        print(f"{prefix} ➜ Build failed; stopping this environment.", flush=True)
+                        print(f"{prefix} Build failed; stopping this environment.", flush=True)
                         process.terminate()
                         break
                 else:
@@ -814,7 +869,7 @@ def run_profile_subprocess(
         returncode = process.wait()
 
     if returncode != 0 and not verbose and not tests_started:
-        print(f"{prefix} ➜ Subprocess failed before tests started. Printing cached logs...\n")
+        print(f"{prefix} Subprocess failed before tests started. Printing cached logs...\n")
         for line in output_lines:
             print(f"{prefix} {line.rstrip()}", flush=True)
 
@@ -998,7 +1053,7 @@ def wait_for_gateway(
 
     url = f"https://localhost:{gw_port}/health"
     if verbose:
-        print(f"➜ Waiting for Gateway readiness at {url}...")
+        print(f"Waiting for Gateway readiness at {url}...")
 
     # Suppress certificate warnings for local dev
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
