@@ -251,6 +251,7 @@ def verify_registry_images(env_name: str, project: str, mode: str, compose_file:
 def print_built_images(env_name: str, project_name: str) -> None:
     label_prefix = f"com.{BRAND_SLUG}"
     project_label = f"{project_name}-{env_name}"
+    sep = "\x1f"
     cmd = [
         "docker",
         "images",
@@ -261,21 +262,41 @@ def print_built_images(env_name: str, project_name: str) -> None:
         "--filter",
         f"label={label_prefix}.env={env_name}",
         "--format",
-        "{{.Repository}}:{{.Tag}}\t{{.ID}}\t{{.CreatedSince}}\t{{.Size}}",
+        f"{{{{.Repository}}}}:{{{{.Tag}}}}{sep}{{{{.ID}}}}{sep}{{{{.CreatedSince}}}}{sep}{{{{.Size}}}}",
     ]
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         print(f"[WARN] Failed to list built images for {env_name}: {result.stderr.strip()}")
         return
 
-    lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
-    if not lines:
+    raw_lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    if not raw_lines:
         print(f"[WARN] No built images found for {env_name} ({project_label}).")
         return
 
+    rows = []
+    for line in raw_lines:
+        parts = [part.strip() for part in line.split(sep)]
+        if len(parts) != 4:
+            continue
+        rows.append(parts)
+    if not rows:
+        print(f"[WARN] No built images found for {env_name} ({project_label}).")
+        return
+
+    widths = [0, 0, 0, 0]
+    for row in rows:
+        for idx, value in enumerate(row):
+            widths[idx] = max(widths[idx], len(value))
+
     print(f"\n🧱 Built Images for {env_name} ({project_label}):")
-    for line in lines:
-        print(f"   {line}")
+    for repo, image_id, created, size in rows:
+        print(
+            f"   {repo.ljust(widths[0])}  "
+            f"{image_id.ljust(widths[1])}  "
+            f"{created.ljust(widths[2])}  "
+            f"{size.rjust(widths[3])}"
+        )
     print("")
 
 
