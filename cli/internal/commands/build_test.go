@@ -53,7 +53,7 @@ func TestRunBuildCallsBuilder(t *testing.T) {
 	var out bytes.Buffer
 	deps := Dependencies{Out: &out, Build: BuildDeps{Builder: builder}}
 
-	exitCode := Run([]string{"--template", templatePath, "build", "--env", "staging", "--mode", "docker"}, deps)
+	exitCode := Run([]string{"--template", templatePath, "build", "--env", "staging", "--mode", "docker", "--bundle-manifest"}, deps)
 	if exitCode != 0 {
 		t.Fatalf("expected exit code 0, got %d", exitCode)
 	}
@@ -72,6 +72,9 @@ func TestRunBuildCallsBuilder(t *testing.T) {
 	}
 	if req.TemplatePath != templatePath {
 		t.Fatalf("unexpected template path: %s", req.TemplatePath)
+	}
+	if !req.Bundle {
+		t.Fatalf("expected bundle manifest to be enabled")
 	}
 }
 

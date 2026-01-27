@@ -15,4 +15,5 @@ type BuildRequest struct {
 	Tag          string
 	NoCache      bool
 	Verbose      bool
+	Bundle       bool
 }

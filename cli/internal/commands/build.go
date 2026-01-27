@@ -87,6 +87,7 @@ func (c *buildCommand) Run(inputs buildInputs, flags BuildCmd) error {
 		Tag:          tag,
 		NoCache:      flags.NoCache,
 		Verbose:      flags.Verbose,
+		Bundle:       inputs.Bundle,
 	}
 	return workflows.NewBuildWorkflow(c.builder, c.envApplier, c.ui).Run(request)
 }
@@ -98,6 +99,7 @@ type buildInputs struct {
 	TemplatePath string
 	OutputDir    string
 	Parameters   map[string]string
+	Bundle       bool
 }
 
 func resolveBuildInputs(cli CLI, deps Dependencies) (buildInputs, error) {
@@ -184,6 +186,7 @@ func resolveBuildInputs(cli CLI, deps Dependencies) (buildInputs, error) {
 			TemplatePath: templatePath,
 			OutputDir:    outputDir,
 			Parameters:   params,
+			Bundle:       cli.Build.Bundle,
 		}
 
 		confirmed, err := confirmBuildInputs(inputs, isTTY, prompter)
@@ -553,6 +556,9 @@ func confirmBuildInputs(inputs buildInputs, isTTY bool, prompter interaction.Pro
 		fmt.Sprintf("Env: %s", inputs.Env),
 		fmt.Sprintf("Mode: %s", inputs.Mode),
 		fmt.Sprintf("Output: %s", output),
+	}
+	if inputs.Bundle {
+		summaryLines = append(summaryLines, "Bundle manifest: enabled")
 	}
 	if len(inputs.Parameters) > 0 {
 		keys := make([]string, 0, len(inputs.Parameters))

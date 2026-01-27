@@ -45,6 +45,7 @@ type (
 		Verbose bool   `short:"v" help:"Enable verbose output"`
 		Force   bool   `help:"Auto-unset invalid project/environment variables"`
 		NoSave  bool   `name:"no-save-defaults" help:"Do not persist build defaults"`
+		Bundle  bool   `name:"bundle-manifest" help:"Write bundle manifest for DinD bundling"`
 	}
 	VersionCmd struct{}
 
