@@ -7,6 +7,7 @@ os.environ["AUTH_USER"] = "test-user"
 os.environ["AUTH_PASS"] = "test-pass"
 os.environ["CONTAINERS_NETWORK"] = "test-net"
 os.environ["AGENT_GRPC_ADDRESS"] = "localhost:50051"
+os.environ["GATEWAY_OWNER_ID"] = "test-owner"
 
 from unittest.mock import AsyncMock, MagicMock, patch
 

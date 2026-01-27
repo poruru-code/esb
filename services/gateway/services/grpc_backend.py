@@ -1,4 +1,5 @@
 import logging
+import os
 from typing import List, Optional
 
 import grpc
@@ -27,6 +28,7 @@ class GrpcBackend:
         function_registry: Optional[FunctionRegistry] = None,
         concurrency_manager: Optional[ConcurrencyManager] = None,
         config: Optional[GatewayConfig] = None,
+        owner_id: str | None = None,
     ):
         if config:
             self.channel = create_agent_channel(agent_address, config)
@@ -35,6 +37,14 @@ class GrpcBackend:
         self.stub = agent_pb2_grpc.AgentServiceStub(self.channel)
         self.function_registry = function_registry
         self.concurrency_manager = concurrency_manager
+        if owner_id:
+            self.owner_id = owner_id
+        elif config:
+            self.owner_id = config.GATEWAY_OWNER_ID
+        else:
+            self.owner_id = os.getenv("GATEWAY_OWNER_ID") or os.getenv("HOSTNAME") or "gateway"
+        if not self.owner_id:
+            raise ValueError("GATEWAY_OWNER_ID is required")
 
     async def acquire_worker(self, function_name: str) -> WorkerInfo:
         """
@@ -97,6 +107,7 @@ class GrpcBackend:
             function_name=function_name,
             image="",
             env=env,
+            owner_id=self.owner_id,
         )
         try:
             resp = await self.stub.EnsureContainer(req)
@@ -124,7 +135,11 @@ class GrpcBackend:
         """
         Explicitly evict a worker.
         """
-        req = agent_pb2.DestroyContainerRequest(function_name=function_name, container_id=worker.id)  # type: ignore[attr-defined]
+        req = agent_pb2.DestroyContainerRequest(  # type: ignore[attr-defined]
+            function_name=function_name,
+            container_id=worker.id,
+            owner_id=self.owner_id,
+        )
         try:
             await self.stub.DestroyContainer(req)
         except grpc.RpcError as e:
@@ -135,7 +150,9 @@ class GrpcBackend:
         """
         Get the state of all workers from Agent (for Janitor).
         """
-        req = agent_pb2.ListContainersRequest()  # type: ignore[attr-defined]
+        req = agent_pb2.ListContainersRequest(  # type: ignore[attr-defined]
+            owner_id=self.owner_id
+        )
         try:
             resp = await self.stub.ListContainers(req)
             return [

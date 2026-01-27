@@ -222,6 +222,10 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 	if r.cni == nil {
 		return nil, fmt.Errorf("cni is not configured")
 	}
+	ownerID := strings.TrimSpace(req.OwnerID)
+	if ownerID == "" {
+		return nil, fmt.Errorf("owner_id is required")
+	}
 
 	// Phase 4-1: Factory behavior. Always create a new container.
 	image := req.Image
@@ -287,6 +291,7 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 			runtime.LabelCreatedBy:    runtime.ValueCreatedByAgent,
 			runtime.LabelEsbEnv:       r.env,
 			runtime.LabelFunctionKind: runtime.ValueFunctionKind,
+			runtime.LabelOwner:        ownerID,
 		}),
 	}
 	if runtimeName := strings.TrimSpace(os.Getenv("CONTAINERD_RUNTIME")); runtimeName != "" {
@@ -363,6 +368,7 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 		ID:        containerID,
 		IPAddress: ipAddress,
 		Port:      8080,
+		OwnerID:   ownerID,
 	}, nil
 }
 
@@ -588,13 +594,16 @@ func (r *Runtime) List(ctx context.Context) ([]runtime.ContainerState, error) {
 		info, infoErr := c.Info(ctx)
 		createdAt := time.Time{}
 		functionName := ""
+		ownerID := ""
 		if infoErr == nil {
 			createdAt = info.CreatedAt
 			functionName = info.Labels[runtime.LabelFunctionName]
+			ownerID = info.Labels[runtime.LabelOwner]
 		} else {
 			labels, err := c.Labels(ctx)
 			if err == nil {
 				functionName = labels[runtime.LabelFunctionName]
+				ownerID = labels[runtime.LabelOwner]
 			}
 		}
 		if functionName == "" {
@@ -647,6 +656,7 @@ func (r *Runtime) List(ctx context.Context) ([]runtime.ContainerState, error) {
 			CreatedAt:     createdAt,
 			IPAddress:     ipAddress,
 			Port:          8080,
+			OwnerID:       ownerID,
 		})
 	}
 

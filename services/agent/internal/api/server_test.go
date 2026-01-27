@@ -91,7 +91,11 @@ func (m *MockRuntime) Close() error {
 	return args.Error(0)
 }
 
-const bufSize = 1024 * 1024
+const (
+	bufSize      = 1024 * 1024
+	testOwnerID  = "owner-1"
+	otherOwnerID = "owner-2"
+)
 
 func initServer(t *testing.T, mockRT *MockRuntime) *grpc.ClientConn {
 	t.Helper()
@@ -139,18 +143,21 @@ func TestEnsureContainer(t *testing.T) {
 		ID:        "container-123",
 		IPAddress: "10.0.0.9",
 		Port:      8080,
+		OwnerID:   testOwnerID,
 	}
 
 	mockRT.On("Ensure", mock.Anything, runtime.EnsureRequest{
 		FunctionName: fnName,
 		Image:        image,
 		Env:          env,
+		OwnerID:      testOwnerID,
 	}).Return(expectedWorker, nil)
 
 	req := &pb.EnsureContainerRequest{
 		FunctionName: fnName,
 		Image:        image,
 		Env:          env,
+		OwnerId:      testOwnerID,
 	}
 
 	resp, err := client.EnsureContainer(context.Background(), req)
@@ -162,6 +169,20 @@ func TestEnsureContainer(t *testing.T) {
 	mockRT.AssertExpectations(t)
 }
 
+func TestEnsureContainerRequiresOwnerID(t *testing.T) {
+	mockRT := new(MockRuntime)
+	conn := initServer(t, mockRT)
+	defer conn.Close()
+
+	client := pb.NewAgentServiceClient(conn)
+
+	_, err := client.EnsureContainer(context.Background(), &pb.EnsureContainerRequest{
+		FunctionName: "test-func",
+	})
+	assert.Error(t, err)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+}
+
 func TestDestroyContainer(t *testing.T) {
 	mockRT := new(MockRuntime)
 	conn := initServer(t, mockRT)
@@ -170,16 +191,52 @@ func TestDestroyContainer(t *testing.T) {
 	client := pb.NewAgentServiceClient(conn)
 	containerID := "test-container-id"
 
+	mockRT.On("List", mock.Anything).Return([]runtime.ContainerState{
+		{
+			ID:        containerID,
+			OwnerID:   testOwnerID,
+			Port:      8080,
+			IPAddress: "10.0.0.9",
+		},
+	}, nil)
 	mockRT.On("Destroy", mock.Anything, containerID).Return(nil)
 
 	req := &pb.DestroyContainerRequest{
 		ContainerId: containerID,
+		OwnerId:     testOwnerID,
 	}
 
 	resp, err := client.DestroyContainer(context.Background(), req)
 
 	assert.NoError(t, err)
 	assert.True(t, resp.Success)
+	mockRT.AssertExpectations(t)
+}
+
+func TestDestroyContainerOwnerMismatch(t *testing.T) {
+	mockRT := new(MockRuntime)
+	conn := initServer(t, mockRT)
+	defer conn.Close()
+
+	client := pb.NewAgentServiceClient(conn)
+	containerID := "test-container-id"
+
+	mockRT.On("List", mock.Anything).Return([]runtime.ContainerState{
+		{
+			ID:        containerID,
+			OwnerID:   testOwnerID,
+			Port:      8080,
+			IPAddress: "10.0.0.9",
+		},
+	}, nil)
+
+	_, err := client.DestroyContainer(context.Background(), &pb.DestroyContainerRequest{
+		ContainerId: containerID,
+		OwnerId:     otherOwnerID,
+	})
+
+	assert.Error(t, err)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
 	mockRT.AssertExpectations(t)
 }
 
@@ -191,10 +248,19 @@ func TestDestroyContainerNotFound(t *testing.T) {
 	client := pb.NewAgentServiceClient(conn)
 	containerID := "missing-container-id"
 
+	mockRT.On("List", mock.Anything).Return([]runtime.ContainerState{
+		{
+			ID:        containerID,
+			OwnerID:   testOwnerID,
+			Port:      8080,
+			IPAddress: "10.0.0.9",
+		},
+	}, nil)
 	mockRT.On("Destroy", mock.Anything, containerID).Return(errdefs.ErrNotFound)
 
 	req := &pb.DestroyContainerRequest{
 		ContainerId: containerID,
+		OwnerId:     testOwnerID,
 	}
 
 	resp, err := client.DestroyContainer(context.Background(), req)
@@ -214,6 +280,34 @@ func TestInvokeWorkerRequiresContainerID(t *testing.T) {
 	_, err := client.InvokeWorker(context.Background(), &pb.InvokeWorkerRequest{})
 	assert.Error(t, err)
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+}
+
+func TestInvokeWorkerOwnerMismatch(t *testing.T) {
+	mockRT := new(MockRuntime)
+	conn := initServer(t, mockRT)
+	defer conn.Close()
+
+	client := pb.NewAgentServiceClient(conn)
+	containerID := "container-123"
+
+	mockRT.On("List", mock.Anything).Return([]runtime.ContainerState{
+		{
+			ID:        containerID,
+			OwnerID:   testOwnerID,
+			Port:      8080,
+			IPAddress: "10.0.0.9",
+		},
+	}, nil)
+
+	_, err := client.InvokeWorker(context.Background(), &pb.InvokeWorkerRequest{
+		ContainerId: containerID,
+		OwnerId:     otherOwnerID,
+		Path:        "invoke",
+		Payload:     []byte("hello"),
+	})
+	assert.Error(t, err)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+	mockRT.AssertExpectations(t)
 }
 
 func TestInvokeWorkerUsesCachedWorker(t *testing.T) {
@@ -260,12 +354,14 @@ func TestInvokeWorkerUsesCachedWorker(t *testing.T) {
 		ID:        "container-123",
 		IPAddress: host,
 		Port:      port,
+		OwnerID:   testOwnerID,
 	}
 
 	mockRT.On("Ensure", mock.Anything, runtime.EnsureRequest{
 		FunctionName: fnName,
 		Image:        image,
 		Env:          env,
+		OwnerID:      testOwnerID,
 	}).Return(expectedWorker, nil)
 
 	mockRT.On("Touch", expectedWorker.ID).Return()
@@ -274,11 +370,13 @@ func TestInvokeWorkerUsesCachedWorker(t *testing.T) {
 		FunctionName: fnName,
 		Image:        image,
 		Env:          env,
+		OwnerId:      testOwnerID,
 	})
 	assert.NoError(t, err)
 
 	resp, err := client.InvokeWorker(context.Background(), &pb.InvokeWorkerRequest{
 		ContainerId: expectedWorker.ID,
+		OwnerId:     testOwnerID,
 		Path:        "invoke",
 		Payload:     []byte("hello"),
 		Headers: map[string]string{
@@ -336,6 +434,7 @@ func TestInvokeWorkerRefreshesCacheOnMiss(t *testing.T) {
 			ID:        containerID,
 			IPAddress: host,
 			Port:      port,
+			OwnerID:   testOwnerID,
 		},
 	}, nil)
 
@@ -343,6 +442,7 @@ func TestInvokeWorkerRefreshesCacheOnMiss(t *testing.T) {
 
 	resp, err := client.InvokeWorker(context.Background(), &pb.InvokeWorkerRequest{
 		ContainerId: containerID,
+		OwnerId:     testOwnerID,
 		Path:        "invoke",
 		Payload:     []byte("hello"),
 		Headers: map[string]string{
@@ -367,10 +467,19 @@ func TestPauseContainer(t *testing.T) {
 	client := pb.NewAgentServiceClient(conn)
 	containerID := "test-container-id"
 
+	mockRT.On("List", mock.Anything).Return([]runtime.ContainerState{
+		{
+			ID:        containerID,
+			OwnerID:   testOwnerID,
+			Port:      8080,
+			IPAddress: "10.0.0.9",
+		},
+	}, nil)
 	mockRT.On("Suspend", mock.Anything, containerID).Return(nil)
 
 	req := &pb.PauseContainerRequest{
 		ContainerId: containerID,
+		OwnerId:     testOwnerID,
 	}
 
 	resp, err := client.PauseContainer(context.Background(), req)
@@ -388,10 +497,19 @@ func TestResumeContainer(t *testing.T) {
 	client := pb.NewAgentServiceClient(conn)
 	containerID := "test-container-id"
 
+	mockRT.On("List", mock.Anything).Return([]runtime.ContainerState{
+		{
+			ID:        containerID,
+			OwnerID:   testOwnerID,
+			Port:      8080,
+			IPAddress: "10.0.0.9",
+		},
+	}, nil)
 	mockRT.On("Resume", mock.Anything, containerID).Return(nil)
 
 	req := &pb.ResumeContainerRequest{
 		ContainerId: containerID,
+		OwnerId:     testOwnerID,
 	}
 
 	resp, err := client.ResumeContainer(context.Background(), req)
@@ -425,10 +543,19 @@ func TestGetContainerMetrics(t *testing.T) {
 		CollectedAt:   now,
 	}
 
+	mockRT.On("List", mock.Anything).Return([]runtime.ContainerState{
+		{
+			ID:        containerID,
+			OwnerID:   testOwnerID,
+			Port:      8080,
+			IPAddress: "10.0.0.9",
+		},
+	}, nil)
 	mockRT.On("Metrics", mock.Anything, containerID).Return(expectedMetrics, nil)
 
 	req := &pb.GetContainerMetricsRequest{
 		ContainerId: containerID,
+		OwnerId:     testOwnerID,
 	}
 
 	resp, err := client.GetContainerMetrics(context.Background(), req)
@@ -449,4 +576,15 @@ func TestGetContainerMetrics(t *testing.T) {
 	assert.Equal(t, expectedMetrics.CollectedAt.Unix(), resp.Metrics.CollectedAt)
 
 	mockRT.AssertExpectations(t)
+}
+
+func TestListContainersRequiresOwnerID(t *testing.T) {
+	mockRT := new(MockRuntime)
+	conn := initServer(t, mockRT)
+	defer conn.Close()
+
+	client := pb.NewAgentServiceClient(conn)
+	_, err := client.ListContainers(context.Background(), &pb.ListContainersRequest{})
+	assert.Error(t, err)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 }

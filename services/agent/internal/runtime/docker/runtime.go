@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -55,6 +56,11 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 	// Phase 4-1: Factory behavior. Always create a new container.
 	// Pool management is handled by the Gateway.
 	// Mutex removed to allow parallel provisioning.
+
+	ownerID := strings.TrimSpace(req.OwnerID)
+	if ownerID == "" {
+		return nil, fmt.Errorf("owner_id is required")
+	}
 
 	imageName := req.Image
 	if imageName == "" {
@@ -112,6 +118,7 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 			runtime.LabelCreatedBy:    runtime.ValueCreatedByAgent,
 			runtime.LabelEsbEnv:       r.env,
 			runtime.LabelFunctionKind: runtime.ValueFunctionKind,
+			runtime.LabelOwner:        ownerID,
 		},
 		ExposedPorts: nat.PortSet{
 			"8080/tcp": struct{}{},
@@ -185,6 +192,7 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 		ID:        containerID,
 		IPAddress: ip,
 		Port:      8080,
+		OwnerID:   ownerID,
 	}, nil
 }
 
@@ -243,6 +251,7 @@ func (r *Runtime) List(ctx context.Context) ([]runtime.ContainerState, error) {
 		if funcName == "" {
 			continue
 		}
+		ownerID := c.Labels[runtime.LabelOwner]
 
 		// For Phase 1/3, we use Created time as a base, but check accessTracker.
 		createdTime := time.Unix(c.Created, 0)
@@ -271,6 +280,7 @@ func (r *Runtime) List(ctx context.Context) ([]runtime.ContainerState, error) {
 			CreatedAt:     createdTime, // Container creation time from Docker API
 			IPAddress:     ipAddress,
 			Port:          8080,
+			OwnerID:       ownerID,
 		})
 	}
 	return states, nil

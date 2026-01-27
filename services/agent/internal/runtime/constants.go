@@ -18,6 +18,9 @@ const (
 	// LabelFunctionKind is the label key for function containers/images.
 	LabelFunctionKind = meta.LabelPrefix + ".kind"
 
+	// LabelOwner is the label key for the gateway owner identifier.
+	LabelOwner = meta.LabelPrefix + ".owner"
+
 	// ValueFunctionKind is the label value for function containers/images.
 	ValueFunctionKind = "function"
 )

@@ -5,6 +5,7 @@ Loads configuration from environment variables and provides a Pydantic model.
 Uses pydantic-settings for type safety and defaults.
 """
 
+import os
 import sys
 
 from pydantic import Field
@@ -64,6 +65,10 @@ class GatewayConfig(BaseAppConfig):
     # External integration (hostnames required from env)
     CONTAINERS_NETWORK: str = Field(..., description="Network for Lambda containers")
     GATEWAY_INTERNAL_URL: str = Field(..., description="Gateway URL from containers")
+    GATEWAY_OWNER_ID: str = Field(
+        default_factory=lambda: os.getenv("HOSTNAME") or "gateway",
+        description="Gateway owner identifier for Agent resource ownership",
+    )
     DATA_PLANE_HOST: str = Field(default="10.88.0.1", description="Host for data plane services")
     LAMBDA_INVOKE_TIMEOUT: float = Field(
         default=30.0, description="Lambda invoke timeout (seconds)"

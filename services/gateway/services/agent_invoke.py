@@ -15,10 +15,14 @@ class AgentInvokeClient:
     def __init__(
         self,
         stub,
+        owner_id: str,
         path: str = "/2015-03-31/functions/function/invocations",
     ):
         self.stub = stub
         self.path = path
+        if not owner_id:
+            raise ValueError("owner_id is required")
+        self.owner_id = owner_id
 
     async def invoke(
         self,
@@ -35,6 +39,7 @@ class AgentInvokeClient:
             payload=payload,
             headers=headers,
             timeout_ms=timeout_ms,
+            owner_id=self.owner_id,
         )
 
         resp = await self.stub.InvokeWorker(req)

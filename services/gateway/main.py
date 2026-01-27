@@ -101,6 +101,7 @@ async def lifespan(app: FastAPI):
         agent_stub,
         function_registry,
         skip_readiness_check=config.AGENT_INVOKE_PROXY,
+        owner_id=config.GATEWAY_OWNER_ID,
     )
 
     pool_manager = PoolManager(
@@ -128,7 +129,7 @@ async def lifespan(app: FastAPI):
     # Create LambdaInvoker with chosen backend
     agent_invoker = None
     if config.AGENT_INVOKE_PROXY:
-        agent_invoker = AgentInvokeClient(agent_stub)
+        agent_invoker = AgentInvokeClient(agent_stub, owner_id=config.GATEWAY_OWNER_ID)
         logger.info("Gateway invoke proxy enabled (L7 via Agent).")
 
     lambda_invoker = LambdaInvoker(
