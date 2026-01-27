@@ -795,9 +795,10 @@ def run_profile_subprocess(
                     if in_special_block:
                         in_special_block = False
 
-                    # Preserve blank lines for structure (e.g. before BlockStart)
+                    # Preserve blank lines only in verbose mode
                     if not last_line_was_blank:
-                        print(prefix, flush=True)
+                        if verbose:
+                            print(prefix, flush=True)
                         last_line_was_blank = True
 
                 output_lines.append(line)
