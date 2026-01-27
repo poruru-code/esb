@@ -129,6 +129,11 @@ async def resolve_lambda_target(request: Request, route_matcher: RouteMatcherDep
         path, method
     )
 
+    if not target_container and method.upper() == "HEAD":
+        target_container, path_params, route_path, function_config = route_matcher.match_route(
+            path, "GET"
+        )
+
     if not target_container:
         raise HTTPException(status_code=404, detail="Not Found")
 
