@@ -288,6 +288,33 @@ func (d *defaultPrompter) SelectValue(_ string, options []interaction.SelectOpti
 	return options[0].Value, nil
 }
 
+type scriptedPrompter struct {
+	inputs  []string
+	selects []string
+}
+
+func (s *scriptedPrompter) Input(_ string, _ []string) (string, error) {
+	if len(s.inputs) == 0 {
+		return "", errors.New("no inputs")
+	}
+	value := s.inputs[0]
+	s.inputs = s.inputs[1:]
+	return value, nil
+}
+
+func (s *scriptedPrompter) Select(_ string, _ []string) (string, error) {
+	if len(s.selects) == 0 {
+		return "", errors.New("no selects")
+	}
+	value := s.selects[0]
+	s.selects = s.selects[1:]
+	return value, nil
+}
+
+func (s *scriptedPrompter) SelectValue(_ string, _ []interaction.SelectOption) (string, error) {
+	return "proceed", nil
+}
+
 func TestResolveBuildInputsUsesStoredDefaults(t *testing.T) {
 	tmpDir := t.TempDir()
 	templateContent := `
@@ -347,5 +374,151 @@ Parameters:
 	stored := loaded.BuildDefaults[templatePath]
 	if stored.Env != "staging" || stored.Mode != "docker" || stored.OutputDir != ".out" {
 		t.Fatalf("stored defaults mismatch: %#v", stored)
+	}
+}
+
+func TestResolveBuildInputsDoesNotSaveWhenFlagSet(t *testing.T) {
+	tmpDir := t.TempDir()
+	templateContent := `
+Parameters:
+  ParamA:
+    Type: String
+`
+	templatePath := filepath.Join(tmpDir, "template.yaml")
+	if err := os.WriteFile(templatePath, []byte(templateContent), 0o644); err != nil {
+		t.Fatalf("write template: %v", err)
+	}
+
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	t.Setenv("ESB_CONFIG_PATH", cfgPath)
+	cfg := config.GlobalConfig{
+		Version: 1,
+		BuildDefaults: map[string]config.BuildDefaults{
+			templatePath: {
+				Env:       "staging",
+				Mode:      "docker",
+				OutputDir: ".out",
+				Params: map[string]string{
+					"ParamA": "old",
+				},
+			},
+		},
+	}
+	if err := config.SaveGlobalConfig(cfgPath, cfg); err != nil {
+		t.Fatalf("save global config: %v", err)
+	}
+
+	origIsTerminal := interaction.IsTerminal
+	interaction.IsTerminal = func(_ *os.File) bool { return true }
+	t.Cleanup(func() { interaction.IsTerminal = origIsTerminal })
+
+	prompter := &scriptedPrompter{
+		inputs:  []string{"prod", ".out2", "new"},
+		selects: []string{"containerd"},
+	}
+	inputs, err := resolveBuildInputs(
+		CLI{
+			Template: templatePath,
+			Build: BuildCmd{
+				NoSave: true,
+			},
+		},
+		Dependencies{Prompter: prompter},
+	)
+	if err != nil {
+		t.Fatalf("resolve build inputs: %v", err)
+	}
+
+	if inputs.Env != "prod" {
+		t.Fatalf("expected env prod, got %s", inputs.Env)
+	}
+	if inputs.Mode != "containerd" {
+		t.Fatalf("expected mode containerd, got %s", inputs.Mode)
+	}
+
+	loaded, err := config.LoadGlobalConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("load global config: %v", err)
+	}
+	stored := loaded.BuildDefaults[templatePath]
+	if stored.Env != "staging" || stored.Mode != "docker" || stored.OutputDir != ".out" {
+		t.Fatalf("defaults should not be overwritten: %#v", stored)
+	}
+	if stored.Params["ParamA"] != "old" {
+		t.Fatalf("params should not be overwritten: %#v", stored.Params)
+	}
+}
+
+func TestResolveBuildInputsIgnoresDefaultsWhenNonInteractive(t *testing.T) {
+	tmpDir := t.TempDir()
+	templatePath := filepath.Join(tmpDir, "template.yaml")
+	if err := os.WriteFile(templatePath, []byte("Resources: {}"), 0o644); err != nil {
+		t.Fatalf("write template: %v", err)
+	}
+
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	t.Setenv("ESB_CONFIG_PATH", cfgPath)
+	cfg := config.GlobalConfig{
+		Version: 1,
+		BuildDefaults: map[string]config.BuildDefaults{
+			templatePath: {
+				Env:  "staging",
+				Mode: "docker",
+			},
+		},
+	}
+	if err := config.SaveGlobalConfig(cfgPath, cfg); err != nil {
+		t.Fatalf("save global config: %v", err)
+	}
+
+	origIsTerminal := interaction.IsTerminal
+	interaction.IsTerminal = func(_ *os.File) bool { return false }
+	t.Cleanup(func() { interaction.IsTerminal = origIsTerminal })
+
+	_, err := resolveBuildInputs(CLI{Template: templatePath}, Dependencies{Prompter: &defaultPrompter{}})
+	if err == nil {
+		t.Fatalf("expected error in non-interactive mode without flags")
+	}
+}
+
+func TestResolveBuildInputsUsesDefaultsPerTemplate(t *testing.T) {
+	tmpDir := t.TempDir()
+	templateA := filepath.Join(tmpDir, "template-a.yaml")
+	templateB := filepath.Join(tmpDir, "template-b.yaml")
+	if err := os.WriteFile(templateA, []byte("Resources: {}"), 0o644); err != nil {
+		t.Fatalf("write template A: %v", err)
+	}
+	if err := os.WriteFile(templateB, []byte("Resources: {}"), 0o644); err != nil {
+		t.Fatalf("write template B: %v", err)
+	}
+
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	t.Setenv("ESB_CONFIG_PATH", cfgPath)
+	cfg := config.GlobalConfig{
+		Version: 1,
+		BuildDefaults: map[string]config.BuildDefaults{
+			templateA: {
+				Env:  "staging",
+				Mode: "containerd",
+			},
+		},
+	}
+	if err := config.SaveGlobalConfig(cfgPath, cfg); err != nil {
+		t.Fatalf("save global config: %v", err)
+	}
+
+	origIsTerminal := interaction.IsTerminal
+	interaction.IsTerminal = func(_ *os.File) bool { return true }
+	t.Cleanup(func() { interaction.IsTerminal = origIsTerminal })
+
+	inputs, err := resolveBuildInputs(CLI{Template: templateB}, Dependencies{Prompter: &defaultPrompter{}})
+	if err != nil {
+		t.Fatalf("resolve build inputs: %v", err)
+	}
+	if inputs.Env != "default" {
+		t.Fatalf("expected default env for new template, got %s", inputs.Env)
+	}
+	if inputs.Mode != "docker" {
+		t.Fatalf("expected default mode docker for new template, got %s", inputs.Mode)
 	}
 }
