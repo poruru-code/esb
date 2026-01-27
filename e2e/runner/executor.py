@@ -417,6 +417,35 @@ def thorough_cleanup(env_name: str):
     # Run it manually or via a post-test cleanup script instead.
 
 
+def cleanup_managed_images(env_name: str, project_name: str) -> None:
+    """Remove ESB-managed images associated with an environment."""
+    label_prefix = f"com.{BRAND_SLUG}"
+    project_label = f"{project_name}-{env_name}"
+    cmd = [
+        "docker",
+        "images",
+        "-q",
+        "--filter",
+        f"label={label_prefix}.managed=true",
+        "--filter",
+        f"label={label_prefix}.project={project_label}",
+        "--filter",
+        f"label={label_prefix}.env={env_name}",
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"[WARN] Failed to list images for cleanup ({env_name}): {result.stderr.strip()}")
+        return
+    image_ids = [img.strip() for img in result.stdout.splitlines() if img.strip()]
+    if not image_ids:
+        return
+    print(f"  • Removing managed images for {env_name} ({len(image_ids)} images)...")
+    try:
+        subprocess.run(["docker", "rmi", "-f"] + image_ids, check=False, capture_output=True)
+    except Exception as exc:
+        print(f"[WARN] Failed to remove images for {env_name}: {exc}")
+
+
 def warmup_environment(env_scenarios: dict, matrix: list[dict], args):
     """
     Perform global reset and warm-up actions.
@@ -529,6 +558,7 @@ def run_scenario(args, scenario):
                     )
                 # Fallback to manual cleanup just in case (e.g. if compose file invalid or project name mismatch previously)
                 thorough_cleanup(env_name)
+                cleanup_managed_images(env_name, project_name)
                 isolate_external_network(f"{BRAND_SLUG}-{env_name}")
 
                 # 2.2 Clean artifact directory for this environment
