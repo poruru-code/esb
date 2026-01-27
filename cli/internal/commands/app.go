@@ -165,14 +165,15 @@ func CommandName(args []string) string {
 	return commandName(args)
 }
 
-// runNoArgs handles the case when esb is invoked without arguments.
+// runNoArgs handles the case when the CLI is invoked without arguments.
 // It displays full configuration and state information (equivalent to the old 'info' command).
 func runNoArgs(out io.Writer) int {
 	ui := legacyUI(out)
+	cmd := cliName()
 	ui.Info("Usage:")
-	ui.Info("  esb build --template <path> --env <name> --mode <docker|containerd> [flags]")
+	ui.Info(fmt.Sprintf("  %s build --template <path> --env <name> --mode <docker|containerd> [flags]", cmd))
 	ui.Info("")
-	ui.Info("Try: esb build --help")
+	ui.Info(fmt.Sprintf("Try: %s build --help", cmd))
 	return 0
 }
 
@@ -183,25 +184,26 @@ func handleParseError(args []string, err error, deps Dependencies, out io.Writer
 	msg := err.Error()
 	if strings.Contains(msg, "expected string value") {
 		ui := legacyUI(out)
+		cmd := cliName()
 		switch {
 		case strings.Contains(msg, "--template"):
 			ui.Warn("`-t/--template` expects a value. Provide a path or omit the flag for interactive input.")
-			ui.Info("Example: esb build -t ./template.yaml")
-			ui.Info("Interactive: esb build")
+			ui.Info(fmt.Sprintf("Example: %s build -t ./template.yaml", cmd))
+			ui.Info(fmt.Sprintf("Interactive: %s build", cmd))
 			return 1
 		case strings.Contains(msg, "--env"):
 			ui.Warn("`-e/--env` expects a value. Provide a name or omit the flag for interactive input.")
-			ui.Info("Example: esb build -e prod")
-			ui.Info("Interactive: esb build")
+			ui.Info(fmt.Sprintf("Example: %s build -e prod", cmd))
+			ui.Info(fmt.Sprintf("Interactive: %s build", cmd))
 			return 1
 		case strings.Contains(msg, "--mode"):
 			ui.Warn("`-m/--mode` expects a value. Use docker/containerd or omit the flag for interactive input.")
-			ui.Info("Example: esb build -m docker")
-			ui.Info("Interactive: esb build")
+			ui.Info(fmt.Sprintf("Example: %s build -m docker", cmd))
+			ui.Info(fmt.Sprintf("Interactive: %s build", cmd))
 			return 1
 		case strings.Contains(msg, "--env-file"):
 			ui.Warn("`--env-file` expects a value. Provide a file path.")
-			ui.Info("Example: esb build --env-file .env.prod")
+			ui.Info(fmt.Sprintf("Example: %s build --env-file .env.prod", cmd))
 			return 1
 		}
 	}
