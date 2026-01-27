@@ -6,7 +6,7 @@ python = "3.12"
 go = "1.25.1"
 uv = "0.8.13"
 lefthook = "2.0.15"
-mkcert = "1.4.4"
+step = "0.28.7"
  
 # Go tooling (installed via go install)
 "go:github.com/golangci/golangci-lint/cmd/golangci-lint" = "latest"
@@ -30,7 +30,7 @@ run = [
 ]
 
 [tasks."setup:certs"]
-description = "Generate development certificates using mkcert"
+description = "Generate development certificates using step-cli"
 run = "uv run python tools/cert-gen/generate.py"
 
 [tasks."setup:meta"]
