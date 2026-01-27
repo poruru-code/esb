@@ -7,6 +7,7 @@ os.environ["AUTH_USER"] = "test-user"
 os.environ["AUTH_PASS"] = "test-pass"
 os.environ["CONTAINERS_NETWORK"] = "test-net"
 os.environ["AGENT_GRPC_ADDRESS"] = "localhost:50051"
+os.environ["GATEWAY_OWNER_ID"] = "test-owner"
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -68,6 +69,7 @@ async def test_acquire_worker_success(backend, mock_stub):
     mock_stub.EnsureContainer.assert_called_once()
     req = mock_stub.EnsureContainer.call_args[0][0]
     assert req.function_name == "test-func"
+    assert req.owner_id == "test-owner"
 
 
 @pytest.mark.asyncio
@@ -83,6 +85,7 @@ async def test_evict_worker_success(backend, mock_stub):
     mock_stub.DestroyContainer.assert_called_once()
     req = mock_stub.DestroyContainer.call_args[0][0]
     assert req.container_id == "target-id"
+    assert req.owner_id == "test-owner"
 
 
 @pytest.mark.asyncio

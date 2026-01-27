@@ -25,6 +25,7 @@ const (
 type PauseContainerRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ContainerId   string                 `protobuf:"bytes,1,opt,name=container_id,json=containerId,proto3" json:"container_id,omitempty"`
+	OwnerId       string                 `protobuf:"bytes,2,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -62,6 +63,13 @@ func (*PauseContainerRequest) Descriptor() ([]byte, []int) {
 func (x *PauseContainerRequest) GetContainerId() string {
 	if x != nil {
 		return x.ContainerId
+	}
+	return ""
+}
+
+func (x *PauseContainerRequest) GetOwnerId() string {
+	if x != nil {
+		return x.OwnerId
 	}
 	return ""
 }
@@ -113,6 +121,7 @@ func (x *PauseContainerResponse) GetSuccess() bool {
 type ResumeContainerRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ContainerId   string                 `protobuf:"bytes,1,opt,name=container_id,json=containerId,proto3" json:"container_id,omitempty"`
+	OwnerId       string                 `protobuf:"bytes,2,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -150,6 +159,13 @@ func (*ResumeContainerRequest) Descriptor() ([]byte, []int) {
 func (x *ResumeContainerRequest) GetContainerId() string {
 	if x != nil {
 		return x.ContainerId
+	}
+	return ""
+}
+
+func (x *ResumeContainerRequest) GetOwnerId() string {
+	if x != nil {
+		return x.OwnerId
 	}
 	return ""
 }
@@ -203,6 +219,7 @@ type EnsureContainerRequest struct {
 	FunctionName  string                 `protobuf:"bytes,1,opt,name=function_name,json=functionName,proto3" json:"function_name,omitempty"`
 	Image         string                 `protobuf:"bytes,2,opt,name=image,proto3" json:"image,omitempty"`
 	Env           map[string]string      `protobuf:"bytes,3,rep,name=env,proto3" json:"env,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	OwnerId       string                 `protobuf:"bytes,4,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -258,10 +275,18 @@ func (x *EnsureContainerRequest) GetEnv() map[string]string {
 	return nil
 }
 
+func (x *EnsureContainerRequest) GetOwnerId() string {
+	if x != nil {
+		return x.OwnerId
+	}
+	return ""
+}
+
 type DestroyContainerRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	FunctionName  string                 `protobuf:"bytes,1,opt,name=function_name,json=functionName,proto3" json:"function_name,omitempty"`
 	ContainerId   string                 `protobuf:"bytes,2,opt,name=container_id,json=containerId,proto3" json:"container_id,omitempty"`
+	OwnerId       string                 `protobuf:"bytes,3,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -306,6 +331,13 @@ func (x *DestroyContainerRequest) GetFunctionName() string {
 func (x *DestroyContainerRequest) GetContainerId() string {
 	if x != nil {
 		return x.ContainerId
+	}
+	return ""
+}
+
+func (x *DestroyContainerRequest) GetOwnerId() string {
+	if x != nil {
+		return x.OwnerId
 	}
 	return ""
 }
@@ -429,6 +461,7 @@ type InvokeWorkerRequest struct {
 	Payload       []byte                 `protobuf:"bytes,4,opt,name=payload,proto3" json:"payload,omitempty"`
 	Headers       map[string]string      `protobuf:"bytes,5,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	TimeoutMs     int32                  `protobuf:"varint,6,opt,name=timeout_ms,json=timeoutMs,proto3" json:"timeout_ms,omitempty"`
+	OwnerId       string                 `protobuf:"bytes,8,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -498,6 +531,13 @@ func (x *InvokeWorkerRequest) GetTimeoutMs() int32 {
 	return 0
 }
 
+func (x *InvokeWorkerRequest) GetOwnerId() string {
+	if x != nil {
+		return x.OwnerId
+	}
+	return ""
+}
+
 type InvokeWorkerResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	StatusCode    int32                  `protobuf:"varint,1,opt,name=status_code,json=statusCode,proto3" json:"status_code,omitempty"`
@@ -561,6 +601,7 @@ func (x *InvokeWorkerResponse) GetBody() []byte {
 // Phase 3: message for ListContainers.
 type ListContainersRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	OwnerId       string                 `protobuf:"bytes,1,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -593,6 +634,13 @@ func (x *ListContainersRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use ListContainersRequest.ProtoReflect.Descriptor instead.
 func (*ListContainersRequest) Descriptor() ([]byte, []int) {
 	return file_agent_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *ListContainersRequest) GetOwnerId() string {
+	if x != nil {
+		return x.OwnerId
+	}
+	return ""
 }
 
 type ListContainersResponse struct {
@@ -647,6 +695,7 @@ type ContainerState struct {
 	LastUsedAt    int64                  `protobuf:"varint,4,opt,name=last_used_at,json=lastUsedAt,proto3" json:"last_used_at,omitempty"` // Unix Timestamp (seconds)
 	ContainerName string                 `protobuf:"bytes,5,opt,name=container_name,json=containerName,proto3" json:"container_name,omitempty"`
 	CreatedAt     int64                  `protobuf:"varint,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"` // Unix Timestamp (seconds) - container creation time
+	OwnerId       string                 `protobuf:"bytes,7,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -723,10 +772,18 @@ func (x *ContainerState) GetCreatedAt() int64 {
 	return 0
 }
 
+func (x *ContainerState) GetOwnerId() string {
+	if x != nil {
+		return x.OwnerId
+	}
+	return ""
+}
+
 // Metrics API
 type GetContainerMetricsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ContainerId   string                 `protobuf:"bytes,1,opt,name=container_id,json=containerId,proto3" json:"container_id,omitempty"`
+	OwnerId       string                 `protobuf:"bytes,2,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -764,6 +821,13 @@ func (*GetContainerMetricsRequest) Descriptor() ([]byte, []int) {
 func (x *GetContainerMetricsRequest) GetContainerId() string {
 	if x != nil {
 		return x.ContainerId
+	}
+	return ""
+}
+
+func (x *GetContainerMetricsRequest) GetOwnerId() string {
+	if x != nil {
+		return x.OwnerId
 	}
 	return ""
 }
@@ -948,25 +1012,29 @@ var File_agent_proto protoreflect.FileDescriptor
 
 const file_agent_proto_rawDesc = "" +
 	"\n" +
-	"\vagent.proto\x12\fesb.agent.v1\":\n" +
+	"\vagent.proto\x12\fesb.agent.v1\"U\n" +
 	"\x15PauseContainerRequest\x12!\n" +
-	"\fcontainer_id\x18\x01 \x01(\tR\vcontainerId\"2\n" +
+	"\fcontainer_id\x18\x01 \x01(\tR\vcontainerId\x12\x19\n" +
+	"\bowner_id\x18\x02 \x01(\tR\aownerId\"2\n" +
 	"\x16PauseContainerResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\";\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"V\n" +
 	"\x16ResumeContainerRequest\x12!\n" +
-	"\fcontainer_id\x18\x01 \x01(\tR\vcontainerId\"3\n" +
+	"\fcontainer_id\x18\x01 \x01(\tR\vcontainerId\x12\x19\n" +
+	"\bowner_id\x18\x02 \x01(\tR\aownerId\"3\n" +
 	"\x17ResumeContainerResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\"\xcc\x01\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"\xe7\x01\n" +
 	"\x16EnsureContainerRequest\x12#\n" +
 	"\rfunction_name\x18\x01 \x01(\tR\ffunctionName\x12\x14\n" +
 	"\x05image\x18\x02 \x01(\tR\x05image\x12?\n" +
-	"\x03env\x18\x03 \x03(\v2-.esb.agent.v1.EnsureContainerRequest.EnvEntryR\x03env\x1a6\n" +
+	"\x03env\x18\x03 \x03(\v2-.esb.agent.v1.EnsureContainerRequest.EnvEntryR\x03env\x12\x19\n" +
+	"\bowner_id\x18\x04 \x01(\tR\aownerId\x1a6\n" +
 	"\bEnvEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"a\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"|\n" +
 	"\x17DestroyContainerRequest\x12#\n" +
 	"\rfunction_name\x18\x01 \x01(\tR\ffunctionName\x12!\n" +
-	"\fcontainer_id\x18\x02 \x01(\tR\vcontainerId\"4\n" +
+	"\fcontainer_id\x18\x02 \x01(\tR\vcontainerId\x12\x19\n" +
+	"\bowner_id\x18\x03 \x01(\tR\aownerId\"4\n" +
 	"\x18DestroyContainerResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\"c\n" +
 	"\n" +
@@ -975,14 +1043,15 @@ const file_agent_proto_rawDesc = "" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1d\n" +
 	"\n" +
 	"ip_address\x18\x03 \x01(\tR\tipAddress\x12\x12\n" +
-	"\x04port\x18\x04 \x01(\x05R\x04port\"\xa9\x02\n" +
+	"\x04port\x18\x04 \x01(\x05R\x04port\"\xc4\x02\n" +
 	"\x13InvokeWorkerRequest\x12!\n" +
 	"\fcontainer_id\x18\a \x01(\tR\vcontainerId\x12\x12\n" +
 	"\x04path\x18\x03 \x01(\tR\x04path\x12\x18\n" +
 	"\apayload\x18\x04 \x01(\fR\apayload\x12H\n" +
 	"\aheaders\x18\x05 \x03(\v2..esb.agent.v1.InvokeWorkerRequest.HeadersEntryR\aheaders\x12\x1d\n" +
 	"\n" +
-	"timeout_ms\x18\x06 \x01(\x05R\ttimeoutMs\x1a:\n" +
+	"timeout_ms\x18\x06 \x01(\x05R\ttimeoutMs\x12\x19\n" +
+	"\bowner_id\x18\b \x01(\tR\aownerId\x1a:\n" +
 	"\fHeadersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x01\x10\x02J\x04\b\x02\x10\x03R\n" +
@@ -994,12 +1063,13 @@ const file_agent_proto_rawDesc = "" +
 	"\x04body\x18\x03 \x01(\fR\x04body\x1a:\n" +
 	"\fHeadersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x17\n" +
-	"\x15ListContainersRequest\"V\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"2\n" +
+	"\x15ListContainersRequest\x12\x19\n" +
+	"\bowner_id\x18\x01 \x01(\tR\aownerId\"V\n" +
 	"\x16ListContainersResponse\x12<\n" +
 	"\n" +
 	"containers\x18\x01 \x03(\v2\x1c.esb.agent.v1.ContainerStateR\n" +
-	"containers\"\xd8\x01\n" +
+	"containers\"\xf3\x01\n" +
 	"\x0eContainerState\x12!\n" +
 	"\fcontainer_id\x18\x01 \x01(\tR\vcontainerId\x12#\n" +
 	"\rfunction_name\x18\x02 \x01(\tR\ffunctionName\x12\x16\n" +
@@ -1008,9 +1078,11 @@ const file_agent_proto_rawDesc = "" +
 	"lastUsedAt\x12%\n" +
 	"\x0econtainer_name\x18\x05 \x01(\tR\rcontainerName\x12\x1d\n" +
 	"\n" +
-	"created_at\x18\x06 \x01(\x03R\tcreatedAt\"?\n" +
+	"created_at\x18\x06 \x01(\x03R\tcreatedAt\x12\x19\n" +
+	"\bowner_id\x18\a \x01(\tR\aownerId\"Z\n" +
 	"\x1aGetContainerMetricsRequest\x12!\n" +
-	"\fcontainer_id\x18\x01 \x01(\tR\vcontainerId\"W\n" +
+	"\fcontainer_id\x18\x01 \x01(\tR\vcontainerId\x12\x19\n" +
+	"\bowner_id\x18\x02 \x01(\tR\aownerId\"W\n" +
 	"\x1bGetContainerMetricsResponse\x128\n" +
 	"\ametrics\x18\x01 \x01(\v2\x1e.esb.agent.v1.ContainerMetricsR\ametrics\"\xa0\x03\n" +
 	"\x10ContainerMetrics\x12!\n" +
@@ -1075,6 +1147,7 @@ var (
 		nil,                                 // 18: esb.agent.v1.InvokeWorkerResponse.HeadersEntry
 	}
 )
+
 var file_agent_proto_depIdxs = []int32{
 	16, // 0: esb.agent.v1.EnsureContainerRequest.env:type_name -> esb.agent.v1.EnsureContainerRequest.EnvEntry
 	17, // 1: esb.agent.v1.InvokeWorkerRequest.headers:type_name -> esb.agent.v1.InvokeWorkerRequest.HeadersEntry

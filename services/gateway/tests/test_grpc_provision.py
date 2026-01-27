@@ -8,6 +8,7 @@ from services.gateway.pb import agent_pb2
 
 # Mock environment
 os.environ["CONTAINERS_NETWORK"] = "test-net"
+OWNER_ID = "test-owner"
 
 
 @pytest.fixture
@@ -30,7 +31,7 @@ def mock_registry():
 def grpc_client(mock_stub, mock_registry):
     from services.gateway.services.grpc_provision import GrpcProvisionClient
 
-    return GrpcProvisionClient(mock_stub, mock_registry)
+    return GrpcProvisionClient(mock_stub, mock_registry, owner_id=OWNER_ID)
 
 
 @pytest.mark.asyncio
@@ -76,6 +77,7 @@ async def test_provision_success(grpc_client, mock_stub, mock_registry):
 
         assert request.function_name == "my-func"
         assert request.image == ""
+        assert request.owner_id == OWNER_ID
 
         # Check Env injection
         env = request.env
@@ -122,6 +124,8 @@ async def test_provision_fallback_containerd(grpc_client, mock_stub, mock_regist
         assert env["AWS_ENDPOINT_URL_S3"] == "http://10.99.99.99:9000"
         assert env["AWS_ENDPOINT_URL_DYNAMODB"] == "http://10.99.99.99:8000"
         assert env["AWS_ENDPOINT_URL_CLOUDWATCH_LOGS"] == "http://10.99.99.99:9428"
+        args, _ = mock_stub.EnsureContainer.call_args
+        assert args[0].owner_id == OWNER_ID
 
 
 @pytest.mark.asyncio
@@ -130,13 +134,14 @@ async def test_grpc_delete_container(mock_stub, mock_registry):
     from services.gateway.services.grpc_provision import GrpcProvisionClient
 
     mock_stub.DestroyContainer = AsyncMock()
-    client = GrpcProvisionClient(mock_stub, mock_registry)
+    client = GrpcProvisionClient(mock_stub, mock_registry, owner_id=OWNER_ID)
 
     await client.delete_container("cnt-1")
 
     mock_stub.DestroyContainer.assert_called_once()
     args = mock_stub.DestroyContainer.call_args[0][0]
     assert args.container_id == "cnt-1"
+    assert args.owner_id == OWNER_ID
 
 
 @pytest.mark.asyncio
@@ -157,10 +162,12 @@ async def test_grpc_list_containers(mock_stub, mock_registry):
         ]
     )
 
-    client = GrpcProvisionClient(mock_stub, mock_registry)
+    client = GrpcProvisionClient(mock_stub, mock_registry, owner_id=OWNER_ID)
     workers = await client.list_containers()
 
     assert len(workers) == 1
     assert workers[0].id == "id-1"
     assert workers[0].name == "lambda-func-1-unique"
     assert workers[0].last_used_at == 123456789
+    req = mock_stub.ListContainers.call_args[0][0]
+    assert req.owner_id == OWNER_ID

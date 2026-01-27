@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+from datetime import timezone
 from typing import Any, Dict, Optional
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -42,7 +43,7 @@ class AWSCronTrigger(BaseTrigger):
 class SchedulerService:
     def __init__(self, invoker: LambdaInvoker):
         self.invoker = invoker
-        self.scheduler = AsyncIOScheduler()
+        self.scheduler = AsyncIOScheduler(timezone=timezone.utc)
         self._jobs = {}
 
     async def start(self):

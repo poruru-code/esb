@@ -19,10 +19,22 @@ class GrpcProvisionClient:
         stub,  # AgentServiceStub
         function_registry: Any,
         skip_readiness_check: bool = False,
+        owner_id: str | None = None,
     ):
         self.stub = stub
         self.function_registry = function_registry
         self.skip_readiness_check = bool(skip_readiness_check)
+        self._owner_id = owner_id
+
+    def _get_owner_id(self) -> str:
+        if self._owner_id:
+            return self._owner_id
+        from services.gateway.config import config as gateway_config
+
+        owner_id = gateway_config.GATEWAY_OWNER_ID
+        if not owner_id:
+            raise ValueError("GATEWAY_OWNER_ID is required")
+        return owner_id
 
     async def provision(self, function_name: str) -> List[WorkerInfo]:
         """Provision a container via gRPC Agent and return WorkerInfo list"""
@@ -94,6 +106,7 @@ class GrpcProvisionClient:
             function_name=function_name,
             image="",
             env=env,
+            owner_id=self._get_owner_id(),
         )
 
         try:
@@ -154,7 +167,10 @@ class GrpcProvisionClient:
 
     async def delete_container(self, container_id: str):
         """Delete a container via gRPC Agent"""
-        req = agent_pb2.DestroyContainerRequest(container_id=container_id)  # type: ignore[attr-defined]
+        req = agent_pb2.DestroyContainerRequest(  # type: ignore[attr-defined]
+            container_id=container_id,
+            owner_id=self._get_owner_id(),
+        )
         try:
             await self.stub.DestroyContainer(req)
         except Exception as e:
@@ -163,7 +179,10 @@ class GrpcProvisionClient:
 
     async def pause_container(self, function_name: str, worker: WorkerInfo) -> None:
         """Pause a container via gRPC Agent"""
-        req = agent_pb2.PauseContainerRequest(container_id=worker.id)  # type: ignore[attr-defined]
+        req = agent_pb2.PauseContainerRequest(  # type: ignore[attr-defined]
+            container_id=worker.id,
+            owner_id=self._get_owner_id(),
+        )
         try:
             await self.stub.PauseContainer(req)
             logger.info(f"Paused container {worker.id} for {function_name}")
@@ -173,7 +192,10 @@ class GrpcProvisionClient:
 
     async def resume_container(self, function_name: str, worker: WorkerInfo) -> None:
         """Resume a paused container via gRPC Agent"""
-        req = agent_pb2.ResumeContainerRequest(container_id=worker.id)  # type: ignore[attr-defined]
+        req = agent_pb2.ResumeContainerRequest(  # type: ignore[attr-defined]
+            container_id=worker.id,
+            owner_id=self._get_owner_id(),
+        )
         try:
             await self.stub.ResumeContainer(req)
             if not self.skip_readiness_check:
@@ -187,7 +209,9 @@ class GrpcProvisionClient:
 
     async def list_containers(self) -> List[WorkerInfo]:
         """List all containers via gRPC Agent"""
-        req = agent_pb2.ListContainersRequest()  # type: ignore[attr-defined]
+        req = agent_pb2.ListContainersRequest(  # type: ignore[attr-defined]
+            owner_id=self._get_owner_id()
+        )
         try:
             resp = await self.stub.ListContainers(req)
             return [
@@ -208,7 +232,10 @@ class GrpcProvisionClient:
 
     async def get_container_metrics(self, container_id: str) -> ContainerMetrics:
         """Get container metrics via gRPC Agent"""
-        req = agent_pb2.GetContainerMetricsRequest(container_id=container_id)  # type: ignore[attr-defined]
+        req = agent_pb2.GetContainerMetricsRequest(  # type: ignore[attr-defined]
+            container_id=container_id,
+            owner_id=self._get_owner_id(),
+        )
         try:
             resp = await self.stub.GetContainerMetrics(req)
             metrics = resp.metrics

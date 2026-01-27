@@ -67,6 +67,7 @@ func TestRuntime_Ensure(t *testing.T) {
 	req := runtime.EnsureRequest{
 		FunctionName: "test-func",
 		Image:        "test-image",
+		OwnerID:      "owner-1",
 	}
 
 	// 1. Create
@@ -109,6 +110,7 @@ func TestRuntime_Ensure_AlwaysCreatesNew(t *testing.T) {
 	ctx := context.Background()
 	req := runtime.EnsureRequest{
 		FunctionName: "test-func",
+		OwnerID:      "owner-1",
 	}
 
 	// 1. Create

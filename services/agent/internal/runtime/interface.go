@@ -17,6 +17,7 @@ type EnsureRequest struct {
 	FunctionName string
 	Image        string
 	Env          map[string]string
+	OwnerID      string
 }
 
 // WorkerInfo contains the identification and connection details of a managed container.
@@ -24,6 +25,7 @@ type WorkerInfo struct {
 	ID        string
 	IPAddress string
 	Port      int // Port used for communication (especially important for containerd NAT)
+	OwnerID   string
 }
 
 // ContainerState represents the current state of a managed container.
@@ -37,6 +39,7 @@ type ContainerState struct {
 	CreatedAt     time.Time // Container creation time - used for grace period in Reconciliation
 	IPAddress     string    // Container IP (if available)
 	Port          int       // Container port (if available)
+	OwnerID       string    // Gateway owner identifier
 }
 
 // ContainerMetrics represents resource usage stats for a container.

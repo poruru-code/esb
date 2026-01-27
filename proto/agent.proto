@@ -28,6 +28,7 @@ service AgentService {
 
 message PauseContainerRequest {
   string container_id = 1;
+  string owner_id = 2;
 }
 
 message PauseContainerResponse {
@@ -36,6 +37,7 @@ message PauseContainerResponse {
 
 message ResumeContainerRequest {
   string container_id = 1;
+  string owner_id = 2;
 }
 
 message ResumeContainerResponse {
@@ -46,11 +48,13 @@ message EnsureContainerRequest {
   string function_name = 1;
   string image = 2;
   map<string, string> env = 3;
+  string owner_id = 4;
 }
 
 message DestroyContainerRequest {
   string function_name = 1;
   string container_id = 2;
+  string owner_id = 3;
 }
 
 message DestroyContainerResponse {
@@ -72,6 +76,7 @@ message InvokeWorkerRequest {
   bytes payload = 4;
   map<string, string> headers = 5;
   int32 timeout_ms = 6;
+  string owner_id = 8;
 }
 
 message InvokeWorkerResponse {
@@ -81,7 +86,9 @@ message InvokeWorkerResponse {
 }
 
 // Phase 3: message for ListContainers.
-message ListContainersRequest {}
+message ListContainersRequest {
+  string owner_id = 1;
+}
 
 message ListContainersResponse {
   repeated ContainerState containers = 1;
@@ -94,11 +101,13 @@ message ContainerState {
   int64 last_used_at = 4; // Unix Timestamp (seconds)
   string container_name = 5;
   int64 created_at = 6;   // Unix Timestamp (seconds) - container creation time
+  string owner_id = 7;
 }
 
 // Metrics API
 message GetContainerMetricsRequest {
   string container_id = 1;
+  string owner_id = 2;
 }
 
 message GetContainerMetricsResponse {

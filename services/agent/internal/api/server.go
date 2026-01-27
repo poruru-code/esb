@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -45,11 +46,16 @@ func (s *AgentServer) EnsureContainer(ctx context.Context, req *pb.EnsureContain
 	if req.FunctionName == "" {
 		return nil, status.Error(codes.InvalidArgument, "function_name is required")
 	}
+	ownerID, err := requireOwnerID(req.OwnerId)
+	if err != nil {
+		return nil, err
+	}
 
 	info, err := s.runtime.Ensure(ctx, runtime.EnsureRequest{
 		FunctionName: req.FunctionName,
 		Image:        req.Image,
 		Env:          req.Env,
+		OwnerID:      ownerID,
 	})
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to ensure container: %v", err)
@@ -68,23 +74,20 @@ func (s *AgentServer) InvokeWorker(ctx context.Context, req *pb.InvokeWorkerRequ
 	if req.ContainerId == "" {
 		return nil, status.Error(codes.InvalidArgument, "container_id is required")
 	}
-
-	s.runtime.Touch(req.ContainerId)
-
-	workerValue, ok := s.workerCache.Load(req.ContainerId)
-	if !ok {
-		if err := s.refreshWorkerCache(ctx); err != nil {
-			return nil, status.Errorf(codes.Internal, "failed to refresh worker cache: %v", err)
-		}
-		workerValue, ok = s.workerCache.Load(req.ContainerId)
-		if !ok {
-			return nil, status.Error(codes.NotFound, "container_id not found")
-		}
+	ownerID, err := requireOwnerID(req.OwnerId)
+	if err != nil {
+		return nil, err
 	}
-	worker := workerValue.(runtime.WorkerInfo)
+
+	worker, err := s.getWorkerForOwner(ctx, req.ContainerId, ownerID)
+	if err != nil {
+		return nil, err
+	}
 	if worker.IPAddress == "" {
 		return nil, status.Error(codes.FailedPrecondition, "container ip_address is empty")
 	}
+
+	s.runtime.Touch(req.ContainerId)
 
 	port := worker.Port
 	if port == 0 {
@@ -176,6 +179,17 @@ func (s *AgentServer) DestroyContainer(ctx context.Context, req *pb.DestroyConta
 	if req.ContainerId == "" {
 		return nil, status.Error(codes.InvalidArgument, "container_id is required")
 	}
+	ownerID, err := requireOwnerID(req.OwnerId)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.ensureOwnership(ctx, req.ContainerId, ownerID); err != nil {
+		if status.Code(err) != codes.NotFound {
+			return nil, err
+		}
+		s.workerCache.Delete(req.ContainerId)
+		return &pb.DestroyContainerResponse{Success: true}, nil
+	}
 
 	if err := s.runtime.Destroy(ctx, req.ContainerId); err != nil {
 		if errdefs.IsNotFound(err) {
@@ -200,7 +214,7 @@ func (s *AgentServer) refreshWorkerCache(ctx context.Context) error {
 
 	active := make(map[string]runtime.WorkerInfo, len(containers))
 	for _, container := range containers {
-		if container.ID == "" || container.IPAddress == "" {
+		if container.ID == "" {
 			continue
 		}
 		port := container.Port
@@ -211,6 +225,7 @@ func (s *AgentServer) refreshWorkerCache(ctx context.Context) error {
 			ID:        container.ID,
 			IPAddress: container.IPAddress,
 			Port:      port,
+			OwnerID:   container.OwnerID,
 		}
 	}
 
@@ -232,6 +247,13 @@ func (s *AgentServer) PauseContainer(ctx context.Context, req *pb.PauseContainer
 	if req.ContainerId == "" {
 		return nil, status.Error(codes.InvalidArgument, "container_id is required")
 	}
+	ownerID, err := requireOwnerID(req.OwnerId)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.ensureOwnership(ctx, req.ContainerId, ownerID); err != nil {
+		return nil, err
+	}
 
 	if err := s.runtime.Suspend(ctx, req.ContainerId); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to pause container: %v", err)
@@ -246,6 +268,13 @@ func (s *AgentServer) ResumeContainer(ctx context.Context, req *pb.ResumeContain
 	if req.ContainerId == "" {
 		return nil, status.Error(codes.InvalidArgument, "container_id is required")
 	}
+	ownerID, err := requireOwnerID(req.OwnerId)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.ensureOwnership(ctx, req.ContainerId, ownerID); err != nil {
+		return nil, err
+	}
 
 	if err := s.runtime.Resume(ctx, req.ContainerId); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to resume container: %v", err)
@@ -256,7 +285,11 @@ func (s *AgentServer) ResumeContainer(ctx context.Context, req *pb.ResumeContain
 	}, nil
 }
 
-func (s *AgentServer) ListContainers(ctx context.Context, _ *pb.ListContainersRequest) (*pb.ListContainersResponse, error) {
+func (s *AgentServer) ListContainers(ctx context.Context, req *pb.ListContainersRequest) (*pb.ListContainersResponse, error) {
+	ownerID, err := requireOwnerID(req.OwnerId)
+	if err != nil {
+		return nil, err
+	}
 	states, err := s.runtime.List(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to list containers: %v", err)
@@ -264,6 +297,9 @@ func (s *AgentServer) ListContainers(ctx context.Context, _ *pb.ListContainersRe
 
 	var containers []*pb.ContainerState
 	for _, s := range states {
+		if s.OwnerID != ownerID {
+			continue
+		}
 		containers = append(containers, &pb.ContainerState{
 			ContainerId:   s.ID,
 			FunctionName:  s.FunctionName,
@@ -271,6 +307,7 @@ func (s *AgentServer) ListContainers(ctx context.Context, _ *pb.ListContainersRe
 			LastUsedAt:    s.LastUsedAt.Unix(),
 			ContainerName: s.ContainerName,
 			CreatedAt:     s.CreatedAt.Unix(),
+			OwnerId:       s.OwnerID,
 		})
 	}
 
@@ -282,6 +319,13 @@ func (s *AgentServer) ListContainers(ctx context.Context, _ *pb.ListContainersRe
 func (s *AgentServer) GetContainerMetrics(ctx context.Context, req *pb.GetContainerMetricsRequest) (*pb.GetContainerMetricsResponse, error) {
 	if req.ContainerId == "" {
 		return nil, status.Error(codes.InvalidArgument, "container_id is required")
+	}
+	ownerID, err := requireOwnerID(req.OwnerId)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.ensureOwnership(ctx, req.ContainerId, ownerID); err != nil {
+		return nil, err
 	}
 
 	metrics, err := s.runtime.Metrics(ctx, req.ContainerId)
@@ -305,6 +349,49 @@ func (s *AgentServer) GetContainerMetrics(ctx context.Context, req *pb.GetContai
 			CollectedAt:   toUnixSeconds(metrics.CollectedAt),
 		},
 	}, nil
+}
+
+func requireOwnerID(ownerID string) (string, error) {
+	value := strings.TrimSpace(ownerID)
+	if value == "" {
+		return "", status.Error(codes.InvalidArgument, "owner_id is required")
+	}
+	return value, nil
+}
+
+func (s *AgentServer) ensureOwnership(ctx context.Context, containerID, ownerID string) error {
+	if _, err := s.getWorkerForOwner(ctx, containerID, ownerID); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *AgentServer) getWorkerForOwner(ctx context.Context, containerID, ownerID string) (runtime.WorkerInfo, error) {
+	if containerID == "" {
+		return runtime.WorkerInfo{}, status.Error(codes.InvalidArgument, "container_id is required")
+	}
+
+	workerValue, ok := s.workerCache.Load(containerID)
+	if ok {
+		worker := workerValue.(runtime.WorkerInfo)
+		if worker.OwnerID == ownerID {
+			return worker, nil
+		}
+	}
+
+	if err := s.refreshWorkerCache(ctx); err != nil {
+		return runtime.WorkerInfo{}, status.Errorf(codes.Internal, "failed to refresh worker cache: %v", err)
+	}
+
+	workerValue, ok = s.workerCache.Load(containerID)
+	if !ok {
+		return runtime.WorkerInfo{}, status.Error(codes.NotFound, "container_id not found")
+	}
+	worker := workerValue.(runtime.WorkerInfo)
+	if worker.OwnerID != ownerID {
+		return runtime.WorkerInfo{}, status.Error(codes.PermissionDenied, "owner_id does not match container")
+	}
+	return worker, nil
 }
 
 func toUnixSeconds(value time.Time) int64 {

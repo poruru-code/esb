@@ -23,6 +23,7 @@ func TestRuntime_Ensure_NewContainer(t *testing.T) {
 	req := runtime.EnsureRequest{
 		FunctionName: "test-func",
 		Image:        "alpine:latest",
+		OwnerID:      "owner-1",
 	}
 
 	// 1. EnsureImage
@@ -88,6 +89,7 @@ func TestRuntime_Ensure_NetworkFailure_Rollback(t *testing.T) {
 	req := runtime.EnsureRequest{
 		FunctionName: "rollback-func",
 		Image:        "alpine:latest",
+		OwnerID:      "owner-1",
 	}
 
 	// 1. EnsureImage
