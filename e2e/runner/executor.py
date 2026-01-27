@@ -275,7 +275,12 @@ def verify_registry_images(env_name: str, project: str, mode: str, compose_file:
         raise RuntimeError("registry missing blobs")
 
 
-def print_built_images(env_name: str, project_name: str, prefix: str = "") -> None:
+def print_built_images(
+    env_name: str,
+    project_name: str,
+    prefix: str = "",
+    duration_seconds: float | None = None,
+) -> None:
     label_prefix = f"com.{BRAND_SLUG}"
     project_label = f"{project_name}-{env_name}"
     sep = "\x1f"
@@ -350,7 +355,10 @@ def print_built_images(env_name: str, project_name: str, prefix: str = "") -> No
         else:
             print(line)
 
-    header = f"🧱 Built Images for {env_name} ({project_label}):"
+    duration_suffix = ""
+    if duration_seconds is not None:
+        duration_suffix = f" in {duration_seconds:.1f}s"
+    header = f"🧱 Built Images for {env_name} ({project_label}){duration_suffix}:"
     if prefix:
         emit(header)
     else:
@@ -1050,11 +1058,14 @@ def run_build_phase_serial(
             profile_name, cmd, color_code, verbose, max_label_len
         )
         durations[profile_name] = time.monotonic() - start
-        print(f"[BUILD] {profile_name} finished in {durations[profile_name]:.1f}s")
         if returncode == 0:
             scenario = env_scenarios.get(profile_name, {})
             project_name = scenario.get("esb_project", BRAND_SLUG)
-            print_built_images(profile_name, project_name)
+            print_built_images(
+                profile_name,
+                project_name,
+                duration_seconds=durations[profile_name],
+            )
         if returncode != 0:
             failed.append(profile_name)
             if fail_fast:
@@ -1132,11 +1143,15 @@ def run_build_phase_parallel(
                 label = label.ljust(max_label_len)
             prefix = f"{color_code}{label}{COLOR_RESET}"
 
-            print(f"[BUILD] {profile_name} finished in {durations[profile_name]:.1f}s")
             if returncode == 0:
                 scenario = env_scenarios.get(profile_name, {})
                 project_name = scenario.get("esb_project", BRAND_SLUG)
-                print_built_images(profile_name, project_name, prefix=prefix)
+                print_built_images(
+                    profile_name,
+                    project_name,
+                    prefix=prefix,
+                    duration_seconds=durations[profile_name],
+                )
             else:
                 failed.append(profile_name)
                 if fail_fast:
