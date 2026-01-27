@@ -38,6 +38,7 @@ Gateway は Lambda 環境の "Master Config" として機能し、サービス�
 | 変数名                | Source (`.env` / Default)  | Gatewayでの用途                                                                  |
 | --------------------- | -------------------------- | -------------------------------------------------------------------------------- |
 | `JWT_SECRET_KEY`      | **必須**                   | `config.py`: 認証トークンの署名・検証に使用。                                    |
+| `GATEWAY_OWNER_ID`    | `HOSTNAME`                | Agent リソースの所有者識別子。未指定時はコンテナの `HOSTNAME` を使用。再起動後も同一の所有権を維持したい場合は固定値を推奨。 |
 | `S3_ENDPOINT`         | (任意)                     | 明示的に上書きする場合に使用。未設定時は `http://s3-storage:9000` が注入される。 |
 | `DYNAMODB_ENDPOINT`   | (任意)                     | 明示的に上書きする場合に使用。未設定時は `http://database:8000` が注入される。   |
 | `VICTORIALOGS_URL`    | `http://victorialogs:9428` | 自身のログ送信先。                                                               |
@@ -91,6 +92,7 @@ CoreDNS の導入により、すべての実行モード（Docker, Containerd）
 environment:
   # 共通設定 (docker-compose.yml)
   - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+  - GATEWAY_OWNER_ID=${GATEWAY_OWNER_ID:-}
   - CONTAINERS_NETWORK=${NETWORK_EXTERNAL:-${PROJECT_NAME:-esb-${ENV:-default}}-external}
   - DATA_PLANE_HOST=${DATA_PLANE_HOST:-10.88.0.1}
 
