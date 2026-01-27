@@ -5,8 +5,8 @@ Why: Provide a single entry point for developers and operators.
 -->
 # Edge Serverless Box
 
-**オンプレミス・エッジ環境のための、自己完結型サーバーレス実行基盤**
-*(A self-contained, serverless-compatible environment for edge and local development)*
+**オンプレミス環境のための、自己完結型サーバーレス実行基盤**
+*(A self-contained, serverless-compatible environment for on-premises and local development)*
 
 ### 特徴
 - **True AWS Compatibility**: 実行エンジンに **AWS Lambda Runtime Interface Emulator (RIE)** を採用。クラウド上の Lambda と完全に一致する挙動をローカル環境で保証します。
@@ -20,12 +20,14 @@ Why: Provide a single entry point for developers and operators.
 
 | コマンド       | 説明                                                                                   | 主なオプション                                                                               |
 | -------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `esb build`    | SAM テンプレート (`template.yaml`) を解析して Dockerfile / config を生成し、関数イメージをビルドします。 | `--template (-t)`, `--env (-e)`, `--mode (-m)`, `--env-file`, `--output (-o)`, `--no-cache`, `--verbose (-v)`, `--force` |
+| `esb build`    | SAM テンプレート (`template.yaml`) を解析して Dockerfile / config を生成し、関数イメージをビルドします。 | `--template (-t)`, `--env (-e)`, `--mode (-m)`, `--env-file`, `--output (-o)`, `--no-cache`, `--verbose (-v)`, `--force`, `--no-save-defaults`, `--bundle-manifest` |
 | `esb completion` | Bash / Zsh / Fish 用の補完スクリプトを生成します。                                      | `bash`, `zsh`, `fish`                                                                        |
 | `esb version`   | CLI のバージョン情報を表示します。                                                      | —                                                                                            |
 
 補足:
-- `esb build` は `--template` / `--env` / `--mode` を必須とし、テンプレート内の `Parameters` は実行時に対話入力して解決されます。
+- 対話実行時は `--template` / `--env` / `--mode` を省略でき、未指定分は入力を促します。非対話（TTYなし）では必須です。
+- 対話入力の直近値は `~/.<brand>/config.yaml` に保存され、同一テンプレートパスの既定値に使われます（無効化は `--no-save-defaults`）。
+- テンプレート内の `Parameters` は実行時に対話入力して解決されます。
 - CLI はランタイムの起動・停止機能を提供しておらず、生成物は `docker compose` で起動します。
 
 ## アーキテクチャ
