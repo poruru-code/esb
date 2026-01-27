@@ -57,6 +57,30 @@ from .services.scheduler import SchedulerService
 setup_logging()
 logger = logging.getLogger("gateway.main")
 
+CORS_ALLOW_METHODS = "GET,POST,PUT,DELETE,PATCH,HEAD,OPTIONS"
+CORS_ALLOW_HEADERS_DEFAULT = (
+    "Authorization,Content-Type,X-Amz-Date,X-Api-Key,"
+    "X-Amz-Security-Token,X-Amz-Invocation-Type,X-Amzn-Trace-Id"
+)
+CORS_MAX_AGE_SECONDS = "3600"
+
+
+def build_cors_headers(request: Request) -> dict[str, str]:
+    origin = request.headers.get("origin")
+    request_headers = request.headers.get("access-control-request-headers")
+
+    headers = {
+        "Access-Control-Allow-Origin": origin or "*",
+        "Access-Control-Allow-Methods": CORS_ALLOW_METHODS,
+        "Access-Control-Allow-Headers": request_headers or CORS_ALLOW_HEADERS_DEFAULT,
+        "Access-Control-Max-Age": CORS_MAX_AGE_SECONDS,
+    }
+
+    if origin:
+        headers["Vary"] = "Origin"
+
+    return headers
+
 
 # ===========================================
 # Middleware
@@ -324,13 +348,13 @@ async def health_check():
     return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}
 
 
-@app.get("/health")
+@app.get("/health", include_in_schema=False)
 async def health_check_endpoint():
     """Health check endpoint."""
     return await health_check()
 
 
-@app.get("/metrics/containers")
+@app.get("/metrics/containers", include_in_schema=False)
 async def list_container_metrics(user_id: UserIdDep, pool_manager: PoolManagerDep):
     """Agent からコンテナメトリクスを取得"""
     containers = await pool_manager.provision_client.list_containers()
@@ -383,7 +407,7 @@ async def list_container_metrics(user_id: UserIdDep, pool_manager: PoolManagerDe
     return {"containers": metrics_list, "failures": failures}
 
 
-@app.get("/metrics/pools")
+@app.get("/metrics/pools", include_in_schema=False)
 async def list_pool_metrics(user_id: UserIdDep, pool_manager: PoolManagerDep):
     """Gateway のプール統計を返す (runtime 非依存)."""
     return {
@@ -457,7 +481,16 @@ async def invoke_lambda_api(
         return JSONResponse(status_code=502, content={"message": str(e)})
 
 
-@app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
+@app.options("/{path:path}", include_in_schema=False)
+async def cors_preflight(request: Request):
+    return Response(status_code=204, headers=build_cors_headers(request))
+
+
+@app.api_route(
+    "/{path:path}",
+    methods=["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD"],
+    include_in_schema=False,
+)
 async def gateway_handler(
     context: InputContextDep,
     processor: ProcessorDep,
@@ -476,7 +509,13 @@ async def gateway_handler(
     # Transform response.
     parsed_result = parse_lambda_response(result)
 
-    if "raw_content" in parsed_result:
+    if context.method == "HEAD":
+        response = Response(
+            content=b"",
+            status_code=parsed_result["status_code"],
+            headers=parsed_result["headers"],
+        )
+    elif "raw_content" in parsed_result:
         response = Response(
             content=parsed_result["raw_content"],
             status_code=parsed_result["status_code"],
