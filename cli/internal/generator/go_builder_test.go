@@ -221,8 +221,11 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	if !hasDockerBakeSet(dockerRunner.calls, "meta.contexts.trace_tools="+traceToolsDir) {
 		t.Fatalf("expected bake trace_tools context")
 	}
-	if !hasDockerBakeSet(dockerRunner.calls, "meta.output=type=local,dest="+metaDir) {
+	if !hasDockerBakeOutputPrefix(dockerRunner.calls, "meta.output=type=local,dest=") {
 		t.Fatalf("expected bake output context")
+	}
+	if _, err := os.Stat(filepath.Join(metaDir, "version.json")); err != nil {
+		t.Fatalf("expected version.json in meta dir: %v", err)
 	}
 
 	if hasComposeUpRegistry(composeRunner.calls) {
@@ -424,6 +427,23 @@ func hasDockerBakeSet(calls []commandCall, value string) bool {
 		}
 		for i := 0; i+1 < len(call.args); i++ {
 			if call.args[i] == "--set" && call.args[i+1] == value {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func hasDockerBakeOutputPrefix(calls []commandCall, prefix string) bool {
+	for _, call := range calls {
+		if call.name != "docker" || len(call.args) < 2 {
+			continue
+		}
+		if call.args[0] != "buildx" || call.args[1] != "bake" {
+			continue
+		}
+		for i := 0; i+1 < len(call.args); i++ {
+			if call.args[i] == "--set" && strings.HasPrefix(call.args[i+1], prefix) {
 				return true
 			}
 		}
