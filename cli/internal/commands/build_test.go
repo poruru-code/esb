@@ -522,3 +522,20 @@ func TestResolveBuildInputsUsesDefaultsPerTemplate(t *testing.T) {
 		t.Fatalf("expected default mode docker for new template, got %s", inputs.Mode)
 	}
 }
+
+func TestNormalizeTemplatePathExpandsHome(t *testing.T) {
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+	templatePath := filepath.Join(tmpHome, "template.yaml")
+	if err := os.WriteFile(templatePath, []byte("Resources: {}"), 0o644); err != nil {
+		t.Fatalf("write template: %v", err)
+	}
+
+	got, err := normalizeTemplatePath("~/template.yaml")
+	if err != nil {
+		t.Fatalf("normalize template path: %v", err)
+	}
+	if got != templatePath {
+		t.Fatalf("expected %s, got %s", templatePath, got)
+	}
+}

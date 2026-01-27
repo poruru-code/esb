@@ -428,6 +428,21 @@ func TestGenerateFilesRendersRoutingEvents(t *testing.T) {
 	}
 }
 
+func TestResolveTemplatePathExpandsHome(t *testing.T) {
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+	templatePath := filepath.Join(tmpHome, "template.yaml")
+	writeTestFile(t, templatePath, "Resources: {}")
+
+	got, err := resolveTemplatePath("~/template.yaml", "/tmp")
+	if err != nil {
+		t.Fatalf("resolve template path: %v", err)
+	}
+	if got != templatePath {
+		t.Fatalf("expected %s, got %s", templatePath, got)
+	}
+}
+
 func writeTestFile(t *testing.T, path, content string) {
 	t.Helper()
 	mustMkdirAll(t, filepath.Dir(path))

@@ -417,7 +417,11 @@ func normalizeMode(mode string) (string, error) {
 
 func normalizeTemplatePath(path string) (string, error) {
 	baseDir := resolvePromptBaseDir()
-	absPath := path
+	expanded, err := expandHomePath(strings.TrimSpace(path))
+	if err != nil {
+		return "", err
+	}
+	absPath := expanded
 	if !filepath.IsAbs(absPath) {
 		absPath = filepath.Join(baseDir, absPath)
 	}
@@ -446,6 +450,24 @@ func resolvePromptBaseDir() string {
 		return cwd
 	}
 	return "."
+}
+
+func expandHomePath(path string) (string, error) {
+	if path == "" || !strings.HasPrefix(path, "~") {
+		return path, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	if path == "~" {
+		return home, nil
+	}
+	if len(path) > 1 && (path[1] == '/' || path[1] == '\\') {
+		return filepath.Join(home, path[2:]), nil
+	}
+	// Leave unsupported ~user paths untouched.
+	return path, nil
 }
 
 func promptTemplateParameters(
