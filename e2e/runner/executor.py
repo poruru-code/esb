@@ -275,7 +275,7 @@ def verify_registry_images(env_name: str, project: str, mode: str, compose_file:
         raise RuntimeError("registry missing blobs")
 
 
-def print_built_images(env_name: str, project_name: str) -> None:
+def print_built_images(env_name: str, project_name: str, prefix: str = "") -> None:
     label_prefix = f"com.{BRAND_SLUG}"
     project_label = f"{project_name}-{env_name}"
     sep = "\x1f"
@@ -344,15 +344,27 @@ def print_built_images(env_name: str, project_name: str) -> None:
         widths[2] = max(widths[2], len(created))
         widths[3] = max(widths[3], len(size))
 
-    print(f"\n🧱 Built Images for {env_name} ({project_label}):")
+    def emit(line: str) -> None:
+        if prefix:
+            print(f"{prefix} {line}")
+        else:
+            print(line)
+
+    header = f"🧱 Built Images for {env_name} ({project_label}):"
+    if prefix:
+        emit(header)
+    else:
+        print(f"\n{header}")
+
     for repo, image_id, created, size, _ in rows:
-        print(
+        emit(
             f"   {repo.ljust(widths[0])}  "
             f"{image_id.ljust(widths[1])}  "
             f"{created.ljust(widths[2])}  "
             f"{size.rjust(widths[3])}"
         )
-    print("")
+    if not prefix:
+        print("")
 
 
 def thorough_cleanup(env_name: str):
@@ -1047,6 +1059,90 @@ def run_build_phase_serial(
             failed.append(profile_name)
             if fail_fast:
                 break
+
+    total_elapsed = time.monotonic() - total_start
+    if durations:
+        print("\n=== Build Phase Summary ===")
+        for profile_name in profiles:
+            if profile_name in durations:
+                print(f"- {profile_name}: {durations[profile_name]:.1f}s")
+        print(f"Total: {total_elapsed:.1f}s\n")
+
+    return failed
+
+
+def run_build_phase_parallel(
+    env_scenarios: dict[str, dict[str, Any]],
+    reset: bool,
+    build: bool,
+    fail_fast: bool,
+    verbose: bool = False,
+) -> list[str]:
+    """Run build phase in parallel subprocesses."""
+    failed: list[str] = []
+    if not env_scenarios:
+        return failed
+
+    durations: dict[str, float] = {}
+    total_start = time.monotonic()
+    max_label_len = max(len(p) for p in env_scenarios.keys()) + 2
+    profiles = list(env_scenarios.keys())
+    max_workers = len(profiles)
+    future_to_profile: dict[Any, tuple[str, float, str]] = {}
+
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        for idx, profile_name in enumerate(profiles):
+            cmd = [
+                sys.executable,
+                "-u",
+                "-m",
+                "e2e.run_tests",
+                "--profile",
+                profile_name,
+                "--build-only",
+            ]
+            if reset:
+                cmd.append("--reset")
+            if build:
+                cmd.append("--build")
+            if verbose:
+                cmd.append("--verbose")
+
+            color_code = COLORS[idx % len(COLORS)]
+            if max_workers > 1:
+                print(f"[PARALLEL] Scheduling environment: {profile_name}")
+            start = time.monotonic()
+            future = executor.submit(
+                run_profile_subprocess, profile_name, cmd, color_code, verbose, max_label_len
+            )
+            future_to_profile[future] = (profile_name, start, color_code)
+
+        for future in as_completed(future_to_profile):
+            profile_name, start, color_code = future_to_profile[future]
+            try:
+                returncode, _ = future.result()
+            except Exception as e:
+                print(f"[ERROR] Environment {profile_name} FAILED with exception: {e}")
+                returncode = 1
+
+            durations[profile_name] = time.monotonic() - start
+
+            label = f"[{profile_name}]"
+            if max_label_len > 0:
+                label = label.ljust(max_label_len)
+            prefix = f"{color_code}{label}{COLOR_RESET}"
+
+            print(f"[BUILD] {profile_name} finished in {durations[profile_name]:.1f}s")
+            if returncode == 0:
+                scenario = env_scenarios.get(profile_name, {})
+                project_name = scenario.get("esb_project", BRAND_SLUG)
+                print_built_images(profile_name, project_name, prefix=prefix)
+            else:
+                failed.append(profile_name)
+                if fail_fast:
+                    for pending in future_to_profile:
+                        pending.cancel()
+                    break
 
     total_elapsed = time.monotonic() - total_start
     if durations:

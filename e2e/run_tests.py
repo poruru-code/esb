@@ -12,6 +12,7 @@ import urllib3
 from e2e.runner.cli import parse_args
 from e2e.runner.config import build_env_scenarios, load_test_matrix
 from e2e.runner.executor import (
+    run_build_phase_parallel,
     run_build_phase_serial,
     run_profiles_with_executor,
     run_scenario,
@@ -151,15 +152,26 @@ def main():
 
     failed_entries = []
 
-    # --- Build Phase (Serial, subprocess isolation) ---
-    print("\n=== Build Phase (Serial) ===\n")
-    build_failed = run_build_phase_serial(
-        env_scenarios,
-        reset=args.reset,
-        build=args.build,
-        fail_fast=args.fail_fast,
-        verbose=args.verbose,
-    )
+    # --- Build Phase (Parallel/Serial, subprocess isolation) ---
+    build_parallel = args.parallel and len(env_scenarios) > 1
+    if build_parallel:
+        print("\n=== Build Phase (Parallel) ===\n")
+        build_failed = run_build_phase_parallel(
+            env_scenarios,
+            reset=args.reset,
+            build=args.build,
+            fail_fast=args.fail_fast,
+            verbose=args.verbose,
+        )
+    else:
+        print("\n=== Build Phase (Serial) ===\n")
+        build_failed = run_build_phase_serial(
+            env_scenarios,
+            reset=args.reset,
+            build=args.build,
+            fail_fast=args.fail_fast,
+            verbose=args.verbose,
+        )
     if build_failed:
         print(f"\n❌ [FAILED] Build failed for: {', '.join(build_failed)}")
         print_tail_logs(build_failed)
