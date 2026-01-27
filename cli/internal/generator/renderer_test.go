@@ -105,9 +105,8 @@ func TestRenderFunctionsYml(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected Lambda-Hello config map")
 	}
-	expectedImage := meta.ImagePrefix + "-lambda-hello:latest"
-	if entry["image"] != expectedImage {
-		t.Fatalf("unexpected image value: %v", entry["image"])
+	if _, ok := entry["image"]; ok {
+		t.Fatalf("unexpected image entry in functions.yml: %v", entry["image"])
 	}
 }
 

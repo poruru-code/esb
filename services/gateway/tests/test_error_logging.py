@@ -58,7 +58,7 @@ def mock_dependencies(main_app):
             container_name="test-container",
             path_params={},
             route_path="/test-path",
-            function_config={"image": "test-image"},
+            function_config={},
         )
 
     main_app.dependency_overrides[verify_authorization] = mock_auth
@@ -93,7 +93,7 @@ async def test_lambda_connection_error_logged_at_error_level(caplog):
 
     # Create Invoker with mock client
     mock_registry = MagicMock(spec=FunctionRegistry)
-    mock_registry.get_function_config.return_value = {"image": "test-image", "environment": {}}
+    mock_registry.get_function_config.return_value = {"environment": {}}
 
     # Backend Mock
     mock_backend = AsyncMock()
@@ -119,7 +119,7 @@ async def test_lambda_connection_error_logged_at_error_level(caplog):
         container_name="test-container",
         path_params={},
         route_path="/test-path",
-        function_config={"image": "test-image"},
+        function_config={},
     )
 
     from fastapi.testclient import TestClient
@@ -169,7 +169,7 @@ async def test_lambda_connection_error_includes_detailed_info(caplog):
     mock_manager.invalidate_cache = MagicMock()
 
     mock_registry = MagicMock(spec=FunctionRegistry)
-    mock_registry.get_function_config.return_value = {"image": "test-image", "environment": {}}
+    mock_registry.get_function_config.return_value = {"environment": {}}
 
     # Backend Mock
     mock_backend = AsyncMock()
@@ -193,7 +193,7 @@ async def test_lambda_connection_error_includes_detailed_info(caplog):
         container_name="test-container",
         path_params={},
         route_path="/test-path",
-        function_config={"image": "test-image"},
+        function_config={},
     )
 
     from fastapi.testclient import TestClient

@@ -28,8 +28,12 @@ class ProvisionClient:
     async def provision(self, function_name: str) -> List[WorkerInfo]:
         """Provision a container and return WorkerInfo list"""
         func_config = self.function_registry.get_function_config(function_name)
-        image = func_config.get("image") if func_config else None
-        env = func_config.get("environment", {}) if func_config else {}
+        env = {}
+        if func_config:
+            if isinstance(func_config, dict):
+                env = func_config.get("environment", {})
+            else:
+                env = getattr(func_config, "environment", {}) or {}
 
         logger.info(f"Provisioning via Legacy Manager: {function_name}")
 
@@ -38,7 +42,6 @@ class ProvisionClient:
             json={
                 "function_name": function_name,
                 "count": 1,
-                "image": image,
                 "env": env,
             },
             timeout=self.orchestrator_timeout,

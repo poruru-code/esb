@@ -36,6 +36,33 @@ COLORS = [
 COLOR_RESET = "\033[0m"
 
 
+def _is_progress_line(line: str) -> bool:
+    prefixes = (
+        "Resetting environment:",
+        "Generating files...",
+        "Building base image...",
+        "Building OS base image...",
+        "Building Python base image...",
+        "Building function images",
+        "Building control plane images",
+        "Built Images for ",
+        "Preparing environment:",
+        "Building environment:",
+        "Cleaning up environment:",
+        "Skipping build for ",
+        "Waiting for Gateway readiness",
+    )
+    if line.startswith(prefixes):
+        return True
+    stripped = line.lstrip()
+    indented_prefixes = (
+        "- Built function image:",
+        "- Skipped function image",
+        "- Built control plane image:",
+    )
+    return stripped.startswith(indented_prefixes)
+
+
 def _registry_port(project: str, compose_file: Path) -> int | None:
     """Resolve host port mapped to registry:5010 for the given compose project."""
     try:
@@ -248,6 +275,106 @@ def verify_registry_images(env_name: str, project: str, mode: str, compose_file:
         raise RuntimeError("registry missing blobs")
 
 
+def print_built_images(
+    env_name: str,
+    project_name: str,
+    prefix: str = "",
+    duration_seconds: float | None = None,
+) -> None:
+    label_prefix = f"com.{BRAND_SLUG}"
+    project_label = f"{project_name}-{env_name}"
+    sep = "\x1f"
+    cmd = [
+        "docker",
+        "images",
+        "--filter",
+        f"label={label_prefix}.managed=true",
+        "--filter",
+        f"label={label_prefix}.project={project_label}",
+        "--filter",
+        f"label={label_prefix}.env={env_name}",
+        "--format",
+        (
+            f"{{{{.Repository}}}}:{{{{.Tag}}}}{sep}{{{{.ID}}}}{sep}"
+            f"{{{{.CreatedSince}}}}{sep}{{{{.Size}}}}{sep}{{{{.CreatedAt}}}}"
+        ),
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"[WARN] Failed to list built images for {env_name}: {result.stderr.strip()}")
+        return
+
+    raw_lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    if not raw_lines:
+        print(f"[WARN] No built images found for {env_name} ({project_label}).")
+        return
+
+    rows = []
+    for line in raw_lines:
+        parts = [part.strip() for part in line.split(sep)]
+        if len(parts) != 5:
+            continue
+        rows.append(parts)
+    if not rows:
+        print(f"[WARN] No built images found for {env_name} ({project_label}).")
+        return
+
+    # If multiple localhost registry ports exist, show only the most recent one.
+    localhost_ports: dict[str, str] = {}
+    for repo, _, _, _, created_at in rows:
+        if not repo.startswith("localhost:"):
+            continue
+        host = repo.split("/", 1)[0]
+        if ":" not in host:
+            continue
+        port = host.split(":", 1)[1]
+        if not port.isdigit():
+            continue
+        created_key = created_at[:19]
+        if port not in localhost_ports or created_key > localhost_ports[port]:
+            localhost_ports[port] = created_key
+
+    if len(localhost_ports) > 1:
+        latest_port = max(localhost_ports.items(), key=lambda item: item[1])[0]
+        rows = [
+            row
+            for row in rows
+            if not row[0].startswith("localhost:") or row[0].startswith(f"localhost:{latest_port}/")
+        ]
+
+    widths = [0, 0, 0, 0]
+    for repo, image_id, created, size, _ in rows:
+        widths[0] = max(widths[0], len(repo))
+        widths[1] = max(widths[1], len(image_id))
+        widths[2] = max(widths[2], len(created))
+        widths[3] = max(widths[3], len(size))
+
+    def emit(line: str) -> None:
+        if prefix:
+            print(f"{prefix} {line}")
+        else:
+            print(line)
+
+    duration_suffix = ""
+    if duration_seconds is not None:
+        duration_suffix = f" in {duration_seconds:.1f}s"
+    header = f"🧱 Built Images for {env_name} ({project_label}){duration_suffix}:"
+    if prefix:
+        emit(header)
+    else:
+        print(f"\n{header}")
+
+    for repo, image_id, created, size, _ in rows:
+        emit(
+            f"   {repo.ljust(widths[0])}  "
+            f"{image_id.ljust(widths[1])}  "
+            f"{created.ljust(widths[2])}  "
+            f"{size.rjust(widths[3])}"
+        )
+    if not prefix:
+        print("")
+
+
 def thorough_cleanup(env_name: str):
     """Exhaustively remove Docker resources associated with an environment."""
     project_label = f"{BRAND_SLUG}-{env_name}"
@@ -310,6 +437,35 @@ def thorough_cleanup(env_name: str):
     # Run it manually or via a post-test cleanup script instead.
 
 
+def cleanup_managed_images(env_name: str, project_name: str) -> None:
+    """Remove ESB-managed images associated with an environment."""
+    label_prefix = f"com.{BRAND_SLUG}"
+    project_label = f"{project_name}-{env_name}"
+    cmd = [
+        "docker",
+        "images",
+        "-q",
+        "--filter",
+        f"label={label_prefix}.managed=true",
+        "--filter",
+        f"label={label_prefix}.project={project_label}",
+        "--filter",
+        f"label={label_prefix}.env={env_name}",
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"[WARN] Failed to list images for cleanup ({env_name}): {result.stderr.strip()}")
+        return
+    image_ids = [img.strip() for img in result.stdout.splitlines() if img.strip()]
+    if not image_ids:
+        return
+    print(f"  • Removing managed images for {env_name} ({len(image_ids)} images)...")
+    try:
+        subprocess.run(["docker", "rmi", "-f"] + image_ids, check=False, capture_output=True)
+    except Exception as exc:
+        print(f"[WARN] Failed to remove images for {env_name}: {exc}")
+
+
 def warmup_environment(env_scenarios: dict, matrix: list[dict], args):
     """
     Perform global reset and warm-up actions.
@@ -337,8 +493,12 @@ def run_scenario(args, scenario):
     project_name = scenario.get("esb_project", BRAND_SLUG)
     do_reset = scenario.get("perform_reset", args.reset)
     do_build = scenario.get("perform_build", args.build)
-    build_only = scenario.get("build_only", False)
+    build_only = scenario.get("build_only", False) or args.build_only
+    test_only = scenario.get("test_only", False) or args.test_only
     env_vars_override = scenario.get("env_vars", {})
+
+    if build_only and test_only:
+        raise ValueError("build_only and test_only cannot both be true")
 
     # 0.1 Set ESB variables for resolution and safety
     # We set these in os.environ so the CLI doesn't prompt even if .env fails.
@@ -379,105 +539,123 @@ def run_scenario(args, scenario):
     if not template_path.exists():
         raise FileNotFoundError(f"Missing E2E template: {template_path}")
     runtime_env = calculate_runtime_env(project_name, env_name, mode, env_file)
+    build_env_base = runtime_env.copy()
+    build_env_base["PROJECT_NAME"] = f"{project_name}-{env_name}"
+    build_env_base["ESB_META_REUSE"] = "1"
 
     did_up = False
     try:
-        # 2. Reset / Build
-        build_args = [
-            "--template",
-            str(template_path.absolute()),
-            "build",
-            "--env",
-            env_name,
-            "--mode",
-            mode,
-        ]
-        if do_reset:
-            print(f"➜ Resetting environment: {env_name}")
-            # 2.1 Robust cleanup using docker compose down
-            # matches the "down" logic from legacy esb up replacement
-            if compose_file_path.exists():
-                proj_key = f"{BRAND_SLUG}-{env_name}"
-                subprocess.run(
-                    [
-                        "docker",
-                        "compose",
-                        "--project-name",
-                        proj_key,
-                        "--file",
-                        str(compose_file_path),
-                        "down",
-                        "--volumes",
-                        "--remove-orphans",
-                    ],
-                    capture_output=True,
+        if not test_only:
+            # 2. Reset / Build
+            build_args = [
+                "--template",
+                str(template_path.absolute()),
+                "build",
+                "--env",
+                env_name,
+                "--mode",
+                mode,
+            ]
+            if do_reset:
+                print(f"Resetting environment: {env_name}")
+                # 2.1 Robust cleanup using docker compose down
+                # matches the "down" logic from legacy esb up replacement
+                if compose_file_path.exists():
+                    proj_key = f"{BRAND_SLUG}-{env_name}"
+                    subprocess.run(
+                        [
+                            "docker",
+                            "compose",
+                            "--project-name",
+                            proj_key,
+                            "--file",
+                            str(compose_file_path),
+                            "down",
+                            "--volumes",
+                            "--remove-orphans",
+                        ],
+                        capture_output=True,
+                    )
+                # Fallback to manual cleanup just in case (e.g. if compose file invalid or project name mismatch previously)
+                thorough_cleanup(env_name)
+                cleanup_managed_images(env_name, project_name)
+                isolate_external_network(f"{BRAND_SLUG}-{env_name}")
+
+                # 2.2 Clean artifact directory for this environment
+                env_state_dir = E2E_STATE_ROOT / env_name
+                if env_state_dir.exists():
+                    print(f"  • Cleaning artifact directory: {env_state_dir}")
+                    import shutil
+
+                    shutil.rmtree(env_state_dir)
+
+                # Re-generate configurations and build images via ESB build
+                run_esb(
+                    build_args + ["--no-cache"],
+                    env_file=env_file,
+                    verbose=args.verbose,
+                    env=build_env_base,
                 )
-            # Fallback to manual cleanup just in case (e.g. if compose file invalid or project name mismatch previously)
-            thorough_cleanup(env_name)
-            isolate_external_network(f"{BRAND_SLUG}-{env_name}")
+                verify_registry_images(
+                    env_name,
+                    f"{project_name}-{env_name}",
+                    mode,
+                    compose_file_path,
+                )
+                if not (build_only and os.environ.get("E2E_WORKER") == "1"):
+                    print_built_images(env_name, project_name)
 
-            # 2.2 Clean artifact directory for this environment
-            env_state_dir = E2E_STATE_ROOT / env_name
-            if env_state_dir.exists():
-                print(f"  • Cleaning artifact directory: {env_state_dir}")
-                import shutil
+                if build_only:
+                    return True
 
-                shutil.rmtree(env_state_dir)
-
-            # Re-generate configurations and build images via ESB build
-            # IMPORTANT: Pass runtime_env so (branding) is respected!
-            build_env = runtime_env.copy()
-            # Ensure build uses the same compose project as the runtime stack.
-            # Otherwise containerd images get pushed to the wrong registry.
-            build_env["PROJECT_NAME"] = f"{project_name}-{env_name}"
-
-            run_esb(
-                build_args + ["--no-cache"],
-                env_file=env_file,
-                verbose=args.verbose,
-                env=build_env,
-            )
-            verify_registry_images(
-                env_name,
-                f"{project_name}-{env_name}",
-                mode,
-                compose_file_path,
-            )
-
-            if build_only:
-                return True
-
-            # Manual orchestration will handle starting the services in Step 3
-            did_up = False
-        elif do_build:
-            if not args.verbose:
-                print(f"➜ Building environment: {env_name}... ", end="", flush=True)
+                # Manual orchestration will handle starting the services in Step 3
+                did_up = False
+            elif do_build:
+                if not args.verbose:
+                    print(f"Building environment: {env_name}... ", end="", flush=True)
+                else:
+                    print(f"Building environment: {env_name}")
+                run_esb(
+                    build_args + ["--no-cache"],
+                    env_file=env_file,
+                    verbose=args.verbose,
+                    env=build_env_base,
+                )
+                verify_registry_images(
+                    env_name,
+                    f"{project_name}-{env_name}",
+                    mode,
+                    compose_file_path,
+                )
+                if not (build_only and os.environ.get("E2E_WORKER") == "1"):
+                    print_built_images(env_name, project_name)
+                if not args.verbose:
+                    print("Done")
             else:
-                print(f"➜ Building environment: {env_name}")
-            run_esb(build_args + ["--no-cache"], env_file=env_file, verbose=args.verbose)
-            verify_registry_images(
-                env_name,
-                f"{project_name}-{env_name}",
-                mode,
-                compose_file_path,
-            )
-            if not args.verbose:
-                print("Done")
+                if not args.verbose:
+                    print(f"Preparing environment: {env_name}... ", end="", flush=True)
+                else:
+                    print(f"Preparing environment: {env_name}")
+                # In Zero-Config, we just rebuild if needed. stop/sync are gone.
+                run_esb(build_args, env_file=env_file, verbose=args.verbose, env=build_env_base)
+                verify_registry_images(
+                    env_name,
+                    f"{project_name}-{env_name}",
+                    mode,
+                    compose_file_path,
+                )
+                if not (build_only and os.environ.get("E2E_WORKER") == "1"):
+                    print_built_images(env_name, project_name)
+                if not args.verbose:
+                    print("Done")
         else:
-            if not args.verbose:
-                print(f"➜ Preparing environment: {env_name}... ", end="", flush=True)
-            else:
-                print(f"➜ Preparing environment: {env_name}")
-            # In Zero-Config, we just rebuild if needed. stop/sync are gone.
-            run_esb(build_args, env_file=env_file, verbose=args.verbose)
-            verify_registry_images(
-                env_name,
-                f"{project_name}-{env_name}",
-                mode,
-                compose_file_path,
-            )
-            if not args.verbose:
-                print("Done")
+            config_dir = E2E_STATE_ROOT / env_name / "config"
+            if not config_dir.exists():
+                raise FileNotFoundError(
+                    f"Missing build artifacts for {env_name}: {config_dir} (run build phase first)"
+                )
+            if args.verbose:
+                print(f"Skipping build for {env_name} (test-only)")
 
         # If build_only, skip UP and tests
         if build_only:
@@ -620,9 +798,9 @@ def run_scenario(args, scenario):
     finally:
         if args.cleanup:
             if not args.verbose:
-                print(f"➜ Cleaning up environment: {env_name}... ", end="", flush=True)
+                print(f"Cleaning up environment: {env_name}... ", end="", flush=True)
             else:
-                print(f"➜ Cleaning up environment: {env_name}")
+                print(f"Cleaning up environment: {env_name}")
             # esb down is gone, use docker compose directly
             proj_key = f"{BRAND_SLUG}-{env_name}"
             subprocess.run(
@@ -689,8 +867,15 @@ def run_profile_subprocess(
                     if is_special_header:
                         in_special_block = True
 
+                    is_buildkit_progress = (
+                        "Image " in clean_line and clean_line.endswith(" Building")
+                    ) or (clean_line.startswith("Image ") and " Building" in clean_line)
                     should_print = (
-                        verbose or tests_started or clean_line.startswith("➜") or in_special_block
+                        verbose
+                        or tests_started
+                        or _is_progress_line(clean_line)
+                        or in_special_block
+                        or is_buildkit_progress
                     )
 
                     if should_print:
@@ -700,14 +885,14 @@ def run_profile_subprocess(
                     # End of special block if we encounter a new progress line
                     # or if the line is not indented (and not the header itself)
                     if in_special_block and not is_special_header:
-                        if clean_line.startswith("➜") or not clean_line.startswith(" "):
+                        if _is_progress_line(clean_line) or not clean_line.startswith(" "):
                             in_special_block = False
 
                     if not tests_started and any(
                         pat in clean_line for pat in early_failure_patterns
                     ):
                         early_failure = True
-                        print(f"{prefix} ➜ Build failed; stopping this environment.", flush=True)
+                        print(f"{prefix} Build failed; stopping this environment.", flush=True)
                         process.terminate()
                         break
                 else:
@@ -715,9 +900,10 @@ def run_profile_subprocess(
                     if in_special_block:
                         in_special_block = False
 
-                    # Preserve blank lines for structure (e.g. before BlockStart)
+                    # Preserve blank lines only in verbose mode
                     if not last_line_was_blank:
-                        print(prefix, flush=True)
+                        if verbose:
+                            print(prefix, flush=True)
                         last_line_was_blank = True
 
                 output_lines.append(line)
@@ -733,7 +919,7 @@ def run_profile_subprocess(
         returncode = process.wait()
 
     if returncode != 0 and not verbose and not tests_started:
-        print(f"{prefix} ➜ Subprocess failed before tests started. Printing cached logs...\n")
+        print(f"{prefix} Subprocess failed before tests started. Printing cached logs...\n")
         for line in output_lines:
             print(f"{prefix} {line.rstrip()}", flush=True)
 
@@ -754,6 +940,7 @@ def run_profiles_with_executor(
     fail_fast: bool,
     max_workers: int,
     verbose: bool = False,
+    test_only: bool = False,
 ) -> dict[str, tuple[bool, list[str]]]:
     """
     Run environments using a ProcessPoolExecutor.
@@ -780,10 +967,13 @@ def run_profiles_with_executor(
                 "--profile",
                 profile_name,
             ]
-            if reset:
-                cmd.append("--reset")
-            if build:
-                cmd.append("--build")
+            if test_only:
+                cmd.append("--test-only")
+            else:
+                if reset:
+                    cmd.append("--reset")
+                if build:
+                    cmd.append("--build")
             if cleanup:
                 cmd.append("--cleanup")
             if fail_fast:
@@ -828,6 +1018,158 @@ def run_profiles_with_executor(
     return results
 
 
+def run_build_phase_serial(
+    env_scenarios: dict[str, dict[str, Any]],
+    reset: bool,
+    build: bool,
+    fail_fast: bool,
+    verbose: bool = False,
+) -> list[str]:
+    """Run build phase sequentially in isolated subprocesses."""
+    failed: list[str] = []
+    if not env_scenarios:
+        return failed
+
+    durations: dict[str, float] = {}
+    total_start = time.monotonic()
+    max_label_len = max(len(p) for p in env_scenarios.keys()) + 2
+    profiles = list(env_scenarios.keys())
+
+    for idx, profile_name in enumerate(profiles):
+        cmd = [
+            sys.executable,
+            "-u",
+            "-m",
+            "e2e.run_tests",
+            "--profile",
+            profile_name,
+            "--build-only",
+        ]
+        if reset:
+            cmd.append("--reset")
+        if build:
+            cmd.append("--build")
+        if verbose:
+            cmd.append("--verbose")
+
+        color_code = COLORS[idx % len(COLORS)]
+        start = time.monotonic()
+        returncode, _ = run_profile_subprocess(
+            profile_name, cmd, color_code, verbose, max_label_len
+        )
+        durations[profile_name] = time.monotonic() - start
+        if returncode == 0:
+            scenario = env_scenarios.get(profile_name, {})
+            project_name = scenario.get("esb_project", BRAND_SLUG)
+            print_built_images(
+                profile_name,
+                project_name,
+                duration_seconds=durations[profile_name],
+            )
+        if returncode != 0:
+            failed.append(profile_name)
+            if fail_fast:
+                break
+
+    total_elapsed = time.monotonic() - total_start
+    if durations:
+        print("\n=== Build Phase Summary ===")
+        for profile_name in profiles:
+            if profile_name in durations:
+                print(f"- {profile_name}: {durations[profile_name]:.1f}s")
+        print(f"Total: {total_elapsed:.1f}s\n")
+
+    return failed
+
+
+def run_build_phase_parallel(
+    env_scenarios: dict[str, dict[str, Any]],
+    reset: bool,
+    build: bool,
+    fail_fast: bool,
+    verbose: bool = False,
+) -> list[str]:
+    """Run build phase in parallel subprocesses."""
+    failed: list[str] = []
+    if not env_scenarios:
+        return failed
+
+    durations: dict[str, float] = {}
+    total_start = time.monotonic()
+    max_label_len = max(len(p) for p in env_scenarios.keys()) + 2
+    profiles = list(env_scenarios.keys())
+    max_workers = len(profiles)
+    future_to_profile: dict[Any, tuple[str, float, str]] = {}
+
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        for idx, profile_name in enumerate(profiles):
+            cmd = [
+                sys.executable,
+                "-u",
+                "-m",
+                "e2e.run_tests",
+                "--profile",
+                profile_name,
+                "--build-only",
+            ]
+            if reset:
+                cmd.append("--reset")
+            if build:
+                cmd.append("--build")
+            if verbose:
+                cmd.append("--verbose")
+
+            color_code = COLORS[idx % len(COLORS)]
+            if max_workers > 1:
+                print(f"[PARALLEL] Scheduling environment: {profile_name}")
+            start = time.monotonic()
+            future = executor.submit(
+                run_profile_subprocess, profile_name, cmd, color_code, verbose, max_label_len
+            )
+            future_to_profile[future] = (profile_name, start, color_code)
+
+        for future in as_completed(future_to_profile):
+            profile_name, start, color_code = future_to_profile[future]
+            try:
+                returncode, _ = future.result()
+            except Exception as e:
+                print(f"[ERROR] Environment {profile_name} FAILED with exception: {e}")
+                returncode = 1
+
+            durations[profile_name] = time.monotonic() - start
+
+            label = f"[{profile_name}]"
+            if max_label_len > 0:
+                label = label.ljust(max_label_len)
+            prefix = f"{color_code}{label}{COLOR_RESET}"
+
+            if returncode == 0:
+                scenario = env_scenarios.get(profile_name, {})
+                project_name = scenario.get("esb_project", BRAND_SLUG)
+                print_built_images(
+                    profile_name,
+                    project_name,
+                    prefix=prefix,
+                    duration_seconds=durations[profile_name],
+                )
+            else:
+                failed.append(profile_name)
+                if fail_fast:
+                    for pending in future_to_profile:
+                        pending.cancel()
+                    break
+
+    total_elapsed = time.monotonic() - total_start
+    if durations:
+        print("\n=== Build Phase Summary ===")
+        for profile_name in profiles:
+            if profile_name in durations:
+                print(f"- {profile_name}: {durations[profile_name]:.1f}s")
+        print(f"Total: {total_elapsed:.1f}s\n")
+
+    return failed
+
+
 def wait_for_gateway(
     env_name: str,
     timeout: float = 60.0,
@@ -852,7 +1194,7 @@ def wait_for_gateway(
 
     url = f"https://localhost:{gw_port}/health"
     if verbose:
-        print(f"➜ Waiting for Gateway readiness at {url}...")
+        print(f"Waiting for Gateway readiness at {url}...")
 
     # Suppress certificate warnings for local dev
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)

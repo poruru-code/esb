@@ -13,9 +13,7 @@ async def test_pm_sync_with_manager():
 
     mock_client = AsyncMock()
     mock_loader = MagicMock(
-        return_value=FunctionEntity(
-            name="func1", image="img", scaling=ScalingConfig(max_capacity=5)
-        )
+        return_value=FunctionEntity(name="func1", scaling=ScalingConfig(max_capacity=5))
     )
     pm = PoolManager(mock_client, mock_loader)
 
@@ -53,9 +51,7 @@ async def test_pm_sync_with_manager_skips_missing_function_name():
 
     mock_client = AsyncMock()
     mock_loader = MagicMock(
-        return_value=FunctionEntity(
-            name="func1", image="img", scaling=ScalingConfig(max_capacity=5)
-        )
+        return_value=FunctionEntity(name="func1", scaling=ScalingConfig(max_capacity=5))
     )
     pm = PoolManager(mock_client, mock_loader)
 

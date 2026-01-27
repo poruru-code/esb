@@ -72,6 +72,7 @@ build/lambda-images/*.tar
 # ESB artifacts
 .esb/
 generator.yml
+/.*/meta/version.json
 # Staging and fixtures
 e2e/fixtures/.*/
 services/gateway/.staging/

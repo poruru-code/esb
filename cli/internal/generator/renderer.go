@@ -74,16 +74,10 @@ func RenderDockerfile(
 }
 
 func RenderFunctionsYml(functions []FunctionSpec, registry, tag string) (string, error) {
-	if tag == "" {
-		tag = "latest"
-	}
-	registry = normalizeRegistry(registry)
+	_ = registry
+	_ = tag
 
-	data := functionsTemplateData{
-		Registry:    registry,
-		Tag:         tag,
-		ImagePrefix: meta.ImagePrefix,
-	}
+	data := functionsTemplateData{}
 	for _, fn := range functions {
 		if strings.TrimSpace(fn.ImageName) == "" {
 			return "", fmt.Errorf("image name is required for function %s", fn.Name)
@@ -97,7 +91,6 @@ func RenderFunctionsYml(functions []FunctionSpec, registry, tag string) (string,
 		}
 		entry := functionTemplateContext{
 			Name:         fn.Name,
-			ImageName:    fn.ImageName,
 			Timeout:      optionalInt(fn.Timeout),
 			MemorySize:   optionalInt(fn.MemorySize),
 			Environment:  fn.Environment,
@@ -178,15 +171,11 @@ type dockerfileTemplateData struct {
 }
 
 type functionsTemplateData struct {
-	Registry    string
-	Tag         string
-	ImagePrefix string
-	Functions   []functionTemplateContext
+	Functions []functionTemplateContext
 }
 
 type functionTemplateContext struct {
 	Name         string
-	ImageName    string
 	Timeout      *int
 	MemorySize   *int
 	Environment  map[string]string

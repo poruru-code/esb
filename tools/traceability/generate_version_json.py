@@ -17,8 +17,6 @@ from urllib.parse import urlsplit, urlunsplit
 
 ALLOWED_COMPONENTS = set()  # Deprecated
 
-ALLOWED_IMAGE_RUNTIMES = {"docker", "containerd", "shared"}
-
 
 def run_git(args: Iterable[str], env: dict[str, str], allow_fail: bool = False) -> str:
     result = subprocess.run(
@@ -73,17 +71,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate version.json for build traceability")
     parser.add_argument("--git-dir", required=True)
     parser.add_argument("--git-common-dir", required=True)
-    parser.add_argument("--image-runtime", required=True)
     parser.add_argument("--output", required=True)
     return parser.parse_args(argv)
 
 
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
-    image_runtime = args.image_runtime.strip()
-    if image_runtime not in ALLOWED_IMAGE_RUNTIMES:
-        raise RuntimeError(f"invalid image_runtime: {image_runtime}")
-
     env = os.environ.copy()
     env["GIT_DIR"] = args.git_dir
     env["GIT_COMMON_DIR"] = args.git_common_dir
@@ -110,7 +103,6 @@ def main(argv: list[str]) -> int:
         "build_date": build_date_rfc3339(),
         "repo_url": repo_url,
         "source": "git",
-        "image_runtime": image_runtime,
     }
 
     with open(output_path, "w", encoding="utf-8") as handle:

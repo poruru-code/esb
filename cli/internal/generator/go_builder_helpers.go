@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -61,6 +62,104 @@ func resolveTraceTools(repoRoot string) (string, error) {
 		return "", fmt.Errorf("traceability script not found: %w", err)
 	}
 	return traceTools, nil
+}
+
+func prepareMetaContext(
+	ctx context.Context,
+	runner compose.CommandRunner,
+	repoRoot string,
+	gitCtx gitContext,
+	traceTools string,
+) (string, error) {
+	if runner == nil {
+		return "", fmt.Errorf("command runner is nil")
+	}
+	root := strings.TrimSpace(repoRoot)
+	if root == "" {
+		return "", fmt.Errorf("repo root is required")
+	}
+	metaDir := filepath.Join(root, meta.OutputDir, "meta")
+	bakeFile := filepath.Join(root, "tools", "traceability", "docker-bake.hcl")
+	if _, err := os.Stat(bakeFile); err != nil {
+		return "", fmt.Errorf("bake file not found: %w", err)
+	}
+	traceTools = strings.TrimSpace(traceTools)
+	if traceTools == "" {
+		return "", fmt.Errorf("trace tools path is required")
+	}
+	versionPath := filepath.Join(metaDir, "version.json")
+	reuse := strings.TrimSpace(os.Getenv("ESB_META_REUSE")) != ""
+	gitSha := ""
+	if reuse {
+		if sha, err := runGit(ctx, runner, root, "rev-parse", "HEAD"); err == nil {
+			gitSha = sha
+		}
+	}
+	if err := withBuildLock("meta", func() error {
+		if reuse && gitSha != "" {
+			if ok, err := metaMatchesGit(versionPath, gitSha); err == nil && ok {
+				return nil
+			}
+		}
+		if err := ensureDir(metaDir); err != nil {
+			return err
+		}
+		tmpDir, err := os.MkdirTemp(filepath.Dir(metaDir), "meta-tmp-")
+		if err != nil {
+			return err
+		}
+		defer func() { _ = removeDir(tmpDir) }()
+
+		args := []string{
+			"buildx",
+			"bake",
+			"-f",
+			bakeFile,
+			"meta",
+			"--set",
+			fmt.Sprintf("meta.contexts.git_dir=%s", gitCtx.GitDir),
+			"--set",
+			fmt.Sprintf("meta.contexts.git_common=%s", gitCtx.GitCommon),
+			"--set",
+			fmt.Sprintf("meta.contexts.trace_tools=%s", traceTools),
+			"--set",
+			fmt.Sprintf("meta.output=type=local,dest=%s", tmpDir),
+		}
+		if err := runner.Run(ctx, root, "docker", args...); err != nil {
+			return err
+		}
+		tmpVersion := filepath.Join(tmpDir, "version.json")
+		if _, err := os.Stat(tmpVersion); err != nil {
+			return fmt.Errorf("version.json not found: %w", err)
+		}
+		if err := copyFile(tmpVersion, versionPath); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return "", err
+	}
+	if _, err := os.Stat(versionPath); err != nil {
+		return "", fmt.Errorf("version.json not found: %w", err)
+	}
+	return metaDir, nil
+}
+
+func metaMatchesGit(path, gitSha string) (bool, error) {
+	if path == "" || gitSha == "" {
+		return false, nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false, err
+	}
+	var payload struct {
+		GitSha string `json:"git_sha"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return false, err
+	}
+	return strings.TrimSpace(payload.GitSha) == strings.TrimSpace(gitSha), nil
 }
 
 func defaultGeneratorParameters() map[string]string {
@@ -320,6 +419,8 @@ func buildFunctionImages(
 				skipBuild = true
 				if verbose {
 					fmt.Printf("  Skipping %s (up-to-date)\n", fn.Name)
+				} else {
+					fmt.Printf("  - Skipped function image (up-to-date): %s\n", fn.Name)
 				}
 			}
 		}
@@ -336,6 +437,9 @@ func buildFunctionImages(
 				buildContexts,
 			); err != nil {
 				return err
+			}
+			if !verbose {
+				fmt.Printf("  - Built function image: %s\n", fn.Name)
 			}
 		}
 		if registry != "" {

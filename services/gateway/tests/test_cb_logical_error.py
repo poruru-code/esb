@@ -26,9 +26,7 @@ async def test_circuit_breaker_on_rie_200_error_FINAL():
     registry = MagicMock()  # It's used synchronously in LambdaInvoker
     from services.gateway.models.function import FunctionEntity
 
-    registry.get_function_config.return_value = FunctionEntity(
-        name="test", image="test", environment={}
-    )
+    registry.get_function_config.return_value = FunctionEntity(name="test", environment={})
 
     from services.common.models.internal import WorkerInfo
 

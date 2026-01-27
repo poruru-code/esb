@@ -11,7 +11,13 @@ import urllib3
 
 from e2e.runner.cli import parse_args
 from e2e.runner.config import build_env_scenarios, load_test_matrix
-from e2e.runner.executor import run_profiles_with_executor, run_scenario, warmup_environment
+from e2e.runner.executor import (
+    run_build_phase_parallel,
+    run_build_phase_serial,
+    run_profiles_with_executor,
+    run_scenario,
+    warmup_environment,
+)
 from e2e.runner.utils import BRAND_SLUG, GO_CLI_ROOT, PROJECT_ROOT
 
 
@@ -72,6 +78,14 @@ def main():
     suites = config_matrix.get("suites", {})
     matrix = config_matrix.get("matrix", [])
 
+    if args.build_only and args.test_only:
+        print("[ERROR] --build-only and --test-only cannot be used together.")
+        sys.exit(1)
+
+    if args.test_target and (args.build_only or args.test_only):
+        print("[ERROR] --build-only/--test-only cannot be used with --test-target.")
+        sys.exit(1)
+
     # --- Single Target Mode (Legacy/Debug) ---
     if args.test_target:
         if not args.profile:
@@ -100,12 +114,6 @@ def main():
         run_scenario(args, user_scenario)
         sys.exit(0)
 
-    # Only print for sequential mode (subprocess of parallel will print its own)
-    if not args.parallel:
-        print("\nStarting Full E2E Test Suite (Matrix-Based)\n")
-
-    failed_entries = []
-
     # Build list of all scenarios to run
     # If args.profile is set, build_env_scenarios filters internally or we can pass a filter?
     # Actually build_env_scenarios builds everything, we filter later.
@@ -117,22 +125,15 @@ def main():
         # logic inside build_env_scenarios handles basic filtering, but strict "found" check is good.
         pass
 
-    # --- Global Reset & Warm-up ---
-    # Perform this if we are in the main dispatcher process (not a parallel worker).
-    # Validate shared inputs (e.g., template) once before dispatching.
-    if os.environ.get("E2E_WORKER") != "1":
-        warmup_environment(env_scenarios, matrix, args)
-
-    # --- Unified Execution Mode ---
-
-    # If a specific profile is requested (either by user or as a parallel worker), execute it directly.
-    if args.profile:
+    if args.build_only or args.test_only:
+        if not args.profile:
+            print("[ERROR] --profile is required when using --build-only/--test-only.")
+            sys.exit(1)
         for _, scenario in env_scenarios.items():
-            # Inject initialization flags into the scenario
             scenario["perform_reset"] = args.reset
             scenario["perform_build"] = args.build
-
-            # Run in-process
+            scenario["build_only"] = args.build_only
+            scenario["test_only"] = args.test_only
             try:
                 run_scenario(args, scenario)
             except SystemExit as e:
@@ -143,28 +144,60 @@ def main():
                 sys.exit(1)
         sys.exit(0)
 
-    # Dispatcher Mode
+    # --- Global Reset & Warm-up ---
+    # Perform this if we are in the main dispatcher process (not a parallel worker).
+    # Validate shared inputs (e.g., template) once before dispatching.
+    if os.environ.get("E2E_WORKER") != "1":
+        warmup_environment(env_scenarios, matrix, args)
+
+    failed_entries = []
+
+    # --- Build Phase (Parallel/Serial, subprocess isolation) ---
+    build_parallel = args.parallel and len(env_scenarios) > 1
+    if build_parallel:
+        print("\n=== Build Phase (Parallel) ===\n")
+        build_failed = run_build_phase_parallel(
+            env_scenarios,
+            reset=args.reset,
+            build=args.build,
+            fail_fast=args.fail_fast,
+            verbose=args.verbose,
+        )
+    else:
+        print("\n=== Build Phase (Serial) ===\n")
+        build_failed = run_build_phase_serial(
+            env_scenarios,
+            reset=args.reset,
+            build=args.build,
+            fail_fast=args.fail_fast,
+            verbose=args.verbose,
+        )
+    if build_failed:
+        print(f"\n❌ [FAILED] Build failed for: {', '.join(build_failed)}")
+        print_tail_logs(build_failed)
+        sys.exit(1)
+
+    # --- Test Phase (Parallel) ---
     parallel_mode = args.parallel and len(env_scenarios) > 1
     max_workers = len(env_scenarios) if parallel_mode else 1
 
     if parallel_mode:
         print(
-            f"\n[PARALLEL] Starting parallel execution for {len(env_scenarios)} environments: {', '.join(env_scenarios.keys())}"
+            f"\n[PARALLEL] Starting test phase for {len(env_scenarios)} environments: {', '.join(env_scenarios.keys())}"
         )
-        print(
-            "[PARALLEL] Build, infrastructure setup, and tests will run simultaneously across environments.\n"
-        )
+        print("[PARALLEL] Build phase completed; tests will run in parallel.\n")
     else:
-        print("\nStarting Full E2E Test Suite (Matrix-Based)\n")
+        print("\nStarting Test Phase (Matrix-Based)\n")
 
     results = run_profiles_with_executor(
         env_scenarios,
-        reset=args.reset,
-        build=args.build,
+        reset=False,
+        build=False,
         cleanup=args.cleanup,
         fail_fast=args.fail_fast,
         max_workers=max_workers,
         verbose=args.verbose,
+        test_only=True,
     )
 
     for _, (success, profile_failed) in results.items():

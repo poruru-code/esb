@@ -44,6 +44,20 @@ class FunctionRegistry:
                 content = template.safe_substitute(mapping)
                 cfg = yaml.safe_load(content) or {}
 
+            functions_cfg = cfg.get("functions", {})
+            if isinstance(functions_cfg, dict):
+                invalid = []
+                for name, spec in functions_cfg.items():
+                    if isinstance(spec, dict) and "image" in spec:
+                        invalid.append(name)
+                if invalid:
+                    message = (
+                        "functions.yml does not allow 'image' entries. "
+                        f"Remove image from: {', '.join(sorted(invalid))}"
+                    )
+                    logger.error(message)
+                    raise ValueError(message)
+
             self._defaults = cfg.get("defaults", {})
             self._registry = cfg.get("functions", {})
 

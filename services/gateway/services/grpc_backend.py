@@ -88,16 +88,14 @@ class GrpcBackend:
     async def _ensure_container(self, function_name: str) -> WorkerInfo:
         # Get environment variables from FunctionRegistry
         env = {}
-        image = ""
         if self.function_registry:
             func_config = self.function_registry.get_function_config(function_name)
             if func_config:
                 env = func_config.environment
-                image = func_config.image
 
         req = agent_pb2.EnsureContainerRequest(  # type: ignore[attr-defined]
             function_name=function_name,
-            image=image,
+            image="",
             env=env,
         )
         try:

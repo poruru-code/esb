@@ -2,22 +2,6 @@
 # Where: services/common/Dockerfile.python-base
 # What: Python 3.12 base image for Python services.
 # Why: Keep Debian 12 + CA trust while minimizing extra packages.
-# Metadata Stage - Generate version.json from git context.
-FROM python:3.12-alpine AS build-meta
-
-RUN apk add --no-cache git
-
-WORKDIR /work
-
-RUN --mount=type=bind,from=trace_tools,source=.,target=/trace_tools \
-    --mount=type=bind,from=git_dir,source=.,target=/gitdir \
-    --mount=type=bind,from=git_common,source=.,target=/gitcommon \
-    python3 /trace_tools/generate_version_json.py \
-      --output /out/version.json \
-      --git-dir /gitdir \
-      --git-common-dir /gitcommon \
-      --image-runtime "shared"
-
 FROM python:3.12-slim-bookworm@sha256:4a3ceab05b4e396df42a042415e43a286bb5793352b9258f889d6c7d38ed01fb
 
 # Install minimal OS packages
@@ -35,4 +19,4 @@ RUN --mount=type=secret,id=${ROOT_CA_MOUNT_ID},required=true \
     && install -m 0644 /run/secrets/${ROOT_CA_MOUNT_ID} /usr/local/share/ca-certificates/${ROOT_CA_CERT_FILENAME} \
     && update-ca-certificates
 
-COPY --from=build-meta /out/version.json /app/version.json
+COPY --from=meta /version.json /app/version.json

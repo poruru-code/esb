@@ -15,27 +15,6 @@ ARG FIRECRACKER_CONTAINERD_REF=d6ffdaa615b8da95dea35e611d0290447fcf8fd1
 ARG FIRECRACKER_VERSION=1.14.0
 
 # -----------------------------------------------------------------------------
-# Metadata Stage: version.json from git context
-# -----------------------------------------------------------------------------
-FROM python:3.12-alpine AS build-meta
-
-RUN apk add --no-cache git
-
-WORKDIR /work
-
-RUN --mount=type=bind,from=trace_tools,source=.,target=/trace_tools \
-  --mount=type=bind,from=git_dir,source=.,target=/gitdir \
-  --mount=type=bind,from=git_common,source=.,target=/gitcommon \
-  python3 /trace_tools/generate_version_json.py \
-    --output /out/version.json \
-    --git-dir /gitdir \
-    --git-common-dir /gitcommon \
-    --image-runtime "containerd"
-
-# -----------------------------------------------------------------------------
-# Stage 1: Firecracker Builder
-# Compiles firecracker-containerd, shim, and tools from source
-# -----------------------------------------------------------------------------
 FROM golang:${GO_VERSION}-${DEBIAN_VERSION}@${GOLANG_DIGEST} AS firecracker-builder
 
 ARG FIRECRACKER_CONTAINERD_REF
@@ -110,7 +89,7 @@ FROM ${OS_BASE_IMAGE}
 ENV IMAGE_RUNTIME="containerd"
 
 
-COPY --from=build-meta /out/version.json /app/version.json
+COPY --from=meta /version.json /app/version.json
 
 # System dependencies for containerd and firecracker networking/devmapper
 RUN apt-get update && apt-get install -y --no-install-recommends \

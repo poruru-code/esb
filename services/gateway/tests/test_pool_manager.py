@@ -28,7 +28,6 @@ class TestPoolManagerBasics:
         def loader(function_name):
             return FunctionEntity(
                 name=function_name,
-                image="img",
                 scaling=ScalingConfig(max_capacity=3, min_capacity=0),
             )
 
@@ -93,7 +92,6 @@ class TestPoolManagerAcquireRelease:
         def loader(function_name):
             return FunctionEntity(
                 name=function_name,
-                image="img",
                 scaling=ScalingConfig(max_capacity=2, min_capacity=0),
             )
 
@@ -160,7 +158,6 @@ class TestPoolManagerHeartbeat:
         def loader(function_name):
             return FunctionEntity(
                 name=function_name,
-                image="img",
                 scaling=ScalingConfig(max_capacity=5, min_capacity=0),
             )
 

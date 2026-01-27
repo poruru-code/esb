@@ -19,7 +19,6 @@ class TestLambdaInvokerPoolMode:
         registry = MagicMock()
         registry.get_function_config = MagicMock(
             return_value={
-                "image": "hello-world:latest",
                 "environment": {"LOG_LEVEL": "DEBUG"},
             }
         )

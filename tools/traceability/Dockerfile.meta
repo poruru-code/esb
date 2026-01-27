@@ -1,0 +1,21 @@
+# syntax=docker/dockerfile:1.7
+# Where: tools/traceability/Dockerfile.meta
+# What: Generate version.json once for build metadata.
+# Why: Share build metadata across all images via a named context.
+FROM python:3.12-alpine AS meta
+
+RUN apk add --no-cache git
+
+WORKDIR /work
+
+RUN --mount=type=bind,from=trace_tools,source=.,target=/trace_tools \
+    --mount=type=bind,from=git_dir,source=.,target=/gitdir \
+    --mount=type=bind,from=git_common,source=.,target=/gitcommon \
+    python3 /trace_tools/generate_version_json.py \
+      --output /version.json \
+      --git-dir /gitdir \
+      --git-common-dir /gitcommon
+
+FROM scratch AS out
+
+COPY --from=meta /version.json /version.json

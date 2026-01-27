@@ -32,10 +32,10 @@ Why: provenance 未使用の前提で、ビルド由来メタデータを成果�
 - `docker build --build-context` をサポートしていること（`docker build --help` に含まれることを確認）。
 
 ### 3.1 `.git` がファイルのケース（worktree / submodule 等）
-- worktree / submodule では `.git` が **ファイル**になるため、そのまま `additional_contexts` には渡せない。
-- 環境変数 `GIT_DIR_CONTEXT` に **gitdir (HEAD などを持つディレクトリ)** を設定する。
-- 環境変数 `GIT_COMMON_DIR_CONTEXT` に **commondir (object DB を持つディレクトリ)** を設定する。
-- 通常 clone では `GIT_DIR_CONTEXT/GIT_COMMON_DIR_CONTEXT` は未設定でよい（既定 `.git` を使う）。
+- worktree / submodule では `.git` が **ファイル**になるため、Bake の `git_dir/git_common` に渡すパスを明示する。
+- `docker buildx bake` 実行時に `--set meta.contexts.git_dir=...` /
+  `--set meta.contexts.git_common=...` を指定する。
+- 通常 clone では未指定でよい（既定 `.git` を使う）。
 - いずれも **絶対パス**で指定する。
 - `esb build` は CLI 内部で `gitdir/commondir` を解決し、ユーザー設定は不要とする。
 
@@ -64,8 +64,7 @@ Why: provenance 未使用の前提で、ビルド由来メタデータを成果�
   "git_sha_short": "ab12cd34ef56",
   "build_date": "2026-01-25T04:12:55Z",
   "repo_url": "git@github.com:org/repo.git",
-  "source": "git",
-  "image_runtime": "docker"
+  "source": "git"
 }
 ```
 
@@ -86,11 +85,6 @@ Why: provenance 未使用の前提で、ビルド由来メタデータを成果�
   - 無い場合は空文字。
 - `source`:
   - 固定で `git`。
-- `image_runtime`:
-  - runtime 系: `docker` / `containerd`
-  - base / function 系: `shared`
-
-
 ## 6. ビルド処理詳細
 ### 6.1 共通アルゴリズム
 1) `gitdir/commondir`（追加コンテキスト）から `git_sha` / `version` / `repo_url` を取得。  
@@ -105,8 +99,6 @@ Why: provenance 未使用の前提で、ビルド由来メタデータを成果�
 - 依存: Python 3 標準ライブラリのみ（追加パッケージ不要）
 - 入力（必須）:
   - `--git-dir` / `--git-common-dir`
-- `--component` / `--image-runtime`
-  - `image_runtime`: `docker|containerd|shared`
   - `--output`
 
 - 出力:
@@ -117,60 +109,36 @@ Why: provenance 未使用の前提で、ビルド由来メタデータを成果�
   - `repo_url` は制御文字・改行を除外し、`https://user:token@` 等の `userinfo` を破棄する。
   - 必須引数が欠けている場合は非 0 で終了する。
 
-### 6.2 Dockerfile 追加ステージ
-全コンポーネントの Dockerfile に **メタデータ生成ステージ**を追加する。
-例: `services/gateway/Dockerfile.docker` の先頭付近。
-`--mount=type=bind` を使うため、Dockerfile は `# syntax=docker/dockerfile:1.7` 以上を指定する。
-共通スクリプトは `trace_tools` 追加コンテキストから参照する。
+### 6.2 メタデータ生成の集約（Bake）
+全コンポーネントの Dockerfile から **メタデータ生成ステージ**を削除し、`version.json` は Docker Bake で **1 回だけ生成**して全イメージへ配布する。
 
-対象の例:
-- Control plane: `services/gateway/*`, `services/agent/*`, `services/provisioner/*`
-- Runtime: `services/runtime-node/*`
-- Base: `services/common/Dockerfile.os-base`, `services/common/Dockerfile.python-base`
-- Lambda base: `cli/internal/generator/assets/Dockerfile.lambda-base`
-- 関数イメージ: `cli/internal/generator/templates/dockerfile.tmpl`
-
-```Dockerfile
-# syntax=docker/dockerfile:1.7
-ARG IMAGE_RUNTIME
-FROM alpine:3.20 AS build-meta
-ARG IMAGE_RUNTIME
-RUN apk add --no-cache git ca-certificates python3
-WORKDIR /work
-RUN --mount=type=bind,from=trace_tools,source=.,target=/trace_tools \
-    --mount=type=bind,from=git_dir,source=.,target=/gitdir \
-    --mount=type=bind,from=git_common,source=.,target=/gitcommon \
-    python3 /trace_tools/generate_version_json.py \
-      --output /out/version.json \
-      --git-dir /gitdir \
-      --git-common-dir /gitcommon \
-      --image-runtime "${IMAGE_RUNTIME}"
-```
-
-`ARG IMAGE_RUNTIME` は build-meta ステージで使用するため、`FROM` より前に宣言する。
-値の方針:
-- runtime 系: `IMAGE_RUNTIME=docker|containerd`
-- base 系: `IMAGE_RUNTIME=shared`
-- function 系: `IMAGE_RUNTIME=shared`
+例: `tools/traceability/Dockerfile.meta` を Bake で実行し、`output=type=local` で `version.json` を出力する。
 
 ### 6.3 最終ステージへのコピー
 最終ステージに以下を追加する。
 
 ```Dockerfile
-COPY --from=build-meta /out/version.json /app/version.json
+COPY --from=meta /version.json /app/version.json
 ```
 
 ### 6.4 既存ビルドメタの整理
-- Dockerfile 内の `ARG IMAGE_RUNTIME` と必須チェックは廃止する（必要に応じて適宜）。
-- `IMAGE_RUNTIME` は **全イメージで `ARG` 必須**とする（`version.json` 生成のため）。
+- Dockerfile 内の `build-meta` ステージを廃止する。
 - runtime 系のみ `IMAGE_RUNTIME` を `ENV` に焼き込む（entrypoint が参照）。
 - base / function 系は `ENV` に焼き込まない（不要な環境変数を増やさない）。
 
 ## 7. Compose 設定
 ### 7.1 追加コンテキスト
-`.git` と共通スクリプトを追加コンテキストで渡す（`.dockerignore` の影響を受けない）。
+`version.json` を共有するために `meta` コンテキストを追加する。
 Compose ファイルは **branding ツール（esb-branding-tool）で生成**されるため、
 修正はツール側テンプレートで行い、生成物（`docker-compose.*.yml`）へ反映する。
+
+- `META_CONTEXT` 未設定時は `.esb/meta` を使用する。
+- `docker compose up --build` を使う場合、事前に `version.json` を生成しておく。
+  - 例: `docker buildx bake -f tools/traceability/docker-bake.hcl meta`
+  - `.git` がファイルのケースは `--set meta.contexts.git_dir=...` /
+    `--set meta.contexts.git_common=...` を追加する（詳細は 3.1）。
+- agent のビルドでは Go module `meta` を参照するため、`meta_module` を追加する。
+  - `META_MODULE_CONTEXT` 未設定時は `meta` を使用する。
 
 例: `docker-compose.docker.yml`（gateway の場合）
 
@@ -181,32 +149,35 @@ services:
       context: .
       dockerfile: services/gateway/Dockerfile.docker
       additional_contexts:
-        git_dir: ${GIT_DIR_CONTEXT:-.git}
-        git_common: ${GIT_COMMON_DIR_CONTEXT:-.git}
-        trace_tools: tools/traceability
+        config: ${CONFIG_DIR:-services/gateway/config}
+        meta: ${META_CONTEXT:-.esb/meta}
+  agent:
+    build:
+      context: services/agent
+      dockerfile: Dockerfile.docker
+      additional_contexts:
+        meta: ${META_CONTEXT:-.esb/meta}
+        meta_module: ${META_MODULE_CONTEXT:-meta}
 ```
 
-`services/agent` のように context がサブディレクトリの場合も同様に `git_dir/git_common` を渡す。
-既存の `additional_contexts`（例: `meta`）がある場合は **追記**で運用する。
-
 ### 7.1.1 必須 build args
-既存の `IMAGE_RUNTIME` / `COMPONENT` は引き続き build args で渡す。
+- Root CA 関連の build args は既存どおり。
+- `IMAGE_RUNTIME` は Dockerfile の `ENV` で固定し、ビルド引数としては渡さない。
 
 ### 7.2 esb build（docker build）での追加コンテキスト
 - `esb build` は関数/ベースイメージのビルドに `docker build` を使用する。
-- build コンテキストは出力ディレクトリのため `.git` が含まれない。
-- CLI は `--build-context git_dir=...` と `--build-context git_common=...` を必須で追加する。
-- CLI は `--build-context trace_tools=...` で共通スクリプトを追加する。
-- パスは repo ルートから `git rev-parse` で解決し、**絶対パス**で渡す。
-- worktree の場合も CLI が `gitdir` ファイルを解決し、ユーザー設定は不要とする。
+- CLI は build 前に Docker Bake で `version.json` を 1 回生成し、`.esb/meta` に出力する。
+- 各 `docker build` には `--build-context meta=...` のみを渡す。
+- `gitdir/commondir` は Bake 用に解決し、worktree でも CLI が自動で処理する。
 
 #### 7.2.1 CLI 実装詳細（コードレベル）
 - 変更対象:
   - `cli/internal/generator/go_builder.go`
   - `cli/internal/generator/go_builder_helpers.go`
-- `Build()` の先頭で `gitdir/commondir` を解決し、以降の全 `docker build` 呼び出しに渡す。
+- `Build()` の先頭で `gitdir/commondir` を解決し、Bake 用コンテキストとして渡す。
 - `resolveGitContext` の呼び出しは `b.Runner` を使用する（本番は `compose.ExecRunner`）。
-- 失敗時は `esb build` を即時失敗させ、エラーメッセージに `git rev-parse` の失敗理由を含める。
+- Bake が失敗した場合は `esb build` を即時失敗させ、エラーメッセージに `git rev-parse` の失敗理由を含める。
+- `prepareMetaContext` で `docker buildx bake` を実行し、`.esb/meta/version.json` を生成する。
 - `buildDockerImage` のシグネチャに build context を追加する。
 
 ```go
@@ -232,16 +203,13 @@ func buildDockerImage(
   - `buildBaseImage()`（lambda-base）
   - OS base / Python base
   - `buildFunctionImages()`（各関数イメージ）
-- `buildContexts` には `git_dir` / `git_common` / `trace_tools` を必須で入れる。
+- `buildContexts` には `meta` のみを入れる。
 - `trace_tools` の実体は `filepath.Join(repoRoot, "tools", "traceability")` とし、
-  `generate_version_json.py` の存在を確認してからビルドに渡す。
-- build args の値:
-  - runtime 系: `IMAGE_RUNTIME=docker|containerd`
-  - base 系: `IMAGE_RUNTIME=shared`
-  - function 系: `IMAGE_RUNTIME=shared`
+  `generate_version_json.py` の存在を確認してから Bake に渡す。
 
 #### 7.2.2 gitdir/commondir 解決ロジック
 新規ヘルパーを追加し、`compose.ExecRunner`（内部で `exec.Command` を使用）で解決する。
+この値は `docker buildx bake` のコンテキスト解決にのみ使用する。
 
 - 追加ファイル: `cli/internal/generator/git_context.go`
   - 先頭に `Where/What/Why` のヘッダーコメントを付与する。
@@ -376,16 +344,15 @@ func resolveAbs(base, path string) string {
 
 ```bash
 docker build \
-  --build-context git_dir=/abs/path/to/.git \
-  --build-context git_common=/abs/path/to/.git \
-  --build-context trace_tools=/abs/path/to/tools/traceability \
+  --build-context meta=/abs/path/to/.esb/meta \
   -f <Dockerfile> -t <tag> .
 ```
 
 #### 7.2.4 テスト
 - `cli/internal/generator/go_builder_test.go`:
-  - `docker build` の引数に `--build-context git_dir=...` / `git_common=...` /
-    `trace_tools=...` が含まれることを検証。
+  - `docker buildx bake` の `--set meta.contexts.*` と
+    `meta.output=type=local,dest=...` が含まれることを検証。
+  - `docker build` の引数に `--build-context meta=...` が含まれることを検証。
   - worktree 相当の gitdir ファイルを使った `resolveGitContext` のユニットテストを追加。
   - 追加テストケース（`cli/internal/generator/git_context_test.go`）:
     - 先頭に `Where/What/Why` のヘッダーコメントを付与する。
@@ -460,7 +427,7 @@ cat ./version.json
 ```
 
 ### 8.3 `.git` がファイルのケースの前準備（worktree / submodule / compose 手動実行のみ）
-`GIT_DIR_CONTEXT` と `GIT_COMMON_DIR_CONTEXT` に実体パス（ディレクトリ）を設定する。
+`docker buildx bake` で meta を生成する際に `git_dir` / `git_common` を指定する。
 
 ```bash
 root="$(git rev-parse --show-toplevel)"
@@ -477,8 +444,11 @@ else
   common_base="${root}"
 fi
 commondir="$(resolve "$commondir" "$common_base")"
-export GIT_DIR_CONTEXT="${gitdir}"
-export GIT_COMMON_DIR_CONTEXT="${commondir}"
+docker buildx bake -f tools/traceability/docker-bake.hcl meta \
+  --set meta.contexts.git_dir="${gitdir}" \
+  --set meta.contexts.git_common="${commondir}" \
+  --set meta.contexts.trace_tools="${root}/tools/traceability" \
+  --set meta.output=type=local,dest="${root}/.esb/meta"
 docker compose up --build
 ```
 
@@ -486,18 +456,18 @@ docker compose up --build
 ```bash
 esb build --template ./template.yaml --env dev --mode docker
 ```
-※ `esb build` は CLI 内部で `gitdir/commondir/trace_tools` を解決して `docker build` に渡す。
+※ `esb build` は CLI 内部で Bake を実行し、`meta` を生成してから `docker build` を実行する。
 
 ### 8.5 手動 docker build（関数/ベースイメージ）
 ```bash
-gitdir="$(git rev-parse --git-dir)"
-commondir="$(git rev-parse --git-common-dir)"
 root="$(git rev-parse --show-toplevel)"
-resolve() { case "$1" in /*) echo "$1" ;; *) echo "$root/$1" ;; esac; }
+docker buildx bake -f tools/traceability/docker-bake.hcl meta \
+  --set meta.contexts.git_dir="${root}/.git" \
+  --set meta.contexts.git_common="${root}/.git" \
+  --set meta.contexts.trace_tools="${root}/tools/traceability" \
+  --set meta.output=type=local,dest="${root}/.esb/meta"
 docker build \
-  --build-context git_dir="$(resolve "$gitdir")" \
-  --build-context git_common="$(resolve "$commondir")" \
-  --build-context trace_tools="$root/tools/traceability" \
+  --build-context meta="${root}/.esb/meta" \
   -f ./Dockerfile.lambda \
   -t "<brand>-fn:dev" \
   .
@@ -523,18 +493,16 @@ cat ./version.json | jq -r '.version,.git_sha,.build_date'
 - トレーサビリティの確認は `/app/version.json` を参照する。
 
 ## 9. 失敗時の挙動
-- `gitdir` が無い場合:
-  - `ERROR: gitdir is required for traceability` でビルド失敗。
+- Bake 実行時に `gitdir/commondir` が解決できない場合:
+  - `git rev-parse` が失敗して `esb build` が中断。
 - `git describe` が失敗:
   - `version` を `0.0.0-dev.<shortsha>` にフォールバック。
-- `.git` がファイルのケースで `GIT_DIR_CONTEXT` 未設定の場合:
-  - `.git` がファイルであるため追加コンテキストが不正となりビルド失敗。
-- `.git` がファイルのケースで `GIT_COMMON_DIR_CONTEXT` 未設定の場合:
-  - object DB にアクセスできず `git rev-parse` が失敗する。
-- `docker build` が `--build-context` をサポートしない場合:
-  - 追加コンテキストを渡せずビルド失敗。
+- `docker buildx bake` が失敗:
+  - `version.json` が生成できず `esb build` は失敗。
+- `docker compose up --build` で `META_CONTEXT` が未生成の場合:
+  - `meta` コンテキストが無いためビルド失敗。
 - `trace_tools` が見つからない場合:
-  - スクリプトが実行できずビルド失敗。
+  - Bake 用スクリプトが実行できずビルド失敗。
 
 ## 9.1 備考（dirty 判定）
 - 作業ツリーをマウントしないため `dirty` 判定は行わない。
@@ -543,7 +511,7 @@ cat ./version.json | jq -r '.version,.git_sha,.build_date'
 ## 10. 検証項目
 - すべてのコンポーネントで `/app/version.json` が生成されること。
 - `git rev-parse HEAD` と `version.json.git_sha` が一致すること。
-- `IMAGE_RUNTIME/COMPONENT` が正しく格納されること。
+- `version.json` が Bake で 1 回のみ生成されていること（ログで確認）。
 - `esb build` による関数/ベースイメージでも `version.json` が生成されること。
 
 ## 11. 影響範囲（変更対象）

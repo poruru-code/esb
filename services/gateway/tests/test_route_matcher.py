@@ -9,7 +9,7 @@ from services.gateway.services.route_matcher import RouteMatcher
 @pytest.fixture
 def mock_registry():
     registry = Mock(spec=FunctionRegistry)
-    registry.get_function_config.return_value = {"image": "test-env:latest"}
+    registry.get_function_config.return_value = {}
     return registry
 
 
@@ -36,7 +36,7 @@ def test_route_matcher_match_success(mock_registry, mock_routes_yaml):
             assert container == "test-func"
             assert path_params == {"id": "123"}
             assert route_path == "/api/test/{id}"
-            assert config == {"image": "test-env:latest"}
+            assert config == {}
             mock_registry.get_function_config.assert_called_with("test-func")
 
 

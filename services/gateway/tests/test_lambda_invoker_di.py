@@ -42,7 +42,6 @@ async def test_lambda_invoker_invoke_flow():
     # Mock Registry
     registry.get_function_config.return_value = FunctionEntity(
         name=function_name,
-        image="test-image",
         environment={"VAR": "VAL"},
     )
 
@@ -94,7 +93,6 @@ async def test_lambda_invoker_retries_on_connect_error():
 
     registry.get_function_config.return_value = FunctionEntity(
         name=function_name,
-        image="test-image",
         environment={"VAR": "VAL"},
     )
 
@@ -143,9 +141,7 @@ async def test_lambda_invoker_logging_on_error():
     invoker = LambdaInvoker(client, registry, config, backend)
 
     # Setup mocks
-    registry.get_function_config.return_value = FunctionEntity(
-        name="error-func", image="img", environment={}
-    )
+    registry.get_function_config.return_value = FunctionEntity(name="error-func", environment={})
     mock_worker = MagicMock()
     mock_worker.ip_address = "host"
     mock_worker.port = 8080
