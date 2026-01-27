@@ -17,9 +17,10 @@ import (
 // GlobalConfig represents the ~/.esb/config.yaml global configuration.
 // It tracks registered project paths and last usage.
 type GlobalConfig struct {
-	Version  int                     `yaml:"version"`
-	RepoPath string                  `yaml:"repo_path,omitempty"`
-	Projects map[string]ProjectEntry `yaml:"projects,omitempty"`
+	Version       int                      `yaml:"version"`
+	RepoPath      string                   `yaml:"repo_path,omitempty"`
+	Projects      map[string]ProjectEntry  `yaml:"projects,omitempty"`
+	BuildDefaults map[string]BuildDefaults `yaml:"build_defaults,omitempty"`
 }
 
 // ProjectEntry stores a project's directory path and last-used timestamp.
@@ -28,11 +29,20 @@ type ProjectEntry struct {
 	LastUsed string `yaml:"last_used"`
 }
 
+// BuildDefaults stores last-used build inputs for a template.
+type BuildDefaults struct {
+	Env       string            `yaml:"env,omitempty"`
+	Mode      string            `yaml:"mode,omitempty"`
+	OutputDir string            `yaml:"output_dir,omitempty"`
+	Params    map[string]string `yaml:"params,omitempty"`
+}
+
 // DefaultGlobalConfig returns an initialized GlobalConfig with version set.
 func DefaultGlobalConfig() GlobalConfig {
 	return GlobalConfig{
-		Version:  1,
-		Projects: map[string]ProjectEntry{},
+		Version:       1,
+		Projects:      map[string]ProjectEntry{},
+		BuildDefaults: map[string]BuildDefaults{},
 	}
 }
 

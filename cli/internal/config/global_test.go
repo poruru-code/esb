@@ -19,6 +19,16 @@ func TestGlobalConfigRoundTrip(t *testing.T) {
 				LastUsed: "2026-01-08T23:45:00+09:00",
 			},
 		},
+		BuildDefaults: map[string]BuildDefaults{
+			"/tmp/template.yaml": {
+				Env:       "staging",
+				Mode:      "docker",
+				OutputDir: ".esb",
+				Params: map[string]string{
+					"ParamA": "value-a",
+				},
+			},
+		},
 	}
 
 	if err := SaveGlobalConfig(path, cfg); err != nil {

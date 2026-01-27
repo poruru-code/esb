@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/generator"
 	"github.com/poruru/edge-serverless-box/cli/internal/interaction"
 	"github.com/poruru/edge-serverless-box/meta"
@@ -264,5 +265,87 @@ Parameters:
 	// Verification
 	if val, ok := params["MyStringParam"]; !ok || val != "" {
 		t.Errorf("Expected final value '', got '%s' (exists: %v)", val, ok)
+	}
+}
+
+type defaultPrompter struct{}
+
+func (d *defaultPrompter) Input(_ string, _ []string) (string, error) {
+	return "", nil
+}
+
+func (d *defaultPrompter) Select(_ string, options []string) (string, error) {
+	if len(options) == 0 {
+		return "", errors.New("no options")
+	}
+	return options[0], nil
+}
+
+func (d *defaultPrompter) SelectValue(_ string, options []interaction.SelectOption) (string, error) {
+	if len(options) == 0 {
+		return "", errors.New("no options")
+	}
+	return options[0].Value, nil
+}
+
+func TestResolveBuildInputsUsesStoredDefaults(t *testing.T) {
+	tmpDir := t.TempDir()
+	templateContent := `
+Parameters:
+  CustomParam:
+    Type: String
+`
+	templatePath := filepath.Join(tmpDir, "template.yaml")
+	if err := os.WriteFile(templatePath, []byte(templateContent), 0o644); err != nil {
+		t.Fatalf("write template: %v", err)
+	}
+
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	t.Setenv("ESB_CONFIG_PATH", cfgPath)
+	cfg := config.GlobalConfig{
+		Version: 1,
+		BuildDefaults: map[string]config.BuildDefaults{
+			templatePath: {
+				Env:       "staging",
+				Mode:      "docker",
+				OutputDir: ".out",
+				Params: map[string]string{
+					"CustomParam": "from-defaults",
+				},
+			},
+		},
+	}
+	if err := config.SaveGlobalConfig(cfgPath, cfg); err != nil {
+		t.Fatalf("save global config: %v", err)
+	}
+
+	origIsTerminal := interaction.IsTerminal
+	interaction.IsTerminal = func(_ *os.File) bool { return true }
+	t.Cleanup(func() { interaction.IsTerminal = origIsTerminal })
+
+	inputs, err := resolveBuildInputs(CLI{Template: templatePath}, Dependencies{Prompter: &defaultPrompter{}})
+	if err != nil {
+		t.Fatalf("resolve build inputs: %v", err)
+	}
+	if inputs.Env != "staging" {
+		t.Fatalf("expected env staging, got %s", inputs.Env)
+	}
+	if inputs.Mode != "docker" {
+		t.Fatalf("expected mode docker, got %s", inputs.Mode)
+	}
+	if inputs.OutputDir != ".out" {
+		t.Fatalf("expected output dir .out, got %s", inputs.OutputDir)
+	}
+	if got := inputs.Parameters["CustomParam"]; got != "from-defaults" {
+		t.Fatalf("expected param from defaults, got %s", got)
+	}
+
+	loaded, err := config.LoadGlobalConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("load global config: %v", err)
+	}
+	stored := loaded.BuildDefaults[templatePath]
+	if stored.Env != "staging" || stored.Mode != "docker" || stored.OutputDir != ".out" {
+		t.Fatalf("stored defaults mismatch: %#v", stored)
 	}
 }

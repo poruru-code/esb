@@ -110,29 +110,46 @@ func resolveBuildInputs(cli CLI, deps Dependencies) (buildInputs, error) {
 		if err != nil {
 			return buildInputs{}, err
 		}
-		env, err := resolveBuildEnv(cli.EnvFlag, isTTY, prompter, last.Env)
+		stored := loadBuildDefaults(templatePath)
+		prevEnv := strings.TrimSpace(last.Env)
+		if prevEnv == "" {
+			prevEnv = strings.TrimSpace(stored.Env)
+		}
+		env, err := resolveBuildEnv(cli.EnvFlag, isTTY, prompter, prevEnv)
 		if err != nil {
 			return buildInputs{}, err
 		}
 
-		mode, err := resolveBuildMode(cli.Build.Mode, isTTY, prompter, last.Mode)
+		prevMode := strings.TrimSpace(last.Mode)
+		if prevMode == "" {
+			prevMode = strings.TrimSpace(stored.Mode)
+		}
+		mode, err := resolveBuildMode(cli.Build.Mode, isTTY, prompter, prevMode)
 		if err != nil {
 			return buildInputs{}, err
 		}
 
+		prevOutput := strings.TrimSpace(last.OutputDir)
+		if prevOutput == "" {
+			prevOutput = strings.TrimSpace(stored.OutputDir)
+		}
 		outputDir, err := resolveBuildOutput(
 			cli.Build.Output,
 			templatePath,
 			env,
 			isTTY,
 			prompter,
-			last.OutputDir,
+			prevOutput,
 		)
 		if err != nil {
 			return buildInputs{}, err
 		}
 
-		params, err := promptTemplateParameters(templatePath, isTTY, prompter, last.Parameters)
+		prevParams := last.Parameters
+		if len(prevParams) == 0 {
+			prevParams = stored.Params
+		}
+		params, err := promptTemplateParameters(templatePath, isTTY, prompter, prevParams)
 		if err != nil {
 			return buildInputs{}, err
 		}
@@ -174,6 +191,9 @@ func resolveBuildInputs(cli CLI, deps Dependencies) (buildInputs, error) {
 			return buildInputs{}, err
 		}
 		if confirmed {
+			if err := saveBuildDefaults(templatePath, inputs); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to save build defaults: %v\n", err)
+			}
 			return inputs, nil
 		}
 		last = inputs
@@ -352,6 +372,10 @@ func resolveBuildOutput(
 
 	defaultBase := meta.OutputDir
 	defaultResolved := filepath.Join(filepath.Dir(templatePath), defaultBase, env)
+	defaultValue := defaultResolved
+	if prev := strings.TrimSpace(previous); prev != "" {
+		defaultValue = prev
+	}
 
 	suggestions := []string{}
 	if prev := strings.TrimSpace(previous); prev != "" {
@@ -361,13 +385,16 @@ func resolveBuildOutput(
 		suggestions = append(suggestions, defaultBase)
 	}
 
-	title := fmt.Sprintf("Output directory (default: %s)", defaultResolved)
+	title := fmt.Sprintf("Output directory (default: %s)", defaultValue)
 	input, err := prompter.Input(title, suggestions)
 	if err != nil {
 		return "", err
 	}
 	input = strings.TrimSpace(input)
 	if input == "" {
+		if strings.TrimSpace(previous) != "" {
+			return previous, nil
+		}
 		return "", nil
 	}
 	cleaned := filepath.Clean(input)
