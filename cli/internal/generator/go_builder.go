@@ -412,5 +412,30 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		}
 		fmt.Println("Building control plane images... Done")
 	}
+	if request.Bundle {
+		manifestPath, err := writeBundleManifest(
+			context.Background(),
+			bundleManifestInput{
+				RepoRoot:        repoRoot,
+				OutputDir:       cfg.Paths.OutputDir,
+				TemplatePath:    templatePath,
+				Parameters:      cfg.Parameters,
+				Project:         composeProject,
+				Env:             request.Env,
+				Mode:            request.Mode,
+				ImageTag:        imageTag,
+				Registry:        registryForPush,
+				ServiceRegistry: registry.Registry,
+				Functions:       functions,
+				Runner:          b.Runner,
+			},
+		)
+		if err != nil {
+			return err
+		}
+		if request.Verbose {
+			fmt.Printf("Bundle manifest written: %s\n", manifestPath)
+		}
+	}
 	return nil
 }

@@ -22,6 +22,7 @@ type BuildRequest struct {
 	Tag          string
 	NoCache      bool
 	Verbose      bool
+	Bundle       bool
 }
 
 // BuildWorkflow executes the build orchestration steps.
@@ -62,6 +63,7 @@ func (w BuildWorkflow) Run(req BuildRequest) error {
 		Tag:          req.Tag,
 		NoCache:      req.NoCache,
 		Verbose:      req.Verbose,
+		Bundle:       req.Bundle,
 	}
 
 	if err := w.Builder.Build(buildRequest); err != nil {
