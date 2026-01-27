@@ -19,6 +19,8 @@ else:
     grp_module = _grp
 
 DEFAULT_CERT_OUTPUT_DIR = "~/.local/share/certs"
+ROOT_CA_CERT_FILENAME = "rootCA.crt"
+ROOT_CA_KEY_FILENAME = "rootCA.key"
 
 
 def get_local_ip():
@@ -31,11 +33,11 @@ def get_local_ip():
         return "127.0.0.1"
 
 
-def resolve_mkcert_path() -> str:
-    mkcert_path = shutil.which("mkcert")
-    if not mkcert_path:
+def resolve_step_path() -> str:
+    step_path = shutil.which("step")
+    if not step_path:
         return ""
-    return mkcert_path
+    return step_path
 
 
 def resolve_sudo_path() -> str:
@@ -45,27 +47,29 @@ def resolve_sudo_path() -> str:
     return sudo_path
 
 
-def check_mkcert(mkcert_path: str):
-    if not mkcert_path:
-        print("Error: mkcert not found.")
-        print("Please install mkcert via mise or system package manager.")
+def check_step(step_path: str):
+    if not step_path:
+        print("Error: step CLI not found.")
+        print("Please install step via mise or system package manager.")
         exit(1)
 
 
-def install_root_ca(mkcert_path: str, output_dir: str):
+def install_root_ca(step_path: str, root_ca_cert: str, output_dir: str):
     print("Installing local Root CA...")
+    cmd = [step_path, "certificate", "install", root_ca_cert]
     try:
-        subprocess.check_call([mkcert_path, "-install"])
+        subprocess.check_call(cmd)
     except subprocess.CalledProcessError as exc:
         sudo_path = resolve_sudo_path()
         if not sudo_path:
-            raise RuntimeError(
-                "mkcert -install failed and sudo is not available. "
-                f"Try running: {mkcert_path} -install"
-            ) from exc
-        print("mkcert -install failed, retrying with sudo...")
+            message = (
+                "step certificate install failed and sudo is not available. "
+                f"Try running: {step_path} certificate install {root_ca_cert}"
+            )
+            raise RuntimeError(message) from exc
+        print("step certificate install failed, retrying with sudo...")
         env = os.environ.copy()
-        subprocess.check_call([sudo_path, "-E", mkcert_path, "-install"], env=env)
+        subprocess.check_call([sudo_path, "-E", *cmd], env=env)
         ensure_user_ownership(output_dir)
 
 
@@ -83,39 +87,138 @@ def collect_hosts(host_cfg: dict, local_ip: str | None = None) -> tuple[list[str
     return domains, ips
 
 
-def build_mkcert_command(
-    mkcert_path: str,
+def normalize_validity(value: object | None) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def require_validity(value: str | None, name: str) -> str:
+    if not value:
+        raise RuntimeError(f"certificate.{name} is required in config")
+    return value
+
+
+def resolve_subject(domains: list[str], ips: list[str], fallback: str) -> str:
+    if domains:
+        return domains[0]
+    if ips:
+        return ips[0]
+    return fallback
+
+
+def dedupe_sans(domains: list[str], ips: list[str], subject: str) -> list[str]:
+    sans: list[str] = []
+    seen: set[str] = set()
+    for entry in [*domains, *ips]:
+        if entry not in seen:
+            sans.append(entry)
+            seen.add(entry)
+    if subject and subject not in seen:
+        sans.insert(0, subject)
+    return sans
+
+
+def build_step_root_ca_command(
+    step_path: str,
+    subject: str,
     cert_file: str,
     key_file: str,
-    domains: list[str],
-    ips: list[str],
-    extra_args: list[str] | None = None,
+    not_after: str | None = None,
 ) -> list[str]:
-    cmd = [mkcert_path]
-    if extra_args:
-        cmd.extend(extra_args)
-    cmd.extend(["-cert-file", cert_file, "-key-file", key_file])
-    cmd.extend(domains)
-    cmd.extend(ips)
+    cmd = [
+        step_path,
+        "certificate",
+        "create",
+        subject,
+        cert_file,
+        key_file,
+        "--profile",
+        "root-ca",
+        "--no-password",
+        "--insecure",
+    ]
+    if not_after:
+        cmd.extend(["--not-after", not_after])
     return cmd
 
 
-def generate_cert(
+def build_step_leaf_command(
+    step_path: str,
+    subject: str,
     cert_file: str,
     key_file: str,
-    domains: list[str],
-    ips: list[str],
-    mkcert_path: str,
-    label: str,
-    extra_args: list[str] | None = None,
+    sans: list[str],
+    ca_cert: str,
+    ca_key: str,
+    not_after: str | None = None,
+) -> list[str]:
+    cmd = [
+        step_path,
+        "certificate",
+        "create",
+        subject,
+        cert_file,
+        key_file,
+        "--profile",
+        "leaf",
+        "--ca",
+        ca_cert,
+        "--ca-key",
+        ca_key,
+        "--no-password",
+        "--insecure",
+    ]
+    if not_after:
+        cmd.extend(["--not-after", not_after])
+    for san in sans:
+        cmd.extend(["--san", san])
+    return cmd
+
+
+def generate_root_ca(
+    cert_file: str,
+    key_file: str,
+    step_path: str,
+    subject: str,
+    not_after: str | None,
 ) -> None:
     output_dir = os.path.dirname(cert_file)
-    cmd = build_mkcert_command(mkcert_path, cert_file, key_file, domains, ips, extra_args)
+    cmd = build_step_root_ca_command(step_path, subject, cert_file, key_file, not_after)
+
+    print(f"Generating root CA in {output_dir}...")
+    print(f"Certificate: {os.path.basename(cert_file)}")
+    print(f"Subject: {subject}")
+    if not_after:
+        print(f"Valid for: {not_after}")
+
+    subprocess.check_call(cmd)
+    print("Root CA generation complete.")
+
+
+def generate_leaf_cert(
+    cert_file: str,
+    key_file: str,
+    sans: list[str],
+    step_path: str,
+    ca_cert: str,
+    ca_key: str,
+    label: str,
+    subject: str,
+    not_after: str | None,
+) -> None:
+    output_dir = os.path.dirname(cert_file)
+    cmd = build_step_leaf_command(
+        step_path, subject, cert_file, key_file, sans, ca_cert, ca_key, not_after
+    )
 
     print(f"Generating {label} certificate in {output_dir}...")
     print(f"Certificate: {os.path.basename(cert_file)}")
-    print(f"Domains: {domains}")
-    print(f"IPs: {ips}")
+    print(f"Subject: {subject}")
+    print(f"SANs: {sans}")
+    if not_after:
+        print(f"Valid for: {not_after}")
 
     subprocess.check_call(cmd)
     print(f"{label.capitalize()} certificate generation complete.")
@@ -203,7 +306,7 @@ def load_env_defaults(root: Path) -> dict[str, str]:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Generate development certificates using mkcert")
+    parser = argparse.ArgumentParser(description="Generate development certificates using step-cli")
     parser.add_argument(
         "--config", default="tools/cert-gen/config.toml", help="Path to config file"
     )
@@ -236,7 +339,7 @@ if __name__ == "__main__":
     # 4. Fallback: ~/.local/share/certs
     output_dir = cert_cfg.get("output_dir")
     if not output_dir:
-        output_dir = f"~/.{cli_cmd}/certs"
+        output_dir = f"~/.{cli_cmd}/certs" if cli_cmd else DEFAULT_CERT_OUTPUT_DIR
 
     output_dir = os.path.expanduser(output_dir)
 
@@ -246,30 +349,39 @@ if __name__ == "__main__":
     os.environ["CAROOT"] = output_dir
     ensure_output_dir(output_dir)
 
-    mkcert_path = resolve_mkcert_path()
-    check_mkcert(mkcert_path)
+    step_path = resolve_step_path()
+    check_step(step_path)
 
     # Check and install Root CA
-    root_ca_path = os.path.join(os.environ["CAROOT"], "rootCA.pem")
+    root_ca_cert = os.path.join(os.environ["CAROOT"], ROOT_CA_CERT_FILENAME)
+    root_ca_key = os.path.join(os.environ["CAROOT"], ROOT_CA_KEY_FILENAME)
 
     # Safety check: Docker sometimes creates a directory if the mount target is missing
-    if os.path.isdir(root_ca_path):
-        print(f"ERROR: {root_ca_path} is a directory, but it should be a file.")
+    if os.path.isdir(root_ca_cert):
+        print(f"ERROR: {root_ca_cert} is a directory, but it should be a file.")
         print("This often happens when Docker mistakenly creates a directory for a file mount.")
-        print(f"Please run: sudo rm -rf {root_ca_path}")
+        print(f"Please run: sudo rm -rf {root_ca_cert}")
+        sys.exit(1)
+    if os.path.isdir(root_ca_key):
+        print(f"ERROR: {root_ca_key} is a directory, but it should be a file.")
+        print("This often happens when Docker mistakenly creates a directory for a file mount.")
+        print(f"Please run: sudo rm -rf {root_ca_key}")
         sys.exit(1)
 
-    if args.force or not os.path.exists(root_ca_path):
-        install_root_ca(mkcert_path, output_dir)
-    else:
-        print(f"Root CA exists at {root_ca_path}. Skipping installation. Use --force to reinstall.")
+    ca_validity = require_validity(normalize_validity(cert_cfg.get("ca_validity")), "ca_validity")
+    server_validity = require_validity(
+        normalize_validity(cert_cfg.get("server_validity")), "server_validity"
+    )
+    client_validity = require_validity(
+        normalize_validity(cert_cfg.get("client_validity")), "client_validity"
+    )
+    root_ca_subject = f"{cli_cmd.upper()} Local CA"
 
-    # Convert/Copy Root CA to .crt for easier use in containers (update-ca-certificates)
-    root_ca_crt = os.path.join(os.environ["CAROOT"], "rootCA.crt")
-    if os.path.exists(root_ca_path):
-        if args.force or not os.path.exists(root_ca_crt):
-            print(f"Creating {root_ca_crt} from {root_ca_path}...")
-            shutil.copy2(root_ca_path, root_ca_crt)
+    if args.force or not (os.path.exists(root_ca_cert) and os.path.exists(root_ca_key)):
+        generate_root_ca(root_ca_cert, root_ca_key, step_path, root_ca_subject, ca_validity)
+        install_root_ca(step_path, root_ca_cert, output_dir)
+    else:
+        print(f"Root CA exists at {root_ca_cert}. Skipping generation. Use --force to regenerate.")
 
     # Check and generate Server/Client Certs
     cert_file = os.path.join(output_dir, cert_cfg.get("filename_cert", "server.crt"))
@@ -280,9 +392,23 @@ if __name__ == "__main__":
     server_domains, server_ips = collect_hosts(host_cfg)
     client_host_cfg = resolve_host_cfg(config, "client_hosts", host_cfg)
     client_domains, client_ips = collect_hosts(client_host_cfg)
+    server_subject = resolve_subject(server_domains, server_ips, "localhost")
+    client_subject = resolve_subject(client_domains, client_ips, "client")
+    server_sans = dedupe_sans(server_domains, server_ips, server_subject)
+    client_sans = dedupe_sans(client_domains, client_ips, client_subject)
 
     if args.force or not (os.path.exists(cert_file) and os.path.exists(key_file)):
-        generate_cert(cert_file, key_file, server_domains, server_ips, mkcert_path, "server")
+        generate_leaf_cert(
+            cert_file,
+            key_file,
+            server_sans,
+            step_path,
+            root_ca_cert,
+            root_ca_key,
+            "server",
+            server_subject,
+            server_validity,
+        )
     else:
         print(
             f"Server certificates exist at {output_dir}. "
@@ -290,14 +416,16 @@ if __name__ == "__main__":
         )
 
     if args.force or not (os.path.exists(client_cert_file) and os.path.exists(client_key_file)):
-        generate_cert(
+        generate_leaf_cert(
             client_cert_file,
             client_key_file,
-            client_domains,
-            client_ips,
-            mkcert_path,
+            client_sans,
+            step_path,
+            root_ca_cert,
+            root_ca_key,
             "client",
-            extra_args=["-client"],
+            client_subject,
+            client_validity,
         )
     else:
         print(

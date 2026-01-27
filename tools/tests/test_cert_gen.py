@@ -1,11 +1,13 @@
 """
 Where: tools/tests/test_cert_gen.py
 What: Tests for cert-gen helpers.
-Why: Validate mkcert command and host resolution for client/server certs.
+Why: Validate step-cli command and host resolution for client/server certs.
 """
 
 from importlib import util
 from pathlib import Path
+
+import pytest
 
 MODULE_PATH = Path(__file__).resolve().parents[2] / "tools" / "cert-gen" / "generate.py"
 SPEC = util.spec_from_file_location("cert_gen", MODULE_PATH)
@@ -41,43 +43,69 @@ def test_collect_hosts_skips_local_ip_when_disabled():
     assert ips == ["127.0.0.1"]
 
 
-def test_build_mkcert_command_order():
-    cmd = cert_gen.build_mkcert_command(
-        "/bin/mkcert",
-        "/tmp/server.crt",
-        "/tmp/server.key",
-        ["gateway", "localhost"],
-        ["127.0.0.1"],
+def test_build_step_root_ca_command_order():
+    cmd = cert_gen.build_step_root_ca_command(
+        "/bin/step",
+        "ESB Local CA",
+        "/tmp/rootCA.crt",
+        "/tmp/rootCA.key",
+        not_after="87600h",
     )
 
     assert cmd == [
-        "/bin/mkcert",
-        "-cert-file",
-        "/tmp/server.crt",
-        "-key-file",
-        "/tmp/server.key",
+        "/bin/step",
+        "certificate",
+        "create",
+        "ESB Local CA",
+        "/tmp/rootCA.crt",
+        "/tmp/rootCA.key",
+        "--profile",
+        "root-ca",
+        "--no-password",
+        "--insecure",
+        "--not-after",
+        "87600h",
+    ]
+
+
+def test_build_step_leaf_command_includes_sans_and_validity():
+    cmd = cert_gen.build_step_leaf_command(
+        "/bin/step",
         "gateway",
+        "/tmp/server.crt",
+        "/tmp/server.key",
+        ["gateway", "localhost", "127.0.0.1"],
+        "/tmp/rootCA.crt",
+        "/tmp/rootCA.key",
+        not_after="8760h",
+    )
+
+    assert cmd == [
+        "/bin/step",
+        "certificate",
+        "create",
+        "gateway",
+        "/tmp/server.crt",
+        "/tmp/server.key",
+        "--profile",
+        "leaf",
+        "--ca",
+        "/tmp/rootCA.crt",
+        "--ca-key",
+        "/tmp/rootCA.key",
+        "--no-password",
+        "--insecure",
+        "--not-after",
+        "8760h",
+        "--san",
+        "gateway",
+        "--san",
         "localhost",
+        "--san",
         "127.0.0.1",
     ]
 
 
-def test_build_mkcert_command_includes_client_flag():
-    cmd = cert_gen.build_mkcert_command(
-        "/bin/mkcert",
-        "/tmp/client.crt",
-        "/tmp/client.key",
-        ["gateway"],
-        [],
-        extra_args=["-client"],
-    )
-
-    assert cmd == [
-        "/bin/mkcert",
-        "-client",
-        "-cert-file",
-        "/tmp/client.crt",
-        "-key-file",
-        "/tmp/client.key",
-        "gateway",
-    ]
+def test_require_validity_rejects_missing():
+    with pytest.raises(RuntimeError, match="certificate.ca_validity"):
+        cert_gen.require_validity(None, "ca_validity")

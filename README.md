@@ -91,7 +91,7 @@ CLI は現在 `esb build` に特化しており、生成された構成は下の
 ├── config/                  # 設定ファイル
 ├── cli/                 # ESB CLI
 ├── tools/
-│   ├── cert-gen/        # mkcert ベースの証明書生成
+│   ├── cert-gen/        # step-cli ベースの証明書生成
 │   ├── gen_proto.py     # gRPC 生成補助
 │   └── setup_devmapper.sh
 ├── e2e/                 # E2Eテスト用Lambda関数
@@ -229,7 +229,8 @@ mise run setup:certs
 ```
 
 これにより `~/.<brand>/certs` に証明書が生成され、ローカル開発環境でHTTPSが利用可能になります。
-初回実行時に `mkcert -install` が実行され、ローカルのルートCAがシステムにインストールされます。
+初回実行時に `step certificate install` が実行され、ローカルのルートCAがシステムにインストールされます。
+CA/サーバー証明書の有効期限は `tools/cert-gen/config.toml` で調整できます。
 
 
 ### ビルドと起動
