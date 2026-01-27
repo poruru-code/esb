@@ -762,8 +762,15 @@ def run_profile_subprocess(
                     if is_special_header:
                         in_special_block = True
 
+                    is_buildkit_progress = (
+                        "Image " in clean_line and clean_line.endswith(" Building")
+                    ) or (clean_line.startswith("Image ") and " Building" in clean_line)
                     should_print = (
-                        verbose or tests_started or clean_line.startswith("➜") or in_special_block
+                        verbose
+                        or tests_started
+                        or clean_line.startswith("➜")
+                        or in_special_block
+                        or is_buildkit_progress
                     )
 
                     if should_print:
