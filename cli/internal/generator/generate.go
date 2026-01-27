@@ -180,13 +180,33 @@ func resolveTemplatePath(samTemplate, projectRoot string) (string, error) {
 	if strings.TrimSpace(samTemplate) == "" {
 		return "", fmt.Errorf("sam_template is required")
 	}
-	path := samTemplate
+	path, err := expandHomePath(strings.TrimSpace(samTemplate))
+	if err != nil {
+		return "", err
+	}
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(projectRoot, path)
 	}
 	path = filepath.Clean(path)
 	if _, err := os.Stat(path); err != nil {
 		return "", err
+	}
+	return path, nil
+}
+
+func expandHomePath(path string) (string, error) {
+	if path == "" || !strings.HasPrefix(path, "~") {
+		return path, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	if path == "~" {
+		return home, nil
+	}
+	if len(path) > 1 && (path[1] == '/' || path[1] == '\\') {
+		return filepath.Join(home, path[2:]), nil
 	}
 	return path, nil
 }
