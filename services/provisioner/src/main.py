@@ -58,6 +58,10 @@ def provision_s3(s3_client, buckets):
             # Apply LifecycleConfiguration if present
             lifecycle = bucket.get("LifecycleConfiguration")
             if lifecycle and lifecycle.get("Rules"):
+                if should_skip_lifecycle():
+                    logger.warning("Skipping lifecycle configuration for %s", name)
+                    lifecycle = None
+            if lifecycle and lifecycle.get("Rules"):
                 rules = []
                 for rule in lifecycle["Rules"]:
                     boto_rule = {
@@ -87,6 +91,15 @@ def provision_s3(s3_client, buckets):
         except Exception as e:
             logger.error(f"Failed to create bucket {name}: {e}")
             raise
+
+
+def should_skip_lifecycle() -> bool:
+    if os.getenv("ESB_FORCE_S3_LIFECYCLE", "").strip():
+        return False
+    if os.getenv("ESB_SKIP_S3_LIFECYCLE", "").strip():
+        return True
+    endpoint = os.getenv("S3_ENDPOINT", "").strip().lower()
+    return "s3-storage" in endpoint or "rustfs" in endpoint
 
 
 def main():
