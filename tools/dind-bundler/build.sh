@@ -28,7 +28,14 @@ BUILD_DIR="tools/dind-bundler/build-context"
 ENV_VAR="${ENV_PREFIX}_ENV"
 ENV_NAME="${!ENV_VAR:-${ESB_ENV:-}}"
 OUTPUT_VAR="${ENV_PREFIX}_OUTPUT_DIR"
-OUTPUT_ROOT="${!OUTPUT_VAR:-${ESB_OUTPUT_DIR:-.${BRAND_SLUG}}}"
+if [ "${TEMPLATE_PATH#/}" != "$TEMPLATE_PATH" ]; then
+  TEMPLATE_ABS="$TEMPLATE_PATH"
+else
+  TEMPLATE_ABS="$(pwd)/$TEMPLATE_PATH"
+fi
+TEMPLATE_DIR="$(cd "$(dirname "$TEMPLATE_ABS")" && pwd)"
+DEFAULT_OUTPUT_ROOT="${TEMPLATE_DIR}/.${BRAND_SLUG}"
+OUTPUT_ROOT="${!OUTPUT_VAR:-${ESB_OUTPUT_DIR:-$DEFAULT_OUTPUT_ROOT}}"
 
 if [ -z "$ENV_NAME" ] && [ -f ".env" ]; then
   ENV_NAME="$(awk -F= '/^ENV=/{print $2; exit}' .env)"
@@ -37,6 +44,20 @@ ENV_NAME="${ENV_NAME:-default}"
 MANIFEST_PATH="${BUNDLE_MANIFEST_PATH:-${OUTPUT_ROOT}/${ENV_NAME}/bundle/manifest.json}"
 
 CERT_DIR="${CERT_DIR:-$HOME/.${BRAND_SLUG}/certs}"
+RUN_UID="${RUN_UID:-}"
+RUN_GID="${RUN_GID:-}"
+if [ -z "$RUN_UID" ] || [ -z "$RUN_GID" ]; then
+  if [ -f ".env" ]; then
+    if [ -z "$RUN_UID" ]; then
+      RUN_UID="$(awk -F= '/^RUN_UID=/{print $2; exit}' .env)"
+    fi
+    if [ -z "$RUN_GID" ]; then
+      RUN_GID="$(awk -F= '/^RUN_GID=/{print $2; exit}' .env)"
+    fi
+  fi
+fi
+RUN_UID="${RUN_UID:-1000}"
+RUN_GID="${RUN_GID:-1000}"
 
 # Ensure we are in the project root
 if [ ! -f "cli/go.mod" ]; then
@@ -58,6 +79,8 @@ if [ "${DIND_BUNDLER_DRYRUN:-}" = "true" ]; then
   echo "OUTPUT_ROOT=$OUTPUT_ROOT"
   echo "MANIFEST_PATH=$MANIFEST_PATH"
   echo "CERT_DIR=$CERT_DIR"
+  echo "RUN_UID=$RUN_UID"
+  echo "RUN_GID=$RUN_GID"
   exit 0
 fi
 
@@ -73,17 +96,13 @@ rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 
 # 1. Build Base Services and Functions using esb build
-if [ "${SKIP_ESB_BUILD:-}" = "true" ]; then
-  echo "Skipping esb build (SKIP_ESB_BUILD=true)..."
-else
-  echo "Running esb build..."
-  uv run "$CLI_CMD" build --template "$TEMPLATE_PATH" --env "$ENV_NAME" --mode docker --verbose --no-save-defaults --bundle-manifest
-fi
+echo "Running esb build..."
+uv run "$CLI_CMD" build --template "$TEMPLATE_PATH" --env "$ENV_NAME" --mode docker --verbose --no-save-defaults --bundle-manifest
 
 # 2. Load manifest (source of truth)
 if [ ! -f "$MANIFEST_PATH" ]; then
   echo "Error: Bundle manifest not found at $MANIFEST_PATH"
-  echo "Hint: run the build with --bundle-manifest (or disable SKIP_ESB_BUILD)."
+  echo "Hint: run the build with --bundle-manifest."
   exit 1
 fi
 
@@ -147,6 +166,10 @@ cp "$CERT_DIR"/* "$BUILD_DIR/certs/"
 
 # 5. Build DinD Image
 echo "Building DinD image..."
-docker build -t "$OUTPUT_TAG" --build-arg BRAND_HOME=".${BRAND_SLUG}" "$BUILD_DIR"
+docker build -t "$OUTPUT_TAG" \
+  --build-arg BRAND_HOME=".${BRAND_SLUG}" \
+  --build-arg CERT_UID="$RUN_UID" \
+  --build-arg CERT_GID="$RUN_GID" \
+  "$BUILD_DIR"
 
 echo "Done! Image $OUTPUT_TAG created."

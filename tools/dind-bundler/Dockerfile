@@ -5,6 +5,9 @@
 FROM docker:24-dind
 
 ARG BRAND_HOME=.esb
+ARG CERT_UID=1000
+ARG CERT_GID=1000
+ENV DOCKER_TLS_CERTDIR=
 
 # Install docker compose plugin and bash
 RUN apk add --no-cache docker-cli-compose bash
@@ -27,7 +30,7 @@ COPY bundle /app/bundle
 
 # Copy certificates
 RUN mkdir -p /root/${BRAND_HOME}/certs
-COPY certs /root/${BRAND_HOME}/certs
+COPY --chown=${CERT_UID}:${CERT_GID} certs /root/${BRAND_HOME}/certs
 
 ENTRYPOINT ["entrypoint.sh"]
 
