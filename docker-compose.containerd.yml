@@ -139,8 +139,8 @@ services:
       context: .
       dockerfile: services/provisioner/Dockerfile
       additional_contexts:
-        config: ${CONFIG_DIR:-services/gateway/config}
         meta: ${META_CONTEXT:-.esb/meta}
+        config: ${CONFIG_DIR:-services/gateway/config}
       args:
         PYTHON_BASE_IMAGE: esb-python-base:latest
 
@@ -297,8 +297,8 @@ services:
       context: .
       dockerfile: services/gateway/Dockerfile.containerd
       additional_contexts:
-        config: ${CONFIG_DIR:-services/gateway/config}
         meta: ${META_CONTEXT:-.esb/meta}
+        config: ${CONFIG_DIR:-services/gateway/config}
       args:
         PYTHON_BASE_IMAGE: esb-python-base:latest
         SERVICE_USER: ${PROJECT_NAME:-esb-${ENV:-default}}
