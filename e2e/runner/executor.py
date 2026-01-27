@@ -551,6 +551,7 @@ def run_scenario(args, scenario):
                 "--template",
                 str(template_path.absolute()),
                 "build",
+                "--no-save-defaults",
                 "--env",
                 env_name,
                 "--mode",

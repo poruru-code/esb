@@ -26,6 +26,8 @@ type (
 
 func runCompletionBash(cli CLI, out io.Writer) int {
 	commands, subcommands := collectCompletionCommands(cli)
+	cmdName := cliName()
+	funcName := completionFuncName(cmdName)
 
 	var caseParts []string
 	for cmd, subs := range subcommands {
@@ -36,7 +38,7 @@ func runCompletionBash(cli CLI, out io.Writer) int {
 		caseParts = append(caseParts, part)
 	}
 
-	script := `_esb_completion() {
+	script := `%s() {
     local cur cmd
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
@@ -51,17 +53,29 @@ func runCompletionBash(cli CLI, out io.Writer) int {
         return 0
     fi
 }
-complete -F _esb_completion esb
+complete -F %s %s
 `
-	writeString(out, fmt.Sprintf(script, strings.Join(caseParts, "\n"), strings.Join(commands, " ")))
+	writeString(
+		out,
+		fmt.Sprintf(
+			script,
+			funcName,
+			strings.Join(caseParts, "\n"),
+			strings.Join(commands, " "),
+			funcName,
+			cmdName,
+		),
+	)
 	return 0
 }
 
 func runCompletionZsh(cli CLI, out io.Writer) int {
 	commands, subcommands := collectCompletionCommands(cli)
+	cmdName := cliName()
+	funcName := completionFuncName(cmdName)
 
-	script := `#compdef esb
-_esb_completion() {
+	script := `#compdef %s
+%s() {
   local -a commands
   commands=(%s)
   local cmd="${words[2]}"
@@ -73,7 +87,7 @@ _esb_completion() {
 
 %s
 }
-_esb_completion "$@"
+%s "$@"
 `
 
 	var subBlocks strings.Builder
@@ -85,17 +99,61 @@ _esb_completion "$@"
 `, cmd, cmd, strings.Join(subs, " ")))
 	}
 
-	writeString(out, fmt.Sprintf(script, strings.Join(commands, " "), subBlocks.String()))
+	writeString(
+		out,
+		fmt.Sprintf(
+			script,
+			cmdName,
+			funcName,
+			strings.Join(commands, " "),
+			subBlocks.String(),
+			funcName,
+		),
+	)
 	return 0
 }
 
 func runCompletionFish(cli CLI, out io.Writer) int {
 	commands, subcommands := collectCompletionCommands(cli)
-	writeLine(out, fmt.Sprintf("complete -c esb -f -a \"%s\"", strings.Join(commands, " ")))
+	cmdName := cliName()
+	writeLine(out, fmt.Sprintf("complete -c %s -f -a \"%s\"", cmdName, strings.Join(commands, " ")))
 	for cmd, subs := range subcommands {
-		writeLine(out, fmt.Sprintf("complete -c esb -f -n \"__fish_seen_subcommand_from %s\" -a \"%s\"", cmd, strings.Join(subs, " ")))
+		writeLine(
+			out,
+			fmt.Sprintf(
+				"complete -c %s -f -n \"__fish_seen_subcommand_from %s\" -a \"%s\"",
+				cmdName,
+				cmd,
+				strings.Join(subs, " "),
+			),
+		)
 	}
 	return 0
+}
+
+func completionFuncName(cmdName string) string {
+	name := strings.TrimSpace(cmdName)
+	if name == "" {
+		return "_esb_completion"
+	}
+	var b strings.Builder
+	b.WriteString("_")
+	for _, r := range name {
+		switch {
+		case r >= 'a' && r <= 'z':
+			b.WriteRune(r)
+		case r >= 'A' && r <= 'Z':
+			b.WriteRune(r)
+		case r >= '0' && r <= '9':
+			b.WriteRune(r)
+		case r == '_':
+			b.WriteRune(r)
+		default:
+			b.WriteRune('_')
+		}
+	}
+	b.WriteString("_completion")
+	return b.String()
 }
 
 func collectCompletionCommands(cli CLI) ([]string, map[string][]string) {
