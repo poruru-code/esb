@@ -191,8 +191,10 @@ func resolveBuildInputs(cli CLI, deps Dependencies) (buildInputs, error) {
 			return buildInputs{}, err
 		}
 		if confirmed {
-			if err := saveBuildDefaults(templatePath, inputs); err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: failed to save build defaults: %v\n", err)
+			if !cli.Build.NoSave {
+				if err := saveBuildDefaults(templatePath, inputs); err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: failed to save build defaults: %v\n", err)
+				}
 			}
 			return inputs, nil
 		}

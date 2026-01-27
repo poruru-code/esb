@@ -44,6 +44,7 @@ type (
 		NoCache bool   `name:"no-cache" help:"Do not use cache when building images"`
 		Verbose bool   `short:"v" help:"Enable verbose output"`
 		Force   bool   `help:"Auto-unset invalid project/environment variables"`
+		NoSave  bool   `name:"no-save-defaults" help:"Do not persist build defaults"`
 	}
 	VersionCmd struct{}
 
