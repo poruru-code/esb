@@ -17,19 +17,19 @@ WORKDIR /app
 COPY --from=meta /version.json /app/version.json
 
 # Copy dependencies
-COPY services/provisioner/pyproject.toml .
+COPY pyproject.toml uv.lock .
 
 # Create venv & install
 ENV VIRTUAL_ENV=/app/.venv
 RUN uv venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install -r pyproject.toml
+    uv sync --frozen --no-install-project
 
 # Copy Code & Assets
 # sitecustomize.py is crucial for log forwarding and endpoint injection
-COPY cli/internal/generator/assets/site-packages/sitecustomize.py /app/sitecustomize.py
-COPY services/provisioner/src /app/src
+COPY --from=generator_assets /sitecustomize.py /app/sitecustomize.py
+COPY src /app/src
 
 # Copy Config
 COPY --from=config / /tmp/config/
@@ -41,7 +41,7 @@ RUN if [ -f /tmp/config/resources.yml ]; then \
     fi && \
     rm -rf /tmp/config
 
-COPY services/provisioner/entrypoint.sh /app/entrypoint.sh
+COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
 ENV PYTHONPATH=/app

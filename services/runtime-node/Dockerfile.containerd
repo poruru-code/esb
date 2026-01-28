@@ -84,12 +84,6 @@ RUN set -eu; \
 # -----------------------------------------------------------------------------
 FROM ${OS_BASE_IMAGE}
 
-# -----------------------------------------------------------------------------
-# Stage 3: Final Runtime Image
-# Assembles the runtime with containerd and firecracker support
-# -----------------------------------------------------------------------------
-FROM ${OS_BASE_IMAGE}
-
 ENV IMAGE_RUNTIME="containerd"
 
 

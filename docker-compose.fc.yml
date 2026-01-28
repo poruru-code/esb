@@ -9,8 +9,8 @@ services:
     env_file: config/defaults.env
     image: esb-os-base:latest
     build:
-      context: .
-      dockerfile: services/common/Dockerfile.os-base
+      context: services/common
+      dockerfile: Dockerfile.os-base
       additional_contexts:
         meta: ${META_CONTEXT:-.esb/meta}
       args:
@@ -25,8 +25,8 @@ services:
     env_file: config/defaults.env
     image: esb-python-base:latest
     build:
-      context: .
-      dockerfile: services/common/Dockerfile.python-base
+      context: services/common
+      dockerfile: Dockerfile.python-base
       additional_contexts:
         meta: ${META_CONTEXT:-.esb/meta}
       args:
@@ -136,11 +136,12 @@ services:
     env_file: config/defaults.env
     image: ${ESB_REGISTRY:-}esb-provisioner:${ESB_TAG:-latest}
     build:
-      context: .
-      dockerfile: services/provisioner/Dockerfile
+      context: services/provisioner
+      dockerfile: Dockerfile
       additional_contexts:
         meta: ${META_CONTEXT:-.esb/meta}
         config: ${CONFIG_DIR:-services/gateway/config}
+        generator_assets: ${GENERATOR_ASSETS_CONTEXT:-cli/internal/generator/assets/site-packages}
       args:
         PYTHON_BASE_IMAGE: esb-python-base:latest
 
@@ -295,11 +296,12 @@ services:
     image: ${ESB_REGISTRY:-}esb-gateway-containerd:${ESB_TAG:-latest}
     user: "0:0"
     build:
-      context: .
-      dockerfile: services/gateway/Dockerfile.containerd
+      context: services/gateway
+      dockerfile: Dockerfile.containerd
       additional_contexts:
         meta: ${META_CONTEXT:-.esb/meta}
         config: ${CONFIG_DIR:-services/gateway/config}
+        common: ${COMMON_CONTEXT:-services/common}
       args:
         PYTHON_BASE_IMAGE: esb-python-base:latest
         SERVICE_USER: ${PROJECT_NAME:-esb-${ENV:-default}}
