@@ -17,14 +17,14 @@ WORKDIR /app
 COPY --from=meta /version.json /app/version.json
 
 # Copy dependencies
-COPY pyproject.toml .
+COPY pyproject.toml uv.lock .
 
 # Create venv & install
 ENV VIRTUAL_ENV=/app/.venv
 RUN uv venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install -r pyproject.toml
+    uv sync --frozen --no-install-project
 
 # Copy Code & Assets
 # sitecustomize.py is crucial for log forwarding and endpoint injection

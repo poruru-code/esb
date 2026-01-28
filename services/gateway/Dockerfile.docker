@@ -31,12 +31,11 @@ RUN uv venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 # Copy service-specific dependencies for better cache efficiency
-COPY pyproject.toml /app/pyproject.toml
+COPY pyproject.toml uv.lock /app/
 
-# Install dependencies (Cache layer)
+# Install dependencies from lockfile (Cache layer)
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip compile /app/pyproject.toml -o requirements.txt && \
-    uv pip install -r requirements.txt
+    uv sync --frozen --no-install-project
 
 # Final stage - Standardized via python base
 FROM ${PYTHON_BASE_IMAGE} AS prod
