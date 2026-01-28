@@ -32,19 +32,28 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 WORKDIR /src
 
 # Fetch specific version of firecracker-containerd
-# Fetch specific version of firecracker-containerd
-RUN curl -L -o repo.zip "https://github.com/firecracker-microvm/firecracker-containerd/archive/${FIRECRACKER_CONTAINERD_REF}.zip" \
-  && unzip repo.zip \
-  && mv firecracker-containerd-*/* . \
-  && rm -rf repo.zip firecracker-containerd-*
+RUN --mount=type=cache,target=/var/cache/firecracker-containerd,sharing=locked \
+  set -eu; \
+  cache="/var/cache/firecracker-containerd"; \
+  archive="${cache}/firecracker-containerd-${FIRECRACKER_CONTAINERD_REF}.zip"; \
+  if [ ! -f "${archive}" ]; then \
+    curl -L -o "${archive}" "https://github.com/firecracker-microvm/firecracker-containerd/archive/${FIRECRACKER_CONTAINERD_REF}.zip"; \
+  fi; \
+  unzip "${archive}"; \
+  mv firecracker-containerd-*/* .; \
+  rm -rf firecracker-containerd-*
 
 # Apply patches
 COPY patches/firecracker-fifo-reader.patch /tmp/firecracker-fifo-reader.patch
 RUN git apply /tmp/firecracker-fifo-reader.patch
 
 # Build components
-RUN make -C runtime containerd-shim-aws-firecracker
-RUN make -C firecracker-control/cmd/containerd firecracker-containerd firecracker-ctr
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    make -C runtime containerd-shim-aws-firecracker
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    make -C firecracker-control/cmd/containerd firecracker-containerd firecracker-ctr
 
 # -----------------------------------------------------------------------------
 # Stage 2: Firecracker Binaries
@@ -86,9 +95,6 @@ FROM ${OS_BASE_IMAGE}
 
 ENV IMAGE_RUNTIME="containerd"
 
-
-COPY --from=meta /version.json /app/version.json
-
 # System dependencies for containerd and firecracker networking/devmapper
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
@@ -122,5 +128,7 @@ COPY entrypoint.containerd.sh /entrypoint.containerd.sh
 COPY entrypoint.firecracker.sh /entrypoint.firecracker.sh
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh /entrypoint.containerd.sh /entrypoint.firecracker.sh
+
+COPY --from=meta /version.json /app/version.json
 
 ENTRYPOINT ["/entrypoint.sh"]
