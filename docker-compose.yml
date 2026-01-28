@@ -1,6 +1,6 @@
 include:
   # Select the compose file you want to use.
-  - path: docker-compose.docker.yml
+  - path: docker-compose.containerd.yml
 
 x-no-proxy: &no_proxy
   NO_PROXY: localhost,127.0.0.1,::1,agent,database,gateway,s3-storage,victorialogs,registry,runtime-node,host.docker.internal
