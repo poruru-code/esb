@@ -18,13 +18,17 @@ COPY go.mod go.sum ./
 # Update replace directive to point to /meta in container
 RUN sed -i 's|../../meta|/meta|g' go.mod
 
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go mod download
 
 # Copy the entire agent service source code
 COPY . .
 
 # Build the binary
-RUN CGO_ENABLED=0 GOOS=linux go build -o /app/agent ./cmd/agent
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux go build -o /app/agent ./cmd/agent
 
 # Runtime Stage
 FROM ${OS_BASE_IMAGE} AS runtime

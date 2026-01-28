@@ -23,7 +23,8 @@ COPY services/provisioner/pyproject.toml .
 ENV VIRTUAL_ENV=/app/.venv
 RUN uv venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
-RUN uv pip install -r pyproject.toml
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install -r pyproject.toml
 
 # Copy Code & Assets
 # sitecustomize.py is crucial for log forwarding and endpoint injection
