@@ -338,6 +338,7 @@ func buildFunctionImages(
 	noCache bool,
 	verbose bool,
 	labels map[string]string,
+	cacheRoot string,
 	buildContexts []buildContext,
 ) error {
 	if verbose {
@@ -386,7 +387,7 @@ func buildFunctionImages(
 			}
 		}
 		if !skipBuild {
-			bakeTargets = append(bakeTargets, bakeTarget{
+			target := bakeTarget{
 				Name:       "fn-" + fn.ImageName,
 				Context:    outputDir,
 				Dockerfile: dockerfile,
@@ -397,7 +398,11 @@ func buildFunctionImages(
 					"meta": metaDir,
 				},
 				NoCache: noCache,
-			})
+			}
+			if err := applyBakeLocalCache(&target, cacheRoot, "functions"); err != nil {
+				return err
+			}
+			bakeTargets = append(bakeTargets, target)
 			builtFunctions = append(builtFunctions, fn.Name)
 			builtTags = append(builtTags, imageTag)
 		}

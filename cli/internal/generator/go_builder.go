@@ -244,6 +244,11 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		return err
 	}
 
+	cacheRoot := ""
+	if !request.NoCache {
+		cacheRoot = bakeCacheRoot(outputBase, request.Env, mode)
+	}
+
 	lambdaBaseTag := lambdaBaseImageTag(registryForPush, imageTag)
 
 	if err := withBuildLock("base-images", func() error {
@@ -288,20 +293,22 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 			fmt.Print("Building Python base image... ")
 		}
 
-		baseTargets := []bakeTarget{
-			{
-				Name:       "lambda-base",
-				Context:    assetsDir,
-				Dockerfile: filepath.Join(assetsDir, "Dockerfile.lambda-base"),
-				Tags:       []string{lambdaBaseTag},
-				Labels:     imageLabels,
-				Args:       proxyArgs,
-				Contexts: map[string]string{
-					"meta": metaDir,
-				},
-				NoCache: request.NoCache,
+		lambdaTarget := bakeTarget{
+			Name:       "lambda-base",
+			Context:    assetsDir,
+			Dockerfile: filepath.Join(assetsDir, "Dockerfile.lambda-base"),
+			Tags:       []string{lambdaBaseTag},
+			Labels:     imageLabels,
+			Args:       proxyArgs,
+			Contexts: map[string]string{
+				"meta": metaDir,
 			},
+			NoCache: request.NoCache,
 		}
+		if err := applyBakeLocalCache(&lambdaTarget, cacheRoot, "base"); err != nil {
+			return err
+		}
+		baseTargets := []bakeTarget{lambdaTarget}
 
 		rootCAPath := ""
 		if buildOs || buildPython {
@@ -312,7 +319,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 			rootCAPath = path
 		}
 		if buildOs {
-			baseTargets = append(baseTargets, bakeTarget{
+			osTarget := bakeTarget{
 				Name:       "os-base",
 				Context:    commonDir,
 				Dockerfile: filepath.Join(commonDir, "Dockerfile.os-base"),
@@ -328,10 +335,14 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 				},
 				Secrets: []string{fmt.Sprintf("id=%s,src=%s", meta.RootCAMountID, rootCAPath)},
 				NoCache: request.NoCache,
-			})
+			}
+			if err := applyBakeLocalCache(&osTarget, cacheRoot, "base"); err != nil {
+				return err
+			}
+			baseTargets = append(baseTargets, osTarget)
 		}
 		if buildPython {
-			baseTargets = append(baseTargets, bakeTarget{
+			pythonTarget := bakeTarget{
 				Name:       "python-base",
 				Context:    commonDir,
 				Dockerfile: filepath.Join(commonDir, "Dockerfile.python-base"),
@@ -347,7 +358,11 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 				},
 				Secrets: []string{fmt.Sprintf("id=%s,src=%s", meta.RootCAMountID, rootCAPath)},
 				NoCache: request.NoCache,
-			})
+			}
+			if err := applyBakeLocalCache(&pythonTarget, cacheRoot, "base"); err != nil {
+				return err
+			}
+			baseTargets = append(baseTargets, pythonTarget)
 		}
 
 		if err := runBakeGroup(
@@ -431,6 +446,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		request.NoCache,
 		request.Verbose,
 		functionLabels,
+		cacheRoot,
 		buildContexts,
 	); err != nil {
 		if !request.Verbose {

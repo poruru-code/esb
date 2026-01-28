@@ -24,6 +24,8 @@ type bakeTarget struct {
 	Args       map[string]string
 	Contexts   map[string]string
 	Secrets    []string
+	CacheFrom  []string
+	CacheTo    []string
 	NoCache    bool
 }
 
@@ -126,6 +128,12 @@ func renderBakeFile(groupName string, targets []bakeTarget) (string, error) {
 		writeHclMap(&b, "labels", target.Labels)
 		writeHclMap(&b, "args", target.Args)
 		writeHclMap(&b, "contexts", target.Contexts)
+		if len(target.CacheFrom) > 0 {
+			b.WriteString(fmt.Sprintf("  cache-from = %s\n", hclList(target.CacheFrom)))
+		}
+		if len(target.CacheTo) > 0 {
+			b.WriteString(fmt.Sprintf("  cache-to = %s\n", hclList(target.CacheTo)))
+		}
 		if len(target.Secrets) > 0 {
 			b.WriteString(fmt.Sprintf("  secret = %s\n", hclList(target.Secrets)))
 		}
@@ -190,47 +198,145 @@ func dockerBuildArgMap() map[string]string {
 }
 
 func bakeAllowArgs(targets []bakeTarget) []string {
-	paths := make(map[string]struct{})
+	readPaths := make(map[string]struct{})
+	writePaths := make(map[string]struct{})
 	for _, target := range targets {
 		for _, secret := range target.Secrets {
 			path := parseBakeSecretPath(secret)
 			if path == "" {
 				continue
 			}
-			paths[path] = struct{}{}
+			readPaths[path] = struct{}{}
+		}
+		for _, cache := range target.CacheFrom {
+			path := parseBakeCachePath(cache, "src")
+			if path == "" {
+				continue
+			}
+			readPaths[path] = struct{}{}
+		}
+		for _, cache := range target.CacheTo {
+			path := parseBakeCachePath(cache, "dest")
+			if path == "" {
+				continue
+			}
+			writePaths[path] = struct{}{}
 		}
 	}
-	if len(paths) == 0 {
+	if len(readPaths) == 0 && len(writePaths) == 0 {
 		return nil
 	}
-	ordered := make([]string, 0, len(paths))
-	for path := range paths {
-		ordered = append(ordered, path)
+	args := make([]string, 0, len(readPaths)+len(writePaths))
+	if len(readPaths) > 0 {
+		ordered := make([]string, 0, len(readPaths))
+		for path := range readPaths {
+			ordered = append(ordered, path)
+		}
+		sort.Strings(ordered)
+		for _, path := range ordered {
+			args = append(args, "--allow=fs.read="+path)
+		}
 	}
-	sort.Strings(ordered)
-	args := make([]string, 0, len(ordered))
-	for _, path := range ordered {
-		args = append(args, "--allow=fs.read="+path)
+	if len(writePaths) > 0 {
+		ordered := make([]string, 0, len(writePaths))
+		for path := range writePaths {
+			ordered = append(ordered, path)
+		}
+		sort.Strings(ordered)
+		for _, path := range ordered {
+			args = append(args, "--allow=fs.write="+path)
+		}
 	}
 	return args
 }
 
 func parseBakeSecretPath(spec string) string {
+	return parseBakeKeyValuePath(spec, "src")
+}
+
+func parseBakeCachePath(spec, key string) string {
+	return parseBakeKeyValuePath(spec, key)
+}
+
+func parseBakeKeyValuePath(spec, key string) string {
 	for _, part := range strings.Split(spec, ",") {
 		part = strings.TrimSpace(part)
 		if part == "" {
 			continue
 		}
-		key, value, ok := strings.Cut(part, "=")
+		parsedKey, value, ok := strings.Cut(part, "=")
 		if !ok {
 			continue
 		}
-		if strings.TrimSpace(key) != "src" {
+		if strings.TrimSpace(parsedKey) != key {
 			continue
 		}
 		return strings.TrimSpace(value)
 	}
 	return ""
+}
+
+func bakeCacheRoot(outputBase, env, mode string) string {
+	base := filepath.Join(outputBase, "buildx-cache")
+	env = sanitizePathSegment(env)
+	mode = sanitizePathSegment(mode)
+	if env == "" && mode == "" {
+		return filepath.Join(base, "default")
+	}
+	if env == "" {
+		return filepath.Join(base, mode)
+	}
+	if mode == "" {
+		return filepath.Join(base, env)
+	}
+	return filepath.Join(base, env, mode)
+}
+
+func applyBakeLocalCache(target *bakeTarget, cacheRoot, group string) error {
+	if target == nil || strings.TrimSpace(cacheRoot) == "" {
+		return nil
+	}
+	parts := []string{}
+	if strings.TrimSpace(group) != "" {
+		parts = append(parts, group)
+	}
+	if strings.TrimSpace(target.Name) != "" {
+		parts = append(parts, target.Name)
+	}
+	if len(parts) == 0 {
+		return nil
+	}
+	cacheDir := filepath.Join(append([]string{cacheRoot}, sanitizePathSegments(parts)...)...)
+	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
+		return err
+	}
+	target.CacheFrom = []string{fmt.Sprintf("type=local,src=%s", cacheDir)}
+	target.CacheTo = []string{fmt.Sprintf("type=local,dest=%s,mode=max", cacheDir)}
+	return nil
+}
+
+func sanitizePathSegments(values []string) []string {
+	segments := make([]string, 0, len(values))
+	for _, value := range values {
+		if cleaned := sanitizePathSegment(value); cleaned != "" {
+			segments = append(segments, cleaned)
+		}
+	}
+	return segments
+}
+
+func sanitizePathSegment(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return ""
+	}
+	cleaned := strings.NewReplacer(
+		"/", "-",
+		"\\", "-",
+		":", "-",
+		" ", "-",
+	).Replace(trimmed)
+	return cleaned
 }
 
 func mergeStringMap(base, extra map[string]string) map[string]string {
