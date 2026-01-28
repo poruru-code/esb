@@ -13,3 +13,23 @@ target "meta" {
   }
   output = ["type=local,dest=.esb/meta"]
 }
+
+// Base/control images (targets are configured at runtime via bake overrides).
+target "lambda-base" {
+  context    = "cli/internal/generator/assets"
+  dockerfile = "Dockerfile.lambda-base"
+}
+
+target "os-base" {
+  context    = "services/common"
+  dockerfile = "Dockerfile.os-base"
+}
+
+target "python-base" {
+  context    = "services/common"
+  dockerfile = "Dockerfile.python-base"
+}
+
+group "base-images" {
+  targets = ["lambda-base", "os-base", "python-base"]
+}

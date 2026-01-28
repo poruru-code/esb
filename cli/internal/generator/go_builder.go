@@ -244,28 +244,157 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		return err
 	}
 
-	if !request.Verbose {
-		fmt.Print("Building base image... ")
-	}
 	lambdaBaseTag := lambdaBaseImageTag(registryForPush, imageTag)
-	if err := buildBaseImage(
-		context.Background(),
-		b.Runner,
-		repoRoot,
-		registryForPush,
-		imageTag,
-		request.NoCache,
-		request.Verbose,
-		imageLabels,
-		buildContexts,
-	); err != nil {
-		if !request.Verbose {
-			fmt.Println("Failed")
+
+	if err := withBuildLock("base-images", func() error {
+		metaDir, err := findBuildContextPath(buildContexts, "meta")
+		if err != nil {
+			return err
 		}
+		proxyArgs := dockerBuildArgMap()
+		assetsDir := filepath.Join(repoRoot, "cli", "internal", "generator", "assets")
+		commonDir := filepath.Join(repoRoot, "services", "common")
+
+		if !request.Verbose {
+			fmt.Print("Building base image... ")
+		}
+		buildLambda := true
+		buildOs := true
+		buildPython := true
+
+		osBaseTag := fmt.Sprintf("%s-os-base:latest", meta.ImagePrefix)
+		if !request.NoCache && dockerImageHasLabelValue(context.Background(), b.Runner, repoRoot, osBaseTag, compose.ESBCAFingerprintLabel, rootFingerprint) {
+			buildOs = false
+			if request.Verbose {
+				fmt.Println("Skipping OS base image build (already exists).")
+			} else {
+				fmt.Print("Building OS base image... ")
+				fmt.Println("Skipped")
+			}
+		} else if !request.Verbose {
+			fmt.Print("Building OS base image... ")
+		}
+
+		pythonBaseTag := fmt.Sprintf("%s-python-base:latest", meta.ImagePrefix)
+		if !request.NoCache && dockerImageHasLabelValue(context.Background(), b.Runner, repoRoot, pythonBaseTag, compose.ESBCAFingerprintLabel, rootFingerprint) {
+			buildPython = false
+			if request.Verbose {
+				fmt.Println("Skipping Python base image build (already exists).")
+			} else {
+				fmt.Print("Building Python base image... ")
+				fmt.Println("Skipped")
+			}
+		} else if !request.Verbose {
+			fmt.Print("Building Python base image... ")
+		}
+
+		baseTargets := []bakeTarget{
+			{
+				Name:       "lambda-base",
+				Context:    assetsDir,
+				Dockerfile: filepath.Join(assetsDir, "Dockerfile.lambda-base"),
+				Tags:       []string{lambdaBaseTag},
+				Labels:     imageLabels,
+				Args:       proxyArgs,
+				Contexts: map[string]string{
+					"meta": metaDir,
+				},
+				NoCache: request.NoCache,
+			},
+		}
+
+		rootCAPath := ""
+		if buildOs || buildPython {
+			path, err := resolveRootCAPath()
+			if err != nil {
+				return err
+			}
+			rootCAPath = path
+		}
+		if buildOs {
+			baseTargets = append(baseTargets, bakeTarget{
+				Name:       "os-base",
+				Context:    commonDir,
+				Dockerfile: filepath.Join(commonDir, "Dockerfile.os-base"),
+				Tags:       []string{osBaseTag},
+				Labels:     baseImageLabels,
+				Args: mergeStringMap(proxyArgs, map[string]string{
+					constants.BuildArgCAFingerprint: rootFingerprint,
+					"ROOT_CA_MOUNT_ID":              meta.RootCAMountID,
+					"ROOT_CA_CERT_FILENAME":         meta.RootCACertFilename,
+				}),
+				Contexts: map[string]string{
+					"meta": metaDir,
+				},
+				Secrets: []string{fmt.Sprintf("id=%s,src=%s", meta.RootCAMountID, rootCAPath)},
+				NoCache: request.NoCache,
+			})
+		}
+		if buildPython {
+			baseTargets = append(baseTargets, bakeTarget{
+				Name:       "python-base",
+				Context:    commonDir,
+				Dockerfile: filepath.Join(commonDir, "Dockerfile.python-base"),
+				Tags:       []string{pythonBaseTag},
+				Labels:     baseImageLabels,
+				Args: mergeStringMap(proxyArgs, map[string]string{
+					constants.BuildArgCAFingerprint: rootFingerprint,
+					"ROOT_CA_MOUNT_ID":              meta.RootCAMountID,
+					"ROOT_CA_CERT_FILENAME":         meta.RootCACertFilename,
+				}),
+				Contexts: map[string]string{
+					"meta": metaDir,
+				},
+				Secrets: []string{fmt.Sprintf("id=%s,src=%s", meta.RootCAMountID, rootCAPath)},
+				NoCache: request.NoCache,
+			})
+		}
+
+		if err := runBakeGroup(
+			context.Background(),
+			b.Runner,
+			repoRoot,
+			"esb-base",
+			baseTargets,
+			request.Verbose,
+		); err != nil {
+			if !request.Verbose {
+				if buildLambda {
+					fmt.Println("Failed")
+				}
+				if buildOs {
+					fmt.Println("Failed")
+				}
+				if buildPython {
+					fmt.Println("Failed")
+				}
+			}
+			return err
+		}
+
+		if registryForPush != "" {
+			if err := pushDockerImage(context.Background(), b.Runner, repoRoot, lambdaBaseTag, request.Verbose); err != nil {
+				if !request.Verbose {
+					fmt.Println("Failed")
+				}
+				return err
+			}
+		}
+
+		if !request.Verbose {
+			if buildLambda {
+				fmt.Println("Done")
+			}
+			if buildOs {
+				fmt.Println("Done")
+			}
+			if buildPython {
+				fmt.Println("Done")
+			}
+		}
+		return nil
+	}); err != nil {
 		return err
-	}
-	if !request.Verbose {
-		fmt.Println("Done")
 	}
 
 	baseImageID := dockerImageID(context.Background(), b.Runner, repoRoot, lambdaBaseTag)
@@ -289,85 +418,12 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	functionLabels[compose.ESBKindLabel] = "function"
 
 	if !request.Verbose {
-		fmt.Print("Building OS base image... ")
-	}
-	osBaseTag := fmt.Sprintf("%s-os-base:latest", meta.ImagePrefix)
-	if err := withBuildLock("os-base", func() error {
-		if !request.NoCache && dockerImageHasLabelValue(context.Background(), b.Runner, repoRoot, osBaseTag, compose.ESBCAFingerprintLabel, rootFingerprint) {
-			if request.Verbose {
-				fmt.Println("Skipping OS base image build (already exists).")
-			} else {
-				fmt.Println("Skipped")
-			}
-			return nil
-		}
-		if err := buildDockerImage(
-			context.Background(),
-			b.Runner,
-			repoRoot,
-			"services/common/Dockerfile.os-base",
-			osBaseTag,
-			request.NoCache,
-			request.Verbose,
-			baseImageLabels,
-			buildContexts,
-		); err != nil {
-			if !request.Verbose {
-				fmt.Println("Failed")
-			}
-			return err
-		}
-		if !request.Verbose {
-			fmt.Println("Done")
-		}
-		return nil
-	}); err != nil {
-		return err
-	}
-
-	if !request.Verbose {
-		fmt.Print("Building Python base image... ")
-	}
-	pythonBaseTag := fmt.Sprintf("%s-python-base:latest", meta.ImagePrefix)
-	if err := withBuildLock("python-base", func() error {
-		if !request.NoCache && dockerImageHasLabelValue(context.Background(), b.Runner, repoRoot, pythonBaseTag, compose.ESBCAFingerprintLabel, rootFingerprint) {
-			if request.Verbose {
-				fmt.Println("Skipping Python base image build (already exists).")
-			} else {
-				fmt.Println("Skipped")
-			}
-			return nil
-		}
-		if err := buildDockerImage(
-			context.Background(),
-			b.Runner,
-			repoRoot,
-			"services/common/Dockerfile.python-base",
-			pythonBaseTag,
-			request.NoCache,
-			request.Verbose,
-			baseImageLabels,
-			buildContexts,
-		); err != nil {
-			if !request.Verbose {
-				fmt.Println("Failed")
-			}
-			return err
-		}
-		if !request.Verbose {
-			fmt.Println("Done")
-		}
-		return nil
-	}); err != nil {
-		return err
-	}
-
-	if !request.Verbose {
 		fmt.Printf("Building function images (%d functions)...\n", len(functions))
 	}
 	if err := buildFunctionImages(
 		context.Background(),
 		b.Runner,
+		repoRoot,
 		cfg.Paths.OutputDir,
 		functions,
 		registryForPush,

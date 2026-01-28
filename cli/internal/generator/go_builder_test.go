@@ -184,11 +184,11 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		t.Fatalf("expected staged config: %v", err)
 	}
 
-	if !hasDockerBuildTag(dockerRunner.calls, "localhost:5010/"+meta.ImagePrefix+"-lambda-base:v1.2.3") {
-		t.Fatalf("expected base image build")
+	if !hasDockerBakeGroup(dockerRunner.calls, "esb-base") {
+		t.Fatalf("expected bake for base images")
 	}
-	if !hasDockerBuildTag(dockerRunner.calls, "localhost:5010/"+meta.ImagePrefix+"-hello:v1.2.3") {
-		t.Fatalf("expected function image build")
+	if !hasDockerBakeGroup(dockerRunner.calls, "esb-functions") {
+		t.Fatalf("expected bake for function images")
 	}
 	if !hasDockerPushTag(dockerRunner.calls, "localhost:5010/"+meta.ImagePrefix+"-lambda-base:v1.2.3") {
 		t.Fatalf("expected base image push")
@@ -196,18 +196,18 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	if !hasDockerPushTag(dockerRunner.calls, "localhost:5010/"+meta.ImagePrefix+"-hello:v1.2.3") {
 		t.Fatalf("expected function image push")
 	}
-	if !hasDockerBuildLabel(dockerRunner.calls, meta.LabelPrefix+".managed=true") {
-		t.Fatalf("expected managed label on build")
+	if !hasBakeFileContaining(dockerRunner.bakeFiles, meta.LabelPrefix+".managed") {
+		t.Fatalf("expected managed label in bake file")
 	}
-	if !hasDockerBuildLabel(dockerRunner.calls, meta.LabelPrefix+".project=demo-staging") {
-		t.Fatalf("expected project label on build")
+	if !hasBakeFileContaining(dockerRunner.bakeFiles, meta.LabelPrefix+".project") {
+		t.Fatalf("expected project label in bake file")
 	}
-	if !hasDockerBuildLabel(dockerRunner.calls, meta.LabelPrefix+".env=staging") {
-		t.Fatalf("expected env label on build")
+	if !hasBakeFileContaining(dockerRunner.bakeFiles, meta.LabelPrefix+".env") {
+		t.Fatalf("expected env label in bake file")
 	}
 	metaDir := filepath.Join(repoRoot, meta.OutputDir, "meta")
-	if !hasDockerBuildContext(dockerRunner.calls, "meta="+metaDir) {
-		t.Fatalf("expected meta build context")
+	if !hasBakeFileContaining(dockerRunner.bakeFiles, metaDir) {
+		t.Fatalf("expected meta build context in bake file")
 	}
 	if !hasDockerBakeTarget(dockerRunner.calls, "meta") {
 		t.Fatalf("expected docker buildx bake meta target")
@@ -234,9 +234,10 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 }
 
 type recordRunner struct {
-	calls   []commandCall
-	err     error
-	outputs map[string][]byte
+	calls     []commandCall
+	err       error
+	outputs   map[string][]byte
+	bakeFiles map[string]string
 }
 
 type mockPortDiscoverer struct {
@@ -260,6 +261,7 @@ func (r *recordRunner) Run(_ context.Context, dir, name string, args ...string) 
 		name: name,
 		args: append([]string{}, args...),
 	})
+	r.captureBakeFiles(dir, name, args)
 	r.maybeWriteMetaOutput(dir, name, args)
 	return r.err
 }
@@ -270,6 +272,7 @@ func (r *recordRunner) RunQuiet(_ context.Context, dir, name string, args ...str
 		name: name,
 		args: append([]string{}, args...),
 	})
+	r.captureBakeFiles(dir, name, args)
 	r.maybeWriteMetaOutput(dir, name, args)
 	return r.err
 }
@@ -280,6 +283,7 @@ func (r *recordRunner) RunOutput(_ context.Context, dir, name string, args ...st
 		name: name,
 		args: append([]string{}, args...),
 	})
+	r.captureBakeFiles(dir, name, args)
 	if r.err != nil {
 		return nil, r.err
 	}
@@ -326,6 +330,35 @@ func (r *recordRunner) maybeWriteMetaOutput(dir, name string, args []string) {
 	_ = os.WriteFile(filepath.Join(dest, "version.json"), []byte("{}\n"), 0o644)
 }
 
+func (r *recordRunner) captureBakeFiles(dir, name string, args []string) {
+	if name != "docker" || len(args) < 2 {
+		return
+	}
+	if args[0] != "buildx" || args[1] != "bake" {
+		return
+	}
+	for i := 0; i+1 < len(args); i++ {
+		if args[i] != "-f" {
+			continue
+		}
+		path := args[i+1]
+		if path == "" {
+			continue
+		}
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(dir, path)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		if r.bakeFiles == nil {
+			r.bakeFiles = make(map[string]string)
+		}
+		r.bakeFiles[path] = string(data)
+	}
+}
+
 func parseBakeOutputDest(output string) string {
 	parts := strings.Split(output, ",")
 	for _, part := range parts {
@@ -337,18 +370,30 @@ func parseBakeOutputDest(output string) string {
 	return ""
 }
 
-func hasDockerBuildTag(calls []commandCall, tag string) bool {
+func hasDockerBakeGroup(calls []commandCall, group string) bool {
 	for _, call := range calls {
 		if call.name != "docker" || len(call.args) < 3 {
 			continue
 		}
-		if call.args[0] != "build" {
+		if call.args[0] != "buildx" || call.args[1] != "bake" {
 			continue
 		}
-		for i := 0; i+1 < len(call.args); i++ {
-			if call.args[i] == "-t" && call.args[i+1] == tag {
+		for _, arg := range call.args {
+			if arg == group {
 				return true
 			}
+		}
+	}
+	return false
+}
+
+func hasBakeFileContaining(files map[string]string, needle string) bool {
+	if strings.TrimSpace(needle) == "" {
+		return false
+	}
+	for _, content := range files {
+		if strings.Contains(content, needle) {
+			return true
 		}
 	}
 	return false
@@ -361,40 +406,6 @@ func hasDockerPushTag(calls []commandCall, tag string) bool {
 		}
 		if call.args[0] == "push" && call.args[1] == tag {
 			return true
-		}
-	}
-	return false
-}
-
-func hasDockerBuildLabel(calls []commandCall, label string) bool {
-	for _, call := range calls {
-		if call.name != "docker" || len(call.args) < 3 {
-			continue
-		}
-		if call.args[0] != "build" {
-			continue
-		}
-		for i := 0; i+1 < len(call.args); i++ {
-			if call.args[i] == "--label" && call.args[i+1] == label {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func hasDockerBuildContext(calls []commandCall, value string) bool {
-	for _, call := range calls {
-		if call.name != "docker" || len(call.args) < 3 {
-			continue
-		}
-		if call.args[0] != "build" {
-			continue
-		}
-		for i := 0; i+1 < len(call.args); i++ {
-			if call.args[i] == "--build-context" && call.args[i+1] == value {
-				return true
-			}
 		}
 	}
 	return false

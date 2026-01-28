@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"syscall"
 
@@ -289,47 +288,6 @@ func ensureRegistryRunning(
 	return runner.Run(ctx, rootDir, "docker", args...)
 }
 
-func buildBaseImage(
-	ctx context.Context,
-	runner compose.CommandRunner,
-	repoRoot string,
-	registry string,
-	tag string,
-	noCache bool,
-	verbose bool,
-	labels map[string]string,
-	buildContexts []buildContext,
-) error {
-	if verbose {
-		fmt.Println("Building base image...")
-	}
-	assetsDir := filepath.Join(repoRoot, "cli", "internal", "generator", "assets")
-	dockerfile := filepath.Join(assetsDir, "Dockerfile.lambda-base")
-	if _, err := os.Stat(dockerfile); err != nil {
-		return fmt.Errorf("base dockerfile not found: %w", err)
-	}
-
-	imageTag := lambdaBaseImageTag(registry, tag)
-
-	if err := buildDockerImage(
-		ctx,
-		runner,
-		assetsDir,
-		"Dockerfile.lambda-base",
-		imageTag,
-		noCache,
-		verbose,
-		labels,
-		buildContexts,
-	); err != nil {
-		return err
-	}
-	if registry != "" {
-		return pushDockerImage(ctx, runner, assetsDir, imageTag, verbose)
-	}
-	return nil
-}
-
 func withBuildLock(name string, fn func() error) error {
 	key := strings.TrimSpace(name)
 	if key == "" {
@@ -372,6 +330,7 @@ func joinRegistry(registry, image string) string {
 func buildFunctionImages(
 	ctx context.Context,
 	runner compose.CommandRunner,
+	repoRoot string,
 	outputDir string,
 	functions []FunctionSpec,
 	registry string,
@@ -384,7 +343,15 @@ func buildFunctionImages(
 	if verbose {
 		fmt.Println("Building function images...")
 	}
+	metaDir, err := findBuildContextPath(buildContexts, "meta")
+	if err != nil {
+		return err
+	}
+	proxyArgs := dockerBuildArgMap()
 	expectedFingerprint := strings.TrimSpace(labels[compose.ESBImageFingerprintLabel])
+	bakeTargets := make([]bakeTarget, 0, len(functions))
+	builtFunctions := make([]string, 0, len(functions))
+	builtTags := make([]string, 0, len(functions))
 	for _, fn := range functions {
 		if verbose {
 			fmt.Printf("  Building image for %s...\n", fn.Name)
@@ -407,12 +374,6 @@ func buildFunctionImages(
 		imageTag := fmt.Sprintf("%s-%s:%s", meta.ImagePrefix, fn.ImageName, tag)
 		imageTag = joinRegistry(registry, imageTag)
 
-		dockerfileRel, err := filepath.Rel(outputDir, dockerfile)
-		if err != nil {
-			return err
-		}
-		dockerfileRel = filepath.ToSlash(dockerfileRel)
-
 		skipBuild := false
 		if !noCache && expectedFingerprint != "" {
 			if dockerImageHasLabelValue(ctx, runner, outputDir, imageTag, compose.ESBImageFingerprintLabel, expectedFingerprint) {
@@ -425,83 +386,48 @@ func buildFunctionImages(
 			}
 		}
 		if !skipBuild {
-			if err := buildDockerImage(
-				ctx,
-				runner,
-				outputDir,
-				dockerfileRel,
-				imageTag,
-				noCache,
-				verbose,
-				labels,
-				buildContexts,
-			); err != nil {
-				return err
-			}
-			if !verbose {
-				fmt.Printf("  - Built function image: %s\n", fn.Name)
+			bakeTargets = append(bakeTargets, bakeTarget{
+				Name:       "fn-" + fn.ImageName,
+				Context:    outputDir,
+				Dockerfile: dockerfile,
+				Tags:       []string{imageTag},
+				Labels:     labels,
+				Args:       proxyArgs,
+				Contexts: map[string]string{
+					"meta": metaDir,
+				},
+				NoCache: noCache,
+			})
+			builtFunctions = append(builtFunctions, fn.Name)
+			builtTags = append(builtTags, imageTag)
+		}
+	}
+
+	if len(bakeTargets) > 0 {
+		if err := runBakeGroup(
+			ctx,
+			runner,
+			repoRoot,
+			"esb-functions",
+			bakeTargets,
+			verbose,
+		); err != nil {
+			return err
+		}
+		if !verbose {
+			for _, name := range builtFunctions {
+				fmt.Printf("  - Built function image: %s\n", name)
 			}
 		}
-		if registry != "" {
+	}
+	if registry != "" {
+		for _, imageTag := range builtTags {
 			if err := pushDockerImage(ctx, runner, outputDir, imageTag, verbose); err != nil {
 				return err
 			}
 		}
 	}
 	return nil
-}
-
-func buildDockerImage(
-	ctx context.Context,
-	runner compose.CommandRunner,
-	contextDir string,
-	dockerfile string,
-	imageTag string,
-	noCache bool,
-	verbose bool,
-	labels map[string]string,
-	buildContexts []buildContext,
-) error {
-	if runner == nil {
-		return fmt.Errorf("command runner is nil")
-	}
-	if contextDir == "" {
-		return fmt.Errorf("context dir is required")
-	}
-	if imageTag == "" {
-		return fmt.Errorf("image tag is required")
-	}
-
-	args := []string{"build"}
-	if noCache {
-		args = append(args, "--no-cache")
-	}
-	args = append(args, "-f", dockerfile, "-t", imageTag)
-	args = append(args, dockerLabelArgs(labels)...)
-	args = append(args, dockerBuildArgs()...)
-	caArgs, err := dockerCABuildArgs(dockerfile)
-	if err != nil {
-		return err
-	}
-	args = append(args, caArgs...)
-	secretArgs, err := dockerSecretArgs(dockerfile)
-	if err != nil {
-		return err
-	}
-	args = append(args, secretArgs...)
-	for _, ctx := range buildContexts {
-		name := strings.TrimSpace(ctx.Name)
-		path := strings.TrimSpace(ctx.Path)
-		if name == "" || path == "" {
-			return fmt.Errorf("build context name and path are required")
-		}
-		args = append(args, "--build-context", fmt.Sprintf("%s=%s", name, path))
-	}
-	args = append(args, ".")
-	if verbose {
-		return runner.Run(ctx, contextDir, "docker", args...)
-	}
-	return runner.RunQuiet(ctx, contextDir, "docker", args...)
 }
 
 func pushDockerImage(
@@ -521,60 +447,6 @@ func pushDockerImage(
 		return runner.Run(ctx, contextDir, "docker", "push", imageTag)
 	}
 	return runner.RunQuiet(ctx, contextDir, "docker", "push", imageTag)
-}
-
-func dockerBuildArgs() []string {
-	keys := []string{
-		"HTTP_PROXY",
-		"HTTPS_PROXY",
-		"NO_PROXY",
-		"http_proxy",
-		"https_proxy",
-		"no_proxy",
-	}
-	args := []string{}
-	for _, key := range keys {
-		value := strings.TrimSpace(os.Getenv(key))
-		if value == "" {
-			continue
-		}
-		args = append(args, "--build-arg", key+"="+value)
-	}
-	return args
-}
-
-func dockerCABuildArgs(dockerfile string) ([]string, error) {
-	if !needsRootCASecret(dockerfile) {
-		return nil, nil
-	}
-	fingerprint, err := resolveRootCAFingerprint()
-	if err != nil {
-		return nil, err
-	}
-	return []string{"--build-arg", fmt.Sprintf("%s=%s", constants.BuildArgCAFingerprint, fingerprint)}, nil
-}
-
-func dockerSecretArgs(dockerfile string) ([]string, error) {
-	if !needsRootCASecret(dockerfile) {
-		return nil, nil
-	}
-	path, err := resolveRootCAPath()
-	if err != nil {
-		return nil, err
-	}
-	if os.Getenv("DOCKER_BUILDKIT") == "" {
-		_ = os.Setenv("DOCKER_BUILDKIT", "1")
-	}
-	return []string{
-		"--secret", fmt.Sprintf("id=%s,src=%s", meta.RootCAMountID, path),
-		"--build-arg", fmt.Sprintf("ROOT_CA_MOUNT_ID=%s", meta.RootCAMountID),
-		"--build-arg", fmt.Sprintf("ROOT_CA_CERT_FILENAME=%s", meta.RootCACertFilename),
-	}, nil
-}
-
-func needsRootCASecret(dockerfile string) bool {
-	base := filepath.Base(dockerfile)
-	return base == "Dockerfile.os-base" || base == "Dockerfile.python-base"
 }
 
 func resolveRootCAPath() (string, error) {
@@ -644,26 +516,6 @@ func expandHome(path string) string {
 		return filepath.Join(home, path[2:])
 	}
 	return path
-}
-
-func dockerLabelArgs(labels map[string]string) []string {
-	if len(labels) == 0 {
-		return nil
-	}
-	keys := make([]string, 0, len(labels))
-	for key := range labels {
-		if strings.TrimSpace(key) == "" {
-			continue
-		}
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	args := make([]string, 0, len(keys)*2)
-	for _, key := range keys {
-		value := strings.TrimSpace(labels[key])
-		args = append(args, "--label", fmt.Sprintf("%s=%s", key, value))
-	}
-	return args
 }
 
 func writeFunctionDockerignore(contextDir, functionDir string) error {
