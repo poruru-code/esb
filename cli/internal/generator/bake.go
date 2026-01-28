@@ -59,20 +59,15 @@ func runBakeGroup(
 	}
 	defer func() { _ = os.Remove(tmpFile) }()
 
-	args := []string{
-		"buildx",
-		"bake",
-		"-f",
-		bakeFile,
-		"-f",
-		tmpFile,
-		groupName,
-		"--load",
-	}
+	args := []string{"buildx", "bake"}
+	args = append(args, bakeAllowArgs(targets)...)
+	args = append(args, "-f", bakeFile, "-f", tmpFile, "--load")
 	if verbose {
 		args = append(args, "--progress", "plain")
+		args = append(args, groupName)
 		return runner.Run(ctx, repoRoot, "docker", args...)
 	}
+	args = append(args, groupName)
 	return runner.RunQuiet(ctx, repoRoot, "docker", args...)
 }
 
@@ -132,7 +127,7 @@ func renderBakeFile(groupName string, targets []bakeTarget) (string, error) {
 		writeHclMap(&b, "args", target.Args)
 		writeHclMap(&b, "contexts", target.Contexts)
 		if len(target.Secrets) > 0 {
-			b.WriteString(fmt.Sprintf("  secrets = %s\n", hclList(target.Secrets)))
+			b.WriteString(fmt.Sprintf("  secret = %s\n", hclList(target.Secrets)))
 		}
 		if target.NoCache {
 			b.WriteString("  no-cache = true\n")
@@ -192,6 +187,50 @@ func dockerBuildArgMap() map[string]string {
 		args[key] = value
 	}
 	return args
+}
+
+func bakeAllowArgs(targets []bakeTarget) []string {
+	paths := make(map[string]struct{})
+	for _, target := range targets {
+		for _, secret := range target.Secrets {
+			path := parseBakeSecretPath(secret)
+			if path == "" {
+				continue
+			}
+			paths[path] = struct{}{}
+		}
+	}
+	if len(paths) == 0 {
+		return nil
+	}
+	ordered := make([]string, 0, len(paths))
+	for path := range paths {
+		ordered = append(ordered, path)
+	}
+	sort.Strings(ordered)
+	args := make([]string, 0, len(ordered))
+	for _, path := range ordered {
+		args = append(args, "--allow=fs.read="+path)
+	}
+	return args
+}
+
+func parseBakeSecretPath(spec string) string {
+	for _, part := range strings.Split(spec, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		key, value, ok := strings.Cut(part, "=")
+		if !ok {
+			continue
+		}
+		if strings.TrimSpace(key) != "src" {
+			continue
+		}
+		return strings.TrimSpace(value)
+	}
+	return ""
 }
 
 func mergeStringMap(base, extra map[string]string) map[string]string {
