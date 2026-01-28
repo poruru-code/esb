@@ -54,7 +54,7 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeTestFile(t, filepath.Join(traceToolsDir, "generate_version_json.py"), "#!/usr/bin/env python3\n")
-	writeTestFile(t, filepath.Join(repoRoot, "bake.hcl"), "target \"meta\" {}\n")
+	writeTestFile(t, filepath.Join(repoRoot, "docker-bake.hcl"), "target \"meta\" {}\n")
 
 	var gotCfg config.GeneratorConfig
 	var gotOpts GenerateOptions

@@ -50,7 +50,7 @@ func runBakeGroup(
 		return nil
 	}
 
-	bakeFile := filepath.Join(repoRoot, "bake.hcl")
+	bakeFile := filepath.Join(repoRoot, "docker-bake.hcl")
 	if _, err := os.Stat(bakeFile); err != nil {
 		return fmt.Errorf("bake file not found: %w", err)
 	}
