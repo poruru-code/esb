@@ -14,8 +14,6 @@ COPY --from=ghcr.io/astral-sh/uv:0.8.13@sha256:4de5495181a281bc744845b9579acf7b2
 
 WORKDIR /app
 
-COPY --from=meta /version.json /app/version.json
-
 # Copy dependencies
 COPY pyproject.toml uv.lock .
 
@@ -43,6 +41,8 @@ RUN if [ -f /tmp/config/resources.yml ]; then \
 
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
+
+COPY --from=meta /version.json /app/version.json
 
 ENV PYTHONPATH=/app
 
