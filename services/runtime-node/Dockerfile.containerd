@@ -19,7 +19,9 @@ FROM golang:${GO_VERSION}-${DEBIAN_VERSION}@${GOLANG_DIGEST} AS firecracker-buil
 
 ARG FIRECRACKER_CONTAINERD_REF
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     git \
     make \
@@ -53,7 +55,9 @@ FROM debian:${DEBIAN_VERSION}-slim@${DEBIAN_SLIM_DIGEST} AS firecracker-bins
 ARG FIRECRACKER_VERSION
 ARG FIRECRACKER_ARCH
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     tar \
@@ -92,7 +96,9 @@ ENV IMAGE_RUNTIME="containerd"
 COPY --from=meta /version.json /app/version.json
 
 # System dependencies for containerd and firecracker networking/devmapper
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     containerd \
     dmsetup \
     iproute2 \
