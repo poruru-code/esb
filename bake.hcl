@@ -14,6 +14,19 @@ target "meta" {
   output = ["type=local,dest=.esb/meta"]
 }
 
+target "meta-image" {
+  context    = "."
+  dockerfile = "tools/traceability/Dockerfile.meta"
+  target     = "meta"
+  contexts = {
+    git_dir    = ".git"
+    git_common = ".git"
+    trace_tools = "tools/traceability"
+  }
+  tags     = ["esb-meta:debug"]
+  output   = ["type=docker"]
+}
+
 // Base/control images (targets are configured at runtime via bake overrides).
 target "lambda-base" {
   context    = "cli/internal/generator/assets"
@@ -29,6 +42,10 @@ target "os-base" {
   contexts = {
     meta = "target:meta"
   }
+  tags = ["esb-os-base:latest"]
+  output = ["type=docker"]
+  cache-from = ["type=local,src=.esb/buildx-cache/base"]
+  cache-to   = ["type=local,dest=.esb/buildx-cache/base,mode=max"]
 }
 
 target "python-base" {
@@ -37,6 +54,10 @@ target "python-base" {
   contexts = {
     meta = "target:meta"
   }
+  tags = ["esb-python-base:latest"]
+  output = ["type=docker"]
+  cache-from = ["type=local,src=.esb/buildx-cache/base"]
+  cache-to   = ["type=local,dest=.esb/buildx-cache/base,mode=max"]
 }
 
 group "base-images" {

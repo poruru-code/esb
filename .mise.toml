@@ -25,18 +25,12 @@ run = [
   "lefthook install",
   "mise run build-cli",
   "mise run setup:certs",
-  "mise run setup:meta",
-  "mise run build-base",
 ]
 
 [tasks."setup:certs"]
 description = "Generate development certificates using step-cli"
 run = "uv run python tools/cert-gen/generate.py"
 
-[tasks."setup:meta"]
-description = "Generate build metadata for compose build contexts"
-run = "bash -lc 'set -euo pipefail; source config/defaults.env; slug=\"${CLI_CMD:-esb}\"; slug=\"$(printf \"%s\" \"$slug\" | tr \"[:upper:]\" \"[:lower:]\")\"; out_dir=\".${slug}\"; git_dir=$(git rev-parse --git-dir); git_common=$(git rev-parse --git-common-dir); uv run python tools/traceability/generate_version_json.py --git-dir \"$git_dir\" --git-common-dir \"$git_common\" --output \"$PWD/$out_dir/meta/version.json\"'"
- 
 [tasks.build-cli]
 description = "Build CLI to ~/.local/bin"
 dir = "cli"
@@ -44,10 +38,6 @@ run = [
   "bash -lc 'source ../config/defaults.env && go build -o ~/.local/bin/${CLI_CMD} ./cmd/esb'",
   "bash -lc 'source ../config/defaults.env && mkdir -p ~/.local/share/bash-completion/completions && ~/.local/bin/${CLI_CMD} completion bash > ~/.local/share/bash-completion/completions/${CLI_CMD}'",
 ]
-
-[tasks.build-base]
-description = "Build base images (os-base/python-base)"
-run = "docker compose -f docker-compose.docker.yml build os-base python-base"
 
 [tasks.dev-cli]
 description = "Watch and rebuild CLI on changes"
