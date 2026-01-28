@@ -146,11 +146,12 @@ Compose ファイルは **branding ツール（esb-branding-tool）で生成**�
 services:
   gateway:
     build:
-      context: .
-      dockerfile: services/gateway/Dockerfile.docker
+      context: services/gateway
+      dockerfile: Dockerfile.docker
       additional_contexts:
         config: ${CONFIG_DIR:-services/gateway/config}
         meta: ${META_CONTEXT:-.esb/meta}
+        common: ${COMMON_CONTEXT:-services/common}
   agent:
     build:
       context: services/agent

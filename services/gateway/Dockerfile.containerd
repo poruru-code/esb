@@ -31,7 +31,7 @@ RUN uv venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 # Copy service-specific dependencies for better cache efficiency
-COPY services/gateway/pyproject.toml /app/pyproject.toml
+COPY pyproject.toml /app/pyproject.toml
 
 # Install dependencies (Cache layer)
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -93,8 +93,8 @@ ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH=/app
 
 # Copy services code
-COPY --chown=${SERVICE_UID}:${SERVICE_GID} services/common /app/services/common
-COPY --chown=${SERVICE_UID}:${SERVICE_GID} services/gateway /app/services/gateway
+COPY --from=common --chown=${SERVICE_UID}:${SERVICE_GID} / /app/services/common
+COPY --chown=${SERVICE_UID}:${SERVICE_GID} . /app/services/gateway
 RUN rm -rf /app/services/gateway/.staging
 # Copy Config (base: SSL certs, HAProxy, etc.)
 COPY --chown=${SERVICE_UID}:${SERVICE_GID} config /app/config
@@ -110,7 +110,7 @@ RUN if [ -f /tmp/config/functions.yml ]; then \
     fi && \
     rm -rf /tmp/config
 
-COPY --chown=${SERVICE_UID}:${SERVICE_GID} services/gateway/entrypoint.sh /app/entrypoint.sh
+COPY --chown=${SERVICE_UID}:${SERVICE_GID} entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
 ENV HOME=/app

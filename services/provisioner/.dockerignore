@@ -1,0 +1,13 @@
+# Where: services/provisioner/.dockerignore
+# What: Ignore local caches/staging data from the provisioner build context.
+# Why: Keep image contexts small and deterministic.
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+.esb/
+**/.esb/
+**/.staging/
+**/.*-staging/
