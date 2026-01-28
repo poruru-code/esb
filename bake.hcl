@@ -18,16 +18,25 @@ target "meta" {
 target "lambda-base" {
   context    = "cli/internal/generator/assets"
   dockerfile = "Dockerfile.lambda-base"
+  contexts = {
+    meta = "target:meta"
+  }
 }
 
 target "os-base" {
   context    = "services/common"
   dockerfile = "Dockerfile.os-base"
+  contexts = {
+    meta = "target:meta"
+  }
 }
 
 target "python-base" {
   context    = "services/common"
   dockerfile = "Dockerfile.python-base"
+  contexts = {
+    meta = "target:meta"
+  }
 }
 
 group "base-images" {

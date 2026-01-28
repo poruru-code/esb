@@ -122,11 +122,11 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	}
 	imageTag := strings.TrimSpace(request.Tag)
 
-	outputBase, err := resolveOutputDir(cfg.Paths.OutputDir, filepath.Dir(templatePath))
+	artifactBase, err := resolveOutputDir(cfg.Paths.OutputDir, filepath.Dir(templatePath))
 	if err != nil {
 		return err
 	}
-	cfg.Paths.OutputDir = filepath.Join(outputBase, request.Env)
+	cfg.Paths.OutputDir = filepath.Join(artifactBase, request.Env)
 
 	composeProject := strings.TrimSpace(request.ProjectName)
 	if composeProject == "" {
@@ -245,9 +245,11 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	}
 
 	cacheRoot := ""
-	if !request.NoCache {
-		cacheRoot = bakeCacheRoot(outputBase, request.Env, mode)
+	cacheBase, err := resolveOutputDir("", repoRoot)
+	if err != nil {
+		return err
 	}
+	cacheRoot = bakeCacheRoot(cacheBase)
 
 	lambdaBaseTag := lambdaBaseImageTag(registryForPush, imageTag)
 

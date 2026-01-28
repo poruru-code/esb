@@ -54,7 +54,7 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeTestFile(t, filepath.Join(traceToolsDir, "generate_version_json.py"), "#!/usr/bin/env python3\n")
-	writeTestFile(t, filepath.Join(traceToolsDir, "docker-bake.hcl"), "target \"meta\" {}\n")
+	writeTestFile(t, filepath.Join(repoRoot, "bake.hcl"), "target \"meta\" {}\n")
 
 	var gotCfg config.GeneratorConfig
 	var gotOpts GenerateOptions
@@ -226,6 +226,20 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(metaDir, "version.json")); err != nil {
 		t.Fatalf("expected version.json in meta dir: %v", err)
+	}
+
+	buildxCacheDir := filepath.Join(repoRoot, meta.OutputDir, "buildx-cache")
+	if !hasBakeFileContaining(dockerRunner.bakeFiles, "cache-from = [\"type=local,src="+buildxCacheDir) {
+		t.Fatalf("expected cache-from in bake file")
+	}
+	if !hasBakeFileContaining(dockerRunner.bakeFiles, "cache-to = [\"type=local,dest="+buildxCacheDir) {
+		t.Fatalf("expected cache-to in bake file")
+	}
+	if !hasDockerBakeAllowPrefix(dockerRunner.calls, "--allow=fs.read="+buildxCacheDir) {
+		t.Fatalf("expected --allow=fs.read for buildx cache")
+	}
+	if !hasDockerBakeAllowPrefix(dockerRunner.calls, "--allow=fs.write="+buildxCacheDir) {
+		t.Fatalf("expected --allow=fs.write for buildx cache")
 	}
 
 	if hasComposeUpRegistry(composeRunner.calls) {
@@ -498,4 +512,21 @@ func writeComposeFiles(t *testing.T, root string, names ...string) {
 	for _, name := range names {
 		writeTestFile(t, filepath.Join(root, name), "version: '3'\n")
 	}
+}
+
+func hasDockerBakeAllowPrefix(calls []commandCall, prefix string) bool {
+	for _, call := range calls {
+		if call.name != "docker" || len(call.args) < 2 {
+			continue
+		}
+		if call.args[0] != "buildx" || call.args[1] != "bake" {
+			continue
+		}
+		for _, arg := range call.args {
+			if strings.HasPrefix(arg, prefix) {
+				return true
+			}
+		}
+	}
+	return false
 }

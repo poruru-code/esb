@@ -78,7 +78,7 @@ func prepareMetaContext(
 		return "", fmt.Errorf("repo root is required")
 	}
 	metaDir := filepath.Join(root, meta.OutputDir, "meta")
-	bakeFile := filepath.Join(root, "tools", "traceability", "docker-bake.hcl")
+	bakeFile := filepath.Join(root, "bake.hcl")
 	if _, err := os.Stat(bakeFile); err != nil {
 		return "", fmt.Errorf("bake file not found: %w", err)
 	}

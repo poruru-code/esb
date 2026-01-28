@@ -50,7 +50,7 @@ func runBakeGroup(
 		return nil
 	}
 
-	bakeFile := filepath.Join(repoRoot, "tools", "traceability", "docker-bake.hcl")
+	bakeFile := filepath.Join(repoRoot, "bake.hcl")
 	if _, err := os.Stat(bakeFile); err != nil {
 		return fmt.Errorf("bake file not found: %w", err)
 	}
@@ -64,13 +64,15 @@ func runBakeGroup(
 	args := []string{"buildx", "bake"}
 	args = append(args, bakeAllowArgs(targets)...)
 	args = append(args, "-f", bakeFile, "-f", tmpFile, "--load")
-	if verbose {
-		args = append(args, "--progress", "plain")
+	return withBuildLock("bake", func() error {
+		if verbose {
+			args = append(args, "--progress", "plain")
+			args = append(args, groupName)
+			return runner.Run(ctx, repoRoot, "docker", args...)
+		}
 		args = append(args, groupName)
-		return runner.Run(ctx, repoRoot, "docker", args...)
-	}
-	args = append(args, groupName)
-	return runner.RunQuiet(ctx, repoRoot, "docker", args...)
+		return runner.RunQuiet(ctx, repoRoot, "docker", args...)
+	})
 }
 
 func writeBakeFile(groupName string, targets []bakeTarget) (string, error) {
@@ -276,20 +278,8 @@ func parseBakeKeyValuePath(spec, key string) string {
 	return ""
 }
 
-func bakeCacheRoot(outputBase, env, mode string) string {
-	base := filepath.Join(outputBase, "buildx-cache")
-	env = sanitizePathSegment(env)
-	mode = sanitizePathSegment(mode)
-	if env == "" && mode == "" {
-		return filepath.Join(base, "default")
-	}
-	if env == "" {
-		return filepath.Join(base, mode)
-	}
-	if mode == "" {
-		return filepath.Join(base, env)
-	}
-	return filepath.Join(base, env, mode)
+func bakeCacheRoot(outputBase string) string {
+	return filepath.Join(outputBase, "buildx-cache")
 }
 
 func applyBakeLocalCache(target *bakeTarget, cacheRoot, group string) error {
@@ -310,8 +300,8 @@ func applyBakeLocalCache(target *bakeTarget, cacheRoot, group string) error {
 	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
 		return err
 	}
-	target.CacheFrom = []string{fmt.Sprintf("type=local,src=%s", cacheDir)}
-	target.CacheTo = []string{fmt.Sprintf("type=local,dest=%s,mode=max", cacheDir)}
+	target.CacheFrom = append(target.CacheFrom, fmt.Sprintf("type=local,src=%s", cacheDir))
+	target.CacheTo = append(target.CacheTo, fmt.Sprintf("type=local,dest=%s,mode=max", cacheDir))
 	return nil
 }
 
