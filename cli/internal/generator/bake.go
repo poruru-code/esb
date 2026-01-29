@@ -282,6 +282,9 @@ func bakeCacheRoot(outputBase string) string {
 	return filepath.Join(outputBase, "buildx-cache")
 }
 
+// applyBakeLocalCache configures local cache settings for a bake target.
+// It appends to any existing CacheFrom/CacheTo settings, preserving configuration
+// defined in the base docker-bake.hcl.
 func applyBakeLocalCache(target *bakeTarget, cacheRoot, group string) error {
 	if target == nil || strings.TrimSpace(cacheRoot) == "" {
 		return nil
