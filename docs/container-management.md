@@ -128,8 +128,7 @@ sequenceDiagram
 # 全イメージを強制リビルド
 esb build --no-cache
 
-# Control-plane イメージを再ビルドして起動
-docker compose -f docker-compose.docker.yml build
+# Control-plane イメージを起動
 docker compose -f docker-compose.docker.yml up -d
 ```
 
@@ -162,7 +161,6 @@ ctr -n <brand> containers list
 **解決策**:
 ```bash
 esb build --no-cache
-docker compose -f docker-compose.docker.yml build
 docker compose -f docker-compose.docker.yml up -d
 ```
 

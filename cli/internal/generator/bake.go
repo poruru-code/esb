@@ -61,7 +61,7 @@ func runBakeGroup(
 	}
 	defer func() { _ = os.Remove(tmpFile) }()
 
-	args := []string{"buildx", "bake"}
+	args := []string{"buildx", "bake", "--builder", "default"}
 	args = append(args, bakeAllowArgs(targets)...)
 	args = append(args, "-f", bakeFile, "-f", tmpFile, "--load")
 	return withBuildLock("bake", func() error {
@@ -203,6 +203,10 @@ func bakeAllowArgs(targets []bakeTarget) []string {
 	readPaths := make(map[string]struct{})
 	writePaths := make(map[string]struct{})
 	for _, target := range targets {
+		addBakeReadPath(readPaths, target.Context)
+		for _, contextPath := range target.Contexts {
+			addBakeReadPath(readPaths, contextPath)
+		}
 		for _, secret := range target.Secrets {
 			path := parseBakeSecretPath(secret)
 			if path == "" {
@@ -250,6 +254,22 @@ func bakeAllowArgs(targets []bakeTarget) []string {
 		}
 	}
 	return args
+}
+
+func addBakeReadPath(readPaths map[string]struct{}, value string) {
+	if strings.TrimSpace(value) == "" {
+		return
+	}
+	if strings.HasPrefix(value, "target:") {
+		return
+	}
+	if strings.Contains(value, "://") {
+		return
+	}
+	if !filepath.IsAbs(value) {
+		return
+	}
+	readPaths[value] = struct{}{}
 }
 
 func parseBakeSecretPath(spec string) string {

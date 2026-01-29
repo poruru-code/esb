@@ -435,6 +435,217 @@ func buildFunctionImages(
 	return nil
 }
 
+func buildControlImages(
+	ctx context.Context,
+	runner compose.CommandRunner,
+	repoRoot string,
+	composeProject string,
+	env string,
+	mode string,
+	registry string,
+	tag string,
+	noCache bool,
+	verbose bool,
+	labels map[string]string,
+	cacheRoot string,
+	buildContexts []buildContext,
+) ([]string, error) {
+	if runner == nil {
+		return nil, fmt.Errorf("command runner is nil")
+	}
+	root := strings.TrimSpace(repoRoot)
+	if root == "" {
+		return nil, fmt.Errorf("repo root is required")
+	}
+	mode = strings.ToLower(strings.TrimSpace(mode))
+	if mode == "" {
+		mode = compose.ModeDocker
+	}
+	metaDir, err := findBuildContextPath(buildContexts, "meta")
+	if err != nil {
+		return nil, err
+	}
+
+	configDir := filepath.ToSlash(staging.ConfigDir(composeProject, env))
+	commonDir := filepath.ToSlash(filepath.Join(root, "services", "common"))
+	gatewayDir := filepath.ToSlash(filepath.Join(root, "services", "gateway"))
+	agentDir := filepath.ToSlash(filepath.Join(root, "services", "agent"))
+	provisionerDir := filepath.ToSlash(filepath.Join(root, "services", "provisioner"))
+	runtimeNodeDir := filepath.ToSlash(filepath.Join(root, "services", "runtime-node"))
+	generatorAssetsDir := filepath.ToSlash(filepath.Join(
+		root,
+		"cli",
+		"internal",
+		"generator",
+		"assets",
+		"site-packages",
+	))
+	metaModuleDir := filepath.ToSlash(filepath.Join(root, "meta"))
+
+	pythonBaseImage := fmt.Sprintf("%s-python-base:latest", meta.ImagePrefix)
+	osBaseImage := fmt.Sprintf("%s-os-base:latest", meta.ImagePrefix)
+	pythonBaseContext := fmt.Sprintf("docker-image://%s", pythonBaseImage)
+	osBaseContext := fmt.Sprintf("docker-image://%s", osBaseImage)
+
+	serviceUser := strings.TrimSpace(composeProject)
+	if serviceUser == "" {
+		serviceUser = meta.Slug
+	}
+	serviceUID := strings.TrimSpace(os.Getenv("RUN_UID"))
+	if serviceUID == "" {
+		serviceUID = "1000"
+	}
+	serviceGID := strings.TrimSpace(os.Getenv("RUN_GID"))
+	if serviceGID == "" {
+		serviceGID = "1000"
+	}
+
+	proxyArgs := dockerBuildArgMap()
+	makeTag := func(name string) string {
+		return joinRegistry(registry, fmt.Sprintf("%s:%s", name, tag))
+	}
+
+	targets := make([]bakeTarget, 0, 4)
+	built := make([]string, 0, 4)
+
+	switch mode {
+	case compose.ModeContainerd:
+		runtimeDockerfile := filepath.Join(runtimeNodeDir, "Dockerfile.containerd")
+		if _, err := os.Stat(runtimeDockerfile); err != nil {
+			return nil, fmt.Errorf("dockerfile not found: %w", err)
+		}
+		runtimeTag := makeTag(fmt.Sprintf("%s-runtime-node-containerd", meta.ImagePrefix))
+		runtimeTarget := bakeTarget{
+			Name:       "runtime-node-containerd",
+			Context:    runtimeNodeDir,
+			Dockerfile: runtimeDockerfile,
+			Tags:       []string{runtimeTag},
+			Labels:     labels,
+			Args: mergeStringMap(proxyArgs, map[string]string{
+				"OS_BASE_IMAGE": "os-base",
+			}),
+			Contexts: map[string]string{
+				"meta":    metaDir,
+				"os-base": osBaseContext,
+			},
+			NoCache: noCache,
+		}
+		if err := applyBakeLocalCache(&runtimeTarget, cacheRoot, "control"); err != nil {
+			return nil, err
+		}
+		targets = append(targets, runtimeTarget)
+		built = append(built, "runtime-node")
+	}
+
+	agentDockerfile := filepath.Join(agentDir, fmt.Sprintf("Dockerfile.%s", mode))
+	if _, err := os.Stat(agentDockerfile); err != nil {
+		return nil, fmt.Errorf("dockerfile not found: %w", err)
+	}
+	agentTag := makeTag(fmt.Sprintf("%s-agent-%s", meta.ImagePrefix, mode))
+	agentTarget := bakeTarget{
+		Name:       fmt.Sprintf("agent-%s", mode),
+		Context:    agentDir,
+		Dockerfile: agentDockerfile,
+		Tags:       []string{agentTag},
+		Labels:     labels,
+		Args: mergeStringMap(proxyArgs, map[string]string{
+			"OS_BASE_IMAGE": "os-base",
+		}),
+		Contexts: map[string]string{
+			"meta":        metaDir,
+			"meta_module": metaModuleDir,
+			"os-base":     osBaseContext,
+		},
+		NoCache: noCache,
+	}
+	if err := applyBakeLocalCache(&agentTarget, cacheRoot, "control"); err != nil {
+		return nil, err
+	}
+	targets = append(targets, agentTarget)
+	built = append(built, "agent")
+
+	provisionerDockerfile := filepath.Join(provisionerDir, "Dockerfile")
+	if _, err := os.Stat(provisionerDockerfile); err != nil {
+		return nil, fmt.Errorf("dockerfile not found: %w", err)
+	}
+	provisionerTag := makeTag(fmt.Sprintf("%s-provisioner", meta.ImagePrefix))
+	provisionerTarget := bakeTarget{
+		Name:       "provisioner",
+		Context:    provisionerDir,
+		Dockerfile: provisionerDockerfile,
+		Tags:       []string{provisionerTag},
+		Labels:     labels,
+		Args: mergeStringMap(proxyArgs, map[string]string{
+			"PYTHON_BASE_IMAGE": "python-base",
+		}),
+		Contexts: map[string]string{
+			"meta":             metaDir,
+			"config":           configDir,
+			"generator_assets": generatorAssetsDir,
+			"python-base":      pythonBaseContext,
+		},
+		NoCache: noCache,
+	}
+	if err := applyBakeLocalCache(&provisionerTarget, cacheRoot, "control"); err != nil {
+		return nil, err
+	}
+	targets = append(targets, provisionerTarget)
+	built = append(built, "provisioner")
+
+	gatewayDockerfile := filepath.Join(gatewayDir, fmt.Sprintf("Dockerfile.%s", mode))
+	if _, err := os.Stat(gatewayDockerfile); err != nil {
+		return nil, fmt.Errorf("dockerfile not found: %w", err)
+	}
+	gatewayTag := makeTag(fmt.Sprintf("%s-gateway-%s", meta.ImagePrefix, mode))
+	gatewayTarget := bakeTarget{
+		Name:       fmt.Sprintf("gateway-%s", mode),
+		Context:    gatewayDir,
+		Dockerfile: gatewayDockerfile,
+		Tags:       []string{gatewayTag},
+		Labels:     labels,
+		Args: mergeStringMap(proxyArgs, map[string]string{
+			"PYTHON_BASE_IMAGE": "python-base",
+			"SERVICE_USER":      serviceUser,
+			"SERVICE_UID":       serviceUID,
+			"SERVICE_GID":       serviceGID,
+		}),
+		Contexts: map[string]string{
+			"meta":        metaDir,
+			"config":      configDir,
+			"common":      commonDir,
+			"python-base": pythonBaseContext,
+		},
+		NoCache: noCache,
+	}
+	if err := applyBakeLocalCache(&gatewayTarget, cacheRoot, "control"); err != nil {
+		return nil, err
+	}
+	targets = append(targets, gatewayTarget)
+	built = append(built, "gateway")
+
+	if len(targets) == 0 {
+		return nil, nil
+	}
+	if verbose {
+		fmt.Println("Building control plane images...")
+		for _, name := range built {
+			fmt.Printf("  Building image for %s...\n", name)
+		}
+	}
+	if err := runBakeGroup(
+		ctx,
+		runner,
+		root,
+		"esb-control",
+		targets,
+		verbose,
+	); err != nil {
+		return nil, err
+	}
+
+	return built, nil
+}
+
 func pushDockerImage(
 	ctx context.Context,
 	runner compose.CommandRunner,

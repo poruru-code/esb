@@ -21,6 +21,7 @@ from e2e.runner.utils import (
     BRAND_SLUG,
     E2E_STATE_ROOT,
     PROJECT_ROOT,
+    build_unique_tag,
     env_key,
     run_esb,
 )
@@ -539,6 +540,15 @@ def run_scenario(args, scenario):
     if not template_path.exists():
         raise FileNotFoundError(f"Missing E2E template: {template_path}")
     runtime_env = calculate_runtime_env(project_name, env_name, mode, env_file)
+    tag_key = env_key(constants.ENV_TAG)
+    tag_override = env_vars_override.get(tag_key) or os.environ.get(tag_key)
+    if tag_override:
+        runtime_env[tag_key] = tag_override
+    else:
+        current_tag = runtime_env.get(tag_key, "").strip()
+        if current_tag == "" or current_tag == "latest":
+            runtime_env[tag_key] = build_unique_tag(env_name)
+    os.environ[tag_key] = runtime_env.get(tag_key, "")
     build_env_base = runtime_env.copy()
     build_env_base["PROJECT_NAME"] = f"{project_name}-{env_name}"
     build_env_base["ESB_META_REUSE"] = "1"

@@ -62,3 +62,112 @@ target "python-base" {
 group "base-images" {
   targets = ["lambda-base", "os-base", "python-base"]
 }
+
+// Control plane images (Docker mode).
+target "gateway-docker" {
+  context    = "services/gateway"
+  dockerfile = "Dockerfile.docker"
+  contexts = {
+    meta        = "target:meta"
+    config      = "services/gateway/config"
+    common      = "services/common"
+    python-base = "docker-image://esb-python-base:latest"
+  }
+  args = {
+    PYTHON_BASE_IMAGE = "python-base"
+    SERVICE_USER      = "esb"
+    SERVICE_UID       = "1000"
+    SERVICE_GID       = "1000"
+  }
+  tags   = ["esb-gateway-docker:latest"]
+  output = ["type=docker"]
+}
+
+target "agent-docker" {
+  context    = "services/agent"
+  dockerfile = "Dockerfile.docker"
+  contexts = {
+    meta        = "target:meta"
+    meta_module = "meta"
+    os-base     = "docker-image://esb-os-base:latest"
+  }
+  args = {
+    OS_BASE_IMAGE = "os-base"
+  }
+  tags   = ["esb-agent-docker:latest"]
+  output = ["type=docker"]
+}
+
+// Control plane images (shared/provisioner).
+target "provisioner" {
+  context    = "services/provisioner"
+  dockerfile = "Dockerfile"
+  contexts = {
+    meta             = "target:meta"
+    config           = "services/gateway/config"
+    generator_assets = "cli/internal/generator/assets/site-packages"
+    python-base      = "docker-image://esb-python-base:latest"
+  }
+  args = {
+    PYTHON_BASE_IMAGE = "python-base"
+  }
+  tags   = ["esb-provisioner:latest"]
+  output = ["type=docker"]
+}
+
+// Control plane images (containerd mode).
+target "runtime-node-containerd" {
+  context    = "services/runtime-node"
+  dockerfile = "Dockerfile.containerd"
+  contexts = {
+    meta    = "target:meta"
+    os-base = "docker-image://esb-os-base:latest"
+  }
+  args = {
+    OS_BASE_IMAGE = "os-base"
+  }
+  tags   = ["esb-runtime-node-containerd:latest"]
+  output = ["type=docker"]
+}
+
+target "agent-containerd" {
+  context    = "services/agent"
+  dockerfile = "Dockerfile.containerd"
+  contexts = {
+    meta        = "target:meta"
+    meta_module = "meta"
+    os-base     = "docker-image://esb-os-base:latest"
+  }
+  args = {
+    OS_BASE_IMAGE = "os-base"
+  }
+  tags   = ["esb-agent-containerd:latest"]
+  output = ["type=docker"]
+}
+
+target "gateway-containerd" {
+  context    = "services/gateway"
+  dockerfile = "Dockerfile.containerd"
+  contexts = {
+    meta        = "target:meta"
+    config      = "services/gateway/config"
+    common      = "services/common"
+    python-base = "docker-image://esb-python-base:latest"
+  }
+  args = {
+    PYTHON_BASE_IMAGE = "python-base"
+    SERVICE_USER      = "esb"
+    SERVICE_UID       = "1000"
+    SERVICE_GID       = "1000"
+  }
+  tags   = ["esb-gateway-containerd:latest"]
+  output = ["type=docker"]
+}
+
+group "control-images-docker" {
+  targets = ["gateway-docker", "agent-docker", "provisioner"]
+}
+
+group "control-images-containerd" {
+  targets = ["runtime-node-containerd", "gateway-containerd", "agent-containerd", "provisioner"]
+}
