@@ -165,10 +165,12 @@ services:
 - Root CA 関連の build args は既存どおり。
 - `IMAGE_RUNTIME` は Dockerfile の `ENV` で固定し、ビルド引数としては渡さない。
 
-### 7.2 esb build（docker build）での追加コンテキスト
-- `esb build` は関数/ベースイメージのビルドに `docker build` を使用する。
+### 7.2 esb build（docker buildx bake）での追加コンテキスト
+- `esb build` は関数/ベースイメージのビルドに `docker buildx bake` を使用する。
 - CLI は build 前に Docker Bake で `version.json` を 1 回生成し、`.esb/meta` に出力する。
-- 各 `docker build` には `--build-context meta=...` のみを渡す。
+- `tools/traceability/docker-bake.hcl` に base ターゲットを追加し、実行時に生成する bake ファイルで
+  function ターゲットと build args/labels/contexts を上書きする。
+- 各 bake ターゲットに `contexts.meta` を追加し、`version.json` を共有する。
 - `gitdir/commondir` は Bake 用に解決し、worktree でも CLI が自動で処理する。
 
 #### 7.2.1 CLI 実装詳細（コードレベル）
@@ -179,7 +181,7 @@ services:
 - `resolveGitContext` の呼び出しは `b.Runner` を使用する（本番は `compose.ExecRunner`）。
 - Bake が失敗した場合は `esb build` を即時失敗させ、エラーメッセージに `git rev-parse` の失敗理由を含める。
 - `prepareMetaContext` で `docker buildx bake` を実行し、`.esb/meta/version.json` を生成する。
-- `buildDockerImage` のシグネチャに build context を追加する。
+- Bake 用の補助関数を追加し、base/functions を並列ビルドする。
 
 ```go
 type buildContext struct {
@@ -200,9 +202,8 @@ func buildDockerImage(
 ) error
 ```
 
-- 追加対象の `docker build` 呼び出し:
-  - `buildBaseImage()`（lambda-base）
-  - OS base / Python base
+- 追加対象の bake 実行:
+  - base イメージ（lambda-base / os-base / python-base）
   - `buildFunctionImages()`（各関数イメージ）
 - `buildContexts` には `meta` のみを入れる。
 - `trace_tools` の実体は `filepath.Join(repoRoot, "tools", "traceability")` とし、

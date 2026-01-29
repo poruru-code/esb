@@ -30,6 +30,9 @@ jobs:
             -days 365 \
             -subj "/CN=esb-ci"
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build core images
         env:
           DOCKER_BUILDKIT: "1"

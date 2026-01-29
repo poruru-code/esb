@@ -38,11 +38,10 @@ ENV IMAGE_RUNTIME="containerd"
 
 WORKDIR /app
 
-COPY --from=meta /version.json /app/version.json
-
 # Install containerd runtime tools and CNI plugins (apt-get as base is Debian)
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    --mount=type=cache,target=/var/cache/cni,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
     iproute2 \
     iptables \
@@ -51,11 +50,15 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && ARCH=$(uname -m) \
     && if [ "$ARCH" = "x86_64" ]; then ARCH="amd64"; fi \
     && if [ "$ARCH" = "aarch64" ]; then ARCH="arm64"; fi \
-    && curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors --connect-timeout 15 --max-time 300 \
-    -o cni-plugins.tgz "https://github.com/containernetworking/plugins/releases/download/${CNI_PLUGINS_VERSION}/cni-plugins-linux-${ARCH}-${CNI_PLUGINS_VERSION}.tgz" \
+    && CNI_CACHE_DIR="/var/cache/cni" \
+    && CNI_ARCHIVE="${CNI_CACHE_DIR}/cni-plugins-linux-${ARCH}-${CNI_PLUGINS_VERSION}.tgz" \
+    && mkdir -p "${CNI_CACHE_DIR}" \
+    && if [ ! -f "${CNI_ARCHIVE}" ]; then \
+         curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors --connect-timeout 15 --max-time 300 \
+         -o "${CNI_ARCHIVE}" "https://github.com/containernetworking/plugins/releases/download/${CNI_PLUGINS_VERSION}/cni-plugins-linux-${ARCH}-${CNI_PLUGINS_VERSION}.tgz"; \
+       fi \
     && mkdir -p /opt/cni/bin \
-    && tar -C /opt/cni/bin -xzf cni-plugins.tgz \
-    && rm cni-plugins.tgz \
+    && tar -C /opt/cni/bin -xzf "${CNI_ARCHIVE}" \
     && apt-get purge -y --auto-remove curl \
     && rm -rf /var/lib/apt/lists/*
 
@@ -66,6 +69,8 @@ COPY --from=builder /app/agent /app/agent
 # entrypoint.sh (local)
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
+
+COPY --from=meta /version.json /app/version.json
 
 ENV PORT=50051
 
