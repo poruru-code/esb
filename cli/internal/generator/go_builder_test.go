@@ -12,7 +12,6 @@ import (
 
 	"github.com/poruru/edge-serverless-box/meta"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
@@ -49,6 +48,19 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	}
 	writeTestFile(t, filepath.Join(repoRoot, "pyproject.toml"), "[project]\n")
 	writeTestFile(t, filepath.Join(repoRoot, "cli", "internal", "generator", "assets", "Dockerfile.lambda-base"), "FROM scratch\n")
+	writeTestFile(t, filepath.Join(repoRoot, "services", "gateway", "Dockerfile.containerd"), "FROM scratch\n")
+	if err := os.MkdirAll(filepath.Join(repoRoot, "services", "agent"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(repoRoot, "services", "provisioner"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(repoRoot, "services", "runtime-node"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, filepath.Join(repoRoot, "services", "agent", "Dockerfile.containerd"), "FROM scratch\n")
+	writeTestFile(t, filepath.Join(repoRoot, "services", "provisioner", "Dockerfile"), "FROM scratch\n")
+	writeTestFile(t, filepath.Join(repoRoot, "services", "runtime-node", "Dockerfile.containerd"), "FROM scratch\n")
 	traceToolsDir := filepath.Join(repoRoot, "tools", "traceability")
 	if err := os.MkdirAll(traceToolsDir, 0o755); err != nil {
 		t.Fatal(err)
@@ -83,18 +95,13 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 			constants.EnvPortRegistry: 5010,
 		},
 	}
-	var buildOpts compose.BuildOptions
 
 	builder := &GoBuilder{
 		Runner:         dockerRunner,
 		ComposeRunner:  composeRunner,
 		PortDiscoverer: portDiscoverer,
-		BuildCompose: func(_ context.Context, _ compose.CommandRunner, opts compose.BuildOptions) error {
-			buildOpts = opts
-			return nil
-		},
-		Generate:     generate,
-		FindRepoRoot: func(string) (string, error) { return repoRoot, nil },
+		Generate:       generate,
+		FindRepoRoot:   func(string) (string, error) { return repoRoot, nil },
 	}
 
 	modeKey, err := envutil.HostEnvKey(constants.HostSuffixMode)
@@ -144,28 +151,6 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		t.Fatalf("missing DYNAMODB_ENDPOINT_HOST parameter")
 	}
 
-	if buildOpts.RootDir != repoRoot {
-		t.Fatalf("unexpected compose root: %s", buildOpts.RootDir)
-	}
-	if buildOpts.Project != "demo-staging" {
-		t.Fatalf("unexpected compose project: %s", buildOpts.Project)
-	}
-	if buildOpts.Mode != "containerd" {
-		t.Fatalf("unexpected compose mode: %s", buildOpts.Mode)
-	}
-	if buildOpts.Target != "control" {
-		t.Fatalf("unexpected compose target: %s", buildOpts.Target)
-	}
-	expectedServices := []string{"os-base", "python-base", "gateway", "agent", "provisioner"}
-	if len(buildOpts.Services) != len(expectedServices) {
-		t.Fatalf("unexpected compose services: %v", buildOpts.Services)
-	}
-	for i, service := range expectedServices {
-		if buildOpts.Services[i] != service {
-			t.Fatalf("unexpected compose services: %v", buildOpts.Services)
-		}
-	}
-
 	expectedConfigDir := filepath.ToSlash(staging.ConfigDir("demo-staging", "staging"))
 	if got := os.Getenv(constants.EnvConfigDir); got != expectedConfigDir {
 		t.Fatalf("unexpected %s: %s", constants.EnvConfigDir, got)
@@ -190,11 +175,26 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	if !hasDockerBakeGroup(dockerRunner.calls, "esb-functions") {
 		t.Fatalf("expected bake for function images")
 	}
+	if !hasDockerBakeGroup(dockerRunner.calls, "esb-control") {
+		t.Fatalf("expected bake for control plane images")
+	}
 	if !hasDockerPushTag(dockerRunner.calls, "localhost:5010/"+meta.ImagePrefix+"-lambda-base:v1.2.3") {
 		t.Fatalf("expected base image push")
 	}
 	if !hasDockerPushTag(dockerRunner.calls, "localhost:5010/"+meta.ImagePrefix+"-hello:v1.2.3") {
 		t.Fatalf("expected function image push")
+	}
+	if !hasBakeFileContaining(dockerRunner.bakeFiles, meta.ImagePrefix+"-gateway-containerd:v1.2.3") {
+		t.Fatalf("expected gateway containerd image tag in bake file")
+	}
+	if !hasBakeFileContaining(dockerRunner.bakeFiles, meta.ImagePrefix+"-agent-containerd:v1.2.3") {
+		t.Fatalf("expected agent containerd image tag in bake file")
+	}
+	if !hasBakeFileContaining(dockerRunner.bakeFiles, meta.ImagePrefix+"-runtime-node-containerd:v1.2.3") {
+		t.Fatalf("expected runtime node image tag in bake file")
+	}
+	if !hasBakeFileContaining(dockerRunner.bakeFiles, meta.ImagePrefix+"-provisioner:v1.2.3") {
+		t.Fatalf("expected provisioner image tag in bake file")
 	}
 	if !hasBakeFileContaining(dockerRunner.bakeFiles, meta.LabelPrefix+".managed") {
 		t.Fatalf("expected managed label in bake file")
@@ -244,6 +244,9 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 
 	if hasComposeUpRegistry(composeRunner.calls) {
 		t.Fatalf("unexpected registry compose up")
+	}
+	if len(composeRunner.calls) != 0 {
+		t.Fatalf("unexpected compose runner calls: %v", composeRunner.calls)
 	}
 }
 

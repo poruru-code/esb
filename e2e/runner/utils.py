@@ -1,6 +1,7 @@
 import os
 import re
 import subprocess
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
@@ -105,6 +106,36 @@ def env_key(suffix: str) -> str:
     if suffix in prefix_less:
         return suffix
     return f"{ENV_PREFIX}_{suffix}"
+
+
+_TAG_PART_RE = re.compile(r"[^a-z0-9_.-]+")
+
+
+def _sanitize_tag_part(value: str) -> str:
+    cleaned = _TAG_PART_RE.sub("-", value.strip().lower()).strip("._-")
+    return cleaned or "default"
+
+
+def _git_short_sha(root: Path) -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except Exception:
+        return None
+    value = result.stdout.strip()
+    return value or None
+
+
+def build_unique_tag(env_name: str) -> str:
+    safe_env = _sanitize_tag_part(env_name or "default")
+    short_sha = _git_short_sha(PROJECT_ROOT)
+    if short_sha:
+        return f"e2e-{safe_env}-{short_sha}"
+    return f"e2e-{safe_env}-{int(time.time())}"
 
 
 def resolve_env_file_path(env_file: Optional[str]) -> Optional[str]:

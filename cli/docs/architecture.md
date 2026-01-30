@@ -12,7 +12,7 @@ graph TD
     CLI --> Workflows[BuildWorkflow]
     Workflows --> Builder[GoBuilder]
     Builder --> Generator[Generator]
-    Builder --> Compose[Docker Compose]
+    Builder --> Bake[Docker Buildx Bake]
     Generator --> Files[functions.yml / routing.yml / resources.yml]
 ```
 

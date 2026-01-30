@@ -51,7 +51,7 @@ CLIアダプタは `cli/internal/commands/build.go` にあり、オーケスト�
    - ローカルレジストリが稼働していることを確認します (必要な場合)。
    - ベースイメージ (共有レイヤー) をビルドします。
    - 個別の関数イメージをビルドします。
-   - コントロールプレーン (Gateway/Agent) をDocker Compose経由でビルドします。
+   - コントロールプレーン (Gateway/Agent/Provisioner/Runtime Node) をDocker Buildx Bakeでビルドします。
 
 ## シーケンス図
 

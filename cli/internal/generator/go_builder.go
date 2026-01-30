@@ -67,9 +67,6 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	if b.ComposeRunner == nil {
 		return fmt.Errorf("compose runner is nil")
 	}
-	if b.BuildCompose == nil {
-		return fmt.Errorf("compose build is not configured")
-	}
 	if b.Generate == nil {
 		return fmt.Errorf("generator is not configured")
 	}
@@ -216,7 +213,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 					return err
 				}
 				if port, ok := ports[constants.EnvPortRegistry]; ok && port > 0 {
-					registryForPush = fmt.Sprintf("localhost:%d/", port)
+					registryForPush = fmt.Sprintf("127.0.0.1:%d/", port)
 				}
 			}
 		}
@@ -252,6 +249,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	cacheRoot = bakeCacheRoot(cacheBase)
 
 	lambdaBaseTag := lambdaBaseImageTag(registryForPush, imageTag)
+	lambdaTags := []string{lambdaBaseTag}
 
 	if err := withBuildLock("base-images", func() error {
 		metaDir, err := findBuildContextPath(buildContexts, "meta")
@@ -299,7 +297,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 			Name:       "lambda-base",
 			Context:    assetsDir,
 			Dockerfile: filepath.Join(assetsDir, "Dockerfile.lambda-base"),
-			Tags:       []string{lambdaBaseTag},
+			Tags:       lambdaTags,
 			Labels:     imageLabels,
 			Args:       proxyArgs,
 			Contexts: map[string]string{
@@ -462,26 +460,29 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	if !request.Verbose {
 		fmt.Println("Building control plane images...")
 	}
-
-	controlServices := []string{"os-base", "python-base", "gateway", "agent", "provisioner"}
-	opts := compose.BuildOptions{
-		RootDir:  repoRoot,
-		Project:  composeProject,
-		Mode:     mode,
-		Target:   "control",
-		Services: controlServices,
-		NoCache:  request.NoCache,
-		Verbose:  request.Verbose,
-		Stream:   !request.Verbose,
-	}
-	if err := b.BuildCompose(context.Background(), b.ComposeRunner, opts); err != nil {
+	builtControls, err := buildControlImages(
+		context.Background(),
+		b.Runner,
+		repoRoot,
+		composeProject,
+		request.Env,
+		mode,
+		registry.Registry,
+		imageTag,
+		request.NoCache,
+		request.Verbose,
+		imageLabels,
+		cacheRoot,
+		buildContexts,
+	)
+	if err != nil {
 		if !request.Verbose {
 			fmt.Println("Building control plane images... Failed")
 		}
 		return err
 	}
 	if !request.Verbose {
-		for _, svc := range controlServices {
+		for _, svc := range builtControls {
 			fmt.Printf("  - Built control plane image: %s\n", svc)
 		}
 		fmt.Println("Building control plane images... Done")

@@ -40,6 +40,7 @@ dev = [
     "respx>=0.20.2",
     "black>=23.11.0",
     "ruff>=0.1.6",
+    "rich>=13.7.1",
     "lefthook",  # Git hooks manager
     "cryptography>=41.0.0",  # For SSL certificate generation
     "requests>=2.31.0",      # For tests
