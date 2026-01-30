@@ -39,10 +39,11 @@ func resolveRegistryConfig(mode string) (registryConfig, error) {
 	}
 	registry := strings.TrimSpace(os.Getenv(key))
 	if registry == "" {
-		if normalized == compose.ModeContainerd {
-			return registryConfig{}, fmt.Errorf("ERROR: %s is required for containerd", key)
+		if normalized == compose.ModeDocker {
+			registry = constants.DefaultContainerRegistryHost
+		} else {
+			registry = constants.DefaultContainerRegistry
 		}
-		return registryConfig{}, nil
 	}
 	if !strings.HasSuffix(registry, "/") {
 		registry += "/"
@@ -113,7 +114,7 @@ func prepareMetaContext(
 			"buildx",
 			"bake",
 			"--builder",
-			"default",
+			buildxBuilderName,
 			"-f",
 			bakeFile,
 			"meta",
@@ -489,10 +490,7 @@ func buildControlImages(
 	pythonBaseContext := fmt.Sprintf("docker-image://%s", pythonBaseImage)
 	osBaseContext := fmt.Sprintf("docker-image://%s", osBaseImage)
 
-	serviceUser := strings.TrimSpace(composeProject)
-	if serviceUser == "" {
-		serviceUser = meta.Slug
-	}
+	serviceUser := meta.Slug
 	serviceUID := strings.TrimSpace(os.Getenv("RUN_UID"))
 	if serviceUID == "" {
 		serviceUID = "1000"

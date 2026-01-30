@@ -39,6 +39,13 @@ const (
 	HostSuffixRegistry         = "REGISTRY"
 	HostSuffixProvisionerTrace = "PROVISIONER_TRACE"
 
+	// Default registry (internal service name)
+	DefaultContainerRegistry = "registry:5010"
+	// Default registry (host access for docker mode)
+	DefaultContainerRegistryHost = "127.0.0.1:5010"
+	// Default buildx builder name
+	DefaultBuildxBuilder = "esb-buildx"
+
 	// Old Constants (kept temporarily for migration if needed, but renamed/cleaned up)
 	// These are actually the same keys but the constant name is renamed.
 	// Most will be replaced by dynamic keys using suffixes above.

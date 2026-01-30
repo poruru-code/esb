@@ -93,10 +93,11 @@ def test_calculate_runtime_env_override():
 
 
 def test_calculate_runtime_env_mode_registry_defaults():
-    # docker mode: registry is not required
+    # docker mode: registry defaults to host address
     env_docker = calculate_runtime_env("p", "e", "docker")
     registry_key = env_key(constants.ENV_REGISTRY)
-    assert registry_key not in env_docker
+    assert env_docker[registry_key] == f"{constants.DEFAULT_AGENT_REGISTRY_HOST}/"
+    assert env_docker[constants.ENV_CONTAINER_REGISTRY] == constants.DEFAULT_AGENT_REGISTRY_HOST
 
     # containerd mode: registry is required and normalized
     env_containerd = calculate_runtime_env("p", "e", "containerd")

@@ -25,7 +25,7 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv(registryKey, "localhost:5010")
+	t.Setenv(registryKey, "registry:5010")
 	projectDir := t.TempDir()
 	templatePath := filepath.Join(projectDir, "template.yaml")
 	writeTestFile(t, templatePath, "Resources: {}")
@@ -84,9 +84,10 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 
 	dockerRunner := &recordRunner{
 		outputs: map[string][]byte{
-			"git rev-parse --show-toplevel":  []byte(repoRoot),
-			"git rev-parse --git-dir":        []byte(".git"),
-			"git rev-parse --git-common-dir": []byte(".git"),
+			"git rev-parse --show-toplevel":              []byte(repoRoot),
+			"git rev-parse --git-dir":                    []byte(".git"),
+			"git rev-parse --git-common-dir":             []byte(".git"),
+			"docker buildx inspect --builder esb-buildx": []byte("Driver: docker-container\n"),
 		},
 	}
 	composeRunner := &recordRunner{}
@@ -135,10 +136,10 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	if gotOpts.ProjectRoot != repoRoot {
 		t.Fatalf("unexpected project root: %s", gotOpts.ProjectRoot)
 	}
-	if gotOpts.BuildRegistry != "localhost:5010/" {
+	if gotOpts.BuildRegistry != "127.0.0.1:5010/" {
 		t.Fatalf("unexpected build registry: %s", gotOpts.BuildRegistry)
 	}
-	if gotOpts.RuntimeRegistry != "localhost:5010/" {
+	if gotOpts.RuntimeRegistry != "registry:5010/" {
 		t.Fatalf("unexpected runtime registry: %s", gotOpts.RuntimeRegistry)
 	}
 	if gotOpts.Tag != "v1.2.3" {
@@ -178,10 +179,10 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	if !hasDockerBakeGroup(dockerRunner.calls, "esb-control") {
 		t.Fatalf("expected bake for control plane images")
 	}
-	if !hasDockerPushTag(dockerRunner.calls, "localhost:5010/"+meta.ImagePrefix+"-lambda-base:v1.2.3") {
+	if !hasDockerPushTag(dockerRunner.calls, "127.0.0.1:5010/"+meta.ImagePrefix+"-lambda-base:v1.2.3") {
 		t.Fatalf("expected base image push")
 	}
-	if !hasDockerPushTag(dockerRunner.calls, "localhost:5010/"+meta.ImagePrefix+"-hello:v1.2.3") {
+	if !hasDockerPushTag(dockerRunner.calls, "127.0.0.1:5010/"+meta.ImagePrefix+"-hello:v1.2.3") {
 		t.Fatalf("expected function image push")
 	}
 	if !hasBakeFileContaining(dockerRunner.bakeFiles, meta.ImagePrefix+"-gateway-containerd:v1.2.3") {
@@ -242,11 +243,8 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		t.Fatalf("expected --allow=fs.write for buildx cache")
 	}
 
-	if hasComposeUpRegistry(composeRunner.calls) {
-		t.Fatalf("unexpected registry compose up")
-	}
-	if len(composeRunner.calls) != 0 {
-		t.Fatalf("unexpected compose runner calls: %v", composeRunner.calls)
+	if !hasComposeUpRegistry(composeRunner.calls) {
+		t.Fatalf("expected registry compose up")
 	}
 }
 

@@ -96,6 +96,9 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	if err != nil {
 		return err
 	}
+	if err := ensureBuildxBuilder(context.Background(), b.Runner, repoRoot); err != nil {
+		return err
+	}
 	gitCtx, err := resolveGitContext(context.Background(), b.Runner, repoRoot)
 	if err != nil {
 		return err
@@ -173,16 +176,14 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		cfg.Parameters[key] = value
 	}
 	runtimeRegistry := registry.Registry
-	if request.Mode == compose.ModeContainerd {
-		if value := strings.TrimSpace(os.Getenv(constants.EnvContainerRegistry)); value != "" {
-			if !strings.HasSuffix(value, "/") {
-				value += "/"
-			}
-			runtimeRegistry = value
+	if value := strings.TrimSpace(os.Getenv(constants.EnvContainerRegistry)); value != "" {
+		if !strings.HasSuffix(value, "/") {
+			value += "/"
 		}
+		runtimeRegistry = value
 	}
 	registryForPush := registry.Registry
-	if request.Mode == compose.ModeContainerd && registryForPush != "" {
+	if registryForPush != "" {
 		trimmed := strings.TrimSuffix(registryForPush, "/")
 		host := trimmed
 		if slash := strings.Index(host, "/"); slash != -1 {

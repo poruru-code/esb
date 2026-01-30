@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/compose"
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 )
 
 type bakeTarget struct {
@@ -28,6 +29,8 @@ type bakeTarget struct {
 	CacheTo    []string
 	NoCache    bool
 }
+
+const buildxBuilderName = constants.DefaultBuildxBuilder
 
 func runBakeGroup(
 	ctx context.Context,
@@ -61,7 +64,7 @@ func runBakeGroup(
 	}
 	defer func() { _ = os.Remove(tmpFile) }()
 
-	args := []string{"buildx", "bake", "--builder", "default"}
+	args := []string{"buildx", "bake", "--builder", buildxBuilderName}
 	args = append(args, bakeAllowArgs(targets)...)
 	args = append(args, "-f", bakeFile, "-f", tmpFile, "--load")
 	return withBuildLock("bake", func() error {
@@ -302,6 +305,79 @@ func bakeCacheRoot(outputBase string) string {
 	return filepath.Join(outputBase, "buildx-cache")
 }
 
+func ensureBuildxBuilder(
+	ctx context.Context,
+	runner compose.CommandRunner,
+	repoRoot string,
+) error {
+	if runner == nil {
+		return fmt.Errorf("command runner is nil")
+	}
+	root := strings.TrimSpace(repoRoot)
+	if root == "" {
+		return fmt.Errorf("repo root is required")
+	}
+	return withBuildLock("buildx", func() error {
+		output, err := runner.RunOutput(
+			ctx,
+			root,
+			"docker",
+			"buildx",
+			"inspect",
+			"--builder",
+			buildxBuilderName,
+		)
+		if err != nil {
+			if err := runner.Run(
+				ctx,
+				root,
+				"docker",
+				"buildx",
+				"create",
+				"--name",
+				buildxBuilderName,
+				"--driver",
+				"docker-container",
+				"--use",
+				"--bootstrap",
+			); err != nil {
+				return err
+			}
+			output, err = runner.RunOutput(
+				ctx,
+				root,
+				"docker",
+				"buildx",
+				"inspect",
+				"--builder",
+				buildxBuilderName,
+				"--bootstrap",
+			)
+			if err != nil {
+				return err
+			}
+		}
+		driver := parseBuildxDriver(output)
+		if driver == "" {
+			return fmt.Errorf("buildx builder %s has no driver info", buildxBuilderName)
+		}
+		if !strings.EqualFold(driver, "docker-container") {
+			return fmt.Errorf("buildx builder %s uses driver %s (expected docker-container)", buildxBuilderName, driver)
+		}
+		return nil
+	})
+}
+
+func parseBuildxDriver(output []byte) string {
+	for _, line := range strings.Split(string(output), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "Driver:") {
+			return strings.TrimSpace(strings.TrimPrefix(line, "Driver:"))
+		}
+	}
+	return ""
+}
+
 // applyBakeLocalCache configures local cache settings for a bake target.
 // It appends to any existing CacheFrom/CacheTo settings, preserving configuration
 // defined in the base docker-bake.hcl.
@@ -324,7 +400,9 @@ func applyBakeLocalCache(target *bakeTarget, cacheRoot, group string) error {
 		return err
 	}
 	target.CacheFrom = append(target.CacheFrom, fmt.Sprintf("type=local,src=%s", cacheDir))
-	target.CacheTo = append(target.CacheTo, fmt.Sprintf("type=local,dest=%s,mode=max", cacheDir))
+	if strings.TrimSpace(os.Getenv("ESB_BUILDX_CACHE_TO")) != "0" {
+		target.CacheTo = append(target.CacheTo, fmt.Sprintf("type=local,dest=%s,mode=max", cacheDir))
+	}
 	return nil
 }
 

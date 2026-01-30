@@ -64,5 +64,6 @@ ENV_AgentGrpcAddress = "AGENT_GRPC_ADDRESS"
 
 # Default Values
 DEFAULT_AGENT_REGISTRY = "registry:5010"
+DEFAULT_AGENT_REGISTRY_HOST = "127.0.0.1:5010"
 DEFAULT_ROOT_CA_FILENAME = "rootCA.crt"
 DEFAULT_AUTH_Path = "/user/auth/v1"

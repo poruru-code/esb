@@ -22,7 +22,7 @@ const (
 	DefaultMaxResponseSize = 10 * 1024 * 1024 // 10MB
 
 	// Registry
-	DefaultContainerRegistry = ""
+	DefaultContainerRegistry = "registry:5010"
 
 	// gRPC Security
 	DefaultCertPath = "/app/config/ssl/server.crt"

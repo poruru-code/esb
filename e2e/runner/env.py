@@ -85,8 +85,11 @@ def calculate_runtime_env(
         env[tag_key] = tag
 
     registry = env.get(registry_key, "").strip()
-    if norm_mode == "containerd" and not registry:
-        registry = f"{constants.DEFAULT_AGENT_REGISTRY}/"
+    if not registry:
+        if norm_mode == "docker":
+            registry = f"{constants.DEFAULT_AGENT_REGISTRY_HOST}/"
+        else:
+            registry = f"{constants.DEFAULT_AGENT_REGISTRY}/"
         env[registry_key] = registry
     if registry and not registry.endswith("/"):
         env[registry_key] = registry + "/"
@@ -129,8 +132,11 @@ def calculate_runtime_env(
         env[constants.ENV_LAMBDA_NETWORK] = f"esb_int_{env_name}"
 
     # 4. Registry Defaults
-    if not env.get(constants.ENV_CONTAINER_REGISTRY) and norm_mode == "containerd":
-        env[constants.ENV_CONTAINER_REGISTRY] = constants.DEFAULT_AGENT_REGISTRY
+    if not env.get(constants.ENV_CONTAINER_REGISTRY):
+        if norm_mode == "docker":
+            env[constants.ENV_CONTAINER_REGISTRY] = constants.DEFAULT_AGENT_REGISTRY_HOST
+        else:
+            env[constants.ENV_CONTAINER_REGISTRY] = constants.DEFAULT_AGENT_REGISTRY
 
     # 5. Credentials (Simplified generation for E2E)
     if not env.get(constants.ENV_AUTH_USER):

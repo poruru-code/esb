@@ -63,6 +63,9 @@ func applyRuntimeEnv(ctx state.Context, resolver func(string) (string, error)) e
 
 	applyPortDefaults(env)
 	applySubnetDefaults(env)
+	if err := applyRegistryDefaults(ctx.Mode); err != nil {
+		return err
+	}
 
 	if err := applyConfigDirEnv(ctx, resolver); err != nil {
 		return err
@@ -76,6 +79,7 @@ func applyRuntimeEnv(ctx state.Context, resolver func(string) (string, error)) e
 	if os.Getenv("DOCKER_BUILDKIT") == "" {
 		_ = os.Setenv("DOCKER_BUILDKIT", "1")
 	}
+	setEnvIfEmpty("BUILDX_BUILDER", constants.DefaultBuildxBuilder)
 	return nil
 }
 
@@ -249,8 +253,37 @@ func applySubnetDefaults(env string) {
 	setEnvIfEmpty(constants.EnvLambdaNetwork, fmt.Sprintf("esb_int_%s", env))
 }
 
-// applyRegistryDefaults sets the CONTAINER_REGISTRY environment variable
-// for containerd mode when not already specified.
+// applyRegistryDefaults sets registry-related defaults for both docker and containerd modes.
+func applyRegistryDefaults(mode string) error {
+	normalized := strings.ToLower(strings.TrimSpace(mode))
+	if normalized == "" {
+		normalized = "docker"
+	}
+	containerRegistry := constants.DefaultContainerRegistry
+	if normalized == "docker" {
+		containerRegistry = constants.DefaultContainerRegistryHost
+	}
+	if strings.TrimSpace(os.Getenv(constants.EnvContainerRegistry)) == "" {
+		_ = os.Setenv(constants.EnvContainerRegistry, containerRegistry)
+	}
+	if strings.TrimSpace(containerRegistry) != "" {
+		registry := containerRegistry
+		if !strings.HasSuffix(registry, "/") {
+			registry += "/"
+		}
+		if value, err := envutil.GetHostEnv(constants.HostSuffixRegistry); err == nil {
+			if strings.TrimSpace(value) == "" {
+				if err := envutil.SetHostEnv(constants.HostSuffixRegistry, registry); err != nil {
+					return err
+				}
+			}
+		} else {
+			return err
+		}
+	}
+	return nil
+}
+
 // envExternalSubnetIndex returns the third octet for the external subnet.
 // Uses 50 for "default", otherwise 60 + hash offset.
 func envExternalSubnetIndex(env string) int {
