@@ -43,14 +43,14 @@
 - 共有キャッシュは維持しつつ、キャッシュ書き込みは bake 単位でロック
 
 ### compose up の安定化
-- compose は起動専用（build は実行しない）
-- `docker compose up` は `image:` のみ参照（`build:` を削除 or override 化）
-- BuildKit / compose version 依存を削減
+- compose は起動 + 必要なら build（image が無い場合に自動 build）
+- `docker compose up` は `build:` を保持して不足イメージを補完
+- BuildKit / compose version 依存は最小化（bake 側と整合を維持）
 
 ### buildx driver の前提
 - 当面は buildx driver を `default`（docker driver）に固定
 - docker-container への一本化は次フェーズで実施（builder 切替のみで移行できる設計に寄せる）
-- `mise run setup:buildx` は将来の docker-container 向け準備として任意実行
+- `setup:buildx` タスクは削除（mise には不要）
 
 ---
 
@@ -133,13 +133,13 @@
 
 ---
 
-## 5. buildx driver 初期化（mise）
+## 5. buildx driver 初期化（不要）
 **対象ファイル**
 - `.mise.toml`
 
 **変更内容**
-- `setup:buildx` タスクは将来の docker-container 移行用に保持
-- `mise run setup` には組み込まず任意実行とする
+- `setup:buildx` タスクを削除
+- `mise run setup` には含めない
 
 ---
 

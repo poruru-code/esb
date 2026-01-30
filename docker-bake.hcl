@@ -17,13 +17,6 @@ target "meta" {
   output = ["type=local,dest=.esb/meta"]
 }
 
-target "meta-image" {
-  inherits = ["meta-common"]
-  target   = "meta"
-  tags     = ["esb-meta:debug"]
-  output   = ["type=docker"]
-}
-
 // Base/control images (targets are configured at runtime via bake overrides).
 target "lambda-base" {
   context    = "cli/internal/generator/assets"

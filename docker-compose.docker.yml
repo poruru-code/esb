@@ -200,7 +200,7 @@ services:
         python-base: service:python-base
       args:
         PYTHON_BASE_IMAGE: python-base
-        SERVICE_USER: ${PROJECT_NAME:-esb-${ENV:-default}}
+        SERVICE_USER: esb
         SERVICE_UID: ${RUN_UID:-1000}
         SERVICE_GID: ${RUN_GID:-1000}
 
