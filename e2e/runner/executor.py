@@ -2,14 +2,23 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import time
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from collections import deque
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Tuple
+from typing import Any, Callable, Tuple
 
 import requests
 import urllib3
 from dotenv import load_dotenv
+from rich import box
+from rich.console import Console, Group
+from rich.live import Live
+from rich.markup import escape
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
 
 from e2e.runner import constants
 from e2e.runner.env import (
@@ -35,6 +44,96 @@ COLORS = [
     "\033[33m",  # Yellow
 ]
 COLOR_RESET = "\033[0m"
+COLOR_NAMES = ["cyan", "green", "blue", "magenta", "yellow"]
+_OUTPUT_LOCK = threading.Lock()
+
+
+def safe_print(message: str = "", *, prefix: str | None = None) -> None:
+    with _OUTPUT_LOCK:
+        if prefix:
+            print(f"{prefix} {message}", flush=True)
+        else:
+            print(message, flush=True)
+
+
+class ParallelDisplay:
+    def __init__(self, profiles: list[str], *, phase: str = "Parallel Run") -> None:
+        self.console = Console()
+        self._lock = threading.Lock()
+        self._profiles = profiles
+        self._colors = {
+            profile: COLOR_NAMES[idx % len(COLOR_NAMES)] for idx, profile in enumerate(profiles)
+        }
+        self._statuses = {profile: "waiting" for profile in profiles}
+        self._last_progress: dict[str, tuple[str, float]] = {}
+        self._log_lines = deque(maxlen=200)
+        self._phase = phase
+        self._live = Live(
+            self._render(),
+            console=self.console,
+            refresh_per_second=8,
+            transient=False,
+            screen=False,
+        )
+
+    def start(self) -> None:
+        self._live.start()
+
+    def stop(self) -> None:
+        self._live.stop()
+
+    def set_phase(self, phase: str) -> None:
+        with self._lock:
+            self._phase = phase
+            self._refresh()
+
+    def update_status(self, profile: str, message: str) -> None:
+        if profile not in self._statuses:
+            return
+        with self._lock:
+            self._statuses[profile] = message
+            self._refresh()
+
+    def log_progress(self, profile: str, message: str, *, min_interval: float = 0.6) -> None:
+        color = self._colors.get(profile, "white")
+        now = time.monotonic()
+        last_msg, last_ts = self._last_progress.get(profile, ("", 0.0))
+        if message == last_msg and (now - last_ts) < min_interval:
+            return
+        self._last_progress[profile] = (message, now)
+        line = f"[{color}]{profile}[/] {escape(message)}"
+        with self._lock:
+            self._log_lines.append(line)
+            self._refresh()
+
+    def log(self, profile: str, message: str) -> None:
+        color = self._colors.get(profile, "white")
+        line = f"[{color}]{profile}[/] {escape(message)}"
+        with self._lock:
+            self._log_lines.append(line)
+            self._refresh()
+
+    def system(self, message: str) -> None:
+        line = f"[bold]{escape(message)}[/]"
+        with self._lock:
+            self._log_lines.append(line)
+            self._refresh()
+
+    def _refresh(self) -> None:
+        self._live.update(self._render(), refresh=True)
+
+    def _render(self) -> Group:
+        table = Table(show_header=True, box=box.SIMPLE, expand=True)
+        table.add_column("Env", style="bold")
+        table.add_column("Status")
+        for profile in self._profiles:
+            color = self._colors.get(profile, "white")
+            status = escape(self._statuses.get(profile, ""))
+            table.add_row(f"[{color}]{profile}[/]", status)
+        log_text = Text.from_markup("\n".join(self._log_lines)) if self._log_lines else Text("")
+        status_panel = Panel(table, title=self._phase, padding=(0, 1))
+        log_panel = Panel(log_text, title="Log", padding=(0, 1))
+        return Group(status_panel, log_panel)
 
 
 def _is_progress_line(line: str) -> bool:
@@ -62,6 +161,59 @@ def _is_progress_line(line: str) -> bool:
         "- Built control plane image:",
     )
     return stripped.startswith(indented_prefixes)
+
+
+PROGRESS_PREFIXES = (
+    "Resetting environment:",
+    "Generating files...",
+    "Building base image...",
+    "Building OS base image...",
+    "Building Python base image...",
+    "Building function images",
+    "Building control plane images",
+    "Built Images for ",
+    "Preparing environment:",
+    "Building environment:",
+    "Cleaning up environment:",
+    "Skipping build for ",
+    "Waiting for Gateway readiness",
+)
+
+
+def split_progress_messages(line: str) -> list[str]:
+    matches = []
+    for prefix in PROGRESS_PREFIXES:
+        start = 0
+        while True:
+            idx = line.find(prefix, start)
+            if idx == -1:
+                break
+            matches.append(idx)
+            start = idx + len(prefix)
+    matches = sorted(set(matches))
+    if len(matches) > 1:
+        parts = []
+        for i, idx in enumerate(matches):
+            end = matches[i + 1] if i + 1 < len(matches) else len(line)
+            chunk = line[idx:end].strip()
+            if chunk:
+                parts.append(chunk)
+        return parts
+
+    if "Generating files..." in line:
+        for token in ("  Container ", "  Network ", "  Image "):
+            if token in line:
+                left, right = line.split(token, 1)
+                left = left.strip()
+                right = f"{token.strip()} {right.strip()}"
+                return [left, right]
+    return [line]
+
+
+def _is_buildkit_progress_line(line: str) -> bool:
+    return ("Image " in line and line.endswith(" Building")) or (
+        line.startswith("Image ") and " Building" in line
+    )
 
 
 def _registry_port(project: str, compose_file: Path) -> int | None:
@@ -281,6 +433,7 @@ def print_built_images(
     project_name: str,
     prefix: str = "",
     duration_seconds: float | None = None,
+    printer: Callable[[str], None] | None = None,
 ) -> None:
     label_prefix = f"com.{BRAND_SLUG}"
     project_label = f"{project_name}-{env_name}"
@@ -351,16 +504,17 @@ def print_built_images(
         widths[3] = max(widths[3], len(size))
 
     def emit(line: str) -> None:
-        if prefix:
-            print(f"{prefix} {line}")
-        else:
-            print(line)
+        rendered = f"{prefix} {line}" if prefix else line
+        if printer:
+            printer(rendered)
+            return
+        print(rendered)
 
     duration_suffix = ""
     if duration_seconds is not None:
         duration_suffix = f" in {duration_seconds:.1f}s"
     header = f"🧱 Built Images for {env_name} ({project_label}){duration_suffix}:"
-    if prefix:
+    if prefix or printer:
         emit(header)
     else:
         print(f"\n{header}")
@@ -372,7 +526,7 @@ def print_built_images(
             f"{created.ljust(widths[2])}  "
             f"{size.rjust(widths[3])}"
         )
-    if not prefix:
+    if not prefix and printer is None:
         print("")
 
 
@@ -467,22 +621,33 @@ def cleanup_managed_images(env_name: str, project_name: str) -> None:
         print(f"[WARN] Failed to remove images for {env_name}: {exc}")
 
 
-def warmup_environment(env_scenarios: dict, matrix: list[dict], args):
+def warmup_environment(
+    env_scenarios: dict, matrix: list[dict], args, display: ParallelDisplay | None = None
+):
     """
     Perform global reset and warm-up actions.
     This includes light validation to ensure shared inputs exist before parallel execution.
     """
     active_envs = list(env_scenarios.keys())
     if not active_envs:
-        print("[ERROR] No active environments in matrix.")
+        if display:
+            display.system("[ERROR] No active environments in matrix.")
+        else:
+            print("[ERROR] No active environments in matrix.")
         sys.exit(1)
 
     esb_template = PROJECT_ROOT / "e2e" / "fixtures" / "template.yaml"
     if not esb_template.exists():
-        print(f"[ERROR] Missing E2E template: {esb_template}")
+        if display:
+            display.system(f"[ERROR] Missing E2E template: {esb_template}")
+        else:
+            print(f"[ERROR] Missing E2E template: {esb_template}")
         sys.exit(1)
 
-    print(f"\n[INIT] Using E2E template: {esb_template}")
+    if display:
+        display.system(f"[INIT] Using E2E template: {esb_template}")
+    else:
+        print(f"\n[INIT] Using E2E template: {esb_template}")
 
 
 def run_scenario(args, scenario):
@@ -623,7 +788,7 @@ def run_scenario(args, scenario):
                 did_up = False
             elif do_build:
                 if not args.verbose:
-                    print(f"Building environment: {env_name}... ", end="", flush=True)
+                    safe_print(f"Building environment: {env_name}...")
                 else:
                     print(f"Building environment: {env_name}")
                 run_esb(
@@ -644,7 +809,7 @@ def run_scenario(args, scenario):
                     print("Done")
             else:
                 if not args.verbose:
-                    print(f"Preparing environment: {env_name}... ", end="", flush=True)
+                    safe_print(f"Preparing environment: {env_name}...")
                 else:
                     print(f"Preparing environment: {env_name}")
                 # In Zero-Config, we just rebuild if needed. stop/sync are gone.
@@ -809,7 +974,7 @@ def run_scenario(args, scenario):
     finally:
         if args.cleanup:
             if not args.verbose:
-                print(f"Cleaning up environment: {env_name}... ", end="", flush=True)
+                safe_print(f"Cleaning up environment: {env_name}...")
             else:
                 print(f"Cleaning up environment: {env_name}")
             # esb down is gone, use docker compose directly
@@ -828,12 +993,23 @@ def run_profile_subprocess(
     color_code: str = "",
     verbose: bool = False,
     label_width: int = 0,
+    display: ParallelDisplay | None = None,
 ) -> Tuple[int, str]:
     """Run a profile in a subprocess and stream output with prefix."""
     label = f"[{profile_name}]"
     if label_width > 0:
         label = label.ljust(label_width)
     prefix = f"{color_code}{label}{COLOR_RESET}"
+
+    def emit(message: str, *, is_progress: bool = False) -> None:
+        if display:
+            if is_progress:
+                display.update_status(profile_name, message)
+                display.log_progress(profile_name, message)
+            else:
+                display.log(profile_name, message)
+        else:
+            safe_print(message, prefix=prefix)
 
     # Inject flags to force non-interactive behavior
     env = os.environ.copy()
@@ -854,6 +1030,7 @@ def run_profile_subprocess(
 
     output_lines = []
     tests_started = False
+    reported_tests = False
     in_special_block = False
     last_line_was_blank = True
     early_failure = False
@@ -871,6 +1048,9 @@ def run_profile_subprocess(
                 if clean_line:
                     if "test session starts" in clean_line:
                         tests_started = True
+                        if display and not reported_tests:
+                            display.update_status(profile_name, "tests running")
+                            reported_tests = True
 
                     # Detect special info blocks (Auth credentials and Discovered Ports)
                     # Starts with Key or Plug emoji
@@ -878,9 +1058,7 @@ def run_profile_subprocess(
                     if is_special_header:
                         in_special_block = True
 
-                    is_buildkit_progress = (
-                        "Image " in clean_line and clean_line.endswith(" Building")
-                    ) or (clean_line.startswith("Image ") and " Building" in clean_line)
+                    is_buildkit_progress = _is_buildkit_progress_line(clean_line)
                     should_print = (
                         verbose
                         or tests_started
@@ -890,7 +1068,11 @@ def run_profile_subprocess(
                     )
 
                     if should_print:
-                        print(f"{prefix} {clean_line}", flush=True)
+                        for message in split_progress_messages(clean_line):
+                            is_progress = _is_progress_line(message) or _is_buildkit_progress_line(
+                                message
+                            )
+                            emit(message, is_progress=is_progress)
                         last_line_was_blank = False
 
                     # End of special block if we encounter a new progress line
@@ -903,7 +1085,7 @@ def run_profile_subprocess(
                         pat in clean_line for pat in early_failure_patterns
                     ):
                         early_failure = True
-                        print(f"{prefix} Build failed; stopping this environment.", flush=True)
+                        emit("Build failed; stopping this environment.")
                         process.terminate()
                         break
                 else:
@@ -914,13 +1096,13 @@ def run_profile_subprocess(
                     # Preserve blank lines only in verbose mode
                     if not last_line_was_blank:
                         if verbose:
-                            print(prefix, flush=True)
+                            emit("")
                         last_line_was_blank = True
 
                 output_lines.append(line)
 
     except Exception as e:
-        print(f"{prefix} Error reading output: {e}")
+        emit(f"Error reading output: {e}")
 
     try:
         returncode = process.wait(timeout=15)
@@ -930,9 +1112,10 @@ def run_profile_subprocess(
         returncode = process.wait()
 
     if returncode != 0 and not verbose and not tests_started:
-        print(f"{prefix} Subprocess failed before tests started. Printing cached logs...\n")
+        emit("Subprocess failed before tests started. Printing cached logs...")
+        emit("")
         for line in output_lines:
-            print(f"{prefix} {line.rstrip()}", flush=True)
+            emit(line.rstrip())
 
     # Write output to a log file for debugging
     log_file = PROJECT_ROOT / "e2e" / f".parallel-{profile_name}.log"
@@ -952,79 +1135,117 @@ def run_profiles_with_executor(
     max_workers: int,
     verbose: bool = False,
     test_only: bool = False,
+    display: ParallelDisplay | None = None,
 ) -> dict[str, tuple[bool, list[str]]]:
     """
-    Run environments using a ProcessPoolExecutor.
-    If max_workers is 1, they run sequentially but still in subprocesses for isolation.
+    Run environments using threads for parallel runs to keep console output coherent.
+    If max_workers is 1, use subprocess isolation without shared console state.
     Returns: dict mapping env_name to (success, failed_scenario_names)
     """
     results = {}
 
     # Calculate max profile name length for aligned logging (+2 for brackets)
     max_label_len = max(len(p) for p in env_scenarios.keys()) + 2 if env_scenarios else 0
+    profiles = list(env_scenarios.keys())
+    use_rich = max_workers > 1
+    progress_display = display if display else (ParallelDisplay(profiles) if use_rich else None)
+    manage_display = progress_display is not None and display is None
+    executor_cls = ThreadPoolExecutor if use_rich else ProcessPoolExecutor
+
+    if manage_display:
+        progress_display.set_phase("Test Phase (Parallel)")
+        progress_display.start()
 
     # We use 'spawn' or default context. For simple script execution, default is fine.
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
-        future_to_profile = {}
+    try:
+        with executor_cls(max_workers=max_workers) as executor:
+            future_to_profile = {}
 
-        # Submit all tasks
-        for profile_name, _ in env_scenarios.items():
-            # Build command for subprocess
-            cmd = [
-                sys.executable,
-                "-u",  # Unbuffered output
-                "-m",
-                "e2e.run_tests",
-                "--profile",
-                profile_name,
-            ]
-            if test_only:
-                cmd.append("--test-only")
-            else:
-                if reset:
-                    cmd.append("--reset")
-                if build:
-                    cmd.append("--build")
-            if cleanup:
-                cmd.append("--cleanup")
-            if fail_fast:
-                cmd.append("--fail-fast")
-            if verbose:
-                cmd.append("--verbose")
-
-            # Determine log prefix/color
-            profile_index = list(env_scenarios.keys()).index(profile_name)
-            color_code = COLORS[profile_index % len(COLORS)]
-
-            if max_workers > 1:
-                print(f"[PARALLEL] Scheduling environment: {profile_name}")
-
-            future = executor.submit(
-                run_profile_subprocess, profile_name, cmd, color_code, verbose, max_label_len
-            )
-            future_to_profile[future] = profile_name
-
-        # Process results as they complete
-        for future in as_completed(future_to_profile):
-            profile_name = future_to_profile[future]
-            try:
-                returncode, output = future.result()
-                success = returncode == 0
-                failed_list = [] if success else [profile_name]
-
-                prefix = "[PARALLEL]" if max_workers > 1 else "[MATRIX]"
-
-                if success:
-                    print(f"✅ {prefix} Environment {profile_name} PASSED")
+            # Submit all tasks
+            for profile_name in profiles:
+                # Build command for subprocess
+                cmd = [
+                    sys.executable,
+                    "-u",  # Unbuffered output
+                    "-m",
+                    "e2e.run_tests",
+                    "--profile",
+                    profile_name,
+                ]
+                if test_only:
+                    cmd.append("--test-only")
                 else:
-                    print(
-                        f"❌ {prefix} Environment {profile_name} FAILED (exit code: {returncode})"
-                    )
+                    if reset:
+                        cmd.append("--reset")
+                    if build:
+                        cmd.append("--build")
+                if cleanup:
+                    cmd.append("--cleanup")
+                if fail_fast:
+                    cmd.append("--fail-fast")
+                if verbose:
+                    cmd.append("--verbose")
 
-                results[profile_name] = (success, failed_list)
-            except Exception as e:
-                print(f"[ERROR] Environment {profile_name} FAILED with exception: {e}")
-                results[profile_name] = (False, [f"Environment {profile_name} (exception)"])
+                # Determine log prefix/color
+                profile_index = profiles.index(profile_name)
+                color_code = COLORS[profile_index % len(COLORS)]
+
+                if max_workers > 1:
+                    message = f"[PARALLEL] Scheduling environment: {profile_name}"
+                    if progress_display:
+                        progress_display.system(message)
+                        progress_display.update_status(profile_name, "queued")
+                    else:
+                        print(message)
+
+                future = executor.submit(
+                    run_profile_subprocess,
+                    profile_name,
+                    cmd,
+                    color_code,
+                    verbose,
+                    max_label_len,
+                    progress_display,
+                )
+                future_to_profile[future] = profile_name
+
+            # Process results as they complete
+            for future in as_completed(future_to_profile):
+                profile_name = future_to_profile[future]
+                try:
+                    returncode, output = future.result()
+                    success = returncode == 0
+                    failed_list = [] if success else [profile_name]
+
+                    prefix = "[PARALLEL]" if max_workers > 1 else "[MATRIX]"
+
+                    if success:
+                        message = f"✅ {prefix} Environment {profile_name} PASSED"
+                    else:
+                        message = (
+                            f"❌ {prefix} Environment {profile_name} FAILED "
+                            f"(exit code: {returncode})"
+                        )
+                    if progress_display:
+                        progress_display.system(message)
+                        progress_display.update_status(
+                            profile_name, "PASSED" if success else "FAILED"
+                        )
+                    else:
+                        print(message)
+
+                    results[profile_name] = (success, failed_list)
+                except Exception as e:
+                    message = f"[ERROR] Environment {profile_name} FAILED with exception: {e}"
+                    if progress_display:
+                        progress_display.system(message)
+                        progress_display.update_status(profile_name, "FAILED")
+                    else:
+                        print(message)
+                    results[profile_name] = (False, [f"Environment {profile_name} (exception)"])
+    finally:
+        if manage_display and progress_display:
+            progress_display.stop()
 
     return results
 
@@ -1099,8 +1320,9 @@ def run_build_phase_parallel(
     build: bool,
     fail_fast: bool,
     verbose: bool = False,
+    display: ParallelDisplay | None = None,
 ) -> list[str]:
-    """Run build phase in parallel subprocesses."""
+    """Run build phase in parallel subprocesses with shared console output."""
     failed: list[str] = []
     if not env_scenarios:
         return failed
@@ -1111,64 +1333,101 @@ def run_build_phase_parallel(
     profiles = list(env_scenarios.keys())
     max_workers = len(profiles)
     future_to_profile: dict[Any, tuple[str, float, str]] = {}
+    progress_display = (
+        display if display else (ParallelDisplay(profiles) if max_workers > 1 else None)
+    )
+    manage_display = progress_display is not None and display is None
+    if manage_display:
+        progress_display.set_phase("Build Phase (Parallel)")
+        progress_display.start()
 
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
-        for idx, profile_name in enumerate(profiles):
-            cmd = [
-                sys.executable,
-                "-u",
-                "-m",
-                "e2e.run_tests",
-                "--profile",
-                profile_name,
-                "--build-only",
-            ]
-            if reset:
-                cmd.append("--reset")
-            if build:
-                cmd.append("--build")
-            if verbose:
-                cmd.append("--verbose")
-
-            color_code = COLORS[idx % len(COLORS)]
-            if max_workers > 1:
-                print(f"[PARALLEL] Scheduling environment: {profile_name}")
-            start = time.monotonic()
-            future = executor.submit(
-                run_profile_subprocess, profile_name, cmd, color_code, verbose, max_label_len
-            )
-            future_to_profile[future] = (profile_name, start, color_code)
-
-        for future in as_completed(future_to_profile):
-            profile_name, start, color_code = future_to_profile[future]
-            try:
-                returncode, _ = future.result()
-            except Exception as e:
-                print(f"[ERROR] Environment {profile_name} FAILED with exception: {e}")
-                returncode = 1
-
-            durations[profile_name] = time.monotonic() - start
-
-            label = f"[{profile_name}]"
-            if max_label_len > 0:
-                label = label.ljust(max_label_len)
-            prefix = f"{color_code}{label}{COLOR_RESET}"
-
-            if returncode == 0:
-                scenario = env_scenarios.get(profile_name, {})
-                project_name = scenario.get("esb_project", BRAND_SLUG)
-                print_built_images(
+    try:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            for idx, profile_name in enumerate(profiles):
+                cmd = [
+                    sys.executable,
+                    "-u",
+                    "-m",
+                    "e2e.run_tests",
+                    "--profile",
                     profile_name,
-                    project_name,
-                    prefix=prefix,
-                    duration_seconds=durations[profile_name],
+                    "--build-only",
+                ]
+                if reset:
+                    cmd.append("--reset")
+                if build:
+                    cmd.append("--build")
+                if verbose:
+                    cmd.append("--verbose")
+
+                color_code = COLORS[idx % len(COLORS)]
+                if max_workers > 1:
+                    message = f"[PARALLEL] Scheduling environment: {profile_name}"
+                    if progress_display:
+                        progress_display.system(message)
+                        progress_display.update_status(profile_name, "queued")
+                    else:
+                        print(message)
+                start = time.monotonic()
+                future = executor.submit(
+                    run_profile_subprocess,
+                    profile_name,
+                    cmd,
+                    color_code,
+                    verbose,
+                    max_label_len,
+                    progress_display,
                 )
-            else:
-                failed.append(profile_name)
-                if fail_fast:
-                    for pending in future_to_profile:
-                        pending.cancel()
-                    break
+                future_to_profile[future] = (profile_name, start, color_code)
+
+            for future in as_completed(future_to_profile):
+                profile_name, start, color_code = future_to_profile[future]
+                try:
+                    returncode, _ = future.result()
+                except Exception as e:
+                    message = f"[ERROR] Environment {profile_name} FAILED with exception: {e}"
+                    if progress_display:
+                        progress_display.system(message)
+                        progress_display.update_status(profile_name, "FAILED")
+                    else:
+                        print(message)
+                    returncode = 1
+
+                durations[profile_name] = time.monotonic() - start
+
+                label = f"[{profile_name}]"
+                if max_label_len > 0:
+                    label = label.ljust(max_label_len)
+                prefix = f"{color_code}{label}{COLOR_RESET}"
+
+                if returncode == 0:
+                    scenario = env_scenarios.get(profile_name, {})
+                    project_name = scenario.get("esb_project", BRAND_SLUG)
+                    printer = (
+                        (lambda line, profile=profile_name: progress_display.log(profile, line))
+                        if progress_display
+                        else None
+                    )
+                    print_built_images(
+                        profile_name,
+                        project_name,
+                        prefix="" if progress_display else prefix,
+                        duration_seconds=durations[profile_name],
+                        printer=printer,
+                    )
+                    if progress_display:
+                        progress_display.update_status(profile_name, "Build done")
+                else:
+                    failed.append(profile_name)
+                    if progress_display:
+                        progress_display.update_status(profile_name, "Build failed")
+                    if fail_fast:
+                        for pending in future_to_profile:
+                            pending.cancel()
+                        break
+    finally:
+        if manage_display and progress_display:
+            progress_display.stop()
 
     total_elapsed = time.monotonic() - total_start
     if durations:

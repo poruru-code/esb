@@ -12,6 +12,7 @@ import urllib3
 from e2e.runner.cli import parse_args
 from e2e.runner.config import build_env_scenarios, load_test_matrix
 from e2e.runner.executor import (
+    ParallelDisplay,
     run_build_phase_parallel,
     run_build_phase_serial,
     run_profiles_with_executor,
@@ -147,21 +148,29 @@ def main():
     # --- Global Reset & Warm-up ---
     # Perform this if we are in the main dispatcher process (not a parallel worker).
     # Validate shared inputs (e.g., template) once before dispatching.
+    parallel_mode = args.parallel and len(env_scenarios) > 1
+    display = ParallelDisplay(list(env_scenarios.keys()), phase="Warmup") if parallel_mode else None
+    if display:
+        display.start()
+
     if os.environ.get("E2E_WORKER") != "1":
-        warmup_environment(env_scenarios, matrix, args)
+        warmup_environment(env_scenarios, matrix, args, display=display)
 
     failed_entries = []
 
     # --- Build Phase (Parallel/Serial, subprocess isolation) ---
-    build_parallel = args.parallel and len(env_scenarios) > 1
+    build_parallel = parallel_mode
     if build_parallel:
-        print("\n=== Build Phase (Parallel) ===\n")
+        if display:
+            display.set_phase("Build Phase (Parallel)")
+            display.system(f"[PARALLEL] Environments: {', '.join(env_scenarios.keys())}")
         build_failed = run_build_phase_parallel(
             env_scenarios,
             reset=args.reset,
             build=args.build,
             fail_fast=args.fail_fast,
             verbose=args.verbose,
+            display=display,
         )
     else:
         print("\n=== Build Phase (Serial) ===\n")
@@ -173,19 +182,25 @@ def main():
             verbose=args.verbose,
         )
     if build_failed:
-        print(f"\n❌ [FAILED] Build failed for: {', '.join(build_failed)}")
+        if display:
+            display.system(f"[FAILED] Build failed for: {', '.join(build_failed)}")
+            display.stop()
+        else:
+            print(f"\n❌ [FAILED] Build failed for: {', '.join(build_failed)}")
         print_tail_logs(build_failed)
         sys.exit(1)
 
     # --- Test Phase (Parallel) ---
-    parallel_mode = args.parallel and len(env_scenarios) > 1
     max_workers = len(env_scenarios) if parallel_mode else 1
 
     if parallel_mode:
-        print(
-            f"\n[PARALLEL] Starting test phase for {len(env_scenarios)} environments: {', '.join(env_scenarios.keys())}"
-        )
-        print("[PARALLEL] Build phase completed; tests will run in parallel.\n")
+        if display:
+            display.set_phase("Test Phase (Parallel)")
+            display.system(
+                f"[PARALLEL] Starting test phase for {len(env_scenarios)} environments: "
+                f"{', '.join(env_scenarios.keys())}"
+            )
+            display.system("[PARALLEL] Build phase completed; tests will run in parallel.")
     else:
         print("\nStarting Test Phase (Matrix-Based)\n")
 
@@ -198,6 +213,7 @@ def main():
         max_workers=max_workers,
         verbose=args.verbose,
         test_only=True,
+        display=display,
     )
 
     for _, (success, profile_failed) in results.items():
@@ -205,11 +221,21 @@ def main():
             failed_entries.extend(profile_failed)
 
     if failed_entries:
-        print(f"\n❌ [FAILED] The following environments failed: {', '.join(failed_entries)}")
+        if display:
+            display.system(
+                f"[FAILED] The following environments failed: {', '.join(failed_entries)}"
+            )
+            display.stop()
+        else:
+            print(f"\n❌ [FAILED] The following environments failed: {', '.join(failed_entries)}")
         print_tail_logs(failed_entries)
         sys.exit(1)
 
-    print("\n🎉 [PASSED] ALL MATRIX ENTRIES PASSED!")
+    if display:
+        display.system("[PASSED] ALL MATRIX ENTRIES PASSED!")
+        display.stop()
+    else:
+        print("\n🎉 [PASSED] ALL MATRIX ENTRIES PASSED!")
     sys.exit(0)
 
 
