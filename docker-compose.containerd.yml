@@ -34,8 +34,6 @@ services:
         ROOT_CA_FINGERPRINT: ${ROOT_CA_FINGERPRINT:-}
       cache_from:
         - type=local,src=.esb/buildx-cache/base
-      cache_to:
-        - type=local,dest=.esb/buildx-cache/base,mode=max
 
       secrets:
         - root_ca
@@ -53,8 +51,6 @@ services:
         ROOT_CA_FINGERPRINT: ${ROOT_CA_FINGERPRINT:-}
       cache_from:
         - type=local,src=.esb/buildx-cache/base
-      cache_to:
-        - type=local,dest=.esb/buildx-cache/base,mode=max
       secrets:
         - root_ca
 
