@@ -31,10 +31,6 @@ run = [
 description = "Generate development certificates using step-cli"
 run = "uv run python tools/cert-gen/generate.py"
 
-[tasks."setup:buildx"]
-description = "Initialize docker buildx builder (docker-container driver, optional)"
-run = "bash -lc 'set -euo pipefail; source config/defaults.env; builder=\"${CLI_CMD:-esb}-buildx\"; if ! docker buildx inspect \"$builder\" >/dev/null 2>&1; then docker buildx create --name \"$builder\" --driver docker-container --driver-opt network=host --use; else driver=$(docker buildx inspect \"$builder\" | awk -F\": \" \"/Driver:/ {print $2; exit}\"); if [ \"$driver\" != \"docker-container\" ]; then echo \"Buildx builder ${builder} uses driver ${driver}. Remove it or choose a new name.\" >&2; exit 1; fi; docker buildx use \"$builder\"; fi; docker buildx inspect --bootstrap \"$builder\" >/dev/null; container=\"buildx_buildkit_${builder}0\"; net=$(docker inspect -f \"{{.HostConfig.NetworkMode}}\" \"$container\" 2>/dev/null || true); if [ \"${net}\" != \"host\" ]; then echo \"Buildx builder ${builder} uses network mode ${net:-unknown}. Remove it and re-run mise run setup:buildx.\" >&2; exit 1; fi'"
-
 [tasks.build-cli]
 description = "Build CLI to ~/.local/bin"
 dir = "cli"

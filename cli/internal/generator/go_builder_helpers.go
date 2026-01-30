@@ -112,6 +112,8 @@ func prepareMetaContext(
 		args := []string{
 			"buildx",
 			"bake",
+			"--builder",
+			"default",
 			"-f",
 			bakeFile,
 			"meta",

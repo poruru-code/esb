@@ -3,10 +3,65 @@
 
 services:
   # ============================================
+  # Build Dependencies (Metadata)
+  # ============================================
+  meta-builder:
+    image: esb-meta:debug
+    build:
+      context: .
+      dockerfile: tools/traceability/Dockerfile.meta
+      target: meta
+      additional_contexts:
+        git_dir: ./.git
+        git_common: ./.git
+        trace_tools: ./tools/traceability
+    command: ["/bin/sh", "-c", "exit 0"]
+    restart: "no"
+
+  # ============================================
+  # Base Images (Debian 12)
+  # ============================================
+  os-base:
+    image: esb-os-base:latest
+    build:
+      context: services/common
+      dockerfile: Dockerfile.os-base
+      additional_contexts:
+        meta: service:meta-builder
+      args:
+        ROOT_CA_MOUNT_ID: root_ca
+        ROOT_CA_CERT_FILENAME: ${ROOT_CA_CERT_FILENAME:-rootCA.crt}
+        ROOT_CA_FINGERPRINT: ${ROOT_CA_FINGERPRINT:-}
+      cache_from:
+        - type=local,src=.esb/buildx-cache/base
+      cache_to:
+        - type=local,dest=.esb/buildx-cache/base,mode=max
+
+      secrets:
+        - root_ca
+
+  python-base:
+    image: esb-python-base:latest
+    build:
+      context: services/common
+      dockerfile: Dockerfile.python-base
+      additional_contexts:
+        meta: service:meta-builder
+      args:
+        ROOT_CA_MOUNT_ID: root_ca
+        ROOT_CA_CERT_FILENAME: ${ROOT_CA_CERT_FILENAME:-rootCA.crt}
+        ROOT_CA_FINGERPRINT: ${ROOT_CA_FINGERPRINT:-}
+      cache_from:
+        - type=local,src=.esb/buildx-cache/base
+      cache_to:
+        - type=local,dest=.esb/buildx-cache/base,mode=max
+      secrets:
+        - root_ca
+
+  # ============================================
   # Permission Helper (for RustFS)
   # ============================================
   permission-helper:
-    env_file: config/defaults.env
     image: alpine
     container_name: ${PROJECT_NAME:-esb-${ENV:-default}}-permission-helper
     volumes:
@@ -21,7 +76,6 @@ services:
   # RustFS (S3 Compatible Storage)
   # ============================================
   s3-storage:
-    env_file: config/defaults.env
     image: rustfs/rustfs:latest
     container_name: ${PROJECT_NAME:-esb-${ENV:-default}}-s3-storage
     depends_on:
@@ -54,7 +108,6 @@ services:
   # ScyllaDB (DynamoDB Compatible DB)
   # ============================================
   database:
-    env_file: config/defaults.env
     image: scylladb/scylla:latest
     container_name: ${PROJECT_NAME:-esb-${ENV:-default}}-database
     ports:
@@ -76,7 +129,6 @@ services:
   # VictoriaLogs
   # ============================================
   victorialogs:
-    env_file: config/defaults.env
     image: victoriametrics/victoria-logs:latest
     container_name: ${PROJECT_NAME:-esb-${ENV:-default}}-victorialogs
     ports:
@@ -99,10 +151,22 @@ services:
   # Provisioner (Runtime Resource Initialization)
   # ============================================
   provisioner:
-    env_file: config/defaults.env
     image: ${ESB_REGISTRY:-}esb-provisioner:${ESB_TAG:-latest}
+    build:
+      context: services/provisioner
+      dockerfile: Dockerfile
+      additional_contexts:
+        meta: service:meta-builder
+        config: ${CONFIG_DIR:-services/gateway/config}
+        generator_assets: ${GENERATOR_ASSETS_CONTEXT:-cli/internal/generator/assets/site-packages}
+        python-base: service:python-base
+      args:
+        PYTHON_BASE_IMAGE: python-base
+
     container_name: ${PROJECT_NAME:-esb-${ENV:-default}}-provisioner
     depends_on:
+      python-base:
+        condition: service_completed_successfully
       database:
         condition: service_healthy
       s3-storage:
@@ -125,8 +189,21 @@ services:
   # API Gateway (Facade)
   # ============================================
   gateway:
-    env_file: config/defaults.env
     image: ${ESB_REGISTRY:-}esb-gateway-docker:${ESB_TAG:-latest}
+    build:
+      context: services/gateway
+      dockerfile: Dockerfile.docker
+      additional_contexts:
+        meta: service:meta-builder
+        config: ${CONFIG_DIR:-services/gateway/config}
+        common: ${COMMON_CONTEXT:-services/common}
+        python-base: service:python-base
+      args:
+        PYTHON_BASE_IMAGE: python-base
+        SERVICE_USER: ${PROJECT_NAME:-esb-${ENV:-default}}
+        SERVICE_UID: ${RUN_UID:-1000}
+        SERVICE_GID: ${RUN_GID:-1000}
+
     container_name: ${PROJECT_NAME:-esb-${ENV:-default}}-gateway
     ports:
       - "${PORT_GATEWAY_HTTPS:-443}:8443"
@@ -188,6 +265,8 @@ services:
       - DYNAMODB_ENDPOINT=http://database:8000
       - GATEWAY_VICTORIALOGS_URL=http://victorialogs:9428
     depends_on:
+      python-base:
+        condition: service_completed_successfully
       provisioner:
         condition: service_completed_successfully
       database:
@@ -199,12 +278,25 @@ services:
   # Agent (Docker Runtime)
   # ============================================
   agent:
-    env_file: config/defaults.env
     image: ${ESB_REGISTRY:-}esb-agent-docker:${ESB_TAG:-latest}
+    build:
+      context: services/agent
+      dockerfile: Dockerfile.docker
+      additional_contexts:
+        meta: service:meta-builder
+        meta_module: ${META_MODULE_CONTEXT:-meta}
+        os-base: service:os-base
+      args:
+        OS_BASE_IMAGE: os-base
+
     container_name: ${PROJECT_NAME:-esb-${ENV:-default}}-agent
+    depends_on:
+      os-base:
+        condition: service_completed_successfully
     cap_add: [NET_ADMIN, SYS_ADMIN]
     environment:
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ESB_TAG=${ESB_TAG:-latest}
       - PORT=50051
       - CONTAINER_REGISTRY=${CONTAINER_REGISTRY:-}
       - CNI_SUBNET=${CNI_SUBNET:-}
@@ -229,6 +321,10 @@ volumes:
   scylladb_data:
   rustfs_data:
   victorialogs_data:
+
+secrets:
+  root_ca:
+    file: ${CERT_DIR:-~/.esb/certs}/rootCA.crt
 
 networks:
   external_network:
