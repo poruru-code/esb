@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/compose"
 )
@@ -302,10 +303,78 @@ func bakeCacheRoot(outputBase string) string {
 	return filepath.Join(outputBase, "buildx-cache")
 }
 
+var (
+	buildxDriverOnce sync.Once
+	buildxDriver     string
+	buildxDriverErr  error
+)
+
+func resolveBuildxDriver(
+	ctx context.Context,
+	runner compose.CommandRunner,
+	repoRoot string,
+) (string, error) {
+	if runner == nil {
+		return "", fmt.Errorf("command runner is nil")
+	}
+	root := strings.TrimSpace(repoRoot)
+	if root == "" {
+		return "", fmt.Errorf("repo root is required")
+	}
+	buildxDriverOnce.Do(func() {
+		output, err := runner.RunOutput(ctx, root, "docker", "buildx", "inspect", "--builder", "default")
+		if err != nil {
+			buildxDriverErr = err
+			return
+		}
+		for _, line := range strings.Split(string(output), "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			if !strings.HasPrefix(line, "Driver:") {
+				continue
+			}
+			buildxDriver = strings.TrimSpace(strings.TrimPrefix(line, "Driver:"))
+			return
+		}
+		buildxDriver = ""
+	})
+	return buildxDriver, buildxDriverErr
+}
+
+func bakeCacheToSupported(
+	ctx context.Context,
+	runner compose.CommandRunner,
+	repoRoot string,
+) (bool, error) {
+	if strings.TrimSpace(os.Getenv("ESB_BUILDX_CACHE_TO")) == "0" {
+		return false, nil
+	}
+	driver, err := resolveBuildxDriver(ctx, runner, repoRoot)
+	if err != nil {
+		return false, err
+	}
+	if strings.TrimSpace(driver) == "" {
+		return false, nil
+	}
+	if strings.EqualFold(driver, "docker") {
+		return false, nil
+	}
+	return true, nil
+}
+
 // applyBakeLocalCache configures local cache settings for a bake target.
 // It appends to any existing CacheFrom/CacheTo settings, preserving configuration
 // defined in the base docker-bake.hcl.
-func applyBakeLocalCache(target *bakeTarget, cacheRoot, group string) error {
+func applyBakeLocalCache(
+	ctx context.Context,
+	runner compose.CommandRunner,
+	repoRoot string,
+	target *bakeTarget,
+	cacheRoot string,
+	group string,
+) error {
 	if target == nil || strings.TrimSpace(cacheRoot) == "" {
 		return nil
 	}
@@ -324,7 +393,11 @@ func applyBakeLocalCache(target *bakeTarget, cacheRoot, group string) error {
 		return err
 	}
 	target.CacheFrom = append(target.CacheFrom, fmt.Sprintf("type=local,src=%s", cacheDir))
-	target.CacheTo = append(target.CacheTo, fmt.Sprintf("type=local,dest=%s,mode=max", cacheDir))
+	if ok, err := bakeCacheToSupported(ctx, runner, repoRoot); err != nil {
+		return err
+	} else if ok {
+		target.CacheTo = append(target.CacheTo, fmt.Sprintf("type=local,dest=%s,mode=max", cacheDir))
+	}
 	return nil
 }
 

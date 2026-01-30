@@ -84,9 +84,10 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 
 	dockerRunner := &recordRunner{
 		outputs: map[string][]byte{
-			"git rev-parse --show-toplevel":  []byte(repoRoot),
-			"git rev-parse --git-dir":        []byte(".git"),
-			"git rev-parse --git-common-dir": []byte(".git"),
+			"git rev-parse --show-toplevel":           []byte(repoRoot),
+			"git rev-parse --git-dir":                 []byte(".git"),
+			"git rev-parse --git-common-dir":          []byte(".git"),
+			"docker buildx inspect --builder default": []byte("Driver: docker\n"),
 		},
 	}
 	composeRunner := &recordRunner{}
@@ -232,14 +233,14 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	if !hasBakeFileContaining(dockerRunner.bakeFiles, "cache-from = [\"type=local,src="+buildxCacheDir) {
 		t.Fatalf("expected cache-from in bake file")
 	}
-	if !hasBakeFileContaining(dockerRunner.bakeFiles, "cache-to = [\"type=local,dest="+buildxCacheDir) {
-		t.Fatalf("expected cache-to in bake file")
-	}
 	if !hasDockerBakeAllowPrefix(dockerRunner.calls, "--allow=fs.read="+buildxCacheDir) {
 		t.Fatalf("expected --allow=fs.read for buildx cache")
 	}
-	if !hasDockerBakeAllowPrefix(dockerRunner.calls, "--allow=fs.write="+buildxCacheDir) {
-		t.Fatalf("expected --allow=fs.write for buildx cache")
+	if hasBakeFileContaining(dockerRunner.bakeFiles, "cache-to = [\"type=local,dest="+buildxCacheDir) {
+		t.Fatalf("unexpected cache-to for docker driver")
+	}
+	if hasDockerBakeAllowPrefix(dockerRunner.calls, "--allow=fs.write="+buildxCacheDir) {
+		t.Fatalf("unexpected --allow=fs.write for docker driver")
 	}
 
 	if hasComposeUpRegistry(composeRunner.calls) {

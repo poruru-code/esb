@@ -305,7 +305,14 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 			},
 			NoCache: request.NoCache,
 		}
-		if err := applyBakeLocalCache(&lambdaTarget, cacheRoot, "base"); err != nil {
+		if err := applyBakeLocalCache(
+			context.Background(),
+			b.Runner,
+			repoRoot,
+			&lambdaTarget,
+			cacheRoot,
+			"base",
+		); err != nil {
 			return err
 		}
 		baseTargets := []bakeTarget{lambdaTarget}
@@ -336,7 +343,14 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 				Secrets: []string{fmt.Sprintf("id=%s,src=%s", meta.RootCAMountID, rootCAPath)},
 				NoCache: request.NoCache,
 			}
-			if err := applyBakeLocalCache(&osTarget, cacheRoot, "base"); err != nil {
+			if err := applyBakeLocalCache(
+				context.Background(),
+				b.Runner,
+				repoRoot,
+				&osTarget,
+				cacheRoot,
+				"base",
+			); err != nil {
 				return err
 			}
 			baseTargets = append(baseTargets, osTarget)
@@ -359,7 +373,14 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 				Secrets: []string{fmt.Sprintf("id=%s,src=%s", meta.RootCAMountID, rootCAPath)},
 				NoCache: request.NoCache,
 			}
-			if err := applyBakeLocalCache(&pythonTarget, cacheRoot, "base"); err != nil {
+			if err := applyBakeLocalCache(
+				context.Background(),
+				b.Runner,
+				repoRoot,
+				&pythonTarget,
+				cacheRoot,
+				"base",
+			); err != nil {
 				return err
 			}
 			baseTargets = append(baseTargets, pythonTarget)

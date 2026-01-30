@@ -401,7 +401,14 @@ func buildFunctionImages(
 				},
 				NoCache: noCache,
 			}
-			if err := applyBakeLocalCache(&target, cacheRoot, "functions"); err != nil {
+			if err := applyBakeLocalCache(
+				ctx,
+				runner,
+				repoRoot,
+				&target,
+				cacheRoot,
+				"functions",
+			); err != nil {
 				return err
 			}
 			bakeTargets = append(bakeTargets, target)
@@ -532,7 +539,14 @@ func buildControlImages(
 			},
 			NoCache: noCache,
 		}
-		if err := applyBakeLocalCache(&runtimeTarget, cacheRoot, "control"); err != nil {
+		if err := applyBakeLocalCache(
+			ctx,
+			runner,
+			repoRoot,
+			&runtimeTarget,
+			cacheRoot,
+			"control",
+		); err != nil {
 			return nil, err
 		}
 		targets = append(targets, runtimeTarget)
@@ -560,7 +574,14 @@ func buildControlImages(
 		},
 		NoCache: noCache,
 	}
-	if err := applyBakeLocalCache(&agentTarget, cacheRoot, "control"); err != nil {
+	if err := applyBakeLocalCache(
+		ctx,
+		runner,
+		repoRoot,
+		&agentTarget,
+		cacheRoot,
+		"control",
+	); err != nil {
 		return nil, err
 	}
 	targets = append(targets, agentTarget)
@@ -588,7 +609,14 @@ func buildControlImages(
 		},
 		NoCache: noCache,
 	}
-	if err := applyBakeLocalCache(&provisionerTarget, cacheRoot, "control"); err != nil {
+	if err := applyBakeLocalCache(
+		ctx,
+		runner,
+		repoRoot,
+		&provisionerTarget,
+		cacheRoot,
+		"control",
+	); err != nil {
 		return nil, err
 	}
 	targets = append(targets, provisionerTarget)
@@ -619,7 +647,14 @@ func buildControlImages(
 		},
 		NoCache: noCache,
 	}
-	if err := applyBakeLocalCache(&gatewayTarget, cacheRoot, "control"); err != nil {
+	if err := applyBakeLocalCache(
+		ctx,
+		runner,
+		repoRoot,
+		&gatewayTarget,
+		cacheRoot,
+		"control",
+	); err != nil {
 		return nil, err
 	}
 	targets = append(targets, gatewayTarget)

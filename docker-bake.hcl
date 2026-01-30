@@ -35,7 +35,6 @@ target "os-base" {
   tags = ["esb-os-base:latest"]
   output = ["type=docker"]
   cache-from = ["type=local,src=.esb/buildx-cache/base"]
-  cache-to   = ["type=local,dest=.esb/buildx-cache/base,mode=max"]
 }
 
 target "python-base" {
@@ -47,7 +46,6 @@ target "python-base" {
   tags = ["esb-python-base:latest"]
   output = ["type=docker"]
   cache-from = ["type=local,src=.esb/buildx-cache/base"]
-  cache-to   = ["type=local,dest=.esb/buildx-cache/base,mode=max"]
 }
 
 group "base-images" {
