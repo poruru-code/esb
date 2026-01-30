@@ -43,7 +43,7 @@
 ### 2) buildx builder の docker-container 標準化
 - `docker buildx` builder を docker-container driver で初期化・維持。
 - 既存の builder 判定/分岐は削除し、`docker-container` 前提で統一。
-- `BUILDX_BUILDER=esb-buildx` をデフォルトで設定し、compose build も同一 builder を使う。
+- `BUILDX_BUILDER=<slug>-buildx` をデフォルトで設定し、compose build も同一 builder を使う。
 
 ### 3) cache-to の再有効化
 - bake / compose の cache-to を復活し、共有キャッシュを活用。

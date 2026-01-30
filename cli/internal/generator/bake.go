@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/compose"
-	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/meta"
 )
 
 type bakeTarget struct {
@@ -30,7 +30,12 @@ type bakeTarget struct {
 	NoCache    bool
 }
 
-const buildxBuilderName = constants.DefaultBuildxBuilder
+func buildxBuilderName() string {
+	if value := strings.TrimSpace(os.Getenv("BUILDX_BUILDER")); value != "" {
+		return value
+	}
+	return fmt.Sprintf("%s-buildx", meta.Slug)
+}
 
 func runBakeGroup(
 	ctx context.Context,
@@ -64,7 +69,8 @@ func runBakeGroup(
 	}
 	defer func() { _ = os.Remove(tmpFile) }()
 
-	args := []string{"buildx", "bake", "--builder", buildxBuilderName}
+	builder := buildxBuilderName()
+	args := []string{"buildx", "bake", "--builder", builder}
 	args = append(args, bakeAllowArgs(targets)...)
 	args = append(args, "-f", bakeFile, "-f", tmpFile, "--load")
 	return withBuildLock("bake", func() error {
@@ -317,6 +323,7 @@ func ensureBuildxBuilder(
 	if root == "" {
 		return fmt.Errorf("repo root is required")
 	}
+	builder := buildxBuilderName()
 	return withBuildLock("buildx", func() error {
 		output, err := runner.RunOutput(
 			ctx,
@@ -325,7 +332,7 @@ func ensureBuildxBuilder(
 			"buildx",
 			"inspect",
 			"--builder",
-			buildxBuilderName,
+			builder,
 		)
 		if err != nil {
 			if err := runner.Run(
@@ -335,7 +342,7 @@ func ensureBuildxBuilder(
 				"buildx",
 				"create",
 				"--name",
-				buildxBuilderName,
+				builder,
 				"--driver",
 				"docker-container",
 				"--use",
@@ -350,7 +357,7 @@ func ensureBuildxBuilder(
 				"buildx",
 				"inspect",
 				"--builder",
-				buildxBuilderName,
+				builder,
 				"--bootstrap",
 			)
 			if err != nil {
@@ -359,10 +366,10 @@ func ensureBuildxBuilder(
 		}
 		driver := parseBuildxDriver(output)
 		if driver == "" {
-			return fmt.Errorf("buildx builder %s has no driver info", buildxBuilderName)
+			return fmt.Errorf("buildx builder %s has no driver info", builder)
 		}
 		if !strings.EqualFold(driver, "docker-container") {
-			return fmt.Errorf("buildx builder %s uses driver %s (expected docker-container)", buildxBuilderName, driver)
+			return fmt.Errorf("buildx builder %s uses driver %s (expected docker-container)", builder, driver)
 		}
 		return nil
 	})

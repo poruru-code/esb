@@ -79,7 +79,7 @@ func applyRuntimeEnv(ctx state.Context, resolver func(string) (string, error)) e
 	if os.Getenv("DOCKER_BUILDKIT") == "" {
 		_ = os.Setenv("DOCKER_BUILDKIT", "1")
 	}
-	setEnvIfEmpty("BUILDX_BUILDER", constants.DefaultBuildxBuilder)
+	setEnvIfEmpty("BUILDX_BUILDER", fmt.Sprintf("%s-buildx", meta.Slug))
 	return nil
 }
 

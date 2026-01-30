@@ -82,12 +82,13 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		return []FunctionSpec{{Name: "hello", ImageName: "hello"}}, nil
 	}
 
+	builderName := meta.Slug + "-buildx"
 	dockerRunner := &recordRunner{
 		outputs: map[string][]byte{
-			"git rev-parse --show-toplevel":              []byte(repoRoot),
-			"git rev-parse --git-dir":                    []byte(".git"),
-			"git rev-parse --git-common-dir":             []byte(".git"),
-			"docker buildx inspect --builder esb-buildx": []byte("Driver: docker-container\n"),
+			"git rev-parse --show-toplevel":                  []byte(repoRoot),
+			"git rev-parse --git-dir":                        []byte(".git"),
+			"git rev-parse --git-common-dir":                 []byte(".git"),
+			"docker buildx inspect --builder " + builderName: []byte("Driver: docker-container\n"),
 		},
 	}
 	composeRunner := &recordRunner{}

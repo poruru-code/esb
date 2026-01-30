@@ -114,7 +114,7 @@ func prepareMetaContext(
 			"buildx",
 			"bake",
 			"--builder",
-			buildxBuilderName,
+			buildxBuilderName(),
 			"-f",
 			bakeFile,
 			"meta",
