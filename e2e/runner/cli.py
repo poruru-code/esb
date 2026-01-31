@@ -37,4 +37,7 @@ def parse_args():
         help="Run environments in parallel (e.g., e2e-docker and e2e-containerd simultaneously)",
     )
     parser.add_argument("--verbose", action="store_true", help="Show full logs")
+    parser.add_argument(
+        "--no-cache", action="store_true", help="Disable build cache (pass --no-cache to build)"
+    )
     return parser.parse_args()

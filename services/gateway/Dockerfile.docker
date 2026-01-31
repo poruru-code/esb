@@ -107,7 +107,6 @@ RUN if [ -f /tmp/config/functions.yml ]; then \
 COPY --chown=${SERVICE_UID}:${SERVICE_GID} entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-COPY --from=meta /version.json /app/version.json
 
 ENV HOME=/app
 USER ${SERVICE_UID}:${SERVICE_GID}

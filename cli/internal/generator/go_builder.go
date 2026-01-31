@@ -6,9 +6,11 @@ package generator
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/poruru/edge-serverless-box/meta"
 
@@ -99,21 +101,6 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	if err := ensureBuildxBuilder(context.Background(), b.Runner, repoRoot); err != nil {
 		return err
 	}
-	gitCtx, err := resolveGitContext(context.Background(), b.Runner, repoRoot)
-	if err != nil {
-		return err
-	}
-	traceTools, err := resolveTraceTools(repoRoot)
-	if err != nil {
-		return err
-	}
-	metaDir, err := prepareMetaContext(context.Background(), b.Runner, repoRoot, gitCtx, traceTools)
-	if err != nil {
-		return err
-	}
-	buildContexts := []buildContext{
-		{Name: "meta", Path: metaDir},
-	}
 
 	mode := strings.TrimSpace(request.Mode)
 	registry, err := resolveRegistryConfig(mode)
@@ -141,7 +128,6 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	}
 
 	applyBuildEnv(request.Env, composeProject)
-	_ = os.Setenv("META_CONTEXT", metaDir)
 	_ = os.Setenv("META_MODULE_CONTEXT", filepath.Join(repoRoot, "meta"))
 	imageLabels := brandingImageLabels(composeProject, request.Env)
 	rootFingerprint, err := resolveRootCAFingerprint()
@@ -193,7 +179,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		if colon := strings.Index(hostOnly, ":"); colon != -1 {
 			hostOnly = hostOnly[:colon]
 		}
-		if hostOnly == "registry" {
+		if isLocalRegistryHost(hostOnly) {
 			if err := ensureRegistryRunning(
 				context.Background(),
 				b.ComposeRunner,
@@ -215,7 +201,13 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 				}
 				if port, ok := ports[constants.EnvPortRegistry]; ok && port > 0 {
 					registryForPush = fmt.Sprintf("127.0.0.1:%d/", port)
+					if hostOnly != "registry" {
+						runtimeRegistry = fmt.Sprintf("127.0.0.1:%d/", port)
+					}
 				}
+			}
+			if err := waitForRegistry(registryForPush, 30*time.Second); err != nil {
+				return err
 			}
 		}
 	}
@@ -242,23 +234,13 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		return err
 	}
 
-	cacheRoot := ""
-	cacheBase, err := resolveOutputDir("", repoRoot)
-	if err != nil {
-		return err
-	}
-	cacheRoot = bakeCacheRoot(cacheBase)
+	cacheRoot := bakeCacheRoot(cfg.Paths.OutputDir)
 
 	lambdaBaseTag := lambdaBaseImageTag(registryForPush, imageTag)
 	lambdaTags := []string{lambdaBaseTag}
 
 	if err := withBuildLock("base-images", func() error {
-		metaDir, err := findBuildContextPath(buildContexts, "meta")
-		if err != nil {
-			return err
-		}
 		proxyArgs := dockerBuildArgMap()
-		assetsDir := filepath.Join(repoRoot, "cli", "internal", "generator", "assets")
 		commonDir := filepath.Join(repoRoot, "services", "common")
 
 		if !request.Verbose {
@@ -295,22 +277,18 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		}
 
 		lambdaTarget := bakeTarget{
-			Name:       "lambda-base",
-			Context:    assetsDir,
-			Dockerfile: filepath.Join(assetsDir, "Dockerfile.lambda-base"),
-			Tags:       lambdaTags,
-			Labels:     imageLabels,
-			Args:       proxyArgs,
-			Contexts: map[string]string{
-				"meta": metaDir,
-			},
+			Name:    "lambda-base",
+			Tags:    lambdaTags,
+			Outputs: resolveBakeOutputs(registryForPush, true),
+			Labels:  imageLabels,
+			Args:    proxyArgs,
 			NoCache: request.NoCache,
 		}
-		if err := applyBakeLocalCache(&lambdaTarget, cacheRoot, "base"); err != nil {
+
+		if err := applyBakeLocalCache(&lambdaTarget, cacheRoot, "base/lambda"); err != nil {
 			return err
 		}
 		baseTargets := []bakeTarget{lambdaTarget}
-
 		rootCAPath := ""
 		if buildOs || buildPython {
 			path, err := resolveRootCAPath()
@@ -325,15 +303,13 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 				Context:    commonDir,
 				Dockerfile: filepath.Join(commonDir, "Dockerfile.os-base"),
 				Tags:       []string{osBaseTag},
+				Outputs:    resolveBakeOutputs(registryForPush, false),
 				Labels:     baseImageLabels,
 				Args: mergeStringMap(proxyArgs, map[string]string{
 					constants.BuildArgCAFingerprint: rootFingerprint,
 					"ROOT_CA_MOUNT_ID":              meta.RootCAMountID,
 					"ROOT_CA_CERT_FILENAME":         meta.RootCACertFilename,
 				}),
-				Contexts: map[string]string{
-					"meta": metaDir,
-				},
 				Secrets: []string{fmt.Sprintf("id=%s,src=%s", meta.RootCAMountID, rootCAPath)},
 				NoCache: request.NoCache,
 			}
@@ -348,15 +324,13 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 				Context:    commonDir,
 				Dockerfile: filepath.Join(commonDir, "Dockerfile.python-base"),
 				Tags:       []string{pythonBaseTag},
+				Outputs:    resolveBakeOutputs(registryForPush, false),
 				Labels:     baseImageLabels,
 				Args: mergeStringMap(proxyArgs, map[string]string{
 					constants.BuildArgCAFingerprint: rootFingerprint,
 					"ROOT_CA_MOUNT_ID":              meta.RootCAMountID,
 					"ROOT_CA_CERT_FILENAME":         meta.RootCACertFilename,
 				}),
-				Contexts: map[string]string{
-					"meta": metaDir,
-				},
 				Secrets: []string{fmt.Sprintf("id=%s,src=%s", meta.RootCAMountID, rootCAPath)},
 				NoCache: request.NoCache,
 			}
@@ -386,15 +360,6 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 				}
 			}
 			return err
-		}
-
-		if registryForPush != "" {
-			if err := pushDockerImage(context.Background(), b.Runner, repoRoot, lambdaBaseTag, request.Verbose); err != nil {
-				if !request.Verbose {
-					fmt.Println("Failed")
-				}
-				return err
-			}
 		}
 
 		if !request.Verbose {
@@ -448,7 +413,6 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		request.Verbose,
 		functionLabels,
 		cacheRoot,
-		buildContexts,
 	); err != nil {
 		if !request.Verbose {
 			fmt.Printf("Building function images (%d functions)... Failed\n", len(functions))
@@ -465,16 +429,14 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		context.Background(),
 		b.Runner,
 		repoRoot,
-		composeProject,
-		request.Env,
+		cfg.Paths.OutputDir,
 		mode,
-		registry.Registry,
+		registryForPush,
 		imageTag,
 		request.NoCache,
 		request.Verbose,
 		imageLabels,
 		cacheRoot,
-		buildContexts,
 	)
 	if err != nil {
 		if !request.Verbose {
@@ -514,4 +476,37 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		}
 	}
 	return nil
+}
+
+func isLocalRegistryHost(host string) bool {
+	switch strings.ToLower(strings.TrimSpace(host)) {
+	case "registry", "localhost", "127.0.0.1":
+		return true
+	default:
+		return false
+	}
+}
+
+func waitForRegistry(registry string, timeout time.Duration) error {
+	if strings.TrimSpace(os.Getenv("ESB_REGISTRY_WAIT")) == "0" {
+		return nil
+	}
+	trimmed := strings.TrimSuffix(strings.TrimSpace(registry), "/")
+	if trimmed == "" {
+		return nil
+	}
+	url := fmt.Sprintf("http://%s/v2/", trimmed)
+	client := &http.Client{Timeout: 2 * time.Second}
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		resp, err := client.Get(url)
+		if err == nil {
+			_ = resp.Body.Close()
+			if resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusInternalServerError {
+				return nil
+			}
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	return fmt.Errorf("registry not responding at %s", url)
 }

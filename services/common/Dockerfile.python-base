@@ -21,4 +21,3 @@ RUN --mount=type=secret,id=${ROOT_CA_MOUNT_ID},required=true \
     && install -m 0644 /run/secrets/${ROOT_CA_MOUNT_ID} /usr/local/share/ca-certificates/${ROOT_CA_CERT_FILENAME} \
     && update-ca-certificates
 
-COPY --from=meta /version.json /app/version.json

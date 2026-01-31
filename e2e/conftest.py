@@ -82,6 +82,24 @@ ORCHESTRATOR_RESTART_WAIT = 8
 STABILIZATION_WAIT = 3
 
 
+def wait_for_gateway_ready(
+    retries: int = 30, interval: float = 2.0, timeout: int = DEFAULT_REQUEST_TIMEOUT
+) -> None:
+    """Wait for the Gateway /health endpoint to respond with 200."""
+    for i in range(retries):
+        try:
+            response = requests.get(f"{GATEWAY_URL}/health", timeout=timeout, verify=VERIFY_SSL)
+            if response.status_code == 200:
+                print(f"Gateway is healthy after {i + 1} attempts")
+                return
+            print(f"Gateway returned status: {response.status_code}")
+        except Exception as e:
+            print(f"Waiting for Gateway... ({i + 1}/{retries}) Error: {e}")
+        time.sleep(interval)
+
+    raise RuntimeError(f"Gateway did not become healthy after {retries} attempts")
+
+
 @pytest.fixture(scope="module")
 def gateway_health():
     """Gateway health check (module scope)."""

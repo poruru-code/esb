@@ -8,8 +8,6 @@ FROM esb-lambda-base:latest
 # ESB Runtime
 COPY cli/internal/generator/assets/site-packages/sitecustomize.py /opt/python/sitecustomize.py
 
-COPY --from=meta /version.json /app/version.json
-
 # Function code
 COPY functions/hello/ ${LAMBDA_TASK_ROOT}/
 

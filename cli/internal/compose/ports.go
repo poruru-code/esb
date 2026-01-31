@@ -51,7 +51,7 @@ var DefaultPortMappings = []PortMapping{
 		EnvVar:        constants.EnvPortRegistry,
 		Service:       "registry",
 		ContainerPort: 5010,
-		Modes:         []string{ModeContainerd},
+		Modes:         []string{ModeContainerd, ModeDocker},
 	},
 	{
 		EnvVar:        constants.EnvPortAgentGRPC,

@@ -3,22 +3,6 @@
 
 services:
   # ============================================
-  # Build Dependencies (Metadata)
-  # ============================================
-  meta-builder:
-    image: esb-meta:debug
-    build:
-      context: .
-      dockerfile: tools/traceability/Dockerfile.meta
-      target: meta
-      additional_contexts:
-        git_dir: ./.git
-        git_common: ./.git
-        trace_tools: ./tools/traceability
-    command: ["/bin/sh", "-c", "exit 0"]
-    restart: "no"
-
-  # ============================================
   # Base Images (Debian 12)
   # ============================================
   os-base:
@@ -26,8 +10,6 @@ services:
     build:
       context: services/common
       dockerfile: Dockerfile.os-base
-      additional_contexts:
-        meta: service:meta-builder
       args:
         ROOT_CA_MOUNT_ID: root_ca
         ROOT_CA_CERT_FILENAME: ${ROOT_CA_CERT_FILENAME:-rootCA.crt}
@@ -43,8 +25,6 @@ services:
     build:
       context: services/common
       dockerfile: Dockerfile.python-base
-      additional_contexts:
-        meta: service:meta-builder
       args:
         ROOT_CA_MOUNT_ID: root_ca
         ROOT_CA_CERT_FILENAME: ${ROOT_CA_CERT_FILENAME:-rootCA.crt}
@@ -152,7 +132,6 @@ services:
       context: services/provisioner
       dockerfile: Dockerfile
       additional_contexts:
-        meta: service:meta-builder
         config: ${CONFIG_DIR:-services/gateway/config}
         generator_assets: ${GENERATOR_ASSETS_CONTEXT:-cli/internal/generator/assets/site-packages}
         python-base: service:python-base
@@ -190,7 +169,6 @@ services:
       context: services/gateway
       dockerfile: Dockerfile.docker
       additional_contexts:
-        meta: service:meta-builder
         config: ${CONFIG_DIR:-services/gateway/config}
         common: ${COMMON_CONTEXT:-services/common}
         python-base: service:python-base
@@ -279,7 +257,6 @@ services:
       context: services/agent
       dockerfile: Dockerfile.docker
       additional_contexts:
-        meta: service:meta-builder
         meta_module: ${META_MODULE_CONTEXT:-meta}
         os-base: service:os-base
       args:
@@ -325,13 +302,10 @@ services:
       - "${PORT_REGISTRY:-5010}:5010"
     volumes:
       - registry_data:/var/lib/registry
-      - ${CERT_DIR:-~/.esb/certs}:/certs:ro
     environment:
       REGISTRY_HTTP_ADDR: 0.0.0.0:5010
-      REGISTRY_HTTP_TLS_CERTIFICATE: /certs/server.crt
-      REGISTRY_HTTP_TLS_KEY: /certs/server.key
     healthcheck:
-      test: ["CMD", "wget", "-q", "-Y", "off", "--spider", "--no-check-certificate", "https://127.0.0.1:5010/v2/"]
+      test: ["CMD", "wget", "-q", "-Y", "off", "--spider", "http://127.0.0.1:5010/v2/"]
       interval: 5s
       timeout: 3s
       retries: 5

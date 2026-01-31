@@ -1,6 +1,7 @@
 import hashlib
 import os
 import secrets
+import socket
 import subprocess
 from pathlib import Path
 
@@ -94,10 +95,19 @@ def calculate_runtime_env(
     if registry and not registry.endswith("/"):
         env[registry_key] = registry + "/"
 
+    insecure_key = env_key(constants.ENV_CONTAINER_REGISTRY_INSECURE)
+    if not env.get(insecure_key):
+        env[insecure_key] = "1"
+
     # If using local dev, point to the Go CLI source root for template resolution
     # (matching logic in cli/internal/config/config.go)
     if constants.ENV_CLI_SRC_ROOT not in env:
         env[constants.ENV_CLI_SRC_ROOT] = str(CLI_ROOT)
+
+    # Prefer a repo-local CLI binary when available.
+    local_cli = CLI_ROOT / "bin" / "esb"
+    if local_cli.exists() and constants.ENV_ESB_CLI not in env:
+        env[constants.ENV_ESB_CLI] = str(local_cli)
 
     # 2. Port Defaults (0 for dynamic)
     for port_suffix in (
@@ -114,6 +124,11 @@ def calculate_runtime_env(
         # Check if set (possibly prefixed or not)
         if not env.get(key):
             env[key] = "0"
+
+    # Prefer a concrete registry port in E2E so CONTAINER_REGISTRY is stable.
+    registry_port_key = env_key(constants.PORT_REGISTRY)
+    if env.get(registry_port_key) in ("", "0"):
+        env[registry_port_key] = str(pick_free_port())
 
     # 3. Subnets & Networks (Isolated per project-env)
     if not env.get(constants.ENV_NETWORK_EXTERNAL):
@@ -137,6 +152,14 @@ def calculate_runtime_env(
             env[constants.ENV_CONTAINER_REGISTRY] = constants.DEFAULT_AGENT_REGISTRY_HOST
         else:
             env[constants.ENV_CONTAINER_REGISTRY] = constants.DEFAULT_AGENT_REGISTRY
+    port = env.get(registry_port_key, "").strip()
+    if norm_mode == "docker":
+        if port:
+            env[constants.ENV_CONTAINER_REGISTRY] = f"127.0.0.1:{port}"
+            env[registry_key] = f"127.0.0.1:{port}/"
+    elif norm_mode == "containerd":
+        if port:
+            env[registry_key] = f"127.0.0.1:{port}/"
 
     # 5. Credentials (Simplified generation for E2E)
     if not env.get(constants.ENV_AUTH_USER):
@@ -209,6 +232,12 @@ def calculate_staging_dir(project_name: str, env_name: str) -> Path:
         root = Path.home() / f".{BRAND_SLUG}" / ".cache" / "staging"
 
     return root / stage_key / env_name / "config"
+
+
+def pick_free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("", 0))
+        return sock.getsockname()[1]
 
 
 def read_service_env(project_name: str, service: str) -> dict[str, str]:

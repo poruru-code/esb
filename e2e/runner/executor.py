@@ -24,7 +24,9 @@ from e2e.runner import constants
 from e2e.runner.env import (
     apply_ports_to_env,
     calculate_runtime_env,
+    calculate_staging_dir,
     discover_ports,
+    read_env_file,
 )
 from e2e.runner.utils import (
     BRAND_SLUG,
@@ -327,6 +329,89 @@ def _load_function_image_names(env_name: str) -> list[str]:
     return []
 
 
+def _state_env_path(env_name: str) -> Path:
+    return E2E_STATE_ROOT / env_name / "config" / ".env"
+
+
+def load_state_env(env_name: str) -> dict[str, str]:
+    path = _state_env_path(env_name)
+    if not path.exists():
+        return {}
+    return read_env_file(str(path))
+
+
+def persist_runtime_env(env_name: str, runtime_env: dict[str, str]) -> None:
+    path = _state_env_path(env_name)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    keys: list[str] = []
+    # Prefixed keys (tag/registry/ports)
+    for suffix in (
+        constants.ENV_TAG,
+        constants.ENV_REGISTRY,
+        constants.PORT_GATEWAY_HTTPS,
+        constants.PORT_GATEWAY_HTTP,
+        constants.PORT_AGENT_GRPC,
+        constants.PORT_S3,
+        constants.PORT_S3_MGMT,
+        constants.PORT_DATABASE,
+        constants.PORT_VICTORIALOGS,
+        constants.PORT_REGISTRY,
+    ):
+        keys.append(env_key(suffix))
+    # Non-prefixed runtime keys
+    keys.extend(
+        [
+            constants.ENV_PROJECT_NAME,
+            constants.ENV_CONTAINER_REGISTRY,
+            constants.ENV_CONTAINER_REGISTRY_INSECURE,
+            constants.ENV_NETWORK_EXTERNAL,
+            constants.ENV_SUBNET_EXTERNAL,
+            constants.ENV_RUNTIME_NET_SUBNET,
+            constants.ENV_RUNTIME_NODE_IP,
+            constants.ENV_LAMBDA_NETWORK,
+            constants.ENV_CONFIG_DIR,
+            constants.ENV_AUTH_USER,
+            constants.ENV_AUTH_PASS,
+            constants.ENV_JWT_SECRET_KEY,
+            constants.ENV_X_API_KEY,
+            constants.ENV_RUSTFS_ACCESS_KEY,
+            constants.ENV_RUSTFS_SECRET_KEY,
+            constants.ENV_ROOT_CA_FINGERPRINT,
+            constants.ENV_ROOT_CA_CERT_FILENAME,
+            constants.ENV_CERT_DIR,
+            constants.ENV_MODE,
+            constants.ENV_ENV,
+        ]
+    )
+
+    seen: set[str] = set()
+    ordered_keys: list[str] = []
+    for key in keys:
+        if key and key not in seen:
+            seen.add(key)
+            ordered_keys.append(key)
+
+    lines = ["# Auto-generated for E2E runtime state. Do not edit manually."]
+    for key in ordered_keys:
+        value = runtime_env.get(key)
+        if value is None or str(value).strip() == "":
+            continue
+        lines.append(f"{key}={value}")
+    path.write_text("\n".join(lines) + "\n")
+
+
+def ensure_build_artifacts(env_name: str) -> None:
+    config_dir = E2E_STATE_ROOT / env_name / "config"
+    required = ("functions.yml", "routing.yml", "resources.yml")
+    missing = [name for name in required if not (config_dir / name).exists()]
+    if missing:
+        missing_list = ", ".join(missing)
+        raise FileNotFoundError(
+            f"Missing build artifacts for {env_name}: {config_dir} (missing: {missing_list})"
+        )
+
+
 def _pick_manifest_digest(index: dict) -> str | None:
     manifests = index.get("manifests", [])
     if not isinstance(manifests, list) or not manifests:
@@ -338,10 +423,15 @@ def _pick_manifest_digest(index: dict) -> str | None:
     return manifests[0].get("digest")
 
 
+def _is_truthy(value: str | None) -> bool:
+    if value is None:
+        return False
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 def verify_registry_images(env_name: str, project: str, mode: str, compose_file: Path) -> None:
     """Validate that registry blobs exist for built function images."""
-    if mode != "containerd":
-        return
+    # Validating registry blobs is useful for all modes now that we use a local registry everywhere.
 
     port = _registry_port(project, compose_file)
     if port is None:
@@ -353,7 +443,11 @@ def verify_registry_images(env_name: str, project: str, mode: str, compose_file:
         print("[WARN] functions.yml not found or empty; skipping registry integrity check.")
         return
 
-    base_url = f"https://localhost:{port}"
+    insecure = os.environ.get(constants.ENV_CONTAINER_REGISTRY_INSECURE)
+    if not insecure:
+        insecure = os.environ.get(env_key(constants.ENV_CONTAINER_REGISTRY_INSECURE))
+    scheme = "http" if _is_truthy(insecure) else "https"
+    base_url = f"{scheme}://localhost:{port}"
     missing: dict[str, list[str]] = {}
 
     headers_index = {"Accept": "application/vnd.oci.image.index.v1+json"}
@@ -683,6 +777,21 @@ def run_scenario(args, scenario):
     else:
         print("Warning: No env_file specified for this scenario. Operating with system env only.")
 
+    state_env = load_state_env(env_name)
+    if state_env:
+        credential_keys = {
+            constants.ENV_AUTH_USER,
+            constants.ENV_AUTH_PASS,
+            constants.ENV_JWT_SECRET_KEY,
+            constants.ENV_X_API_KEY,
+            constants.ENV_RUSTFS_ACCESS_KEY,
+            constants.ENV_RUSTFS_SECRET_KEY,
+        }
+        if test_only:
+            os.environ.update(state_env)
+        else:
+            os.environ.update({k: v for k, v in state_env.items() if k in credential_keys})
+
     # 2.5 Inject Proxy Settings
     # 3. Reload env vars into a dict for passing to subprocess (pytest)
     env = os.environ.copy()
@@ -705,6 +814,10 @@ def run_scenario(args, scenario):
     if not template_path.exists():
         raise FileNotFoundError(f"Missing E2E template: {template_path}")
     runtime_env = calculate_runtime_env(project_name, env_name, mode, env_file)
+    compose_project = f"{project_name}-{env_name}"
+    staging_config_dir = calculate_staging_dir(compose_project, env_name)
+    if staging_config_dir.exists():
+        runtime_env[constants.ENV_CONFIG_DIR] = str(staging_config_dir)
     tag_key = env_key(constants.ENV_TAG)
     tag_override = env_vars_override.get(tag_key) or os.environ.get(tag_key)
     if tag_override:
@@ -714,9 +827,17 @@ def run_scenario(args, scenario):
         if current_tag == "" or current_tag == "latest":
             runtime_env[tag_key] = build_unique_tag(env_name)
     os.environ[tag_key] = runtime_env.get(tag_key, "")
+    insecure_key = env_key(constants.ENV_CONTAINER_REGISTRY_INSECURE)
+    if insecure_key in runtime_env:
+        os.environ[insecure_key] = runtime_env[insecure_key]
     build_env_base = runtime_env.copy()
-    build_env_base["PROJECT_NAME"] = f"{project_name}-{env_name}"
+    build_env_base["PROJECT_NAME"] = compose_project
     build_env_base["ESB_META_REUSE"] = "1"
+
+    # Merge runtime environment into pytest environment to ensure variables like
+    # ESB_REGISTRY are available to subprocesses (e.g. docker compose in tests).
+    env.update(runtime_env)
+    env.update(env_vars_override)
 
     did_up = False
     try:
@@ -732,6 +853,8 @@ def run_scenario(args, scenario):
                 "--mode",
                 mode,
             ]
+            if args.no_cache:
+                build_args.append("--no-cache")
             if do_reset:
                 print(f"Resetting environment: {env_name}")
                 # 2.1 Robust cleanup using docker compose down
@@ -767,11 +890,13 @@ def run_scenario(args, scenario):
 
                 # Re-generate configurations and build images via ESB build
                 run_esb(
-                    build_args + ["--no-cache"],
+                    build_args,
                     env_file=env_file,
                     verbose=args.verbose,
                     env=build_env_base,
                 )
+                ensure_build_artifacts(env_name)
+                persist_runtime_env(env_name, build_env_base)
                 verify_registry_images(
                     env_name,
                     f"{project_name}-{env_name}",
@@ -792,11 +917,13 @@ def run_scenario(args, scenario):
                 else:
                     print(f"Building environment: {env_name}")
                 run_esb(
-                    build_args + ["--no-cache"],
+                    build_args,
                     env_file=env_file,
                     verbose=args.verbose,
                     env=build_env_base,
                 )
+                ensure_build_artifacts(env_name)
+                persist_runtime_env(env_name, build_env_base)
                 verify_registry_images(
                     env_name,
                     f"{project_name}-{env_name}",
@@ -814,6 +941,8 @@ def run_scenario(args, scenario):
                     print(f"Preparing environment: {env_name}")
                 # In Zero-Config, we just rebuild if needed. stop/sync are gone.
                 run_esb(build_args, env_file=env_file, verbose=args.verbose, env=build_env_base)
+                ensure_build_artifacts(env_name)
+                persist_runtime_env(env_name, build_env_base)
                 verify_registry_images(
                     env_name,
                     f"{project_name}-{env_name}",
@@ -825,11 +954,7 @@ def run_scenario(args, scenario):
                 if not args.verbose:
                     print("Done")
         else:
-            config_dir = E2E_STATE_ROOT / env_name / "config"
-            if not config_dir.exists():
-                raise FileNotFoundError(
-                    f"Missing build artifacts for {env_name}: {config_dir} (run build phase first)"
-                )
+            ensure_build_artifacts(env_name)
             if args.verbose:
                 print(f"Skipping build for {env_name} (test-only)")
 
@@ -841,7 +966,7 @@ def run_scenario(args, scenario):
         if not did_up:
             # Critical: Override PROJECT_NAME to include env suffix for isolation (e.g. esb-e2e-docker)
             # This matches the logic in the Go CLI builder and ensures container names are unique.
-            runtime_env["PROJECT_NAME"] = f"{project_name}-{env_name}"
+            runtime_env["PROJECT_NAME"] = compose_project
 
             # Merge with existing system/process env to ensure PATH etc are preserved
             compose_env = os.environ.copy()
@@ -856,16 +981,21 @@ def run_scenario(args, scenario):
                 print(f"[WARN] Compose file not found at {compose_file_path}.")
                 raise FileNotFoundError(f"Compose file not found: {compose_file_path}")
 
-            compose_cmd = [
+            compose_base_cmd = [
                 "docker",
                 "compose",
                 "--project-name",
                 f"{BRAND_SLUG}-{env_name}",
                 "--file",
                 str(compose_file_path),
-                "up",
-                "--detach",
             ]
+
+            registry_cmd = compose_base_cmd + ["up", "--detach", "registry"]
+            if args.verbose:
+                print(f"Running: {' '.join(registry_cmd)}")
+            subprocess.run(registry_cmd, check=True, env=compose_env)
+
+            compose_cmd = compose_base_cmd + ["up", "--detach", "--no-build"]
 
             if args.verbose:
                 print(f"Running: {' '.join(compose_cmd)}")

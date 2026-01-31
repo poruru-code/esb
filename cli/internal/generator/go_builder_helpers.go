@@ -7,7 +7,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -24,11 +23,6 @@ import (
 
 type registryConfig struct {
 	Registry string
-}
-
-type buildContext struct {
-	Name string
-	Path string
 }
 
 func resolveRegistryConfig(mode string) (registryConfig, error) {
@@ -49,119 +43,6 @@ func resolveRegistryConfig(mode string) (registryConfig, error) {
 		registry += "/"
 	}
 	return registryConfig{Registry: registry}, nil
-}
-
-func resolveTraceTools(repoRoot string) (string, error) {
-	root := strings.TrimSpace(repoRoot)
-	if root == "" {
-		return "", fmt.Errorf("repo root is required")
-	}
-	traceTools := filepath.Join(root, "tools", "traceability")
-	script := filepath.Join(traceTools, "generate_version_json.py")
-	if _, err := os.Stat(script); err != nil {
-		return "", fmt.Errorf("traceability script not found: %w", err)
-	}
-	return traceTools, nil
-}
-
-func prepareMetaContext(
-	ctx context.Context,
-	runner compose.CommandRunner,
-	repoRoot string,
-	gitCtx gitContext,
-	traceTools string,
-) (string, error) {
-	if runner == nil {
-		return "", fmt.Errorf("command runner is nil")
-	}
-	root := strings.TrimSpace(repoRoot)
-	if root == "" {
-		return "", fmt.Errorf("repo root is required")
-	}
-	metaDir := filepath.Join(root, meta.OutputDir, "meta")
-	bakeFile := filepath.Join(root, "docker-bake.hcl")
-	if _, err := os.Stat(bakeFile); err != nil {
-		return "", fmt.Errorf("bake file not found: %w", err)
-	}
-	traceTools = strings.TrimSpace(traceTools)
-	if traceTools == "" {
-		return "", fmt.Errorf("trace tools path is required")
-	}
-	versionPath := filepath.Join(metaDir, "version.json")
-	reuse := strings.TrimSpace(os.Getenv("ESB_META_REUSE")) != ""
-	gitSha := ""
-	if reuse {
-		if sha, err := runGit(ctx, runner, root, "rev-parse", "HEAD"); err == nil {
-			gitSha = sha
-		}
-	}
-	if err := withBuildLock("meta", func() error {
-		if reuse && gitSha != "" {
-			if ok, err := metaMatchesGit(versionPath, gitSha); err == nil && ok {
-				return nil
-			}
-		}
-		if err := ensureDir(metaDir); err != nil {
-			return err
-		}
-		tmpDir, err := os.MkdirTemp(filepath.Dir(metaDir), "meta-tmp-")
-		if err != nil {
-			return err
-		}
-		defer func() { _ = removeDir(tmpDir) }()
-
-		args := []string{
-			"buildx",
-			"bake",
-			"--builder",
-			buildxBuilderName(),
-			"-f",
-			bakeFile,
-			"meta",
-			"--set",
-			fmt.Sprintf("meta.contexts.git_dir=%s", gitCtx.GitDir),
-			"--set",
-			fmt.Sprintf("meta.contexts.git_common=%s", gitCtx.GitCommon),
-			"--set",
-			fmt.Sprintf("meta.contexts.trace_tools=%s", traceTools),
-			"--set",
-			fmt.Sprintf("meta.output=type=local,dest=%s", tmpDir),
-		}
-		if err := runner.Run(ctx, root, "docker", args...); err != nil {
-			return err
-		}
-		tmpVersion := filepath.Join(tmpDir, "version.json")
-		if _, err := os.Stat(tmpVersion); err != nil {
-			return fmt.Errorf("version.json not found: %w", err)
-		}
-		if err := copyFile(tmpVersion, versionPath); err != nil {
-			return err
-		}
-		return nil
-	}); err != nil {
-		return "", err
-	}
-	if _, err := os.Stat(versionPath); err != nil {
-		return "", fmt.Errorf("version.json not found: %w", err)
-	}
-	return metaDir, nil
-}
-
-func metaMatchesGit(path, gitSha string) (bool, error) {
-	if path == "" || gitSha == "" {
-		return false, nil
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return false, err
-	}
-	var payload struct {
-		GitSha string `json:"git_sha"`
-	}
-	if err := json.Unmarshal(data, &payload); err != nil {
-		return false, err
-	}
-	return strings.TrimSpace(payload.GitSha) == strings.TrimSpace(gitSha), nil
 }
 
 func defaultGeneratorParameters() map[string]string {
@@ -342,20 +223,14 @@ func buildFunctionImages(
 	verbose bool,
 	labels map[string]string,
 	cacheRoot string,
-	buildContexts []buildContext,
 ) error {
 	if verbose {
 		fmt.Println("Building function images...")
-	}
-	metaDir, err := findBuildContextPath(buildContexts, "meta")
-	if err != nil {
-		return err
 	}
 	proxyArgs := dockerBuildArgMap()
 	expectedFingerprint := strings.TrimSpace(labels[compose.ESBImageFingerprintLabel])
 	bakeTargets := make([]bakeTarget, 0, len(functions))
 	builtFunctions := make([]string, 0, len(functions))
-	builtTags := make([]string, 0, len(functions))
 	for _, fn := range functions {
 		if verbose {
 			fmt.Printf("  Building image for %s...\n", fn.Name)
@@ -395,19 +270,16 @@ func buildFunctionImages(
 				Context:    outputDir,
 				Dockerfile: dockerfile,
 				Tags:       []string{imageTag},
+				Outputs:    resolveBakeOutputs(registry, true),
 				Labels:     labels,
 				Args:       proxyArgs,
-				Contexts: map[string]string{
-					"meta": metaDir,
-				},
-				NoCache: noCache,
+				NoCache:    noCache,
 			}
 			if err := applyBakeLocalCache(&target, cacheRoot, "functions"); err != nil {
 				return err
 			}
 			bakeTargets = append(bakeTargets, target)
 			builtFunctions = append(builtFunctions, fn.Name)
-			builtTags = append(builtTags, imageTag)
 		}
 	}
 
@@ -428,13 +300,6 @@ func buildFunctionImages(
 			}
 		}
 	}
-	if registry != "" {
-		for _, imageTag := range builtTags {
-			if err := pushDockerImage(ctx, runner, outputDir, imageTag, verbose); err != nil {
-				return err
-			}
-		}
-	}
 	return nil
 }
 
@@ -442,8 +307,7 @@ func buildControlImages(
 	ctx context.Context,
 	runner compose.CommandRunner,
 	repoRoot string,
-	composeProject string,
-	env string,
+	outputDir string,
 	mode string,
 	registry string,
 	tag string,
@@ -451,7 +315,6 @@ func buildControlImages(
 	verbose bool,
 	labels map[string]string,
 	cacheRoot string,
-	buildContexts []buildContext,
 ) ([]string, error) {
 	if runner == nil {
 		return nil, fmt.Errorf("command runner is nil")
@@ -464,31 +327,15 @@ func buildControlImages(
 	if mode == "" {
 		mode = compose.ModeDocker
 	}
-	metaDir, err := findBuildContextPath(buildContexts, "meta")
-	if err != nil {
-		return nil, err
-	}
 
-	configDir := filepath.ToSlash(staging.ConfigDir(composeProject, env))
-	commonDir := filepath.ToSlash(filepath.Join(root, "services", "common"))
+	configDir := filepath.ToSlash(filepath.Join(outputDir, "config"))
 	gatewayDir := filepath.ToSlash(filepath.Join(root, "services", "gateway"))
 	agentDir := filepath.ToSlash(filepath.Join(root, "services", "agent"))
 	provisionerDir := filepath.ToSlash(filepath.Join(root, "services", "provisioner"))
 	runtimeNodeDir := filepath.ToSlash(filepath.Join(root, "services", "runtime-node"))
-	generatorAssetsDir := filepath.ToSlash(filepath.Join(
-		root,
-		"cli",
-		"internal",
-		"generator",
-		"assets",
-		"site-packages",
-	))
-	metaModuleDir := filepath.ToSlash(filepath.Join(root, "meta"))
 
-	pythonBaseImage := fmt.Sprintf("%s-python-base:latest", meta.ImagePrefix)
-	osBaseImage := fmt.Sprintf("%s-os-base:latest", meta.ImagePrefix)
-	pythonBaseContext := fmt.Sprintf("docker-image://%s", pythonBaseImage)
-	osBaseContext := fmt.Sprintf("docker-image://%s", osBaseImage)
+	pythonBaseContext := "target:python-base"
+	osBaseContext := "target:os-base"
 
 	serviceUser := meta.Slug
 	serviceUID := strings.TrimSpace(os.Getenv("RUN_UID"))
@@ -505,7 +352,57 @@ func buildControlImages(
 		return joinRegistry(registry, fmt.Sprintf("%s:%s", name, tag))
 	}
 
-	targets := make([]bakeTarget, 0, 4)
+	rootFingerprint, err := resolveRootCAFingerprint()
+	if err != nil {
+		return nil, err
+	}
+	rootCAPath, err := resolveRootCAPath()
+	if err != nil {
+		return nil, err
+	}
+	baseImageLabels := make(map[string]string, len(labels)+1)
+	for key, value := range labels {
+		baseImageLabels[key] = value
+	}
+	baseImageLabels[compose.ESBCAFingerprintLabel] = rootFingerprint
+
+	osBaseTag := fmt.Sprintf("%s-os-base:latest", meta.ImagePrefix)
+	osTarget := bakeTarget{
+		Name:    "os-base",
+		Tags:    []string{osBaseTag},
+		Outputs: resolveBakeOutputs(registry, false),
+		Labels:  baseImageLabels,
+		Args: mergeStringMap(proxyArgs, map[string]string{
+			constants.BuildArgCAFingerprint: rootFingerprint,
+			"ROOT_CA_MOUNT_ID":              meta.RootCAMountID,
+			"ROOT_CA_CERT_FILENAME":         meta.RootCACertFilename,
+		}),
+		Secrets: []string{fmt.Sprintf("id=%s,src=%s", meta.RootCAMountID, rootCAPath)},
+		NoCache: noCache,
+	}
+	if err := applyBakeLocalCache(&osTarget, cacheRoot, "base/os"); err != nil {
+		return nil, err
+	}
+
+	pythonBaseTag := fmt.Sprintf("%s-python-base:latest", meta.ImagePrefix)
+	pythonTarget := bakeTarget{
+		Name:    "python-base",
+		Tags:    []string{pythonBaseTag},
+		Outputs: resolveBakeOutputs(registry, false),
+		Labels:  baseImageLabels,
+		Args: mergeStringMap(proxyArgs, map[string]string{
+			constants.BuildArgCAFingerprint: rootFingerprint,
+			"ROOT_CA_MOUNT_ID":              meta.RootCAMountID,
+			"ROOT_CA_CERT_FILENAME":         meta.RootCACertFilename,
+		}),
+		Secrets: []string{fmt.Sprintf("id=%s,src=%s", meta.RootCAMountID, rootCAPath)},
+		NoCache: noCache,
+	}
+	if err := applyBakeLocalCache(&pythonTarget, cacheRoot, "base/python"); err != nil {
+		return nil, err
+	}
+
+	targets := []bakeTarget{osTarget, pythonTarget}
 	built := make([]string, 0, 4)
 
 	switch mode {
@@ -516,16 +413,14 @@ func buildControlImages(
 		}
 		runtimeTag := makeTag(fmt.Sprintf("%s-runtime-node-containerd", meta.ImagePrefix))
 		runtimeTarget := bakeTarget{
-			Name:       "runtime-node-containerd",
-			Context:    runtimeNodeDir,
-			Dockerfile: runtimeDockerfile,
-			Tags:       []string{runtimeTag},
-			Labels:     labels,
+			Name:    "runtime-node-containerd",
+			Tags:    []string{runtimeTag},
+			Outputs: resolveBakeOutputs(registry, true),
+			Labels:  labels,
 			Args: mergeStringMap(proxyArgs, map[string]string{
 				"OS_BASE_IMAGE": "os-base",
 			}),
 			Contexts: map[string]string{
-				"meta":    metaDir,
 				"os-base": osBaseContext,
 			},
 			NoCache: noCache,
@@ -543,18 +438,15 @@ func buildControlImages(
 	}
 	agentTag := makeTag(fmt.Sprintf("%s-agent-%s", meta.ImagePrefix, mode))
 	agentTarget := bakeTarget{
-		Name:       fmt.Sprintf("agent-%s", mode),
-		Context:    agentDir,
-		Dockerfile: agentDockerfile,
-		Tags:       []string{agentTag},
-		Labels:     labels,
+		Name:    fmt.Sprintf("agent-%s", mode),
+		Tags:    []string{agentTag},
+		Outputs: resolveBakeOutputs(registry, true),
+		Labels:  labels,
 		Args: mergeStringMap(proxyArgs, map[string]string{
 			"OS_BASE_IMAGE": "os-base",
 		}),
 		Contexts: map[string]string{
-			"meta":        metaDir,
-			"meta_module": metaModuleDir,
-			"os-base":     osBaseContext,
+			"os-base": osBaseContext,
 		},
 		NoCache: noCache,
 	}
@@ -570,19 +462,16 @@ func buildControlImages(
 	}
 	provisionerTag := makeTag(fmt.Sprintf("%s-provisioner", meta.ImagePrefix))
 	provisionerTarget := bakeTarget{
-		Name:       "provisioner",
-		Context:    provisionerDir,
-		Dockerfile: provisionerDockerfile,
-		Tags:       []string{provisionerTag},
-		Labels:     labels,
+		Name:    "provisioner",
+		Tags:    []string{provisionerTag},
+		Outputs: resolveBakeOutputs(registry, true),
+		Labels:  labels,
 		Args: mergeStringMap(proxyArgs, map[string]string{
 			"PYTHON_BASE_IMAGE": "python-base",
 		}),
 		Contexts: map[string]string{
-			"meta":             metaDir,
-			"config":           configDir,
-			"generator_assets": generatorAssetsDir,
-			"python-base":      pythonBaseContext,
+			"config":      configDir,
+			"python-base": pythonBaseContext,
 		},
 		NoCache: noCache,
 	}
@@ -598,11 +487,10 @@ func buildControlImages(
 	}
 	gatewayTag := makeTag(fmt.Sprintf("%s-gateway-%s", meta.ImagePrefix, mode))
 	gatewayTarget := bakeTarget{
-		Name:       fmt.Sprintf("gateway-%s", mode),
-		Context:    gatewayDir,
-		Dockerfile: gatewayDockerfile,
-		Tags:       []string{gatewayTag},
-		Labels:     labels,
+		Name:    fmt.Sprintf("gateway-%s", mode),
+		Tags:    []string{gatewayTag},
+		Outputs: resolveBakeOutputs(registry, true),
+		Labels:  labels,
 		Args: mergeStringMap(proxyArgs, map[string]string{
 			"PYTHON_BASE_IMAGE": "python-base",
 			"SERVICE_USER":      serviceUser,
@@ -610,9 +498,7 @@ func buildControlImages(
 			"SERVICE_GID":       serviceGID,
 		}),
 		Contexts: map[string]string{
-			"meta":        metaDir,
 			"config":      configDir,
-			"common":      commonDir,
 			"python-base": pythonBaseContext,
 		},
 		NoCache: noCache,
@@ -644,25 +530,6 @@ func buildControlImages(
 	}
 
 	return built, nil
-}
-
-func pushDockerImage(
-	ctx context.Context,
-	runner compose.CommandRunner,
-	contextDir string,
-	imageTag string,
-	verbose bool,
-) error {
-	if runner == nil {
-		return fmt.Errorf("command runner is nil")
-	}
-	if imageTag == "" {
-		return fmt.Errorf("image tag is required")
-	}
-	if verbose {
-		return runner.Run(ctx, contextDir, "docker", "push", imageTag)
-	}
-	return runner.RunQuiet(ctx, contextDir, "docker", "push", imageTag)
 }
 
 func resolveRootCAPath() (string, error) {

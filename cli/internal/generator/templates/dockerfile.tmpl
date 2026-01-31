@@ -8,8 +8,6 @@ FROM {{ .BaseImage }}
 # ESB Runtime
 COPY {{ .SitecustomizeSource }} /opt/python/sitecustomize.py
 
-COPY --from=meta /version.json /app/version.json
-
 {{- range .Layers }}
 # Layer: {{ .Name }}
 COPY {{ .ContentURI }}/ /opt/

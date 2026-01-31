@@ -42,7 +42,6 @@ RUN if [ -f /tmp/config/resources.yml ]; then \
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-COPY --from=meta /version.json /app/version.json
 
 ENV PYTHONPATH=/app
 

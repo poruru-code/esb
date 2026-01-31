@@ -10,14 +10,10 @@ import os
 import subprocess
 import time
 
-import requests
-
 from e2e.conftest import (
-    DEFAULT_REQUEST_TIMEOUT,
-    GATEWAY_URL,
-    VERIFY_SSL,
     build_control_compose_command,
     call_api,
+    wait_for_gateway_ready,
 )
 
 
@@ -63,17 +59,7 @@ class TestReconciliation:
 
         # Wait for Gateway health check.
         print("Step 3: Waiting for Gateway to become healthy...")
-        for i in range(15):
-            try:
-                health_resp = requests.get(
-                    f"{GATEWAY_URL}/health", verify=VERIFY_SSL, timeout=DEFAULT_REQUEST_TIMEOUT
-                )
-                if health_resp.status_code == 200:
-                    print(f"Gateway is healthy after {i + 1} attempts")
-                    break
-            except Exception:
-                pass
-            time.sleep(2)
+        wait_for_gateway_ready()
 
         # Short stabilization wait (still within Grace Period).
         time.sleep(3)

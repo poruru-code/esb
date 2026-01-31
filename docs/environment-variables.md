@@ -28,8 +28,9 @@ ESB の設定は以下の3段階で伝播します：
 | `<BRAND>_TAG` | `latest` | イメージタグ（runtime 系は `-docker` / `-containerd` が compose 側で付与）。本番は不変タグ（`vX.Y.Z` / `sha-<git-short>`）を指定します。 |
 | `<BRAND>_REGISTRY` | なし | containerd 系のイメージレジストリ（末尾 `/` で正規化）。 |
 | `CERT_DIR` | `~/.<brand>/certs` | mTLS 証明書のマウント元パス。 |
+| `PROVENANCE` | `mode=max` | Buildx の Provenance Attestation 設定。`0` / `false` で無効化できます。 |
 
-補足: ビルド由来のトレーサビリティ情報は `/app/version.json` に焼き込みます。環境変数での指定は不要です。
+補足: ビルド由来のトレーサビリティは OCI Provenance Attestation を使用します。確認は `docker buildx imagetools inspect --provenance <image>` を参照してください。
 
 ### 1. Gateway (`services/gateway`)
 
@@ -55,7 +56,8 @@ Gateway は Lambda 環境の "Master Config" として機能し、サービス�
 | `CNI_DNS_SERVER`     | (任意)                    | **Networking**: ワーカー DNS の明示的なネームサーバー。未指定時は `CNI_GW_IP` または `10.88.0.1`。     |
 | `CNI_SUBNET`         | (任意)                    | **Networking**: CNI のサブネット範囲。IPAM の subnet/range に反映される。                             |
 | `CNI_NET_DIR`        | `/var/lib/cni/networks`   | **Networking**: CNI IP 割り当てファイルの保存先。Agent が `List` 時に IP を再解決する際に参照する。     |
-| `CONTAINER_REGISTRY` | (内部管理)               | **Distribution**: Containerd モードの関数イメージ取得先。Compose が `<BRAND>_REGISTRY` から設定する内部値であり、運用者は変更しない。HTTPS が必須（Insecure は非サポート）。 |
+| `CONTAINER_REGISTRY` | (内部管理)               | **Distribution**: Containerd モードの関数イメージ取得先。Compose が `<BRAND>_REGISTRY` から設定する内部値であり、運用者は変更しない。 |
+| `CONTAINER_REGISTRY_INSECURE` | `1` | **Distribution**: `1` の場合は HTTP レジストリを許可します。未指定または `0` の場合は HTTPS + CA を使用します。 |
 | `CONTAINERD_RUNTIME` | (任意)                    | **Runtime**: `aws.firecracker` を指定すると Firecracker runtime/shim を使用する。 |
 | `AGENT_INVOKE_MAX_RESPONSE_SIZE` | `10485760` (10MB) | **Security**: `InvokeWorker` レスポンスの最大サイズ制限（バイト）。                                   |
 | `AGENT_GRPC_TLS_DISABLED` | (空) | **Security**: `1` を設定すると gRPC TLS を無効化します（デフォルトは有効）。                             |
@@ -112,5 +114,5 @@ environment:
 ### 注意事項
 
 - **gRPC セキュリティ**: デフォルトで mTLS が有効です。証明書は `/app/config/ssl/` 配下の `server.crt`/`server.key` および `RootCA` (meta.RootCACertPath) を参照します。
-- **イメージプル**: Insecure Registry (HTTP) はサポートされていません。常に HTTPS / mTLS (CA) 接続が試行されます。
+- **イメージプル**: `CONTAINER_REGISTRY_INSECURE=1` の場合は HTTP、未指定または `0` の場合は HTTPS / mTLS (CA) 接続が試行されます。
 - **Metrics (Docker モード)**: Docker 実行時の `GetContainerMetrics` は現在サポートされておらず、エラーとなります。Metrics を利用する場合は containerd モードを使用してください。

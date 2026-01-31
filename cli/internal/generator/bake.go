@@ -21,6 +21,7 @@ type bakeTarget struct {
 	Context    string
 	Dockerfile string
 	Tags       []string
+	Outputs    []string
 	Labels     map[string]string
 	Args       map[string]string
 	Contexts   map[string]string
@@ -72,7 +73,8 @@ func runBakeGroup(
 	builder := buildxBuilderName()
 	args := []string{"buildx", "bake", "--builder", builder}
 	args = append(args, bakeAllowArgs(targets)...)
-	args = append(args, "-f", bakeFile, "-f", tmpFile, "--load")
+	args = append(args, bakeProvenanceArgs()...)
+	args = append(args, "-f", bakeFile, "-f", tmpFile)
 	return withBuildLock("bake", func() error {
 		if verbose {
 			args = append(args, "--progress", "plain")
@@ -136,6 +138,11 @@ func renderBakeFile(groupName string, targets []bakeTarget) (string, error) {
 		if len(target.Tags) > 0 {
 			b.WriteString(fmt.Sprintf("  tags = %s\n", hclList(target.Tags)))
 		}
+		outputs := target.Outputs
+		if len(outputs) == 0 {
+			outputs = []string{"type=docker"}
+		}
+		b.WriteString(fmt.Sprintf("  output = %s\n", hclList(outputs)))
 		writeHclMap(&b, "labels", target.Labels)
 		writeHclMap(&b, "args", target.Args)
 		writeHclMap(&b, "contexts", target.Contexts)
@@ -155,6 +162,37 @@ func renderBakeFile(groupName string, targets []bakeTarget) (string, error) {
 	}
 
 	return b.String(), nil
+}
+
+func bakeProvenanceArgs() []string {
+	mode, ok := provenanceMode()
+	if !ok {
+		return nil
+	}
+	return []string{fmt.Sprintf("--provenance=%s", mode)}
+}
+
+func provenanceMode() (string, bool) {
+	value := strings.TrimSpace(os.Getenv("PROVENANCE"))
+	if value == "" {
+		return "mode=max", true
+	}
+	switch strings.ToLower(value) {
+	case "0", "false", "off", "no":
+		return "", false
+	case "1", "true", "on", "yes":
+		return "mode=max", true
+	default:
+		return value, true
+	}
+}
+
+func resolveBakeOutputs(registry string, pushToRegistry bool) []string {
+	outputs := []string{"type=docker"}
+	if pushToRegistry && strings.TrimSpace(registry) != "" {
+		outputs = append(outputs, "type=registry")
+	}
+	return outputs
 }
 
 func hclList(values []string) string {
@@ -446,16 +484,4 @@ func mergeStringMap(base, extra map[string]string) map[string]string {
 		out[key] = value
 	}
 	return out
-}
-
-func findBuildContextPath(buildContexts []buildContext, name string) (string, error) {
-	for _, ctx := range buildContexts {
-		if strings.TrimSpace(ctx.Name) == strings.TrimSpace(name) {
-			if strings.TrimSpace(ctx.Path) == "" {
-				return "", fmt.Errorf("build context path is empty for %s", name)
-			}
-			return ctx.Path, nil
-		}
-	}
-	return "", fmt.Errorf("build context %s not found", name)
 }

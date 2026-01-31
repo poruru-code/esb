@@ -13,15 +13,6 @@ require_env() {
   fi
 }
 
-print_version_json() {
-  if [ -f /app/version.json ]; then
-    echo "INFO: version.json"
-    cat /app/version.json
-  else
-    echo "WARN: version.json not found"
-  fi
-}
-
 require_env "IMAGE_RUNTIME"
 
 case "$IMAGE_RUNTIME" in
@@ -38,8 +29,6 @@ if [ -n "${AGENT_RUNTIME:-}" ] && [ "$AGENT_RUNTIME" != "$IMAGE_RUNTIME" ]; then
   echo "ERROR: AGENT_RUNTIME=${AGENT_RUNTIME} does not match IMAGE_RUNTIME=${IMAGE_RUNTIME}" >&2
   exit 1
 fi
-
-print_version_json
 
 WG_CONF_PATH="${WG_CONF_PATH:-/app/config/wireguard/wg0.conf}"
 WG_INTERFACE="${WG_INTERFACE:-wg0}"

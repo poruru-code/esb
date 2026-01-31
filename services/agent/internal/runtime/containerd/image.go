@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/errdefs"
@@ -78,9 +79,12 @@ func ensureImageUnpacked(ctx context.Context, img containerd.Image, snapshotter 
 	return nil
 }
 
-// createTLSResolver creates a docker resolver with custom CA certificate
-// Forces HTTPS even for localhost (containerd treats localhost as insecure by default)
+// createTLSResolver creates a docker resolver with custom CA certificate.
+// Default behavior forces HTTPS even for localhost (containerd treats localhost as insecure by default).
 func createTLSResolver() (remotes.Resolver, error) {
+	if isRegistryInsecure() {
+		return docker.NewResolver(docker.ResolverOptions{PlainHTTP: true}), nil
+	}
 	// Load CA certificate
 	caCert, err := os.ReadFile(caCertPath)
 	if err != nil {
@@ -123,4 +127,9 @@ func createTLSResolver() (remotes.Resolver, error) {
 
 	log.Printf("TLS resolver configured with CA from %s (HTTPS forced)", caCertPath)
 	return resolver, nil
+}
+
+func isRegistryInsecure() bool {
+	value := strings.ToLower(strings.TrimSpace(os.Getenv("CONTAINER_REGISTRY_INSECURE")))
+	return value == "1" || value == "true" || value == "yes" || value == "on"
 }
