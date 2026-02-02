@@ -1,0 +1,91 @@
+# Where: e2e/fixtures/template.part1.yaml
+# What: E2E SAM template segment with mixed resources/functions.
+# Why: Split deploys into multiple templates to mirror real workflows.
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: E2E Test Lambda Functions (Part 1)
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Handler: lambda_function.lambda_handler
+    Timeout: 30
+    MemorySize: 128
+    Layers:
+      - !Ref CommonLayer
+
+Resources:
+  CommonLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: common-lib-core
+      ContentUri: layers/common/
+      CompatibleRuntimes:
+        - python3.12
+
+  ConnectivityFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lambda-connectivity
+      CodeUri: functions/connectivity/
+      Events:
+        HelloApi:
+          Type: Api
+          Properties:
+            Path: /api/hello
+            Method: post
+
+  IntegrationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lambda-integration
+      CodeUri: functions/integration/
+      Events:
+        LambdaApi:
+          Type: Api
+          Properties:
+            Path: /api/lambda
+            Method: post
+
+  DynamoIntegrationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lambda-dynamo
+      CodeUri: functions/dynamo/
+      Events:
+        DynamoApi:
+          Type: Api
+          Properties:
+            Path: /api/dynamo
+            Method: post
+      Environment:
+        Variables:
+          DYNAMODB_ENDPOINT: "http://${DYNAMODB_ENDPOINT_HOST}:8000"
+
+  E2ETable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: e2e-test-table
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+  EchoFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lambda-echo
+      CodeUri: functions/echo/
+      AutoPublishAlias: live
+      Events:
+        EchoApi:
+          Type: Api
+          Properties:
+            Path: /api/echo
+            Method: post
+      ReservedConcurrentExecutions: 1
+      ProvisionedConcurrencyConfig:
+        ProvisionedConcurrentExecutions: 1

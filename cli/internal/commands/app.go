@@ -13,6 +13,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/interaction"
+	"github.com/poruru/edge-serverless-box/cli/internal/ports"
 	"github.com/poruru/edge-serverless-box/cli/internal/version"
 )
 
@@ -23,7 +24,7 @@ type Dependencies struct {
 	Out          io.Writer
 	Prompter     interaction.Prompter
 	RepoResolver func(string) (string, error)
-	Build        BuildDeps
+	Deploy       DeployDeps
 }
 
 // CLI defines the command-line interface structure parsed by Kong.
@@ -32,25 +33,26 @@ type CLI struct {
 	Template   string        `short:"t" help:"Path to SAM template"`
 	EnvFlag    string        `short:"e" name:"env" help:"Environment name"`
 	EnvFile    string        `name:"env-file" help:"Path to .env file"`
-	Build      BuildCmd      `cmd:"" help:"Build images"`
+	Deploy     DeployCmd     `cmd:"" help:"Deploy functions"`
 	Completion CompletionCmd `cmd:"" help:"Generate shell completion script"`
 	Version    VersionCmd    `cmd:"" help:"Show version information"`
 }
 
 type (
-	BuildCmd struct {
+	// DeployCmd defines the deploy command flags.
+	DeployCmd struct {
 		Mode    string `short:"m" help:"Runtime mode (docker/containerd)"`
 		Output  string `short:"o" help:"Output directory for generated artifacts"`
 		NoCache bool   `name:"no-cache" help:"Do not use cache when building images"`
 		Verbose bool   `short:"v" help:"Enable verbose output"`
 		Force   bool   `help:"Auto-unset invalid project/environment variables"`
-		NoSave  bool   `name:"no-save-defaults" help:"Do not persist build defaults"`
-		Bundle  bool   `name:"bundle-manifest" help:"Write bundle manifest for DinD bundling"`
+		NoSave  bool   `name:"no-save-defaults" help:"Do not persist deploy defaults"`
 	}
+
 	VersionCmd struct{}
 
-	BuildDeps struct {
-		Builder Builder
+	DeployDeps struct {
+		Builder ports.Builder
 	}
 )
 
@@ -120,7 +122,7 @@ type commandHandler func(CLI, Dependencies, io.Writer) int
 
 func dispatchCommand(command string, cli CLI, deps Dependencies, out io.Writer) (int, bool) {
 	exactHandlers := map[string]commandHandler{
-		"build":           runBuild,
+		"deploy":          runDeploy,
 		"completion bash": func(_ CLI, _ Dependencies, out io.Writer) int { return runCompletionBash(cli, out) },
 		"completion zsh":  func(_ CLI, _ Dependencies, out io.Writer) int { return runCompletionZsh(cli, out) },
 		"completion fish": func(_ CLI, _ Dependencies, out io.Writer) int { return runCompletionFish(cli, out) },
@@ -173,9 +175,9 @@ func runNoArgs(out io.Writer) int {
 	ui := legacyUI(out)
 	cmd := cliName()
 	ui.Info("Usage:")
-	ui.Info(fmt.Sprintf("  %s build --template <path> --env <name> --mode <docker|containerd> [flags]", cmd))
+	ui.Info(fmt.Sprintf("  %s deploy --template <path> --env <name> --mode <docker|containerd> [flags]", cmd))
 	ui.Info("")
-	ui.Info(fmt.Sprintf("Try: %s build --help", cmd))
+	ui.Info(fmt.Sprintf("Try: %s deploy --help", cmd))
 	return 0
 }
 
@@ -190,22 +192,22 @@ func handleParseError(args []string, err error, deps Dependencies, out io.Writer
 		switch {
 		case strings.Contains(msg, "--template"):
 			ui.Warn("`-t/--template` expects a value. Provide a path or omit the flag for interactive input.")
-			ui.Info(fmt.Sprintf("Example: %s build -t ./template.yaml", cmd))
-			ui.Info(fmt.Sprintf("Interactive: %s build", cmd))
+			ui.Info(fmt.Sprintf("Example: %s deploy -t ./template.yaml", cmd))
+			ui.Info(fmt.Sprintf("Interactive: %s deploy", cmd))
 			return 1
 		case strings.Contains(msg, "--env"):
 			ui.Warn("`-e/--env` expects a value. Provide a name or omit the flag for interactive input.")
-			ui.Info(fmt.Sprintf("Example: %s build -e prod", cmd))
-			ui.Info(fmt.Sprintf("Interactive: %s build", cmd))
+			ui.Info(fmt.Sprintf("Example: %s deploy -e prod", cmd))
+			ui.Info(fmt.Sprintf("Interactive: %s deploy", cmd))
 			return 1
 		case strings.Contains(msg, "--mode"):
 			ui.Warn("`-m/--mode` expects a value. Use docker/containerd or omit the flag for interactive input.")
-			ui.Info(fmt.Sprintf("Example: %s build -m docker", cmd))
-			ui.Info(fmt.Sprintf("Interactive: %s build", cmd))
+			ui.Info(fmt.Sprintf("Example: %s deploy -m docker", cmd))
+			ui.Info(fmt.Sprintf("Interactive: %s deploy", cmd))
 			return 1
 		case strings.Contains(msg, "--env-file"):
 			ui.Warn("`--env-file` expects a value. Provide a file path.")
-			ui.Info(fmt.Sprintf("Example: %s build --env-file .env.prod", cmd))
+			ui.Info(fmt.Sprintf("Example: %s deploy --env-file .env.prod", cmd))
 			return 1
 		}
 	}

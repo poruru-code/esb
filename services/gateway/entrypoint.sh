@@ -13,15 +13,6 @@ require_env() {
   fi
 }
 
-print_version_json() {
-  if [ -f /app/version.json ]; then
-    echo "INFO: version.json"
-    cat /app/version.json
-  else
-    echo "WARN: version.json not found"
-  fi
-}
-
 require_env "IMAGE_RUNTIME"
 
 case "$IMAGE_RUNTIME" in
@@ -39,7 +30,13 @@ if [ -n "${AGENT_RUNTIME:-}" ] && [ "$AGENT_RUNTIME" != "$IMAGE_RUNTIME" ]; then
   exit 1
 fi
 
-print_version_json
+# Phase 4: Initialize seed configuration for hot reload
+# Copy seed config files to runtime-config directory if they don't exist
+COPY_SEED_SCRIPT="/app/scripts/copy_seed_config.sh"
+if [ -f "$COPY_SEED_SCRIPT" ]; then
+  echo "INFO: Initializing seed configuration..."
+  sh "$COPY_SEED_SCRIPT"
+fi
 
 WG_CONF_PATH="${WG_CONF_PATH:-/app/config/wireguard/wg0.conf}"
 WG_INTERFACE="${WG_INTERFACE:-wg0}"

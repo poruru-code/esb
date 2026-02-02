@@ -73,6 +73,8 @@ func TestRuntime_Ensure(t *testing.T) {
 	// 1. Create
 	// Expect container name to follow pattern: {brand}-{env}-{func}-{uuid}
 	// And label esb_env={env}
+	mockClient.On("ImagePull", ctx, mock.Anything, mock.Anything).
+		Return(io.NopCloser(strings.NewReader("")), nil).Once()
 	mockClient.On("ContainerCreate", ctx, mock.Anything, mock.Anything, mock.Anything, mock.Anything,
 		mock.MatchedBy(func(name string) bool {
 			// Needs to start with {brand}-test-env-
@@ -114,6 +116,8 @@ func TestRuntime_Ensure_AlwaysCreatesNew(t *testing.T) {
 	}
 
 	// 1. Create
+	mockClient.On("ImagePull", ctx, mock.Anything, mock.Anything).
+		Return(io.NopCloser(strings.NewReader("")), nil).Twice()
 	mockClient.On("ContainerCreate", ctx, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return(container.CreateResponse{ID: "new-id-1"}, nil).Once()
 

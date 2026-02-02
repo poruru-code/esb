@@ -32,8 +32,8 @@ COPY src /app/src
 # Copy Config
 COPY --from=config / /tmp/config/
 RUN if [ -f /tmp/config/resources.yml ]; then \
-      mkdir -p /app/config && \
-      cp /tmp/config/resources.yml /app/config/resources.yml; \
+      mkdir -p /app/runtime-config && \
+      cp /tmp/config/resources.yml /app/runtime-config/resources.yml; \
     else \
       echo "WARNING: Pre-baked resources.yml not found. Expecting runtime volume mounts."; \
     fi && \
@@ -42,7 +42,6 @@ RUN if [ -f /tmp/config/resources.yml ]; then \
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-COPY --from=meta /version.json /app/version.json
 
 ENV PYTHONPATH=/app
 

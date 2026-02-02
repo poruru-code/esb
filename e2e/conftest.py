@@ -26,13 +26,16 @@ def build_control_compose_command(
     else:
         cmd = ["docker", "compose"]
 
-    mode = (mode or os.getenv("MODE") or "docker").lower()
-    if mode == "containerd":
-        filename = "docker-compose.containerd.yml"
+    compose_override = os.getenv("E2E_COMPOSE_FILE")
+    if compose_override:
+        cmd.extend(["-f", compose_override])
     else:
-        filename = "docker-compose.docker.yml"
-
-    cmd.extend(["-f", str(PROJECT_ROOT / filename)])
+        mode = (mode or os.getenv("MODE") or "docker").lower()
+        if mode == "containerd":
+            filename = "docker-compose.containerd.yml"
+        else:
+            filename = "docker-compose.docker.yml"
+        cmd.extend(["-f", str(PROJECT_ROOT / filename)])
     cmd.extend(args)
     return cmd
 
@@ -80,6 +83,24 @@ SCYLLA_WAIT_INTERVAL = 5
 ASYNC_WAIT_RETRIES = 60
 ORCHESTRATOR_RESTART_WAIT = 8
 STABILIZATION_WAIT = 3
+
+
+def wait_for_gateway_ready(
+    retries: int = 30, interval: float = 2.0, timeout: int = DEFAULT_REQUEST_TIMEOUT
+) -> None:
+    """Wait for the Gateway /health endpoint to respond with 200."""
+    for i in range(retries):
+        try:
+            response = requests.get(f"{GATEWAY_URL}/health", timeout=timeout, verify=VERIFY_SSL)
+            if response.status_code == 200:
+                print(f"Gateway is healthy after {i + 1} attempts")
+                return
+            print(f"Gateway returned status: {response.status_code}")
+        except Exception as e:
+            print(f"Waiting for Gateway... ({i + 1}/{retries}) Error: {e}")
+        time.sleep(interval)
+
+    raise RuntimeError(f"Gateway did not become healthy after {retries} attempts")
 
 
 @pytest.fixture(scope="module")
@@ -131,7 +152,8 @@ def query_victorialogs_by_filter(
     - Time filters: start/end parameters (ISO8601/RFC3339)
 
     Args:
-        filters: dict of field names and values (e.g., {"trace_id": "xxx", "container_name": "gateway"})
+        filters: dict of field names and values
+            (e.g., {"trace_id": "xxx", "container_name": "gateway"})
         raw_query: direct LogsQL query (exclusive with filters)
         start: search start time (ISO8601/RFC3339, e.g., "2025-12-24T01:00:00Z")
         end: search end time (ISO8601/RFC3339)

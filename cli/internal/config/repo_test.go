@@ -10,6 +10,7 @@ import (
 )
 
 func TestResolveRepoRootUsesEnvFirst(t *testing.T) {
+	setEnvPrefix(t)
 	base := t.TempDir()
 	repoEnv := makeRepo(t, base, "repo-env")
 	repoStart := makeRepo(t, base, "repo-start")
@@ -40,6 +41,7 @@ func TestResolveRepoRootUsesEnvFirst(t *testing.T) {
 }
 
 func TestResolveRepoRootUsesStartDirBeforeGlobal(t *testing.T) {
+	setEnvPrefix(t)
 	base := t.TempDir()
 	repoStart := makeRepo(t, base, "repo-start")
 	repoGlobal := makeRepo(t, base, "repo-global")
@@ -69,6 +71,7 @@ func TestResolveRepoRootUsesStartDirBeforeGlobal(t *testing.T) {
 }
 
 func TestResolveRepoRootUsesGlobalWhenStartDirMissing(t *testing.T) {
+	setEnvPrefix(t)
 	base := t.TempDir()
 	repoGlobal := makeRepo(t, base, "repo-global")
 
@@ -93,6 +96,7 @@ func TestResolveRepoRootUsesGlobalWhenStartDirMissing(t *testing.T) {
 }
 
 func TestResolveRepoRootFromPathIgnoresEnvAndGlobal(t *testing.T) {
+	setEnvPrefix(t)
 	base := t.TempDir()
 	repoEnv := makeRepo(t, base, "repo-env")
 	repoGlobal := makeRepo(t, base, "repo-global")
@@ -123,6 +127,7 @@ func TestResolveRepoRootFromPathIgnoresEnvAndGlobal(t *testing.T) {
 }
 
 func TestResolveRepoRootFromPathErrorsWhenMissing(t *testing.T) {
+	setEnvPrefix(t)
 	startDir := t.TempDir()
 	if _, err := ResolveRepoRootFromPath(startDir); err == nil {
 		t.Fatalf("expected error for missing repo root")

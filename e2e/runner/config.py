@@ -59,6 +59,7 @@ def build_env_scenarios(matrix: list, suites: dict, profile_filter: str | None =
                 "env_vars": env_vars,
                 "targets": [],
                 "exclude": [],
+                "deploy_templates": entry.get("deploy_templates", []) or [],
             }
 
         for suite_name in suite_names:

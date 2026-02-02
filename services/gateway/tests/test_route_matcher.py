@@ -48,3 +48,27 @@ def test_route_matcher_no_match(mock_registry):
 
             container, _, _, _ = matcher.match_route("/unknown", "GET")
             assert container is None
+
+
+def test_route_matcher_invalid_yaml_keeps_previous(mock_registry):
+    valid_yaml = """
+routes:
+  - path: "/hello"
+    method: "GET"
+    function: "test-func"
+"""
+    invalid_yaml = "routes: [\n  - path: /broken\n"
+    valid_open = mock_open(read_data=valid_yaml)
+    invalid_open = mock_open(read_data=invalid_yaml)
+    with patch(
+        "builtins.open",
+        side_effect=[valid_open.return_value, invalid_open.return_value],
+    ):
+        with patch("services.gateway.config.config.ROUTING_CONFIG_PATH", "dummy/routes.yml"):
+            matcher = RouteMatcher(mock_registry)
+            matcher.load_routing_config()
+            container, _, _, _ = matcher.match_route("/hello", "GET")
+            assert container == "test-func"
+            matcher.load_routing_config(force=True)
+            container, _, _, _ = matcher.match_route("/hello", "GET")
+            assert container == "test-func"

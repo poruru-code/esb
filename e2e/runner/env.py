@@ -58,6 +58,7 @@ def calculate_runtime_env(
 
     # Load from env_file if provided (prioritize file over system env if needed,
     # but Go CLI usually merges and prioritizes file for certain values)
+    env_from_file: dict[str, str] = {}
     if env_file:
         env_from_file = read_env_file(env_file)
         env.update(env_from_file)
@@ -72,9 +73,6 @@ def calculate_runtime_env(
 
     env[constants.ENV_PROJECT_NAME] = project_name
 
-    # Normalize mode for registry checks
-    norm_mode = mode.lower() if mode else "docker"
-
     # Brand-scoped tag/registry
     tag_key = env_key(constants.ENV_TAG)
     registry_key = env_key(constants.ENV_REGISTRY)
@@ -85,16 +83,28 @@ def calculate_runtime_env(
         env[tag_key] = tag
 
     registry = env.get(registry_key, "").strip()
-    if norm_mode == "containerd" and not registry:
-        registry = f"{constants.DEFAULT_AGENT_REGISTRY}/"
+    if registry_key not in env_from_file:
+        if mode.lower() == "docker":
+            registry = f"{constants.DEFAULT_AGENT_REGISTRY_HOST}/"
+        else:
+            registry = f"{constants.DEFAULT_AGENT_REGISTRY}/"
         env[registry_key] = registry
     if registry and not registry.endswith("/"):
         env[registry_key] = registry + "/"
+
+    insecure_key = env_key(constants.ENV_CONTAINER_REGISTRY_INSECURE)
+    if not env.get(insecure_key):
+        env[insecure_key] = "1"
 
     # If using local dev, point to the Go CLI source root for template resolution
     # (matching logic in cli/internal/config/config.go)
     if constants.ENV_CLI_SRC_ROOT not in env:
         env[constants.ENV_CLI_SRC_ROOT] = str(CLI_ROOT)
+
+    # Prefer a repo-local CLI binary when available.
+    local_cli = CLI_ROOT / "bin" / "esb"
+    if local_cli.exists() and constants.ENV_ESB_CLI not in env:
+        env[constants.ENV_ESB_CLI] = str(local_cli)
 
     # 2. Port Defaults (0 for dynamic)
     for port_suffix in (
@@ -112,6 +122,11 @@ def calculate_runtime_env(
         if not env.get(key):
             env[key] = "0"
 
+    # Use a stable registry port in E2E to match shared infra.
+    registry_port_key = env_key(constants.PORT_REGISTRY)
+    if env.get(registry_port_key) in ("", "0"):
+        env[registry_port_key] = constants.DEFAULT_REGISTRY_PORT
+
     # 3. Subnets & Networks (Isolated per project-env)
     if not env.get(constants.ENV_NETWORK_EXTERNAL):
         env[constants.ENV_NETWORK_EXTERNAL] = f"{project_name}-{env_name}-external"
@@ -126,11 +141,14 @@ def calculate_runtime_env(
         env[constants.ENV_RUNTIME_NODE_IP] = f"172.{env_runtime_subnet_index(env_name)}.0.10"
 
     if not env.get(constants.ENV_LAMBDA_NETWORK):
-        env[constants.ENV_LAMBDA_NETWORK] = f"esb_int_{env_name}"
+        env[constants.ENV_LAMBDA_NETWORK] = f"{BRAND_SLUG}_int_{env_name}"
 
     # 4. Registry Defaults
-    if not env.get(constants.ENV_CONTAINER_REGISTRY) and norm_mode == "containerd":
-        env[constants.ENV_CONTAINER_REGISTRY] = constants.DEFAULT_AGENT_REGISTRY
+    if constants.ENV_CONTAINER_REGISTRY not in env_from_file:
+        if mode.lower() == "docker":
+            env[constants.ENV_CONTAINER_REGISTRY] = constants.DEFAULT_AGENT_REGISTRY_HOST
+        else:
+            env[constants.ENV_CONTAINER_REGISTRY] = constants.DEFAULT_AGENT_REGISTRY
 
     # 5. Credentials (Simplified generation for E2E)
     if not env.get(constants.ENV_AUTH_USER):
@@ -169,12 +187,13 @@ def calculate_runtime_env(
 
     # 8. Docker BuildKit
     env.setdefault(constants.ENV_DOCKER_BUILDKIT, "1")
+    env.setdefault("BUILDX_BUILDER", f"{BRAND_SLUG}-buildx-{env_name}")
+    env.setdefault("COMPOSE_DOCKER_CLI_BUILD", "1")
 
     # 9. Staging Config Dir
     # Replicates applyConfigDirEnv / staging.ConfigDir logic
     config_dir = calculate_staging_dir(project_name, env_name)
-    if config_dir.exists():
-        env[constants.ENV_CONFIG_DIR] = str(config_dir)
+    env[constants.ENV_CONFIG_DIR] = str(config_dir)
 
     return env
 

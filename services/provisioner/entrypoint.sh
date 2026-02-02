@@ -13,15 +13,6 @@ require_env() {
   fi
 }
 
-print_version_json() {
-  if [ -f /app/version.json ]; then
-    echo "INFO: version.json"
-    cat /app/version.json
-  else
-    echo "WARN: version.json not found"
-  fi
-}
-
 require_env "IMAGE_RUNTIME"
 
 case "$IMAGE_RUNTIME" in
@@ -34,7 +25,5 @@ case "$IMAGE_RUNTIME" in
 esac
 
 # Provisioner (shared) can run on any AGENT_RUNTIME, so no mismatch check is needed.
-
-print_version_json
 
 exec "$@"

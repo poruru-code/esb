@@ -1,0 +1,14 @@
+# Seed configuration for functions
+# This file is used as initial configuration when no deploy has occurred.
+# After deployment, runtime-config/functions.yml takes precedence.
+
+# Default environment variables for all functions
+defaults:
+  environment:
+    LOG_LEVEL: INFO
+  scaling:
+    min_capacity: 0
+    max_capacity: 1
+
+# Function definitions (empty initially, populated by esb deploy)
+functions: {}

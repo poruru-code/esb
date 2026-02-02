@@ -129,6 +129,5 @@ COPY entrypoint.firecracker.sh /entrypoint.firecracker.sh
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh /entrypoint.containerd.sh /entrypoint.firecracker.sh
 
-COPY --from=meta /version.json /app/version.json
 
 ENTRYPOINT ["/entrypoint.sh"]

@@ -41,20 +41,36 @@ def test_function_registry_get_nonexistent():
             assert registry.get_function_config("nonexistent") is None
 
 
-def test_function_registry_rejects_image_entry():
-    mock_yaml = """
+def test_function_registry_rejects_image_entry_keeps_previous():
+    valid_yaml = """
 defaults:
   environment:
     GLOBAL_ENV: "true"
 
 functions:
   test-func:
-    image: "test-image:latest"
     environment:
       FUNC_ENV: "123"
 """
-    with patch("builtins.open", mock_open(read_data=mock_yaml)):
+    invalid_yaml = """
+functions:
+  test-func:
+    image: "test-image:latest"
+    environment:
+      FUNC_ENV: "456"
+"""
+    valid_open = mock_open(read_data=valid_yaml)
+    invalid_open = mock_open(read_data=invalid_yaml)
+    with patch(
+        "builtins.open",
+        side_effect=[valid_open.return_value, invalid_open.return_value],
+    ):
         with patch("services.gateway.config.config.FUNCTIONS_CONFIG_PATH", "dummy/path.yml"):
             registry = FunctionRegistry()
-            with pytest.raises(ValueError, match="does not allow 'image'"):
-                registry.load_functions_config()
+            registry.load_functions_config()
+            config_before = registry.get_function_config("test-func")
+            assert config_before is not None
+            registry.load_functions_config(force=True)
+            config_after = registry.get_function_config("test-func")
+            assert config_after is not None
+            assert config_after.environment["FUNC_ENV"] == "123"

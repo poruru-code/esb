@@ -10,7 +10,7 @@ E2E のビルド phase が重い。主因は以下:
 
 ## 現状計測（修正前サマリ）
 - 日付: 2026-01-26
-- 実行コマンド: `uv run e2e/run_tests.py --reset --parallel`
+- 実行コマンド: `uv run e2e/run_tests.py --parallel`（reset は常時実施）
 - 結果: 手動中断（ビルドが 15 分以上継続）
 - ビルド phase 時間: 約 15 分（途中停止・暫定基準）
 - テスト phase 時間: 未到達

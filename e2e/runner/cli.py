@@ -3,19 +3,20 @@ import argparse
 
 def parse_args():
     parser = argparse.ArgumentParser(description="E2E Test Runner (ESB CLI Wrapper)")
-    parser.add_argument("--build", action="store_true", help="Rebuild images before running tests")
     parser.add_argument(
-        "--cleanup", action="store_true", help="Cleanup environment after successful tests"
+        "--build",
+        action="store_true",
+        help="Rebuild base images during docker compose up",
     )
     parser.add_argument(
-        "--reset", action="store_true", help="Reset environment before running tests"
+        "--cleanup", action="store_true", help="Cleanup environment after successful tests"
     )
     parser.add_argument("--unit", action="store_true", help="Run unit tests")
     parser.add_argument("--unit-only", action="store_true", help="Run unit tests only")
     parser.add_argument(
         "--build-only",
         action="store_true",
-        help="Run build phase only (internal use for phased execution)",
+        help="Run deploy phase only (skip tests)",
     )
     parser.add_argument(
         "--test-only",
@@ -36,5 +37,16 @@ def parse_args():
         action="store_true",
         help="Run environments in parallel (e.g., e2e-docker and e2e-containerd simultaneously)",
     )
-    parser.add_argument("--verbose", action="store_true", help="Show full logs")
+    parser.add_argument(
+        "--no-verbose",
+        dest="verbose",
+        action="store_false",
+        default=True,
+        help="Reduce log output (default: verbose on)",
+    )
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="Disable build cache (pass --no-cache to deploy)",
+    )
     return parser.parse_args()

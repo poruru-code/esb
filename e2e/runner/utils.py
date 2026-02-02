@@ -93,6 +93,7 @@ def env_key(suffix: str) -> str:
     # Transitional logic: some variables no longer use prefixes
     prefix_less = {
         "DATA_PLANE_HOST",
+        "CONTAINER_REGISTRY_INSECURE",
         "PORT_GATEWAY_HTTPS",
         "PORT_GATEWAY_HTTP",
         "PORT_AGENT_GRPC",
@@ -132,10 +133,15 @@ def _git_short_sha(root: Path) -> str | None:
 
 def build_unique_tag(env_name: str) -> str:
     safe_env = _sanitize_tag_part(env_name or "default")
-    short_sha = _git_short_sha(PROJECT_ROOT)
-    if short_sha:
-        return f"e2e-{safe_env}-{short_sha}"
-    return f"e2e-{safe_env}-{int(time.time())}"
+    # In CI, we use unique tags to prevent collision and ensure traceability.
+    if os.environ.get("CI"):
+        short_sha = _git_short_sha(PROJECT_ROOT)
+        if short_sha:
+            return f"e2e-{safe_env}-{short_sha}"
+        return f"e2e-{safe_env}-{int(time.time())}"
+
+    # Locally, we use a fixed tag to avoid flooding `docker images` with stale layers.
+    return f"e2e-{safe_env}-latest"
 
 
 def resolve_env_file_path(env_file: Optional[str]) -> Optional[str]:
@@ -147,11 +153,20 @@ def resolve_env_file_path(env_file: Optional[str]) -> Optional[str]:
     return str(env_file_path.absolute())
 
 
-def build_esb_cmd(args: List[str], env_file: Optional[str]) -> List[str]:
-    # Use the compiled binary from the path (installed via mise setup)
-    defaults = _read_defaults_env()
-    cli_cmd = defaults.get("CLI_CMD", "esb")
-    base_cmd = [cli_cmd]
+def build_esb_cmd(
+    args: List[str],
+    env_file: Optional[str],
+    env: Optional[dict[str, str]] = None,
+) -> List[str]:
+    lookup = env or os.environ
+    override = lookup.get("ESB_CLI") or lookup.get("ESB_BIN")
+    if override and override.strip():
+        base_cmd = [override.strip()]
+    else:
+        # Use the compiled binary from the path (installed via mise setup)
+        defaults = _read_defaults_env()
+        cli_cmd = defaults.get("CLI_CMD", "esb")
+        base_cmd = [cli_cmd]
     env_file_path = resolve_env_file_path(env_file)
     if env_file_path:
         base_cmd.extend(["--env-file", env_file_path])
@@ -166,19 +181,25 @@ def run_esb(
     env: Optional[dict[str, str]] = None,
 ) -> subprocess.CompletedProcess:
     """Helper to run the esb CLI."""
-    if verbose and "build" in args:
-        # Build command has its own verbose flag
+    if verbose and ("build" in args or "deploy" in args):
+        # Build/deploy commands have their own verbose flag
         if "--verbose" not in args and "-v" not in args:
-            args = ["build", "--verbose"] + [a for a in args if a != "build"]
+            try:
+                if "build" in args:
+                    idx = args.index("build")
+                else:
+                    idx = args.index("deploy")
+                args.insert(idx + 1, "--verbose")
+            except ValueError:
+                pass
 
-    cmd = build_esb_cmd(args, env_file)
-    if verbose:
-        print(f"Running: {' '.join(cmd)}")
-
-    # Use shell=False and pass the command as a list to rely on PATH
-    # If env is provided, merge it with os.environ to preserve PATH, etc.
     run_env = os.environ.copy()
     if env:
         run_env.update(env)
 
+    cmd = build_esb_cmd(args, env_file, env=run_env)
+    if verbose:
+        print(f"Running: {' '.join(cmd)}")
+
+    # Use shell=False and pass the command as a list to rely on PATH
     return subprocess.run(cmd, check=check, stdin=subprocess.DEVNULL, env=run_env)

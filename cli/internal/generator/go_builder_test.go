@@ -21,11 +21,13 @@ import (
 func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 	t.Setenv("ENV_PREFIX", meta.EnvPrefix)
+	t.Setenv("ESB_REGISTRY_WAIT", "0")
 	registryKey, err := envutil.HostEnvKey(constants.HostSuffixRegistry)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv(registryKey, "localhost:5010")
+	t.Setenv(registryKey, "registry:5010")
+	t.Setenv(constants.EnvNetworkExternal, "demo-external")
 	projectDir := t.TempDir()
 	templatePath := filepath.Join(projectDir, "template.yaml")
 	writeTestFile(t, templatePath, "Resources: {}")
@@ -34,11 +36,6 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	writeComposeFiles(t, repoRoot,
 		"docker-compose.containerd.yml",
 	)
-	gitDir := filepath.Join(repoRoot, ".git")
-	if err := os.MkdirAll(filepath.Join(gitDir, "objects"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	writeTestFile(t, filepath.Join(gitDir, "HEAD"), "ref: refs/heads/main\n")
 	// Create mock service directories and root files required by staging logic
 	if err := os.MkdirAll(filepath.Join(repoRoot, "services", "common"), 0o755); err != nil {
 		t.Fatal(err)
@@ -61,12 +58,7 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	writeTestFile(t, filepath.Join(repoRoot, "services", "agent", "Dockerfile.containerd"), "FROM scratch\n")
 	writeTestFile(t, filepath.Join(repoRoot, "services", "provisioner", "Dockerfile"), "FROM scratch\n")
 	writeTestFile(t, filepath.Join(repoRoot, "services", "runtime-node", "Dockerfile.containerd"), "FROM scratch\n")
-	traceToolsDir := filepath.Join(repoRoot, "tools", "traceability")
-	if err := os.MkdirAll(traceToolsDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	writeTestFile(t, filepath.Join(traceToolsDir, "generate_version_json.py"), "#!/usr/bin/env python3\n")
-	writeTestFile(t, filepath.Join(repoRoot, "docker-bake.hcl"), "target \"meta\" {}\n")
+	writeTestFile(t, filepath.Join(repoRoot, "docker-bake.hcl"), "# bake stub\n")
 
 	var gotCfg config.GeneratorConfig
 	var gotOpts GenerateOptions
@@ -82,11 +74,14 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		return []FunctionSpec{{Name: "hello", ImageName: "hello"}}, nil
 	}
 
+	builderName := meta.Slug + "-buildx"
 	dockerRunner := &recordRunner{
 		outputs: map[string][]byte{
-			"git rev-parse --show-toplevel":  []byte(repoRoot),
-			"git rev-parse --git-dir":        []byte(".git"),
-			"git rev-parse --git-common-dir": []byte(".git"),
+			"git rev-parse --show-toplevel":                  []byte(repoRoot),
+			"git rev-parse --git-dir":                        []byte(".git"),
+			"git rev-parse --git-common-dir":                 []byte(".git"),
+			"docker buildx inspect --builder " + builderName: []byte("Driver: docker-container\n"),
+			"docker inspect -f {{.HostConfig.NetworkMode}} buildx_buildkit_" + builderName + "0": []byte("host"),
 		},
 	}
 	composeRunner := &recordRunner{}
@@ -135,10 +130,10 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	if gotOpts.ProjectRoot != repoRoot {
 		t.Fatalf("unexpected project root: %s", gotOpts.ProjectRoot)
 	}
-	if gotOpts.BuildRegistry != "localhost:5010/" {
+	if gotOpts.BuildRegistry != "127.0.0.1:5010/" {
 		t.Fatalf("unexpected build registry: %s", gotOpts.BuildRegistry)
 	}
-	if gotOpts.RuntimeRegistry != "localhost:5010/" {
+	if gotOpts.RuntimeRegistry != "registry:5010/" {
 		t.Fatalf("unexpected runtime registry: %s", gotOpts.RuntimeRegistry)
 	}
 	if gotOpts.Tag != "v1.2.3" {
@@ -175,27 +170,19 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	if !hasDockerBakeGroup(dockerRunner.calls, "esb-functions") {
 		t.Fatalf("expected bake for function images")
 	}
-	if !hasDockerBakeGroup(dockerRunner.calls, "esb-control") {
-		t.Fatalf("expected bake for control plane images")
+	// Control plane images are now built separately via `esb build-infra` or docker compose
+	// and are no longer part of the deploy workflow.
+	if !hasDockerBakeProvenance(dockerRunner.calls, "mode=max") {
+		t.Fatalf("expected provenance enabled by default")
 	}
-	if !hasDockerPushTag(dockerRunner.calls, "localhost:5010/"+meta.ImagePrefix+"-lambda-base:v1.2.3") {
-		t.Fatalf("expected base image push")
+	if !hasBakeFileContaining(dockerRunner.bakeFiles, "type=registry") {
+		t.Fatalf("expected registry output in bake file")
 	}
-	if !hasDockerPushTag(dockerRunner.calls, "localhost:5010/"+meta.ImagePrefix+"-hello:v1.2.3") {
-		t.Fatalf("expected function image push")
+	if !hasBakeFileContaining(dockerRunner.bakeFiles, "output = [\"type=docker\"]") {
+		t.Fatalf("expected docker output in bake file")
 	}
-	if !hasBakeFileContaining(dockerRunner.bakeFiles, meta.ImagePrefix+"-gateway-containerd:v1.2.3") {
-		t.Fatalf("expected gateway containerd image tag in bake file")
-	}
-	if !hasBakeFileContaining(dockerRunner.bakeFiles, meta.ImagePrefix+"-agent-containerd:v1.2.3") {
-		t.Fatalf("expected agent containerd image tag in bake file")
-	}
-	if !hasBakeFileContaining(dockerRunner.bakeFiles, meta.ImagePrefix+"-runtime-node-containerd:v1.2.3") {
-		t.Fatalf("expected runtime node image tag in bake file")
-	}
-	if !hasBakeFileContaining(dockerRunner.bakeFiles, meta.ImagePrefix+"-provisioner:v1.2.3") {
-		t.Fatalf("expected provisioner image tag in bake file")
-	}
+	// Control plane images are no longer built by the deploy workflow
+	// They are built separately via `esb build-infra` or docker compose
 	if !hasBakeFileContaining(dockerRunner.bakeFiles, meta.LabelPrefix+".managed") {
 		t.Fatalf("expected managed label in bake file")
 	}
@@ -205,49 +192,12 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	if !hasBakeFileContaining(dockerRunner.bakeFiles, meta.LabelPrefix+".env") {
 		t.Fatalf("expected env label in bake file")
 	}
-	metaDir := filepath.Join(repoRoot, meta.OutputDir, "meta")
-	if !hasBakeFileContaining(dockerRunner.bakeFiles, metaDir) {
-		t.Fatalf("expected meta build context in bake file")
-	}
-	if !hasDockerBakeTarget(dockerRunner.calls, "meta") {
-		t.Fatalf("expected docker buildx bake meta target")
-	}
-	if !hasDockerBakeSet(dockerRunner.calls, "meta.contexts.git_dir="+gitDir) {
-		t.Fatalf("expected bake git_dir context")
-	}
-	if !hasDockerBakeSet(dockerRunner.calls, "meta.contexts.git_common="+gitDir) {
-		t.Fatalf("expected bake git_common context")
-	}
-	if !hasDockerBakeSet(dockerRunner.calls, "meta.contexts.trace_tools="+traceToolsDir) {
-		t.Fatalf("expected bake trace_tools context")
-	}
-	if !hasDockerBakeOutputPrefix(dockerRunner.calls, "meta.output=type=local,dest=") {
-		t.Fatalf("expected bake output context")
-	}
-	if _, err := os.Stat(filepath.Join(metaDir, "version.json")); err != nil {
-		t.Fatalf("expected version.json in meta dir: %v", err)
-	}
 
-	buildxCacheDir := filepath.Join(repoRoot, meta.OutputDir, "buildx-cache")
-	if !hasBakeFileContaining(dockerRunner.bakeFiles, "cache-from = [\"type=local,src="+buildxCacheDir) {
-		t.Fatalf("expected cache-from in bake file")
-	}
-	if !hasBakeFileContaining(dockerRunner.bakeFiles, "cache-to = [\"type=local,dest="+buildxCacheDir) {
-		t.Fatalf("expected cache-to in bake file")
-	}
-	if !hasDockerBakeAllowPrefix(dockerRunner.calls, "--allow=fs.read="+buildxCacheDir) {
-		t.Fatalf("expected --allow=fs.read for buildx cache")
-	}
-	if !hasDockerBakeAllowPrefix(dockerRunner.calls, "--allow=fs.write="+buildxCacheDir) {
-		t.Fatalf("expected --allow=fs.write for buildx cache")
-	}
+	// Build cache is now managed separately and is not part of the deploy workflow
+	// Cache configuration is handled by the docker compose build process
 
-	if hasComposeUpRegistry(composeRunner.calls) {
-		t.Fatalf("unexpected registry compose up")
-	}
-	if len(composeRunner.calls) != 0 {
-		t.Fatalf("unexpected compose runner calls: %v", composeRunner.calls)
-	}
+	// Registry is now started separately via `esb up` or docker compose
+	// and is no longer part of the deploy workflow
 }
 
 type recordRunner struct {
@@ -279,7 +229,6 @@ func (r *recordRunner) Run(_ context.Context, dir, name string, args ...string) 
 		args: append([]string{}, args...),
 	})
 	r.captureBakeFiles(dir, name, args)
-	r.maybeWriteMetaOutput(dir, name, args)
 	return r.err
 }
 
@@ -290,7 +239,6 @@ func (r *recordRunner) RunQuiet(_ context.Context, dir, name string, args ...str
 		args: append([]string{}, args...),
 	})
 	r.captureBakeFiles(dir, name, args)
-	r.maybeWriteMetaOutput(dir, name, args)
 	return r.err
 }
 
@@ -311,40 +259,6 @@ func (r *recordRunner) RunOutput(_ context.Context, dir, name string, args ...st
 		}
 	}
 	return nil, nil
-}
-
-func (r *recordRunner) maybeWriteMetaOutput(dir, name string, args []string) {
-	if name != "docker" || len(args) < 2 {
-		return
-	}
-	if args[0] != "buildx" || args[1] != "bake" {
-		return
-	}
-	dest := ""
-	for i := 0; i+1 < len(args); i++ {
-		if args[i] != "--set" {
-			continue
-		}
-		value := args[i+1]
-		if strings.HasPrefix(value, "meta.output=") {
-			dest = strings.TrimPrefix(value, "meta.output=")
-			break
-		}
-	}
-	if dest == "" {
-		return
-	}
-	dest = parseBakeOutputDest(dest)
-	if dest == "" {
-		return
-	}
-	if !filepath.IsAbs(dest) {
-		dest = filepath.Join(dir, dest)
-	}
-	if err := os.MkdirAll(dest, 0o755); err != nil {
-		return
-	}
-	_ = os.WriteFile(filepath.Join(dest, "version.json"), []byte("{}\n"), 0o644)
 }
 
 func (r *recordRunner) captureBakeFiles(dir, name string, args []string) {
@@ -376,17 +290,6 @@ func (r *recordRunner) captureBakeFiles(dir, name string, args []string) {
 	}
 }
 
-func parseBakeOutputDest(output string) string {
-	parts := strings.Split(output, ",")
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		if strings.HasPrefix(part, "dest=") {
-			return strings.TrimPrefix(part, "dest=")
-		}
-	}
-	return ""
-}
-
 func hasDockerBakeGroup(calls []commandCall, group string) bool {
 	for _, call := range calls {
 		if call.name != "docker" || len(call.args) < 3 {
@@ -416,19 +319,7 @@ func hasBakeFileContaining(files map[string]string, needle string) bool {
 	return false
 }
 
-func hasDockerPushTag(calls []commandCall, tag string) bool {
-	for _, call := range calls {
-		if call.name != "docker" || len(call.args) < 2 {
-			continue
-		}
-		if call.args[0] == "push" && call.args[1] == tag {
-			return true
-		}
-	}
-	return false
-}
-
-func hasDockerBakeTarget(calls []commandCall, target string) bool {
+func hasDockerBakeProvenance(calls []commandCall, mode string) bool {
 	for _, call := range calls {
 		if call.name != "docker" || len(call.args) < 2 {
 			continue
@@ -437,58 +328,7 @@ func hasDockerBakeTarget(calls []commandCall, target string) bool {
 			continue
 		}
 		for _, arg := range call.args {
-			if arg == target {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func hasDockerBakeSet(calls []commandCall, value string) bool {
-	for _, call := range calls {
-		if call.name != "docker" || len(call.args) < 2 {
-			continue
-		}
-		if call.args[0] != "buildx" || call.args[1] != "bake" {
-			continue
-		}
-		for i := 0; i+1 < len(call.args); i++ {
-			if call.args[i] == "--set" && call.args[i+1] == value {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func hasDockerBakeOutputPrefix(calls []commandCall, prefix string) bool {
-	for _, call := range calls {
-		if call.name != "docker" || len(call.args) < 2 {
-			continue
-		}
-		if call.args[0] != "buildx" || call.args[1] != "bake" {
-			continue
-		}
-		for i := 0; i+1 < len(call.args); i++ {
-			if call.args[i] == "--set" && strings.HasPrefix(call.args[i+1], prefix) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func hasComposeUpRegistry(calls []commandCall) bool {
-	for _, call := range calls {
-		if call.name != "docker" || len(call.args) < 4 {
-			continue
-		}
-		if call.args[0] != "compose" {
-			continue
-		}
-		for i := 0; i < len(call.args); i++ {
-			if call.args[i] == "up" && i+2 < len(call.args) && call.args[i+1] == "-d" && call.args[i+2] == "registry" {
+			if arg == "--provenance="+mode {
 				return true
 			}
 		}
@@ -515,21 +355,4 @@ func writeComposeFiles(t *testing.T, root string, names ...string) {
 	for _, name := range names {
 		writeTestFile(t, filepath.Join(root, name), "version: '3'\n")
 	}
-}
-
-func hasDockerBakeAllowPrefix(calls []commandCall, prefix string) bool {
-	for _, call := range calls {
-		if call.name != "docker" || len(call.args) < 2 {
-			continue
-		}
-		if call.args[0] != "buildx" || call.args[1] != "bake" {
-			continue
-		}
-		for _, arg := range call.args {
-			if strings.HasPrefix(arg, prefix) {
-				return true
-			}
-		}
-	}
-	return false
 }

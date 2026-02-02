@@ -2,14 +2,13 @@
 Route matching service.
 
 Loads routing.yml and resolves target containers from request paths/methods.
-
-Note:
-    Provides functionality different from FastAPI's APIRouter.
-    This module implements config-based route matching logic.
+Provides functionality different from FastAPI's APIRouter.
+Supports hot reload via ConfigReloader.
 """
 
 import logging
 import re
+import threading
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import yaml
@@ -21,6 +20,13 @@ logger = logging.getLogger(__name__)
 
 
 class RouteMatcher:
+    """
+    Route matching service that resolves target containers from request paths/methods.
+
+    Thread-safe matcher that loads routing.yml and provides route resolution.
+    Supports hot reload via ConfigReloader.
+    """
+
     def __init__(self, function_registry: Any):
         """
         Args:
@@ -29,24 +35,62 @@ class RouteMatcher:
         self.function_registry = function_registry
         self.config_path = config.ROUTING_CONFIG_PATH
         self._routing_config: List[Dict[str, Any]] = []
+        self._lock = threading.RLock()
 
-    def load_routing_config(self) -> List[Dict[str, Any]]:
+    def load_routing_config(self, force: bool = False) -> List[Dict[str, Any]]:
         """
         Load routing.yml and cache it.
+
+        Args:
+            force: If True, force reload even if file hasn't changed
+
+        Returns:
+            List of route configurations
         """
         try:
             with open(self.config_path, "r", encoding="utf-8") as f:
                 cfg = yaml.safe_load(f) or {}
-                self._routing_config = cfg.get("routes") or []
-                logger.info(f"Loaded {len(self._routing_config)} routes from {self.config_path}")
         except FileNotFoundError:
             logger.warning(f"Warning: Routing config not found at {self.config_path}")
-            self._routing_config = []
+            return self._get_routing_copy()
         except yaml.YAMLError as e:
             logger.error(f"Error parsing routing config: {e}")
-            self._routing_config = []
+            return self._get_routing_copy()
+        except Exception as e:
+            logger.error(f"Error loading routing config: {e}")
+            return self._get_routing_copy()
 
-        return self._routing_config
+        routes = cfg.get("routes")
+        if routes is None:
+            routes = []
+        if not isinstance(routes, list):
+            logger.error("routing.yml has invalid format: routes must be a list")
+            return self._get_routing_copy()
+
+        with self._lock:
+            self._routing_config = routes
+
+        logger.info(f"Loaded {len(self._routing_config)} routes from {self.config_path}")
+
+        return self._get_routing_copy()
+
+    def reload(self) -> None:
+        """
+        Force reload of the routing configuration.
+        Called by ConfigReloader when routing.yml changes.
+        """
+        logger.info("Reloading routing configuration...")
+        self.load_routing_config(force=True)
+
+    def _get_routing_copy(self) -> List[Dict[str, Any]]:
+        """
+        Get a thread-safe copy of the routing config.
+
+        Returns:
+            Copy of the routing configuration list
+        """
+        with self._lock:
+            return list(self._routing_config)
 
     def _path_to_regex(self, path_pattern: str) -> str:
         """
@@ -76,10 +120,15 @@ class RouteMatcher:
                 - route_path: matched route pattern (for resource)
                 - function_config: function settings (environment, scaling, etc.)
         """
-        if not self._routing_config:
-            self.load_routing_config()
+        routing_config = self._get_routing_copy()
 
-        for route in self._routing_config:
+        if not routing_config:
+            # Try loading if not loaded
+            routing_config = self.load_routing_config()
+            if not routing_config:
+                return None, {}, None, {}
+
+        for route in routing_config:
             route_path = route.get("path", "")
             route_method = route.get("method", "").upper()
 
@@ -111,3 +160,21 @@ class RouteMatcher:
 
         # No matching route found.
         return None, {}, None, {}
+
+    def list_routes(self) -> List[Dict[str, Any]]:
+        """
+        List all registered routes.
+
+        Returns:
+            List of route configurations
+        """
+        return self._get_routing_copy()
+
+    def get_route_count(self) -> int:
+        """
+        Get the number of registered routes.
+
+        Returns:
+            Number of routes
+        """
+        return len(self._get_routing_copy())

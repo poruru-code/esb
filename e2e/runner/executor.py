@@ -1,30 +1,26 @@
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
 import time
 from collections import deque
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Callable, Tuple
 
 import requests
 import urllib3
 from dotenv import load_dotenv
-from rich import box
-from rich.console import Console, Group
-from rich.live import Live
-from rich.markup import escape
-from rich.panel import Panel
-from rich.table import Table
-from rich.text import Text
 
-from e2e.runner import constants
+from e2e.runner import constants, infra
 from e2e.runner.env import (
     apply_ports_to_env,
     calculate_runtime_env,
+    calculate_staging_dir,
     discover_ports,
+    read_env_file,
 )
 from e2e.runner.utils import (
     BRAND_SLUG,
@@ -44,8 +40,8 @@ COLORS = [
     "\033[33m",  # Yellow
 ]
 COLOR_RESET = "\033[0m"
-COLOR_NAMES = ["cyan", "green", "blue", "magenta", "yellow"]
 _OUTPUT_LOCK = threading.Lock()
+_ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
 
 
 def safe_print(message: str = "", *, prefix: str | None = None) -> None:
@@ -56,84 +52,49 @@ def safe_print(message: str = "", *, prefix: str | None = None) -> None:
             print(message, flush=True)
 
 
+def _strip_ansi(value: str) -> str:
+    return _ANSI_ESCAPE.sub("", value)
+
+
 class ParallelDisplay:
     def __init__(self, profiles: list[str], *, phase: str = "Parallel Run") -> None:
-        self.console = Console()
-        self._lock = threading.Lock()
         self._profiles = profiles
-        self._colors = {
-            profile: COLOR_NAMES[idx % len(COLOR_NAMES)] for idx, profile in enumerate(profiles)
-        }
         self._statuses = {profile: "waiting" for profile in profiles}
         self._last_progress: dict[str, tuple[str, float]] = {}
-        self._log_lines = deque(maxlen=200)
         self._phase = phase
-        self._live = Live(
-            self._render(),
-            console=self.console,
-            refresh_per_second=8,
-            transient=False,
-            screen=False,
-        )
+        self._lock = threading.Lock()
 
     def start(self) -> None:
-        self._live.start()
+        safe_print(f"[PARALLEL] {self._phase} started")
 
     def stop(self) -> None:
-        self._live.stop()
+        safe_print(f"[PARALLEL] {self._phase} finished")
 
     def set_phase(self, phase: str) -> None:
         with self._lock:
             self._phase = phase
-            self._refresh()
+        safe_print(f"[PARALLEL] Phase: {phase}")
 
     def update_status(self, profile: str, message: str) -> None:
         if profile not in self._statuses:
             return
         with self._lock:
             self._statuses[profile] = message
-            self._refresh()
+        safe_print(f"[{profile}] {message}")
 
     def log_progress(self, profile: str, message: str, *, min_interval: float = 0.6) -> None:
-        color = self._colors.get(profile, "white")
         now = time.monotonic()
         last_msg, last_ts = self._last_progress.get(profile, ("", 0.0))
         if message == last_msg and (now - last_ts) < min_interval:
             return
         self._last_progress[profile] = (message, now)
-        line = f"[{color}]{profile}[/] {escape(message)}"
-        with self._lock:
-            self._log_lines.append(line)
-            self._refresh()
+        safe_print(message, prefix=f"[{profile}]")
 
     def log(self, profile: str, message: str) -> None:
-        color = self._colors.get(profile, "white")
-        line = f"[{color}]{profile}[/] {escape(message)}"
-        with self._lock:
-            self._log_lines.append(line)
-            self._refresh()
+        safe_print(message, prefix=f"[{profile}]")
 
     def system(self, message: str) -> None:
-        line = f"[bold]{escape(message)}[/]"
-        with self._lock:
-            self._log_lines.append(line)
-            self._refresh()
-
-    def _refresh(self) -> None:
-        self._live.update(self._render(), refresh=True)
-
-    def _render(self) -> Group:
-        table = Table(show_header=True, box=box.SIMPLE, expand=True)
-        table.add_column("Env", style="bold")
-        table.add_column("Status")
-        for profile in self._profiles:
-            color = self._colors.get(profile, "white")
-            status = escape(self._statuses.get(profile, ""))
-            table.add_row(f"[{color}]{profile}[/]", status)
-        log_text = Text.from_markup("\n".join(self._log_lines)) if self._log_lines else Text("")
-        status_panel = Panel(table, title=self._phase, padding=(0, 1))
-        log_panel = Panel(log_text, title="Log", padding=(0, 1))
-        return Group(status_panel, log_panel)
+        safe_print(message)
 
 
 def _is_progress_line(line: str) -> bool:
@@ -251,6 +212,59 @@ def resolve_compose_file(scenario: dict[str, Any], mode: str) -> Path:
     return PROJECT_ROOT / f"docker-compose.{mode}.yml"
 
 
+def ensure_buildx_builder(builder_name: str, network_mode: str = "host") -> None:
+    if not builder_name:
+        return
+    inspect_cmd = [
+        "docker",
+        "buildx",
+        "inspect",
+        "--builder",
+        builder_name,
+    ]
+    result = subprocess.run(inspect_cmd, capture_output=True, text=True)
+    if result.returncode == 0:
+        if network_mode:
+            inspect_net_cmd = [
+                "docker",
+                "inspect",
+                "-f",
+                "{{.HostConfig.NetworkMode}}",
+                f"buildx_buildkit_{builder_name}0",
+            ]
+            net_result = subprocess.run(inspect_net_cmd, capture_output=True, text=True)
+            current = net_result.stdout.strip() if net_result.returncode == 0 else ""
+            if current and current != network_mode:
+                print(
+                    f"[WARN] buildx builder '{builder_name}' network mode is '{current}', "
+                    f"expected '{network_mode}'. Using existing builder."
+                )
+        subprocess.run(["docker", "buildx", "use", builder_name], capture_output=True)
+        return
+
+    create_cmd = [
+        "docker",
+        "buildx",
+        "create",
+        "--name",
+        builder_name,
+        "--driver",
+        "docker-container",
+        "--use",
+        "--bootstrap",
+    ]
+    if network_mode:
+        create_cmd.extend(["--driver-opt", f"network={network_mode}"])
+    create_result = subprocess.run(create_cmd, capture_output=True, text=True)
+    if create_result.returncode == 0:
+        return
+    combined = (create_result.stdout + create_result.stderr).lower()
+    if "existing instance" in combined or "already exists" in combined:
+        subprocess.run(["docker", "buildx", "use", builder_name], capture_output=True)
+        return
+    create_result.check_returncode()
+
+
 def isolate_external_network(project_label: str) -> None:
     """Detach non-project containers from the external network to avoid DNS conflicts."""
     network_name = f"{project_label}-external"
@@ -327,6 +341,89 @@ def _load_function_image_names(env_name: str) -> list[str]:
     return []
 
 
+def _state_env_path(env_name: str) -> Path:
+    return E2E_STATE_ROOT / env_name / "config" / ".env"
+
+
+def load_state_env(env_name: str) -> dict[str, str]:
+    path = _state_env_path(env_name)
+    if not path.exists():
+        return {}
+    return read_env_file(str(path))
+
+
+def persist_runtime_env(env_name: str, runtime_env: dict[str, str]) -> None:
+    path = _state_env_path(env_name)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    keys: list[str] = []
+    # Prefixed keys (tag/registry/ports)
+    for suffix in (
+        constants.ENV_TAG,
+        constants.ENV_REGISTRY,
+        constants.PORT_GATEWAY_HTTPS,
+        constants.PORT_GATEWAY_HTTP,
+        constants.PORT_AGENT_GRPC,
+        constants.PORT_S3,
+        constants.PORT_S3_MGMT,
+        constants.PORT_DATABASE,
+        constants.PORT_VICTORIALOGS,
+        constants.PORT_REGISTRY,
+    ):
+        keys.append(env_key(suffix))
+    # Non-prefixed runtime keys
+    keys.extend(
+        [
+            constants.ENV_PROJECT_NAME,
+            constants.ENV_CONTAINER_REGISTRY,
+            constants.ENV_CONTAINER_REGISTRY_INSECURE,
+            constants.ENV_NETWORK_EXTERNAL,
+            constants.ENV_SUBNET_EXTERNAL,
+            constants.ENV_RUNTIME_NET_SUBNET,
+            constants.ENV_RUNTIME_NODE_IP,
+            constants.ENV_LAMBDA_NETWORK,
+            constants.ENV_CONFIG_DIR,
+            constants.ENV_AUTH_USER,
+            constants.ENV_AUTH_PASS,
+            constants.ENV_JWT_SECRET_KEY,
+            constants.ENV_X_API_KEY,
+            constants.ENV_RUSTFS_ACCESS_KEY,
+            constants.ENV_RUSTFS_SECRET_KEY,
+            constants.ENV_ROOT_CA_FINGERPRINT,
+            constants.ENV_ROOT_CA_CERT_FILENAME,
+            constants.ENV_CERT_DIR,
+            constants.ENV_MODE,
+            constants.ENV_ENV,
+        ]
+    )
+
+    seen: set[str] = set()
+    ordered_keys: list[str] = []
+    for key in keys:
+        if key and key not in seen:
+            seen.add(key)
+            ordered_keys.append(key)
+
+    lines = ["# Auto-generated for E2E runtime state. Do not edit manually."]
+    for key in ordered_keys:
+        value = runtime_env.get(key)
+        if value is None or str(value).strip() == "":
+            continue
+        lines.append(f"{key}={value}")
+    path.write_text("\n".join(lines) + "\n")
+
+
+def ensure_build_artifacts(env_name: str) -> None:
+    config_dir = E2E_STATE_ROOT / env_name / "config"
+    required = ("functions.yml", "routing.yml", "resources.yml")
+    missing = [name for name in required if not (config_dir / name).exists()]
+    if missing:
+        missing_list = ", ".join(missing)
+        raise FileNotFoundError(
+            f"Missing build artifacts for {env_name}: {config_dir} (missing: {missing_list})"
+        )
+
+
 def _pick_manifest_digest(index: dict) -> str | None:
     manifests = index.get("manifests", [])
     if not isinstance(manifests, list) or not manifests:
@@ -338,10 +435,15 @@ def _pick_manifest_digest(index: dict) -> str | None:
     return manifests[0].get("digest")
 
 
+def _is_truthy(value: str | None) -> bool:
+    if value is None:
+        return False
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 def verify_registry_images(env_name: str, project: str, mode: str, compose_file: Path) -> None:
     """Validate that registry blobs exist for built function images."""
-    if mode != "containerd":
-        return
+    # Validating registry blobs is useful for all modes now that we use a local registry everywhere.
 
     port = _registry_port(project, compose_file)
     if port is None:
@@ -353,7 +455,11 @@ def verify_registry_images(env_name: str, project: str, mode: str, compose_file:
         print("[WARN] functions.yml not found or empty; skipping registry integrity check.")
         return
 
-    base_url = f"https://localhost:{port}"
+    insecure = os.environ.get(constants.ENV_CONTAINER_REGISTRY_INSECURE)
+    if not insecure:
+        insecure = os.environ.get(env_key(constants.ENV_CONTAINER_REGISTRY_INSECURE))
+    scheme = "http" if _is_truthy(insecure) else "https"
+    base_url = f"{scheme}://localhost:{port}"
     missing: dict[str, list[str]] = {}
 
     headers_index = {"Accept": "application/vnd.oci.image.index.v1+json"}
@@ -649,6 +755,8 @@ def warmup_environment(
     else:
         print(f"\n[INIT] Using E2E template: {esb_template}")
 
+    infra.ensure_infra_up(str(PROJECT_ROOT))
+
 
 def run_scenario(args, scenario):
     """Run a single scenario."""
@@ -657,8 +765,8 @@ def run_scenario(args, scenario):
     raw_env_file = scenario.get("env_file")
     env_file = str((PROJECT_ROOT / raw_env_file).absolute()) if raw_env_file else None
     project_name = scenario.get("esb_project", BRAND_SLUG)
-    do_reset = scenario.get("perform_reset", args.reset)
-    do_build = scenario.get("perform_build", args.build)
+    # E2E should start from a clean slate by default.
+    do_reset = False if args.test_only else scenario.get("perform_reset", True)
     build_only = scenario.get("build_only", False) or args.build_only
     test_only = scenario.get("test_only", False) or args.test_only
     env_vars_override = scenario.get("env_vars", {})
@@ -683,12 +791,43 @@ def run_scenario(args, scenario):
     else:
         print("Warning: No env_file specified for this scenario. Operating with system env only.")
 
+    state_env = load_state_env(env_name)
+    if state_env:
+        credential_keys = {
+            constants.ENV_AUTH_USER,
+            constants.ENV_AUTH_PASS,
+            constants.ENV_JWT_SECRET_KEY,
+            constants.ENV_X_API_KEY,
+            constants.ENV_RUSTFS_ACCESS_KEY,
+            constants.ENV_RUSTFS_SECRET_KEY,
+        }
+        if test_only:
+            os.environ.update(state_env)
+        else:
+            os.environ.update({k: v for k, v in state_env.items() if k in credential_keys})
+
     # 2.5 Inject Proxy Settings
     # 3. Reload env vars into a dict for passing to subprocess (pytest)
     env = os.environ.copy()
 
     # Capture calculated values for convenience
     env["GATEWAY_PORT"] = env.get(env_key("PORT_GATEWAY_HTTPS"), "443")
+
+    mode = scenario.get("mode", "docker")
+
+    # Inject Registry Configuration
+    # host_addr is localhost:5010 (for build/push on host)
+    host_addr, service_addr = infra.get_registry_config()
+    runtime_registry = host_addr if mode.lower() == "docker" else service_addr
+
+    env["HOST_REGISTRY_ADDR"] = host_addr
+    env["CONTAINER_REGISTRY"] = runtime_registry
+    # For docker-bake.hcl (tagging & pushing)
+    env["REGISTRY"] = f"{runtime_registry}/"
+
+    safe_print(
+        f"[{scenario.get('esb_env', 'unknown')}] Registry Config -> Runtime: {runtime_registry}, Host: {host_addr}"
+    )
     env["VICTORIALOGS_PORT"] = env.get(env_key("PORT_VICTORIALOGS"), "9428")
     env["GATEWAY_URL"] = f"https://localhost:{env['GATEWAY_PORT']}"
     env["VICTORIALOGS_URL"] = f"http://localhost:{env['VICTORIALOGS_PORT']}"
@@ -699,12 +838,45 @@ def run_scenario(args, scenario):
     env.update(env_vars_override)
 
     # 1.5 Calculate Runtime Env (needed for reset/build too)
-    mode = scenario.get("mode", "docker")
     compose_file_path = resolve_compose_file(scenario, mode)
     template_path = PROJECT_ROOT / "e2e" / "fixtures" / "template.yaml"
     if not template_path.exists():
         raise FileNotFoundError(f"Missing E2E template: {template_path}")
+    deploy_templates = scenario.get("deploy_templates") or [str(template_path)]
+    deploy_paths = []
+    for item in deploy_templates:
+        path = Path(item)
+        if not path.is_absolute():
+            path = (PROJECT_ROOT / path).resolve()
+        deploy_paths.append(path)
+
+    def build_deploy_args(tmpl: Path) -> list[str]:
+        deploy_args = [
+            "--template",
+            str(tmpl.absolute()),
+            "deploy",
+            "--no-save-defaults",
+            "--env",
+            env_name,
+            "--mode",
+            mode,
+        ]
+        if args.no_cache:
+            deploy_args.append("--no-cache")
+        return deploy_args
+
     runtime_env = calculate_runtime_env(project_name, env_name, mode, env_file)
+    compose_project = f"{project_name}-{env_name}"
+    staging_config_dir = calculate_staging_dir(compose_project, env_name)
+    runtime_env[constants.ENV_CONFIG_DIR] = str(staging_config_dir)
+    staging_config_dir.mkdir(parents=True, exist_ok=True)
+    buildx_cache_dir = PROJECT_ROOT / ".esb" / "buildx-cache" / env_name
+    buildx_cache_dir.mkdir(parents=True, exist_ok=True)
+    runtime_env["BUILDX_CACHE_DIR"] = str(buildx_cache_dir)
+    # Disable buildx cache export during E2E to avoid long cache flushes.
+    runtime_env["ESB_BUILDX_CACHE"] = "0"
+    runtime_env["ESB_BUILDX_CACHE_TO"] = "0"
+    ensure_buildx_builder(runtime_env.get("BUILDX_BUILDER", ""))
     tag_key = env_key(constants.ENV_TAG)
     tag_override = env_vars_override.get(tag_key) or os.environ.get(tag_key)
     if tag_override:
@@ -714,30 +886,40 @@ def run_scenario(args, scenario):
         if current_tag == "" or current_tag == "latest":
             runtime_env[tag_key] = build_unique_tag(env_name)
     os.environ[tag_key] = runtime_env.get(tag_key, "")
-    build_env_base = runtime_env.copy()
-    build_env_base["PROJECT_NAME"] = f"{project_name}-{env_name}"
-    build_env_base["ESB_META_REUSE"] = "1"
+    insecure_key = env_key(constants.ENV_CONTAINER_REGISTRY_INSECURE)
+    if insecure_key in runtime_env:
+        os.environ[insecure_key] = runtime_env[insecure_key]
+    if insecure_key in runtime_env:
+        os.environ[insecure_key] = runtime_env[insecure_key]
+
+    # Propagate computed registry config to runtime env (for GoBuilder)
+    runtime_env["HOST_REGISTRY_ADDR"] = env.get("HOST_REGISTRY_ADDR", "")
+    runtime_env["CONTAINER_REGISTRY"] = env.get("CONTAINER_REGISTRY", "")
+    runtime_env["REGISTRY"] = env.get("REGISTRY", "")
+
+    deploy_env = runtime_env.copy()
+    deploy_env["PROJECT_NAME"] = compose_project
+    deploy_env["ESB_META_REUSE"] = "1"
+    deploy_env.update(env_vars_override)
+
+    # Merge runtime environment into pytest environment to ensure variables like
+    # ESB_REGISTRY are available to subprocesses (e.g. docker compose in tests).
+    env.update(runtime_env)
+    env.update(env_vars_override)
 
     did_up = False
     try:
         if not test_only:
-            # 2. Reset / Build
-            build_args = [
-                "--template",
-                str(template_path.absolute()),
-                "build",
-                "--no-save-defaults",
-                "--env",
-                env_name,
-                "--mode",
-                mode,
-            ]
+            # 2. Reset / Cleanup
             if do_reset:
                 print(f"Resetting environment: {env_name}")
                 # 2.1 Robust cleanup using docker compose down
                 # matches the "down" logic from legacy esb up replacement
                 if compose_file_path.exists():
                     proj_key = f"{BRAND_SLUG}-{env_name}"
+                    reset_env = os.environ.copy()
+                    reset_env.update(runtime_env)
+                    reset_env.update(env_vars_override)
                     subprocess.run(
                         [
                             "docker",
@@ -751,6 +933,7 @@ def run_scenario(args, scenario):
                             "--remove-orphans",
                         ],
                         capture_output=True,
+                        env=reset_env,
                     )
                 # Fallback to manual cleanup just in case (e.g. if compose file invalid or project name mismatch previously)
                 thorough_cleanup(env_name)
@@ -765,112 +948,57 @@ def run_scenario(args, scenario):
 
                     shutil.rmtree(env_state_dir)
 
-                # Re-generate configurations and build images via ESB build
-                run_esb(
-                    build_args + ["--no-cache"],
-                    env_file=env_file,
-                    verbose=args.verbose,
-                    env=build_env_base,
-                )
-                verify_registry_images(
-                    env_name,
-                    f"{project_name}-{env_name}",
-                    mode,
-                    compose_file_path,
-                )
-                if not (build_only and os.environ.get("E2E_WORKER") == "1"):
-                    print_built_images(env_name, project_name)
+                # 2.3 Clean staging config dir for this environment
+                if staging_config_dir.exists():
+                    print(f"  • Cleaning staging config directory: {staging_config_dir}")
+                    import shutil
 
-                if build_only:
-                    return True
-
-                # Manual orchestration will handle starting the services in Step 3
-                did_up = False
-            elif do_build:
-                if not args.verbose:
-                    safe_print(f"Building environment: {env_name}...")
-                else:
-                    print(f"Building environment: {env_name}")
-                run_esb(
-                    build_args + ["--no-cache"],
-                    env_file=env_file,
-                    verbose=args.verbose,
-                    env=build_env_base,
-                )
-                verify_registry_images(
-                    env_name,
-                    f"{project_name}-{env_name}",
-                    mode,
-                    compose_file_path,
-                )
-                if not (build_only and os.environ.get("E2E_WORKER") == "1"):
-                    print_built_images(env_name, project_name)
-                if not args.verbose:
-                    print("Done")
-            else:
-                if not args.verbose:
-                    safe_print(f"Preparing environment: {env_name}...")
-                else:
-                    print(f"Preparing environment: {env_name}")
-                # In Zero-Config, we just rebuild if needed. stop/sync are gone.
-                run_esb(build_args, env_file=env_file, verbose=args.verbose, env=build_env_base)
-                verify_registry_images(
-                    env_name,
-                    f"{project_name}-{env_name}",
-                    mode,
-                    compose_file_path,
-                )
-                if not (build_only and os.environ.get("E2E_WORKER") == "1"):
-                    print_built_images(env_name, project_name)
-                if not args.verbose:
-                    print("Done")
+                    shutil.rmtree(staging_config_dir)
+                    staging_config_dir.mkdir(parents=True, exist_ok=True)
         else:
-            config_dir = E2E_STATE_ROOT / env_name / "config"
-            if not config_dir.exists():
-                raise FileNotFoundError(
-                    f"Missing build artifacts for {env_name}: {config_dir} (run build phase first)"
-                )
             if args.verbose:
-                print(f"Skipping build for {env_name} (test-only)")
-
-        # If build_only, skip UP and tests
-        if build_only:
-            return
+                print(f"Skipping deploy for {env_name} (test-only)")
 
         # 3. UP (Manual Orchestration)
         if not did_up:
             # Critical: Override PROJECT_NAME to include env suffix for isolation (e.g. esb-e2e-docker)
             # This matches the logic in the Go CLI builder and ensures container names are unique.
-            runtime_env["PROJECT_NAME"] = f"{project_name}-{env_name}"
+            runtime_env["PROJECT_NAME"] = compose_project
 
             # Merge with existing system/process env to ensure PATH etc are preserved
             compose_env = os.environ.copy()
             compose_env.update(runtime_env)
             compose_env.update(env_vars_override)
 
-            # Pass RESOURCES_YML to docker compose so provisioner can find it
-            resources_yml_path = E2E_STATE_ROOT / env_name / "config" / "resources.yml"
-            compose_env["RESOURCES_YML"] = str(resources_yml_path.absolute())
-
             if not compose_file_path.exists():
                 print(f"[WARN] Compose file not found at {compose_file_path}.")
                 raise FileNotFoundError(f"Compose file not found: {compose_file_path}")
 
-            compose_cmd = [
+            compose_base_cmd = [
                 "docker",
                 "compose",
                 "--project-name",
                 f"{BRAND_SLUG}-{env_name}",
                 "--file",
                 str(compose_file_path),
-                "up",
-                "--detach",
             ]
+
+            # Registry is shared/infra managed now.
+            # registry_cmd = compose_base_cmd + ["up", "--detach", "registry"]
+            # if args.verbose:
+            #     print(f"Running: {' '.join(registry_cmd)}")
+            # subprocess.run(registry_cmd, check=True, env=compose_env)
+
+            compose_cmd = compose_base_cmd + ["up", "--detach"]
+            if args.build:
+                compose_cmd.append("--build")
 
             if args.verbose:
                 print(f"Running: {' '.join(compose_cmd)}")
 
             subprocess.run(compose_cmd, check=True, env=compose_env)
+
+            infra.connect_registry_to_network(runtime_env.get(constants.ENV_NETWORK_EXTERNAL, ""))
 
             # Sync is gone. Zero-Config provisioner service handles it.
             # We just need to discover ports for the host-side testing.
@@ -878,6 +1006,30 @@ def run_scenario(args, scenario):
 
             # Wait for Gateway readiness (parity with legacy esb up)
             wait_for_gateway(env_name, verbose=args.verbose, ports=ports)
+
+            # 3.1 Deploy functions/config
+            if not test_only:
+                for idx, tmpl in enumerate(deploy_paths, start=1):
+                    label = f"{env_name}"
+                    if len(deploy_paths) > 1:
+                        label = f"{env_name} ({idx}/{len(deploy_paths)})"
+                    if not args.verbose:
+                        safe_print(f"Deploying functions for {label}...")
+                    else:
+                        print(f"Deploying functions for {label}...")
+                    run_esb(
+                        build_deploy_args(tmpl),
+                        env_file=env_file,
+                        verbose=args.verbose,
+                        env=deploy_env,
+                    )
+                    # Give hot reload time to pick up the new configs
+                    time.sleep(2.0)
+                    if not args.verbose:
+                        print("Done")
+
+            if build_only:
+                return
 
             # --- USER REQUEST: Print generated info ---
             if ports:
@@ -977,14 +1129,18 @@ def run_scenario(args, scenario):
                 safe_print(f"Cleaning up environment: {env_name}...")
             else:
                 print(f"Cleaning up environment: {env_name}")
-            # esb down is gone, use docker compose directly
-            proj_key = f"{BRAND_SLUG}-{env_name}"
-            subprocess.run(
-                ["docker", "compose", "-p", proj_key, "-f", str(compose_file_path), "down"],
-                capture_output=True,
-            )
-            if not args.verbose:
-                print("Done")
+        # esb down is gone, use docker compose directly
+        proj_key = f"{BRAND_SLUG}-{env_name}"
+        cleanup_env = os.environ.copy()
+        cleanup_env.update(runtime_env)
+        cleanup_env.update(env_vars_override)
+        subprocess.run(
+            ["docker", "compose", "-p", proj_key, "-f", str(compose_file_path), "down"],
+            capture_output=True,
+            env=cleanup_env,
+        )
+        if not args.verbose:
+            print("Done")
 
 
 def run_profile_subprocess(
@@ -1028,7 +1184,7 @@ def run_profile_subprocess(
         env=env,
     )
 
-    output_lines = []
+    output_lines: deque[str] = deque(maxlen=2000)
     tests_started = False
     reported_tests = False
     in_special_block = False
@@ -1040,12 +1196,21 @@ def run_profile_subprocess(
         "failed to solve:",
     )
 
+    log_file = PROJECT_ROOT / "e2e" / f".parallel-{profile_name}.log"
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+    log_fp = log_file.open("w", encoding="utf-8")
+    log_fp.write(f"=== {profile_name} combined output ===\n")
+    log_fp.flush()
+
     # Read output line by line as it becomes available
     try:
         if process.stdout:
             for line in iter(process.stdout.readline, ""):
+                log_fp.write(line)
+                log_fp.flush()
                 clean_line = line.rstrip()
-                if clean_line:
+                visible_line = _strip_ansi(clean_line)
+                if visible_line.strip():
                     if "test session starts" in clean_line:
                         tests_started = True
                         if display and not reported_tests:
@@ -1089,20 +1254,21 @@ def run_profile_subprocess(
                         process.terminate()
                         break
                 else:
-                    # Empty line terminates a block
+                    # Empty or ANSI-only line terminates a block
                     if in_special_block:
                         in_special_block = False
 
-                    # Preserve blank lines only in verbose mode
-                    if not last_line_was_blank:
-                        if verbose:
-                            emit("")
-                        last_line_was_blank = True
+                    # Preserve blank lines only in non-parallel verbose runs
+                    if display is None and verbose and not last_line_was_blank:
+                        emit("")
+                    last_line_was_blank = True
 
                 output_lines.append(line)
 
     except Exception as e:
         emit(f"Error reading output: {e}")
+    finally:
+        log_fp.close()
 
     try:
         returncode = process.wait(timeout=15)
@@ -1116,12 +1282,6 @@ def run_profile_subprocess(
         emit("")
         for line in output_lines:
             emit(line.rstrip())
-
-    # Write output to a log file for debugging
-    log_file = PROJECT_ROOT / "e2e" / f".parallel-{profile_name}.log"
-    with open(log_file, "w", encoding="utf-8") as f:
-        f.write(f"=== {profile_name} combined output ===\n")
-        f.writelines(output_lines)
 
     return returncode, "".join(output_lines)
 
@@ -1147,10 +1307,9 @@ def run_profiles_with_executor(
     # Calculate max profile name length for aligned logging (+2 for brackets)
     max_label_len = max(len(p) for p in env_scenarios.keys()) + 2 if env_scenarios else 0
     profiles = list(env_scenarios.keys())
-    use_rich = max_workers > 1
-    progress_display = display if display else (ParallelDisplay(profiles) if use_rich else None)
+    progress_display = display
     manage_display = progress_display is not None and display is None
-    executor_cls = ThreadPoolExecutor if use_rich else ProcessPoolExecutor
+    executor_cls = ThreadPoolExecutor
 
     if manage_display:
         progress_display.set_phase("Test Phase (Parallel)")
@@ -1175,16 +1334,14 @@ def run_profiles_with_executor(
                 if test_only:
                     cmd.append("--test-only")
                 else:
-                    if reset:
-                        cmd.append("--reset")
                     if build:
                         cmd.append("--build")
                 if cleanup:
                     cmd.append("--cleanup")
                 if fail_fast:
                     cmd.append("--fail-fast")
-                if verbose:
-                    cmd.append("--verbose")
+                if not verbose:
+                    cmd.append("--no-verbose")
 
                 # Determine log prefix/color
                 profile_index = profiles.index(profile_name)
@@ -1277,12 +1434,10 @@ def run_build_phase_serial(
             profile_name,
             "--build-only",
         ]
-        if reset:
-            cmd.append("--reset")
         if build:
             cmd.append("--build")
-        if verbose:
-            cmd.append("--verbose")
+        if not verbose:
+            cmd.append("--no-verbose")
 
         color_code = COLORS[idx % len(COLORS)]
         start = time.monotonic()
@@ -1333,9 +1488,7 @@ def run_build_phase_parallel(
     profiles = list(env_scenarios.keys())
     max_workers = len(profiles)
     future_to_profile: dict[Any, tuple[str, float, str]] = {}
-    progress_display = (
-        display if display else (ParallelDisplay(profiles) if max_workers > 1 else None)
-    )
+    progress_display = display
     manage_display = progress_display is not None and display is None
     if manage_display:
         progress_display.set_phase("Build Phase (Parallel)")
@@ -1353,12 +1506,10 @@ def run_build_phase_parallel(
                     profile_name,
                     "--build-only",
                 ]
-                if reset:
-                    cmd.append("--reset")
                 if build:
                     cmd.append("--build")
-                if verbose:
-                    cmd.append("--verbose")
+                if not verbose:
+                    cmd.append("--no-verbose")
 
                 color_code = COLORS[idx % len(COLORS)]
                 if max_workers > 1:

@@ -18,10 +18,10 @@ func TestRunNoArgsUsesBrandName(t *testing.T) {
 		t.Fatalf("expected exit code 0, got %d", code)
 	}
 	output := buf.String()
-	if !strings.Contains(output, "acme build --template") {
+	if !strings.Contains(output, "acme deploy --template") {
 		t.Fatalf("expected brand name in usage output, got: %q", output)
 	}
-	if strings.Contains(output, "esb build --template") {
+	if strings.Contains(output, "esb deploy --template") {
 		t.Fatalf("unexpected default brand in output: %q", output)
 	}
 }

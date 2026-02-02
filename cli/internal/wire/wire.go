@@ -7,6 +7,7 @@ import (
 	"context"
 	"io"
 	"os"
+	"path/filepath"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/commands"
 	"github.com/poruru/edge-serverless-box/cli/internal/compose"
@@ -21,10 +22,16 @@ var Stdout = os.Stdout
 type composePortDiscoverer struct{}
 
 func (composePortDiscoverer) Discover(ctx context.Context, rootDir, project, mode string) (map[string]int, error) {
+	extraFiles := []string{}
+	infraFile := filepath.Join(rootDir, "docker-compose.infra.yml")
+	if _, err := os.Stat(infraFile); err == nil {
+		extraFiles = append(extraFiles, infraFile)
+	}
 	return compose.DiscoverPorts(ctx, compose.ExecRunner{}, compose.PortDiscoveryOptions{
-		RootDir: rootDir,
-		Project: project,
-		Mode:    mode,
+		RootDir:    rootDir,
+		Project:    project,
+		Mode:       mode,
+		ExtraFiles: extraFiles,
 	})
 }
 
@@ -37,7 +44,7 @@ func BuildDependencies(_ []string) (commands.Dependencies, io.Closer, error) {
 		Out:          Stdout,
 		Prompter:     interaction.HuhPrompter{},
 		RepoResolver: config.ResolveRepoRoot,
-		Build: commands.BuildDeps{
+		Deploy: commands.DeployDeps{
 			Builder: builder,
 		},
 	}

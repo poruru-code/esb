@@ -32,12 +32,33 @@ class GatewayConfig(BaseAppConfig):
     UVICORN_BIND_ADDR: str = Field(default="0.0.0.0:8000", description="Listen address")
 
     # Path settings
+    RUNTIME_CONFIG_DIR: str = Field(
+        default="/app/runtime-config",
+        description="Directory for runtime config files (esb deploy target)",
+    )
+    SEED_CONFIG_DIR: str = Field(
+        default="/app/seed-config", description="Directory for seed config files (initial fallback)"
+    )
     ROUTING_CONFIG_PATH: str = Field(
-        default="/app/config/routing.yml", description="Routing definition file path"
+        default="/app/runtime-config/routing.yml", description="Routing definition file path"
     )
     FUNCTIONS_CONFIG_PATH: str = Field(
-        default="/app/config/functions.yml", description="Lambda function definition file path"
+        default="/app/runtime-config/functions.yml",
+        description="Lambda function definition file path",
     )
+    RESOURCES_CONFIG_PATH: str = Field(
+        default="/app/runtime-config/resources.yml", description="Resources definition file path"
+    )
+    CONFIG_RELOAD_ENABLED: bool = Field(
+        default=True, description="Enable hot reload of config files"
+    )
+    CONFIG_RELOAD_INTERVAL: float = Field(
+        default=1.0, description="Config reload interval (seconds), minimum 0.5"
+    )
+    CONFIG_RELOAD_LOCK_TIMEOUT: float = Field(
+        default=5.0, description="Lock timeout for config reload (seconds)"
+    )
+
     SSL_CERT_PATH: str = Field(default="/app/config/ssl/server.crt", description="SSL cert path")
     SSL_KEY_PATH: str = Field(default="/app/config/ssl/server.key", description="SSL key path")
     DATA_ROOT_PATH: str = Field(default="/data", description="Root path for child container data")

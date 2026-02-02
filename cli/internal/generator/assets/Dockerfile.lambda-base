@@ -8,5 +8,3 @@ COPY site-packages/ /var/lang/lib/python3.12/site-packages/
 
 # trace_bridge included in PYTHONPATH as a Lambda Layer.
 COPY python/ /opt/python/
-
-COPY --from=meta /version.json /app/version.json

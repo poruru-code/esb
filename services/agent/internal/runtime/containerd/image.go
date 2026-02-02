@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/errdefs"
@@ -25,8 +26,16 @@ const caCertPath = meta.RootCACertPath
 // ensureImage checks if the image exists in the current namespace, and pulls it if not.
 func (r *Runtime) ensureImage(ctx context.Context, ref string) (containerd.Image, error) {
 	snapshotter := resolveSnapshotter()
+	pullAlways := resolveImagePullPolicy() == "always"
 	img, err := r.client.GetImage(ctx, ref)
 	if err == nil {
+		if pullAlways {
+			pulled, pullErr := r.pullImage(ctx, ref, snapshotter)
+			if pullErr == nil {
+				return pulled, nil
+			}
+			log.Printf("Pull failed for %s, using existing image: %v", ref, pullErr)
+		}
 		if err := ensureImageUnpacked(ctx, img, snapshotter); err != nil {
 			return nil, err
 		}
@@ -37,28 +46,7 @@ func (r *Runtime) ensureImage(ctx context.Context, ref string) (containerd.Image
 		return nil, fmt.Errorf("failed to get image %s: %w", ref, err)
 	}
 
-	log.Printf("Image %s not found, pulling...", ref)
-
-	// Create resolver with TLS configuration
-	resolver, err := createTLSResolver()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create TLS resolver: %w", err)
-	}
-
-	img, err = r.client.Pull(ctx, ref,
-		containerd.WithPullUnpack,
-		containerd.WithPullSnapshotter(snapshotter),
-		containerd.WithResolver(resolver),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to pull image %s: %w", ref, err)
-	}
-
-	if err := ensureImageUnpacked(ctx, img, snapshotter); err != nil {
-		return nil, err
-	}
-
-	return img, nil
+	return r.pullImage(ctx, ref, snapshotter)
 }
 
 func ensureImageUnpacked(ctx context.Context, img containerd.Image, snapshotter string) error {
@@ -78,9 +66,53 @@ func ensureImageUnpacked(ctx context.Context, img containerd.Image, snapshotter 
 	return nil
 }
 
-// createTLSResolver creates a docker resolver with custom CA certificate
-// Forces HTTPS even for localhost (containerd treats localhost as insecure by default)
+func (r *Runtime) pullImage(
+	ctx context.Context,
+	ref string,
+	snapshotter string,
+) (containerd.Image, error) {
+	log.Printf("Pulling image %s...", ref)
+
+	resolver, err := createTLSResolver()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create TLS resolver: %w", err)
+	}
+
+	img, err := r.client.Pull(ctx, ref,
+		containerd.WithPullUnpack,
+		containerd.WithPullSnapshotter(snapshotter),
+		containerd.WithResolver(resolver),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to pull image %s: %w", ref, err)
+	}
+
+	if err := ensureImageUnpacked(ctx, img, snapshotter); err != nil {
+		return nil, err
+	}
+
+	return img, nil
+}
+
+func resolveImagePullPolicy() string {
+	value := strings.ToLower(strings.TrimSpace(os.Getenv("IMAGE_PULL_POLICY")))
+	if value == "" {
+		return "if-not-present"
+	}
+	switch value {
+	case "always", "if-not-present":
+		return value
+	default:
+		return "if-not-present"
+	}
+}
+
+// createTLSResolver creates a docker resolver with custom CA certificate.
+// Default behavior forces HTTPS even for localhost (containerd treats localhost as insecure by default).
 func createTLSResolver() (remotes.Resolver, error) {
+	if isRegistryInsecure() {
+		return docker.NewResolver(docker.ResolverOptions{PlainHTTP: true}), nil
+	}
 	// Load CA certificate
 	caCert, err := os.ReadFile(caCertPath)
 	if err != nil {
@@ -123,4 +155,9 @@ func createTLSResolver() (remotes.Resolver, error) {
 
 	log.Printf("TLS resolver configured with CA from %s (HTTPS forced)", caCertPath)
 	return resolver, nil
+}
+
+func isRegistryInsecure() bool {
+	value := strings.ToLower(strings.TrimSpace(os.Getenv("CONTAINER_REGISTRY_INSECURE")))
+	return value == "1" || value == "true" || value == "yes" || value == "on"
 }

@@ -13,20 +13,30 @@ import (
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/compose"
+	"github.com/poruru/edge-serverless-box/meta"
 )
 
 type bakeTarget struct {
-	Name       string
-	Context    string
-	Dockerfile string
-	Tags       []string
-	Labels     map[string]string
-	Args       map[string]string
-	Contexts   map[string]string
-	Secrets    []string
-	CacheFrom  []string
-	CacheTo    []string
-	NoCache    bool
+	Name          string
+	Context       string
+	Dockerfile    string
+	Tags          []string
+	Outputs       []string
+	Labels        map[string]string
+	Args          map[string]string
+	Contexts      map[string]string
+	Secrets       []string
+	CacheFrom     []string
+	CacheTo       []string
+	CacheDisabled bool
+	NoCache       bool
+}
+
+func buildxBuilderName() string {
+	if value := strings.TrimSpace(os.Getenv("BUILDX_BUILDER")); value != "" {
+		return value
+	}
+	return fmt.Sprintf("%s-buildx", meta.Slug)
 }
 
 func runBakeGroup(
@@ -61,9 +71,11 @@ func runBakeGroup(
 	}
 	defer func() { _ = os.Remove(tmpFile) }()
 
-	args := []string{"buildx", "bake", "--builder", "default"}
+	builder := buildxBuilderName()
+	args := []string{"buildx", "bake", "--builder", builder}
 	args = append(args, bakeAllowArgs(targets)...)
-	args = append(args, "-f", bakeFile, "-f", tmpFile, "--load")
+	args = append(args, bakeProvenanceArgs()...)
+	args = append(args, "-f", bakeFile, "-f", tmpFile)
 	return withBuildLock("bake", func() error {
 		if verbose {
 			args = append(args, "--progress", "plain")
@@ -127,14 +139,24 @@ func renderBakeFile(groupName string, targets []bakeTarget) (string, error) {
 		if len(target.Tags) > 0 {
 			b.WriteString(fmt.Sprintf("  tags = %s\n", hclList(target.Tags)))
 		}
+		outputs := target.Outputs
+		if len(outputs) == 0 {
+			outputs = []string{"type=docker"}
+		}
+		b.WriteString(fmt.Sprintf("  output = %s\n", hclList(outputs)))
 		writeHclMap(&b, "labels", target.Labels)
 		writeHclMap(&b, "args", target.Args)
 		writeHclMap(&b, "contexts", target.Contexts)
-		if len(target.CacheFrom) > 0 {
-			b.WriteString(fmt.Sprintf("  cache-from = %s\n", hclList(target.CacheFrom)))
-		}
-		if len(target.CacheTo) > 0 {
-			b.WriteString(fmt.Sprintf("  cache-to = %s\n", hclList(target.CacheTo)))
+		if target.CacheDisabled {
+			b.WriteString("  cache-from = []\n")
+			b.WriteString("  cache-to = []\n")
+		} else {
+			if len(target.CacheFrom) > 0 {
+				b.WriteString(fmt.Sprintf("  cache-from = %s\n", hclList(target.CacheFrom)))
+			}
+			if len(target.CacheTo) > 0 {
+				b.WriteString(fmt.Sprintf("  cache-to = %s\n", hclList(target.CacheTo)))
+			}
 		}
 		if len(target.Secrets) > 0 {
 			b.WriteString(fmt.Sprintf("  secret = %s\n", hclList(target.Secrets)))
@@ -146,6 +168,79 @@ func renderBakeFile(groupName string, targets []bakeTarget) (string, error) {
 	}
 
 	return b.String(), nil
+}
+
+func bakeProvenanceArgs() []string {
+	mode, ok := provenanceMode()
+	if !ok {
+		return nil
+	}
+	return []string{fmt.Sprintf("--provenance=%s", mode)}
+}
+
+func provenanceMode() (string, bool) {
+	value := strings.TrimSpace(os.Getenv("PROVENANCE"))
+	if value == "" {
+		return "mode=max", true
+	}
+	switch strings.ToLower(value) {
+	case "0", "false", "off", "no":
+		return "", false
+	case "1", "true", "on", "yes":
+		return "mode=max", true
+	default:
+		return value, true
+	}
+}
+
+func resolveBakeOutputs(registry string, pushToRegistry, includeDocker bool) []string {
+	var outputs []string
+	if includeDocker || !pushToRegistry {
+		outputs = append(outputs, "type=docker")
+	}
+	if pushToRegistry && strings.TrimSpace(registry) != "" {
+		output := "type=registry"
+		if isInsecureRegistry(registry) {
+			output += ",registry.insecure=true"
+		}
+		outputs = append(outputs, output)
+	}
+	return outputs
+}
+
+func isInsecureRegistry(registry string) bool {
+	if strings.TrimSpace(registry) == "" {
+		return false
+	}
+	value := strings.ToLower(strings.TrimSpace(os.Getenv("CONTAINER_REGISTRY_INSECURE")))
+	if value == "1" || value == "true" || value == "yes" {
+		return true
+	}
+	host := registryHost(registry)
+	switch strings.ToLower(strings.TrimSpace(host)) {
+	case "registry", "localhost", "127.0.0.1":
+		return true
+	default:
+		return false
+	}
+}
+
+func registryHost(registry string) string {
+	trimmed := strings.TrimSpace(registry)
+	if trimmed == "" {
+		return ""
+	}
+	trimmed = strings.TrimSuffix(trimmed, "/")
+	trimmed = strings.TrimPrefix(trimmed, "http://")
+	trimmed = strings.TrimPrefix(trimmed, "https://")
+	if slash := strings.Index(trimmed, "/"); slash != -1 {
+		trimmed = trimmed[:slash]
+	}
+	host := trimmed
+	if colon := strings.Index(host, ":"); colon != -1 {
+		host = host[:colon]
+	}
+	return host
 }
 
 func hclList(values []string) string {
@@ -299,14 +394,154 @@ func parseBakeKeyValuePath(spec, key string) string {
 }
 
 func bakeCacheRoot(outputBase string) string {
+	if value := strings.TrimSpace(os.Getenv("BUILDX_CACHE_DIR")); value != "" {
+		return value
+	}
 	return filepath.Join(outputBase, "buildx-cache")
+}
+
+type buildxBuilderOptions struct {
+	NetworkMode string
+}
+
+func ensureBuildxBuilder(
+	ctx context.Context,
+	runner compose.CommandRunner,
+	repoRoot string,
+	opts buildxBuilderOptions,
+) error {
+	if runner == nil {
+		return fmt.Errorf("command runner is nil")
+	}
+	root := strings.TrimSpace(repoRoot)
+	if root == "" {
+		return fmt.Errorf("repo root is required")
+	}
+	builder := buildxBuilderName()
+	needsRecreate := false
+	return withBuildLock("buildx", func() error {
+		output, err := runner.RunOutput(
+			ctx,
+			root,
+			"docker",
+			"buildx",
+			"inspect",
+			"--builder",
+			builder,
+		)
+		if err == nil && strings.TrimSpace(opts.NetworkMode) != "" {
+			mode, modeErr := buildxBuilderNetworkMode(ctx, runner, root, builder)
+			if modeErr != nil || mode != opts.NetworkMode {
+				needsRecreate = true
+			}
+		}
+		if err != nil || needsRecreate {
+			if needsRecreate {
+				_ = runner.Run(ctx, root, "docker", "buildx", "rm", builder)
+			}
+			createArgs := []string{
+				"buildx",
+				"create",
+				"--name",
+				builder,
+				"--driver",
+				"docker-container",
+				"--use",
+				"--bootstrap",
+			}
+			if strings.TrimSpace(opts.NetworkMode) != "" {
+				createArgs = append(createArgs, "--driver-opt", fmt.Sprintf("network=%s", opts.NetworkMode))
+			}
+			createOutput, createErr := runner.RunOutput(ctx, root, "docker", createArgs...)
+			if createErr != nil {
+				lower := strings.ToLower(string(createOutput))
+				if strings.Contains(lower, "existing instance") || strings.Contains(lower, "already exists") {
+					if strings.TrimSpace(opts.NetworkMode) != "" {
+						if mode, modeErr := buildxBuilderNetworkMode(ctx, runner, root, builder); modeErr == nil && mode != opts.NetworkMode {
+							return fmt.Errorf(
+								"buildx builder %s uses network mode %s (expected %s)",
+								builder,
+								mode,
+								opts.NetworkMode,
+							)
+						}
+					}
+					if err := runner.Run(ctx, root, "docker", "buildx", "use", builder); err != nil {
+						return err
+					}
+				} else {
+					return createErr
+				}
+			}
+			output, err = runner.RunOutput(
+				ctx,
+				root,
+				"docker",
+				"buildx",
+				"inspect",
+				"--builder",
+				builder,
+				"--bootstrap",
+			)
+			if err != nil {
+				return err
+			}
+		}
+		driver := parseBuildxDriver(output)
+		if driver == "" {
+			return fmt.Errorf("buildx builder %s has no driver info", builder)
+		}
+		if !strings.EqualFold(driver, "docker-container") {
+			return fmt.Errorf("buildx builder %s uses driver %s (expected docker-container)", builder, driver)
+		}
+		return nil
+	})
+}
+
+func buildxBuilderNetworkMode(
+	ctx context.Context,
+	runner compose.CommandRunner,
+	repoRoot string,
+	builder string,
+) (string, error) {
+	containerName := fmt.Sprintf("buildx_buildkit_%s0", builder)
+	output, err := runner.RunOutput(
+		ctx,
+		repoRoot,
+		"docker",
+		"inspect",
+		"-f",
+		"{{.HostConfig.NetworkMode}}",
+		containerName,
+	)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
+func parseBuildxDriver(output []byte) string {
+	for _, line := range strings.Split(string(output), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "Driver:") {
+			return strings.TrimSpace(strings.TrimPrefix(line, "Driver:"))
+		}
+	}
+	return ""
 }
 
 // applyBakeLocalCache configures local cache settings for a bake target.
 // It appends to any existing CacheFrom/CacheTo settings, preserving configuration
 // defined in the base docker-bake.hcl.
 func applyBakeLocalCache(target *bakeTarget, cacheRoot, group string) error {
-	if target == nil || strings.TrimSpace(cacheRoot) == "" {
+	if target == nil {
+		return nil
+	}
+	if buildxCacheDisabled() {
+		target.CacheDisabled = true
+		return nil
+	}
+	if strings.TrimSpace(cacheRoot) == "" {
 		return nil
 	}
 	parts := []string{}
@@ -324,8 +559,20 @@ func applyBakeLocalCache(target *bakeTarget, cacheRoot, group string) error {
 		return err
 	}
 	target.CacheFrom = append(target.CacheFrom, fmt.Sprintf("type=local,src=%s", cacheDir))
-	target.CacheTo = append(target.CacheTo, fmt.Sprintf("type=local,dest=%s,mode=max", cacheDir))
+	if strings.TrimSpace(os.Getenv("ESB_BUILDX_CACHE_TO")) != "0" {
+		target.CacheTo = append(target.CacheTo, fmt.Sprintf("type=local,dest=%s,mode=max", cacheDir))
+	}
 	return nil
+}
+
+func buildxCacheDisabled() bool {
+	value := strings.ToLower(strings.TrimSpace(os.Getenv("ESB_BUILDX_CACHE")))
+	switch value {
+	case "0", "false", "off", "no":
+		return true
+	default:
+		return false
+	}
 }
 
 func sanitizePathSegments(values []string) []string {
@@ -361,16 +608,4 @@ func mergeStringMap(base, extra map[string]string) map[string]string {
 		out[key] = value
 	}
 	return out
-}
-
-func findBuildContextPath(buildContexts []buildContext, name string) (string, error) {
-	for _, ctx := range buildContexts {
-		if strings.TrimSpace(ctx.Name) == strings.TrimSpace(name) {
-			if strings.TrimSpace(ctx.Path) == "" {
-				return "", fmt.Errorf("build context path is empty for %s", name)
-			}
-			return ctx.Path, nil
-		}
-	}
-	return "", fmt.Errorf("build context %s not found", name)
 }

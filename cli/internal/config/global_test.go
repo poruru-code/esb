@@ -7,9 +7,17 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"github.com/poruru/edge-serverless-box/meta"
 )
 
+func setEnvPrefix(t *testing.T) {
+	t.Helper()
+	t.Setenv("ENV_PREFIX", meta.EnvPrefix)
+}
+
 func TestGlobalConfigRoundTrip(t *testing.T) {
+	setEnvPrefix(t)
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	cfg := GlobalConfig{
 		Version: 1,
@@ -46,6 +54,7 @@ func TestGlobalConfigRoundTrip(t *testing.T) {
 }
 
 func TestGlobalConfigPathHonorsOverride(t *testing.T) {
+	setEnvPrefix(t)
 	baseDir := t.TempDir()
 	overridePath := filepath.Join(baseDir, "custom", "config.yaml")
 	t.Setenv("ESB_CONFIG_PATH", overridePath)
@@ -60,6 +69,7 @@ func TestGlobalConfigPathHonorsOverride(t *testing.T) {
 }
 
 func TestEnsureGlobalConfigCreatesDefault(t *testing.T) {
+	setEnvPrefix(t)
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	t.Setenv("ESB_CONFIG_PATH", path)
 
@@ -82,6 +92,7 @@ func TestEnsureGlobalConfigCreatesDefault(t *testing.T) {
 }
 
 func TestEnsureGlobalConfigKeepsExisting(t *testing.T) {
+	setEnvPrefix(t)
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	t.Setenv("ESB_CONFIG_PATH", path)
 

@@ -52,7 +52,7 @@ def test_calculate_runtime_env_defaults():
         assert constants.ENV_RUNTIME_NET_SUBNET in env
         assert constants.ENV_RUNTIME_NODE_IP in env
         assert env[constants.ENV_NETWORK_EXTERNAL] == "myproj-myenv-external"
-        assert env[constants.ENV_LAMBDA_NETWORK] == "esb_int_myenv"
+        assert env[constants.ENV_LAMBDA_NETWORK] == f"{BRAND_SLUG}_int_myenv"
 
         # Check Ports (should be initialized to "0" for dynamic discovery)
         for p_suffix in (
@@ -93,10 +93,13 @@ def test_calculate_runtime_env_override():
 
 
 def test_calculate_runtime_env_mode_registry_defaults():
-    # docker mode: registry is not required
-    env_docker = calculate_runtime_env("p", "e", "docker")
+    # docker mode: container registry defaults to host registry
     registry_key = env_key(constants.ENV_REGISTRY)
-    assert registry_key not in env_docker
+    registry_port_key = env_key(constants.PORT_REGISTRY)
+    with mock.patch.dict(os.environ, {registry_port_key: "5010"}, clear=True):
+        env_docker = calculate_runtime_env("p", "e", "docker")
+        assert env_docker[registry_key] == "127.0.0.1:5010/"
+        assert env_docker[constants.ENV_CONTAINER_REGISTRY] == "127.0.0.1:5010"
 
     # containerd mode: registry is required and normalized
     env_containerd = calculate_runtime_env("p", "e", "containerd")

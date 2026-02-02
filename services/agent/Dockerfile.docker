@@ -38,7 +38,6 @@ ENV IMAGE_RUNTIME="docker"
 
 WORKDIR /app
 
-COPY --from=meta /version.json /app/version.json
 
 COPY --from=builder /app/agent /app/agent
 

@@ -1,0 +1,186 @@
+# Where: e2e/runner/lifecycle.py
+# What: Lifecycle operations (reset/up/down) for E2E environments.
+# Why: Separate environment orchestration from scenario execution logic.
+from __future__ import annotations
+
+import os
+import shutil
+import time
+from pathlib import Path
+from typing import Callable
+
+import requests
+import urllib3
+
+from e2e.runner import constants, infra
+from e2e.runner.cleanup import cleanup_managed_images, isolate_external_network, thorough_cleanup
+from e2e.runner.env import discover_ports
+from e2e.runner.logging import LogSink, run_and_stream
+from e2e.runner.models import RunContext, Scenario
+from e2e.runner.utils import BRAND_SLUG, E2E_STATE_ROOT, PROJECT_ROOT, env_key
+
+
+def resolve_compose_file(scenario: Scenario) -> Path:
+    env_dir = scenario.env_dir
+    if env_dir:
+        compose_path = PROJECT_ROOT / env_dir / "docker-compose.yml"
+        if compose_path.exists():
+            return compose_path
+        raise FileNotFoundError(f"Compose file not found in env_dir: {compose_path}")
+    return PROJECT_ROOT / f"docker-compose.{scenario.mode}.yml"
+
+
+def reset_environment(
+    ctx: RunContext,
+    *,
+    log: LogSink,
+    printer: Callable[[str], None] | None = None,
+) -> None:
+    env_name = ctx.scenario.env_name
+    project_label = f"{BRAND_SLUG}-{env_name}"
+    log.write_line(f"Resetting environment: {env_name}")
+    if printer:
+        printer(f"Resetting environment: {env_name}")
+
+    if ctx.compose_file.exists():
+        down_cmd = [
+            "docker",
+            "compose",
+            "--project-name",
+            project_label,
+            "--file",
+            str(ctx.compose_file),
+            "down",
+            "--volumes",
+            "--remove-orphans",
+        ]
+        run_and_stream(
+            down_cmd,
+            cwd=PROJECT_ROOT,
+            env=_compose_env(ctx),
+            log=log,
+            printer=printer,
+        )
+
+    thorough_cleanup(env_name, log=log.write_line, printer=printer)
+    cleanup_managed_images(
+        env_name,
+        ctx.project_name,
+        log=log.write_line,
+        printer=printer,
+    )
+    isolate_external_network(project_label, log=log.write_line, printer=printer)
+
+    env_state_dir = E2E_STATE_ROOT / env_name
+    if env_state_dir.exists():
+        log.write_line(f"  - Cleaning artifact directory: {env_state_dir}")
+        if printer:
+            printer(f"  - Cleaning artifact directory: {env_state_dir}")
+        shutil.rmtree(env_state_dir)
+
+    config_dir = ctx.runtime_env.get(constants.ENV_CONFIG_DIR)
+    if config_dir:
+        staging_dir = Path(config_dir)
+        if staging_dir.exists():
+            log.write_line(f"  - Cleaning staging config directory: {staging_dir}")
+            if printer:
+                printer(f"  - Cleaning staging config directory: {staging_dir}")
+            shutil.rmtree(staging_dir)
+            staging_dir.mkdir(parents=True, exist_ok=True)
+
+
+def compose_up(
+    ctx: RunContext,
+    *,
+    build: bool,
+    log: LogSink,
+    printer: Callable[[str], None] | None = None,
+) -> dict[str, int]:
+    if not ctx.compose_file.exists():
+        raise FileNotFoundError(f"Compose file not found: {ctx.compose_file}")
+
+    compose_cmd = [
+        "docker",
+        "compose",
+        "--project-name",
+        ctx.compose_project,
+        "--file",
+        str(ctx.compose_file),
+        "up",
+        "--detach",
+    ]
+    if build:
+        compose_cmd.append("--build")
+
+    run_and_stream(
+        compose_cmd,
+        cwd=PROJECT_ROOT,
+        env=_compose_env(ctx),
+        log=log,
+        printer=printer,
+    )
+
+    infra.connect_registry_to_network(ctx.runtime_env.get(constants.ENV_NETWORK_EXTERNAL, ""))
+    return discover_ports(ctx.compose_project, ctx.compose_file)
+
+
+def compose_down(
+    ctx: RunContext,
+    *,
+    log: LogSink,
+    printer: Callable[[str], None] | None = None,
+) -> None:
+    down_cmd = [
+        "docker",
+        "compose",
+        "--project-name",
+        ctx.compose_project,
+        "--file",
+        str(ctx.compose_file),
+        "down",
+    ]
+    run_and_stream(
+        down_cmd,
+        cwd=PROJECT_ROOT,
+        env=_compose_env(ctx),
+        log=log,
+        printer=printer,
+    )
+
+
+def wait_for_gateway(
+    env_name: str,
+    *,
+    ports: dict[str, int],
+    timeout: float = 60.0,
+    interval: float = 1.0,
+) -> None:
+    gw_port = ports.get(env_key(constants.PORT_GATEWAY_HTTPS))
+    if not gw_port:
+        return
+
+    url = f"https://localhost:{gw_port}/health"
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+    deadline = time.time() + timeout
+    last_err = None
+    while time.time() < deadline:
+        try:
+            response = requests.get(url, timeout=2.0, verify=False)
+            if response.status_code == 200:
+                return
+            last_err = f"Status code {response.status_code}"
+        except requests.exceptions.RequestException as exc:
+            last_err = str(exc)
+        time.sleep(interval)
+    raise RuntimeError(
+        f"Gateway failed to start in time ({timeout}s) for {env_name}. Last error: {last_err}"
+    )
+
+
+def _compose_env(ctx: RunContext) -> dict[str, str]:
+    compose_env = os.environ.copy()
+    compose_env.update(ctx.runtime_env)
+    compose_env.update(ctx.scenario.env_vars)
+    compose_env.setdefault(constants.ENV_PROJECT_NAME, ctx.compose_project)
+    return {**compose_env}

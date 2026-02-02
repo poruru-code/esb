@@ -87,6 +87,7 @@ services/gateway/.esb-staging/
 .tmp/
 cli/bin/
 cli/esb
+cli/cli/bin/
 
 # DinD bundler build artifacts
 /tools/dind-bundler/build-context/
