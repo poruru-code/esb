@@ -1,6 +1,9 @@
 package workflows
 
 import (
+	"context"
+	"time"
+
 	"github.com/poruru/edge-serverless-box/cli/internal/generator"
 	"github.com/poruru/edge-serverless-box/cli/internal/ports"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
@@ -50,4 +53,40 @@ func (u *testUI) Error(msg string) {
 
 func (u *testUI) Block(_, _ string, _ []ports.KeyValue) {
 	// Simple mock implementation
+}
+
+// fakeComposeRunner is a test double for compose.CommandRunner.
+type fakeComposeRunner struct {
+	commands [][]string
+	err      error
+}
+
+func (r *fakeComposeRunner) Run(ctx context.Context, dir, name string, args ...string) error {
+	_ = ctx
+	_ = dir
+	r.commands = append(r.commands, append([]string{name}, args...))
+	return r.err
+}
+
+func (r *fakeComposeRunner) RunOutput(ctx context.Context, dir, name string, args ...string) ([]byte, error) {
+	_ = ctx
+	_ = dir
+	r.commands = append(r.commands, append([]string{name}, args...))
+	return nil, r.err
+}
+
+func (r *fakeComposeRunner) RunQuiet(ctx context.Context, dir, name string, args ...string) error {
+	_ = ctx
+	_ = dir
+	r.commands = append(r.commands, append([]string{name}, args...))
+	return r.err
+}
+
+// fakeRegistryChecker is a test double for RegistryChecker.
+type fakeRegistryChecker struct{}
+
+func (c *fakeRegistryChecker) WaitReady(registry string, timeout time.Duration) error {
+	_ = registry
+	_ = timeout
+	return nil
 }

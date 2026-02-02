@@ -25,19 +25,14 @@ type registryConfig struct {
 	Registry string
 }
 
-func resolveRegistryConfig(mode string) (registryConfig, error) {
-	normalized := strings.ToLower(strings.TrimSpace(mode))
+func resolveRegistryConfig() (registryConfig, error) {
 	key, err := envutil.HostEnvKey(constants.HostSuffixRegistry)
 	if err != nil {
 		return registryConfig{}, err
 	}
 	registry := strings.TrimSpace(os.Getenv(key))
 	if registry == "" {
-		if normalized == compose.ModeDocker {
-			registry = constants.DefaultContainerRegistryHost
-		} else {
-			registry = constants.DefaultContainerRegistry
-		}
+		registry = constants.DefaultContainerRegistry
 	}
 	if !strings.HasSuffix(registry, "/") {
 		registry += "/"
@@ -76,22 +71,18 @@ func brandingImageLabels(project, env string) map[string]string {
 func stageConfigFiles(outputDir, repoRoot, composeProject, env string) error {
 	configDir := filepath.Join(outputDir, "config")
 	stagingRoot := staging.BaseDir(composeProject, env)
-	destDir := staging.ConfigDir(composeProject, env)
-	if err := removeDir(destDir); err != nil {
-		return err
-	}
-	if err := ensureDir(destDir); err != nil {
-		return err
-	}
 
+	// Verify source config files exist
 	for _, name := range []string{"functions.yml", "routing.yml", "resources.yml"} {
 		src := filepath.Join(configDir, name)
 		if !fileExists(src) {
 			return fmt.Errorf("config not found: %s", src)
 		}
-		if err := copyFile(src, filepath.Join(destDir, name)); err != nil {
-			return err
-		}
+	}
+
+	// Merge config files into CONFIG_DIR (with locking and atomic updates)
+	if err := MergeConfig(outputDir, composeProject, env); err != nil {
+		return err
 	}
 
 	// Stage pyproject.toml for isolated builds
@@ -147,31 +138,6 @@ func stageConfigFiles(outputDir, repoRoot, composeProject, env string) error {
 	return nil
 }
 
-func ensureRegistryRunning(
-	ctx context.Context,
-	runner compose.CommandRunner,
-	rootDir string,
-	project string,
-	mode string,
-) error {
-	if runner == nil {
-		return fmt.Errorf("compose runner is nil")
-	}
-	files, err := compose.ResolveComposeFiles(rootDir, mode, "control")
-	if err != nil {
-		return err
-	}
-	args := []string{"compose"}
-	if project != "" {
-		args = append(args, "-p", project)
-	}
-	for _, file := range files {
-		args = append(args, "-f", file)
-	}
-	args = append(args, "up", "-d", "registry")
-	return runner.Run(ctx, rootDir, "docker", args...)
-}
-
 func withBuildLock(name string, fn func() error) error {
 	key := strings.TrimSpace(name)
 	if key == "" {
@@ -223,6 +189,7 @@ func buildFunctionImages(
 	verbose bool,
 	labels map[string]string,
 	cacheRoot string,
+	includeDocker bool,
 ) error {
 	if verbose {
 		fmt.Println("Building function images...")
@@ -270,7 +237,7 @@ func buildFunctionImages(
 				Context:    outputDir,
 				Dockerfile: dockerfile,
 				Tags:       []string{imageTag},
-				Outputs:    resolveBakeOutputs(registry, true),
+				Outputs:    resolveBakeOutputs(registry, true, includeDocker),
 				Labels:     labels,
 				Args:       proxyArgs,
 				NoCache:    noCache,
@@ -301,235 +268,6 @@ func buildFunctionImages(
 		}
 	}
 	return nil
-}
-
-func buildControlImages(
-	ctx context.Context,
-	runner compose.CommandRunner,
-	repoRoot string,
-	outputDir string,
-	mode string,
-	registry string,
-	tag string,
-	noCache bool,
-	verbose bool,
-	labels map[string]string,
-	cacheRoot string,
-) ([]string, error) {
-	if runner == nil {
-		return nil, fmt.Errorf("command runner is nil")
-	}
-	root := strings.TrimSpace(repoRoot)
-	if root == "" {
-		return nil, fmt.Errorf("repo root is required")
-	}
-	mode = strings.ToLower(strings.TrimSpace(mode))
-	if mode == "" {
-		mode = compose.ModeDocker
-	}
-
-	configDir := filepath.ToSlash(filepath.Join(outputDir, "config"))
-	gatewayDir := filepath.ToSlash(filepath.Join(root, "services", "gateway"))
-	agentDir := filepath.ToSlash(filepath.Join(root, "services", "agent"))
-	provisionerDir := filepath.ToSlash(filepath.Join(root, "services", "provisioner"))
-	runtimeNodeDir := filepath.ToSlash(filepath.Join(root, "services", "runtime-node"))
-
-	pythonBaseContext := "target:python-base"
-	osBaseContext := "target:os-base"
-
-	serviceUser := meta.Slug
-	serviceUID := strings.TrimSpace(os.Getenv("RUN_UID"))
-	if serviceUID == "" {
-		serviceUID = "1000"
-	}
-	serviceGID := strings.TrimSpace(os.Getenv("RUN_GID"))
-	if serviceGID == "" {
-		serviceGID = "1000"
-	}
-
-	proxyArgs := dockerBuildArgMap()
-	makeTag := func(name string) string {
-		return joinRegistry(registry, fmt.Sprintf("%s:%s", name, tag))
-	}
-
-	rootFingerprint, err := resolveRootCAFingerprint()
-	if err != nil {
-		return nil, err
-	}
-	rootCAPath, err := resolveRootCAPath()
-	if err != nil {
-		return nil, err
-	}
-	baseImageLabels := make(map[string]string, len(labels)+1)
-	for key, value := range labels {
-		baseImageLabels[key] = value
-	}
-	baseImageLabels[compose.ESBCAFingerprintLabel] = rootFingerprint
-
-	osBaseTag := fmt.Sprintf("%s-os-base:latest", meta.ImagePrefix)
-	osTarget := bakeTarget{
-		Name:    "os-base",
-		Tags:    []string{osBaseTag},
-		Outputs: resolveBakeOutputs(registry, false),
-		Labels:  baseImageLabels,
-		Args: mergeStringMap(proxyArgs, map[string]string{
-			constants.BuildArgCAFingerprint: rootFingerprint,
-			"ROOT_CA_MOUNT_ID":              meta.RootCAMountID,
-			"ROOT_CA_CERT_FILENAME":         meta.RootCACertFilename,
-		}),
-		Secrets: []string{fmt.Sprintf("id=%s,src=%s", meta.RootCAMountID, rootCAPath)},
-		NoCache: noCache,
-	}
-	if err := applyBakeLocalCache(&osTarget, cacheRoot, "base/os"); err != nil {
-		return nil, err
-	}
-
-	pythonBaseTag := fmt.Sprintf("%s-python-base:latest", meta.ImagePrefix)
-	pythonTarget := bakeTarget{
-		Name:    "python-base",
-		Tags:    []string{pythonBaseTag},
-		Outputs: resolveBakeOutputs(registry, false),
-		Labels:  baseImageLabels,
-		Args: mergeStringMap(proxyArgs, map[string]string{
-			constants.BuildArgCAFingerprint: rootFingerprint,
-			"ROOT_CA_MOUNT_ID":              meta.RootCAMountID,
-			"ROOT_CA_CERT_FILENAME":         meta.RootCACertFilename,
-		}),
-		Secrets: []string{fmt.Sprintf("id=%s,src=%s", meta.RootCAMountID, rootCAPath)},
-		NoCache: noCache,
-	}
-	if err := applyBakeLocalCache(&pythonTarget, cacheRoot, "base/python"); err != nil {
-		return nil, err
-	}
-
-	targets := []bakeTarget{osTarget, pythonTarget}
-	built := make([]string, 0, 4)
-
-	switch mode {
-	case compose.ModeContainerd:
-		runtimeDockerfile := filepath.Join(runtimeNodeDir, "Dockerfile.containerd")
-		if _, err := os.Stat(runtimeDockerfile); err != nil {
-			return nil, fmt.Errorf("dockerfile not found: %w", err)
-		}
-		runtimeTag := makeTag(fmt.Sprintf("%s-runtime-node-containerd", meta.ImagePrefix))
-		runtimeTarget := bakeTarget{
-			Name:    "runtime-node-containerd",
-			Tags:    []string{runtimeTag},
-			Outputs: resolveBakeOutputs(registry, true),
-			Labels:  labels,
-			Args: mergeStringMap(proxyArgs, map[string]string{
-				"OS_BASE_IMAGE": "os-base",
-			}),
-			Contexts: map[string]string{
-				"os-base": osBaseContext,
-			},
-			NoCache: noCache,
-		}
-		if err := applyBakeLocalCache(&runtimeTarget, cacheRoot, "control"); err != nil {
-			return nil, err
-		}
-		targets = append(targets, runtimeTarget)
-		built = append(built, "runtime-node")
-	}
-
-	agentDockerfile := filepath.Join(agentDir, fmt.Sprintf("Dockerfile.%s", mode))
-	if _, err := os.Stat(agentDockerfile); err != nil {
-		return nil, fmt.Errorf("dockerfile not found: %w", err)
-	}
-	agentTag := makeTag(fmt.Sprintf("%s-agent-%s", meta.ImagePrefix, mode))
-	agentTarget := bakeTarget{
-		Name:    fmt.Sprintf("agent-%s", mode),
-		Tags:    []string{agentTag},
-		Outputs: resolveBakeOutputs(registry, true),
-		Labels:  labels,
-		Args: mergeStringMap(proxyArgs, map[string]string{
-			"OS_BASE_IMAGE": "os-base",
-		}),
-		Contexts: map[string]string{
-			"os-base": osBaseContext,
-		},
-		NoCache: noCache,
-	}
-	if err := applyBakeLocalCache(&agentTarget, cacheRoot, "control"); err != nil {
-		return nil, err
-	}
-	targets = append(targets, agentTarget)
-	built = append(built, "agent")
-
-	provisionerDockerfile := filepath.Join(provisionerDir, "Dockerfile")
-	if _, err := os.Stat(provisionerDockerfile); err != nil {
-		return nil, fmt.Errorf("dockerfile not found: %w", err)
-	}
-	provisionerTag := makeTag(fmt.Sprintf("%s-provisioner", meta.ImagePrefix))
-	provisionerTarget := bakeTarget{
-		Name:    "provisioner",
-		Tags:    []string{provisionerTag},
-		Outputs: resolveBakeOutputs(registry, true),
-		Labels:  labels,
-		Args: mergeStringMap(proxyArgs, map[string]string{
-			"PYTHON_BASE_IMAGE": "python-base",
-		}),
-		Contexts: map[string]string{
-			"config":      configDir,
-			"python-base": pythonBaseContext,
-		},
-		NoCache: noCache,
-	}
-	if err := applyBakeLocalCache(&provisionerTarget, cacheRoot, "control"); err != nil {
-		return nil, err
-	}
-	targets = append(targets, provisionerTarget)
-	built = append(built, "provisioner")
-
-	gatewayDockerfile := filepath.Join(gatewayDir, fmt.Sprintf("Dockerfile.%s", mode))
-	if _, err := os.Stat(gatewayDockerfile); err != nil {
-		return nil, fmt.Errorf("dockerfile not found: %w", err)
-	}
-	gatewayTag := makeTag(fmt.Sprintf("%s-gateway-%s", meta.ImagePrefix, mode))
-	gatewayTarget := bakeTarget{
-		Name:    fmt.Sprintf("gateway-%s", mode),
-		Tags:    []string{gatewayTag},
-		Outputs: resolveBakeOutputs(registry, true),
-		Labels:  labels,
-		Args: mergeStringMap(proxyArgs, map[string]string{
-			"PYTHON_BASE_IMAGE": "python-base",
-			"SERVICE_USER":      serviceUser,
-			"SERVICE_UID":       serviceUID,
-			"SERVICE_GID":       serviceGID,
-		}),
-		Contexts: map[string]string{
-			"config":      configDir,
-			"python-base": pythonBaseContext,
-		},
-		NoCache: noCache,
-	}
-	if err := applyBakeLocalCache(&gatewayTarget, cacheRoot, "control"); err != nil {
-		return nil, err
-	}
-	targets = append(targets, gatewayTarget)
-	built = append(built, "gateway")
-
-	if len(targets) == 0 {
-		return nil, nil
-	}
-	if verbose {
-		fmt.Println("Building control plane images...")
-		for _, name := range built {
-			fmt.Printf("  Building image for %s...\n", name)
-		}
-	}
-	if err := runBakeGroup(
-		ctx,
-		runner,
-		root,
-		"esb-control",
-		targets,
-		verbose,
-	); err != nil {
-		return nil, err
-	}
-
-	return built, nil
 }
 
 func resolveRootCAPath() (string, error) {

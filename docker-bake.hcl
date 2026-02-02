@@ -2,27 +2,47 @@
 // Source: tools/branding/templates/docker-bake.hcl.tmpl
 
 // Base/control images (targets are configured at runtime via bake overrides).
+variable "REGISTRY" {
+  default = ""
+}
+
+variable "HOME" {
+  default = ""
+}
+
 target "lambda-base" {
   context    = "cli/internal/generator/assets"
   dockerfile = "Dockerfile.lambda-base"
+  tags       = ["${REGISTRY}esb-lambda-base:latest"]
+  cache-from = ["type=local,src=.esb/buildx-cache/base"]
+  cache-to   = ["type=local,dest=.esb/buildx-cache/base,mode=max"]
+  output     = ["type=image,push=true"]
 }
 
 target "os-base" {
   context    = "services/common"
   dockerfile = "Dockerfile.os-base"
-  tags = ["esb-os-base:latest"]
-  output = ["type=docker"]
+  tags = ["${REGISTRY}esb-os-base:latest"]
+  args = {
+    ROOT_CA_MOUNT_ID = "root_ca"
+  }
+  output = ["type=image,push=true"]
   cache-from = ["type=local,src=.esb/buildx-cache/base"]
   cache-to   = ["type=local,dest=.esb/buildx-cache/base,mode=max"]
+  secret = ["id=root_ca,src=/home/akira/.esb/certs/rootCA.crt"]
 }
 
 target "python-base" {
   context    = "services/common"
   dockerfile = "Dockerfile.python-base"
-  tags = ["esb-python-base:latest"]
-  output = ["type=docker"]
+  tags = ["${REGISTRY}esb-python-base:latest"]
+  args = {
+    ROOT_CA_MOUNT_ID = "root_ca"
+  }
+  output = ["type=image,push=true"]
   cache-from = ["type=local,src=.esb/buildx-cache/base"]
   cache-to   = ["type=local,dest=.esb/buildx-cache/base,mode=max"]
+  secret = ["id=root_ca,src=/home/akira/.esb/certs/rootCA.crt"]
 }
 
 group "base-images" {
@@ -44,8 +64,10 @@ target "gateway-docker" {
     SERVICE_UID       = "1000"
     SERVICE_GID       = "1000"
   }
-  tags   = ["esb-gateway-docker:latest"]
-  output = ["type=docker"]
+  tags   = ["${REGISTRY}esb-gateway-docker:latest"]
+  cache-from = ["type=local,src=.esb/buildx-cache/services"]
+  cache-to   = ["type=local,dest=.esb/buildx-cache/services,mode=max"]
+  output = ["type=image,push=true"]
 }
 
 target "agent-docker" {
@@ -58,8 +80,10 @@ target "agent-docker" {
   args = {
     OS_BASE_IMAGE = "os-base"
   }
-  tags   = ["esb-agent-docker:latest"]
-  output = ["type=docker"]
+  tags   = ["${REGISTRY}esb-agent-docker:latest"]
+  cache-from = ["type=local,src=.esb/buildx-cache/services"]
+  cache-to   = ["type=local,dest=.esb/buildx-cache/services,mode=max"]
+  output = ["type=image,push=true"]
 }
 
 // Control plane images (shared/provisioner).
@@ -74,8 +98,10 @@ target "provisioner" {
   args = {
     PYTHON_BASE_IMAGE = "python-base"
   }
-  tags   = ["esb-provisioner:latest"]
-  output = ["type=docker"]
+  tags   = ["${REGISTRY}esb-provisioner:latest"]
+  cache-from = ["type=local,src=.esb/buildx-cache/services"]
+  cache-to   = ["type=local,dest=.esb/buildx-cache/services,mode=max"]
+  output = ["type=image,push=true"]
 }
 
 // Control plane images (containerd mode).
@@ -88,8 +114,10 @@ target "runtime-node-containerd" {
   args = {
     OS_BASE_IMAGE = "os-base"
   }
-  tags   = ["esb-runtime-node-containerd:latest"]
-  output = ["type=docker"]
+  tags   = ["${REGISTRY}esb-runtime-node-containerd:latest"]
+  cache-from = ["type=local,src=.esb/buildx-cache/services"]
+  cache-to   = ["type=local,dest=.esb/buildx-cache/services,mode=max"]
+  output = ["type=image,push=true"]
 }
 
 target "agent-containerd" {
@@ -102,8 +130,10 @@ target "agent-containerd" {
   args = {
     OS_BASE_IMAGE = "os-base"
   }
-  tags   = ["esb-agent-containerd:latest"]
-  output = ["type=docker"]
+  tags   = ["${REGISTRY}esb-agent-containerd:latest"]
+  cache-from = ["type=local,src=.esb/buildx-cache/services"]
+  cache-to   = ["type=local,dest=.esb/buildx-cache/services,mode=max"]
+  output = ["type=image,push=true"]
 }
 
 target "gateway-containerd" {
@@ -120,8 +150,10 @@ target "gateway-containerd" {
     SERVICE_UID       = "1000"
     SERVICE_GID       = "1000"
   }
-  tags   = ["esb-gateway-containerd:latest"]
-  output = ["type=docker"]
+  tags   = ["${REGISTRY}esb-gateway-containerd:latest"]
+  cache-from = ["type=local,src=.esb/buildx-cache/services"]
+  cache-to   = ["type=local,dest=.esb/buildx-cache/services,mode=max"]
+  output = ["type=image,push=true"]
 }
 
 group "control-images-docker" {
@@ -130,4 +162,8 @@ group "control-images-docker" {
 
 group "control-images-containerd" {
   targets = ["runtime-node-containerd", "gateway-containerd", "agent-containerd", "provisioner"]
+}
+
+group "default" {
+  targets = ["base-images", "control-images-docker", "control-images-containerd"]
 }

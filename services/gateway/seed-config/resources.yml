@@ -1,0 +1,6 @@
+# Seed configuration for resources
+# This file is used as initial configuration when no deploy has occurred.
+# After deployment, runtime-config/resources.yml takes precedence.
+
+# Resource definitions (empty initially, populated by esb deploy)
+resources: {}

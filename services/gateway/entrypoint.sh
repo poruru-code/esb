@@ -30,6 +30,14 @@ if [ -n "${AGENT_RUNTIME:-}" ] && [ "$AGENT_RUNTIME" != "$IMAGE_RUNTIME" ]; then
   exit 1
 fi
 
+# Phase 4: Initialize seed configuration for hot reload
+# Copy seed config files to runtime-config directory if they don't exist
+COPY_SEED_SCRIPT="/app/scripts/copy_seed_config.sh"
+if [ -f "$COPY_SEED_SCRIPT" ]; then
+  echo "INFO: Initializing seed configuration..."
+  sh "$COPY_SEED_SCRIPT"
+fi
+
 WG_CONF_PATH="${WG_CONF_PATH:-/app/config/wireguard/wg0.conf}"
 WG_INTERFACE="${WG_INTERFACE:-wg0}"
 WORKER_ROUTE_VIA_HOST="${GATEWAY_WORKER_ROUTE_VIA_HOST:-}"

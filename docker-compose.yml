@@ -1,5 +1,6 @@
 include:
   # Select the compose file you want to use.
+  - path: docker-compose.infra.yml
   - path: docker-compose.docker.yml
 
 x-no-proxy: &no_proxy

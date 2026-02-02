@@ -1,34 +1,57 @@
 package workflows
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
-func TestBuildWorkflowRunSuccess(t *testing.T) {
+func TestDeployWorkflowRunSuccess(t *testing.T) {
 	builder := &recordBuilder{}
 	envApplier := &recordEnvApplier{}
 	ui := &testUI{}
+	runner := &fakeComposeRunner{}
+
+	t.Setenv("ENV_PREFIX", "ESB")
+
+	// Use the actual repo root for testing
+	repoRoot, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	// Go up to the repo root (we're in cli/internal/workflows)
+	repoRoot = filepath.Join(repoRoot, "..", "..", "..")
+	repoRoot, err = filepath.Abs(repoRoot)
+	if err != nil {
+		t.Fatalf("failed to get absolute path: %v", err)
+	}
+
+	// Set ESB_REPO so ResolveRepoRoot can find it
+	t.Setenv("ESB_REPO", repoRoot)
 
 	ctx := state.Context{
-		ProjectDir:     "/repo",
+		ProjectDir:     repoRoot,
 		ComposeProject: "esb-dev",
 	}
-	req := BuildRequest{
+	req := DeployRequest{
 		Context:      ctx,
 		Env:          "dev",
 		Mode:         "docker",
-		TemplatePath: "/repo/template.yaml",
+		TemplatePath: filepath.Join(repoRoot, "template.yaml"),
 		OutputDir:    ".out",
 		Parameters:   map[string]string{"ParamA": "value"},
 		Tag:          "v1.2.3",
 		NoCache:      true,
-		Verbose:      true,
 	}
 
-	workflow := NewBuildWorkflow(builder, envApplier, ui)
+	workflow := NewDeployWorkflow(builder, envApplier, ui, runner)
+	// Use a mock registry checker to avoid waiting for real registry
+	workflow.RegistryChecker = &fakeRegistryChecker{}
+	// Note: This test uses the actual repo root. It will fail if the repo
+	// structure doesn't match expectations (e.g., missing compose files).
 	if err := workflow.Run(req); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -65,19 +88,18 @@ func TestBuildWorkflowRunSuccess(t *testing.T) {
 	if got.Parameters["ParamA"] != "value" {
 		t.Fatalf("parameters mismatch")
 	}
-	if !got.NoCache || !got.Verbose {
-		t.Fatalf("expected no-cache and verbose to be true")
+	if !got.NoCache {
+		t.Fatalf("expected no-cache to be true")
 	}
 
-	if len(ui.success) != 1 || !strings.Contains(ui.success[0], "Build complete") {
-		t.Fatalf("expected build success message")
+	if len(ui.success) != 1 || !strings.Contains(ui.success[0], "Deploy complete") {
+		t.Fatalf("expected deploy success message")
 	}
-	// "Next: esb up" check removed as per build.go changes
 }
 
-func TestBuildWorkflowRunMissingBuilder(t *testing.T) {
-	workflow := NewBuildWorkflow(nil, nil, nil)
-	err := workflow.Run(BuildRequest{Context: state.Context{}})
+func TestDeployWorkflowRunMissingBuilder(t *testing.T) {
+	workflow := NewDeployWorkflow(nil, nil, nil, nil)
+	err := workflow.Run(DeployRequest{Context: state.Context{}})
 	if err == nil || !strings.Contains(err.Error(), "builder port is not configured") {
 		t.Fatalf("expected builder missing error, got %v", err)
 	}

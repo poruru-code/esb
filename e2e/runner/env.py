@@ -1,7 +1,6 @@
 import hashlib
 import os
 import secrets
-import socket
 import subprocess
 from pathlib import Path
 
@@ -59,6 +58,7 @@ def calculate_runtime_env(
 
     # Load from env_file if provided (prioritize file over system env if needed,
     # but Go CLI usually merges and prioritizes file for certain values)
+    env_from_file: dict[str, str] = {}
     if env_file:
         env_from_file = read_env_file(env_file)
         env.update(env_from_file)
@@ -73,9 +73,6 @@ def calculate_runtime_env(
 
     env[constants.ENV_PROJECT_NAME] = project_name
 
-    # Normalize mode for registry checks
-    norm_mode = mode.lower() if mode else "docker"
-
     # Brand-scoped tag/registry
     tag_key = env_key(constants.ENV_TAG)
     registry_key = env_key(constants.ENV_REGISTRY)
@@ -86,8 +83,8 @@ def calculate_runtime_env(
         env[tag_key] = tag
 
     registry = env.get(registry_key, "").strip()
-    if not registry:
-        if norm_mode == "docker":
+    if registry_key not in env_from_file:
+        if mode.lower() == "docker":
             registry = f"{constants.DEFAULT_AGENT_REGISTRY_HOST}/"
         else:
             registry = f"{constants.DEFAULT_AGENT_REGISTRY}/"
@@ -125,10 +122,10 @@ def calculate_runtime_env(
         if not env.get(key):
             env[key] = "0"
 
-    # Prefer a concrete registry port in E2E so CONTAINER_REGISTRY is stable.
+    # Use a stable registry port in E2E to match shared infra.
     registry_port_key = env_key(constants.PORT_REGISTRY)
     if env.get(registry_port_key) in ("", "0"):
-        env[registry_port_key] = str(pick_free_port())
+        env[registry_port_key] = constants.DEFAULT_REGISTRY_PORT
 
     # 3. Subnets & Networks (Isolated per project-env)
     if not env.get(constants.ENV_NETWORK_EXTERNAL):
@@ -147,19 +144,11 @@ def calculate_runtime_env(
         env[constants.ENV_LAMBDA_NETWORK] = f"esb_int_{env_name}"
 
     # 4. Registry Defaults
-    if not env.get(constants.ENV_CONTAINER_REGISTRY):
-        if norm_mode == "docker":
+    if constants.ENV_CONTAINER_REGISTRY not in env_from_file:
+        if mode.lower() == "docker":
             env[constants.ENV_CONTAINER_REGISTRY] = constants.DEFAULT_AGENT_REGISTRY_HOST
         else:
             env[constants.ENV_CONTAINER_REGISTRY] = constants.DEFAULT_AGENT_REGISTRY
-    port = env.get(registry_port_key, "").strip()
-    if norm_mode == "docker":
-        if port:
-            env[constants.ENV_CONTAINER_REGISTRY] = f"127.0.0.1:{port}"
-            env[registry_key] = f"127.0.0.1:{port}/"
-    elif norm_mode == "containerd":
-        if port:
-            env[registry_key] = f"127.0.0.1:{port}/"
 
     # 5. Credentials (Simplified generation for E2E)
     if not env.get(constants.ENV_AUTH_USER):
@@ -198,12 +187,13 @@ def calculate_runtime_env(
 
     # 8. Docker BuildKit
     env.setdefault(constants.ENV_DOCKER_BUILDKIT, "1")
+    env.setdefault("BUILDX_BUILDER", f"{BRAND_SLUG}-buildx-{env_name}")
+    env.setdefault("COMPOSE_DOCKER_CLI_BUILD", "1")
 
     # 9. Staging Config Dir
     # Replicates applyConfigDirEnv / staging.ConfigDir logic
     config_dir = calculate_staging_dir(project_name, env_name)
-    if config_dir.exists():
-        env[constants.ENV_CONFIG_DIR] = str(config_dir)
+    env[constants.ENV_CONFIG_DIR] = str(config_dir)
 
     return env
 
@@ -232,12 +222,6 @@ def calculate_staging_dir(project_name: str, env_name: str) -> Path:
         root = Path.home() / f".{BRAND_SLUG}" / ".cache" / "staging"
 
     return root / stage_key / env_name / "config"
-
-
-def pick_free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.bind(("", 0))
-        return sock.getsockname()[1]
 
 
 def read_service_env(project_name: str, service: str) -> dict[str, str]:

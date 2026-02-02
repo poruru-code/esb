@@ -1,6 +1,6 @@
-// Where: cli/internal/commands/build.go
-// What: Build command helpers.
-// Why: Orchestrate build operations in a testable way.
+// Where: cli/internal/commands/deploy.go
+// What: Deploy command implementation.
+// Why: Orchestrate deploy operations in a testable way.
 package commands
 
 import (
@@ -11,73 +11,76 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/poruru/edge-serverless-box/cli/internal/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
 	"github.com/poruru/edge-serverless-box/cli/internal/helpers"
 	"github.com/poruru/edge-serverless-box/cli/internal/interaction"
 	"github.com/poruru/edge-serverless-box/cli/internal/ports"
+	"github.com/poruru/edge-serverless-box/cli/internal/sam"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 	"github.com/poruru/edge-serverless-box/cli/internal/workflows"
 	"github.com/poruru/edge-serverless-box/meta"
 )
 
-// Builder defines the interface for building Lambda function images.
-// Implementations generate Dockerfiles and build container images.
-type Builder = ports.Builder
-
-// runBuild executes the 'build' command which generates Dockerfiles
-// and builds container images for all Lambda functions in the SAM template.
-func runBuild(cli CLI, deps Dependencies, out io.Writer) int {
+// runDeploy executes the 'deploy' command.
+func runDeploy(cli CLI, deps Dependencies, out io.Writer) int {
 	repoResolver := deps.RepoResolver
 	if repoResolver == nil {
 		repoResolver = config.ResolveRepoRoot
 	}
 
-	cmd, err := newBuildCommand(deps.Build, repoResolver, out)
+	cmd, err := newDeployCommand(deps.Deploy, repoResolver, out)
 	if err != nil {
 		return exitWithError(out, err)
 	}
 
-	inputs, err := resolveBuildInputs(cli, deps)
+	inputs, err := resolveDeployInputs(cli, deps)
 	if err != nil {
 		return exitWithError(out, err)
 	}
 
-	if err := cmd.Run(inputs, cli.Build); err != nil {
+	if err := cmd.Run(inputs, cli.Deploy); err != nil {
 		return exitWithError(out, err)
 	}
 	return 0
 }
 
-type buildCommand struct {
-	builder    ports.Builder
-	envApplier ports.RuntimeEnvApplier
-	ui         ports.UserInterface
+type deployCommand struct {
+	builder       ports.Builder
+	envApplier    ports.RuntimeEnvApplier
+	ui            ports.UserInterface
+	composeRunner compose.CommandRunner
 }
 
-func newBuildCommand(deps BuildDeps, repoResolver func(string) (string, error), out io.Writer) (*buildCommand, error) {
-	if deps.Builder == nil {
-		return nil, fmt.Errorf("build: builder not configured")
+func newDeployCommand(
+	deployDeps DeployDeps,
+	repoResolver func(string) (string, error),
+	out io.Writer,
+) (*deployCommand, error) {
+	if deployDeps.Builder == nil {
+		return nil, fmt.Errorf("deploy: builder not configured")
 	}
 	envApplier, err := helpers.NewRuntimeEnvApplier(repoResolver)
 	if err != nil {
 		return nil, err
 	}
 	ui := ports.NewLegacyUI(out)
-	return &buildCommand{
-		builder:    deps.Builder,
-		envApplier: envApplier,
-		ui:         ui,
+	return &deployCommand{
+		builder:       deployDeps.Builder,
+		envApplier:    envApplier,
+		ui:            ui,
+		composeRunner: compose.ExecRunner{},
 	}, nil
 }
 
-func (c *buildCommand) Run(inputs buildInputs, flags BuildCmd) error {
+func (c *deployCommand) Run(inputs deployInputs, flags DeployCmd) error {
 	tag, err := resolveBrandTag()
 	if err != nil {
 		return err
 	}
-	request := workflows.BuildRequest{
+	request := workflows.DeployRequest{
 		Context:      inputs.Context,
 		Env:          inputs.Env,
 		Mode:         inputs.Mode,
@@ -87,56 +90,54 @@ func (c *buildCommand) Run(inputs buildInputs, flags BuildCmd) error {
 		Tag:          tag,
 		NoCache:      flags.NoCache,
 		Verbose:      flags.Verbose,
-		Bundle:       inputs.Bundle,
 	}
-	return workflows.NewBuildWorkflow(c.builder, c.envApplier, c.ui).Run(request)
+	return workflows.NewDeployWorkflow(c.builder, c.envApplier, c.ui, c.composeRunner).Run(request)
 }
 
-type buildInputs struct {
+type deployInputs struct {
 	Context      state.Context
 	Env          string
 	Mode         string
 	TemplatePath string
 	OutputDir    string
 	Parameters   map[string]string
-	Bundle       bool
 }
 
-func resolveBuildInputs(cli CLI, deps Dependencies) (buildInputs, error) {
+func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 	isTTY := interaction.IsTerminal(os.Stdin)
 	prompter := deps.Prompter
 
-	var last buildInputs
+	var last deployInputs
 	for {
-		templatePath, err := resolveBuildTemplate(cli.Template, isTTY, prompter, last.TemplatePath)
+		templatePath, err := resolveDeployTemplate(cli.Template, isTTY, prompter, last.TemplatePath)
 		if err != nil {
-			return buildInputs{}, err
+			return deployInputs{}, err
 		}
-		stored := loadBuildDefaults(templatePath)
+		stored := loadDeployDefaults(templatePath)
 		prevEnv := strings.TrimSpace(last.Env)
 		if prevEnv == "" {
 			prevEnv = strings.TrimSpace(stored.Env)
 		}
-		env, err := resolveBuildEnv(cli.EnvFlag, isTTY, prompter, prevEnv)
+		env, err := resolveDeployEnv(cli.EnvFlag, isTTY, prompter, prevEnv)
 		if err != nil {
-			return buildInputs{}, err
+			return deployInputs{}, err
 		}
 
 		prevMode := strings.TrimSpace(last.Mode)
 		if prevMode == "" {
 			prevMode = strings.TrimSpace(stored.Mode)
 		}
-		mode, err := resolveBuildMode(cli.Build.Mode, isTTY, prompter, prevMode)
+		mode, err := resolveDeployMode(cli.Deploy.Mode, isTTY, prompter, prevMode)
 		if err != nil {
-			return buildInputs{}, err
+			return deployInputs{}, err
 		}
 
 		prevOutput := strings.TrimSpace(last.OutputDir)
 		if prevOutput == "" {
 			prevOutput = strings.TrimSpace(stored.OutputDir)
 		}
-		outputDir, err := resolveBuildOutput(
-			cli.Build.Output,
+		outputDir, err := resolveDeployOutput(
+			cli.Deploy.Output,
 			templatePath,
 			env,
 			isTTY,
@@ -144,7 +145,7 @@ func resolveBuildInputs(cli CLI, deps Dependencies) (buildInputs, error) {
 			prevOutput,
 		)
 		if err != nil {
-			return buildInputs{}, err
+			return deployInputs{}, err
 		}
 
 		prevParams := last.Parameters
@@ -153,12 +154,12 @@ func resolveBuildInputs(cli CLI, deps Dependencies) (buildInputs, error) {
 		}
 		params, err := promptTemplateParameters(templatePath, isTTY, prompter, prevParams)
 		if err != nil {
-			return buildInputs{}, err
+			return deployInputs{}, err
 		}
 
 		projectDir, err := os.Getwd()
 		if err != nil {
-			return buildInputs{}, err
+			return deployInputs{}, err
 		}
 
 		composeProject := strings.TrimSpace(os.Getenv(constants.EnvProjectName))
@@ -179,24 +180,23 @@ func resolveBuildInputs(cli CLI, deps Dependencies) (buildInputs, error) {
 			ComposeProject: composeProject,
 		}
 
-		inputs := buildInputs{
+		inputs := deployInputs{
 			Context:      ctx,
 			Env:          env,
 			Mode:         mode,
 			TemplatePath: templatePath,
 			OutputDir:    outputDir,
 			Parameters:   params,
-			Bundle:       cli.Build.Bundle,
 		}
 
-		confirmed, err := confirmBuildInputs(inputs, isTTY, prompter)
+		confirmed, err := confirmDeployInputs(inputs, isTTY, prompter)
 		if err != nil {
-			return buildInputs{}, err
+			return deployInputs{}, err
 		}
 		if confirmed {
-			if !cli.Build.NoSave {
-				if err := saveBuildDefaults(templatePath, inputs); err != nil {
-					fmt.Fprintf(os.Stderr, "Warning: failed to save build defaults: %v\n", err)
+			if !cli.Deploy.NoSave {
+				if err := saveDeployDefaults(templatePath, inputs); err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: failed to save deploy defaults: %v\n", err)
 				}
 			}
 			return inputs, nil
@@ -205,7 +205,7 @@ func resolveBuildInputs(cli CLI, deps Dependencies) (buildInputs, error) {
 	}
 }
 
-func resolveBuildTemplate(
+func resolveDeployTemplate(
 	value string,
 	isTTY bool,
 	prompter interaction.Prompter,
@@ -267,31 +267,7 @@ func resolveBuildTemplate(
 	}
 }
 
-func resolveBrandTag() (string, error) {
-	tagKey, err := envutil.HostEnvKey(constants.HostSuffixTag)
-	if err != nil {
-		return "", err
-	}
-	tag := strings.TrimSpace(os.Getenv(tagKey))
-	if tag == "" {
-		tag = "latest"
-		_ = os.Setenv(tagKey, tag)
-	}
-	return tag, nil
-}
-
-func discoverTemplateCandidates() []string {
-	candidates := []string{}
-	baseDir := resolvePromptBaseDir()
-	for _, name := range []string{"template.yaml", "template.yml"} {
-		if info, err := os.Stat(filepath.Join(baseDir, name)); err == nil && !info.IsDir() {
-			candidates = append(candidates, name)
-		}
-	}
-	return candidates
-}
-
-func resolveBuildEnv(
+func resolveDeployEnv(
 	value string,
 	isTTY bool,
 	prompter interaction.Prompter,
@@ -320,7 +296,7 @@ func resolveBuildEnv(
 	return input, nil
 }
 
-func resolveBuildMode(
+func resolveDeployMode(
 	value string,
 	isTTY bool,
 	prompter interaction.Prompter,
@@ -359,7 +335,7 @@ func resolveBuildMode(
 	}
 }
 
-func resolveBuildOutput(
+func resolveDeployOutput(
 	value string,
 	templatePath string,
 	env string,
@@ -409,79 +385,235 @@ func resolveBuildOutput(
 	return cleaned, nil
 }
 
-func normalizeMode(mode string) (string, error) {
-	switch strings.ToLower(strings.TrimSpace(mode)) {
-	case "docker", "containerd":
-		return strings.ToLower(strings.TrimSpace(mode)), nil
-	default:
-		return "", fmt.Errorf("invalid mode %q (expected docker or containerd)", mode)
+func confirmDeployInputs(inputs deployInputs, isTTY bool, prompter interaction.Prompter) (bool, error) {
+	if !isTTY || prompter == nil {
+		return true, nil
 	}
+
+	output := resolveDeployOutputSummary(inputs.TemplatePath, inputs.OutputDir, inputs.Env)
+
+	summaryLines := []string{
+		fmt.Sprintf("Template: %s", inputs.TemplatePath),
+		fmt.Sprintf("Env: %s", inputs.Env),
+		fmt.Sprintf("Mode: %s", inputs.Mode),
+		fmt.Sprintf("Output: %s", output),
+	}
+	if len(inputs.Parameters) > 0 {
+		keys := make([]string, 0, len(inputs.Parameters))
+		for k := range inputs.Parameters {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		paramLines := make([]string, 0, len(keys)+1)
+		paramLines = append(paramLines, "Parameters:")
+		for _, key := range keys {
+			paramLines = append(paramLines, fmt.Sprintf("  %s = %s", key, inputs.Parameters[key]))
+		}
+		summaryLines = append(summaryLines, paramLines...)
+	}
+
+	summary := "Review inputs:\n" + strings.Join(summaryLines, "\n")
+
+	choice, err := prompter.SelectValue(
+		summary,
+		[]interaction.SelectOption{
+			{Label: "Proceed", Value: "proceed"},
+			{Label: "Edit", Value: "edit"},
+		},
+	)
+	if err != nil {
+		return false, err
+	}
+	return choice == "proceed", nil
+}
+
+func resolveDeployOutputSummary(templatePath, outputDir, env string) string {
+	baseDir := filepath.Dir(templatePath)
+	trimmed := strings.TrimRight(strings.TrimSpace(outputDir), "/\\")
+	if trimmed == "" {
+		return filepath.Join(baseDir, meta.OutputDir, env)
+	}
+	path := trimmed
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(baseDir, path)
+	}
+	return filepath.Join(filepath.Clean(path), env)
+}
+
+// storedDeployDefaults mirrors storedBuildDefaults for deploy.
+type storedDeployDefaults struct {
+	Env       string
+	Mode      string
+	OutputDir string
+	Params    map[string]string
+}
+
+func loadDeployDefaults(templatePath string) storedDeployDefaults {
+	cfgPath, err := config.GlobalConfigPath()
+	if err != nil || templatePath == "" {
+		return storedDeployDefaults{}
+	}
+	cfg, err := config.LoadGlobalConfig(cfgPath)
+	if err != nil {
+		return storedDeployDefaults{}
+	}
+	// Use BuildDefaults for now - can be separated later if needed
+	if cfg.BuildDefaults == nil {
+		return storedDeployDefaults{}
+	}
+	entry, ok := cfg.BuildDefaults[templatePath]
+	if !ok {
+		return storedDeployDefaults{}
+	}
+	return storedDeployDefaults{
+		Env:       entry.Env,
+		Mode:      entry.Mode,
+		OutputDir: entry.OutputDir,
+		Params:    cloneParams(entry.Params),
+	}
+}
+
+func saveDeployDefaults(templatePath string, inputs deployInputs) error {
+	if templatePath == "" {
+		return nil
+	}
+	cfgPath, err := config.GlobalConfigPath()
+	if err != nil {
+		return err
+	}
+	cfg, err := config.LoadGlobalConfig(cfgPath)
+	if err != nil {
+		cfg = config.DefaultGlobalConfig()
+	}
+	if cfg.BuildDefaults == nil {
+		cfg.BuildDefaults = map[string]config.BuildDefaults{}
+	}
+	cfg.BuildDefaults[templatePath] = config.BuildDefaults{
+		Env:       inputs.Env,
+		Mode:      inputs.Mode,
+		OutputDir: inputs.OutputDir,
+		Params:    cloneParams(inputs.Parameters),
+	}
+	return config.SaveGlobalConfig(cfgPath, cfg)
+}
+
+// Helper functions from deleted build.go
+
+func resolveBrandTag() (string, error) {
+	// Use brand-prefixed environment variable (e.g., ESB_TAG)
+	key, err := envutil.HostEnvKey(constants.HostSuffixTag)
+	if err != nil {
+		return "latest", nil
+	}
+	tag := os.Getenv(key)
+	if tag != "" {
+		return tag, nil
+	}
+	return "latest", nil
 }
 
 func normalizeTemplatePath(path string) (string, error) {
-	baseDir := resolvePromptBaseDir()
-	expanded, err := expandHomePath(strings.TrimSpace(path))
+	if path == "" {
+		return "", fmt.Errorf("template path is empty")
+	}
+
+	// Expand ~ to home directory
+	expanded, err := expandHomePath(path)
 	if err != nil {
 		return "", err
 	}
-	absPath := expanded
-	if !filepath.IsAbs(absPath) {
-		absPath = filepath.Join(baseDir, absPath)
-	}
-	absPath = filepath.Clean(absPath)
-	info, err := os.Stat(absPath)
+
+	cleaned := filepath.Clean(expanded)
+	info, err := os.Stat(cleaned)
 	if err != nil {
 		return "", err
 	}
+
+	// If it's a file, return its absolute path
 	if !info.IsDir() {
-		return absPath, nil
+		abs, err := filepath.Abs(cleaned)
+		if err != nil {
+			return "", err
+		}
+		return abs, nil
 	}
+
+	// If it's a directory, look for template.yaml or template.yml
 	for _, name := range []string{"template.yaml", "template.yml"} {
-		candidate := filepath.Join(absPath, name)
-		if stat, err := os.Stat(candidate); err == nil && !stat.IsDir() {
-			return candidate, nil
+		candidate := filepath.Join(cleaned, name)
+		if _, err := os.Stat(candidate); err == nil {
+			abs, err := filepath.Abs(candidate)
+			if err != nil {
+				return "", err
+			}
+			return abs, nil
 		}
 	}
-	return "", fmt.Errorf("no template.yaml or template.yml found in directory: %s", path)
+
+	// No template file found in directory
+	return "", fmt.Errorf("no template.yaml or template.yml found in directory: %s", cleaned)
 }
 
-func resolvePromptBaseDir() string {
-	if pwd := strings.TrimSpace(os.Getenv("PWD")); pwd != "" {
-		return pwd
-	}
-	if cwd, err := os.Getwd(); err == nil {
-		return cwd
-	}
-	return "."
-}
-
+// expandHomePath expands ~ to the user's home directory
 func expandHomePath(path string) (string, error) {
-	if path == "" || !strings.HasPrefix(path, "~") {
+	if path == "" || path[0] != '~' {
 		return path, nil
 	}
+
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to get home directory: %w", err)
 	}
-	if path == "~" {
-		return home, nil
+
+	if len(path) == 1 || path[1] == '/' || path[1] == filepath.Separator {
+		return filepath.Join(home, path[1:]), nil
 	}
-	if len(path) > 1 && (path[1] == '/' || path[1] == '\\') {
-		return filepath.Join(home, path[2:]), nil
-	}
-	// Leave unsupported ~user paths untouched.
-	return path, nil
+	return path, nil // ~username not supported
 }
 
-func promptTemplateParameters(
-	templatePath string,
-	isTTY bool,
-	prompter interaction.Prompter,
-	previous map[string]string,
-) (map[string]string, error) {
-	params, err := parseTemplateParameters(templatePath)
-	if err != nil || len(params) == 0 {
+func discoverTemplateCandidates() []string {
+	candidates := []string{}
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		return candidates
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if name == ".git" || name == ".esb" || name == "node_modules" || name == ".venv" {
+			continue
+		}
+		candidates = append(candidates, name)
+	}
+	return candidates
+}
+
+func normalizeMode(mode string) (string, error) {
+	m := strings.ToLower(strings.TrimSpace(mode))
+	switch m {
+	case "docker", "containerd":
+		return m, nil
+	default:
+		return "", fmt.Errorf("unsupported mode: %s", mode)
+	}
+}
+
+func promptTemplateParameters(templatePath string, isTTY bool, prompter interaction.Prompter, previous map[string]string) (map[string]string, error) {
+	content, err := os.ReadFile(templatePath)
+	if err != nil {
 		return map[string]string{}, err
+	}
+
+	data, err := sam.DecodeYAML(string(content))
+	if err != nil {
+		return map[string]string{}, err
+	}
+
+	params := extractSAMParameters(data)
+	if len(params) == 0 {
+		return map[string]string{}, nil
 	}
 
 	names := make([]string, 0, len(params))
@@ -550,7 +682,6 @@ func promptTemplateParameters(
 				input = prevValue
 			}
 			if input == "" && !hasDefault {
-				// Allow empty string if type is explicitely "String"
 				if strings.EqualFold(param.Type, "String") {
 					values[name] = ""
 					break
@@ -566,60 +697,65 @@ func promptTemplateParameters(
 	return values, nil
 }
 
-func confirmBuildInputs(inputs buildInputs, isTTY bool, prompter interaction.Prompter) (bool, error) {
-	if !isTTY || prompter == nil {
-		return true, nil
-	}
-
-	output := resolveOutputSummary(inputs.TemplatePath, inputs.OutputDir, inputs.Env)
-
-	summaryLines := []string{
-		fmt.Sprintf("Template: %s", inputs.TemplatePath),
-		fmt.Sprintf("Env: %s", inputs.Env),
-		fmt.Sprintf("Mode: %s", inputs.Mode),
-		fmt.Sprintf("Output: %s", output),
-	}
-	if inputs.Bundle {
-		summaryLines = append(summaryLines, "Bundle manifest: enabled")
-	}
-	if len(inputs.Parameters) > 0 {
-		keys := make([]string, 0, len(inputs.Parameters))
-		for k := range inputs.Parameters {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		paramLines := make([]string, 0, len(keys)+1)
-		paramLines = append(paramLines, "Parameters:")
-		for _, key := range keys {
-			paramLines = append(paramLines, fmt.Sprintf("  %s = %s", key, inputs.Parameters[key]))
-		}
-		summaryLines = append(summaryLines, paramLines...)
-	}
-
-	summary := "Review inputs:\n" + strings.Join(summaryLines, "\n")
-
-	choice, err := prompter.SelectValue(
-		summary,
-		[]interaction.SelectOption{
-			{Label: "Proceed", Value: "proceed"},
-			{Label: "Edit", Value: "edit"},
-		},
-	)
-	if err != nil {
-		return false, err
-	}
-	return choice == "proceed", nil
+// samParameter represents a SAM template parameter definition
+type samParameter struct {
+	Type        string
+	Description string
+	Default     any
 }
 
-func resolveOutputSummary(templatePath, outputDir, env string) string {
-	baseDir := filepath.Dir(templatePath)
-	trimmed := strings.TrimRight(strings.TrimSpace(outputDir), "/\\")
-	if trimmed == "" {
-		return filepath.Join(baseDir, meta.OutputDir, env)
+// extractSAMParameters extracts parameter definitions from SAM template data
+func extractSAMParameters(data map[string]any) map[string]samParameter {
+	result := make(map[string]samParameter)
+	params := asMap(data["Parameters"])
+	if params == nil {
+		return result
 	}
-	path := trimmed
-	if !filepath.IsAbs(path) {
-		path = filepath.Join(baseDir, path)
+
+	for name, val := range params {
+		m := asMap(val)
+		if m == nil {
+			continue
+		}
+
+		param := samParameter{}
+		if t, ok := m["Type"].(string); ok {
+			param.Type = t
+		}
+		if d, ok := m["Description"].(string); ok {
+			param.Description = d
+		}
+		param.Default = m["Default"]
+		result[name] = param
 	}
-	return filepath.Join(filepath.Clean(path), env)
+
+	return result
+}
+
+// asMap converts an interface to a map[string]any
+func asMap(v any) map[string]any {
+	if m, ok := v.(map[string]any); ok {
+		return m
+	}
+	if m, ok := v.(map[any]any); ok {
+		result := make(map[string]any, len(m))
+		for k, v := range m {
+			if sk, ok := k.(string); ok {
+				result[sk] = v
+			}
+		}
+		return result
+	}
+	return nil
+}
+
+func cloneParams(src map[string]string) map[string]string {
+	if src == nil {
+		return nil
+	}
+	dst := make(map[string]string, len(src))
+	for k, v := range src {
+		dst[k] = v
+	}
+	return dst
 }

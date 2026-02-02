@@ -2,7 +2,6 @@
 # Where: e2e/run_tests.py
 # What: E2E test runner for ESB CLI scenarios.
 # Why: Provide a single entry point for scenario setup, execution, and teardown.
-import os
 import subprocess
 import sys
 import warnings
@@ -10,16 +9,11 @@ import warnings
 import urllib3
 
 from e2e.runner.cli import parse_args
-from e2e.runner.config import build_env_scenarios, load_test_matrix
-from e2e.runner.executor import (
-    ParallelDisplay,
-    run_build_phase_parallel,
-    run_build_phase_serial,
-    run_profiles_with_executor,
-    run_scenario,
-    warmup_environment,
-)
-from e2e.runner.utils import BRAND_SLUG, GO_CLI_ROOT, PROJECT_ROOT
+from e2e.runner.config import load_test_matrix
+from e2e.runner.planner import apply_test_target, build_plan
+from e2e.runner.runner import run_parallel
+from e2e.runner.ui import PlainReporter
+from e2e.runner.utils import GO_CLI_ROOT, PROJECT_ROOT
 
 
 def print_tail_logs(failed_entries: list[str], *, lines: int = 40) -> None:
@@ -100,142 +94,73 @@ def main():
             print(f"[ERROR] Environment '{args.profile}' not found in matrix.")
             sys.exit(1)
 
-        env_entry = entry_by_env[args.profile]
+        # Single-target execution uses the planner path with one environment.
+        env_scenarios = build_plan(matrix, suites, profile_filter=args.profile)
+        env_scenarios = apply_test_target(
+            env_scenarios,
+            env_name=args.profile,
+            target=args.test_target,
+        )
+        if not env_scenarios:
+            print(f"[ERROR] Environment '{args.profile}' not found in matrix.")
+            sys.exit(1)
 
-        user_scenario = {
-            "name": f"User-Specified on {args.profile}",
-            "env_file": env_entry.get("env_file"),
-            "esb_env": args.profile,
-            "esb_project": BRAND_SLUG,
-            "env_vars": env_entry.get("env_vars", {}),
-            "targets": [args.test_target],
-            "exclude": [],
-        }
-
-        run_scenario(args, user_scenario)
+        reporter = PlainReporter(verbose=args.verbose)
+        results = run_parallel(
+            env_scenarios,
+            reporter=reporter,
+            parallel=False,
+            args=args,
+        )
+        failed = [env for env, ok in results.items() if not ok]
+        if failed:
+            print(f"\n[FAILED] The following environments failed: {', '.join(failed)}")
+            print_tail_logs(failed)
+            sys.exit(1)
+        print("\n[PASSED] ALL MATRIX ENTRIES PASSED!")
         sys.exit(0)
 
-    # Build list of all scenarios to run
-    # If args.profile is set, build_env_scenarios filters internally or we can pass a filter?
-    # Actually build_env_scenarios builds everything, we filter later.
-    # To optimize, let's update build_env_scenarios to accept a filter or filter here.
-    env_scenarios = build_env_scenarios(matrix, suites, profile_filter=args.profile)
-
-    if not env_scenarios and args.profile:
-        # If profile was requested but not found via build_env_scenarios (unlikely if logic is correct)
-        # logic inside build_env_scenarios handles basic filtering, but strict "found" check is good.
-        pass
+    env_scenarios = build_plan(matrix, suites, profile_filter=args.profile)
 
     if args.build_only or args.test_only:
         if not args.profile:
             print("[ERROR] --profile is required when using --build-only/--test-only.")
             sys.exit(1)
-        for _, scenario in env_scenarios.items():
-            scenario["perform_reset"] = args.reset
-            scenario["perform_build"] = args.build
-            scenario["build_only"] = args.build_only
-            scenario["test_only"] = args.test_only
-            try:
-                run_scenario(args, scenario)
-            except SystemExit as e:
-                if e.code != 0:
-                    sys.exit(e.code)
-            except Exception as e:
-                print(f"[ERROR] Scenario failed: {e}")
-                sys.exit(1)
+        if args.profile not in env_scenarios:
+            print(f"[ERROR] Environment '{args.profile}' not found in matrix.")
+            sys.exit(1)
+
+        reporter = PlainReporter(verbose=args.verbose)
+        results = run_parallel(
+            env_scenarios,
+            reporter=reporter,
+            parallel=False,
+            args=args,
+        )
+        failed = [env for env, ok in results.items() if not ok]
+        if failed:
+            print(f"\n[FAILED] The following environments failed: {', '.join(failed)}")
+            print_tail_logs(failed)
+            sys.exit(1)
+        print("\n[PASSED] ALL MATRIX ENTRIES PASSED!")
         sys.exit(0)
 
-    # --- Global Reset & Warm-up ---
-    # Perform this if we are in the main dispatcher process (not a parallel worker).
-    # Validate shared inputs (e.g., template) once before dispatching.
     parallel_mode = args.parallel and len(env_scenarios) > 1
-    display = ParallelDisplay(list(env_scenarios.keys()), phase="Warmup") if parallel_mode else None
-    if display:
-        display.start()
-
-    if os.environ.get("E2E_WORKER") != "1":
-        warmup_environment(env_scenarios, matrix, args, display=display)
-
-    failed_entries = []
-
-    # --- Build Phase (Parallel/Serial, subprocess isolation) ---
-    build_parallel = parallel_mode
-    if build_parallel:
-        if display:
-            display.set_phase("Build Phase (Parallel)")
-            display.system(f"[PARALLEL] Environments: {', '.join(env_scenarios.keys())}")
-        build_failed = run_build_phase_parallel(
-            env_scenarios,
-            reset=args.reset,
-            build=args.build,
-            fail_fast=args.fail_fast,
-            verbose=args.verbose,
-            display=display,
-        )
-    else:
-        print("\n=== Build Phase (Serial) ===\n")
-        build_failed = run_build_phase_serial(
-            env_scenarios,
-            reset=args.reset,
-            build=args.build,
-            fail_fast=args.fail_fast,
-            verbose=args.verbose,
-        )
-    if build_failed:
-        if display:
-            display.system(f"[FAILED] Build failed for: {', '.join(build_failed)}")
-            display.stop()
-        else:
-            print(f"\n❌ [FAILED] Build failed for: {', '.join(build_failed)}")
-        print_tail_logs(build_failed)
-        sys.exit(1)
-
-    # --- Test Phase (Parallel) ---
-    max_workers = len(env_scenarios) if parallel_mode else 1
-
-    if parallel_mode:
-        if display:
-            display.set_phase("Test Phase (Parallel)")
-            display.system(
-                f"[PARALLEL] Starting test phase for {len(env_scenarios)} environments: "
-                f"{', '.join(env_scenarios.keys())}"
-            )
-            display.system("[PARALLEL] Build phase completed; tests will run in parallel.")
-    else:
-        print("\nStarting Test Phase (Matrix-Based)\n")
-
-    results = run_profiles_with_executor(
+    reporter = PlainReporter(verbose=args.verbose)
+    results = run_parallel(
         env_scenarios,
-        reset=False,
-        build=False,
-        cleanup=args.cleanup,
-        fail_fast=args.fail_fast,
-        max_workers=max_workers,
-        verbose=args.verbose,
-        test_only=True,
-        display=display,
+        reporter=reporter,
+        parallel=parallel_mode,
+        args=args,
     )
-
-    for _, (success, profile_failed) in results.items():
-        if not success:
-            failed_entries.extend(profile_failed)
+    failed_entries = [env for env, ok in results.items() if not ok]
 
     if failed_entries:
-        if display:
-            display.system(
-                f"[FAILED] The following environments failed: {', '.join(failed_entries)}"
-            )
-            display.stop()
-        else:
-            print(f"\n❌ [FAILED] The following environments failed: {', '.join(failed_entries)}")
+        print(f"\n[FAILED] The following environments failed: {', '.join(failed_entries)}")
         print_tail_logs(failed_entries)
         sys.exit(1)
 
-    if display:
-        display.system("[PASSED] ALL MATRIX ENTRIES PASSED!")
-        display.stop()
-    else:
-        print("\n🎉 [PASSED] ALL MATRIX ENTRIES PASSED!")
+    print("\n[PASSED] ALL MATRIX ENTRIES PASSED!")
     sys.exit(0)
 
 

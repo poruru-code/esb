@@ -7,6 +7,7 @@ services:
   # ============================================
   os-base:
     image: esb-os-base:latest
+    pull_policy: never
     build:
       context: services/common
       dockerfile: Dockerfile.os-base
@@ -15,13 +16,16 @@ services:
         ROOT_CA_CERT_FILENAME: ${ROOT_CA_CERT_FILENAME:-rootCA.crt}
         ROOT_CA_FINGERPRINT: ${ROOT_CA_FINGERPRINT:-}
       cache_from:
-        - type=local,src=.esb/buildx-cache/base
+        - type=local,src=${BUILDX_CACHE_DIR:-.esb/buildx-cache/base}
+      cache_to:
+        - type=local,dest=${BUILDX_CACHE_DIR:-.esb/buildx-cache/base},mode=max
 
       secrets:
         - root_ca
 
   python-base:
     image: esb-python-base:latest
+    pull_policy: never
     build:
       context: services/common
       dockerfile: Dockerfile.python-base
@@ -30,7 +34,9 @@ services:
         ROOT_CA_CERT_FILENAME: ${ROOT_CA_CERT_FILENAME:-rootCA.crt}
         ROOT_CA_FINGERPRINT: ${ROOT_CA_FINGERPRINT:-}
       cache_from:
-        - type=local,src=.esb/buildx-cache/base
+        - type=local,src=${BUILDX_CACHE_DIR:-.esb/buildx-cache/base}
+      cache_to:
+        - type=local,dest=${BUILDX_CACHE_DIR:-.esb/buildx-cache/base},mode=max
       secrets:
         - root_ca
 
@@ -42,9 +48,12 @@ services:
     container_name: ${PROJECT_NAME:-esb-${ENV:-default}}-permission-helper
     volumes:
       - rustfs_data:/data/rustfs
+      - ${CONFIG_DIR:-esb-runtime-config}:/data/runtime-config
     command: >
       sh -c "
-        chown -R 10001:10001 /data/rustfs 2>/dev/null || true && echo 'RustFS permissions fixed'
+        chown -R 10001:10001 /data/rustfs 2>/dev/null || true && \
+        chown -R ${RUN_UID:-1000}:${RUN_GID:-1000} /data/runtime-config 2>/dev/null || true && \
+        echo 'Volume permissions fixed'
       "
     restart: "no"
 
@@ -128,17 +137,20 @@ services:
   # ============================================
   provisioner:
     image: ${ESB_REGISTRY:-registry:5010/}esb-provisioner:${ESB_TAG:-latest}
+    pull_policy: never
     build:
       context: services/provisioner
       dockerfile: Dockerfile
       additional_contexts:
-        config: ${CONFIG_DIR:-services/gateway/config}
+        config: ${CONFIG_DIR:-services/gateway/seed-config}
         generator_assets: ${GENERATOR_ASSETS_CONTEXT:-cli/internal/generator/assets/site-packages}
         python-base: service:python-base
       args:
         PYTHON_BASE_IMAGE: python-base
 
     container_name: ${PROJECT_NAME:-esb-${ENV:-default}}-provisioner
+    profiles:
+      - deploy
     depends_on:
       database:
         condition: service_healthy
@@ -157,12 +169,15 @@ services:
       - AGENT_RUNTIME=containerd
     networks:
       external_network: {}
+    volumes:
+      - ${CONFIG_DIR:-esb-runtime-config}:/app/runtime-config
 
   # ============================================
   # Runtime Node (Containerd Host Container)
   # ============================================
   runtime-node:
     image: ${ESB_REGISTRY:-registry:5010/}esb-runtime-node-containerd:${ESB_TAG:-latest}
+    pull_policy: never
     build:
       context: services/runtime-node
       dockerfile: Dockerfile.containerd
@@ -193,6 +208,8 @@ services:
       interval: 5s
       retries: 10
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   # ============================================
   # coredns (Local DNS for Lambda VMs)
@@ -213,6 +230,7 @@ services:
   # ============================================
   agent:
     image: ${ESB_REGISTRY:-registry:5010/}esb-agent-containerd:${ESB_TAG:-latest}
+    pull_policy: never
     build:
       context: services/agent
       dockerfile: Dockerfile.containerd
@@ -228,7 +246,6 @@ services:
     pid: "service:runtime-node"
     depends_on:
       runtime-node: { condition: service_healthy }
-      registry: { condition: service_healthy }
     volumes:
       - runtime_containerd_run:/run/containerd
       - runtime_containerd_lib:/var/lib/containerd
@@ -241,6 +258,7 @@ services:
       - PORT=50051
       - CONTAINER_REGISTRY=${CONTAINER_REGISTRY:-registry:5010}
       - CONTAINER_REGISTRY_INSECURE=${CONTAINER_REGISTRY_INSECURE:-1}
+      - IMAGE_PULL_POLICY=always
       - CNI_SUBNET=${CNI_SUBNET:-}
       - AGENT_RUNTIME=containerd
       - CONTAINERD_RUNTIME=${CONTAINERD_RUNTIME:-}
@@ -253,39 +271,20 @@ services:
     command: ["/app/agent"]
     restart: unless-stopped
 
-  # ============================================
-  # Registry (Local OCI)
-  # ============================================
-  registry:
-    image: registry:2
-    container_name: ${PROJECT_NAME:-esb-${ENV:-default}}-registry
-    ports:
-      - "${PORT_REGISTRY:-5010}:5010"
-    volumes:
-      - registry_data:/var/lib/registry
-    environment:
-      REGISTRY_HTTP_ADDR: 0.0.0.0:5010
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-Y", "off", "--spider", "http://127.0.0.1:5010/v2/"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-      start_period: 5s
-    restart: unless-stopped
-    networks:
-      - external_network
+
 
   # ============================================
   # API Gateway (Facade)
   # ============================================
   gateway:
     image: ${ESB_REGISTRY:-registry:5010/}esb-gateway-containerd:${ESB_TAG:-latest}
+    pull_policy: never
     user: "0:0"
     build:
       context: services/gateway
       dockerfile: Dockerfile.containerd
       additional_contexts:
-        config: ${CONFIG_DIR:-services/gateway/config}
+        config: ${CONFIG_DIR:-services/gateway/seed-config}
         common: ${COMMON_CONTEXT:-services/common}
         python-base: service:python-base
       args:
@@ -298,7 +297,6 @@ services:
     network_mode: "service:runtime-node"
     depends_on:
       agent: { condition: service_started }
-      provisioner: { condition: service_completed_successfully }
       database:
         condition: service_healthy
       s3-storage:
@@ -307,6 +305,7 @@ services:
       - ${WG_GATEWAY_CONF:-~/.esb/wireguard/gateway/wg0.conf}:/app/config/wireguard/wg0.conf:ro
       - ./config/haproxy.gateway.cfg:/app/config/haproxy.gateway.cfg:ro
       - ${CERT_DIR:-~/.esb/certs}:/app/config/ssl:ro
+      - ${CONFIG_DIR:-esb-runtime-config}:/app/runtime-config
     cap_add:
       - NET_ADMIN
     devices:
@@ -369,7 +368,8 @@ volumes:
   scylladb_data:
   rustfs_data:
   victorialogs_data:
-  registry_data:
+  esb-runtime-config:
+
   runtime_containerd_run:
   runtime_containerd_lib:
   esb_cni_data:

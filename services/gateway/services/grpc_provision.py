@@ -50,7 +50,9 @@ class GrpcProvisionClient:
         # Inject RIE & Observability Variables
         env["AWS_LAMBDA_FUNCTION_NAME"] = function_name
         env["AWS_LAMBDA_FUNCTION_VERSION"] = "$LATEST"
-        env["AWS_REGION"] = env.get("AWS_REGION", "ap-northeast-1")
+        default_region = env.get("AWS_DEFAULT_REGION") or env.get("AWS_REGION") or "ap-northeast-1"
+        env["AWS_DEFAULT_REGION"] = default_region
+        env["AWS_REGION"] = default_region
 
         # Data Plane Host (fallback for Containerd mode)
         data_plane_host = getattr(config, "DATA_PLANE_HOST", "10.88.0.1")

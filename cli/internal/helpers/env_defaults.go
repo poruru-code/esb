@@ -236,6 +236,10 @@ func applyPortDefaults(_ string) {
 		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
 			continue
 		}
+		if key == constants.EnvPortRegistry {
+			_ = os.Setenv(key, "5010")
+			continue
+		}
 		_ = os.Setenv(key, "0")
 	}
 }

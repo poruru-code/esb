@@ -1,0 +1,6 @@
+# Seed configuration for routing
+# This file is used as initial configuration when no deploy has occurred.
+# After deployment, runtime-config/routing.yml takes precedence.
+
+# Route definitions (empty initially, populated by esb deploy)
+routes: []

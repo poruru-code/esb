@@ -13,7 +13,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("esb.provisioner")
 
-MANIFEST_PATH = "/app/config/resources.yml"
+MANIFEST_PATH = "/app/runtime-config/resources.yml"
 
 
 def load_manifest():
@@ -22,7 +22,7 @@ def load_manifest():
         return {}
 
     with open(MANIFEST_PATH, "r") as f:
-        return yaml.safe_load(f)
+        return yaml.safe_load(f) or {}
 
 
 def provision_dynamodb(ddb_client, tables):
@@ -92,6 +92,7 @@ def provision_s3(s3_client, buckets):
 def main():
     try:
         manifest = load_manifest()
+        resources = manifest.get("resources", {}) or {}
 
         # sitecustomize.py handles endpoint redirection via env vars:
         # DYNAMODB_ENDPOINT -> boto3.client("dynamodb")
@@ -99,11 +100,16 @@ def main():
         ddb = boto3.client("dynamodb")
         s3 = boto3.client("s3")
 
-        dynamodb_tables = manifest.get("DynamoDB", [])
+        dynamodb_tables = resources.get("dynamodb", [])
+        s3_buckets = resources.get("s3", [])
+
+        if not dynamodb_tables and not s3_buckets:
+            logger.warning("No resources to provision. Skipping.")
+            return
+
         if dynamodb_tables:
             provision_dynamodb(ddb, dynamodb_tables)
 
-        s3_buckets = manifest.get("S3", [])
         if s3_buckets:
             provision_s3(s3, s3_buckets)
 

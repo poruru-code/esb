@@ -67,5 +67,10 @@ ENV_AgentGrpcAddress = "AGENT_GRPC_ADDRESS"
 # Default Values
 DEFAULT_AGENT_REGISTRY = "registry:5010"
 DEFAULT_AGENT_REGISTRY_HOST = "127.0.0.1:5010"
+DEFAULT_REGISTRY_PORT = "5010"
 DEFAULT_ROOT_CA_FILENAME = "rootCA.crt"
 DEFAULT_AUTH_Path = "/user/auth/v1"
+
+# E2E port allocation (stable per environment)
+E2E_PORT_BASE = 33000
+E2E_PORT_BLOCK = 20

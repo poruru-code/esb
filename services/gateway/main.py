@@ -25,6 +25,7 @@ from .api.deps import (
     LambdaInvokerDep,
     PoolManagerDep,
     ProcessorDep,
+    RouteMatcherDep,
     UserIdDep,
 )
 from .config import config
@@ -45,6 +46,7 @@ from .models import AuthenticationResult, AuthRequest, AuthResponse
 from .models.function import FunctionEntity
 
 # Services Imports
+from .services.config_reloader import init_reloader, start_reloader, stop_reloader
 from .services.function_registry import FunctionRegistry
 from .services.janitor import HeartbeatJanitor
 from .services.lambda_invoker import LambdaInvoker
@@ -172,6 +174,20 @@ async def lifespan(app: FastAPI):
     # Note: function_registry.load_functions_config() was already called above
     scheduler.load_schedules(function_registry._registry)
 
+    # Phase 4: Initialize config reloader for hot reload (reload schedules too)
+    def reload_functions_and_schedules() -> None:
+        function_registry.reload()
+        scheduler.load_schedules(function_registry._registry)
+
+    reloader = init_reloader(
+        functions_callback=reload_functions_and_schedules,
+        routing_callback=route_matcher.reload,
+    )
+    start_reloader()
+
+    # Store reloader in app.state for shutdown
+    app.state.config_reloader = reloader
+
     # Store in app.state for DI
     app.state.http_client = client
     app.state.function_registry = function_registry
@@ -187,6 +203,10 @@ async def lifespan(app: FastAPI):
     yield
 
     # Cleanup
+    # Phase 4: Stop config reloader
+    if reloader:
+        stop_reloader()
+
     if janitor:
         await janitor.stop()
 
@@ -499,51 +519,48 @@ async def gateway_handler(
     Catch-all route: process request via GatewayRequestProcessor.
     """
     result = await processor.process_request(context)
-
     if not result.success:
-        return JSONResponse(
-            status_code=result.status_code,
-            content={"message": result.error},
-        )
+        return JSONResponse(status_code=result.status_code, content={"message": result.error})
 
-    # Transform response.
-    parsed_result = parse_lambda_response(result)
+    parsed = parse_lambda_response(result)
+    status_code = parsed.get("status_code", 200)
+    headers = parsed.get("headers") or {}
+    multi_headers = parsed.get("multi_headers") or {}
 
     if context.method == "HEAD":
-        response = Response(
-            content=b"",
-            status_code=parsed_result["status_code"],
-            headers=parsed_result["headers"],
-        )
-    elif "raw_content" in parsed_result:
-        response = Response(
-            content=parsed_result["raw_content"],
-            status_code=parsed_result["status_code"],
-            # Initial headers (single values)
-            headers=parsed_result["headers"],
-        )
+        response = Response(status_code=status_code, content=b"", headers=headers)
     else:
-        response = JSONResponse(
-            status_code=parsed_result["status_code"],
-            content=parsed_result["content"],
-            headers=parsed_result["headers"],
-        )
+        raw_content = parsed.get("raw_content")
+        content = parsed.get("content")
+        if raw_content is not None:
+            response = Response(status_code=status_code, content=raw_content, headers=headers)
+        elif isinstance(content, (dict, list)):
+            response = JSONResponse(status_code=status_code, content=content, headers=headers)
+        elif content is None:
+            response = Response(status_code=status_code, content=b"", headers=headers)
+        else:
+            response = Response(status_code=status_code, content=str(content), headers=headers)
 
-    # Apply multi-value headers (e.g. Set-Cookie)
-    # Note: parsed_result["multi_headers"] should contain lists of strings
-    if "multi_headers" in parsed_result:
-        for key, values in parsed_result["multi_headers"].items():
-            # multi_headers supersedes single headers.
-            # Remove any potentially partial value set by 'headers' init.
-            if key in response.headers:
-                del response.headers[key]
-            for v in values:
-                response.headers.append(key, v)
+    for key, values in multi_headers.items():
+        for value in values:
+            response.headers.append(key, value)
 
     return response
 
 
-if __name__ == "__main__":
-    import uvicorn
+@app.get("/functions", include_in_schema=False)
+async def list_functions(user_id: UserIdDep, registry: FunctionRegistryDep):
+    """List all registered functions."""
+    return {
+        "functions": registry.list_functions(),
+        "count": len(registry.list_functions()),
+    }
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+@app.get("/routes", include_in_schema=False)
+async def list_routes(user_id: UserIdDep, matcher: RouteMatcherDep):
+    """List all registered routes."""
+    return {
+        "routes": matcher.list_routes(),
+        "count": matcher.get_route_count(),
+    }

@@ -26,13 +26,16 @@ def build_control_compose_command(
     else:
         cmd = ["docker", "compose"]
 
-    mode = (mode or os.getenv("MODE") or "docker").lower()
-    if mode == "containerd":
-        filename = "docker-compose.containerd.yml"
+    compose_override = os.getenv("E2E_COMPOSE_FILE")
+    if compose_override:
+        cmd.extend(["-f", compose_override])
     else:
-        filename = "docker-compose.docker.yml"
-
-    cmd.extend(["-f", str(PROJECT_ROOT / filename)])
+        mode = (mode or os.getenv("MODE") or "docker").lower()
+        if mode == "containerd":
+            filename = "docker-compose.containerd.yml"
+        else:
+            filename = "docker-compose.docker.yml"
+        cmd.extend(["-f", str(PROJECT_ROOT / filename)])
     cmd.extend(args)
     return cmd
 
@@ -149,7 +152,8 @@ def query_victorialogs_by_filter(
     - Time filters: start/end parameters (ISO8601/RFC3339)
 
     Args:
-        filters: dict of field names and values (e.g., {"trace_id": "xxx", "container_name": "gateway"})
+        filters: dict of field names and values
+            (e.g., {"trace_id": "xxx", "container_name": "gateway"})
         raw_query: direct LogsQL query (exclusive with filters)
         start: search start time (ISO8601/RFC3339, e.g., "2025-12-24T01:00:00Z")
         end: search end time (ISO8601/RFC3339)

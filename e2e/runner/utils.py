@@ -181,11 +181,14 @@ def run_esb(
     env: Optional[dict[str, str]] = None,
 ) -> subprocess.CompletedProcess:
     """Helper to run the esb CLI."""
-    if verbose and "build" in args:
-        # Build command has its own verbose flag
+    if verbose and ("build" in args or "deploy" in args):
+        # Build/deploy commands have their own verbose flag
         if "--verbose" not in args and "-v" not in args:
             try:
-                idx = args.index("build")
+                if "build" in args:
+                    idx = args.index("build")
+                else:
+                    idx = args.index("deploy")
                 args.insert(idx + 1, "--verbose")
             except ValueError:
                 pass
