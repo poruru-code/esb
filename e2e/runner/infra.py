@@ -6,10 +6,15 @@ import urllib.request
 from typing import Callable, Tuple
 
 from e2e.runner import constants
+from e2e.runner.utils import BRAND_SLUG
 
 logger = logging.getLogger(__name__)
 
 INFRA_COMPOSE_FILE = "docker-compose.infra.yml"
+
+
+def _registry_container_name() -> str:
+    return os.environ.get("REGISTRY_CONTAINER_NAME", f"{BRAND_SLUG}-infra-registry")
 
 
 def ensure_infra_up(project_root: str, *, printer: Callable[[str], None] | None = None) -> None:
@@ -47,7 +52,12 @@ def ensure_infra_up(project_root: str, *, printer: Callable[[str], None] | None 
         printer("Ensuring shared infrastructure (Registry) is ready...")
     else:
         logger.info("Ensuring shared infrastructure (Registry) is ready...")
-    subprocess.check_call(["docker", "compose", "-f", compose_file, "up", "-d", "registry"])
+    env = os.environ.copy()
+    env.setdefault("REGISTRY_CONTAINER_NAME", _registry_container_name())
+    subprocess.check_call(
+        ["docker", "compose", "-f", compose_file, "up", "-d", "registry"],
+        env=env,
+    )
     host_addr, _ = get_registry_config()
     wait_for_registry_ready(host_addr)
 
@@ -70,7 +80,7 @@ def get_registry_config() -> Tuple[str, str]:
 def connect_registry_to_network(network_name: str, alias: str = "registry") -> None:
     if not network_name:
         return
-    container_name = "esb-infra-registry"
+    container_name = _registry_container_name()
     try:
         subprocess.check_call(
             [

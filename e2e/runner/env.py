@@ -141,7 +141,7 @@ def calculate_runtime_env(
         env[constants.ENV_RUNTIME_NODE_IP] = f"172.{env_runtime_subnet_index(env_name)}.0.10"
 
     if not env.get(constants.ENV_LAMBDA_NETWORK):
-        env[constants.ENV_LAMBDA_NETWORK] = f"esb_int_{env_name}"
+        env[constants.ENV_LAMBDA_NETWORK] = f"{BRAND_SLUG}_int_{env_name}"
 
     # 4. Registry Defaults
     if constants.ENV_CONTAINER_REGISTRY not in env_from_file:

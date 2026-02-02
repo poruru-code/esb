@@ -17,12 +17,18 @@ suites:
 matrix:
 # docker runtime
 - esb_env: e2e-docker
+  deploy_templates:
+  - e2e/fixtures/template.part1.yaml
+  - e2e/fixtures/template.part2.yaml
   suites:
   - smoke
   - standard
 
 # containerd runtime
 - esb_env: e2e-containerd
+  deploy_templates:
+  - e2e/fixtures/template.part1.yaml
+  - e2e/fixtures/template.part2.yaml
   suites:
   - smoke
   - standard

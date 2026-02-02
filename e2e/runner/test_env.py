@@ -52,7 +52,7 @@ def test_calculate_runtime_env_defaults():
         assert constants.ENV_RUNTIME_NET_SUBNET in env
         assert constants.ENV_RUNTIME_NODE_IP in env
         assert env[constants.ENV_NETWORK_EXTERNAL] == "myproj-myenv-external"
-        assert env[constants.ENV_LAMBDA_NETWORK] == "esb_int_myenv"
+        assert env[constants.ENV_LAMBDA_NETWORK] == f"{BRAND_SLUG}_int_myenv"
 
         # Check Ports (should be initialized to "0" for dynamic discovery)
         for p_suffix in (

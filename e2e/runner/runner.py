@@ -148,6 +148,7 @@ def _prepare_context(
     _apply_port_overrides(runtime_env, port_overrides)
     runtime_env[env_key("PROJECT")] = project_name
     runtime_env[env_key("ENV")] = env_name
+    runtime_env[env_key("INTERACTIVE")] = "0"
     runtime_env[env_key("HOME")] = str((E2E_STATE_ROOT / env_name).absolute())
     runtime_env[constants.ENV_PROJECT_NAME] = compose_project
 
@@ -446,8 +447,8 @@ def _sync_gateway_env(ctx: RunContext) -> None:
 
 def _needs_compose_build() -> bool:
     images = [
-        "esb-os-base:latest",
-        "esb-python-base:latest",
+        f"{BRAND_SLUG}-os-base:latest",
+        f"{BRAND_SLUG}-python-base:latest",
     ]
     for image in images:
         result = subprocess.run(

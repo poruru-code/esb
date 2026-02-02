@@ -1,0 +1,90 @@
+# Where: e2e/fixtures/template.part2.yaml
+# What: E2E SAM template segment with mixed resources/functions.
+# Why: Split deploys into multiple templates to mirror real workflows.
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: E2E Test Lambda Functions (Part 2)
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Handler: lambda_function.lambda_handler
+    Timeout: 30
+    MemorySize: 128
+    Layers:
+      - !Ref CommonLayer
+
+Resources:
+  CommonLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: common-lib-extra
+      ContentUri: layers/common/
+      CompatibleRuntimes:
+        - python3.12
+
+  S3IntegrationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lambda-s3
+      CodeUri: functions/s3/
+      Events:
+        S3Api:
+          Type: Api
+          Properties:
+            Path: /api/s3
+            Method: post
+      Environment:
+        Variables:
+          S3_ENDPOINT: "http://${S3_ENDPOINT_HOST}:9000"
+          RUSTFS_ROOT_USER: "rustfsadmin"
+          RUSTFS_ROOT_PASSWORD: "rustfsadmin"
+
+  E2EBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: e2e-test-bucket
+      LifecycleConfiguration:
+        Rules:
+          - Status: Enabled
+            ExpirationInDays: 7
+
+  ChaosFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lambda-chaos
+      CodeUri: functions/chaos/
+      Events:
+        FaultyApi:
+          Type: Api
+          Properties:
+            Path: /api/faulty
+            Method: post
+
+  ScalingTestFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lambda-scaling
+      CodeUri: functions/scaling/
+      ReservedConcurrentExecutions: 3
+      Events:
+        ScalingApi:
+          Type: Api
+          Properties:
+            Path: /api/scaling
+            Method: post
+
+  ScheduledFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lambda-scheduled
+      CodeUri: functions/scheduled/
+      Events:
+        Timer:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 minute)
+            Input: '{"scheduled": true}'
+      Environment:
+        Variables:
+          DYNAMODB_ENDPOINT: "http://${DYNAMODB_ENDPOINT_HOST}:8000"

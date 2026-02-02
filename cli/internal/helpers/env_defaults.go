@@ -254,7 +254,7 @@ func applySubnetDefaults(env string) {
 	setEnvIfEmpty(constants.EnvNetworkExternal, fmt.Sprintf("%s-external", os.Getenv(constants.EnvProjectName)))
 	setEnvIfEmpty(constants.EnvRuntimeNetSubnet, fmt.Sprintf("172.%d.0.0/16", envRuntimeSubnetIndex(env)))
 	setEnvIfEmpty(constants.EnvRuntimeNodeIP, fmt.Sprintf("172.%d.0.10", envRuntimeSubnetIndex(env)))
-	setEnvIfEmpty(constants.EnvLambdaNetwork, fmt.Sprintf("esb_int_%s", env))
+	setEnvIfEmpty(constants.EnvLambdaNetwork, fmt.Sprintf("%s_int_%s", meta.Slug, env))
 }
 
 // applyRegistryDefaults sets registry-related defaults for both docker and containerd modes.
