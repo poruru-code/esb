@@ -173,12 +173,21 @@ func TestRenderResourcesYml(t *testing.T) {
 		t.Fatalf("expected test-bucket in content, got: %s", content)
 	}
 
-	var parsed manifest.ResourcesSpec
+	var parsed map[string]any
 	if err := yaml.Unmarshal([]byte(content), &parsed); err != nil {
 		t.Fatalf("yaml unmarshal failed: %v", err)
 	}
-	if len(parsed.DynamoDB) != 1 || parsed.DynamoDB[0].TableName != "test-table" {
-		t.Fatalf("unexpected unmarshaled content")
+	resourcesNode, ok := parsed["resources"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected resources root in yaml")
+	}
+	dynamo, ok := resourcesNode["dynamodb"].([]any)
+	if !ok || len(dynamo) != 1 {
+		t.Fatalf("unexpected dynamodb resources content")
+	}
+	table, ok := dynamo[0].(map[string]any)
+	if !ok || table["TableName"] != "test-table" {
+		t.Fatalf("unexpected dynamodb table content")
 	}
 }
 
