@@ -101,6 +101,8 @@ func ApplyBrandingEnv() error {
 	home := os.Getenv("HOME")
 	certDir := filepath.Join(home, homeDirName, "certs")
 	setEnvIfEmpty("CERT_DIR", certDir)
+	buildkitConfig := filepath.Join(home, homeDirName, "buildkitd.toml")
+	setEnvIfEmpty(constants.EnvBuildkitdConfig, buildkitConfig)
 
 	// Calculate fingerprint for build cache invalidation if CA changes
 	caPath := filepath.Join(certDir, "rootCA.crt")

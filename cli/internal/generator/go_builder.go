@@ -211,7 +211,10 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		context.Background(),
 		b.Runner,
 		repoRoot,
-		buildxBuilderOptions{NetworkMode: builderNetworkMode},
+		buildxBuilderOptions{
+			NetworkMode: builderNetworkMode,
+			ConfigPath:  strings.TrimSpace(os.Getenv(constants.EnvBuildkitdConfig)),
+		},
 	); err != nil {
 		return err
 	}

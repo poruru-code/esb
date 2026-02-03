@@ -188,7 +188,10 @@ def _prepare_context(
     pytest_env.update(scenario.env_vars)
     pytest_env["E2E_COMPOSE_FILE"] = str(compose_file)
 
-    ensure_buildx_builder(runtime_env.get("BUILDX_BUILDER", ""))
+    ensure_buildx_builder(
+        runtime_env.get("BUILDX_BUILDER", ""),
+        config_path=runtime_env.get(constants.ENV_BUILDKITD_CONFIG, ""),
+    )
 
     return RunContext(
         scenario=scenario,

@@ -4,14 +4,24 @@
 from __future__ import annotations
 
 import logging
+import os
 import subprocess
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 
-def ensure_buildx_builder(builder_name: str, network_mode: str = "host") -> None:
+def ensure_buildx_builder(
+    builder_name: str, network_mode: str = "host", config_path: str | None = None
+) -> None:
     if not builder_name:
         return
+    config_path = (config_path or os.environ.get("BUILDKITD_CONFIG", "")).strip()
+    config_file = None
+    if config_path:
+        candidate = Path(config_path).expanduser()
+        if candidate.exists() and candidate.is_file():
+            config_file = str(candidate)
     inspect_cmd = [
         "docker",
         "buildx",
@@ -55,6 +65,8 @@ def ensure_buildx_builder(builder_name: str, network_mode: str = "host") -> None
     ]
     if network_mode:
         create_cmd.extend(["--driver-opt", f"network={network_mode}"])
+    if config_file:
+        create_cmd.extend(["--config", config_file])
     create_result = subprocess.run(create_cmd, capture_output=True, text=True)
     if create_result.returncode == 0:
         return

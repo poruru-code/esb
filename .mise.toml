@@ -25,11 +25,16 @@ run = [
   "lefthook install",
   "mise run build-cli",
   "mise run setup:certs",
+  "mise run setup:buildx",
 ]
 
 [tasks."setup:certs"]
 description = "Generate development certificates using step-cli"
 run = "uv run python tools/cert-gen/generate.py"
+
+[tasks."setup:buildx"]
+description = "Create buildx builder and buildkitd config"
+run = "uv run python tools/buildkit/setup_buildx.py"
 
 [tasks.build-cli]
 description = "Build CLI to ~/.local/bin"

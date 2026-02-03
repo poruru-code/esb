@@ -212,9 +212,17 @@ def resolve_compose_file(scenario: dict[str, Any], mode: str) -> Path:
     return PROJECT_ROOT / f"docker-compose.{mode}.yml"
 
 
-def ensure_buildx_builder(builder_name: str, network_mode: str = "host") -> None:
+def ensure_buildx_builder(
+    builder_name: str, network_mode: str = "host", config_path: str | None = None
+) -> None:
     if not builder_name:
         return
+    config_path = (config_path or os.environ.get("BUILDKITD_CONFIG", "")).strip()
+    config_file = None
+    if config_path:
+        candidate = Path(config_path).expanduser()
+        if candidate.exists() and candidate.is_file():
+            config_file = str(candidate)
     inspect_cmd = [
         "docker",
         "buildx",
@@ -255,6 +263,8 @@ def ensure_buildx_builder(builder_name: str, network_mode: str = "host") -> None
     ]
     if network_mode:
         create_cmd.extend(["--driver-opt", f"network={network_mode}"])
+    if config_file:
+        create_cmd.extend(["--config", config_file])
     create_result = subprocess.run(create_cmd, capture_output=True, text=True)
     if create_result.returncode == 0:
         return
@@ -876,7 +886,10 @@ def run_scenario(args, scenario):
     # Disable buildx cache export during E2E to avoid long cache flushes.
     runtime_env["ESB_BUILDX_CACHE"] = "0"
     runtime_env["ESB_BUILDX_CACHE_TO"] = "0"
-    ensure_buildx_builder(runtime_env.get("BUILDX_BUILDER", ""))
+    ensure_buildx_builder(
+        runtime_env.get("BUILDX_BUILDER", ""),
+        config_path=runtime_env.get(constants.ENV_BUILDKITD_CONFIG, ""),
+    )
     tag_key = env_key(constants.ENV_TAG)
     tag_override = env_vars_override.get(tag_key) or os.environ.get(tag_key)
     if tag_override:
