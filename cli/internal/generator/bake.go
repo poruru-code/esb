@@ -300,6 +300,8 @@ var buildxProxyEnvKeys = []string{
 	"http_proxy",
 	"HTTPS_PROXY",
 	"https_proxy",
+	"NO_PROXY",
+	"no_proxy",
 }
 
 var buildxProxyEnvKeySet = map[string]struct{}{
@@ -307,6 +309,8 @@ var buildxProxyEnvKeySet = map[string]struct{}{
 	"http_proxy":  {},
 	"HTTPS_PROXY": {},
 	"https_proxy": {},
+	"NO_PROXY":    {},
+	"no_proxy":    {},
 }
 
 func resolveProxyValue(upper, lower, fallback string) string {
@@ -460,6 +464,9 @@ func buildxBuilderProxyMismatch(
 	}
 	if len(desired) == 0 {
 		for _, key := range buildxProxyEnvKeys {
+			if strings.EqualFold(key, "no_proxy") {
+				continue
+			}
 			if strings.TrimSpace(existing[key]) != "" {
 				return true, nil
 			}
