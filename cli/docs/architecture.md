@@ -1,5 +1,8 @@
 # ESB CLI アーキテクチャ（build-only）
 
+> NOTE: A simplified target architecture and deploy-first policy are documented in
+> `cli/docs/architecture-redesign.md`. This file reflects the earlier build-only design.
+
 ## 概要
 
 ESB CLI は **`esb build` に特化**した構成です。SAM テンプレートを解析し、Dockerfile / `functions.yml` / `routing.yml` / `resources.yml` を生成した上で、関数イメージとコントロールプレーンのビルドを実行します。

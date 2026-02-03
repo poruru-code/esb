@@ -17,6 +17,7 @@ from dotenv import load_dotenv
 from e2e.runner import constants, infra
 from e2e.runner.env import (
     apply_ports_to_env,
+    build_compose_base_cmd,
     calculate_runtime_env,
     calculate_staging_dir,
     discover_ports,
@@ -180,21 +181,8 @@ def _is_buildkit_progress_line(line: str) -> bool:
 def _registry_port(project: str, compose_file: Path) -> int | None:
     """Resolve host port mapped to registry:5010 for the given compose project."""
     try:
-        result = subprocess.run(
-            [
-                "docker",
-                "compose",
-                "-p",
-                project,
-                "-f",
-                str(compose_file),
-                "port",
-                "registry",
-                "5010",
-            ],
-            capture_output=True,
-            text=True,
-        )
+        cmd = build_compose_base_cmd(project, compose_file) + ["port", "registry", "5010"]
+        result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0 or not result.stdout.strip():
             return None
         return int(result.stdout.strip().split(":")[-1])

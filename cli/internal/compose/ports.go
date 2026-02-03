@@ -22,12 +22,13 @@ type PortMapping struct {
 
 // PortDiscoveryOptions contains configuration for discovering ports.
 type PortDiscoveryOptions struct {
-	RootDir    string
-	Project    string
-	Mode       string
-	Target     string
-	ExtraFiles []string
-	Mappings   []PortMapping
+	RootDir      string
+	Project      string
+	Mode         string
+	Target       string
+	ExtraFiles   []string
+	ComposeFiles []string
+	Mappings     []PortMapping
 }
 
 var DefaultPortMappings = []PortMapping{
@@ -83,9 +84,41 @@ func DiscoverPorts(ctx context.Context, runner CommandRunner, opts PortDiscovery
 	}
 
 	mode := resolveMode(opts.Mode)
-	args, err := buildComposeArgs(opts.RootDir, mode, opts.Target, opts.Project, opts.ExtraFiles)
-	if err != nil {
-		return nil, err
+	var args []string
+	if len(opts.ComposeFiles) > 0 {
+		args = []string{"compose"}
+		if strings.TrimSpace(opts.Project) != "" {
+			args = append(args, "-p", opts.Project)
+		}
+		seen := map[string]struct{}{}
+		for _, file := range opts.ComposeFiles {
+			trimmed := strings.TrimSpace(file)
+			if trimmed == "" {
+				continue
+			}
+			if _, ok := seen[trimmed]; ok {
+				continue
+			}
+			args = append(args, "-f", trimmed)
+			seen[trimmed] = struct{}{}
+		}
+		for _, file := range opts.ExtraFiles {
+			trimmed := strings.TrimSpace(file)
+			if trimmed == "" {
+				continue
+			}
+			if _, ok := seen[trimmed]; ok {
+				continue
+			}
+			args = append(args, "-f", trimmed)
+			seen[trimmed] = struct{}{}
+		}
+	} else {
+		var err error
+		args, err = buildComposeArgs(opts.RootDir, mode, opts.Target, opts.Project, opts.ExtraFiles)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	mappings := opts.Mappings

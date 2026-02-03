@@ -21,12 +21,14 @@ Why: Provide a single entry point for developers and operators.
 | コマンド       | 説明                                                                                   | 主なオプション                                                                               |
 | -------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | `esb build`    | SAM テンプレート (`template.yaml`) を解析して Dockerfile / config を生成し、関数イメージをビルドします。 | `--template (-t)`, `--env (-e)`, `--mode (-m)`, `--env-file`, `--output (-o)`, `--no-cache`, `--verbose (-v)`, `--force`, `--no-save-defaults`, `--bundle-manifest` |
+| `esb deploy`   | SAM テンプレートを解析し、関数イメージのビルドと `CONFIG_DIR` への設定マージを行います。 | `--template (-t)`, `--env (-e)`, `--mode (-m)`, `--project (-p)`, `--env-file`, `--output (-o)`, `--no-cache`, `--verbose (-v)`, `--force`, `--no-save-defaults` |
 | `esb completion` | Bash / Zsh / Fish 用の補完スクリプトを生成します。                                      | `bash`, `zsh`, `fish`                                                                        |
 | `esb version`   | CLI のバージョン情報を表示します。                                                      | —                                                                                            |
 
 補足:
 - 対話実行時は `--template` / `--env` / `--mode` を省略でき、未指定分は入力を促します。非対話（TTYなし）では必須です。
-- 対話入力の直近値は `~/.<brand>/config.yaml` に保存され、同一テンプレートパスの既定値に使われます（無効化は `--no-save-defaults`）。
+- `esb deploy` は起動中の compose project を対話的に選択できます。非対話時は `--project` の指定を推奨します。
+- 対話入力の直近値は `~/.<brand>/config.yaml` に保存され、同一テンプレートパスの既定値やテンプレート選択の履歴に使われます（無効化は `--no-save-defaults`）。
 - テンプレート内の `Parameters` は実行時に対話入力して解決されます。
 - CLI はランタイムの起動・停止機能を提供しておらず、生成物は `docker compose` で起動します。
 

@@ -6,16 +6,23 @@ package workflows
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/network"
+	dockerclient "github.com/docker/docker/client"
 	"github.com/poruru/edge-serverless-box/cli/internal/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/generator"
 	"github.com/poruru/edge-serverless-box/cli/internal/ports"
+	"github.com/poruru/edge-serverless-box/cli/internal/staging"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 )
 
@@ -96,6 +103,9 @@ func (w DeployWorkflow) Run(req DeployRequest) error {
 	if w.ComposeRunner == nil {
 		return fmt.Errorf("compose runner is not configured")
 	}
+
+	req = w.alignGatewayRuntime(req)
+
 	if w.EnvApplier != nil {
 		if err := w.EnvApplier.Apply(req.Context); err != nil {
 			return err
@@ -112,6 +122,17 @@ func (w DeployWorkflow) Run(req DeployRequest) error {
 
 	// Check gateway/agent status (warning only)
 	w.checkServicesStatus(req.Context.ComposeProject, req.Mode)
+
+	stagingDir := staging.ConfigDir(req.Context.ComposeProject, req.Env)
+	var preSnapshot configSnapshot
+	if w.UserInterface != nil {
+		snapshot, err := loadConfigSnapshot(stagingDir)
+		if err != nil {
+			w.UserInterface.Warn(fmt.Sprintf("Warning: failed to read existing config: %v", err))
+		} else {
+			preSnapshot = snapshot
+		}
+	}
 
 	buildRequest := generator.BuildRequest{
 		ProjectDir:   req.Context.ProjectDir,
@@ -131,6 +152,33 @@ func (w DeployWorkflow) Run(req DeployRequest) error {
 		return err
 	}
 
+	if w.UserInterface != nil {
+		templateConfigDir, err := resolveTemplateConfigDir(req.TemplatePath, req.OutputDir, req.Env)
+		if err != nil {
+			w.UserInterface.Warn(fmt.Sprintf("Warning: failed to resolve template config dir: %v", err))
+		} else {
+			templateSnapshot, err := loadConfigSnapshot(templateConfigDir)
+			if err != nil {
+				w.UserInterface.Warn(fmt.Sprintf("Warning: failed to read template config: %v", err))
+			} else {
+				diff := diffConfigSnapshots(preSnapshot, templateSnapshot)
+				emitTemplateDeltaSummary(w.UserInterface, templateConfigDir, diff)
+			}
+		}
+
+		snapshot, err := loadConfigSnapshot(stagingDir)
+		if err != nil {
+			w.UserInterface.Warn(fmt.Sprintf("Warning: failed to read merged config: %v", err))
+		} else {
+			diff := diffConfigSnapshots(preSnapshot, snapshot)
+			emitConfigMergeSummary(w.UserInterface, stagingDir, diff)
+		}
+	}
+
+	if err := w.syncRuntimeConfig(req); err != nil {
+		return err
+	}
+
 	// Run provisioner
 	if err := w.runProvisioner(req.Context.ComposeProject, req.Mode, req.Verbose, req.Context.ProjectDir); err != nil {
 		return fmt.Errorf("provisioner failed: %w", err)
@@ -144,6 +192,376 @@ func (w DeployWorkflow) Run(req DeployRequest) error {
 		w.UserInterface.Success("✓ Deploy complete")
 	}
 	return nil
+}
+
+type gatewayRuntimeInfo struct {
+	ComposeProject    string
+	ProjectName       string
+	ContainersNetwork string
+}
+
+func (w DeployWorkflow) alignGatewayRuntime(req DeployRequest) DeployRequest {
+	if skipGatewayAlign() {
+		return req
+	}
+	info, err := resolveGatewayRuntime(req.Context.ComposeProject)
+	if err != nil {
+		if w.UserInterface != nil {
+			w.UserInterface.Warn(fmt.Sprintf("Warning: failed to resolve gateway runtime: %v", err))
+		}
+		return req
+	}
+	if info.ComposeProject != "" && info.ComposeProject != req.Context.ComposeProject {
+		if w.UserInterface != nil {
+			w.UserInterface.Warn(
+				fmt.Sprintf("Warning: using running gateway project %q (was %q)", info.ComposeProject, req.Context.ComposeProject),
+			)
+		}
+		req.Context.ComposeProject = info.ComposeProject
+	}
+	if info.ProjectName != "" && strings.TrimSpace(os.Getenv(constants.EnvProjectName)) != info.ProjectName {
+		_ = os.Setenv(constants.EnvProjectName, info.ProjectName)
+	}
+	if info.ContainersNetwork != "" && strings.TrimSpace(os.Getenv(constants.EnvNetworkExternal)) != info.ContainersNetwork {
+		_ = os.Setenv(constants.EnvNetworkExternal, info.ContainersNetwork)
+	}
+	w.warnInfraNetworkMismatch(req.Context.ComposeProject, info.ContainersNetwork)
+	return req
+}
+
+func skipGatewayAlign() bool {
+	value := strings.ToLower(strings.TrimSpace(os.Getenv("ESB_SKIP_GATEWAY_ALIGN")))
+	return value == "1" || value == "true" || value == "yes"
+}
+
+func resolveGatewayRuntime(composeProject string) (gatewayRuntimeInfo, error) {
+	client, err := compose.NewDockerClient()
+	if err != nil {
+		return gatewayRuntimeInfo{}, err
+	}
+	rawClient, ok := client.(*dockerclient.Client)
+	if !ok {
+		return gatewayRuntimeInfo{}, fmt.Errorf("unsupported docker client")
+	}
+
+	ctx := context.Background()
+	filterArgs := filters.NewArgs()
+	filterArgs.Add("label", fmt.Sprintf("%s=gateway", compose.ComposeServiceLabel))
+	if strings.TrimSpace(composeProject) != "" {
+		filterArgs.Add("label", fmt.Sprintf("%s=%s", compose.ComposeProjectLabel, composeProject))
+	}
+	containers, err := rawClient.ContainerList(ctx, container.ListOptions{All: true, Filters: filterArgs})
+	if err != nil {
+		return gatewayRuntimeInfo{}, err
+	}
+	if len(containers) == 0 && strings.TrimSpace(composeProject) != "" {
+		filterArgs = filters.NewArgs()
+		filterArgs.Add("label", fmt.Sprintf("%s=gateway", compose.ComposeServiceLabel))
+		containers, err = rawClient.ContainerList(ctx, container.ListOptions{All: true, Filters: filterArgs})
+		if err != nil {
+			return gatewayRuntimeInfo{}, err
+		}
+	}
+	if len(containers) == 0 {
+		return gatewayRuntimeInfo{}, nil
+	}
+
+	selected := containers[0]
+	for _, ctr := range containers {
+		if strings.EqualFold(ctr.State, "running") {
+			selected = ctr
+			break
+		}
+	}
+	inspect, err := rawClient.ContainerInspect(ctx, selected.ID)
+	if err != nil {
+		return gatewayRuntimeInfo{}, err
+	}
+	envMap := envSliceToMap(inspect.Config.Env)
+	info := gatewayRuntimeInfo{
+		ComposeProject:    strings.TrimSpace(selected.Labels[compose.ComposeProjectLabel]),
+		ProjectName:       strings.TrimSpace(envMap[constants.EnvProjectName]),
+		ContainersNetwork: strings.TrimSpace(envMap["CONTAINERS_NETWORK"]),
+	}
+	if info.ContainersNetwork == "" {
+		info.ContainersNetwork = pickGatewayNetwork(inspect.NetworkSettings.Networks)
+	}
+	return info, nil
+}
+
+func envSliceToMap(env []string) map[string]string {
+	out := make(map[string]string, len(env))
+	for _, entry := range env {
+		if entry == "" {
+			continue
+		}
+		parts := strings.SplitN(entry, "=", 2)
+		key := strings.TrimSpace(parts[0])
+		if key == "" {
+			continue
+		}
+		value := ""
+		if len(parts) > 1 {
+			value = parts[1]
+		}
+		out[key] = value
+	}
+	return out
+}
+
+func pickGatewayNetwork(networks map[string]*network.EndpointSettings) string {
+	for name := range networks {
+		if strings.Contains(name, "external") {
+			return name
+		}
+	}
+	for name := range networks {
+		return name
+	}
+	return ""
+}
+
+func (w DeployWorkflow) warnInfraNetworkMismatch(composeProject, gatewayNetwork string) {
+	if w.UserInterface == nil {
+		return
+	}
+	if strings.TrimSpace(gatewayNetwork) == "" {
+		return
+	}
+	client, err := compose.NewDockerClient()
+	if err != nil {
+		return
+	}
+	ctx := context.Background()
+	filterArgs := filters.NewArgs()
+	if strings.TrimSpace(composeProject) != "" {
+		filterArgs.Add("label", fmt.Sprintf("%s=%s", compose.ComposeProjectLabel, composeProject))
+	}
+	containers, err := client.ContainerList(ctx, container.ListOptions{All: false, Filters: filterArgs})
+	if err != nil {
+		return
+	}
+	required := map[string]struct{}{
+		"database":     {},
+		"s3-storage":   {},
+		"victorialogs": {},
+	}
+	missing := make([]string, 0, len(required))
+	for _, ctr := range containers {
+		service := strings.TrimSpace(ctr.Labels[compose.ComposeServiceLabel])
+		if _, ok := required[service]; !ok {
+			continue
+		}
+		if !containerOnNetwork(&ctr, gatewayNetwork) {
+			missing = append(missing, service)
+		}
+	}
+	if len(missing) == 0 {
+		return
+	}
+	w.UserInterface.Warn(
+		fmt.Sprintf(
+			"Warning: gateway network %q is missing services: %s. Recreate the stack or attach the services to that network.",
+			gatewayNetwork,
+			strings.Join(missing, ", "),
+		),
+	)
+}
+
+func containerOnNetwork(ctr *container.Summary, network string) bool {
+	if ctr == nil || ctr.NetworkSettings == nil {
+		return false
+	}
+	for name := range ctr.NetworkSettings.Networks {
+		if name == network {
+			return true
+		}
+	}
+	return false
+}
+
+type runtimeConfigTarget struct {
+	BindPath    string
+	VolumeName  string
+	ContainerID string
+}
+
+func (w DeployWorkflow) syncRuntimeConfig(req DeployRequest) error {
+	composeProject := strings.TrimSpace(req.Context.ComposeProject)
+	if composeProject == "" {
+		return nil
+	}
+	stagingDir := staging.ConfigDir(composeProject, req.Env)
+	if _, err := os.Stat(stagingDir); err != nil {
+		return nil
+	}
+	target, err := resolveRuntimeConfigTarget(composeProject)
+	if err != nil {
+		return err
+	}
+	if target.BindPath == "" && target.VolumeName == "" && target.ContainerID == "" {
+		return nil
+	}
+	if target.BindPath != "" {
+		if samePath(target.BindPath, stagingDir) {
+			return nil
+		}
+		return copyConfigFiles(stagingDir, target.BindPath)
+	}
+	var containerErr error
+	if target.ContainerID != "" {
+		if err := copyConfigToContainer(w.ComposeRunner, stagingDir, target.ContainerID); err == nil {
+			return nil
+		}
+		containerErr = err
+	}
+	if target.VolumeName != "" {
+		err := copyConfigToVolume(w.ComposeRunner, stagingDir, target.VolumeName)
+		if err == nil {
+			return nil
+		}
+		if containerErr != nil {
+			return fmt.Errorf("sync runtime config failed (container: %v; volume: %w)", containerErr, err)
+		}
+		return err
+	}
+	return containerErr
+}
+
+func resolveRuntimeConfigTarget(composeProject string) (runtimeConfigTarget, error) {
+	client, err := compose.NewDockerClient()
+	if err != nil {
+		return runtimeConfigTarget{}, err
+	}
+	ctx := context.Background()
+	filterArgs := filters.NewArgs()
+	filterArgs.Add("label", fmt.Sprintf("%s=%s", compose.ComposeProjectLabel, composeProject))
+	containers, err := client.ContainerList(ctx, container.ListOptions{All: true, Filters: filterArgs})
+	if err != nil {
+		return runtimeConfigTarget{}, err
+	}
+	var fallback *container.Summary
+	for i, ctr := range containers {
+		if ctr.Labels == nil {
+			continue
+		}
+		if ctr.Labels[compose.ComposeServiceLabel] == "gateway" {
+			fallback = &containers[i]
+			break
+		}
+	}
+	if fallback == nil && len(containers) > 0 {
+		fallback = &containers[0]
+	}
+	if fallback == nil {
+		return runtimeConfigTarget{}, nil
+	}
+	target := runtimeConfigTarget{ContainerID: fallback.ID}
+	for _, mount := range fallback.Mounts {
+		if mount.Destination != "/app/runtime-config" {
+			continue
+		}
+		if strings.EqualFold(string(mount.Type), "bind") {
+			target.BindPath = mount.Source
+			return target, nil
+		}
+		if strings.EqualFold(string(mount.Type), "volume") {
+			if mount.Name != "" {
+				target.VolumeName = mount.Name
+				return target, nil
+			}
+			if mount.Source != "" {
+				target.BindPath = mount.Source
+				return target, nil
+			}
+		}
+	}
+	return target, nil
+}
+
+func copyConfigFiles(srcDir, destDir string) error {
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
+		return err
+	}
+	for _, name := range []string{"functions.yml", "routing.yml", "resources.yml"} {
+		src := filepath.Join(srcDir, name)
+		if _, err := os.Stat(src); err != nil {
+			continue
+		}
+		dest := filepath.Join(destDir, name)
+		if err := copyFile(src, dest); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func copyConfigToVolume(runner compose.CommandRunner, srcDir, volume string) error {
+	if runner == nil {
+		return fmt.Errorf("compose runner is not configured")
+	}
+	cmd := "mkdir -p /app/runtime-config && " +
+		"for f in functions.yml routing.yml resources.yml; do " +
+		"if [ -f \"/src/${f}\" ]; then cp -f \"/src/${f}\" \"/app/runtime-config/${f}\"; fi; " +
+		"done"
+	args := []string{
+		"run",
+		"--rm",
+		"-v", volume + ":/app/runtime-config",
+		"-v", srcDir + ":/src:ro",
+		"alpine",
+		"sh",
+		"-c",
+		cmd,
+	}
+	return runner.Run(context.Background(), "", "docker", args...)
+}
+
+func copyConfigToContainer(runner compose.CommandRunner, srcDir, containerID string) error {
+	if runner == nil {
+		return fmt.Errorf("compose runner is not configured")
+	}
+	ctx := context.Background()
+	for _, name := range []string{"functions.yml", "routing.yml", "resources.yml"} {
+		src := filepath.Join(srcDir, name)
+		if _, err := os.Stat(src); err != nil {
+			continue
+		}
+		dest := containerID + ":/app/runtime-config/" + name
+		if err := runner.Run(ctx, "", "docker", "cp", src, dest); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func copyFile(src, dest string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.Create(dest)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = out.Close() }()
+	if _, err := io.Copy(out, in); err != nil {
+		return err
+	}
+	return out.Sync()
+}
+
+func samePath(left, right string) bool {
+	l, err := filepath.Abs(left)
+	if err != nil {
+		return false
+	}
+	r, err := filepath.Abs(right)
+	if err != nil {
+		return false
+	}
+	return filepath.Clean(l) == filepath.Clean(r)
 }
 
 // resolveRegistryAddress resolves the host-side registry address for checks from the host machine.
@@ -192,9 +610,18 @@ func (w DeployWorkflow) isServiceRunning(composeProject, service string) bool {
 		return true // Skip check if no runner available
 	}
 	ctx := context.Background()
+	args := []string{"compose"}
+	if result, err := w.resolveComposeFilesForProject(ctx, composeProject); err == nil {
+		for _, file := range result.Files {
+			args = append(args, "-f", file)
+		}
+	}
+	if strings.TrimSpace(composeProject) != "" {
+		args = append(args, "-p", composeProject)
+	}
 	// Use docker compose ps to check if service is running
 	// -q returns container ID if running, empty if stopped/not found
-	out, err := w.ComposeRunner.RunOutput(ctx, "", "docker", "compose", "-p", composeProject, "ps", "-q", service)
+	out, err := w.ComposeRunner.RunOutput(ctx, "", "docker", append(args, "ps", "-q", service)...)
 	if err != nil {
 		return false
 	}
@@ -209,25 +636,85 @@ func (w DeployWorkflow) runProvisioner(composeProject, mode string, verbose bool
 		return err
 	}
 
-	// Determine compose file based on mode
-	var composeFile string
-	if mode == compose.ModeContainerd {
-		composeFile = filepath.Join(repoRoot, "docker-compose.containerd.yml")
-	} else {
-		composeFile = filepath.Join(repoRoot, "docker-compose.docker.yml")
+	ctx := context.Background()
+	result, err := w.resolveComposeFilesForProject(ctx, composeProject)
+	if err != nil && w.UserInterface != nil {
+		w.UserInterface.Warn(fmt.Sprintf("Warning: failed to resolve compose config files: %v", err))
+	}
+	if result.SetCount > 1 && w.UserInterface != nil {
+		w.UserInterface.Warn("Warning: multiple compose config sets detected; using the most common one.")
+	}
+	if len(result.Missing) > 0 && w.UserInterface != nil {
+		w.UserInterface.Warn(fmt.Sprintf("Warning: compose config files not found: %s", strings.Join(result.Missing, ", ")))
 	}
 
-	args := []string{"compose", "-f", composeFile, "--profile", "deploy"}
+	args := []string{"compose"}
+	if len(result.Files) > 0 {
+		for _, file := range result.Files {
+			args = append(args, "-f", file)
+		}
+	} else {
+		// Determine compose file based on mode
+		var composeFile string
+		if mode == compose.ModeContainerd {
+			composeFile = filepath.Join(repoRoot, "docker-compose.containerd.yml")
+		} else {
+			composeFile = filepath.Join(repoRoot, "docker-compose.docker.yml")
+		}
+		proxyFile := resolveProxyComposeFile(repoRoot, mode)
+		args = append(args, "-f", composeFile)
+		if proxyFile != "" {
+			args = append(args, "-f", proxyFile)
+		}
+	}
+	if w.composeSupportsNoWarnOrphans(repoRoot) {
+		args = append(args, "--no-warn-orphans")
+	}
+	args = append(args, "--profile", "deploy")
 	if composeProject != "" {
 		args = append(args, "-p", composeProject)
 	}
 	args = append(args, "run", "--rm", "provisioner")
-
-	ctx := context.Background()
 	if verbose {
 		return w.ComposeRunner.Run(ctx, repoRoot, "docker", args...)
 	}
 	return w.ComposeRunner.RunQuiet(ctx, repoRoot, "docker", args...)
+}
+
+func (w DeployWorkflow) resolveComposeFilesForProject(ctx context.Context, composeProject string) (compose.FilesResult, error) {
+	trimmedProject := strings.TrimSpace(composeProject)
+	if trimmedProject == "" {
+		return compose.FilesResult{}, nil
+	}
+	client, err := compose.NewDockerClient()
+	if err != nil {
+		return compose.FilesResult{}, err
+	}
+	return compose.ResolveComposeFilesFromProject(ctx, client, trimmedProject)
+}
+
+func (w DeployWorkflow) composeSupportsNoWarnOrphans(repoRoot string) bool {
+	if w.ComposeRunner == nil {
+		return false
+	}
+	ctx := context.Background()
+	out, err := w.ComposeRunner.RunOutput(ctx, repoRoot, "docker", "compose", "--help")
+	if err != nil {
+		return false
+	}
+	return strings.Contains(string(out), "--no-warn-orphans")
+}
+
+func resolveProxyComposeFile(repoRoot, mode string) string {
+	filename := "docker-compose.proxy.docker.yml"
+	if mode == compose.ModeContainerd {
+		filename = "docker-compose.proxy.containerd.yml"
+	}
+	path := filepath.Join(repoRoot, filename)
+	if _, err := os.Stat(path); err == nil {
+		return path
+	}
+	return ""
 }
 
 // DeployDeps holds deploy-specific dependencies.
