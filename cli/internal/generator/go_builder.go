@@ -133,11 +133,10 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	if os.Getenv(constants.BuildArgCAFingerprint) == "" {
 		_ = os.Setenv(constants.BuildArgCAFingerprint, rootFingerprint)
 	}
-	baseImageLabels := make(map[string]string, len(imageLabels)+1)
-	for key, value := range imageLabels {
-		baseImageLabels[key] = value
+	baseImageLabels := map[string]string{
+		compose.ESBManagedLabel:       "true",
+		compose.ESBCAFingerprintLabel: rootFingerprint,
 	}
-	baseImageLabels[compose.ESBCAFingerprintLabel] = rootFingerprint
 
 	if request.Verbose {
 		fmt.Println("Generating files...")
