@@ -1,0 +1,10 @@
+# Proxy settings (Leave empty if not using proxy)
+# example: http://proxy.example.com:8080
+proxy_http: ""
+proxy_https: ""
+# example: localhost,127.0.0.1,::1
+proxy_no: "localhost,127.0.0.1,::1"
+
+# Docker users to add
+docker_users:
+  - "{{ ansible_env.SUDO_USER | default(ansible_user_id) }}"
