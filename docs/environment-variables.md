@@ -31,7 +31,9 @@ ESB の設定は以下の3段階で伝播します：
 | `BUILDKITD_CONFIG` | `~/.<brand>/buildkitd.toml` | Buildx の buildkitd 設定ファイル。プロキシ等の設定に使用します。 |
 | `PROVENANCE` | `mode=max` | Buildx の Provenance Attestation 設定。`0` / `false` で無効化できます。 |
 
-補足: ビルド由来のトレーサビリティは OCI Provenance Attestation を使用します。確認は `docker buildx imagetools inspect --provenance <image>` を参照してください。
+補足:
+- BuildKit のレジストリアクセス用プロキシは builder 作成時に `HTTP_PROXY` 等の環境変数を注入します。変更した場合は `mise run setup:buildx` を再実行してください。
+- ビルド由来のトレーサビリティは OCI Provenance Attestation を使用します。確認は `docker buildx imagetools inspect --provenance <image>` を参照してください。
 
 ### 1. Gateway (`services/gateway`)
 

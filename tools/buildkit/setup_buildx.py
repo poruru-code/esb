@@ -90,6 +90,24 @@ def _resolve_proxy() -> dict[str, str]:
     return merged
 
 
+def _build_driver_proxy_opts(proxy: dict[str, str]) -> list[str]:
+    if not any(proxy.values()):
+        return []
+    entries: list[str] = []
+    mapping = {
+        "httpProxy": ("http_proxy", "HTTP_PROXY"),
+        "httpsProxy": ("https_proxy", "HTTPS_PROXY"),
+        "noProxy": ("no_proxy", "NO_PROXY"),
+    }
+    for key, env_keys in mapping.items():
+        value = proxy.get(key, "").strip()
+        if not value:
+            continue
+        for env_key in env_keys:
+            entries.append(f"env.{env_key}={value}")
+    return entries
+
+
 def _toml_quote(value: str) -> str:
     return json.dumps(value)
 
@@ -159,7 +177,12 @@ def _remove_builder(name: str) -> None:
     _run(["docker", "buildx", "rm", name])
 
 
-def _create_builder(name: str, config_path: Path | None, network_mode: str | None) -> None:
+def _create_builder(
+    name: str,
+    config_path: Path | None,
+    network_mode: str | None,
+    proxy_env: list[str],
+) -> None:
     cmd = [
         "docker",
         "buildx",
@@ -173,8 +196,10 @@ def _create_builder(name: str, config_path: Path | None, network_mode: str | Non
     ]
     if network_mode:
         cmd.extend(["--driver-opt", f"network={network_mode}"])
+    for entry in proxy_env:
+        cmd.extend(["--driver-opt", entry])
     if config_path:
-        cmd.extend(["--config", str(config_path)])
+        cmd.extend(["--buildkitd-config", str(config_path)])
     result = _run(cmd)
     if result.returncode != 0:
         print(result.stdout, file=sys.stderr)
@@ -189,6 +214,7 @@ def main() -> int:
     proxy = _resolve_proxy()
     content = _build_config_text(proxy)
     _write_config(config_path, content)
+    proxy_env = _build_driver_proxy_opts(proxy)
 
     network_mode = os.environ.get("ESB_BUILDX_NETWORK_MODE", "host").strip() or None
     config_to_use = config_path if config_path.exists() else None
@@ -196,7 +222,7 @@ def main() -> int:
         if name == builder_name or name.startswith(f"{builder_name}-"):
             _remove_builder(name)
 
-    _create_builder(builder_name, config_to_use, network_mode)
+    _create_builder(builder_name, config_to_use, network_mode, proxy_env)
     print(f"[buildx] builder ready: {builder_name}")
     if config_to_use:
         print(f"[buildx] using config: {config_to_use}")
