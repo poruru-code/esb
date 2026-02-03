@@ -19,6 +19,46 @@ sudo add-apt-repository --yes --update ppa:ansible/ansible
 sudo apt install -y ansible
 ```
 
+### 1-a. プロキシ未設定 / 閉域環境でのインストール（代替案）
+
+対象 PC から外部リポジトリに到達できない場合、以下のいずれかの方法で「ローカルインストール」してください。
+
+**案 A: オフライン APT パッケージ（推奨・簡易）**
+
+プロキシ設定済みの Ubuntu（WSL でも可）で必要な `.deb` を集め、対象 PC に持ち込みます。
+
+```bash
+# 取得側（プロキシ設定済み Ubuntu）
+sudo apt update
+sudo apt install -y apt-rdepends
+mkdir -p /tmp/ansible_debs
+cd /tmp/ansible_debs
+apt download ansible
+apt-rdepends ansible | awk '/^ /{print $1}' | xargs -r apt download
+```
+
+取得した `/tmp/ansible_debs` を USB 等で対象 PC にコピーし、以下で導入します。
+
+```bash
+# 対象 PC（オフライン）
+cd /path/to/ansible_debs
+sudo dpkg -i ./*.deb || sudo apt -f install -y
+```
+
+**案 B: ローカル APT リポジトリを用意**
+
+同一ネットワーク内に apt-mirror / aptly などでローカルリポジトリを構築し、
+対象 PC の `sources.list` をローカルに向けます。複数台導入や継続運用向きです。
+
+**案 C: Python wheel でインストール（上級者向け）**
+
+プロキシ設定済みの環境で `pip download ansible` し、wheel を持ち込んで
+`pip install --no-index --find-links` で導入します。依存関係の管理が必要です。
+
+> 注: 「Windows で apt を取得してローカルインストール」は Ubuntu での
+> インストールには使えません。apt は Ubuntu/Debian 向けのパッケージマネージャです。
+> Windows 側で準備する場合は WSL/Ubuntu VM で `.deb` を取得してください。
+
 ## 2. 設定ファイルの編集
 
 `bootstrap` ディレクトリ内の `vars.yml` を編集し、環境に合わせた設定を行います。
