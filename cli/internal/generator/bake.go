@@ -402,6 +402,7 @@ func bakeCacheRoot(outputBase string) string {
 
 type buildxBuilderOptions struct {
 	NetworkMode string
+	ConfigPath  string
 }
 
 func ensureBuildxBuilder(
@@ -451,6 +452,11 @@ func ensureBuildxBuilder(
 			}
 			if strings.TrimSpace(opts.NetworkMode) != "" {
 				createArgs = append(createArgs, "--driver-opt", fmt.Sprintf("network=%s", opts.NetworkMode))
+			}
+			if configPath := strings.TrimSpace(opts.ConfigPath); configPath != "" {
+				if info, statErr := os.Stat(configPath); statErr == nil && !info.IsDir() {
+					createArgs = append(createArgs, "--config", configPath)
+				}
 			}
 			createOutput, createErr := runner.RunOutput(ctx, root, "docker", createArgs...)
 			if createErr != nil {

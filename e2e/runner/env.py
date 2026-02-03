@@ -175,6 +175,10 @@ def calculate_runtime_env(
         os.environ.get(constants.ENV_CERT_DIR, Path.home() / BRAND_HOME_DIR / "certs")
     ).expanduser()
     env.setdefault(constants.ENV_CERT_DIR, str(cert_dir))
+    env.setdefault(
+        constants.ENV_BUILDKITD_CONFIG,
+        str((Path.home() / BRAND_HOME_DIR / "buildkitd.toml").expanduser()),
+    )
 
     # Calculate ROOT_CA_FINGERPRINT for build cache invalidation
     ca_path = cert_dir / constants.DEFAULT_ROOT_CA_FILENAME
@@ -187,7 +191,7 @@ def calculate_runtime_env(
 
     # 8. Docker BuildKit
     env.setdefault(constants.ENV_DOCKER_BUILDKIT, "1")
-    env.setdefault("BUILDX_BUILDER", f"{BRAND_SLUG}-buildx-{env_name}")
+    env.setdefault("BUILDX_BUILDER", f"{BRAND_SLUG}-buildx")
     env.setdefault("COMPOSE_DOCKER_CLI_BUILD", "1")
 
     # 9. Staging Config Dir
