@@ -18,6 +18,13 @@
   shell: |
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
     chmod a+r /etc/apt/keyrings/docker.gpg
+  environment:
+    http_proxy: "{{ proxy_http }}"
+    https_proxy: "{{ proxy_https }}"
+    no_proxy: "{{ proxy_no }}"
+    HTTP_PROXY: "{{ proxy_http }}"
+    HTTPS_PROXY: "{{ proxy_https }}"
+    NO_PROXY: "{{ proxy_no }}"
   args:
     creates: /etc/apt/keyrings/docker.gpg
 
