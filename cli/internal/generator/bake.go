@@ -462,20 +462,16 @@ func buildxBuilderProxyMismatch(
 	if err != nil {
 		return false, err
 	}
-	if len(desired) == 0 {
-		for _, key := range buildxProxyEnvKeys {
-			if strings.EqualFold(key, "no_proxy") {
-				continue
-			}
-			if strings.TrimSpace(existing[key]) != "" {
+	for _, key := range buildxProxyEnvKeys {
+		desiredValue := strings.TrimSpace(desired[key])
+		existingValue := strings.TrimSpace(existing[key])
+		if desiredValue == "" {
+			if existingValue != "" {
 				return true, nil
 			}
+			continue
 		}
-		return false, nil
-	}
-	for key, desiredValue := range desired {
-		existingValue := strings.TrimSpace(existing[key])
-		if strings.TrimSpace(desiredValue) != existingValue {
+		if existingValue != desiredValue {
 			return true, nil
 		}
 	}
