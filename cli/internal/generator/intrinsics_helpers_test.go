@@ -1,5 +1,5 @@
 // Where: cli/internal/generator/intrinsics_helpers_test.go
-// What: Tests for intrinsic resolver and value helpers.
+// What: Tests for intrinsic resolver and value env.
 // Why: Keep intrinsic handling stable for ESB parsing.
 package generator
 

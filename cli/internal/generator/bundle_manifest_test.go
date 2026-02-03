@@ -70,7 +70,7 @@ func (r *manifestRunner) RunOutput(_ context.Context, _, name string, args ...st
 func TestWriteBundleManifest(t *testing.T) {
 	tmpDir := t.TempDir()
 	templatePath := filepath.Join(tmpDir, "template.yaml")
-	if err := os.WriteFile(templatePath, []byte("Resources: {}"), 0o644); err != nil {
+	if err := os.WriteFile(templatePath, []byte("Resources: {}"), 0o600); err != nil {
 		t.Fatalf("write template: %v", err)
 	}
 
@@ -101,7 +101,7 @@ func TestWriteBundleManifest(t *testing.T) {
 		t.Fatalf("ensure output dir: %v", err)
 	}
 
-	path, err := writeBundleManifest(context.Background(), bundleManifestInput{
+	path, err := writeBundleManifest(t.Context(), bundleManifestInput{
 		RepoRoot:     tmpDir,
 		OutputDir:    outputDir,
 		TemplatePath: templatePath,
@@ -163,7 +163,7 @@ func TestWriteBundleManifest(t *testing.T) {
 func TestWriteBundleManifestContainerdIncludesRuntimeImages(t *testing.T) {
 	tmpDir := t.TempDir()
 	templatePath := filepath.Join(tmpDir, "template.yaml")
-	if err := os.WriteFile(templatePath, []byte("Resources: {}"), 0o644); err != nil {
+	if err := os.WriteFile(templatePath, []byte("Resources: {}"), 0o600); err != nil {
 		t.Fatalf("write template: %v", err)
 	}
 
@@ -202,7 +202,7 @@ func TestWriteBundleManifestContainerdIncludesRuntimeImages(t *testing.T) {
 		t.Fatalf("ensure output dir: %v", err)
 	}
 
-	_, err := writeBundleManifest(context.Background(), bundleManifestInput{
+	_, err := writeBundleManifest(t.Context(), bundleManifestInput{
 		RepoRoot:        tmpDir,
 		OutputDir:       outputDir,
 		TemplatePath:    templatePath,
@@ -224,7 +224,7 @@ func TestWriteBundleManifestContainerdIncludesRuntimeImages(t *testing.T) {
 func TestWriteBundleManifestFailsWhenImageMissing(t *testing.T) {
 	tmpDir := t.TempDir()
 	templatePath := filepath.Join(tmpDir, "template.yaml")
-	if err := os.WriteFile(templatePath, []byte("Resources: {}"), 0o644); err != nil {
+	if err := os.WriteFile(templatePath, []byte("Resources: {}"), 0o600); err != nil {
 		t.Fatalf("write template: %v", err)
 	}
 
@@ -234,7 +234,7 @@ func TestWriteBundleManifestFailsWhenImageMissing(t *testing.T) {
 		t.Fatalf("ensure output dir: %v", err)
 	}
 
-	_, err := writeBundleManifest(context.Background(), bundleManifestInput{
+	_, err := writeBundleManifest(t.Context(), bundleManifestInput{
 		RepoRoot:     tmpDir,
 		OutputDir:    outputDir,
 		TemplatePath: templatePath,

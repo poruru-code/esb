@@ -3,7 +3,11 @@
 // Why: Keep parser behavior aligned with existing Python generator.
 package generator
 
-import "testing"
+import (
+	"net/http"
+	"strings"
+	"testing"
+)
 
 func TestParseSAMTemplateSimpleFunction(t *testing.T) {
 	content := `
@@ -232,7 +236,7 @@ Resources:
 	if len(fn.Events) != 1 {
 		t.Fatalf("expected 1 event, got %d", len(fn.Events))
 	}
-	if fn.Events[0].Path != "/api/hello" || fn.Events[0].Method != "post" {
+	if fn.Events[0].Path != "/api/hello" || !strings.EqualFold(fn.Events[0].Method, http.MethodPost) {
 		t.Fatalf("unexpected event: %+v", fn.Events[0])
 	}
 	if fn.Events[0].Type != "Api" {
@@ -287,6 +291,7 @@ Resources:
 	cronFn := findFunction(result.Functions, "lambda-cron")
 	if cronFn == nil {
 		t.Fatal("lambda-cron not found")
+		return
 	}
 	if len(cronFn.Events) != 1 {
 		t.Fatalf("expected 1 event for cron, got %d", len(cronFn.Events))
@@ -305,6 +310,7 @@ Resources:
 	rateFn := findFunction(result.Functions, "lambda-rate")
 	if rateFn == nil {
 		t.Fatal("lambda-rate not found")
+		return
 	}
 	if len(rateFn.Events) != 1 {
 		t.Fatalf("expected 1 event for rate, got %d", len(rateFn.Events))

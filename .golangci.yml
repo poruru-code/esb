@@ -3,17 +3,41 @@ run:
   tests: true
 
 linters:
-  enable:
-    - gofumpt
-    - revive
-    - errcheck
-    - staticcheck
-    - unused
-    - gosimple
-    - ineffassign
-    - typecheck
-    - bodyclose
+  disable:
+    - cyclop
+    - depguard
+    - dupl
+    - exhaustruct
+    - forbidigo
+    - funlen
+    - gochecknoglobals
+    - gocognit
+    - goconst
+    - gocyclo
+    - gomoddirectives
+    - ireturn
+    - lll
+    - mnd
+    - maintidx
+    - nestif
+    - nlreturn
+    - paralleltest
+    - perfsprint
+    - prealloc
+    - tagalign
+    - tagliatelle
+    - tenv
+    - testpackage
+    - varnamelen
+    - wsl
 
 linters-settings:
   gofumpt:
     extra-rules: true
+
+issues:
+  exclude-rules:
+    - path: ^internal/generator/
+      linters:
+        - err113
+        - wrapcheck

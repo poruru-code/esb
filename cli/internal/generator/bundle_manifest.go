@@ -15,9 +15,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
 	"github.com/poruru/edge-serverless-box/meta"
-
-	"github.com/poruru/edge-serverless-box/cli/internal/compose"
 )
 
 const bundleManifestSchemaVersion = "1.0"
@@ -132,7 +131,7 @@ func writeBundleManifest(ctx context.Context, input bundleManifestInput) (string
 	if err != nil {
 		return "", fmt.Errorf("marshal bundle manifest: %w", err)
 	}
-	if err := os.WriteFile(path, payload, 0o644); err != nil {
+	if err := os.WriteFile(path, payload, 0o600); err != nil {
 		return "", fmt.Errorf("write bundle manifest: %w", err)
 	}
 	return path, nil

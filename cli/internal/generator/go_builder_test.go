@@ -10,12 +10,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/poruru/edge-serverless-box/meta"
-
-	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
-	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
-	"github.com/poruru/edge-serverless-box/cli/internal/staging"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/envutil"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
+	"github.com/poruru/edge-serverless-box/meta"
 )
 
 func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {

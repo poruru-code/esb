@@ -55,10 +55,7 @@ func resolveGitContext(ctx context.Context, runner gitRunner, repoRoot string) (
 	if err != nil {
 		return gitContext{}, err
 	}
-	gitCommon, err := resolveGitCommon(root, gitDir, gitDirIsFile, gitCommonRaw)
-	if err != nil {
-		return gitContext{}, err
-	}
+	gitCommon := resolveGitCommon(root, gitDir, gitDirIsFile, gitCommonRaw)
 	if _, err := os.Stat(filepath.Join(gitDir, "HEAD")); err != nil {
 		return gitContext{}, fmt.Errorf("gitdir missing HEAD: %w", err)
 	}
@@ -105,7 +102,7 @@ func resolveGitDir(root, gitDirRaw string) (string, bool, error) {
 	return resolveAbs(filepath.Dir(gitDirPath), target), true, nil
 }
 
-func resolveGitCommon(root, gitDir string, gitDirIsFile bool, gitCommonRaw string) (string, error) {
+func resolveGitCommon(root, gitDir string, gitDirIsFile bool, gitCommonRaw string) string {
 	candidates := []string{root}
 	if gitDirIsFile {
 		candidates = append(candidates, gitDir)
@@ -115,10 +112,10 @@ func resolveGitCommon(root, gitDir string, gitDirIsFile bool, gitCommonRaw strin
 	for _, base := range candidates {
 		candidate := resolveAbs(base, gitCommonRaw)
 		if _, err := os.Stat(filepath.Join(candidate, "objects")); err == nil {
-			return candidate, nil
+			return candidate
 		}
 	}
-	return resolveAbs(root, gitCommonRaw), nil
+	return resolveAbs(root, gitCommonRaw)
 }
 
 func resolveAbs(base, path string) string {

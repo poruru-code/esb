@@ -5,12 +5,13 @@ package generator
 
 import (
 	"archive/zip"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
 	"gopkg.in/yaml.v3"
 )
@@ -423,7 +424,7 @@ func TestGenerateFilesRendersRoutingEvents(t *testing.T) {
 	if parsed.Routes[0].Function != "lambda-events" {
 		t.Fatalf("unexpected function: %s", parsed.Routes[0].Function)
 	}
-	if parsed.Routes[0].Method != "POST" {
+	if parsed.Routes[0].Method != http.MethodPost {
 		t.Fatalf("unexpected method: %s", parsed.Routes[0].Method)
 	}
 }
@@ -446,7 +447,7 @@ func TestResolveTemplatePathExpandsHome(t *testing.T) {
 func writeTestFile(t *testing.T, path, content string) {
 	t.Helper()
 	mustMkdirAll(t, filepath.Dir(path))
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatalf("write file: %v", err)
 	}
 }

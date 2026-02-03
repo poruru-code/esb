@@ -25,15 +25,15 @@ esb build --template <path> --env <name> --mode <docker|containerd> [flags]
 
 ## 実装詳細
 
-CLIアダプタは `cli/internal/commands/build.go` にあり、オーケストレーションは `cli/internal/workflows/build.go` が担当します。実際のビルド処理は `cli/internal/generator/go_builder.go` (GoBuilder) に委譲されます。
+CLIアダプタは `cli/internal/command/deploy.go` にあり、オーケストレーションは `cli/internal/usecase/deploy/deploy.go` が担当します。実際のビルド処理は `cli/internal/generator/go_builder.go` (GoBuilder) に委譲されます。
 
 ### 主要コンポーネント
 
-- **`BuildWorkflow`**: ランタイム環境適用とBuilder呼び出しを行うオーケストレーター。
-- **`BuildRequest`**: CLI から Workflow に渡される入力DTO（Workflow 内で `generator.BuildRequest` に変換）。
-- **`RuntimeEnvApplier`**: `applyRuntimeEnv` を通じて `ENV_PREFIX` 付きの環境変数を適用。
+- **`DeployWorkflow`**: ランタイム環境適用とBuilder呼び出しを行うオーケストレーター。
+- **`BuildRequest`**: CLI から Workflow に渡される入力DTO（`generator.BuildRequest` を直接使用）。
+- **`ApplyRuntimeEnv`**: `ENV_PREFIX` 付きの環境変数を適用。
 - **`UserInterface`**: 成功メッセージの出力（互換のため `LegacyUI` を使用）。
-- **`GoBuilder`**: `ports.Builder` インターフェースの実装。
+- **`GoBuilder`**: 関数イメージ生成・ビルドを担当する実装。
   - **`Generate`**: ビルド成果物 (Dockerfile, `functions.yml`, `routing.yml`) を出力ディレクトリに生成します。
   - **`BuildCompose`**: コントロールプレーンのイメージ (Gateway, Agent) をビルドします。
   - **`Runner`**: ベースイメージと関数イメージに対して `docker build` コマンドを実行します。

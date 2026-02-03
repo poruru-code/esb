@@ -21,11 +21,11 @@ graph TD
 
 ## 主要コンポーネント
 
-### CLI Adapter (`cli/internal/commands`)
+### CLI Adapter (`cli/internal/command`)
 - `esb build` の入力解決（template/env/mode/output/parameters）
 - 対話入力（SAM Parameters）
 
-### BuildWorkflow (`cli/internal/workflows`)
+### BuildWorkflow (`cli/internal/usecase/deploy`)
 - 入力 DTO を `generator.BuildRequest` に変換し、Builder を呼び出す
 
 ### GoBuilder (`cli/internal/generator`)

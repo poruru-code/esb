@@ -11,9 +11,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
 	"gopkg.in/yaml.v3"
-
-	"github.com/poruru/edge-serverless-box/cli/internal/staging"
 )
 
 const deployLockTimeout = 30 * time.Second
@@ -28,7 +27,7 @@ func MergeConfig(outputDir, composeProject, env string) error {
 
 	// Acquire deploy lock
 	lockPath := filepath.Join(configDir, ".deploy.lock")
-	lockFile, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o644)
+	lockFile, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return fmt.Errorf("failed to create lock file: %w", err)
 	}
@@ -321,7 +320,7 @@ func atomicWriteYaml(path string, data map[string]any) error {
 	}
 
 	tmpPath := path + ".tmp"
-	if err := os.WriteFile(tmpPath, content, 0o644); err != nil {
+	if err := os.WriteFile(tmpPath, content, 0o600); err != nil {
 		return err
 	}
 

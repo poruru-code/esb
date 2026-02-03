@@ -163,8 +163,12 @@ func TestIntrinsicResolver_Conditions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if strings.HasPrefix(tt.name, "equals") {
-				if got := resolver.EvaluateCondition(tt.input); got != tt.want.(bool) {
-					t.Errorf("EvaluateCondition() = %v, want %v", got, tt.want)
+				wantBool, ok := tt.want.(bool)
+				if !ok {
+					t.Fatalf("expected bool want value, got %T", tt.want)
+				}
+				if got := resolver.EvaluateCondition(tt.input); got != wantBool {
+					t.Errorf("EvaluateCondition() = %v, want %v", got, wantBool)
 				}
 			} else {
 				got, err := sam.ResolveAll(

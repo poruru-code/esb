@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
 	"github.com/poruru/edge-serverless-box/meta"
 )
 
@@ -49,10 +49,7 @@ func GenerateFiles(cfg config.GeneratorConfig, opts GenerateOptions) ([]Function
 		return nil, err
 	}
 	baseDir := filepath.Dir(templatePath)
-	outputDir, err := resolveOutputDir(cfg.Paths.OutputDir, baseDir)
-	if err != nil {
-		return nil, err
-	}
+	outputDir := resolveOutputDir(cfg.Paths.OutputDir, baseDir)
 
 	contents, err := os.ReadFile(templatePath)
 	if err != nil {
@@ -212,13 +209,13 @@ func expandHomePath(path string) (string, error) {
 }
 
 // resolveOutputDir returns the absolute output directory where artifacts will be staged.
-func resolveOutputDir(outputDir, baseDir string) (string, error) {
+func resolveOutputDir(outputDir, baseDir string) string {
 	normalized := normalizeOutputDir(outputDir)
 	path := normalized
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(baseDir, path)
 	}
-	return filepath.Clean(path), nil
+	return filepath.Clean(path)
 }
 
 // resolveTag picks the Docker image tag from opts first, then generator config, then "latest".

@@ -13,6 +13,8 @@ import (
 	"strings"
 )
 
+const maxZipEntryBytes int64 = 200 << 20 // 200 MiB safety cap for zip extraction.
+
 func ensureDir(path string) error {
 	return os.MkdirAll(path, 0o755)
 }
@@ -31,7 +33,7 @@ func writeFile(path, content string) error {
 	if err := ensureDir(filepath.Dir(path)); err != nil {
 		return err
 	}
-	return os.WriteFile(path, []byte(content), 0o644)
+	return os.WriteFile(path, []byte(content), 0o600)
 }
 
 func writeConfigFile(path, content string) error {
@@ -43,7 +45,7 @@ func writeConfigFile(path, content string) error {
 			return err
 		}
 	}
-	return os.WriteFile(path, []byte(content), 0o644)
+	return os.WriteFile(path, []byte(content), 0o600)
 }
 
 func copyDir(src, dst string) error {
@@ -180,6 +182,7 @@ func unzipFile(src, dst string) error {
 	defer reader.Close()
 
 	for _, file := range reader.File {
+		//nolint:gosec // Path traversal is checked below with cleaned prefix validation.
 		targetPath := filepath.Join(dst, file.Name)
 		if !strings.HasPrefix(filepath.Clean(targetPath), filepath.Clean(dst)+string(os.PathSeparator)) {
 			return fmt.Errorf("zip path escapes target: %s", file.Name)
@@ -205,10 +208,22 @@ func unzipFile(src, dst string) error {
 			in.Close()
 			return err
 		}
-		if _, err := io.Copy(out, in); err != nil {
+		if file.UncompressedSize64 > 0 && file.UncompressedSize64 > uint64(maxZipEntryBytes) {
+			in.Close()
+			out.Close()
+			return fmt.Errorf("zip entry too large: %s", file.Name)
+		}
+		limited := io.LimitReader(in, maxZipEntryBytes+1)
+		written, err := io.Copy(out, limited)
+		if err != nil {
 			in.Close()
 			out.Close()
 			return err
+		}
+		if written > maxZipEntryBytes {
+			in.Close()
+			out.Close()
+			return fmt.Errorf("zip entry too large: %s", file.Name)
 		}
 		in.Close()
 		if err := out.Close(); err != nil {

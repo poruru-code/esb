@@ -13,12 +13,11 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/poruru/edge-serverless-box/meta"
-
-	"github.com/poruru/edge-serverless-box/cli/internal/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
-	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
-	"github.com/poruru/edge-serverless-box/cli/internal/staging"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/envutil"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
+	"github.com/poruru/edge-serverless-box/meta"
 )
 
 type registryConfig struct {
@@ -148,7 +147,7 @@ func withBuildLock(name string, fn func() error) error {
 		return err
 	}
 	lockPath := filepath.Join(lockRoot, fmt.Sprintf(".lock-%s", key))
-	lockFile, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o644)
+	lockFile, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return err
 	}
@@ -342,7 +341,7 @@ func expandHome(path string) string {
 func writeFunctionDockerignore(contextDir, functionDir string) error {
 	rel, err := filepath.Rel(contextDir, functionDir)
 	if err != nil {
-		return nil
+		return fmt.Errorf("resolve dockerignore path: %w", err)
 	}
 	rel = filepath.ToSlash(rel)
 	if rel == "." || strings.HasPrefix(rel, "../") {
@@ -364,5 +363,5 @@ func writeFunctionDockerignore(contextDir, functionDir string) error {
 		"!" + rel + "/**",
 	}
 	content := strings.Join(lines, "\n") + "\n"
-	return os.WriteFile(filepath.Join(contextDir, ".dockerignore"), []byte(content), 0o644)
+	return os.WriteFile(filepath.Join(contextDir, ".dockerignore"), []byte(content), 0o600)
 }

@@ -13,7 +13,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/staging"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
 )
 
 func buildImageFingerprint(outputDir, composeProject, env, baseImageID string, functions []FunctionSpec) (string, error) {

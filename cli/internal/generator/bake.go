@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/compose"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
 	"github.com/poruru/edge-serverless-box/meta"
 )
 

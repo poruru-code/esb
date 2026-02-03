@@ -114,15 +114,16 @@ func stageLayers(layers []manifest.LayerSpec, ctx stageContext, functionName, fu
 			}
 
 			var finalSrc string
-			if fileExists(source) && strings.HasSuffix(strings.ToLower(source), ".zip") {
+			switch {
+			case fileExists(source) && strings.HasSuffix(strings.ToLower(source), ".zip"):
 				extracted, err := extractZipLayer(source, ctx.LayerCacheDir)
 				if err != nil {
 					return nil, err
 				}
 				finalSrc = extracted
-			} else if dirExists(source) {
+			case dirExists(source):
 				finalSrc = source
-			} else {
+			default:
 				continue
 			}
 

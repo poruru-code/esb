@@ -162,7 +162,11 @@ func renderTemplate(name string, data any) (string, error) {
 
 func loadTemplate(name string) (*template.Template, error) {
 	if value, ok := templateCache.Load(name); ok {
-		return value.(*template.Template), nil
+		cached, ok := value.(*template.Template)
+		if !ok {
+			return nil, fmt.Errorf("template cache type mismatch for %s", name)
+		}
+		return cached, nil
 	}
 	tmpl, err := template.New(name).Funcs(sprig.TxtFuncMap()).ParseFS(templateFS, "templates/"+name)
 	if err != nil {

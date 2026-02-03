@@ -20,4 +20,4 @@ esb completion [shell]
 
 ## 実装詳細
 
-コマンドのロジックは `cli/internal/commands/completion.go` に実装されています。動的候補の取得は行わず、`build` / `completion` / `version` の補完と、`completion` サブコマンドの補完のみを提供します。
+コマンドのロジックは `cli/internal/command/completion.go` に実装されています。動的候補の取得は行わず、`build` / `completion` / `version` の補完と、`completion` サブコマンドの補完のみを提供します。

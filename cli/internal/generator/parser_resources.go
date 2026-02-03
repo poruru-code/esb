@@ -82,7 +82,6 @@ func parseOtherResources(resources map[string]any) manifest.ResourcesSpec {
 
 			s3Props.BucketName = bucketName
 			parsed.S3 = append(parsed.S3, s3Props)
-
 		}
 	}
 

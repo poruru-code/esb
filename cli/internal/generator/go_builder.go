@@ -14,11 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/poruru/edge-serverless-box/meta"
-
-	"github.com/poruru/edge-serverless-box/cli/internal/compose"
-	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
+	"github.com/poruru/edge-serverless-box/meta"
 )
 
 // PortDiscoverer defines the interface for discovering dynamically assigned ports.
@@ -109,10 +108,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	imageTag := strings.TrimSpace(request.Tag)
 	includeDockerOutput := !strings.EqualFold(mode, compose.ModeContainerd)
 
-	artifactBase, err := resolveOutputDir(cfg.Paths.OutputDir, filepath.Dir(templatePath))
-	if err != nil {
-		return err
-	}
+	artifactBase := resolveOutputDir(cfg.Paths.OutputDir, filepath.Dir(templatePath))
 	cfg.Paths.OutputDir = filepath.Join(artifactBase, request.Env)
 
 	composeProject := strings.TrimSpace(request.ProjectName)
@@ -510,7 +506,11 @@ func waitForRegistry(registry string, timeout time.Duration) error {
 	client := &http.Client{Timeout: 2 * time.Second}
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		resp, err := client.Get(url)
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
+		if err != nil {
+			return fmt.Errorf("create registry request: %w", err)
+		}
+		resp, err := client.Do(req)
 		if err == nil {
 			_ = resp.Body.Close()
 			if resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusInternalServerError {

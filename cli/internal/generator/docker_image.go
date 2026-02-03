@@ -1,5 +1,5 @@
 // Where: cli/internal/generator/docker_image.go
-// What: Docker image discovery helpers.
+// What: Docker image discovery env.
 // Why: Avoid rebuilding shared base images when they already exist.
 package generator
 
@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/compose"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
 )
 
 func dockerImageHasLabelValue(

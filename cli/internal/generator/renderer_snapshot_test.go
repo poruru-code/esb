@@ -84,7 +84,7 @@ func assertSnapshot(t *testing.T, name, content string) {
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			t.Fatalf("mkdir snapshot dir: %v", err)
 		}
-		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 			t.Fatalf("write snapshot: %v", err)
 		}
 		return

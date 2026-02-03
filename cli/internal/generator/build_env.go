@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
-	"github.com/poruru/edge-serverless-box/cli/internal/envutil"
-	"github.com/poruru/edge-serverless-box/cli/internal/staging"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/envutil"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
 )
 
 func applyBuildEnv(env, composeProject string) {

@@ -269,7 +269,7 @@ func writeYaml(t *testing.T, path string, data map[string]any) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(path, content, 0o644); err != nil {
+	if err := os.WriteFile(path, content, 0o600); err != nil {
 		t.Fatal(err)
 	}
 }

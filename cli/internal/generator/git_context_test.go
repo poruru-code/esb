@@ -1,5 +1,5 @@
 // Where: cli/internal/generator/git_context_test.go
-// What: Tests for git context resolution helpers.
+// What: Tests for git context resolution env.
 // Why: Ensure worktree and standard clones resolve build contexts correctly.
 package generator
 
@@ -41,7 +41,7 @@ func TestResolveGitContextStandardRepo(t *testing.T) {
 		},
 	}
 
-	ctx, err := resolveGitContext(context.Background(), runner, root)
+	ctx, err := resolveGitContext(t.Context(), runner, root)
 	if err != nil {
 		t.Fatalf("resolveGitContext: %v", err)
 	}
@@ -77,7 +77,7 @@ func TestResolveGitContextWorktreeGitDirFile(t *testing.T) {
 		},
 	}
 
-	ctx, err := resolveGitContext(context.Background(), runner, root)
+	ctx, err := resolveGitContext(t.Context(), runner, root)
 	if err != nil {
 		t.Fatalf("resolveGitContext: %v", err)
 	}
@@ -104,7 +104,7 @@ func TestResolveGitContextMissingHead(t *testing.T) {
 		},
 	}
 
-	_, err := resolveGitContext(context.Background(), runner, root)
+	_, err := resolveGitContext(t.Context(), runner, root)
 	if err == nil {
 		t.Fatal("expected error for missing HEAD")
 	}
@@ -125,7 +125,7 @@ func TestResolveGitContextMissingObjects(t *testing.T) {
 		},
 	}
 
-	_, err := resolveGitContext(context.Background(), runner, root)
+	_, err := resolveGitContext(t.Context(), runner, root)
 	if err == nil {
 		t.Fatal("expected error for missing objects")
 	}
@@ -136,5 +136,5 @@ func writeTestFileWithDirs(root, relPath, content string) error {
 	if err := ensureDir(filepath.Dir(path)); err != nil {
 		return err
 	}
-	return os.WriteFile(path, []byte(content), 0o644)
+	return os.WriteFile(path, []byte(content), 0o600)
 }

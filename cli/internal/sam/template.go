@@ -1,9 +1,11 @@
 // Where: cli/internal/sam/template.go
-// What: SAM template decoding and resource extraction helpers.
+// What: SAM template decoding and resource extraction env.
 // Why: Isolate schema decoding from generator and provisioner packages.
 package sam
 
 import (
+	"fmt"
+
 	samparser "github.com/poruru-code/aws-sam-parser-go/parser"
 	"github.com/poruru-code/aws-sam-parser-go/schema"
 	"github.com/poruru/edge-serverless-box/cli/internal/manifest"
@@ -35,7 +37,7 @@ type FunctionProperties struct {
 func DecodeTemplate(resolved map[string]any) (Template, error) {
 	var model schema.SamModel
 	if err := samparser.Decode(resolved, &model, nil); err != nil {
-		return Template{}, err
+		return Template{}, fmt.Errorf("decode template: %w", err)
 	}
 	return Template{Resources: model.Resources}, nil
 }
@@ -44,7 +46,7 @@ func DecodeTemplate(resolved map[string]any) (Template, error) {
 func DecodeFunctionProps(props map[string]any) (FunctionProperties, error) {
 	var spec FunctionProperties
 	if err := samparser.Decode(props, &spec, nil); err != nil {
-		return FunctionProperties{}, err
+		return FunctionProperties{}, fmt.Errorf("decode function properties: %w", err)
 	}
 	return spec, nil
 }
@@ -53,7 +55,7 @@ func DecodeFunctionProps(props map[string]any) (FunctionProperties, error) {
 func DecodeMap(value any) (map[string]any, error) {
 	var out map[string]any
 	if err := samparser.Decode(value, &out, nil); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decode map: %w", err)
 	}
 	return out, nil
 }
@@ -62,7 +64,7 @@ func DecodeMap(value any) (map[string]any, error) {
 func DecodeDynamoDBProps(props map[string]any) (manifest.DynamoDBSpec, error) {
 	var spec manifest.DynamoDBSpec
 	if err := samparser.Decode(props, &spec, nil); err != nil {
-		return manifest.DynamoDBSpec{}, err
+		return manifest.DynamoDBSpec{}, fmt.Errorf("decode dynamodb properties: %w", err)
 	}
 	return spec, nil
 }
@@ -71,7 +73,7 @@ func DecodeDynamoDBProps(props map[string]any) (manifest.DynamoDBSpec, error) {
 func DecodeS3BucketProps(props map[string]any) (manifest.S3Spec, error) {
 	var spec manifest.S3Spec
 	if err := samparser.Decode(props, &spec, nil); err != nil {
-		return manifest.S3Spec{}, err
+		return manifest.S3Spec{}, fmt.Errorf("decode s3 properties: %w", err)
 	}
 	return spec, nil
 }
