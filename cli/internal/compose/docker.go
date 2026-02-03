@@ -19,6 +19,8 @@ import (
 const (
 	ComposeProjectLabel      = "com.docker.compose.project"
 	ComposeServiceLabel      = "com.docker.compose.service"
+	ComposeConfigFilesLabel  = "com.docker.compose.project.config_files"
+	ComposeWorkingDirLabel   = "com.docker.compose.project.working_dir"
 	ESBProjectLabel          = meta.LabelPrefix + ".project"
 	ESBEnvLabel              = meta.LabelPrefix + ".env"
 	ESBManagedLabel          = meta.LabelPrefix + ".managed"

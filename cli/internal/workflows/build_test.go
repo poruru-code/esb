@@ -16,6 +16,7 @@ func TestDeployWorkflowRunSuccess(t *testing.T) {
 	runner := &fakeComposeRunner{}
 
 	t.Setenv("ENV_PREFIX", "ESB")
+	t.Setenv("ESB_SKIP_GATEWAY_ALIGN", "1")
 
 	// Use the actual repo root for testing
 	repoRoot, err := os.Getwd()

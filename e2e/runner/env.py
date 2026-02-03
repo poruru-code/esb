@@ -1,4 +1,5 @@
 import hashlib
+import json
 import os
 import secrets
 import subprocess
@@ -282,6 +283,94 @@ def resolve_esb_home(env_name: str) -> Path:
     return Path.home() / BRAND_HOME_DIR / env_name
 
 
+def _resolve_compose_files_from_project(project_name: str) -> list[Path]:
+    if not project_name:
+        return []
+    try:
+        list_cmd = [
+            "docker",
+            "ps",
+            "-a",
+            "--filter",
+            f"label=com.docker.compose.project={project_name}",
+            "--format",
+            "{{.ID}}",
+        ]
+        result = subprocess.run(list_cmd, capture_output=True, text=True)
+        if result.returncode != 0 or not result.stdout.strip():
+            return []
+        container_ids = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+        if not container_ids:
+            return []
+        inspect = subprocess.run(
+            ["docker", "inspect", *container_ids], capture_output=True, text=True
+        )
+        if inspect.returncode != 0 or not inspect.stdout.strip():
+            return []
+        containers = json.loads(inspect.stdout)
+    except Exception:
+        return []
+
+    running = []
+    for ctr in containers:
+        state = str(ctr.get("State", {}).get("Status", "")).lower()
+        if state == "running":
+            running.append(ctr)
+    candidates = running or containers
+
+    sets: dict[tuple[str, ...], int] = {}
+    order: list[tuple[str, ...]] = []
+    for ctr in candidates:
+        labels = ctr.get("Config", {}).get("Labels", {}) or {}
+        raw = str(labels.get("com.docker.compose.project.config_files", "")).strip()
+        if not raw:
+            continue
+        working_dir = str(labels.get("com.docker.compose.project.working_dir", "")).strip()
+        files = []
+        for part in raw.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            path = Path(part)
+            if not path.is_absolute() and working_dir:
+                path = Path(working_dir) / path
+            files.append(os.path.abspath(str(path)))
+        if not files:
+            continue
+        key = tuple(files)
+        if key not in sets:
+            sets[key] = 0
+            order.append(key)
+        sets[key] += 1
+
+    if not sets:
+        return []
+
+    best_key = order[0]
+    best_count = sets[best_key]
+    for key in order[1:]:
+        if sets[key] > best_count:
+            best_key = key
+            best_count = sets[key]
+
+    resolved = [Path(path) for path in best_key]
+    existing = [path for path in resolved if path.exists()]
+    if not existing:
+        return []
+    return existing
+
+
+def build_compose_base_cmd(project_name: str, compose_file: Path) -> list[str]:
+    cmd = ["docker", "compose", "-p", project_name]
+    compose_files = _resolve_compose_files_from_project(project_name)
+    if compose_files:
+        for file in compose_files:
+            cmd.extend(["-f", str(file)])
+        return cmd
+    cmd.extend(["-f", str(compose_file)])
+    return cmd
+
+
 def discover_ports(project_name: str, compose_file: Path) -> dict[str, int]:
     """Discover host ports for mapped services using docker compose port."""
     services = {
@@ -299,21 +388,11 @@ def discover_ports(project_name: str, compose_file: Path) -> dict[str, int]:
     }
 
     ports = {}
+    base_cmd = build_compose_base_cmd(project_name, compose_file)
     for service, port_mappings in services.items():
         for internal, env_key_suffix in port_mappings:
             try:
-                # docker compose -p {project} -f {file} port {service} {internal}
-                cmd = [
-                    "docker",
-                    "compose",
-                    "-p",
-                    project_name,
-                    "-f",
-                    str(compose_file),
-                    "port",
-                    service,
-                    internal,
-                ]
+                cmd = base_cmd + ["port", service, internal]
                 result = subprocess.run(cmd, capture_output=True, text=True)
                 if result.returncode == 0 and result.stdout.strip():
                     # Format is 0.0.0.0:12345 or [::]:12345

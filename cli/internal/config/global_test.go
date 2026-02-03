@@ -21,6 +21,10 @@ func TestGlobalConfigRoundTrip(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	cfg := GlobalConfig{
 		Version: 1,
+		RecentTemplates: []string{
+			"/tmp/template.yaml",
+			"/work/template.yml",
+		},
 		Projects: map[string]ProjectEntry{
 			"my-app": {
 				Path:     "/path/to/app",

@@ -4,6 +4,7 @@
 package commands
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/docker/docker/api/types/container"
 	"github.com/poruru/edge-serverless-box/cli/internal/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
@@ -19,6 +21,7 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/interaction"
 	"github.com/poruru/edge-serverless-box/cli/internal/ports"
 	"github.com/poruru/edge-serverless-box/cli/internal/sam"
+	"github.com/poruru/edge-serverless-box/cli/internal/staging"
 	"github.com/poruru/edge-serverless-box/cli/internal/state"
 	"github.com/poruru/edge-serverless-box/cli/internal/workflows"
 	"github.com/poruru/edge-serverless-box/meta"
@@ -95,13 +98,27 @@ func (c *deployCommand) Run(inputs deployInputs, flags DeployCmd) error {
 }
 
 type deployInputs struct {
-	Context      state.Context
-	Env          string
-	Mode         string
-	TemplatePath string
-	OutputDir    string
-	Parameters   map[string]string
+	Context       state.Context
+	Env           string
+	EnvSource     string
+	Mode          string
+	TemplatePath  string
+	OutputDir     string
+	Project       string
+	ProjectSource string
+	Parameters    map[string]string
 }
+
+type envChoice struct {
+	Value    string
+	Source   string
+	Explicit bool
+}
+
+const (
+	templateHistoryLimit = 10
+	templateManualOption = "Enter path..."
+)
 
 func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 	isTTY := interaction.IsTerminal(os.Stdin)
@@ -118,10 +135,6 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 		if prevEnv == "" {
 			prevEnv = strings.TrimSpace(stored.Env)
 		}
-		env, err := resolveDeployEnv(cli.EnvFlag, isTTY, prompter, prevEnv)
-		if err != nil {
-			return deployInputs{}, err
-		}
 
 		prevMode := strings.TrimSpace(last.Mode)
 		if prevMode == "" {
@@ -132,14 +145,72 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 			return deployInputs{}, err
 		}
 
+		projectValue := strings.TrimSpace(cli.Deploy.Project)
+		if projectValue == "" {
+			projectValue = strings.TrimSpace(os.Getenv(constants.EnvProjectName))
+		}
+		if projectValue == "" {
+			if hostProject, err := envutil.GetHostEnv(constants.HostSuffixProject); err == nil {
+				projectValue = strings.TrimSpace(hostProject)
+			}
+		}
+		runningProjects, _ := discoverRunningComposeProjects()
+		hasRunning := len(runningProjects) > 0
+
+		selectedEnv := envChoice{}
+		if !hasRunning {
+			chosen, err := resolveDeployEnv(cli.EnvFlag, isTTY, prompter, prevEnv)
+			if err != nil {
+				return deployInputs{}, err
+			}
+			selectedEnv = chosen
+		} else if trimmed := strings.TrimSpace(cli.EnvFlag); trimmed != "" {
+			selectedEnv = envChoice{Value: trimmed, Source: "flag", Explicit: true}
+		}
+
+		composeProject, projectSource, err := resolveDeployProject(
+			projectValue,
+			selectedEnv.Value,
+			isTTY,
+			prompter,
+			runningProjects,
+		)
+		if err != nil {
+			return deployInputs{}, err
+		}
+
+		if hasRunning {
+			selectedEnv, err = reconcileEnvWithRuntime(
+				selectedEnv,
+				composeProject,
+				isTTY,
+				prompter,
+				cli.Deploy.Force,
+			)
+			if err != nil {
+				return deployInputs{}, err
+			}
+		}
+		if strings.TrimSpace(selectedEnv.Value) == "" {
+			chosen, err := resolveDeployEnv("", isTTY, prompter, prevEnv)
+			if err != nil {
+				return deployInputs{}, err
+			}
+			selectedEnv = chosen
+		}
+		envChanged := selectedEnv.Value != prevEnv
+
 		prevOutput := strings.TrimSpace(last.OutputDir)
 		if prevOutput == "" {
 			prevOutput = strings.TrimSpace(stored.OutputDir)
 		}
+		if envChanged && strings.TrimSpace(cli.Deploy.Output) == "" {
+			prevOutput = ""
+		}
 		outputDir, err := resolveDeployOutput(
 			cli.Deploy.Output,
 			templatePath,
-			env,
+			selectedEnv.Value,
 			isTTY,
 			prompter,
 			prevOutput,
@@ -162,31 +233,25 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 			return deployInputs{}, err
 		}
 
-		composeProject := strings.TrimSpace(os.Getenv(constants.EnvProjectName))
-		if composeProject == "" {
-			brandName := strings.ToLower(strings.TrimSpace(os.Getenv("CLI_CMD")))
-			if brandName == "" {
-				brandName = meta.Slug
-			}
-			composeProject = fmt.Sprintf("%s-%s", brandName, strings.ToLower(env))
-		}
-
 		ctx := state.Context{
 			ProjectDir:     projectDir,
 			TemplatePath:   templatePath,
 			OutputDir:      outputDir,
-			Env:            env,
+			Env:            selectedEnv.Value,
 			Mode:           mode,
 			ComposeProject: composeProject,
 		}
 
 		inputs := deployInputs{
-			Context:      ctx,
-			Env:          env,
-			Mode:         mode,
-			TemplatePath: templatePath,
-			OutputDir:    outputDir,
-			Parameters:   params,
+			Context:       ctx,
+			Env:           selectedEnv.Value,
+			EnvSource:     selectedEnv.Source,
+			Mode:          mode,
+			TemplatePath:  templatePath,
+			OutputDir:     outputDir,
+			Project:       composeProject,
+			ProjectSource: projectSource,
+			Parameters:    params,
 		}
 
 		confirmed, err := confirmDeployInputs(inputs, isTTY, prompter)
@@ -219,44 +284,70 @@ func resolveDeployTemplate(
 		return "", fmt.Errorf("template path is required")
 	}
 	for {
+		history := loadTemplateHistory()
 		candidates := discoverTemplateCandidates()
-		suggestions := make([]string, 0, len(candidates)+1)
-		if strings.TrimSpace(previous) != "" {
-			suggestions = append(suggestions, previous)
-		}
-		for _, candidate := range candidates {
-			if candidate == previous {
-				continue
-			}
-			suggestions = append(suggestions, candidate)
+		suggestions := buildTemplateSuggestions(previous, history, candidates)
+		defaultValue := ""
+		if len(suggestions) > 0 {
+			defaultValue = suggestions[0]
 		}
 		title := "Template path"
-		if strings.TrimSpace(previous) != "" {
-			title = fmt.Sprintf("Template path (default: %s)", previous)
-		} else if len(candidates) > 0 {
-			title = fmt.Sprintf("Template path (default: %s)", candidates[0])
+		if defaultValue != "" {
+			title = fmt.Sprintf("Template path (default: %s)", defaultValue)
 		}
+
+		if len(history) > 0 || len(suggestions) > 0 {
+			options := append([]string{}, suggestions...)
+			options = append(options, templateManualOption)
+			selected, err := prompter.Select(title, options)
+			if err != nil {
+				return "", err
+			}
+			if selected == templateManualOption {
+				input, err := prompter.Input(title, suggestions)
+				if err != nil {
+					return "", err
+				}
+				input = strings.TrimSpace(input)
+				if input == "" {
+					if defaultValue != "" {
+						input = defaultValue
+					} else if path, err := resolveTemplateFallback(previous, candidates); err == nil {
+						return path, nil
+					} else {
+						fmt.Fprintln(os.Stderr, "Template path is required.")
+						continue
+					}
+				}
+				path, err := normalizeTemplatePath(input)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Invalid template path: %v\n", err)
+					continue
+				}
+				return path, nil
+			}
+			path, err := normalizeTemplatePath(selected)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Invalid template path: %v\n", err)
+				continue
+			}
+			return path, nil
+		}
+
 		input, err := prompter.Input(title, suggestions)
 		if err != nil {
 			return "", err
 		}
 		input = strings.TrimSpace(input)
 		if input == "" {
-			if strings.TrimSpace(previous) != "" {
-				if path, err := normalizeTemplatePath(previous); err == nil {
-					return path, nil
-				}
-			}
-			if len(candidates) > 0 {
-				if path, err := normalizeTemplatePath(candidates[0]); err == nil {
-					return path, nil
-				}
-			}
-			if path, err := normalizeTemplatePath("."); err == nil {
+			if defaultValue != "" {
+				input = defaultValue
+			} else if path, err := resolveTemplateFallback(previous, candidates); err == nil {
 				return path, nil
+			} else {
+				fmt.Fprintln(os.Stderr, "Template path is required.")
+				continue
 			}
-			fmt.Fprintln(os.Stderr, "Template path is required.")
-			continue
 		}
 		path, err := normalizeTemplatePath(input)
 		if err != nil {
@@ -272,13 +363,13 @@ func resolveDeployEnv(
 	isTTY bool,
 	prompter interaction.Prompter,
 	previous string,
-) (string, error) {
+) (envChoice, error) {
 	trimmed := strings.TrimSpace(value)
 	if trimmed != "" {
-		return trimmed, nil
+		return envChoice{Value: trimmed, Source: "flag", Explicit: true}, nil
 	}
 	if !isTTY || prompter == nil {
-		return "", fmt.Errorf("environment is required")
+		return envChoice{}, fmt.Errorf("environment is required")
 	}
 	defaultValue := strings.TrimSpace(previous)
 	if defaultValue == "" {
@@ -287,13 +378,13 @@ func resolveDeployEnv(
 	title := fmt.Sprintf("Environment name (default: %s)", defaultValue)
 	input, err := prompter.Input(title, []string{defaultValue})
 	if err != nil {
-		return "", err
+		return envChoice{}, err
 	}
 	input = strings.TrimSpace(input)
 	if input == "" {
-		return defaultValue, nil
+		return envChoice{Value: defaultValue, Source: "default", Explicit: false}, nil
 	}
-	return input, nil
+	return envChoice{Value: input, Source: "prompt", Explicit: true}, nil
 }
 
 func resolveDeployMode(
@@ -392,11 +483,25 @@ func confirmDeployInputs(inputs deployInputs, isTTY bool, prompter interaction.P
 
 	output := resolveDeployOutputSummary(inputs.TemplatePath, inputs.OutputDir, inputs.Env)
 
+	templateBase := filepath.Dir(inputs.TemplatePath)
+	projectLine := fmt.Sprintf("Project: %s", inputs.Project)
+	if strings.TrimSpace(inputs.ProjectSource) != "" {
+		projectLine = fmt.Sprintf("Project: %s (%s)", inputs.Project, inputs.ProjectSource)
+	}
+	envLine := fmt.Sprintf("Env: %s", inputs.Env)
+	if strings.TrimSpace(inputs.EnvSource) != "" {
+		envLine = fmt.Sprintf("Env: %s (%s)", inputs.Env, inputs.EnvSource)
+	}
+	stagingDir := staging.ConfigDir(inputs.Project, inputs.Env)
+
 	summaryLines := []string{
 		fmt.Sprintf("Template: %s", inputs.TemplatePath),
-		fmt.Sprintf("Env: %s", inputs.Env),
+		fmt.Sprintf("Template base: %s", templateBase),
+		projectLine,
+		envLine,
 		fmt.Sprintf("Mode: %s", inputs.Mode),
 		fmt.Sprintf("Output: %s", output),
+		fmt.Sprintf("Staging config: %s", stagingDir),
 	}
 	if len(inputs.Parameters) > 0 {
 		keys := make([]string, 0, len(inputs.Parameters))
@@ -427,6 +532,102 @@ func confirmDeployInputs(inputs deployInputs, isTTY bool, prompter interaction.P
 	return choice == "proceed", nil
 }
 
+func resolveDeployProject(
+	value string,
+	env string,
+	isTTY bool,
+	prompter interaction.Prompter,
+	running []string,
+) (string, string, error) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed != "" {
+		return trimmed, "flag", nil
+	}
+
+	defaultProject := defaultDeployProject(env)
+	if len(running) == 1 && (!isTTY || prompter == nil) {
+		return running[0], "running", nil
+	}
+	if len(running) > 1 && (!isTTY || prompter == nil) {
+		return "", "", fmt.Errorf("multiple running projects found: %s (use --project)", strings.Join(running, ", "))
+	}
+	if len(running) > 0 && isTTY && prompter != nil {
+		options := append([]string{}, running...)
+		title := "Compose project (running)"
+		selected, err := prompter.Select(title, options)
+		if err != nil {
+			return "", "", err
+		}
+		selected = strings.TrimSpace(selected)
+		if selected != "" {
+			return selected, "running", nil
+		}
+	}
+	if defaultProject == "" {
+		return "", "", fmt.Errorf("compose project is required")
+	}
+	return defaultProject, "default", nil
+}
+
+func defaultDeployProject(env string) string {
+	brandName := strings.ToLower(strings.TrimSpace(os.Getenv("CLI_CMD")))
+	if brandName == "" {
+		brandName = meta.Slug
+	}
+	envName := strings.ToLower(strings.TrimSpace(env))
+	if envName == "" {
+		envName = "default"
+	}
+	return fmt.Sprintf("%s-%s", brandName, envName)
+}
+
+func discoverRunningComposeProjects() ([]string, error) {
+	client, err := compose.NewDockerClient()
+	if err != nil {
+		return nil, err
+	}
+	ctx := context.Background()
+	containers, err := client.ContainerList(ctx, container.ListOptions{All: false})
+	if err != nil {
+		return nil, err
+	}
+
+	allowedServices := map[string]struct{}{
+		"gateway":      {},
+		"agent":        {},
+		"runtime-node": {},
+		"registry":     {},
+		"database":     {},
+		"s3-storage":   {},
+		"victorialogs": {},
+	}
+	projects := make(map[string]struct{})
+	for _, ctr := range containers {
+		if ctr.Labels == nil {
+			continue
+		}
+		project := strings.TrimSpace(ctr.Labels[compose.ComposeProjectLabel])
+		service := strings.TrimSpace(ctr.Labels[compose.ComposeServiceLabel])
+		if project == "" {
+			continue
+		}
+		if _, ok := allowedServices[service]; !ok {
+			continue
+		}
+		projects[project] = struct{}{}
+	}
+
+	if len(projects) == 0 {
+		return nil, nil
+	}
+	names := make([]string, 0, len(projects))
+	for project := range projects {
+		names = append(names, project)
+	}
+	sort.Strings(names)
+	return names, nil
+}
+
 func resolveDeployOutputSummary(templatePath, outputDir, env string) string {
 	baseDir := filepath.Dir(templatePath)
 	trimmed := strings.TrimRight(strings.TrimSpace(outputDir), "/\\")
@@ -446,6 +647,73 @@ type storedDeployDefaults struct {
 	Mode      string
 	OutputDir string
 	Params    map[string]string
+}
+
+func loadTemplateHistory() []string {
+	cfgPath, err := config.GlobalConfigPath()
+	if err != nil {
+		return nil
+	}
+	cfg, err := config.LoadGlobalConfig(cfgPath)
+	if err != nil {
+		return nil
+	}
+
+	history := make([]string, 0, len(cfg.RecentTemplates))
+	seen := map[string]struct{}{}
+	for _, entry := range cfg.RecentTemplates {
+		trimmed := strings.TrimSpace(entry)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		if _, err := os.Stat(trimmed); err != nil {
+			continue
+		}
+		history = append(history, trimmed)
+		seen[trimmed] = struct{}{}
+		if len(history) >= templateHistoryLimit {
+			break
+		}
+	}
+	return history
+}
+
+func buildTemplateSuggestions(previous string, history, candidates []string) []string {
+	suggestions := []string{}
+	seen := map[string]struct{}{}
+	add := func(value string) {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			return
+		}
+		if _, ok := seen[trimmed]; ok {
+			return
+		}
+		suggestions = append(suggestions, trimmed)
+		seen[trimmed] = struct{}{}
+	}
+
+	add(previous)
+	for _, entry := range history {
+		add(entry)
+	}
+	for _, candidate := range candidates {
+		add(candidate)
+	}
+	return suggestions
+}
+
+func resolveTemplateFallback(previous string, candidates []string) (string, error) {
+	if strings.TrimSpace(previous) != "" {
+		return normalizeTemplatePath(previous)
+	}
+	if len(candidates) > 0 {
+		return normalizeTemplatePath(candidates[0])
+	}
+	return normalizeTemplatePath(".")
 }
 
 func loadDeployDefaults(templatePath string) storedDeployDefaults {
@@ -494,7 +762,37 @@ func saveDeployDefaults(templatePath string, inputs deployInputs) error {
 		OutputDir: inputs.OutputDir,
 		Params:    cloneParams(inputs.Parameters),
 	}
+	cfg.RecentTemplates = updateTemplateHistory(cfg.RecentTemplates, templatePath)
 	return config.SaveGlobalConfig(cfgPath, cfg)
+}
+
+func updateTemplateHistory(history []string, templatePath string) []string {
+	trimmed := strings.TrimSpace(templatePath)
+	if trimmed == "" {
+		return history
+	}
+	next := make([]string, 0, templateHistoryLimit)
+	seen := map[string]struct{}{}
+	add := func(value string) {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			return
+		}
+		if _, ok := seen[trimmed]; ok {
+			return
+		}
+		if len(next) >= templateHistoryLimit {
+			return
+		}
+		next = append(next, trimmed)
+		seen[trimmed] = struct{}{}
+	}
+
+	add(trimmed)
+	for _, entry := range history {
+		add(entry)
+	}
+	return next
 }
 
 // Helper functions from deleted build.go
@@ -585,9 +883,24 @@ func discoverTemplateCandidates() []string {
 		if name == ".git" || name == ".esb" || name == "node_modules" || name == ".venv" {
 			continue
 		}
+		if name == "__pycache__" || name == ".pytest_cache" || name == ".mypy_cache" {
+			continue
+		}
+		if !hasTemplateFile(name) {
+			continue
+		}
 		candidates = append(candidates, name)
 	}
 	return candidates
+}
+
+func hasTemplateFile(dir string) bool {
+	for _, name := range []string{"template.yaml", "template.yml"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 func normalizeMode(mode string) (string, error) {
