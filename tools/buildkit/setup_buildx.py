@@ -103,7 +103,7 @@ def _build_driver_proxy_opts(proxy: dict[str, str]) -> list[str]:
         value = proxy.get(key, "").strip()
         if not value:
             continue
-        if "," in value:
+        if key == "noProxy" and "," in value:
             continue
         for env_key in env_keys:
             entries.append(f"env.{env_key}={value}")
