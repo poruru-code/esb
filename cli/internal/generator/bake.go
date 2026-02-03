@@ -387,6 +387,18 @@ func buildxProxyEnvMap() map[string]string {
 	return envs
 }
 
+func buildxProxyDriverEnvMap() map[string]string {
+	envs := buildxProxyEnvMap()
+	driverEnv := make(map[string]string)
+	for key, value := range envs {
+		if strings.Contains(value, ",") {
+			continue
+		}
+		driverEnv[key] = value
+	}
+	return driverEnv
+}
+
 func buildxProxyDriverOptsFromMap(envs map[string]string) []string {
 	if len(envs) == 0 {
 		return nil
@@ -592,7 +604,7 @@ func ensureBuildxBuilder(
 	}
 	builder := buildxBuilderName()
 	needsRecreate := false
-	desiredProxyEnv := buildxProxyEnvMap()
+	desiredProxyEnv := buildxProxyDriverEnvMap()
 	return withBuildLock("buildx", func() error {
 		output, err := runner.RunOutput(
 			ctx,
