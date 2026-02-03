@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/poruru/edge-serverless-box/cli/internal/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
@@ -140,9 +141,13 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 		if prevMode == "" {
 			prevMode = strings.TrimSpace(stored.Mode)
 		}
-		mode, err := resolveDeployMode(cli.Deploy.Mode, isTTY, prompter, prevMode)
-		if err != nil {
-			return deployInputs{}, err
+		flagMode := strings.TrimSpace(cli.Deploy.Mode)
+		if flagMode != "" {
+			normalized, err := normalizeMode(flagMode)
+			if err != nil {
+				return deployInputs{}, err
+			}
+			flagMode = normalized
 		}
 
 		projectValue := strings.TrimSpace(cli.Deploy.Project)
@@ -199,6 +204,38 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 			selectedEnv = chosen
 		}
 		envChanged := selectedEnv.Value != prevEnv
+
+		mode := ""
+		if hasRunning {
+			inferredMode, source, err := inferDeployModeFromProject(composeProject)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to infer runtime mode: %v\n", err)
+			}
+			if inferredMode != "" {
+				if flagMode != "" && inferredMode != flagMode {
+					fmt.Fprintf(
+						os.Stderr,
+						"Warning: running project uses %s mode; ignoring --mode %s (source: %s)\n",
+						inferredMode,
+						flagMode,
+						source,
+					)
+				}
+				mode = inferredMode
+			} else if flagMode != "" {
+				mode = flagMode
+			} else {
+				mode = fallbackDeployMode(prevMode)
+			}
+		} else if flagMode != "" {
+			mode = flagMode
+		} else {
+			var err error
+			mode, err = resolveDeployMode("", isTTY, prompter, prevMode)
+			if err != nil {
+				return deployInputs{}, err
+			}
+		}
 
 		prevOutput := strings.TrimSpace(last.OutputDir)
 		if prevOutput == "" {
@@ -626,6 +663,96 @@ func discoverRunningComposeProjects() ([]string, error) {
 	}
 	sort.Strings(names)
 	return names, nil
+}
+
+func fallbackDeployMode(previous string) string {
+	trimmed := strings.TrimSpace(previous)
+	if trimmed == "" {
+		return compose.ModeDocker
+	}
+	mode, err := normalizeMode(trimmed)
+	if err != nil {
+		return compose.ModeDocker
+	}
+	return mode
+}
+
+func inferDeployModeFromProject(composeProject string) (string, string, error) {
+	trimmed := strings.TrimSpace(composeProject)
+	if trimmed == "" {
+		return "", "", nil
+	}
+	client, err := compose.NewDockerClient()
+	if err != nil {
+		return "", "", err
+	}
+	ctx := context.Background()
+
+	filterArgs := filters.NewArgs()
+	filterArgs.Add("label", fmt.Sprintf("%s=%s", compose.ComposeProjectLabel, trimmed))
+	containers, err := client.ContainerList(ctx, container.ListOptions{All: true, Filters: filterArgs})
+	if err != nil {
+		return "", "", err
+	}
+	if mode := inferModeFromContainers(containers, true); mode != "" {
+		return mode, "running_services", nil
+	}
+	if mode := inferModeFromContainers(containers, false); mode != "" {
+		return mode, "services", nil
+	}
+
+	result, err := compose.ResolveComposeFilesFromProject(ctx, client, trimmed)
+	if err == nil {
+		if mode := inferModeFromComposeFiles(result.Files); mode != "" {
+			return mode, "config_files", nil
+		}
+	} else {
+		return "", "", err
+	}
+	return "", "", nil
+}
+
+func inferModeFromComposeFiles(files []string) string {
+	for _, file := range files {
+		base := strings.ToLower(filepath.Base(file))
+		if strings.Contains(base, "containerd") {
+			return compose.ModeContainerd
+		}
+	}
+	for _, file := range files {
+		base := strings.ToLower(filepath.Base(file))
+		if strings.Contains(base, "docker") {
+			return compose.ModeDocker
+		}
+	}
+	return ""
+}
+
+func inferModeFromContainers(containers []container.Summary, runningOnly bool) string {
+	hasRuntimeNode := false
+	hasAgent := false
+	for _, ctr := range containers {
+		if runningOnly && !strings.EqualFold(ctr.State, "running") {
+			continue
+		}
+		if ctr.Labels == nil {
+			continue
+		}
+		service := strings.TrimSpace(ctr.Labels[compose.ComposeServiceLabel])
+		switch service {
+		case "runtime-node":
+			hasRuntimeNode = true
+		case "agent":
+			hasAgent = true
+		}
+	}
+	if hasRuntimeNode {
+		return compose.ModeContainerd
+	}
+	if hasAgent {
+		return compose.ModeDocker
+	}
+	return ""
 }
 
 func resolveDeployOutputSummary(templatePath, outputDir, env string) string {
