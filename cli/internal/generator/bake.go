@@ -300,8 +300,6 @@ var buildxProxyEnvKeys = []string{
 	"http_proxy",
 	"HTTPS_PROXY",
 	"https_proxy",
-	"NO_PROXY",
-	"no_proxy",
 }
 
 var buildxProxyEnvKeySet = map[string]struct{}{
@@ -309,8 +307,6 @@ var buildxProxyEnvKeySet = map[string]struct{}{
 	"http_proxy":  {},
 	"HTTPS_PROXY": {},
 	"https_proxy": {},
-	"NO_PROXY":    {},
-	"no_proxy":    {},
 }
 
 func resolveProxyValue(upper, lower, fallback string) string {
@@ -387,6 +383,18 @@ func buildxProxyEnvMap() map[string]string {
 	return envs
 }
 
+func buildxProxyDriverEnvMap() map[string]string {
+	envs := buildxProxyEnvMap()
+	driverEnv := make(map[string]string)
+	for key, value := range envs {
+		if strings.Contains(value, ",") {
+			continue
+		}
+		driverEnv[key] = value
+	}
+	return driverEnv
+}
+
 func buildxProxyDriverOptsFromMap(envs map[string]string) []string {
 	if len(envs) == 0 {
 		return nil
@@ -450,16 +458,17 @@ func buildxBuilderProxyMismatch(
 	if err != nil {
 		return false, err
 	}
-	for _, key := range buildxProxyEnvKeys {
-		desiredValue := strings.TrimSpace(desired[key])
-		existingValue := strings.TrimSpace(existing[key])
-		if desiredValue == "" {
-			if existingValue != "" {
+	if len(desired) == 0 {
+		for _, key := range buildxProxyEnvKeys {
+			if strings.TrimSpace(existing[key]) != "" {
 				return true, nil
 			}
-			continue
 		}
-		if existingValue != desiredValue {
+		return false, nil
+	}
+	for key, desiredValue := range desired {
+		existingValue := strings.TrimSpace(existing[key])
+		if strings.TrimSpace(desiredValue) != existingValue {
 			return true, nil
 		}
 	}
@@ -592,7 +601,7 @@ func ensureBuildxBuilder(
 	}
 	builder := buildxBuilderName()
 	needsRecreate := false
-	desiredProxyEnv := buildxProxyEnvMap()
+	desiredProxyEnv := buildxProxyDriverEnvMap()
 	return withBuildLock("buildx", func() error {
 		output, err := runner.RunOutput(
 			ctx,
