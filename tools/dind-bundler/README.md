@@ -6,7 +6,7 @@
 ## 概要
 
 このツールセットは以下の機能を提供します：
-1.  **ビルド自動化**: `esb build` を実行して Lambda 関数イメージを生成し、必要なベースイメージと共に単一の tar アーカイブにまとめます。
+1.  **ビルド自動化**: `esb deploy --build-only --bundle-manifest` を実行して Lambda 関数イメージを生成し、必要なベースイメージと共に単一の tar アーカイブにまとめます。
 2.  **自己完結イメージ**: すべての依存イメージと設定ファイルを含む DinD イメージを作成します。
 3.  **自動起動**: コンテナ起動時に内部 Docker デーモンを立ち上げ、イメージをロードし、`docker-compose` でスタックを起動します。
 
@@ -20,17 +20,19 @@
 
 # 例: e2eテスト用のテンプレートを使用してビルドする場合
 ./tools/dind-bundler/build.sh e2e/fixtures/template.yaml my-esb-bundle:latest
+
+# 例: 複数テンプレートをまとめてビルドする場合
+./tools/dind-bundler/build.sh -t template-a.yaml -t template-b.yaml my-esb-bundle:latest
 ```
 
 ※ `SAMテンプレートパス` は必須です。
 
 ### ビルドオプション (環境変数)
 
-*   `SKIP_ESB_BUILD=true`: `esb build` プロセスをスキップします（既存のアーティファクトを再利用する場合やテスト用）。
-*   `ESB_ENV=<env>` / `${ENV_PREFIX}_ENV`: `esb build --env` に渡す環境名を指定します。
-*   `CERT_DIR=<path>`: 証明書の保存先を指定します（デフォルト: `~/.<cli_cmd>/certs`）。存在しない場合はエラーになります。
-*   `ESB_OUTPUT_DIR=<path>` / `${ENV_PREFIX}_OUTPUT_DIR`: `esb build` の出力ディレクトリ（デフォルト: `.<cli_cmd>`）。
-*   `BUNDLE_MANIFEST_PATH=<path>`: バンドル用マニフェストのパスを明示指定します。
+*   `ESB_ENV=<env>` / `${ENV_PREFIX}_ENV`: `esb deploy --env` に渡す環境名を指定します。
+*   `CERT_DIR=<path>`: 証明書の保存先を指定します（デフォルト: `./.<cli_cmd>/certs`）。存在しない場合はエラーになります。
+*   `ESB_OUTPUT_DIR=<path>` / `${ENV_PREFIX}_OUTPUT_DIR`: `esb deploy` の出力ディレクトリ（デフォルト: `.<cli_cmd>`）。
+*   `BUNDLE_MANIFEST_PATH=<path>`: バンドル用マニフェストのパスを明示指定します（複数テンプレートでは使用不可）。
 
 `.env` が存在する場合は DinD イメージに同梱されます。`.env` がない場合は、
 `ENV` と `RUSTFS_ACCESS_KEY` / `RUSTFS_SECRET_KEY` の最小構成を生成します。
@@ -40,9 +42,10 @@
 ## マニフェスト駆動
 
 バンドラーは **マニフェストを唯一の入力** としてイメージを収集します。
-`esb build` は `--bundle-manifest` により `bundle/manifest.json` を生成し、
+`esb deploy --bundle-manifest` は `bundle/manifest.json` を生成し、
 ビルドスクリプトはこのファイルを読み取って `images.tar` を作成します。
 既定パスは `.<cli_cmd>/<env>/bundle/manifest.json` です。
+複数テンプレートを指定した場合は、各テンプレートのマニフェストを統合して 1 つにまとめます。
 
 ## 実行方法
 
@@ -67,7 +70,7 @@ sequenceDiagram
 
     User->>Script: 実行 (template.yaml)
     Script->>Script: 証明書確認 (なければエラー)
-    Script->>CLI: esb build (関数のビルド)
+    Script->>CLI: esb deploy --build-only --bundle-manifest
     CLI->>Docker: 関数イメージの作成 (com.<brand>.kind=function)
     Script->>Docker: 外部イメージのPull (Scylla, RustFS等)
     Script->>Docker: 全イメージのSave

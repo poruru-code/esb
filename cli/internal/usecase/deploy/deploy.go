@@ -37,17 +37,19 @@ var (
 
 // Request captures the inputs required to run a deploy.
 type Request struct {
-	Context      state.Context
-	Env          string
-	TemplatePath string
-	Mode         string
-	OutputDir    string
-	Parameters   map[string]string
-	Tag          string
-	NoCache      bool
-	NoDeps       bool
-	Verbose      bool
-	ComposeFiles []string
+	Context        state.Context
+	Env            string
+	TemplatePath   string
+	Mode           string
+	OutputDir      string
+	Parameters     map[string]string
+	Tag            string
+	NoCache        bool
+	NoDeps         bool
+	Verbose        bool
+	ComposeFiles   []string
+	BuildOnly      bool
+	BundleManifest bool
 }
 
 // RegistryWaiter checks registry readiness.
@@ -122,16 +124,18 @@ func (w Workflow) Run(req Request) error {
 		}
 	}
 
-	// Wait for registry to be ready
-	registry := w.resolveRegistryAddress()
-	if w.RegistryWaiter != nil {
-		if err := w.RegistryWaiter(registry, 60*time.Second); err != nil {
-			return fmt.Errorf("registry not ready: %w", err)
+	if !req.BuildOnly {
+		// Wait for registry to be ready
+		registry := w.resolveRegistryAddress()
+		if w.RegistryWaiter != nil {
+			if err := w.RegistryWaiter(registry, 60*time.Second); err != nil {
+				return fmt.Errorf("registry not ready: %w", err)
+			}
 		}
-	}
 
-	// Check gateway/agent status (warning only)
-	w.checkServicesStatus(req.Context.ComposeProject, req.Mode)
+		// Check gateway/agent status (warning only)
+		w.checkServicesStatus(req.Context.ComposeProject, req.Mode)
+	}
 
 	stagingDir, err := staging.ConfigDir(req.TemplatePath, req.Context.ComposeProject, req.Env)
 	if err != nil {
@@ -158,7 +162,7 @@ func (w Workflow) Run(req Request) error {
 		Tag:          req.Tag,
 		NoCache:      req.NoCache,
 		Verbose:      req.Verbose,
-		Bundle:       false,
+		Bundle:       req.BundleManifest,
 	}
 
 	if err := w.Build(buildRequest); err != nil {
@@ -188,20 +192,22 @@ func (w Workflow) Run(req Request) error {
 		}
 	}
 
-	if err := w.syncRuntimeConfig(req); err != nil {
-		return err
-	}
+	if !req.BuildOnly {
+		if err := w.syncRuntimeConfig(req); err != nil {
+			return err
+		}
 
-	// Run provisioner
-	if err := w.runProvisioner(
-		req.Context.ComposeProject,
-		req.Mode,
-		req.NoDeps,
-		req.Verbose,
-		req.Context.ProjectDir,
-		req.ComposeFiles,
-	); err != nil {
-		return fmt.Errorf("provisioner failed: %w", err)
+		// Run provisioner
+		if err := w.runProvisioner(
+			req.Context.ComposeProject,
+			req.Mode,
+			req.NoDeps,
+			req.Verbose,
+			req.Context.ProjectDir,
+			req.ComposeFiles,
+		); err != nil {
+			return fmt.Errorf("provisioner failed: %w", err)
+		}
 	}
 
 	// For containerd mode, function images are pulled by agent/runtime-node.
@@ -209,7 +215,11 @@ func (w Workflow) Run(req Request) error {
 	// See: agent/runtime-node IMAGE_PULL_POLICY configuration.
 
 	if w.UserInterface != nil {
-		w.UserInterface.Success("✓ Deploy complete")
+		if req.BuildOnly {
+			w.UserInterface.Success("✓ Build complete")
+		} else {
+			w.UserInterface.Success("✓ Deploy complete")
+		}
 	}
 	return nil
 }
