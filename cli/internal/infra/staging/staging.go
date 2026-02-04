@@ -44,8 +44,8 @@ func stageKey(composeProject, env string) string {
 }
 
 // RootDir returns the absolute cache root for staging assets.
-// It prefers project-scoped staging next to the template directory and falls back to
-// the global cache root if the project path is not writable.
+// It prefers project-scoped staging next to the template directory and requires
+// that location to be writable.
 func RootDir(templatePath string) (string, error) {
 	if override := strings.TrimSpace(getHostEnv(constants.HostSuffixStagingDir)); override != "" {
 		root, err := absPath(override)
@@ -68,15 +68,11 @@ func RootDir(templatePath string) (string, error) {
 			templateDir = abs
 		}
 		root := filepath.Join(templateDir, meta.OutputDir, "staging")
-		if ensured, err := ensureDir(root); err == nil {
-			return ensured, nil
-		} else {
-			fmt.Fprintf(
-				os.Stderr,
-				"Warning: staging root %q is not writable; falling back to global cache.\n",
-				root,
-			)
+		ensured, err := ensureDir(root)
+		if err != nil {
+			return "", fmt.Errorf("staging root not writable: %s: %w", root, err)
 		}
+		return ensured, nil
 	}
 
 	root := globalRootDir()

@@ -58,8 +58,8 @@ The staging root should be resolved in this order:
    `<STAGING_HOME>/staging`.
 3. Default to `<template_dir>/.esb/staging`.
 
-If the template directory is not writable, fall back to
-`$XDG_CACHE_HOME/esb/staging` and warn.
+If the template directory is not writable, error and instruct the user to set
+`${ENV_PREFIX}_STAGING_DIR` or `${ENV_PREFIX}_STAGING_HOME`.
 
 ## Cleanup
 - Remove a single env:
