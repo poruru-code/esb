@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/envutil"
 	"github.com/poruru/edge-serverless-box/meta"
 )
 
@@ -42,7 +44,97 @@ func stageKey(composeProject, env string) string {
 }
 
 // RootDir returns the absolute cache root for staging assets.
-func RootDir() string {
+// It prefers project-scoped staging next to the template directory and falls back to
+// the global cache root if the project path is not writable.
+func RootDir(templatePath string) (string, error) {
+	if override := strings.TrimSpace(getHostEnv(constants.HostSuffixStagingDir)); override != "" {
+		root, err := absPath(override)
+		if err != nil {
+			return "", err
+		}
+		return ensureDir(root)
+	}
+	if override := strings.TrimSpace(getHostEnv(constants.HostSuffixStagingHome)); override != "" {
+		root, err := absPath(filepath.Join(override, "staging"))
+		if err != nil {
+			return "", err
+		}
+		return ensureDir(root)
+	}
+
+	if templatePath != "" {
+		templateDir := filepath.Dir(templatePath)
+		if abs, err := filepath.Abs(templateDir); err == nil {
+			templateDir = abs
+		}
+		root := filepath.Join(templateDir, meta.OutputDir, "staging")
+		if ensured, err := ensureDir(root); err == nil {
+			return ensured, nil
+		} else {
+			fmt.Fprintf(
+				os.Stderr,
+				"Warning: staging root %q is not writable; falling back to global cache.\n",
+				root,
+			)
+		}
+	}
+
+	root := globalRootDir()
+	if abs, err := filepath.Abs(root); err == nil {
+		root = abs
+	}
+	return ensureDir(root)
+}
+
+// BaseDir returns the absolute staging directory for a project/env combination.
+func BaseDir(templatePath, composeProject, env string) (string, error) {
+	root, err := RootDir(templatePath)
+	if err != nil {
+		return "", err
+	}
+	projectKey := ComposeProjectKey(composeProject, env)
+	envKey := strings.ToLower(strings.TrimSpace(env))
+	if envKey == "" {
+		envKey = "default"
+	}
+	return filepath.Join(root, projectKey, envKey), nil
+}
+
+// ConfigDir returns the absolute staging config directory used by runtime code.
+func ConfigDir(templatePath, composeProject, env string) (string, error) {
+	base, err := BaseDir(templatePath, composeProject, env)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(base, "config"), nil
+}
+
+func getHostEnv(suffix string) string {
+	value, err := envutil.GetHostEnv(suffix)
+	if err != nil {
+		return ""
+	}
+	return value
+}
+
+func absPath(path string) (string, error) {
+	if strings.TrimSpace(path) == "" {
+		return "", fmt.Errorf("path is empty")
+	}
+	if filepath.IsAbs(path) {
+		return path, nil
+	}
+	return filepath.Abs(path)
+}
+
+func ensureDir(path string) (string, error) {
+	if err := os.MkdirAll(path, 0o755); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+func globalRootDir() string {
 	if xdg := strings.TrimSpace(os.Getenv("XDG_CACHE_HOME")); xdg != "" {
 		return filepath.Join(xdg, meta.Slug, "staging")
 	}
@@ -51,14 +143,4 @@ func RootDir() string {
 		return filepath.Join(fmt.Sprintf(".%s", meta.Slug), ".cache", "staging")
 	}
 	return filepath.Join(home, fmt.Sprintf(".%s", meta.Slug), ".cache", "staging")
-}
-
-// BaseDir returns the absolute staging directory for a project/env combination.
-func BaseDir(composeProject, env string) string {
-	return filepath.Join(RootDir(), stageKey(composeProject, env))
-}
-
-// ConfigDir returns the absolute staging config directory used by runtime code.
-func ConfigDir(composeProject, env string) string {
-	return filepath.Join(BaseDir(composeProject, env), env, "config")
 }

@@ -68,9 +68,12 @@ func brandingImageLabels(project, env string) map[string]string {
 	return labels
 }
 
-func stageConfigFiles(outputDir, repoRoot, composeProject, env string) error {
+func stageConfigFiles(outputDir, repoRoot, templatePath, composeProject, env string) error {
 	configDir := filepath.Join(outputDir, "config")
-	stagingRoot := staging.BaseDir(composeProject, env)
+	stagingRoot, err := staging.BaseDir(templatePath, composeProject, env)
+	if err != nil {
+		return err
+	}
 
 	// Verify source config files exist
 	for _, name := range []string{"functions.yml", "routing.yml", "resources.yml"} {
@@ -81,7 +84,7 @@ func stageConfigFiles(outputDir, repoRoot, composeProject, env string) error {
 	}
 
 	// Merge config files into CONFIG_DIR (with locking and atomic updates)
-	if err := MergeConfig(outputDir, composeProject, env); err != nil {
+	if err := MergeConfig(outputDir, templatePath, composeProject, env); err != nil {
 		return err
 	}
 
@@ -143,8 +146,8 @@ func withBuildLock(name string, fn func() error) error {
 	if key == "" {
 		return fn()
 	}
-	lockRoot := staging.RootDir()
-	if err := os.MkdirAll(lockRoot, 0o755); err != nil {
+	lockRoot, err := staging.RootDir("")
+	if err != nil {
 		return err
 	}
 	lockPath := filepath.Join(lockRoot, fmt.Sprintf(".lock-%s", key))

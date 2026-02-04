@@ -146,7 +146,11 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		t.Fatalf("missing DYNAMODB_ENDPOINT_HOST parameter")
 	}
 
-	expectedConfigDir := filepath.ToSlash(staging.ConfigDir("demo-staging", "staging"))
+	expectedConfigDir, err := staging.ConfigDir(templatePath, "demo-staging", "staging")
+	if err != nil {
+		t.Fatalf("resolve staging config dir: %v", err)
+	}
+	expectedConfigDir = filepath.ToSlash(expectedConfigDir)
 	if got := os.Getenv(constants.EnvConfigDir); got != expectedConfigDir {
 		t.Fatalf("unexpected %s: %s", constants.EnvConfigDir, got)
 	}
@@ -159,7 +163,11 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		t.Fatalf("unexpected %s: %s", constants.HostSuffixMode, got)
 	}
 
-	staged := filepath.Join(staging.ConfigDir("demo-staging", "staging"), "functions.yml")
+	stagingDir, err := staging.ConfigDir(templatePath, "demo-staging", "staging")
+	if err != nil {
+		t.Fatalf("resolve staging config dir: %v", err)
+	}
+	staged := filepath.Join(stagingDir, "functions.yml")
 	if _, err := os.Stat(staged); err != nil {
 		t.Fatalf("expected staged config: %v", err)
 	}

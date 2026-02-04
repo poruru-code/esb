@@ -32,6 +32,8 @@ const (
 	HostSuffixConfigDir        = "CONFIG_DIR"
 	HostSuffixConfigPath       = "CONFIG_PATH"
 	HostSuffixConfigHome       = "CONFIG_HOME"
+	HostSuffixStagingDir       = "STAGING_DIR"
+	HostSuffixStagingHome      = "STAGING_HOME"
 	HostSuffixInteractive      = "INTERACTIVE"
 	HostSuffixNoProxyExtra     = "NO_PROXY_EXTRA"
 	HostSuffixCACertPath       = "CA_CERT_PATH"

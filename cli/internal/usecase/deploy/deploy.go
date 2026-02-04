@@ -133,7 +133,10 @@ func (w Workflow) Run(req Request) error {
 	// Check gateway/agent status (warning only)
 	w.checkServicesStatus(req.Context.ComposeProject, req.Mode)
 
-	stagingDir := staging.ConfigDir(req.Context.ComposeProject, req.Env)
+	stagingDir, err := staging.ConfigDir(req.TemplatePath, req.Context.ComposeProject, req.Env)
+	if err != nil {
+		return err
+	}
 	var preSnapshot domaincfg.Snapshot
 	if w.UserInterface != nil {
 		snapshot, err := loadConfigSnapshot(stagingDir)
@@ -408,7 +411,10 @@ func (w Workflow) syncRuntimeConfig(req Request) error {
 	if composeProject == "" {
 		return nil
 	}
-	stagingDir := staging.ConfigDir(composeProject, req.Env)
+	stagingDir, err := staging.ConfigDir(req.TemplatePath, composeProject, req.Env)
+	if err != nil {
+		return err
+	}
 	if _, err := os.Stat(stagingDir); err != nil {
 		if os.IsNotExist(err) {
 			return nil

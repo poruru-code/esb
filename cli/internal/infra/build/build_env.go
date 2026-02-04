@@ -14,8 +14,11 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
 )
 
-func applyBuildEnv(env, composeProject string) {
-	configDir := staging.ConfigDir(composeProject, env)
+func applyBuildEnv(env, templatePath, composeProject string) error {
+	configDir, err := staging.ConfigDir(templatePath, composeProject, env)
+	if err != nil {
+		return err
+	}
 	_ = os.Setenv(constants.EnvConfigDir, filepath.ToSlash(configDir))
 	if os.Getenv(constants.EnvProjectName) == "" {
 		_ = os.Setenv(constants.EnvProjectName, staging.ComposeProjectKey(composeProject, env))
@@ -23,6 +26,7 @@ func applyBuildEnv(env, composeProject string) {
 	if os.Getenv("DOCKER_BUILDKIT") == "" {
 		_ = os.Setenv("DOCKER_BUILDKIT", "1")
 	}
+	return nil
 }
 
 func applyModeFromRequest(mode string) error {

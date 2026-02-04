@@ -217,6 +217,7 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 			selectedEnv, err = reconcileEnvWithRuntime(
 				selectedEnv,
 				composeProject,
+				templatePath,
 				isTTY,
 				prompter,
 				cli.Deploy.Force,
@@ -595,7 +596,10 @@ func confirmDeployInputs(inputs deployInputs, isTTY bool, prompter interaction.P
 	if strings.TrimSpace(inputs.EnvSource) != "" {
 		envLine = fmt.Sprintf("Env: %s (%s)", inputs.Env, inputs.EnvSource)
 	}
-	stagingDir := staging.ConfigDir(inputs.Project, inputs.Env)
+	stagingDir := "<unresolved>"
+	if dir, err := staging.ConfigDir(inputs.TemplatePath, inputs.Project, inputs.Env); err == nil {
+		stagingDir = dir
+	}
 
 	summaryLines := []string{
 		fmt.Sprintf("Template: %s", inputs.TemplatePath),

@@ -124,7 +124,9 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		composeProject = fmt.Sprintf("%s-%s", brandName, strings.ToLower(request.Env))
 	}
 
-	applyBuildEnv(request.Env, composeProject)
+	if err := applyBuildEnv(request.Env, templatePath, composeProject); err != nil {
+		return err
+	}
 	_ = os.Setenv("META_MODULE_CONTEXT", filepath.Join(repoRoot, "meta"))
 	imageLabels := brandingImageLabels(composeProject, request.Env)
 	rootFingerprint, err := resolveRootCAFingerprint()
@@ -233,7 +235,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		fmt.Println("Done")
 	}
 
-	if err := stageConfigFiles(cfg.Paths.OutputDir, repoRoot, composeProject, request.Env); err != nil {
+	if err := stageConfigFiles(cfg.Paths.OutputDir, repoRoot, templatePath, composeProject, request.Env); err != nil {
 		return err
 	}
 
