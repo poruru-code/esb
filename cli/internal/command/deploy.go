@@ -936,7 +936,21 @@ func normalizeTemplatePath(path string) (string, error) {
 	cleaned := filepath.Clean(expanded)
 	info, err := os.Stat(cleaned)
 	if err != nil {
-		return "", fmt.Errorf("stat template path: %w", err)
+		if !filepath.IsAbs(cleaned) {
+			if cwd, cwdErr := os.Getwd(); cwdErr == nil {
+				if repoRoot, repoErr := config.ResolveRepoRoot(cwd); repoErr == nil {
+					candidate := filepath.Join(repoRoot, cleaned)
+					if altInfo, altErr := os.Stat(candidate); altErr == nil {
+						cleaned = candidate
+						info = altInfo
+						err = nil
+					}
+				}
+			}
+		}
+		if err != nil {
+			return "", fmt.Errorf("stat template path: %w", err)
+		}
 	}
 
 	// If it's a file, return its absolute path
