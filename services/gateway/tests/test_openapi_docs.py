@@ -1,11 +1,11 @@
 """
 Where: services/gateway/tests/test_openapi_docs.py
-What: Tests for OpenAPI description rendering of routing info.
-Why: Ensure /docs shows routing.yml contents on each deploy.
+What: Tests for OpenAPI injection of routing.yml routes.
+Why: Ensure /docs can execute routed endpoints via Swagger UI after each deploy.
 """
 
 
-def test_openapi_description_includes_routes(client, monkeypatch):
+def test_openapi_description_does_not_include_routing_markdown(client, monkeypatch):
     sample_routes = [
         {"path": "/api/hello", "method": "get", "function": "hello-func"},
         {"path": "/api/items/{id}", "method": "POST", "function": "items-func"},
@@ -17,11 +17,8 @@ def test_openapi_description_includes_routes(client, monkeypatch):
     response = client.get("/openapi.json")
     assert response.status_code == 200
 
-    description = response.json()["info"]["description"]
-    assert "## Routing" in description
-    assert "/api/hello" in description
-    assert "GET" in description
-    assert "items-func" in description
+    description = response.json()["info"].get("description") or ""
+    assert "## Routing" not in description
 
 
 def test_openapi_injects_routing_paths_as_operations(client, monkeypatch):

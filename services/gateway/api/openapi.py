@@ -2,8 +2,8 @@
 Gateway OpenAPI customization.
 
 Where: services/gateway/api/openapi.py
-What: Build OpenAPI descriptions with runtime routing info.
-Why: Show routing.yml contents directly in /docs for each deploy.
+What: Inject routing.yml routes into OpenAPI as executable operations.
+Why: Allow running routed endpoints from Swagger UI ("Try it out") after each deploy.
 """
 
 import re
@@ -18,7 +18,7 @@ _PATH_PARAM_RE = re.compile(r"{(\w+)}")
 
 
 def configure_openapi(app: FastAPI) -> None:
-    """Inject routing info into the OpenAPI description used by Swagger UI."""
+    """Inject routing.yml routes into OpenAPI so Swagger UI can execute them."""
 
     # NOTE: FastAPI's default /openapi.json handler calls `self.openapi()`.
     # When overriding `app.openapi` on an instance, Python does *not* bind the
@@ -29,7 +29,7 @@ def configure_openapi(app: FastAPI) -> None:
         schema = get_openapi(
             title=app.title,
             version=app.version,
-            description=_build_description(app, runtime_routes),
+            description=app.description,
             routes=app.routes,
         )
         _inject_bearer_auth_security_scheme(schema)
@@ -38,14 +38,6 @@ def configure_openapi(app: FastAPI) -> None:
 
     # FastAPI supports overriding app.openapi at runtime; type stubs are too strict.
     app.openapi = custom_openapi  # type: ignore[invalid-assignment]
-
-
-def _build_description(app: FastAPI, routes: Sequence[Mapping[str, Any]]) -> str:
-    base_description = app.description or ""
-    routes_section = _build_routes_section(routes)
-    if base_description:
-        return f"{base_description}\n\n{routes_section}"
-    return routes_section
 
 
 def _get_routes(app: FastAPI) -> Sequence[Mapping[str, Any]]:
@@ -152,29 +144,6 @@ def _build_operation_id(*, function: str, method: str, path: str) -> str:
     return f"routing_{safe_function}_{method}_{safe_path}"
 
 
-def _build_routes_section(routes: Sequence[Mapping[str, Any]]) -> str:
-    header = "## Routing"
-    if not routes:
-        return f"{header}\n\nNo routes loaded from routing.yml."
-
-    lines = [
-        header,
-        "",
-        "| Method | Path | Function |",
-        "| --- | --- | --- |",
-    ]
-
-    for route in routes:
-        method = _escape_cell(_format_method(route))
-        path = _escape_cell(_format_path(route))
-        function = _escape_cell(_format_function(route))
-        lines.append(f"| {method} | {path} | {function} |")
-
-    lines.append("")
-    lines.append("_Source: routing.yml (runtime config)._")
-    return "\n".join(lines)
-
-
 def _format_method(route: Mapping[str, Any]) -> str:
     value = route.get("method")
     if isinstance(value, str) and value.strip():
@@ -198,7 +167,3 @@ def _format_function(route: Mapping[str, Any]) -> str:
         if isinstance(container, str) and container.strip():
             return container.strip()
     return "-"
-
-
-def _escape_cell(value: str) -> str:
-    return value.replace("|", "\\|").replace("\n", " ").strip() or "-"
