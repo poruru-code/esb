@@ -4,7 +4,7 @@
 `aws-sam-parser-go` は外部ライブラリとして扱い、内部実装の詳細には踏み込みません。
 
 ## 目的
-- SAM テンプレートを ESB 内部の Spec へ変換するための全体像を示す
+- SAM テンプレートを ESB 内部 Spec へ変換する流れを示す
 - ESB と外部ライブラリの責務境界を明確にする
 
 ## 責務分離
@@ -14,13 +14,12 @@
 - パラメータの優先順位ルールの適用
 - Intrinsic 解決ポリシー（ESB 仕様）の実装
 - SAM 型から ESB 内部 Spec（`manifest`）への変換
-- ESB 固有のデフォルト値や命名規約の適用
+- ESB 固有のデフォルト値・命名規約の適用
 
 ### aws-sam-parser-go（外部ライブラリ）
 - YAML の読み取りと Intrinsic タグの正規化
 - Resolver インタフェースと再帰的ウォーカー
 - SAM スキーマ型（`schema` パッケージ）の提供
-- スキーマ生成ツール（ライブラリ側で管理）
 
 ## パース・パイプライン
 
@@ -30,47 +29,60 @@ graph TD
     B --> C[normalized map]
     C --> D[sam.ResolveAll + ESB IntrinsicResolver]
     D --> E[sam.DecodeTemplate]
-    E --> F[infra/sam: Spec 生成 + デフォルト適用]
-    F --> G[domain/manifest.ResourcesSpec]
+    E --> F[infra/sam: Function/Resource 解析]
+    F --> G[domain/template.ParseResult]
 
-    P1[deploy 入力値（対話）] --> P_MERGE{パラメータ統合}
-    P2[template.yaml の Parameters.Default] --> P_MERGE
+    P1[deploy 入力値] --> P_MERGE{パラメータ統合}
+    P2[Parameters.Default] --> P_MERGE
     P_MERGE --> D
 ```
 
 ## パラメータの優先順位
-ESB はテンプレート内の `Parameters.Default` と deploy 時の入力値を統合します。
-- 優先順位は **deploy 入力 > テンプレート** です。
+- `Parameters.Default` を初期値として取り込み
+- deploy 入力値が **上書き** されます
 
 ## Intrinsic 解決（ESB 仕様）
-Intrinsic の解決は ESB 側の実装に閉じた仕様です。`aws-sam-parser-go` は「解決の仕組み」だけを提供し、
-具体的な解決ルールは ESB が決めます。
+ESB は以下の Intrinsic を解決します:
+- `Ref`
+- `Fn::If`
+- `Fn::Sub`
+- `Fn::Join`
+- `Fn::GetAtt`
+- `Fn::Split`
+- `Fn::Select`
+- `Fn::ImportValue`
+- `Condition` / `Fn::Equals` / `Fn::Not` / `Fn::And` / `Fn::Or`
 
 実装場所: `cli/internal/infra/sam/intrinsics_resolver.go`
 
-## ESB が扱うリソースの拡張
-ESB が特定のリソースを Spec 化する場合は、ESB 側に明示的な処理を追加します。
+## デフォルト値の適用
+`Globals.Function` を読み、以下をデフォルトとして適用します:
+- Runtime / Handler / Timeout / MemorySize
+- Environment.Variables
+- Architectures
+- Layers
+- RuntimeManagementConfig
 
-- 実装場所: `cli/internal/infra/sam/template_resources.go`
-- `manifest` の内部型へ変換して保持するため、`schema` 依存は `cli/internal/infra/sam` に集約されます
+未指定時の既定値は以下です:
+- Runtime: `python3.12`
+- Handler: `lambda_function.lambda_handler`
+- Timeout: `30`
+- Memory: `128`
 
-## Build / Manifest 境界
+## リソース抽出
+以下のリソースを ESB 内部の manifest に変換します:
+- `AWS::DynamoDB::Table`
+- `AWS::S3::Bucket`
+- `AWS::Serverless::LayerVersion`
 
-### 役割
-- **infra/build + domain/template**: SAMテンプレートを解析し、`FunctionSpec` と `manifest.ResourcesSpec` を生成。
-  アセットのステージングと `functions.yml` / `routing.yml` / Dockerfile を出力。
-- **manifest**: `provisioner` が適用するリソースの意図を保持する純粋な内部型。
+実装場所: `cli/internal/infra/sam/template_resources.go`
 
-### 依存方向
-- `infra/build` -> `domain/template`
-- `infra/build` -> `infra/sam`
-- `infra/sam` -> `domain/manifest`
-- `provisioner` -> `domain/manifest`
-
-### テスト観点
-- renderer のスナップショットで出力差分を検知
-- `GenerateFiles` の統合テストで template から出力までを確認
+## 出力
+`ParseResult` として以下を返します:
+- `Functions []FunctionSpec`（関数定義）
+- `Resources manifest.ResourcesSpec`（DynamoDB / S3 / Layers）
 
 ## テスト観点
-- ESB 側: テンプレート入力→Spec 変換の統合テストを重視
-- ライブラリ側: YAML デコード、Resolver、スキーマ生成の単体テストを担当
+- Intrinsic resolver の単体テスト
+- `ParseSAMTemplate` の統合テスト（イベント、デフォルト、リソース抽出）
+- 生成結果は renderer のスナップショットで確認

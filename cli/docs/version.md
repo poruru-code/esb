@@ -1,8 +1,7 @@
 # `esb version` コマンド
 
 ## 概要
-
-`esb version` コマンドは、CLIの現在のバージョンを表示します。
+`esb version` は CLI のビルド情報からバージョンを表示します。
 
 ## 使用方法
 
@@ -11,16 +10,23 @@ esb version
 ```
 
 ## 実装詳細
-
-- **場所**: `cli/internal/command/app.go` (`runVersion`).
-- **ロジック**: `version.GetVersion()` が返す文字列を表示します。
-- **ビルド時**: バージョン情報は通常、ビルドプロセス中にリンカーフラグ (`-ldflags`) を介して注入されます（`cli/version/version.go` 等で処理）。
+- 実装: `cli/internal/version/version.go` / `cli/internal/command/app.go`
+- `debug.ReadBuildInfo()` から `vcs.revision` / `vcs.modified` を取得
+- リビジョンは **7文字**に短縮
+- `vcs.modified=true` の場合は `(<dirty>)` を付与
+- ビルド情報が無い場合は `dev` を表示
 
 ## フローチャート
 
 ```mermaid
 flowchart LR
-    Start([esb version]) --> GetVer[version.GetVersion]
-    GetVer --> Print[標準出力へ表示]
-    Print --> End([終了])
+    Start([esb version]) --> ReadInfo[debug.ReadBuildInfo]
+    ReadInfo -->|no info| Dev["dev"]
+    ReadInfo -->|revision| Shorten[7文字に短縮]
+    Shorten --> Dirty{vcs.modified?}
+    Dirty -->|yes| PrintDirty["<rev> (dirty)"]
+    Dirty -->|no| Print["<rev>"]
+    PrintDirty --> End([終了])
+    Print --> End
+    Dev --> End
 ```
