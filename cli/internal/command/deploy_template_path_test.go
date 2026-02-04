@@ -47,3 +47,20 @@ func TestNormalizeTemplatePathResolvesFromRepoRoot(t *testing.T) {
 		t.Fatalf("unexpected template path: %s", got)
 	}
 }
+
+func TestNormalizeTemplatePathExpandsTilde(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	tmplPath := filepath.Join(home, "template.yaml")
+	if err := os.WriteFile(tmplPath, []byte("Resources: {}"), 0o600); err != nil {
+		t.Fatalf("write template: %v", err)
+	}
+
+	got, err := normalizeTemplatePath("~/template.yaml")
+	if err != nil {
+		t.Fatalf("normalize template path: %v", err)
+	}
+	if got != tmplPath {
+		t.Fatalf("unexpected template path: %s", got)
+	}
+}
