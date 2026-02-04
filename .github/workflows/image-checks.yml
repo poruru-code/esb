@@ -38,12 +38,6 @@ jobs:
           DOCKER_BUILDKIT: "1"
           COMPOSE_DOCKER_CLI_BUILD: "1"
         run: |
-          git_dir=$(git rev-parse --git-dir)
-          git_common=$(git rev-parse --git-common-dir)
-          python3 tools/traceability/generate_version_json.py \
-            --git-dir "$git_dir" \
-            --git-common-dir "$git_common" \
-            --output "${GITHUB_WORKSPACE}/.esb/meta/version.json"
           docker compose -f docker-compose.docker.yml build os-base python-base
           docker compose -f docker-compose.docker.yml build gateway agent
 
