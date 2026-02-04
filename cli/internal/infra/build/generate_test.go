@@ -14,6 +14,7 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/manifest"
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/template"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
+	"github.com/poruru/edge-serverless-box/meta"
 	"gopkg.in/yaml.v3"
 )
 
@@ -57,7 +58,7 @@ func TestGenerateFilesUsesParserOverride(t *testing.T) {
 		App: config.AppConfig{},
 		Paths: config.PathsConfig{
 			SamTemplate: "template.yaml",
-			OutputDir:   ".esb/",
+			OutputDir:   meta.OutputDir + "/",
 		},
 		Parameters: map[string]any{
 			"Prefix": "dev",
@@ -87,7 +88,7 @@ func TestGenerateFilesUsesParserOverride(t *testing.T) {
 		t.Fatalf("unexpected image name: %s", functions[0].ImageName)
 	}
 
-	outputDir := filepath.Join(root, ".esb")
+	outputDir := filepath.Join(root, meta.OutputDir)
 	dockerfilePath := filepath.Join(outputDir, "functions", "lambda-hello", "Dockerfile")
 	if _, err := os.Stat(dockerfilePath); err != nil {
 		t.Fatalf("expected dockerfile to exist: %v", err)

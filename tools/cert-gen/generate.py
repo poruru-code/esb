@@ -2,6 +2,7 @@
 import argparse
 import getpass
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -18,7 +19,6 @@ except ImportError:  # pragma: no cover - non-POSIX
 else:
     grp_module = _grp
 
-DEFAULT_CERT_OUTPUT_DIR = "~/.local/share/certs"
 ROOT_CA_CERT_FILENAME = "rootCA.crt"
 ROOT_CA_KEY_FILENAME = "rootCA.key"
 
@@ -45,6 +45,11 @@ def resolve_sudo_path() -> str:
     if not sudo_path:
         return ""
     return sudo_path
+
+
+def normalize_slug(value: str) -> str:
+    cleaned = re.sub(r"[^a-z0-9]+", "-", value.strip().lower()).strip("-")
+    return cleaned or "esb"
 
 
 def check_step(step_path: str):
@@ -320,6 +325,7 @@ if __name__ == "__main__":
     repo_root = resolve_repo_root()
     defaults = load_env_defaults(repo_root)
     cli_cmd = defaults.get("CLI_CMD", "esb")
+    brand_slug = normalize_slug(cli_cmd)
 
     config_path = Path(args.config)
     if not config_path.is_absolute():
@@ -335,11 +341,10 @@ if __name__ == "__main__":
     # Derivation logic for output_dir:
     # 1. Flag (future)
     # 2. config.toml [certificate] output_dir
-    # 3. Dynamic branding: ~/.{CLI_CMD}/certs
-    # 4. Fallback: ~/.local/share/certs
+    # 3. Repo root: <repo_root>/.<brand>/certs
     output_dir = cert_cfg.get("output_dir")
     if not output_dir:
-        output_dir = f"~/.{cli_cmd}/certs" if cli_cmd else DEFAULT_CERT_OUTPUT_DIR
+        output_dir = str(repo_root / f".{brand_slug}" / "certs")
 
     output_dir = os.path.expanduser(output_dir)
 

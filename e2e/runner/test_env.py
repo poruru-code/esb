@@ -10,6 +10,7 @@ from e2e.runner.env import (
     hash_mod,
 )
 from e2e.runner.utils import (
+    BRAND_OUTPUT_DIR,
     BRAND_SLUG,
     ENV_PREFIX,
     env_key,
@@ -114,7 +115,7 @@ def test_calculate_staging_dir_logic(tmp_path):
     path = calculate_staging_dir("myproj", "myenv", template_path=str(template_path))
     assert "myproj" in str(path)
     assert "myenv" in str(path)
-    assert ".esb/staging" in str(path)
+    assert f"{BRAND_OUTPUT_DIR}/staging" in str(path)
 
 
 def test_calculate_runtime_env_project_config_dir(tmp_path):

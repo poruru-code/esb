@@ -21,18 +21,7 @@ func TestResolveRepoRootUsesEnvFirst(t *testing.T) {
 	base := t.TempDir()
 	repoEnv := makeRepo(t, base, "repo-env")
 	repoStart := makeRepo(t, base, "repo-start")
-	repoGlobal := makeRepo(t, base, "repo-global")
-
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	configPath := filepath.Join(home, meta.HomeDir, "config.yaml")
 	t.Setenv("ESB_REPO", repoEnv)
-
-	cfg := DefaultGlobalConfig()
-	cfg.RepoPath = repoGlobal
-	if err := SaveGlobalConfig(configPath, cfg); err != nil {
-		t.Fatalf("save global config: %v", err)
-	}
 
 	startDir := filepath.Join(repoStart, "nested")
 	if err := os.MkdirAll(startDir, 0o755); err != nil {
@@ -48,22 +37,11 @@ func TestResolveRepoRootUsesEnvFirst(t *testing.T) {
 	}
 }
 
-func TestResolveRepoRootUsesStartDirBeforeGlobal(t *testing.T) {
+func TestResolveRepoRootUsesStartDirWhenEnvEmpty(t *testing.T) {
 	setEnvPrefix(t)
 	base := t.TempDir()
 	repoStart := makeRepo(t, base, "repo-start")
-	repoGlobal := makeRepo(t, base, "repo-global")
-
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	configPath := filepath.Join(home, meta.HomeDir, "config.yaml")
 	t.Setenv("ESB_REPO", "")
-
-	cfg := DefaultGlobalConfig()
-	cfg.RepoPath = repoGlobal
-	if err := SaveGlobalConfig(configPath, cfg); err != nil {
-		t.Fatalf("save global config: %v", err)
-	}
 
 	startDir := filepath.Join(repoStart, "nested")
 	if err := os.MkdirAll(startDir, 0o755); err != nil {
@@ -79,29 +57,13 @@ func TestResolveRepoRootUsesStartDirBeforeGlobal(t *testing.T) {
 	}
 }
 
-func TestResolveRepoRootUsesGlobalWhenStartDirMissing(t *testing.T) {
+func TestResolveRepoRootErrorsWhenMissing(t *testing.T) {
 	setEnvPrefix(t)
-	base := t.TempDir()
-	repoGlobal := makeRepo(t, base, "repo-global")
-
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	configPath := filepath.Join(home, meta.HomeDir, "config.yaml")
 	t.Setenv("ESB_REPO", "")
 
-	cfg := DefaultGlobalConfig()
-	cfg.RepoPath = repoGlobal
-	if err := SaveGlobalConfig(configPath, cfg); err != nil {
-		t.Fatalf("save global config: %v", err)
-	}
-
 	startDir := t.TempDir()
-	root, err := ResolveRepoRoot(startDir)
-	if err != nil {
-		t.Fatalf("resolve repo root: %v", err)
-	}
-	if root != repoGlobal {
-		t.Fatalf("expected global repo %q, got %q", repoGlobal, root)
+	if _, err := ResolveRepoRoot(startDir); err == nil {
+		t.Fatalf("expected error for missing repo root")
 	}
 }
 
@@ -109,19 +71,9 @@ func TestResolveRepoRootFromPathIgnoresEnvAndGlobal(t *testing.T) {
 	setEnvPrefix(t)
 	base := t.TempDir()
 	repoEnv := makeRepo(t, base, "repo-env")
-	repoGlobal := makeRepo(t, base, "repo-global")
 	repoPath := makeRepo(t, base, "repo-path")
 
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	configPath := filepath.Join(home, meta.HomeDir, "config.yaml")
 	t.Setenv("ESB_REPO", repoEnv)
-
-	cfg := DefaultGlobalConfig()
-	cfg.RepoPath = repoGlobal
-	if err := SaveGlobalConfig(configPath, cfg); err != nil {
-		t.Fatalf("save global config: %v", err)
-	}
 
 	startDir := filepath.Join(repoPath, "nested")
 	if err := os.MkdirAll(startDir, 0o755); err != nil {

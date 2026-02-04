@@ -77,10 +77,6 @@ func Run(args []string, deps Dependencies) int {
 		return 1
 	}
 
-	if err := config.EnsureGlobalConfig(); err != nil {
-		return exitWithError(out, err)
-	}
-
 	if deps.RepoResolver == nil {
 		deps.RepoResolver = config.ResolveRepoRoot
 	}

@@ -1,6 +1,6 @@
 // Where: cli/internal/infra/config/repo.go
 // What: Repository discovery logic.
-// Why: Centralize logic to find the ESB repository root from env, config, or file system.
+// Why: Centralize logic to find the ESB repository root from env or file system.
 package config
 
 import (
@@ -12,6 +12,7 @@ import (
 
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/envutil"
+	"github.com/poruru/edge-serverless-box/meta"
 )
 
 var (
@@ -23,12 +24,15 @@ var (
 // Priority order.
 // 1. Brand-prefixed REPO environment variable (validated as root or searched upward).
 // 2. Upward search for docker-compose.{mode}.yml from startDir.
-// 3. repo_path in global config (~/.esb/config.yaml) (validated as root or searched upward).
 func ResolveRepoRoot(startDir string) (string, error) {
 	// 1. Try environment variable
 	repo, err := envutil.GetHostEnv(constants.HostSuffixRepo)
 	if err != nil {
-		return "", fmt.Errorf("get host env %s: %w", constants.HostSuffixRepo, err)
+		if strings.TrimSpace(os.Getenv("ENV_PREFIX")) != "" {
+			return "", fmt.Errorf("get host env %s: %w", constants.HostSuffixRepo, err)
+		}
+		key := fmt.Sprintf("%s_%s", meta.EnvPrefix, constants.HostSuffixRepo)
+		repo = os.Getenv(key)
 	}
 	if repo := strings.TrimSpace(repo); repo != "" {
 		if root, ok := findRepoRoot(repo); ok {
@@ -43,18 +47,9 @@ func ResolveRepoRoot(startDir string) (string, error) {
 		}
 	}
 
-	// 3. Try global configuration
-	if cfgPath, err := GlobalConfigPath(); err == nil {
-		if cfg, err := LoadGlobalConfig(cfgPath); err == nil && cfg.RepoPath != "" {
-			if root, ok := findRepoRoot(cfg.RepoPath); ok {
-				return root, nil
-			}
-		}
-	}
-
 	key, err := envutil.HostEnvKey(constants.HostSuffixRepo)
 	if err != nil {
-		return "", fmt.Errorf("resolve host env key for repo: %w", err)
+		key = fmt.Sprintf("%s_%s", meta.EnvPrefix, constants.HostSuffixRepo)
 	}
 	return "", fmt.Errorf("%w: run from repo root or set %s", errRepoRootNotFound, key)
 }

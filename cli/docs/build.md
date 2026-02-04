@@ -21,7 +21,7 @@
 - 関数ごとのビルドコンテキスト (`functions/<name>/...`)
 
 デフォルトの出力先は以下です:
-- `<template_dir>/.esb/<env>/...`
+- `<template_dir>/.<brand>/<env>/...`
 - `--output` 指定時は `<template_dir>/<output>/<env>/...`
 
 ## ビルドフロー
@@ -63,7 +63,7 @@ sequenceDiagram
    - `functions.yml` / `routing.yml` / `resources.yml` を出力
 
 5. **staging config への反映**
-   - `~/.esb/.cache/staging/<project-hash>/<env>/config` にマージ
+   - `<template_dir>/.<brand>/staging/<compose_project>/<env>/config` にマージ
    - `.deploy.lock` で排他制御
 
 6. **ベースイメージのビルド**

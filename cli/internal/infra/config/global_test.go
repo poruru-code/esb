@@ -29,7 +29,7 @@ func TestGlobalConfigRoundTrip(t *testing.T) {
 			"/tmp/template.yaml": {
 				Env:       "staging",
 				Mode:      "docker",
-				OutputDir: ".esb",
+				OutputDir: meta.OutputDir,
 				Params: map[string]string{
 					"ParamA": "value-a",
 				},
@@ -51,32 +51,29 @@ func TestGlobalConfigRoundTrip(t *testing.T) {
 	}
 }
 
-func TestGlobalConfigPathUsesHome(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-
-	got, err := GlobalConfigPath()
+func TestProjectConfigPathUsesProjectRoot(t *testing.T) {
+	projectRoot := t.TempDir()
+	got, err := ProjectConfigPath(projectRoot)
 	if err != nil {
-		t.Fatalf("global config path: %v", err)
+		t.Fatalf("project config path: %v", err)
 	}
-	want := filepath.Join(home, meta.HomeDir, "config.yaml")
+	want := filepath.Join(projectRoot, meta.HomeDir, "config.yaml")
 	if got != want {
 		t.Fatalf("unexpected config path: %s", got)
 	}
 }
 
-func TestEnsureGlobalConfigCreatesDefault(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	path := filepath.Join(home, meta.HomeDir, "config.yaml")
+func TestEnsureProjectConfigCreatesDefault(t *testing.T) {
+	projectRoot := t.TempDir()
+	path := filepath.Join(projectRoot, meta.HomeDir, "config.yaml")
 
-	if err := EnsureGlobalConfig(); err != nil {
-		t.Fatalf("ensure global config: %v", err)
+	if err := EnsureProjectConfig(projectRoot); err != nil {
+		t.Fatalf("ensure project config: %v", err)
 	}
 
 	loaded, err := LoadGlobalConfig(path)
 	if err != nil {
-		t.Fatalf("load global config: %v", err)
+		t.Fatalf("load project config: %v", err)
 	}
 
 	expected := DefaultGlobalConfig()
@@ -88,10 +85,9 @@ func TestEnsureGlobalConfigCreatesDefault(t *testing.T) {
 	}
 }
 
-func TestEnsureGlobalConfigKeepsExisting(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	path := filepath.Join(home, meta.HomeDir, "config.yaml")
+func TestEnsureProjectConfigKeepsExisting(t *testing.T) {
+	projectRoot := t.TempDir()
+	path := filepath.Join(projectRoot, meta.HomeDir, "config.yaml")
 
 	cfg := GlobalConfig{
 		Version: 2,
@@ -100,16 +96,16 @@ func TestEnsureGlobalConfigKeepsExisting(t *testing.T) {
 		},
 	}
 	if err := SaveGlobalConfig(path, cfg); err != nil {
-		t.Fatalf("save global config: %v", err)
+		t.Fatalf("save project config: %v", err)
 	}
 
-	if err := EnsureGlobalConfig(); err != nil {
-		t.Fatalf("ensure global config: %v", err)
+	if err := EnsureProjectConfig(projectRoot); err != nil {
+		t.Fatalf("ensure project config: %v", err)
 	}
 
 	loaded, err := LoadGlobalConfig(path)
 	if err != nil {
-		t.Fatalf("load global config: %v", err)
+		t.Fatalf("load project config: %v", err)
 	}
 	if !reflect.DeepEqual(cfg, loaded) {
 		t.Fatalf("config mismatch: expected %#v, got %#v", cfg, loaded)

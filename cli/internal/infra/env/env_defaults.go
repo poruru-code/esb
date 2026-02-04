@@ -36,7 +36,24 @@ var defaultPorts = []string{
 // ApplyRuntimeEnv sets all environment variables required for running commands,
 // including project metadata, ports, networks, and custom generator parameters.
 func ApplyRuntimeEnv(ctx state.Context, resolver func(string) (string, error)) error {
-	if err := ApplyBrandingEnv(); err != nil {
+	projectRoot := strings.TrimSpace(ctx.ProjectDir)
+	if projectRoot == "" {
+		startDir := strings.TrimSpace(ctx.TemplatePath)
+		if startDir != "" {
+			startDir = filepath.Dir(startDir)
+		} else if cwd, err := os.Getwd(); err == nil {
+			startDir = cwd
+		}
+		if resolver == nil {
+			return fmt.Errorf("project root is required to apply runtime env")
+		}
+		resolved, err := resolver(startDir)
+		if err != nil {
+			return fmt.Errorf("resolve repo root: %w", err)
+		}
+		projectRoot = resolved
+	}
+	if err := ApplyBrandingEnvWithRoot(projectRoot); err != nil {
 		return err
 	}
 	if err := applyModeEnv(ctx.Mode); err != nil {
@@ -87,29 +104,44 @@ func ApplyRuntimeEnv(ctx state.Context, resolver func(string) (string, error)) e
 	return nil
 }
 
-// ApplyBrandingEnv synchronizes branding constants from the meta package
-// to environment variables used by Docker Compose and scripts.
-func ApplyBrandingEnv() error {
+// ApplyBrandingEnvWithRoot synchronizes branding constants to environment variables,
+// using the given project root to build .<brand> asset paths.
+func ApplyBrandingEnvWithRoot(projectRoot string) error {
 	if strings.TrimSpace(meta.EnvPrefix) == "" {
 		return errEnvPrefixRequired
+	}
+	root := strings.TrimSpace(projectRoot)
+	if root == "" {
+		return fmt.Errorf("project root is required")
+	}
+	if abs, err := filepath.Abs(root); err == nil {
+		root = abs
 	}
 	_ = os.Setenv(constants.EnvRootCAMountID, meta.RootCAMountID)
 	setEnvIfEmpty("ROOT_CA_CERT_FILENAME", meta.RootCACertFilename)
 	_ = os.Setenv("ENV_PREFIX", meta.EnvPrefix)
 	_ = os.Setenv("CLI_CMD", meta.Slug)
 
-	homeDirName := meta.HomeDir
-	if !strings.HasPrefix(homeDirName, ".") {
-		homeDirName = "." + homeDirName
+	brandDir := filepath.Join(root, meta.HomeDir)
+	certDir := strings.TrimSpace(os.Getenv("CERT_DIR"))
+	if certDir == "" {
+		certDir = filepath.Join(brandDir, "certs")
+		setEnvIfEmpty("CERT_DIR", certDir)
 	}
-	home := os.Getenv("HOME")
-	certDir := filepath.Join(home, homeDirName, "certs")
-	setEnvIfEmpty("CERT_DIR", certDir)
-	buildkitConfig := filepath.Join(home, homeDirName, "buildkitd.toml")
-	setEnvIfEmpty(constants.EnvBuildkitdConfig, buildkitConfig)
+	if err := setHostEnvIfEmpty(constants.HostSuffixCertDir, certDir); err != nil {
+		return fmt.Errorf("set host env %s: %w", constants.HostSuffixCertDir, err)
+	}
+	caPath := filepath.Join(certDir, meta.RootCACertFilename)
+	if err := setHostEnvIfEmpty(constants.HostSuffixCACertPath, caPath); err != nil {
+		return fmt.Errorf("set host env %s: %w", constants.HostSuffixCACertPath, err)
+	}
+	buildkitConfig := strings.TrimSpace(os.Getenv(constants.EnvBuildkitdConfig))
+	if buildkitConfig == "" {
+		buildkitConfig = filepath.Join(brandDir, "buildkitd.toml")
+		setEnvIfEmpty(constants.EnvBuildkitdConfig, buildkitConfig)
+	}
 
 	// Calculate fingerprint for build cache invalidation if CA changes
-	caPath := filepath.Join(certDir, "rootCA.crt")
 	if data, err := os.ReadFile(caPath); err == nil {
 		//nolint:gosec // MD5 is sufficient for non-cryptographic fingerprinting.
 		fp := fmt.Sprintf("%x", md5.Sum(data))
@@ -354,4 +386,15 @@ func setEnvIfEmpty(key, value string) {
 		return
 	}
 	_ = os.Setenv(key, value)
+}
+
+func setHostEnvIfEmpty(suffix, value string) error {
+	key, err := envutil.HostEnvKey(suffix)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(os.Getenv(key)) != "" {
+		return nil
+	}
+	return envutil.SetHostEnv(suffix, value)
 }

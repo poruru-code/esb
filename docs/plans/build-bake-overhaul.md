@@ -15,12 +15,12 @@
 - bake は `docker-bake.hcl` と Go 側で生成する一時 HCL の合成で動作
 
 ### キャッシュ
-- bake: `.esb/buildx-cache/<group>/<target>` を `cache-from/cache-to` に利用
+- bake: `.<brand>/buildx-cache/<group>/<target>` を `cache-from/cache-to` に利用
 - compose build: `cache_from/cache_to` を compose YAML 内で指定
 
 ### 排他制御
 - `withBuildLock("meta")`, `withBuildLock("base-images")`, `withBuildLock("bake")`
-- ロック配置は `~/.esb/.cache/staging/.lock-*`
+- ロック配置は `~/.<brand>/.cache/staging/.lock-*`
 
 ### タグ
 - 既定タグは `latest`（`ESB_TAG` が未指定の場合）

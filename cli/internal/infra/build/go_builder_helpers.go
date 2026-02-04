@@ -16,6 +16,7 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/template"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/envutil"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
 	"github.com/poruru/edge-serverless-box/meta"
@@ -291,11 +292,15 @@ func resolveRootCAPath() (string, error) {
 	if value := strings.TrimSpace(os.Getenv("CAROOT")); value != "" {
 		return ensureRootCAPath(filepath.Join(expandHome(value), meta.RootCACertFilename))
 	}
-	home, err := os.UserHomeDir()
+	startDir, err := os.Getwd()
 	if err != nil {
 		return "", fmt.Errorf("root CA not found: %w", err)
 	}
-	return ensureRootCAPath(filepath.Join(home, meta.HomeDir, "certs", meta.RootCACertFilename))
+	repoRoot, err := config.ResolveRepoRoot(startDir)
+	if err != nil {
+		return "", fmt.Errorf("root CA not found: %w", err)
+	}
+	return ensureRootCAPath(filepath.Join(repoRoot, meta.HomeDir, "certs", meta.RootCACertFilename))
 }
 
 func ensureRootCAPath(path string) (string, error) {

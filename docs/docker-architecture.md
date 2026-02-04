@@ -93,7 +93,7 @@ Docker / containerd の2系統に分離し、containerd 系統が Firecracker �
 
 ## 4. 今後の拡張への指針
 
-- **非 root 実行**: Gateway は Docker モードで非 root で動作します。`~/.<brand>/certs`
+- **非 root 実行**: Gateway は Docker モードで非 root で動作します。`<repo_root>/.<brand>/certs`
   を読むため、compose の `RUN_UID`/`RUN_GID`（Dockerfile の `SERVICE_UID`/`SERVICE_GID`）を
   ホストの UID/GID に合わせてください。
   containerd 系（WireGuard 利用時）は `user: 0:0` を指定します。

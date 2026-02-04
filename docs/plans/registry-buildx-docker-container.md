@@ -48,7 +48,7 @@
 ### 3) cache-to の再有効化
 - bake / compose の cache-to を復活し、共有キャッシュを活用。
 - キャッシュ先は以下を使い分ける：
-  - ローカル: `.esb/buildx-cache`（高速・ローカル最適化）
+  - ローカル: `.<brand>/buildx-cache`（高速・ローカル最適化）
   - レジストリ: `type=registry`（並列/CI 共有）
 
 ### 4) ビルド経路の責務整理

@@ -27,7 +27,7 @@
 - **Docker クリーン確認**: `docker ps -a` / `docker images` が空であることを確認。
 - **キャッシュ削除確認**:
   - Docker: `docker builder prune -af` / `docker buildx prune -af` / `docker image prune -af` などでキャッシュ一掃。
-  - ローカル: `~/.esb/.cache/staging/*` と `./.esb/buildx-cache/*` を削除。
+  - ローカル: `~/.<brand>/.cache/staging/*` と `./.<brand>/buildx-cache/*` を削除。
   - buildx builder（`esb-buildx`）と buildkit イメージを削除。
 - **起動前提**: `.env` が必須のため、`.env.example` を複製して `.env` を作成。
 - **起動コマンド**: `docker compose up -d` を実行（`--build` 指定なし）。
@@ -44,7 +44,7 @@
 ### E2E 現状確認（2026-02-01）
 - **前提**: イメージ/キャッシュをクリーン化してから開始。
   - `docker image prune -af` / `docker builder prune -af` / `docker buildx prune -af` を実施。
-  - `~/.esb/.cache/staging/*` と `./.esb/buildx-cache/*` を削除。
+  - `~/.<brand>/.cache/staging/*` と `./.<brand>/buildx-cache/*` を削除。
 - **E2E 実行**: `uv run e2e/run_tests.py --parallel` を実行。
   - **注意**: 依頼コマンドは `run_test.py` だったが、実ファイルは `run_tests.py`。
   - **タイムアウト**: ランナーに timeout オプションが無いため、実行コマンド側の **長めタイムアウト（90 分）**で実施。
@@ -68,7 +68,7 @@
   - 対応案は TO-BE の E2E 改修で整理（起動待ちの追加が必要）。
 - **再実行結果（deploy-first 対応後）**:
   - `e2e-docker` が **buildx cache export で失敗**。
-  - 失敗ログ: `error writing manifest blob: ... rename tmp file ... .esb/buildx-cache/base/...: no such file or directory`
+  - 失敗ログ: `error writing manifest blob: ... rename tmp file ... .<brand>/buildx-cache/base/...: no such file or directory`
   - `e2e-containerd` は並列実行中に **強制終了（exit code: -15）** となった。
   - 並列実行で **両環境が同一の buildx cache ディレクトリ**を共有するため、
     **競合で失敗している可能性が高い**（TO-BE で分離が必要）。

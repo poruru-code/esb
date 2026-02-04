@@ -20,9 +20,9 @@ wg genkey | tee compute.key | wg pubkey > compute.pub
 ## Place configs (manual)
 
 ```bash
-mkdir -p ~/.esb/wireguard/gateway ~/.esb/wireguard/compute
-cp config/wireguard/gateway/wg0.conf.example ~/.esb/wireguard/gateway/wg0.conf
-cp config/wireguard/compute/wg0.conf.example ~/.esb/wireguard/compute/wg0.conf
+mkdir -p <repo_root>/.<brand>/wireguard/gateway <repo_root>/.<brand>/wireguard/compute
+cp config/wireguard/gateway/wg0.conf.example <repo_root>/.<brand>/wireguard/gateway/wg0.conf
+cp config/wireguard/compute/wg0.conf.example <repo_root>/.<brand>/wireguard/compute/wg0.conf
 ```
 
 Edit both files:
@@ -41,8 +41,8 @@ esb node provision \
 ```
 
 Output files:
-- Gateway: `~/.esb/wireguard/gateway/wg0.conf`
-- Compute: `~/.esb/wireguard/compute/<node-name>/wg0.conf`
+- Gateway: `<repo_root>/.<brand>/wireguard/gateway/wg0.conf`
+- Compute: `<repo_root>/.<brand>/wireguard/compute/<node-name>/wg0.conf`
 
 Note:
 - `--wg-runtime-ip` は **Compute VM の docker bridge 内**にいる `runtime-node` 固定IPです。

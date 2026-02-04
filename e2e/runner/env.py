@@ -49,7 +49,10 @@ def read_env_file(path: str) -> dict[str, str]:
         if "=" not in line:
             continue
         key, _, value = line.partition("=")
-        env[key.strip()] = value.strip()
+        value = value.strip()
+        if "<brand>" in value:
+            value = value.replace("<brand>", BRAND_SLUG)
+        env[key.strip()] = value
     return env
 
 
@@ -177,14 +180,17 @@ def calculate_runtime_env(
     env[constants.ENV_ROOT_CA_MOUNT_ID] = f"{BRAND_SLUG}_root_ca"
     env.setdefault(constants.ENV_ROOT_CA_CERT_FILENAME, constants.DEFAULT_ROOT_CA_FILENAME)
 
-    # Resolve CERT_DIR
+    # Resolve CERT_DIR (repo-root scoped)
     cert_dir = Path(
-        os.environ.get(constants.ENV_CERT_DIR, Path.home() / BRAND_HOME_DIR / "certs")
+        os.environ.get(
+            constants.ENV_CERT_DIR,
+            (PROJECT_ROOT / BRAND_HOME_DIR / "certs"),
+        )
     ).expanduser()
     env.setdefault(constants.ENV_CERT_DIR, str(cert_dir))
     env.setdefault(
         constants.ENV_BUILDKITD_CONFIG,
-        str((Path.home() / BRAND_HOME_DIR / "buildkitd.toml").expanduser()),
+        str((PROJECT_ROOT / BRAND_HOME_DIR / "buildkitd.toml").expanduser()),
     )
 
     # Calculate ROOT_CA_FINGERPRINT for build cache invalidation
@@ -476,7 +482,10 @@ def apply_gateway_env_from_container(env: dict[str, str], project_name: str) -> 
     if tls_enabled:
         env[constants.ENV_AGENT_GRPC_TLS_ENABLED] = tls_enabled
         cert_dir = Path(
-            os.environ.get(constants.ENV_CERT_DIR, f"~/{BRAND_HOME_DIR}/certs")
+            os.environ.get(
+                constants.ENV_CERT_DIR,
+                (PROJECT_ROOT / BRAND_HOME_DIR / "certs"),
+            )
         ).expanduser()
         env[constants.ENV_AGENT_GRPC_TLS_CA_CERT_PATH] = str(
             cert_dir / constants.DEFAULT_ROOT_CA_FILENAME
