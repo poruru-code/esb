@@ -760,9 +760,7 @@ func applyBakeLocalCache(target *bakeTarget, cacheRoot, group string) error {
 		return err
 	}
 	target.CacheFrom = append(target.CacheFrom, fmt.Sprintf("type=local,src=%s", cacheDir))
-	if strings.TrimSpace(os.Getenv("ESB_BUILDX_CACHE_TO")) != "0" {
-		target.CacheTo = append(target.CacheTo, fmt.Sprintf("type=local,dest=%s,mode=max", cacheDir))
-	}
+	target.CacheTo = append(target.CacheTo, fmt.Sprintf("type=local,dest=%s,mode=max", cacheDir))
 	return nil
 }
 
