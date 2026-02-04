@@ -866,9 +866,19 @@ def run_scenario(args, scenario):
             deploy_args.append("--no-cache")
         return deploy_args
 
-    runtime_env = calculate_runtime_env(project_name, env_name, mode, env_file)
+    runtime_env = calculate_runtime_env(
+        project_name,
+        env_name,
+        mode,
+        env_file,
+        template_path=str(deploy_paths[0]) if deploy_paths else None,
+    )
     compose_project = f"{project_name}-{env_name}"
-    staging_config_dir = calculate_staging_dir(compose_project, env_name)
+    staging_config_dir = calculate_staging_dir(
+        compose_project,
+        env_name,
+        template_path=str(deploy_paths[0]) if deploy_paths else None,
+    )
     runtime_env[constants.ENV_CONFIG_DIR] = str(staging_config_dir)
     staging_config_dir.mkdir(parents=True, exist_ok=True)
     buildx_cache_dir = PROJECT_ROOT / ".esb" / "buildx-cache" / env_name

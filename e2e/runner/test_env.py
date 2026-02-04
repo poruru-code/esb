@@ -107,11 +107,14 @@ def test_calculate_runtime_env_mode_registry_defaults():
     assert env_containerd[constants.ENV_CONTAINER_REGISTRY] == "registry:5010"
 
 
-def test_calculate_staging_dir_logic():
-    path = calculate_staging_dir("myproj", "myenv")
+def test_calculate_staging_dir_logic(tmp_path):
+    template_path = tmp_path / "template.yaml"
+    template_path.write_text("test")
+
+    path = calculate_staging_dir("myproj", "myenv", template_path=str(template_path))
     assert "myproj" in str(path)
     assert "myenv" in str(path)
-    assert ".cache/staging" in str(path)
+    assert ".esb/staging" in str(path)
 
 
 def test_calculate_runtime_env_project_config_dir(tmp_path):

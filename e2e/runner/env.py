@@ -8,9 +8,11 @@ from pathlib import Path
 from e2e.runner import constants
 from e2e.runner.utils import (
     BRAND_HOME_DIR,
+    BRAND_OUTPUT_DIR,
     BRAND_SLUG,
     CLI_ROOT,
     ENV_PREFIX,
+    PROJECT_ROOT,
     env_key,
 )
 
@@ -52,7 +54,11 @@ def read_env_file(path: str) -> dict[str, str]:
 
 
 def calculate_runtime_env(
-    project_name: str, env_name: str, mode: str, env_file: str | None = None
+    project_name: str,
+    env_name: str,
+    mode: str,
+    env_file: str | None = None,
+    template_path: str | None = None,
 ) -> dict[str, str]:
     """Replicates Go CLI's applyRuntimeEnv logic for the E2E runner."""
     env = os.environ.copy()
@@ -197,7 +203,12 @@ def calculate_runtime_env(
 
     # 9. Staging Config Dir
     # Replicates applyConfigDirEnv / staging.ConfigDir logic
-    config_dir = calculate_staging_dir(project_name, env_name)
+    if template_path:
+        template_dir = Path(template_path).expanduser().resolve().parent
+        cache_home = template_dir / BRAND_OUTPUT_DIR / ".cache"
+        env.setdefault("XDG_CACHE_HOME", str(cache_home))
+
+    config_dir = calculate_staging_dir(project_name, env_name, template_path=template_path)
     env[constants.ENV_CONFIG_DIR] = str(config_dir)
 
     # 10. E2E safety toggles
@@ -206,30 +217,36 @@ def calculate_runtime_env(
     return env
 
 
-def calculate_staging_dir(project_name: str, env_name: str) -> Path:
+def calculate_staging_dir(
+    project_name: str,
+    env_name: str,
+    template_path: str | None = None,
+) -> Path:
     """Replicates staging.ConfigDir logic from Go."""
     # ComposeProjectKey logic
     proj_key = project_name.strip()
     if not proj_key:
         proj_key = f"{BRAND_SLUG}-{env_name.lower()}" if env_name else BRAND_SLUG
 
-    # stageKey logic
-    seed = proj_key
-    if env_name:
-        seed = f"{seed}:{env_name.lower()}"
+    env_label = (env_name or "default").lower()
 
-    h = hashlib.sha256(seed.encode()).hexdigest()
-    # hex.EncodeToString(sum[:4]) in Go is 8 chars
-    stage_key = f"{proj_key}-{h[:8]}"
+    staging_dir_override = os.environ.get(env_key("STAGING_DIR"))
+    if staging_dir_override:
+        root = Path(staging_dir_override).expanduser()
+        return root / proj_key / env_label / "config"
 
-    # RootDir logic
-    cache_home = os.environ.get("XDG_CACHE_HOME")
-    if cache_home:
-        root = Path(cache_home) / BRAND_SLUG / "staging"
+    staging_home = os.environ.get(env_key("STAGING_HOME"))
+    if staging_home:
+        root = Path(staging_home).expanduser() / "staging"
+        return root / proj_key / env_label / "config"
+
+    if template_path:
+        template_dir = Path(template_path).expanduser().resolve().parent
     else:
-        root = Path.home() / f".{BRAND_SLUG}" / ".cache" / "staging"
+        template_dir = PROJECT_ROOT / "e2e" / "fixtures"
 
-    return root / stage_key / env_name / "config"
+    root = template_dir / BRAND_OUTPUT_DIR / "staging"
+    return root / proj_key / env_label / "config"
 
 
 def read_service_env(project_name: str, service: str) -> dict[str, str]:

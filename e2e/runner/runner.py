@@ -136,7 +136,19 @@ def _prepare_context(
     env_file = _resolve_env_file(scenario.env_file)
 
     compose_file = resolve_compose_file(scenario)
-    runtime_env = calculate_runtime_env(project_name, env_name, scenario.mode, env_file)
+    template_path = None
+    if scenario.deploy_templates:
+        template_path = (PROJECT_ROOT / scenario.deploy_templates[0]).resolve()
+    else:
+        template_path = (PROJECT_ROOT / "e2e" / "fixtures" / "template.yaml").resolve()
+
+    runtime_env = calculate_runtime_env(
+        project_name,
+        env_name,
+        scenario.mode,
+        env_file,
+        template_path=str(template_path),
+    )
 
     state_env = _load_state_env(env_name)
     for key in _CREDENTIAL_KEYS:
@@ -151,7 +163,11 @@ def _prepare_context(
     runtime_env[env_key("HOME")] = str((E2E_STATE_ROOT / env_name).absolute())
     runtime_env[constants.ENV_PROJECT_NAME] = compose_project
 
-    staging_config_dir = calculate_staging_dir(compose_project, env_name)
+    staging_config_dir = calculate_staging_dir(
+        compose_project,
+        env_name,
+        template_path=str(template_path),
+    )
     runtime_env[constants.ENV_CONFIG_DIR] = str(staging_config_dir)
     staging_config_dir.mkdir(parents=True, exist_ok=True)
 
