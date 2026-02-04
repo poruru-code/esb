@@ -936,7 +936,7 @@ func normalizeTemplatePath(path string) (string, error) {
 	cleaned := filepath.Clean(expanded)
 	info, err := os.Stat(cleaned)
 	if err != nil {
-		if !filepath.IsAbs(cleaned) {
+		if os.IsNotExist(err) && !filepath.IsAbs(cleaned) {
 			if cwd, cwdErr := os.Getwd(); cwdErr == nil {
 				if repoRoot, repoErr := config.ResolveRepoRoot(cwd); repoErr == nil {
 					candidate := filepath.Join(repoRoot, cleaned)
