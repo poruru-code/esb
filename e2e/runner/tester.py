@@ -22,7 +22,17 @@ def run_pytest(
     printer: Callable[[str], None] | None = None,
     on_progress: Callable[[int, int | None], None] | None = None,
 ) -> None:
-    cmd = [sys.executable, "-m", "pytest"] + ctx.scenario.targets + ["-v"]
+    cmd = (
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "--compose-file",
+            str(ctx.compose_file),
+        ]
+        + ctx.scenario.targets
+        + ["-v"]
+    )
     for excl in ctx.scenario.exclude:
         cmd.extend(["--ignore", excl])
 

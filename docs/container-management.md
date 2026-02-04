@@ -32,11 +32,11 @@ flowchart TD
 
 ## ビルドプロセス
 
-`esb build` コマンドを実行すると、以下の順序でビルドが行われます。
+deploy 実行時に内部ビルドが走り、以下の順序でビルドが行われます。
 
 ```mermaid
 flowchart LR
-    A[esb build] --> B[template.yaml パース]
+    A[esb deploy] --> B[template.yaml パース]
     B --> C[設定ファイル生成]
     C --> D[ベースイメージビルド]
     D --> E[Lambda関数イメージビルド]
@@ -44,10 +44,10 @@ flowchart LR
 
 ### ベースイメージ (`esb-lambda-base`)
 
-**ソース**: `cli/internal/generator/assets/`
+**ソース**: `cli/internal/infra/build/assets/`
 
 ```
-cli/internal/generator/assets/
+cli/internal/infra/build/assets/
 ├── Dockerfile.lambda-base
 └── site-packages/
     └── sitecustomize.py    # AWS SDK パッチ & Direct Logging

@@ -200,6 +200,9 @@ def calculate_runtime_env(
     config_dir = calculate_staging_dir(project_name, env_name)
     env[constants.ENV_CONFIG_DIR] = str(config_dir)
 
+    # 10. E2E safety toggles
+    env.setdefault("ESB_SKIP_GATEWAY_ALIGN", "1")
+
     return env
 
 

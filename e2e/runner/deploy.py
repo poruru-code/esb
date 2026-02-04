@@ -34,6 +34,8 @@ def deploy_templates(
             "--template",
             str(tmpl),
             "deploy",
+            "--compose-file",
+            str(ctx.compose_file),
             "--no-save-defaults",
             "--env",
             ctx.scenario.env_name,

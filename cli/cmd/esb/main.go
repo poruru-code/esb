@@ -7,27 +7,29 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/commands"
-	"github.com/poruru/edge-serverless-box/cli/internal/helpers"
-	"github.com/poruru/edge-serverless-box/cli/internal/wire"
+	"github.com/poruru/edge-serverless-box/cli/internal/app"
+	"github.com/poruru/edge-serverless-box/cli/internal/command"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/env"
 )
 
 // main is the entry point for the ESB CLI. It builds the dependencies,
 // parses command-line arguments, and dispatches to the appropriate command handler.
 func main() {
-	if err := helpers.ApplyBrandingEnv(); err != nil {
+	if err := env.ApplyBrandingEnv(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 	args := os.Args[1:]
-	deps, closer, err := wire.BuildDependencies(args)
+	deps, closer, err := app.BuildDependencies(args)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+	exitCode := command.Run(args, deps)
 	if closer != nil {
-		defer closer.Close()
+		if err := closer.Close(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		}
 	}
-
-	os.Exit(commands.Run(args, deps))
+	os.Exit(exitCode)
 }

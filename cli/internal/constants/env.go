@@ -1,7 +1,7 @@
 package constants
 
 const (
-	// Compose variables (no prefix)
+	// Compose variables (no prefix).
 	EnvProjectName       = "PROJECT_NAME"
 	EnvPortS3            = "PORT_S3"
 	EnvPortS3Mgmt        = "PORT_S3_MGMT"
@@ -22,7 +22,7 @@ const (
 	EnvRootCAMountID     = "ROOT_CA_MOUNT_ID"
 	EnvBuildkitdConfig   = "BUILDKITD_CONFIG"
 
-	// Host variable suffixes (used with envutil.HostEnvKey)
+	// Host variable suffixes (used with envutil.HostEnvKey).
 	HostSuffixEnv              = "ENV"
 	HostSuffixMode             = "MODE"
 	HostSuffixProject          = "PROJECT"
@@ -40,16 +40,16 @@ const (
 	HostSuffixRegistry         = "REGISTRY"
 	HostSuffixProvisionerTrace = "PROVISIONER_TRACE"
 
-	// Default registry (internal service name)
+	// Default registry (internal service name).
 	DefaultContainerRegistry = "registry:5010"
-	// Default registry (host access for docker mode)
+	// Default registry (host access for docker mode).
 	DefaultContainerRegistryHost = "127.0.0.1:5010"
 
 	// Old Constants (kept temporarily for migration if needed, but renamed/cleaned up)
 	// These are actually the same keys but the constant name is renamed.
 	// Most will be replaced by dynamic keys using suffixes above.
 
-	// Port Configuration (legacy mappings)
+	// Port Configuration (legacy mappings).
 	EnvGatewayPort        = "GATEWAY_PORT"
 	EnvGatewayURL         = "GATEWAY_URL"
 	EnvGatewayInternalURL = "GATEWAY_INTERNAL_URL"
@@ -59,10 +59,10 @@ const (
 	EnvAgentMetricsURL    = "AGENT_METRICS_URL"
 	EnvAgentGrpcAddress   = "AGENT_GRPC_ADDRESS"
 
-	// Generator Configuration
+	// Generator Configuration.
 	EnvGatewayFunctionsYml = "GATEWAY_FUNCTIONS_YML"
 	EnvGatewayRoutingYml   = "GATEWAY_ROUTING_YML"
 
-	// Build args
+	// Build args.
 	BuildArgCAFingerprint = "ROOT_CA_FINGERPRINT"
 )

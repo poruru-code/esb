@@ -24,6 +24,8 @@ venv/
 .venv/
 ENV/
 env/
+!cli/internal/infra/env/
+!cli/internal/infra/env/**
 
 # Docker
 *.tar

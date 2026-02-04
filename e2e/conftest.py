@@ -16,6 +16,24 @@ import urllib3
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
+COMPOSE_OVERRIDE: str | None = None
+
+
+def pytest_addoption(parser: pytest.Parser) -> None:
+    parser.addoption(
+        "--compose-file",
+        action="store",
+        default=None,
+        help="Compose file path for control-plane docker compose commands",
+    )
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    global COMPOSE_OVERRIDE
+    value = config.getoption("compose_file")
+    if value:
+        COMPOSE_OVERRIDE = value
+
 
 def build_control_compose_command(
     args: list[str], mode: str | None = None, project_name: str | None = None
@@ -26,7 +44,7 @@ def build_control_compose_command(
     else:
         cmd = ["docker", "compose"]
 
-    compose_override = os.getenv("E2E_COMPOSE_FILE")
+    compose_override = COMPOSE_OVERRIDE
     if compose_override:
         cmd.extend(["-f", compose_override])
     else:

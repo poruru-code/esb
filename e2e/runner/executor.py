@@ -853,6 +853,8 @@ def run_scenario(args, scenario):
             "--template",
             str(tmpl.absolute()),
             "deploy",
+            "--compose-file",
+            str(compose_file_path),
             "--no-save-defaults",
             "--env",
             env_name,
@@ -1105,7 +1107,17 @@ def run_scenario(args, scenario):
 
         print(f"\\n=== Running Tests for {scenario['name']} ===\n")
 
-        pytest_cmd = [sys.executable, "-m", "pytest"] + scenario["targets"] + ["-v"]
+        pytest_cmd = (
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                "--compose-file",
+                str(compose_file_path),
+            ]
+            + scenario["targets"]
+            + ["-v"]
+        )
 
         # Excludes
         for excl in scenario["exclude"]:

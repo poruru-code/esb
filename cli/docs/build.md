@@ -1,92 +1,100 @@
-# `esb build` コマンド
+# ビルドパイプライン（deploy 内部）
 
 ## 概要
+`esb deploy` は内部でビルドパイプラインを実行します。SAM テンプレートを解析し、
+`functions.yml` / `routing.yml` / `resources.yml` と各関数の Dockerfile を生成した上で、
+**関数イメージのみ**をビルドします（コントロールプレーンは Docker Compose 側でビルド）。
 
-`esb build` コマンドは、サーバーレスプロジェクトの成果物をコンパイルします。SAMテンプレート (`template.yaml`) を解析し、各Lambda関数用のDockerfileを生成して、対応するDockerイメージをビルドします。`generator.yml` は参照しません。
+## 入力
 
-## 使用方法
+ビルド処理は `build.BuildRequest` で駆動されます。主なフィールド:
+- `TemplatePath` / `ProjectDir`
+- `Env` / `Mode` / `Tag`
+- `OutputDir` / `Parameters` / `NoCache` / `Verbose`
 
-```bash
-esb build --template <path> --env <name> --mode <docker|containerd> [flags]
-```
+`deploy` の入力解決が完了すると、usecase がこのリクエストを組み立てて `infra/build` に渡します。
 
-### フラグ
+## 出力
 
-| フラグ | 短縮形 | 説明 |
-|--------|--------|------|
-| `--env` | `-e` | ターゲット環境名（必須）。未指定時は対話入力。 |
-| `--env-file` | | 読み込む `.env` ファイルパス（任意）。未指定時はカレントディレクトリの `.env` を自動で読み込みます。 |
-| `--mode` | `-m` | ランタイムモード（必須）。未指定時は対話入力。 |
-| `--template` | `-t` | SAMテンプレートへのパス（必須）。未指定時は対話入力。 |
-| `--output` | `-o` | 生成物の出力先（任意）。未指定時は `<template_dir>/.<brand>/<env>` を使用。 |
-| `--no-cache` | | イメージビルド時にキャッシュを使用しません。 |
-| `--verbose` | `-v` | 詳細な出力を有効にします。デフォルトでは進行状況のみを表示する静音モードです。 |
-| `--force` | | 無効な `<BRAND>_PROJECT`/`<BRAND>_ENV` 環境変数を自動的に解除します。 |
+- `functions.yml` / `routing.yml` / `resources.yml`
+- 各関数の `Dockerfile`
+- 関数ごとのビルドコンテキスト (`functions/<name>/...`)
 
-## 実装詳細
+デフォルトの出力先は以下です:
+- `<template_dir>/.esb/<env>/...`
+- `--output` 指定時は `<template_dir>/<output>/<env>/...`
 
-CLIアダプタは `cli/internal/commands/build.go` にあり、オーケストレーションは `cli/internal/workflows/build.go` が担当します。実際のビルド処理は `cli/internal/generator/go_builder.go` (GoBuilder) に委譲されます。
-
-### 主要コンポーネント
-
-- **`BuildWorkflow`**: ランタイム環境適用とBuilder呼び出しを行うオーケストレーター。
-- **`BuildRequest`**: CLI から Workflow に渡される入力DTO（Workflow 内で `generator.BuildRequest` に変換）。
-- **`RuntimeEnvApplier`**: `applyRuntimeEnv` を通じて `ENV_PREFIX` 付きの環境変数を適用。
-- **`UserInterface`**: 成功メッセージの出力（互換のため `LegacyUI` を使用）。
-- **`GoBuilder`**: `ports.Builder` インターフェースの実装。
-  - **`Generate`**: ビルド成果物 (Dockerfile, `functions.yml`, `routing.yml`) を出力ディレクトリに生成します。
-  - **`BuildCompose`**: コントロールプレーンのイメージ (Gateway, Agent) をビルドします。
-  - **`Runner`**: ベースイメージと関数イメージに対して `docker build` コマンドを実行します。
-
-### ビルドロジック
-
-1. **入力解決**: `template` / `env` / `mode` / `output` を解決します。省略された値は対話で補完されます。
-2. **ランタイム環境適用**: `RuntimeEnvApplier` が `ENV_PREFIX` 付きの変数を適用します。
-3. **パラメータ入力**: SAMテンプレートの `Parameters` が定義されている場合、対話的に入力を求めます（入力値はそのビルドのみ有効）。
-4. **コード生成**:
-   - `template.yaml` を解析します。
-   - Dockerfile と `functions.yml` / `routing.yml` を生成します。
-   - 出力ディレクトリ（`output/<env>/` もしくは設定されたパス）に出力します。
-5. **イメージビルド**:
-   - ローカルレジストリが稼働していることを確認します (必要な場合)。
-   - ベースイメージ (共有レイヤー) をビルドします。
-   - 個別の関数イメージをビルドします。
-   - コントロールプレーン (Gateway/Agent/Provisioner/Runtime Node) をDocker Buildx Bakeでビルドします。
-
-## シーケンス図
+## ビルドフロー
 
 ```mermaid
 sequenceDiagram
-    participant CLI as esb build
-    participant WF as BuildWorkflow
-    participant Env as RuntimeEnvApplier
-    participant Builder as GoBuilder
-    participant Generator as Code Generator
-    participant Docker as Docker Daemon
-    participant Registry as Local Registry
+    participant CLI as esb deploy
+    participant UC as Deploy Usecase
+    participant Build as infra/build
+    participant SAM as infra/sam
+    participant Tpl as domain/template
+    participant Docker as Docker Buildx
 
-    CLI->>WF: Run(BuildRequest)
-    WF->>Env: Apply(Context)
-    WF->>Builder: Build(BuildRequest)
-    Builder->>Builder: SAMテンプレート読み込み
-    Builder->>Generator: Generate(config, options)
-    Generator-->>Builder: FunctionSpecs (関数リスト)
-
-    Builder->>Builder: 設定ファイルのステージング (.env 等)
-
-    opt 外部レジストリ
-        Builder->>Registry: 稼働確認 (Ensure Running)
-    end
-
-    Builder->>Docker: ベースイメージのビルド
-
-    loop 各関数に対して
-        Builder->>Docker: 関数イメージのビルド
-    end
-
-    Builder->>Docker: コントロールプレーンのビルド (Gateway/Agent)
-
-    Docker-->>Builder: 成功
-    Builder-->>WF: 成功
-    WF-->>CLI: 成功
+    CLI->>UC: BuildRequest
+    UC->>Build: Build()
+    Build->>SAM: ParseSAMTemplate
+    SAM-->>Build: ParseResult
+    Build->>Tpl: Render Dockerfile / config
+    Build->>Docker: buildx bake (base + functions)
+    Build-->>UC: success
 ```
+
+## 詳細ステップ
+
+1. **テンプレート解決**
+   - `TemplatePath` を絶対パス化
+   - `Parameters.Default` と CLI 入力値を統合（CLI が優先）
+
+2. **SAM 解析**
+   - `infra/sam` で Intrinsic 解決
+   - `FunctionSpec` と `manifest.ResourcesSpec` を生成
+
+3. **ステージング**
+   - 関数コードを `functions/<name>/src` にコピー
+   - Layer を `functions/<name>/layers/<layer>` へ展開
+   - `sitecustomize.py` をコピー/リンク
+
+4. **設定ファイル生成**
+   - `functions.yml` / `routing.yml` / `resources.yml` を出力
+
+5. **staging config への反映**
+   - `~/.esb/.cache/staging/<project-hash>/<env>/config` にマージ
+   - `.deploy.lock` で排他制御
+
+6. **ベースイメージのビルド**
+   - `esb-lambda-base` / `esb-os-base` / `esb-python-base`
+   - 既存イメージが最新の場合はスキップ
+
+7. **関数イメージのビルド**
+   - 画像名は関数名から Docker 安全名へ正規化
+   - 画像フィンガープリントが一致する場合はスキップ
+
+## イメージ命名規則
+
+- ベース: `esb-lambda-base:<tag>` / `esb-os-base:latest` / `esb-python-base:latest`
+- 関数: `esb-<sanitized-function-name>:<tag>`
+
+`sanitized-function-name` は英小文字/数字/`._-` のみを許容し、
+それ以外は `-` に変換します。衝突した場合はエラーで停止します。
+
+## レジストリの扱い
+
+- 実行時のレジストリは `CONTAINER_REGISTRY` を参照
+- ホスト側の待機には `HOST_REGISTRY_ADDR` / `PORT_REGISTRY` を使用
+- `ESB_REGISTRY_WAIT=0` でレジストリ待機を無効化可能
+
+## ZIP レイヤ展開の安全性
+
+Layer の ZIP 展開には以下の安全対策があります:
+- **パストラバーサル防止**: 展開先が `layer cache` 配下であることを検証
+- **サイズ上限**: 1 エントリあたり **200 MiB** を超える場合はエラー
+
+## 付記
+- deploy は **関数イメージのみ**をビルドします。
+- Control-plane（Gateway/Agent/Provisioner/Runtime Node）は Docker Compose 側でビルドされます。
+- `BuildRequest.Bundle=true` の場合、bundle 用 manifest を生成します（内部用途）。

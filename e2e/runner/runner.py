@@ -137,7 +137,6 @@ def _prepare_context(
 
     compose_file = resolve_compose_file(scenario)
     runtime_env = calculate_runtime_env(project_name, env_name, scenario.mode, env_file)
-    runtime_env["E2E_COMPOSE_FILE"] = str(compose_file)
 
     state_env = _load_state_env(env_name)
     for key in _CREDENTIAL_KEYS:
@@ -186,7 +185,6 @@ def _prepare_context(
     pytest_env = os.environ.copy()
     pytest_env.update(runtime_env)
     pytest_env.update(scenario.env_vars)
-    pytest_env["E2E_COMPOSE_FILE"] = str(compose_file)
 
     ensure_buildx_builder(
         runtime_env.get("BUILDX_BUILDER", ""),
