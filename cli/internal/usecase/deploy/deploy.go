@@ -45,6 +45,7 @@ type Request struct {
 	Parameters   map[string]string
 	Tag          string
 	NoCache      bool
+	NoDeps       bool
 	Verbose      bool
 	ComposeFiles []string
 }
@@ -192,6 +193,7 @@ func (w Workflow) Run(req Request) error {
 	if err := w.runProvisioner(
 		req.Context.ComposeProject,
 		req.Mode,
+		req.NoDeps,
 		req.Verbose,
 		req.Context.ProjectDir,
 		req.ComposeFiles,
@@ -657,6 +659,7 @@ func (w Workflow) isServiceRunning(composeProject, service string) bool {
 func (w Workflow) runProvisioner(
 	composeProject,
 	mode string,
+	noDeps bool,
 	verbose bool,
 	projectDir string,
 	composeFiles []string,
@@ -721,7 +724,11 @@ func (w Workflow) runProvisioner(
 	if composeProject != "" {
 		args = append(args, "-p", composeProject)
 	}
-	args = append(args, "run", "--rm", "provisioner")
+	args = append(args, "run", "--rm")
+	if noDeps {
+		args = append(args, "--no-deps")
+	}
+	args = append(args, "provisioner")
 	if verbose {
 		if err := w.ComposeRunner.Run(ctx, repoRoot, "docker", args...); err != nil {
 			return fmt.Errorf("run provisioner: %w", err)

@@ -88,6 +88,13 @@ func newDeployCommand(
 
 func (c *deployCommand) Run(inputs deployInputs, flags DeployCmd) error {
 	tag := resolveBrandTag()
+	if flags.NoDeps && flags.WithDeps {
+		return errors.New("deploy: --no-deps and --with-deps cannot be used together")
+	}
+	noDeps := true
+	if flags.WithDeps {
+		noDeps = false
+	}
 	request := deploy.Request{
 		Context:      inputs.Context,
 		Env:          inputs.Env,
@@ -97,6 +104,7 @@ func (c *deployCommand) Run(inputs deployInputs, flags DeployCmd) error {
 		Parameters:   inputs.Parameters,
 		Tag:          tag,
 		NoCache:      flags.NoCache,
+		NoDeps:       noDeps,
 		Verbose:      flags.Verbose,
 		ComposeFiles: inputs.ComposeFiles,
 	}
