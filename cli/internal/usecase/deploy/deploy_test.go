@@ -105,3 +105,94 @@ func TestDeployWorkflowRunMissingBuilder(t *testing.T) {
 		t.Fatalf("expected builder missing error, got %v", err)
 	}
 }
+
+func TestRunProvisionerUsesComposeOverride(t *testing.T) {
+	runner := &fakeComposeRunner{}
+	ui := &testUI{}
+	workflow := Workflow{
+		ComposeRunner: runner,
+		UserInterface: ui,
+	}
+	t.Setenv("ENV_PREFIX", "ESB")
+
+	repoRoot, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	repoRoot = filepath.Join(repoRoot, "..", "..", "..")
+	repoRoot, err = filepath.Abs(repoRoot)
+	if err != nil {
+		t.Fatalf("failed to get absolute path: %v", err)
+	}
+	t.Setenv("ESB_REPO", repoRoot)
+
+	tempDir := t.TempDir()
+	composePath := filepath.Join(tempDir, "compose.yml")
+	if err := os.WriteFile(composePath, []byte("services:\n  provisioner: {}\n"), 0o644); err != nil {
+		t.Fatalf("write compose file: %v", err)
+	}
+	if err := workflow.runProvisioner(
+		"esb-test",
+		"docker",
+		false,
+		repoRoot,
+		[]string{composePath},
+	); err != nil {
+		t.Fatalf("runProvisioner: %v", err)
+	}
+
+	foundConfig := false
+	foundRun := false
+	for _, cmd := range runner.commands {
+		joined := strings.Join(cmd, " ")
+		if strings.Contains(joined, "config --services") && strings.Contains(joined, composePath) {
+			foundConfig = true
+		}
+		if strings.Contains(joined, "run --rm provisioner") && strings.Contains(joined, composePath) {
+			foundRun = true
+		}
+	}
+	if !foundConfig {
+		t.Fatalf("expected compose config to use override file")
+	}
+	if !foundRun {
+		t.Fatalf("expected compose run to use override file")
+	}
+}
+
+func TestRunProvisionerFailsOnOverrideMissingServices(t *testing.T) {
+	runner := &fakeComposeRunner{output: []byte("provisioner\n")}
+	ui := &testUI{}
+	workflow := Workflow{
+		ComposeRunner: runner,
+		UserInterface: ui,
+	}
+	t.Setenv("ENV_PREFIX", "ESB")
+
+	repoRoot, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	repoRoot = filepath.Join(repoRoot, "..", "..", "..")
+	repoRoot, err = filepath.Abs(repoRoot)
+	if err != nil {
+		t.Fatalf("failed to get absolute path: %v", err)
+	}
+	t.Setenv("ESB_REPO", repoRoot)
+
+	tempDir := t.TempDir()
+	composePath := filepath.Join(tempDir, "compose.yml")
+	if err := os.WriteFile(composePath, []byte("services:\n  provisioner: {}\n"), 0o644); err != nil {
+		t.Fatalf("write compose file: %v", err)
+	}
+	err = workflow.runProvisioner(
+		"esb-test",
+		"docker",
+		false,
+		repoRoot,
+		[]string{composePath},
+	)
+	if err == nil || !strings.Contains(err.Error(), "compose override missing services") {
+		t.Fatalf("expected missing services error, got %v", err)
+	}
+}

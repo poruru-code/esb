@@ -98,6 +98,7 @@ func (c *deployCommand) Run(inputs deployInputs, flags DeployCmd) error {
 		Tag:          tag,
 		NoCache:      flags.NoCache,
 		Verbose:      flags.Verbose,
+		ComposeFiles: inputs.ComposeFiles,
 	}
 	if err := deploy.NewDeployWorkflow(c.build, c.applyRuntime, c.ui, c.composeRunner).Run(request); err != nil {
 		return fmt.Errorf("deploy workflow: %w", err)
@@ -115,6 +116,7 @@ type deployInputs struct {
 	Project       string
 	ProjectSource string
 	Parameters    map[string]string
+	ComposeFiles  []string
 }
 
 type envChoice struct {
@@ -291,6 +293,7 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 			return deployInputs{}, fmt.Errorf("get working directory: %w", err)
 		}
 
+		composeFiles := normalizeComposeFiles(cli.Deploy.ComposeFiles, projectDir)
 		ctx := state.Context{
 			ProjectDir:     projectDir,
 			TemplatePath:   templatePath,
@@ -310,6 +313,7 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 			Project:       composeProject,
 			ProjectSource: projectSource,
 			Parameters:    params,
+			ComposeFiles:  composeFiles,
 		}
 
 		confirmed, err := confirmDeployInputs(inputs, isTTY, prompter)
@@ -490,6 +494,31 @@ func resolveDeployMode(
 		}
 		return normalized, nil
 	}
+}
+
+func normalizeComposeFiles(files []string, baseDir string) []string {
+	if len(files) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(files))
+	seen := map[string]struct{}{}
+	for _, file := range files {
+		trimmed := strings.TrimSpace(file)
+		if trimmed == "" {
+			continue
+		}
+		path := trimmed
+		if !filepath.IsAbs(path) && strings.TrimSpace(baseDir) != "" {
+			path = filepath.Join(baseDir, path)
+		}
+		path = filepath.Clean(path)
+		if _, ok := seen[path]; ok {
+			continue
+		}
+		out = append(out, path)
+		seen[path] = struct{}{}
+	}
+	return out
 }
 
 func resolveDeployOutput(

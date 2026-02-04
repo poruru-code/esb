@@ -42,13 +42,14 @@ type CLI struct {
 type (
 	// DeployCmd defines the deploy command flags.
 	DeployCmd struct {
-		Mode    string `short:"m" help:"Runtime mode (docker/containerd)"`
-		Output  string `short:"o" help:"Output directory for generated artifacts"`
-		Project string `short:"p" help:"Compose project name to target"`
-		NoCache bool   `name:"no-cache" help:"Do not use cache when building images"`
-		Verbose bool   `short:"v" help:"Verbose output (default)" default:"true"`
-		Force   bool   `help:"Allow environment mismatch with running gateway (skip auto-alignment)"`
-		NoSave  bool   `name:"no-save-defaults" help:"Do not persist deploy defaults"`
+		Mode         string   `short:"m" help:"Runtime mode (docker/containerd)"`
+		Output       string   `short:"o" help:"Output directory for generated artifacts"`
+		Project      string   `short:"p" help:"Compose project name to target"`
+		ComposeFiles []string `name:"compose-file" sep:"," help:"Compose file(s) to use (repeatable or comma-separated)"`
+		NoCache      bool     `name:"no-cache" help:"Do not use cache when building images"`
+		Verbose      bool     `short:"v" help:"Verbose output (default)" default:"true"`
+		Force        bool     `help:"Allow environment mismatch with running gateway (skip auto-alignment)"`
+		NoSave       bool     `name:"no-save-defaults" help:"Do not persist deploy defaults"`
 	}
 
 	VersionCmd struct{}

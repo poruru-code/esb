@@ -59,6 +59,7 @@ func (u *testUI) Block(_, _ string, _ []ui.KeyValue) {
 type fakeComposeRunner struct {
 	commands [][]string
 	err      error
+	output   []byte
 }
 
 func (r *fakeComposeRunner) Run(ctx context.Context, dir, name string, args ...string) error {
@@ -72,7 +73,10 @@ func (r *fakeComposeRunner) RunOutput(ctx context.Context, dir, name string, arg
 	_ = ctx
 	_ = dir
 	r.commands = append(r.commands, append([]string{name}, args...))
-	return nil, r.err
+	if r.output != nil {
+		return r.output, r.err
+	}
+	return []byte("provisioner\ndatabase\ns3-storage\nvictorialogs\n"), r.err
 }
 
 func (r *fakeComposeRunner) RunQuiet(ctx context.Context, dir, name string, args ...string) error {

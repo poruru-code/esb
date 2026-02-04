@@ -46,6 +46,7 @@ type Request struct {
 	Tag          string
 	NoCache      bool
 	Verbose      bool
+	ComposeFiles []string
 }
 
 // RegistryWaiter checks registry readiness.
@@ -188,7 +189,13 @@ func (w Workflow) Run(req Request) error {
 	}
 
 	// Run provisioner
-	if err := w.runProvisioner(req.Context.ComposeProject, req.Mode, req.Verbose, req.Context.ProjectDir); err != nil {
+	if err := w.runProvisioner(
+		req.Context.ComposeProject,
+		req.Mode,
+		req.Verbose,
+		req.Context.ProjectDir,
+		req.ComposeFiles,
+	); err != nil {
 		return fmt.Errorf("provisioner failed: %w", err)
 	}
 
@@ -262,7 +269,7 @@ func resolveGatewayRuntime(composeProject string) (gatewayRuntimeInfo, error) {
 	if err != nil {
 		return gatewayRuntimeInfo{}, fmt.Errorf("list containers: %w", err)
 	}
-	if len(containers) == 0 && strings.TrimSpace(composeProject) != "" {
+	if len(containers) == 0 && strings.TrimSpace(composeProject) == "" {
 		filterArgs = filters.NewArgs()
 		filterArgs.Add("label", fmt.Sprintf("%s=gateway", compose.ComposeServiceLabel))
 		containers, err = rawClient.ContainerList(ctx, container.ListOptions{All: true, Filters: filterArgs})
@@ -647,42 +654,65 @@ func (w Workflow) isServiceRunning(composeProject, service string) bool {
 }
 
 // runProvisioner runs the provisioner using docker compose.
-func (w Workflow) runProvisioner(composeProject, mode string, verbose bool, projectDir string) error {
+func (w Workflow) runProvisioner(
+	composeProject,
+	mode string,
+	verbose bool,
+	projectDir string,
+	composeFiles []string,
+) error {
 	repoRoot, err := config.ResolveRepoRoot(projectDir)
 	if err != nil {
 		return fmt.Errorf("resolve repo root: %w", err)
 	}
 
 	ctx := context.Background()
-	result, err := w.resolveComposeFilesForProject(ctx, composeProject)
-	if err != nil && w.UserInterface != nil {
-		w.UserInterface.Warn(fmt.Sprintf("Warning: failed to resolve compose config files: %v", err))
-	}
-	if result.SetCount > 1 && w.UserInterface != nil {
-		w.UserInterface.Warn("Warning: multiple compose config sets detected; using the most common one.")
-	}
-	if len(result.Missing) > 0 && w.UserInterface != nil {
-		w.UserInterface.Warn(fmt.Sprintf("Warning: compose config files not found: %s", strings.Join(result.Missing, ", ")))
+	required := []string{"provisioner", "database", "s3-storage", "victorialogs"}
+	var files []string
+	if len(composeFiles) > 0 {
+		existing, missing := filterExistingComposeFiles(repoRoot, composeFiles)
+		if len(missing) > 0 || len(existing) == 0 {
+			return fmt.Errorf("compose override files not found: %s", strings.Join(missing, ", "))
+		}
+		files = existing
+		if w.ComposeRunner != nil {
+			ok, missingServices := w.composeHasServices(repoRoot, composeProject, files, required)
+			if !ok {
+				return fmt.Errorf("compose override missing services: %s", strings.Join(missingServices, ", "))
+			}
+		}
+	} else {
+		result, err := w.resolveComposeFilesForProject(ctx, composeProject)
+		if err != nil && w.UserInterface != nil {
+			w.UserInterface.Warn(fmt.Sprintf("Warning: failed to resolve compose config files: %v", err))
+		}
+		if result.SetCount > 1 && w.UserInterface != nil {
+			w.UserInterface.Warn("Warning: multiple compose config sets detected; using the most common one.")
+		}
+		if len(result.Missing) > 0 && w.UserInterface != nil {
+			w.UserInterface.Warn(fmt.Sprintf("Warning: compose config files not found: %s", strings.Join(result.Missing, ", ")))
+		}
+		files = result.Files
+		if len(files) > 0 && w.ComposeRunner != nil {
+			ok, missingServices := w.composeHasServices(repoRoot, composeProject, files, required)
+			if !ok {
+				return fmt.Errorf("compose config missing services: %s", strings.Join(missingServices, ", "))
+			}
+		}
+		if len(files) == 0 {
+			files = defaultComposeFiles(repoRoot, mode)
+		}
+		if len(files) > 0 && w.ComposeRunner != nil {
+			ok, missingServices := w.composeHasServices(repoRoot, composeProject, files, required)
+			if !ok {
+				return fmt.Errorf("compose config missing services: %s", strings.Join(missingServices, ", "))
+			}
+		}
 	}
 
 	args := []string{"compose"}
-	if len(result.Files) > 0 {
-		for _, file := range result.Files {
-			args = append(args, "-f", file)
-		}
-	} else {
-		// Determine compose file based on mode
-		var composeFile string
-		if mode == compose.ModeContainerd {
-			composeFile = filepath.Join(repoRoot, "docker-compose.containerd.yml")
-		} else {
-			composeFile = filepath.Join(repoRoot, "docker-compose.docker.yml")
-		}
-		proxyFile := resolveProxyComposeFile(repoRoot, mode)
-		args = append(args, "-f", composeFile)
-		if proxyFile != "" {
-			args = append(args, "-f", proxyFile)
-		}
+	for _, file := range files {
+		args = append(args, "-f", file)
 	}
 	if w.composeSupportsNoWarnOrphans(repoRoot) {
 		args = append(args, "--no-warn-orphans")
@@ -702,6 +732,78 @@ func (w Workflow) runProvisioner(composeProject, mode string, verbose bool, proj
 		return fmt.Errorf("run provisioner: %w", err)
 	}
 	return nil
+}
+
+func filterExistingComposeFiles(repoRoot string, files []string) ([]string, []string) {
+	existing := make([]string, 0, len(files))
+	missing := []string{}
+	for _, file := range files {
+		path := strings.TrimSpace(file)
+		if path == "" {
+			continue
+		}
+		if !filepath.IsAbs(path) && strings.TrimSpace(repoRoot) != "" {
+			path = filepath.Join(repoRoot, path)
+		}
+		if _, err := os.Stat(path); err != nil {
+			missing = append(missing, path)
+			continue
+		}
+		existing = append(existing, path)
+	}
+	return existing, missing
+}
+
+func defaultComposeFiles(repoRoot, mode string) []string {
+	files := []string{}
+	if mode == compose.ModeContainerd {
+		files = append(files, filepath.Join(repoRoot, "docker-compose.containerd.yml"))
+	} else {
+		files = append(files, filepath.Join(repoRoot, "docker-compose.docker.yml"))
+	}
+	if proxyFile := resolveProxyComposeFile(repoRoot, mode); proxyFile != "" {
+		files = append(files, proxyFile)
+	}
+	return files
+}
+
+func (w Workflow) composeHasServices(
+	repoRoot string,
+	composeProject string,
+	files []string,
+	required []string,
+) (bool, []string) {
+	if w.ComposeRunner == nil || len(files) == 0 {
+		return true, nil
+	}
+	ctx := context.Background()
+	args := []string{"compose"}
+	for _, file := range files {
+		args = append(args, "-f", file)
+	}
+	if strings.TrimSpace(composeProject) != "" {
+		args = append(args, "-p", composeProject)
+	}
+	args = append(args, "--profile", "deploy", "config", "--services")
+	out, err := w.ComposeRunner.RunOutput(ctx, repoRoot, "docker", args...)
+	if err != nil {
+		return false, required
+	}
+	services := map[string]struct{}{}
+	for _, line := range strings.Split(string(out), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		services[trimmed] = struct{}{}
+	}
+	missing := []string{}
+	for _, name := range required {
+		if _, ok := services[name]; !ok {
+			missing = append(missing, name)
+		}
+	}
+	return len(missing) == 0, missing
 }
 
 func (w Workflow) resolveComposeFilesForProject(ctx context.Context, composeProject string) (compose.FilesResult, error) {
