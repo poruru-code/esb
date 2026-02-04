@@ -57,6 +57,7 @@ flowchart TD
 - **通信**: クライアントとはHTTPで通信。内部では Go Agent (gRPC) と連携し、Lambdaコンテナの起動確認とリクエスト転送を行います。
 - **ポート**: コンテナ内 `8443`（ホスト公開は `443`）
 - **HTTPメソッド**: ルーティングは `GET/POST/PUT/DELETE/PATCH/HEAD` に対応。`OPTIONS` は全パスでプリフライト応答を返却。
+- **Docs**: `https://localhost/docs` に `routing.yml` の内容を表示（deploy で更新、ホットリロードにも追従）。
 
 #### ディレクトリ構成
 ```
