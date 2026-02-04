@@ -1,5 +1,7 @@
 # Build Phase Speedup Plan (Docker Bake meta)
 
+> 注記(2026-02-04): `tools/traceability` は削除済みで、このドキュメントの手順は現行実装と一致しません。再検討が必要です。
+
 ## 背景
 E2E のビルド phase が重い。主因は以下:
 - すべての Dockerfile で `build-meta` ステージが走り、`version.json` を毎回生成している。
