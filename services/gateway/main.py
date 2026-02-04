@@ -28,6 +28,7 @@ from .api.deps import (
     RouteMatcherDep,
     UserIdDep,
 )
+from .api.openapi import configure_openapi
 from .config import config
 from .core.event_builder import V1ProxyEventBuilder
 from .core.exceptions import (
@@ -231,6 +232,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Lambda Gateway", version="2.0.0", lifespan=lifespan, root_path=config.root_path
 )
+configure_openapi(app)
 
 
 # Register middleware (decorator style).

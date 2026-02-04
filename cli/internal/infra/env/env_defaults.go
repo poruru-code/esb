@@ -330,7 +330,10 @@ func hashMod(value string, mod int64) int {
 func applyConfigDirEnv(ctx state.Context, resolver func(string) (string, error)) error {
 	_ = resolver
 
-	stagingAbs := staging.ConfigDir(ctx.ComposeProject, ctx.Env)
+	stagingAbs, err := staging.ConfigDir(ctx.TemplatePath, ctx.ComposeProject, ctx.Env)
+	if err != nil {
+		return fmt.Errorf("resolve config dir: %w", err)
+	}
 	if _, err := os.Stat(stagingAbs); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil

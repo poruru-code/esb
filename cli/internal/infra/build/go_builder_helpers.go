@@ -68,9 +68,12 @@ func brandingImageLabels(project, env string) map[string]string {
 	return labels
 }
 
-func stageConfigFiles(outputDir, repoRoot, composeProject, env string) error {
+func stageConfigFiles(outputDir, repoRoot, templatePath, composeProject, env string) error {
 	configDir := filepath.Join(outputDir, "config")
-	stagingRoot := staging.BaseDir(composeProject, env)
+	stagingRoot, err := staging.BaseDir(templatePath, composeProject, env)
+	if err != nil {
+		return err
+	}
 
 	// Verify source config files exist
 	for _, name := range []string{"functions.yml", "routing.yml", "resources.yml"} {
@@ -81,7 +84,7 @@ func stageConfigFiles(outputDir, repoRoot, composeProject, env string) error {
 	}
 
 	// Merge config files into CONFIG_DIR (with locking and atomic updates)
-	if err := MergeConfig(outputDir, composeProject, env); err != nil {
+	if err := MergeConfig(outputDir, templatePath, composeProject, env); err != nil {
 		return err
 	}
 
@@ -138,13 +141,15 @@ func stageConfigFiles(outputDir, repoRoot, composeProject, env string) error {
 	return nil
 }
 
-func withBuildLock(name string, fn func() error) error {
+func withBuildLock(lockRoot, name string, fn func() error) error {
 	key := strings.TrimSpace(name)
 	if key == "" {
 		return fn()
 	}
-	lockRoot := staging.RootDir()
-	if err := os.MkdirAll(lockRoot, 0o755); err != nil {
+	if strings.TrimSpace(lockRoot) == "" {
+		return fmt.Errorf("lock root is required")
+	}
+	if err := ensureDir(lockRoot); err != nil {
 		return err
 	}
 	lockPath := filepath.Join(lockRoot, fmt.Sprintf(".lock-%s", key))
@@ -181,6 +186,7 @@ func buildFunctionImages(
 	ctx context.Context,
 	runner compose.CommandRunner,
 	repoRoot string,
+	lockRoot string,
 	outputDir string,
 	functions []template.FunctionSpec,
 	registry string,
@@ -188,7 +194,6 @@ func buildFunctionImages(
 	noCache bool,
 	verbose bool,
 	labels map[string]string,
-	cacheRoot string,
 	includeDocker bool,
 ) error {
 	if verbose {
@@ -242,9 +247,6 @@ func buildFunctionImages(
 				Args:       proxyArgs,
 				NoCache:    noCache,
 			}
-			if err := applyBakeLocalCache(&target, cacheRoot, "functions"); err != nil {
-				return err
-			}
 			bakeTargets = append(bakeTargets, target)
 			builtFunctions = append(builtFunctions, fn.Name)
 		}
@@ -255,6 +257,7 @@ func buildFunctionImages(
 			ctx,
 			runner,
 			repoRoot,
+			lockRoot,
 			"esb-functions",
 			bakeTargets,
 			verbose,

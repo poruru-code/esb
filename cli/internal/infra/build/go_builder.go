@@ -18,6 +18,7 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/template"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
 	"github.com/poruru/edge-serverless-box/meta"
 )
 
@@ -111,6 +112,10 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 
 	artifactBase := resolveOutputDir(cfg.Paths.OutputDir, filepath.Dir(templatePath))
 	cfg.Paths.OutputDir = filepath.Join(artifactBase, request.Env)
+	lockRoot, err := staging.RootDir(templatePath)
+	if err != nil {
+		return err
+	}
 
 	composeProject := strings.TrimSpace(request.ProjectName)
 	if composeProject == "" {
@@ -124,7 +129,9 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		composeProject = fmt.Sprintf("%s-%s", brandName, strings.ToLower(request.Env))
 	}
 
-	applyBuildEnv(request.Env, composeProject)
+	if err := applyBuildEnv(request.Env, templatePath, composeProject); err != nil {
+		return err
+	}
 	_ = os.Setenv("META_MODULE_CONTEXT", filepath.Join(repoRoot, "meta"))
 	imageLabels := brandingImageLabels(composeProject, request.Env)
 	rootFingerprint, err := resolveRootCAFingerprint()
@@ -207,6 +214,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		context.Background(),
 		b.Runner,
 		repoRoot,
+		lockRoot,
 		buildxBuilderOptions{
 			NetworkMode: builderNetworkMode,
 			ConfigPath:  strings.TrimSpace(os.Getenv(constants.EnvBuildkitdConfig)),
@@ -233,16 +241,14 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		fmt.Println("Done")
 	}
 
-	if err := stageConfigFiles(cfg.Paths.OutputDir, repoRoot, composeProject, request.Env); err != nil {
+	if err := stageConfigFiles(cfg.Paths.OutputDir, repoRoot, templatePath, composeProject, request.Env); err != nil {
 		return err
 	}
-
-	cacheRoot := bakeCacheRoot(cfg.Paths.OutputDir)
 
 	lambdaBaseTag := lambdaBaseImageTag(registryForPush, imageTag)
 	lambdaTags := []string{lambdaBaseTag}
 
-	if err := withBuildLock("base-images", func() error {
+	if err := withBuildLock(lockRoot, "base-images", func() error {
 		proxyArgs := dockerBuildArgMap()
 		commonDir := filepath.Join(repoRoot, "services", "common")
 
@@ -288,9 +294,6 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 			NoCache: request.NoCache,
 		}
 
-		if err := applyBakeLocalCache(&lambdaTarget, cacheRoot, "base/lambda"); err != nil {
-			return err
-		}
 		baseTargets := []bakeTarget{lambdaTarget}
 		rootCAPath := ""
 		if buildOs || buildPython {
@@ -316,9 +319,6 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 				Secrets: []string{fmt.Sprintf("id=%s,src=%s", meta.RootCAMountID, rootCAPath)},
 				NoCache: request.NoCache,
 			}
-			if err := applyBakeLocalCache(&osTarget, cacheRoot, "base"); err != nil {
-				return err
-			}
 			baseTargets = append(baseTargets, osTarget)
 		}
 		if buildPython {
@@ -337,9 +337,6 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 				Secrets: []string{fmt.Sprintf("id=%s,src=%s", meta.RootCAMountID, rootCAPath)},
 				NoCache: request.NoCache,
 			}
-			if err := applyBakeLocalCache(&pythonTarget, cacheRoot, "base"); err != nil {
-				return err
-			}
 			baseTargets = append(baseTargets, pythonTarget)
 		}
 
@@ -347,6 +344,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 			context.Background(),
 			b.Runner,
 			repoRoot,
+			lockRoot,
 			"esb-base",
 			baseTargets,
 			request.Verbose,
@@ -408,6 +406,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		context.Background(),
 		b.Runner,
 		repoRoot,
+		lockRoot,
 		cfg.Paths.OutputDir,
 		functions,
 		registryForPush,
@@ -415,7 +414,6 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		request.NoCache,
 		request.Verbose,
 		functionLabels,
-		cacheRoot,
 		includeDockerOutput,
 	); err != nil {
 		if !request.Verbose {

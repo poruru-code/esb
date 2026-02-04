@@ -7,7 +7,14 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/poruru/edge-serverless-box/meta"
 )
+
+func setEnvPrefix(t *testing.T) {
+	t.Helper()
+	t.Setenv("ENV_PREFIX", meta.EnvPrefix)
+}
 
 func TestResolveRepoRootUsesEnvFirst(t *testing.T) {
 	setEnvPrefix(t)
@@ -16,8 +23,9 @@ func TestResolveRepoRootUsesEnvFirst(t *testing.T) {
 	repoStart := makeRepo(t, base, "repo-start")
 	repoGlobal := makeRepo(t, base, "repo-global")
 
-	configPath := filepath.Join(t.TempDir(), "config.yaml")
-	t.Setenv("ESB_CONFIG_PATH", configPath)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	configPath := filepath.Join(home, meta.HomeDir, "config.yaml")
 	t.Setenv("ESB_REPO", repoEnv)
 
 	cfg := DefaultGlobalConfig()
@@ -46,8 +54,9 @@ func TestResolveRepoRootUsesStartDirBeforeGlobal(t *testing.T) {
 	repoStart := makeRepo(t, base, "repo-start")
 	repoGlobal := makeRepo(t, base, "repo-global")
 
-	configPath := filepath.Join(t.TempDir(), "config.yaml")
-	t.Setenv("ESB_CONFIG_PATH", configPath)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	configPath := filepath.Join(home, meta.HomeDir, "config.yaml")
 	t.Setenv("ESB_REPO", "")
 
 	cfg := DefaultGlobalConfig()
@@ -75,8 +84,9 @@ func TestResolveRepoRootUsesGlobalWhenStartDirMissing(t *testing.T) {
 	base := t.TempDir()
 	repoGlobal := makeRepo(t, base, "repo-global")
 
-	configPath := filepath.Join(t.TempDir(), "config.yaml")
-	t.Setenv("ESB_CONFIG_PATH", configPath)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	configPath := filepath.Join(home, meta.HomeDir, "config.yaml")
 	t.Setenv("ESB_REPO", "")
 
 	cfg := DefaultGlobalConfig()
@@ -102,8 +112,9 @@ func TestResolveRepoRootFromPathIgnoresEnvAndGlobal(t *testing.T) {
 	repoGlobal := makeRepo(t, base, "repo-global")
 	repoPath := makeRepo(t, base, "repo-path")
 
-	configPath := filepath.Join(t.TempDir(), "config.yaml")
-	t.Setenv("ESB_CONFIG_PATH", configPath)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	configPath := filepath.Join(home, meta.HomeDir, "config.yaml")
 	t.Setenv("ESB_REPO", repoEnv)
 
 	cfg := DefaultGlobalConfig()

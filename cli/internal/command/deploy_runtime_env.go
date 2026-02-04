@@ -33,6 +33,7 @@ type envInference struct {
 func reconcileEnvWithRuntime(
 	choice envChoice,
 	composeProject string,
+	templatePath string,
 	isTTY bool,
 	prompter interaction.Prompter,
 	allowMismatch bool,
@@ -41,12 +42,12 @@ func reconcileEnvWithRuntime(
 		return choice, nil
 	}
 
-	inferred, err := inferEnvFromGateway(composeProject)
+	inferred, err := inferEnvFromGateway(composeProject, templatePath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to inspect running gateway env: %v\n", err)
 	}
 	if inferred.Env == "" {
-		fallback, err := inferEnvFromStaging(composeProject)
+		fallback, err := inferEnvFromStaging(composeProject, templatePath)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to inspect staging env: %v\n", err)
 		} else if fallback.Env != "" {
@@ -144,7 +145,7 @@ func applyEnvSelection(current envChoice, inferred envInference, selected string
 	return current
 }
 
-func inferEnvFromGateway(composeProject string) (envInference, error) {
+func inferEnvFromGateway(composeProject, templatePath string) (envInference, error) {
 	trimmed := strings.TrimSpace(composeProject)
 	if trimmed == "" {
 		return envInference{}, nil
@@ -184,12 +185,16 @@ func inferEnvFromGateway(composeProject string) (envInference, error) {
 	if env := strings.TrimSpace(envMap["ENV"]); env != "" {
 		return envInference{Env: env, Source: "gateway env"}, nil
 	}
+	rootDir, err := staging.RootDir(templatePath)
+	if err != nil {
+		return envInference{}, nil
+	}
 	for _, mount := range inspect.Mounts {
 		if mount.Destination != "/app/runtime-config" {
 			continue
 		}
 		if strings.EqualFold(string(mount.Type), "bind") && mount.Source != "" {
-			if env := inferEnvFromConfigPath(mount.Source); env != "" {
+			if env := inferEnvFromConfigPath(mount.Source, rootDir); env != "" {
 				return envInference{Env: env, Source: "gateway config mount"}, nil
 			}
 		}
@@ -197,7 +202,7 @@ func inferEnvFromGateway(composeProject string) (envInference, error) {
 	return envInference{}, nil
 }
 
-func inferEnvFromConfigPath(path string) string {
+func inferEnvFromConfigPath(path, rootDir string) string {
 	cleaned := filepath.Clean(strings.TrimSpace(path))
 	if cleaned == "" {
 		return ""
@@ -205,7 +210,10 @@ func inferEnvFromConfigPath(path string) string {
 	if filepath.Base(cleaned) != "config" {
 		return ""
 	}
-	stagingRoot := filepath.Clean(staging.RootDir()) + string(filepath.Separator)
+	if strings.TrimSpace(rootDir) == "" {
+		return ""
+	}
+	stagingRoot := filepath.Clean(rootDir) + string(filepath.Separator)
 	if !strings.HasPrefix(cleaned+string(filepath.Separator), stagingRoot) {
 		return ""
 	}
@@ -216,12 +224,16 @@ func inferEnvFromConfigPath(path string) string {
 	return env
 }
 
-func inferEnvFromStaging(composeProject string) (envInference, error) {
+func inferEnvFromStaging(composeProject, templatePath string) (envInference, error) {
 	trimmed := strings.TrimSpace(composeProject)
 	if trimmed == "" {
 		return envInference{}, nil
 	}
-	envs, err := discoverStagingEnvs(staging.RootDir(), trimmed)
+	rootDir, err := staging.RootDir(templatePath)
+	if err != nil {
+		return envInference{}, err
+	}
+	envs, err := discoverStagingEnvs(rootDir, trimmed)
 	if err != nil {
 		return envInference{}, err
 	}
@@ -232,37 +244,22 @@ func inferEnvFromStaging(composeProject string) (envInference, error) {
 }
 
 func discoverStagingEnvs(rootDir, composeProject string) ([]string, error) {
-	entries, err := os.ReadDir(rootDir)
+	baseDir := filepath.Join(rootDir, composeProject)
+	entries, err := os.ReadDir(baseDir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("read staging dir: %w", err)
 	}
-
-	needle := composeProject + "-"
 	envs := make(map[string]struct{})
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
 		}
-		name := entry.Name()
-		if !strings.HasPrefix(name, needle) {
-			continue
-		}
-		baseDir := filepath.Join(rootDir, name)
-		subdirs, err := os.ReadDir(baseDir)
-		if err != nil {
-			continue
-		}
-		for _, sub := range subdirs {
-			if !sub.IsDir() {
-				continue
-			}
-			candidate := filepath.Join(baseDir, sub.Name(), "config")
-			if _, err := os.Stat(candidate); err == nil {
-				envs[sub.Name()] = struct{}{}
-			}
+		candidate := filepath.Join(baseDir, entry.Name(), "config")
+		if _, err := os.Stat(candidate); err == nil {
+			envs[entry.Name()] = struct{}{}
 		}
 	}
 

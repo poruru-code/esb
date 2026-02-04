@@ -14,8 +14,6 @@ target "lambda-base" {
   context    = "cli/internal/infra/build/assets"
   dockerfile = "Dockerfile.lambda-base"
   tags       = ["${REGISTRY}esb-lambda-base:latest"]
-  cache-from = ["type=local,src=.esb/buildx-cache/base"]
-  cache-to   = ["type=local,dest=.esb/buildx-cache/base,mode=max"]
   output     = ["type=image,push=true"]
 }
 
@@ -27,8 +25,6 @@ target "os-base" {
     ROOT_CA_MOUNT_ID = "root_ca"
   }
   output = ["type=image,push=true"]
-  cache-from = ["type=local,src=.esb/buildx-cache/base"]
-  cache-to   = ["type=local,dest=.esb/buildx-cache/base,mode=max"]
   secret = ["id=root_ca,src=/home/akira/.esb/certs/rootCA.crt"]
 }
 
@@ -40,8 +36,6 @@ target "python-base" {
     ROOT_CA_MOUNT_ID = "root_ca"
   }
   output = ["type=image,push=true"]
-  cache-from = ["type=local,src=.esb/buildx-cache/base"]
-  cache-to   = ["type=local,dest=.esb/buildx-cache/base,mode=max"]
   secret = ["id=root_ca,src=/home/akira/.esb/certs/rootCA.crt"]
 }
 
@@ -65,8 +59,6 @@ target "gateway-docker" {
     SERVICE_GID       = "1000"
   }
   tags   = ["${REGISTRY}esb-gateway-docker:latest"]
-  cache-from = ["type=local,src=.esb/buildx-cache/services"]
-  cache-to   = ["type=local,dest=.esb/buildx-cache/services,mode=max"]
   output = ["type=image,push=true"]
 }
 
@@ -81,8 +73,6 @@ target "agent-docker" {
     OS_BASE_IMAGE = "os-base"
   }
   tags   = ["${REGISTRY}esb-agent-docker:latest"]
-  cache-from = ["type=local,src=.esb/buildx-cache/services"]
-  cache-to   = ["type=local,dest=.esb/buildx-cache/services,mode=max"]
   output = ["type=image,push=true"]
 }
 
@@ -99,8 +89,6 @@ target "provisioner" {
     PYTHON_BASE_IMAGE = "python-base"
   }
   tags   = ["${REGISTRY}esb-provisioner:latest"]
-  cache-from = ["type=local,src=.esb/buildx-cache/services"]
-  cache-to   = ["type=local,dest=.esb/buildx-cache/services,mode=max"]
   output = ["type=image,push=true"]
 }
 
@@ -115,8 +103,6 @@ target "runtime-node-containerd" {
     OS_BASE_IMAGE = "os-base"
   }
   tags   = ["${REGISTRY}esb-runtime-node-containerd:latest"]
-  cache-from = ["type=local,src=.esb/buildx-cache/services"]
-  cache-to   = ["type=local,dest=.esb/buildx-cache/services,mode=max"]
   output = ["type=image,push=true"]
 }
 
@@ -131,8 +117,6 @@ target "agent-containerd" {
     OS_BASE_IMAGE = "os-base"
   }
   tags   = ["${REGISTRY}esb-agent-containerd:latest"]
-  cache-from = ["type=local,src=.esb/buildx-cache/services"]
-  cache-to   = ["type=local,dest=.esb/buildx-cache/services,mode=max"]
   output = ["type=image,push=true"]
 }
 
@@ -151,8 +135,6 @@ target "gateway-containerd" {
     SERVICE_GID       = "1000"
   }
   tags   = ["${REGISTRY}esb-gateway-containerd:latest"]
-  cache-from = ["type=local,src=.esb/buildx-cache/services"]
-  cache-to   = ["type=local,dest=.esb/buildx-cache/services,mode=max"]
   output = ["type=image,push=true"]
 }
 

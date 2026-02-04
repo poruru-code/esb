@@ -20,8 +20,11 @@ const deployLockTimeout = 30 * time.Second
 
 // MergeConfig merges new configuration files into the existing CONFIG_DIR.
 // It implements the "last-write-wins" merge strategy for multiple deployments.
-func MergeConfig(outputDir, composeProject, env string) error {
-	configDir := staging.ConfigDir(composeProject, env)
+func MergeConfig(outputDir, templatePath, composeProject, env string) error {
+	configDir, err := staging.ConfigDir(templatePath, composeProject, env)
+	if err != nil {
+		return err
+	}
 	if err := ensureDir(configDir); err != nil {
 		return fmt.Errorf("failed to create config dir: %w", err)
 	}

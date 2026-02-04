@@ -42,23 +42,58 @@ func stageKey(composeProject, env string) string {
 }
 
 // RootDir returns the absolute cache root for staging assets.
-func RootDir() string {
-	if xdg := strings.TrimSpace(os.Getenv("XDG_CACHE_HOME")); xdg != "" {
-		return filepath.Join(xdg, meta.Slug, "staging")
+// It is fixed under the template directory and requires that location to be writable.
+func RootDir(templatePath string) (string, error) {
+	projectRoot, err := ProjectRoot(templatePath)
+	if err != nil {
+		return "", err
 	}
-	home, err := os.UserHomeDir()
-	if err != nil || strings.TrimSpace(home) == "" {
-		return filepath.Join(fmt.Sprintf(".%s", meta.Slug), ".cache", "staging")
+	root := filepath.Join(projectRoot, "staging")
+	ensured, err := ensureDir(root)
+	if err != nil {
+		return "", fmt.Errorf("staging root not writable: %s: %w", root, err)
 	}
-	return filepath.Join(home, fmt.Sprintf(".%s", meta.Slug), ".cache", "staging")
+	return ensured, nil
 }
 
 // BaseDir returns the absolute staging directory for a project/env combination.
-func BaseDir(composeProject, env string) string {
-	return filepath.Join(RootDir(), stageKey(composeProject, env))
+func BaseDir(templatePath, composeProject, env string) (string, error) {
+	root, err := RootDir(templatePath)
+	if err != nil {
+		return "", err
+	}
+	projectKey := ComposeProjectKey(composeProject, env)
+	envKey := strings.ToLower(strings.TrimSpace(env))
+	if envKey == "" {
+		envKey = "default"
+	}
+	return filepath.Join(root, projectKey, envKey), nil
 }
 
 // ConfigDir returns the absolute staging config directory used by runtime code.
-func ConfigDir(composeProject, env string) string {
-	return filepath.Join(BaseDir(composeProject, env), env, "config")
+func ConfigDir(templatePath, composeProject, env string) (string, error) {
+	base, err := BaseDir(templatePath, composeProject, env)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(base, "config"), nil
+}
+
+func ensureDir(path string) (string, error) {
+	if err := os.MkdirAll(path, 0o755); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+// ProjectRoot returns the absolute project cache root for the template.
+func ProjectRoot(templatePath string) (string, error) {
+	if strings.TrimSpace(templatePath) == "" {
+		return "", fmt.Errorf("template path is required")
+	}
+	templateDir := filepath.Dir(templatePath)
+	if abs, err := filepath.Abs(templateDir); err == nil {
+		templateDir = abs
+	}
+	return filepath.Join(templateDir, meta.OutputDir), nil
 }
