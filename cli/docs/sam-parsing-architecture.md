@@ -1,6 +1,7 @@
 # SAM パース・アーキテクチャ
 
-このドキュメントは、ESB における SAM テンプレートのパース処理を「利用側の視点」で説明します。`aws-sam-parser-go` は外部ライブラリとして扱い、内部実装の詳細には踏み込みません。
+このドキュメントは、ESB における SAM テンプレートのパース処理を「利用側の視点」で説明します。
+`aws-sam-parser-go` は外部ライブラリとして扱い、内部実装の詳細には踏み込みません。
 
 ## 目的
 - SAM テンプレートを ESB 内部の Spec へ変換するための全体像を示す
@@ -29,39 +30,42 @@ graph TD
     B --> C[normalized map]
     C --> D[sam.ResolveAll + ESB IntrinsicResolver]
     D --> E[sam.DecodeTemplate]
-    E --> F[generator: Spec 生成 + デフォルト適用]
-    F --> G[manifest.ResourcesSpec]
+    E --> F[infra/sam: Spec 生成 + デフォルト適用]
+    F --> G[domain/manifest.ResourcesSpec]
 
-    P1[build 入力値（対話）] --> P_MERGE{パラメータ統合}
+    P1[deploy 入力値（対話）] --> P_MERGE{パラメータ統合}
     P2[template.yaml の Parameters.Default] --> P_MERGE
     P_MERGE --> D
 ```
 
 ## パラメータの優先順位
-ESB はテンプレート内の `Parameters.Default` と build 時の入力値を統合します。
-- 優先順位は **build 入力 > テンプレート** です。
+ESB はテンプレート内の `Parameters.Default` と deploy 時の入力値を統合します。
+- 優先順位は **deploy 入力 > テンプレート** です。
 
 ## Intrinsic 解決（ESB 仕様）
-Intrinsic の解決は ESB 側の実装に閉じた仕様です。`aws-sam-parser-go` は「解決の仕組み」だけを提供し、具体的な解決ルールは ESB が決めます。
+Intrinsic の解決は ESB 側の実装に閉じた仕様です。`aws-sam-parser-go` は「解決の仕組み」だけを提供し、
+具体的な解決ルールは ESB が決めます。
 
-実装場所: `cli/internal/generator/intrinsics_resolver.go`
+実装場所: `cli/internal/infra/sam/intrinsics_resolver.go`
 
 ## ESB が扱うリソースの拡張
 ESB が特定のリソースを Spec 化する場合は、ESB 側に明示的な処理を追加します。
 
-- 実装場所: `cli/internal/generator/parser_resources.go`
-- `manifest` の内部型へ変換して保持するため、`schema` 依存は `cli/internal/sam` に集約されます
+- 実装場所: `cli/internal/infra/sam/template_resources.go`
+- `manifest` の内部型へ変換して保持するため、`schema` 依存は `cli/internal/infra/sam` に集約されます
 
-## Generator / Manifest 境界
+## Build / Manifest 境界
 
 ### 役割
-- **generator**: SAMテンプレートを解析し、`FunctionSpec` と `manifest.ResourcesSpec` を生成。アセットのステージングと `functions.yml` / `routing.yml` / Dockerfile を出力。
+- **infra/build + domain/template**: SAMテンプレートを解析し、`FunctionSpec` と `manifest.ResourcesSpec` を生成。
+  アセットのステージングと `functions.yml` / `routing.yml` / Dockerfile を出力。
 - **manifest**: `provisioner` が適用するリソースの意図を保持する純粋な内部型。
 
 ### 依存方向
-- `generator` -> `manifest`（内部型のみ）
-- `provisioner` -> `manifest`
-- `generator` -> `sam`（外部 parser/schema の境界）
+- `infra/build` -> `domain/template`
+- `infra/build` -> `infra/sam`
+- `infra/sam` -> `domain/manifest`
+- `provisioner` -> `domain/manifest`
 
 ### テスト観点
 - renderer のスナップショットで出力差分を検知

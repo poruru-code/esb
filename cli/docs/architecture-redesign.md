@@ -6,9 +6,10 @@ Why: Preserve rationale for simplifying the CLI architecture while keeping exter
 # CLI Architecture Redesign (Target)
 
 ## Context
-The current CLI layout evolved for a larger command surface area and a stricter hexagonal style. Given the
-current CLI scope (deploy-centric), this feels over-layered and increases maintenance cost. This document
-captures a target architecture that keeps external dependencies isolated but removes unnecessary abstraction.
+The CLI is deploy-centric and has a small, stable command surface. A full hexagonal layout is too heavy for
+this scope, but isolating external dependencies (Docker/Compose/FS/UI) is still valuable. This document
+captures a minimal structure and an implementation-level migration plan that keeps behavior stable while
+reducing file churn.
 
 ## Design Principles
 1. **Functional core, imperative shell**: keep pure logic in `domain`, I/O at the edges.
@@ -16,7 +17,7 @@ captures a target architecture that keeps external dependencies isolated but rem
 3. **No generic ports layer**: use minimal, use-case-specific abstractions.
 4. **Thin commands**: commands only parse flags and call a usecase/domain function.
 
-## Target Structure (Minimum Viable Hex)
+## Target Structure (Current Implementation Aligned)
 ```
 cli/
   cmd/esb/
@@ -24,180 +25,98 @@ cli/
   internal/
     command/                     # command handlers (thin)
       deploy.go
-      version.go
       completion.go
+      version.go
     usecase/
       deploy/
         deploy.go                # orchestration only
-        inputs.go                # resolve + validate
+        config_diff.go           # pure diff helpers (can move to domain)
     domain/
-      config/
-        merge.go                 # pure
-        diff.go                  # pure
-      template/
-        parse.go                 # pure
-        params.go                # pure
-      naming/
-        project.go               # pure
-        env.go                   # pure
-      runtime/
-        mode.go                  # pure inference logic
+      config/                    # pure config logic
+      manifest/                  # internal resource specs (pure)
+      runtime/                   # mode inference (pure)
+      state/                     # pure DTOs
+      template/                  # renderer, types, image naming (pure)
+      value/                     # typed coercion helpers (pure)
     infra/
-      compose/
-        runner.go                # docker compose exec
-      docker/
-        client.go                # docker SDK wrappers
-      fs/
-        fs.go                     # Read/Write/Stat
-      ui/
-        prompt.go                # prompt + output
+      build/                     # build + staging + docker/bake
+      compose/                   # docker compose exec
+      config/                    # config structs
+      env/                       # runtime env application
+      envutil/                   # env helpers
+      interaction/               # prompt impl
+      sam/                       # aws-sam-parser-go boundary + intrinsics
+      staging/                   # path helpers (I/O)
+      ui/                        # UI output
     app/
-      di.go                       # wiring (tiny)
+      di.go                      # wiring
 ```
 
 ## Implementation-Level Migration Plan (Concrete)
-This section translates the target architecture into small, code-level steps. The goal is to reduce
-cross-file churn by refactoring in commit-sized changes while preserving behavior.
+This section translates the target architecture into commit-sized steps and concrete file moves.
 
-### Step 0: Introduce new packages without deleting old ones
-Create the target folders and add thin adapters that call existing code. This keeps behavior stable
-and avoids a large rename sweep.
+### Step 1: Deploy usecase wiring (DONE)
+- `cli/internal/workflows/deploy.go` -> `cli/internal/usecase/deploy/deploy.go`
+- `cli/internal/commands/deploy.go` -> `cli/internal/command/deploy.go`
+- Replace `workflows.NewDeployWorkflow` with `usecase/deploy.NewDeployWorkflow`.
+- `cli/internal/app/di.go` wires `build.NewGoBuilder` and passes `Build` into deploy usecase.
 
-Create:
-- `cli/internal/command/` (new)
-- `cli/internal/usecase/deploy/` (new)
-- `cli/internal/domain/` (new subpackages below)
-- `cli/internal/infra/` (new subpackages below)
-- `cli/internal/app/di.go` (new; replaces `wire` later)
+### Step 2: Generator split into domain + infra (DONE)
+**Pure template logic (domain):**
+- `cli/internal/generator/renderer.go` -> `cli/internal/domain/template/renderer.go`
+- `cli/internal/generator/image_naming.go` -> `cli/internal/domain/template/image_naming.go`
+- `cli/internal/generator/templates/*` -> `cli/internal/domain/template/templates/*`
+- `cli/internal/generator/testdata/renderer/*` -> `cli/internal/domain/template/testdata/renderer/*`
+- New: `cli/internal/domain/template/types.go` for `ParseResult`, `FunctionSpec`, `EventSpec`.
 
-Temporary rule: old packages (`commands`, `workflows`, `ports`, `wire`) remain until a step explicitly
-removes them.
+**SAM parsing boundary (infra):**
+- `cli/internal/sam/*` -> `cli/internal/infra/sam/*`
+- `cli/internal/generator/parser*.go` -> `cli/internal/infra/sam/template_*.go`
+- `cli/internal/generator/intrinsics_resolver.go` -> `cli/internal/infra/sam/intrinsics_resolver.go`
 
-### Step 1: Move Deploy workflow into usecase (no behavior change)
-Move orchestration from `cli/internal/workflows/deploy.go` into:
-- `cli/internal/usecase/deploy/deploy.go`
-- `cli/internal/usecase/deploy/config_diff.go` (or `domain/config` if already extracted)
+**Build orchestration (infra):**
+- `cli/internal/generator/*` -> `cli/internal/infra/build/*` (package renamed to `build`)
+- `GenerateFiles` now returns `[]template.FunctionSpec` and consumes `sam.Parser`.
 
-Minimal edits:
-- Keep function names/structs intact to reduce diff noise.
-- Replace `workflows.NewDeployWorkflow` with `usecase/deploy.New`.
-- Keep existing dependency shape until Step 3 (ports replacement).
+**Supporting types:**
+- `cli/internal/manifest/*` -> `cli/internal/domain/manifest/*`
+- `cli/internal/generator/value_helpers.go` -> `cli/internal/domain/value/value.go`
 
-### Step 2: Extract pure logic into domain
-Carve out pure functions from commands/workflows/generator. Each move is a pure transformation that
-eliminates direct OS/Docker access.
+### Step 3: Assets relocation (DONE)
+- `cli/internal/generator/assets/*` -> `cli/internal/infra/build/assets/*`
+- Update compose/build contexts:
+  - `docker-compose.*.yml` and `docker-bake.hcl` generator asset paths
+  - `DefaultSitecustomizeSource` to `cli/internal/infra/build/assets/site-packages/sitecustomize.py`
 
-Recommended subpackages and concrete targets:
-- `domain/runtime/mode.go`
-  - `normalizeMode` (from `commands/deploy.go`)
-  - `inferModeFromContainers` (pure logic; inputs are container summaries)
-  - `inferModeFromComposeFiles` (pure string/file-name logic)
-  - `fallbackDeployMode`
-- `domain/naming/project.go`
-  - `defaultDeployProject` (change signature to accept `brand`, `env` instead of reading env)
-  - `ComposeProjectKey` (from `staging`, if needed as pure naming)
-- `domain/config/output.go`
-  - `resolveDeployOutputSummary`
-  - `normalizeOutputDir`
-- `domain/config/diff.go`
-  - `diffConfigSnapshots`, `diffMap`, and count formatting helpers
-- `domain/template/params.go`
-  - `extractSAMParameters` and parameter-default extraction logic
-  - suggestion/merge helpers like `buildTemplateSuggestions`, `updateTemplateHistory`
+### Step 4: Remaining boundary cleanups (TODO)
+**4.1 FS abstraction (infra/fs)**
+- Extract `ReadFile/WriteFile/Stat/MkdirAll/RemoveAll` into `infra/fs`.
+- Apply to:
+  - `infra/build/file_ops.go`
+  - `infra/build/merge_config.go`
+  - `command/deploy.go` (template path checks)
 
-Rules:
-- If a function touches `os`, `filepath`, or Docker SDK, split it: keep pure logic in `domain`,
-  move I/O to `infra/*` (or keep in command/usecase until Step 4).
+**4.2 Pure config extraction (domain/config)**
+- Move pure merge/diff helpers out of usecase/build:
+  - `mergeDefaultsSection`, `routeKey`, snapshot diff helpers
+- Keep file I/O in `infra/build` or new `infra/fs`.
 
-### Step 3: Replace ports with concrete infra interfaces (only 4)
-Remove `cli/internal/ports` and expose only these interfaces inside `infra/*`:
+**4.3 Runtime mode helpers (domain/runtime)**
+- Ensure mode normalization/inference are pure functions taking inputs (no env/Docker access).
 
-```
-type DockerClient interface { ... }        // Docker SDK subset
-type ComposeRunner interface { ... }       // docker compose exec/run
-type FS interface { ... }                  // ReadFile/WriteFile/Stat/ReadDir/MkdirAll/RemoveAll
-type UI interface {
-  Prompt() Prompter // Input/Select/SelectValue
-  Print() Printer   // Info/Warn/Success/Block
-}
-```
+## Concrete Dependencies for Deploy Usecase (Current Wiring)
+Deploy usecase currently depends on:
+- `func(build.BuildRequest) error` (builder function)
+- `compose.CommandRunner` (docker compose exec)
+- `ui.UserInterface` (output)
+- `func(state.Context) error` (runtime env applier)
 
-Concrete implementations:
-- `infra/docker/client.go` wraps `compose.NewDockerClient` and SDK calls.
-- `infra/compose/runner.go` wraps `compose.ExecRunner`.
-- `infra/fs/osfs.go` wraps `os`/`filepath`.
-- `infra/ui/console.go` wraps `interaction.HuhPrompter` + `ui.Console`.
-
-Usecases depend only on these four interfaces. No `Builder` or `RuntimeEnvApplier` interface:
-replace them with concrete functions that accept these deps as parameters.
-
-### Step 4: Shrink command layer to thin adapters
-Move input resolution helpers into `command/deploy_inputs.go` and limit command code to:
-- parse flags
-- call `usecase/deploy.Run(ctx, inputs, deps)`
-- map errors to exit codes
-
-Concrete changes:
-- `commands.Run` becomes `command.Run` (or keep `commands` as a shim).
-- `commands/deploy.go` keeps only CLI input logic and uses `domain/*` for pure transforms.
-
-### Step 5: Collapse wire -> app/di.go
-Replace `cli/internal/wire/wire.go` with `cli/internal/app/di.go`:
-- build infra implementations
-- pass them to command/usecase
-- keep `main.go` unchanged except for import path
-
-### Step 6: Remove old layers
-Delete in order:
-- `cli/internal/ports/*`
-- `cli/internal/workflows/*` (after usecase is stable)
-- `cli/internal/wire/*` (after app/di.go is wired)
-
-### Step 7: Generator/Build split (optional but ideal)
-Generator is currently a mix of parsing (pure) and I/O (filesystem + docker). Split by dependency:
-- `domain/template/*` and `domain/config/*`: parsing, name normalization, image naming
-- `infra/build/*`: docker/buildx/bake, registry checks, file staging
-- `usecase/deploy` composes domain + infra to run "generate + build + stage + provision"
-
-## Concrete Dependencies for Deploy Usecase
-To enforce the boundary, the deploy usecase should only know about:
-- `infra.DockerClient`
-- `infra.ComposeRunner`
-- `infra.FS`
-- `infra.UI`
-
-Everything else should be a plain function call in `domain` or `usecase`.
-
-## Decisions (Senior Review)
-### 1) Usecase Scope
-- **Keep usecase only for `deploy`**.
-- Other commands are thin; they can call `domain` or `infra` directly.
-
-### 2) Domain Scope
-- **Only pure logic** (no I/O):
-  - config merge/diff
-  - template parsing/parameters
-  - naming/normalization
-  - runtime mode inference (pure functions only)
-
-### 3) Required Interfaces (Only 4)
-- `DockerClient`
-- `ComposeRunner`
-- `FS`
-- `UI`
-
-Everything else should be concrete implementation code.
+Target boundary (future): keep only Docker/Compose/FS/UI interfaces and pass concrete functions for the rest.
 
 ## Runtime Mode: UX + Inference Policy
-### Problem
-- Function images are **runtime-agnostic**, but deploy still needs runtime context for:
-  - provisioner compose selection
-  - service status checks
-  - registry/port resolution
-
 ### Policy (When project is running)
 - **Do not prompt for mode**.
-- **Infer mode from running project**, with the following precedence:
+- **Infer mode from running project**, precedence:
   1. Running containers: `runtime-node` -> containerd
   2. Running containers: `agent` -> docker
   3. All containers in project (if none running)
@@ -208,8 +127,8 @@ Everything else should be concrete implementation code.
 - Prompt for `--mode` (or accept flag).
 
 ## Compose Config Alignment
-When a project is running, the CLI should **reuse the exact compose files that started it** by reading
-`com.docker.compose.project.config_files`. This avoids mismatches (e.g., orphan warnings, missing services).
+When a project is running, reuse the exact compose files that started it by reading
+`com.docker.compose.project.config_files`.
 
 Applied to:
 - provisioner execution
@@ -222,13 +141,7 @@ Applied to:
 - Fully remove hex architecture (external boundaries still matter).
 - Large refactor in one step (prefer incremental migrations).
 
-## Migration Outline (Incremental)
-1. Introduce `usecase/deploy` and move orchestration there.
-2. Move pure logic into `domain/*`.
-3. Collapse unused `ports` layers into concrete implementations.
-4. Keep `infra/*` only for Docker/Compose/FS/UI.
-
 ## Notes
-- This document is a target architecture, not a full refactor plan.
-- Actual refactoring should be done in small, safe steps.
-- A pragmatic migration map is available in `cli/docs/architecture-mapping.md`.
+- This document is a target architecture with concrete steps.
+- Keep changes small and verify with `go test ./cli/...` after each step.
+- Mapping details are tracked in `cli/docs/architecture-mapping.md`.

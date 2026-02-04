@@ -5,16 +5,16 @@ import (
 	"time"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/state"
-	"github.com/poruru/edge-serverless-box/cli/internal/generator"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/build"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/ui"
 )
 
 type recordBuilder struct {
-	requests []generator.BuildRequest
+	requests []build.BuildRequest
 	err      error
 }
 
-func (b *recordBuilder) Build(request generator.BuildRequest) error {
+func (b *recordBuilder) Build(request build.BuildRequest) error {
 	b.requests = append(b.requests, request)
 	return b.err
 }

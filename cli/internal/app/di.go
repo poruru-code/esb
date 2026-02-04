@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/command"
-	"github.com/poruru/edge-serverless-box/cli/internal/generator"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/build"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/interaction"
@@ -55,7 +55,7 @@ func (composePortDiscoverer) Discover(ctx context.Context, rootDir, project, mod
 // BuildDependencies constructs CLI dependencies. It returns the dependencies
 // bundle, a closer for cleanup, and any initialization error.
 func BuildDependencies(_ []string) (command.Dependencies, io.Closer, error) {
-	builder := generator.NewGoBuilder(composePortDiscoverer{})
+	builder := build.NewGoBuilder(composePortDiscoverer{})
 
 	deps := command.Dependencies{
 		Out:          Stdout,

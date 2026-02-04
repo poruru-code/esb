@@ -20,15 +20,15 @@ import (
 	runtimecfg "github.com/poruru/edge-serverless-box/cli/internal/domain/runtime"
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/state"
 	domaintpl "github.com/poruru/edge-serverless-box/cli/internal/domain/template"
-	"github.com/poruru/edge-serverless-box/cli/internal/generator"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/build"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/env"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/envutil"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/interaction"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/sam"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/ui"
-	"github.com/poruru/edge-serverless-box/cli/internal/sam"
 	"github.com/poruru/edge-serverless-box/cli/internal/usecase/deploy"
 	"github.com/poruru/edge-serverless-box/meta"
 )
@@ -57,7 +57,7 @@ func runDeploy(cli CLI, deps Dependencies, out io.Writer) int {
 }
 
 type deployCommand struct {
-	build         func(generator.BuildRequest) error
+	build         func(build.BuildRequest) error
 	applyRuntime  func(state.Context) error
 	ui            ui.UserInterface
 	composeRunner compose.CommandRunner

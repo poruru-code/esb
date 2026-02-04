@@ -12,7 +12,7 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/joho/godotenv"
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/state"
-	"github.com/poruru/edge-serverless-box/cli/internal/generator"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/build"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/interaction"
 	"github.com/poruru/edge-serverless-box/cli/internal/version"
@@ -54,7 +54,7 @@ type (
 	VersionCmd struct{}
 
 	DeployDeps struct {
-		Build           func(generator.BuildRequest) error
+		Build           func(build.BuildRequest) error
 		ApplyRuntimeEnv func(state.Context) error
 	}
 )

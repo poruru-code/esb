@@ -21,7 +21,7 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	domaincfg "github.com/poruru/edge-serverless-box/cli/internal/domain/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/state"
-	"github.com/poruru/edge-serverless-box/cli/internal/generator"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/build"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
@@ -80,7 +80,7 @@ func defaultRegistryWaiter(registry string, timeout time.Duration) error {
 
 // Workflow executes the deploy orchestration steps.
 type Workflow struct {
-	Build           func(generator.BuildRequest) error
+	Build           func(build.BuildRequest) error
 	ApplyRuntimeEnv func(state.Context) error
 	UserInterface   ui.UserInterface
 	ComposeRunner   compose.CommandRunner
@@ -89,7 +89,7 @@ type Workflow struct {
 
 // NewDeployWorkflow constructs a Workflow.
 func NewDeployWorkflow(
-	build func(generator.BuildRequest) error,
+	build func(build.BuildRequest) error,
 	applyRuntimeEnv func(state.Context) error,
 	ui ui.UserInterface,
 	composeRunner compose.CommandRunner,
@@ -142,7 +142,7 @@ func (w Workflow) Run(req Request) error {
 		}
 	}
 
-	buildRequest := generator.BuildRequest{
+	buildRequest := build.BuildRequest{
 		ProjectDir:   req.Context.ProjectDir,
 		ProjectName:  req.Context.ComposeProject,
 		TemplatePath: req.TemplatePath,

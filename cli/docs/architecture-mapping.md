@@ -3,109 +3,59 @@ Where: cli/docs/architecture-mapping.md
 What: Mapping from current CLI structure to target architecture.
 Why: Guide incremental refactors without losing intent.
 -->
-# CLI Architecture Mapping (Current -> Target)
+# CLI Architecture Mapping (Legacy -> Current)
 
-This document maps the current CLI structure to the target architecture described in
-`cli/docs/architecture-redesign.md`. It is intentionally pragmatic and supports
-incremental migration.
+This document records concrete file moves and callsite updates used to reach the target architecture in
+`cli/docs/architecture-redesign.md`. Use it as a checklist for future cleanups.
 
 ## High-Level Mapping
 
-| Current Area | Target Area | Action | Notes |
+| Legacy Area | Current Area | Status | Notes |
 | --- | --- | --- | --- |
-| `cli/internal/commands/*` | `cli/internal/command/*` | keep (thin) | Commands should only parse flags and call usecase/domain. |
-| `cli/internal/workflows/*` | `cli/internal/usecase/deploy/*` | move (only deploy) | Keep deploy orchestration only. Other workflows should collapse. |
-| `cli/internal/ports/*` | (remove) | remove | Replace with concrete infra implementations. |
-| `cli/internal/wire/*` | `cli/internal/app/di.go` | reduce | Single small wiring point. |
-| `cli/internal/generator/*` | `cli/internal/domain/*` + `cli/internal/infra/*` | split | Pure logic to domain, I/O to infra. |
-| `cli/internal/compose/*` | `cli/internal/infra/compose/*` | keep | External dependency boundary. |
-| `cli/internal/envutil/*` | `cli/internal/infra/env/*` | keep | Env access is I/O. |
-| `cli/internal/helpers/*` | domain/infra | review | Move pure helpers to domain. |
-| `cli/internal/interaction/*` | `cli/internal/infra/ui/*` | keep | UI is I/O. |
-| `cli/internal/state/*` | `cli/internal/domain/*` | move | Only pure state models. |
+| `cli/internal/commands/*` | `cli/internal/command/*` | done | Commands are thin flag parsers + prompts. |
+| `cli/internal/workflows/*` | `cli/internal/usecase/deploy/*` | done | Only deploy orchestration remains. |
+| `cli/internal/ports/*` | (removed) | done | Replace with concrete infra packages. |
+| `cli/internal/wire/*` | `cli/internal/app/di.go` | done | Single wiring point. |
+| `cli/internal/generator/*` | `cli/internal/infra/build/*` + `cli/internal/domain/template/*` | done | Split pure template logic vs build I/O. |
+| `cli/internal/sam/*` | `cli/internal/infra/sam/*` | done | External parser boundary. |
+| `cli/internal/manifest/*` | `cli/internal/domain/manifest/*` | done | Pure internal specs. |
+| `cli/internal/state/*` | `cli/internal/domain/state/*` | done | Plain DTOs. |
+| `cli/internal/compose/*` | `cli/internal/infra/compose/*` | done | External dependency boundary. |
+| `cli/internal/envutil/*` | `cli/internal/infra/envutil/*` | done | Env access is I/O. |
+| `cli/internal/interaction/*` | `cli/internal/infra/interaction/*` | done | Prompt implementation. |
 
-## Concrete File/Function Mapping (Implementation-Level)
-This section lists exact files/functions to move or split. Use this as a checklist.
+## Concrete File Mapping (Implementation-Level)
 
-### Commands -> Command/Domain/Infra
-| Current File | Target | Concrete Action |
-| --- | --- | --- |
-| `cli/internal/commands/app.go` | `cli/internal/command/root.go` | Keep Kong parsing, env-file loading, and `dispatchCommand`. Move dependency wiring out. |
-| `cli/internal/commands/deploy.go` | `cli/internal/command/deploy.go` | Keep input resolution and prompts only. Extract pure helpers to `domain/*` (see below). |
-| `cli/internal/commands/deploy_runtime_env.go` | `cli/internal/command/deploy_runtime_env.go` + `infra/docker` | Keep prompt/decision logic in command; move Docker inspect into `infra/docker`. |
-| `cli/internal/commands/output.go` | `cli/internal/infra/ui` | Merge with `ui.Console` + `interaction.HuhPrompter` under a single UI interface. |
-| `cli/internal/commands/error_helpers.go` | `cli/internal/command/errors.go` | Keep as command-only helpers. |
+| Legacy File/Dir | New Location | Status | Notes |
+| --- | --- | --- | --- |
+| `cli/internal/generator/renderer.go` | `cli/internal/domain/template/renderer.go` | done | Pure rendering. |
+| `cli/internal/generator/image_naming.go` | `cli/internal/domain/template/image_naming.go` | done | Pure naming. |
+| `cli/internal/generator/templates/*` | `cli/internal/domain/template/templates/*` | done | Template assets. |
+| `cli/internal/generator/testdata/renderer/*` | `cli/internal/domain/template/testdata/renderer/*` | done | Snapshot fixtures updated. |
+| `cli/internal/generator/parser*.go` | `cli/internal/infra/sam/template_*.go` | done | SAM parsing + defaults. |
+| `cli/internal/generator/intrinsics_resolver.go` | `cli/internal/infra/sam/intrinsics_resolver.go` | done | Intrinsic resolution. |
+| `cli/internal/sam/parser.go` | `cli/internal/infra/sam/parser.go` | done | DecodeYAML/ResolveAll wrappers. |
+| `cli/internal/sam/template.go` | `cli/internal/infra/sam/template.go` | done | Schema decode helpers. |
+| `cli/internal/manifest/*` | `cli/internal/domain/manifest/*` | done | Internal resource specs. |
+| `cli/internal/generator/value_helpers.go` | `cli/internal/domain/value/value.go` | done | `AsMap/AsSlice/AsString/AsInt` helpers. |
+| `cli/internal/generator/*` | `cli/internal/infra/build/*` | done | `package build` + new imports. |
+| `cli/internal/generator/assets/*` | `cli/internal/infra/build/assets/*` | done | Update compose + bake contexts. |
 
-### Workflow -> Usecase + Domain + Infra
-| Current File | Target | Concrete Action |
-| --- | --- | --- |
-| `cli/internal/workflows/deploy.go` | `cli/internal/usecase/deploy/deploy.go` | Move orchestration as-is first. Then split: I/O helpers -> `infra`, pure logic -> `domain`. |
-| `cli/internal/workflows/config_diff.go` | `cli/internal/domain/config/diff.go` + `infra/fs` | Keep diff logic pure. Move YAML load + file read into infra or usecase. |
+## Required Call-Site Updates
+When applying the above moves, update imports and types:
+- `generator.BuildRequest` -> `build.BuildRequest`
+- `generator.NewGoBuilder` -> `build.NewGoBuilder`
+- `generator.ParseResult` / `FunctionSpec` -> `template.ParseResult` / `template.FunctionSpec`
+- `RenderFunctionsYml` / `RenderRoutingYml` -> `template.RenderFunctionsYml` / `template.RenderRoutingYml`
+- `DefaultSitecustomizeSource` now lives in `domain/template` and points to
+  `cli/internal/infra/build/assets/site-packages/sitecustomize.py`.
 
-### Compose/Docker -> Infra + Domain
-| Current File | Target | Concrete Action |
-| --- | --- | --- |
-| `cli/internal/compose/*` | `cli/internal/infra/compose/*` | Keep `CommandRunner` concrete impl here. Expose only `ComposeRunner` interface to usecase. |
-| `cli/internal/compose/docker.go` | `cli/internal/infra/docker/*` | Keep Docker SDK access here. Export small `DockerClient` interface only. |
-| `cli/internal/compose/modes.go` | `cli/internal/domain/runtime/mode.go` | Move mode normalization and mode inference helpers (pure). |
-| `cli/internal/compose/project_files.go` | `cli/internal/infra/compose/*` | Keep label-based compose file lookup (I/O). |
-
-### Helpers/Env/State -> Domain + Infra
-| Current File | Target | Concrete Action |
-| --- | --- | --- |
-| `cli/internal/helpers/env_defaults.go` | `cli/internal/infra/env` | All env var reads/writes are I/O. Split pure calculations (hash indices) into `domain/naming` or `domain/config`. |
-| `cli/internal/helpers/mode.go` | `cli/internal/domain/runtime/mode.go` | Make it pure by passing existing mode as input instead of reading env. |
-| `cli/internal/helpers/runtime_env.go` | `cli/internal/infra/env` | Keep as infra adapter until ports removal. |
-| `cli/internal/state/context.go` | `cli/internal/domain/context.go` | Keep as a plain struct in domain. |
-| `cli/internal/staging/staging.go` | `cli/internal/domain/staging` + `infra/env` | Make `RootDir` pure by passing in `home`/`xdg` from infra. |
-
-### Generator -> Domain + Infra (Optional but recommended)
-| Current File | Target | Concrete Action |
-| --- | --- | --- |
-| `cli/internal/generator/parser*.go` | `cli/internal/domain/template/*` | Keep SAM parsing and intrinsic resolution as pure logic. |
-| `cli/internal/generator/renderer.go` | `cli/internal/domain/template/render.go` | Pure template rendering; no file I/O. |
-| `cli/internal/generator/stage.go` + `file_ops.go` | `cli/internal/infra/fs` + `infra/build` | Move filesystem actions to `infra/fs`. Keep staging orchestration in `infra/build`. |
-| `cli/internal/generator/go_builder*.go` | `cli/internal/infra/build` | Keep buildx/bake/docker operations as infra. |
-| `cli/internal/generator/merge_config.go` | `domain/config/merge.go` + `infra/fs` | Merge logic in domain; file access in infra. |
-
-## Concrete Extraction Targets (Pure Functions)
-Move these functions into domain packages with no OS/Docker access:
-- `normalizeMode`, `fallbackDeployMode`, `inferModeFromComposeFiles` -> `domain/runtime/mode.go`
-- `resolveDeployOutputSummary`, `normalizeOutputDir` -> `domain/config/output.go`
-- `buildTemplateSuggestions`, `updateTemplateHistory` -> `domain/template/history.go`
-- `diffConfigSnapshots`, `diffMap`, `formatCountsLabel` -> `domain/config/diff.go`
-- `sanitizeLayerName`, `imageSafeName`, `applyImageNames` -> `domain/template/naming.go`
+## Remaining Cleanups (Optional)
+- Introduce `infra/fs` and replace direct `os`/`filepath` usage in build/merge/staging.
+- Move pure config helpers from usecase/build into `domain/config`.
+- Keep domain functions free of external dependencies.
 
 ## Commit-Sized Refactor Checklist
-1. Create new folders (`command`, `usecase/deploy`, `domain/*`, `infra/*`) with thin adapters.
-2. Move `workflows/deploy.go` to `usecase/deploy` with minimal edits.
-3. Extract pure helpers into `domain/*` and update call sites.
-4. Introduce `infra/docker`, `infra/compose`, `infra/fs`, `infra/ui` and switch usecase to them.
-5. Remove `ports` by inlining dependency usage (use only the 4 infra interfaces).
-6. Replace `wire` with `app/di.go` and update `main.go` imports.
-7. Delete old packages once `go test ./cli/...` passes.
-
-## Deploy-Specific Mapping
-
-| Current Component | Target | Action | Notes |
-| --- | --- | --- | --- |
-| `workflows/deploy.go` | `usecase/deploy/deploy.go` | move | Keep orchestration. |
-| `commands/deploy.go` | `command/deploy.go` | thin | Input parsing, prompt only. |
-| `workflows/config_diff.go` | `domain/config/diff.go` | move | Pure diff logic. |
-| `staging/*` | `domain/config/*` | move | If purely path logic, keep in domain. |
-
-## Runtime Mode Inference
-- **Target**: resolve from running project when available.
-- **Source**: running container services (`runtime-node`/`agent`).
-- **Fallback**: compose `config_files`.
-- **Prompt**: only when no project is running.
-
-## Incremental Plan
-1. Create `usecase/deploy` with current workflow logic.
-2. Move pure functions (merge/diff, template parsing) into `domain`.
-3. Replace `ports` with concrete `infra/*` modules.
-4. Keep only a small DI/wire entry point.
-
-## Non-Goals
-- Removing all abstraction (external boundaries stay).
-- One-shot refactor.
+1. Move one package at a time (renderer, parser, build, assets).
+2. Update callsites + tests immediately.
+3. Run `go test ./cli/...` after each move.
