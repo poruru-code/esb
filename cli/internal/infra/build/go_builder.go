@@ -245,7 +245,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		return err
 	}
 
-	cacheRoot := bakeCacheRoot(cfg.Paths.OutputDir)
+	cacheRoot := bakeCacheRoot(repoRoot)
 
 	lambdaBaseTag := lambdaBaseImageTag(registryForPush, imageTag)
 	lambdaTags := []string{lambdaBaseTag}

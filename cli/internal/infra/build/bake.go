@@ -578,9 +578,8 @@ func parseBakeKeyValuePath(spec, key string) string {
 	return ""
 }
 
-func bakeCacheRoot(outputDir string) string {
-	base := filepath.Dir(filepath.Clean(outputDir))
-	return filepath.Join(base, "buildx-cache")
+func bakeCacheRoot(repoRoot string) string {
+	return filepath.Join(repoRoot, meta.OutputDir, "buildx-cache")
 }
 
 type buildxBuilderOptions struct {

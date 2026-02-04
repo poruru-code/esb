@@ -63,7 +63,7 @@
 ### プロジェクトキャッシュ（テンプレート隣）
 | パス | 内容 | 目的/備考 |
 | --- | --- | --- |
-| `<template_dir>/.esb/buildx-cache/` | buildx のローカルキャッシュ | bake の cache-to/cache-from |
+| `<project_root>/.esb/buildx-cache/` | buildx のローカルキャッシュ | bake の cache-to/cache-from |
 | `<template_dir>/.esb/staging/<compose_project>/<env>/config/functions.yml` | 関数定義 | deploy マージ結果 |
 | `<template_dir>/.esb/staging/<compose_project>/<env>/config/routing.yml` | ルーティング定義 | deploy マージ結果 |
 | `<template_dir>/.esb/staging/<compose_project>/<env>/config/resources.yml` | リソース定義 | deploy マージ結果 |
