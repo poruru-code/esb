@@ -132,7 +132,7 @@ COPY --from=meta /version.json /app/version.json
 Compose ファイルは **branding ツール（esb-branding-tool）で生成**されるため、
 修正はツール側テンプレートで行い、生成物（`docker-compose.*.yml`）へ反映する。
 
-- `META_CONTEXT` 未設定時は `.esb/meta` を使用する。
+- `META_CONTEXT` 未設定時は `.<brand>/meta` を使用する。
 - `docker compose up --build` を使う場合、事前に `version.json` を生成しておく。
   - 例: `docker buildx bake -f tools/traceability/docker-bake.hcl meta`
   - `.git` がファイルのケースは `--set meta.contexts.git_dir=...` /
@@ -150,14 +150,14 @@ services:
       dockerfile: Dockerfile.docker
       additional_contexts:
         config: ${CONFIG_DIR:-services/gateway/config}
-        meta: ${META_CONTEXT:-.esb/meta}
+        meta: ${META_CONTEXT:-.<brand>/meta}
         common: ${COMMON_CONTEXT:-services/common}
   agent:
     build:
       context: services/agent
       dockerfile: Dockerfile.docker
       additional_contexts:
-        meta: ${META_CONTEXT:-.esb/meta}
+        meta: ${META_CONTEXT:-.<brand>/meta}
         meta_module: ${META_MODULE_CONTEXT:-meta}
 ```
 
@@ -167,7 +167,7 @@ services:
 
 ### 7.2 esb build（docker buildx bake）での追加コンテキスト
 - `esb build` は関数/ベースイメージのビルドに `docker buildx bake` を使用する。
-- CLI は build 前に Docker Bake で `version.json` を 1 回生成し、`.esb/meta` に出力する。
+- CLI は build 前に Docker Bake で `version.json` を 1 回生成し、`.<brand>/meta` に出力する。
 - `tools/traceability/docker-bake.hcl` に base ターゲットを追加し、実行時に生成する bake ファイルで
   function ターゲットと build args/labels/contexts を上書きする。
 - 各 bake ターゲットに `contexts.meta` を追加し、`version.json` を共有する。
@@ -180,7 +180,7 @@ services:
 - `Build()` の先頭で `gitdir/commondir` を解決し、Bake 用コンテキストとして渡す。
 - `resolveGitContext` の呼び出しは `b.Runner` を使用する（本番は `compose.ExecRunner`）。
 - Bake が失敗した場合は `esb build` を即時失敗させ、エラーメッセージに `git rev-parse` の失敗理由を含める。
-- `prepareMetaContext` で `docker buildx bake` を実行し、`.esb/meta/version.json` を生成する。
+- `prepareMetaContext` で `docker buildx bake` を実行し、`.<brand>/meta/version.json` を生成する。
 - Bake 用の補助関数を追加し、base/functions を並列ビルドする。
 
 ```go
@@ -346,7 +346,7 @@ func resolveAbs(base, path string) string {
 
 ```bash
 docker build \
-  --build-context meta=/abs/path/to/.esb/meta \
+  --build-context meta=/abs/path/to/.<brand>/meta \
   -f <Dockerfile> -t <tag> .
 ```
 
@@ -450,7 +450,7 @@ docker buildx bake -f tools/traceability/docker-bake.hcl meta \
   --set meta.contexts.git_dir="${gitdir}" \
   --set meta.contexts.git_common="${commondir}" \
   --set meta.contexts.trace_tools="${root}/tools/traceability" \
-  --set meta.output=type=local,dest="${root}/.esb/meta"
+  --set meta.output=type=local,dest="${root}/.<brand>/meta"
 docker compose up --build
 ```
 
@@ -467,9 +467,9 @@ docker buildx bake -f tools/traceability/docker-bake.hcl meta \
   --set meta.contexts.git_dir="${root}/.git" \
   --set meta.contexts.git_common="${root}/.git" \
   --set meta.contexts.trace_tools="${root}/tools/traceability" \
-  --set meta.output=type=local,dest="${root}/.esb/meta"
+  --set meta.output=type=local,dest="${root}/.<brand>/meta"
 docker build \
-  --build-context meta="${root}/.esb/meta" \
+  --build-context meta="${root}/.<brand>/meta" \
   -f ./Dockerfile.lambda \
   -t "<brand>-fn:dev" \
   .

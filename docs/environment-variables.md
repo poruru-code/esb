@@ -27,8 +27,8 @@ ESB の設定は以下の3段階で伝播します：
 | `PROJECT_NAME` | `<brand>-<env>` | Compose のプロジェクト名/接頭辞。未指定時は `CLI_CMD + ENV` で自動生成されます。 |
 | `<BRAND>_TAG` | `latest` | イメージタグ（runtime 系は `-docker` / `-containerd` が compose 側で付与）。本番は不変タグ（`vX.Y.Z` / `sha-<git-short>`）を指定します。 |
 | `<BRAND>_REGISTRY` | なし | containerd 系のイメージレジストリ（末尾 `/` で正規化）。 |
-| `CERT_DIR` | `~/.<brand>/certs` | mTLS 証明書のマウント元パス。 |
-| `BUILDKITD_CONFIG` | `~/.<brand>/buildkitd.toml` | Buildx の buildkitd 設定ファイル。プロキシ等の設定に使用します。 |
+| `CERT_DIR` | `<repo_root>/.<brand>/certs` | mTLS 証明書のマウント元パス。 |
+| `BUILDKITD_CONFIG` | `<repo_root>/.<brand>/buildkitd.toml` | Buildx の buildkitd 設定ファイル。プロキシ等の設定に使用します。 |
 | `PROVENANCE` | `mode=max` | Buildx の Provenance Attestation 設定。`0` / `false` で無効化できます。 |
 
 補足:

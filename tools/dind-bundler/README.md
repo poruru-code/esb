@@ -68,7 +68,7 @@ sequenceDiagram
     User->>Script: 実行 (template.yaml)
     Script->>Script: 証明書確認 (なければエラー)
     Script->>CLI: esb build (関数のビルド)
-    CLI->>Docker: 関数イメージの作成 (com.esb.kind=function)
+    CLI->>Docker: 関数イメージの作成 (com.<brand>.kind=function)
     Script->>Docker: 外部イメージのPull (Scylla, RustFS等)
     Script->>Docker: 全イメージのSave
     Docker->>Tar: イメージのエクスポート

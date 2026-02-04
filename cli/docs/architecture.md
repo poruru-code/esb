@@ -56,12 +56,12 @@ graph TD
 
 ## 設定ファイルと保存先
 
-- **グローバル設定**: `~/.esb/config.yaml`
+- **グローバル設定**: `<repo_root>/.<brand>/config.yaml`
   - 最近のテンプレート履歴 (`recent_templates`)
   - テンプレートごとのデフォルト入力 (`build_defaults`)
-- **ステージング設定**: `~/.esb/.cache/staging/<project-hash>/<env>/config`
+- **ステージング設定**: `<template_dir>/.<brand>/staging/<compose_project>/<env>/config`
   - `functions.yml` / `routing.yml` / `resources.yml`
   - deploy 後に runtime-config へ同期
-- **ビルド出力**: `<template_dir>/.esb/<env>/...`（`--output` 指定で変更）
+- **ビルド出力**: `<template_dir>/.<brand>/<env>/...`（`--output` 指定で変更）
 
 > 補足: CLI 名やブランドは `CLI_CMD` / `ENV_PREFIX` などの環境変数と `meta` により決定されます。

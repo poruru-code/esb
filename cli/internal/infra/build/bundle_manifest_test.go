@@ -100,7 +100,7 @@ func TestWriteBundleManifest(t *testing.T) {
 	}
 
 	runner := &manifestRunner{images: images}
-	outputDir := filepath.Join(tmpDir, ".esb", "default")
+	outputDir := filepath.Join(tmpDir, meta.OutputDir, "default")
 	if err := ensureDir(outputDir); err != nil {
 		t.Fatalf("ensure output dir: %v", err)
 	}
@@ -201,7 +201,7 @@ func TestWriteBundleManifestContainerdIncludesRuntimeImages(t *testing.T) {
 	}
 
 	runner := &manifestRunner{images: images}
-	outputDir := filepath.Join(tmpDir, ".esb", "default")
+	outputDir := filepath.Join(tmpDir, meta.OutputDir, "default")
 	if err := ensureDir(outputDir); err != nil {
 		t.Fatalf("ensure output dir: %v", err)
 	}
@@ -233,7 +233,7 @@ func TestWriteBundleManifestFailsWhenImageMissing(t *testing.T) {
 	}
 
 	runner := &manifestRunner{images: map[string]manifestImageMeta{}}
-	outputDir := filepath.Join(tmpDir, ".esb", "default")
+	outputDir := filepath.Join(tmpDir, meta.OutputDir, "default")
 	if err := ensureDir(outputDir); err != nil {
 		t.Fatalf("ensure output dir: %v", err)
 	}

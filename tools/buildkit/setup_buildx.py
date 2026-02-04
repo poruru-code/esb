@@ -42,11 +42,22 @@ def _resolve_slug() -> str:
     return "esb"
 
 
-def _resolve_buildkitd_path(slug: str) -> Path:
+def _resolve_repo_root() -> Path:
+    repo_root = Path(__file__).resolve().parents[2]
+    markers = [
+        repo_root / "docker-compose.docker.yml",
+        repo_root / "docker-compose.containerd.yml",
+    ]
+    if not any(marker.exists() for marker in markers):
+        raise RuntimeError(f"Failed to locate repo root from {repo_root}")
+    return repo_root
+
+
+def _resolve_buildkitd_path(repo_root: Path, slug: str) -> Path:
     override = os.environ.get("BUILDKITD_CONFIG", "").strip()
     if override:
         return Path(override).expanduser()
-    return Path.home() / f".{slug}" / "buildkitd.toml"
+    return repo_root / f".{slug}" / "buildkitd.toml"
 
 
 def _read_env_proxy() -> dict[str, str]:
@@ -117,7 +128,7 @@ def _toml_quote(value: str) -> str:
 def _build_config_text(proxy: dict[str, str]) -> str:
     lines = [
         MARKER,
-        "# Where: ~/.esb/buildkitd.toml",
+        "# Where: <repo_root>/.<brand>/buildkitd.toml",
         "# What: BuildKit daemon config for the ESB buildx builder.",
         "# Why: Provide proxy settings when BuildKit runs in a container.",
         "",
@@ -212,7 +223,8 @@ def _create_builder(
 def main() -> int:
     slug = _resolve_slug()
     builder_name = f"{slug}-buildx"
-    config_path = _resolve_buildkitd_path(slug)
+    repo_root = _resolve_repo_root()
+    config_path = _resolve_buildkitd_path(repo_root, slug)
     proxy = _resolve_proxy()
     content = _build_config_text(proxy)
     _write_config(config_path, content)

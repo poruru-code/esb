@@ -153,6 +153,10 @@ var (
 func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 	isTTY := interaction.IsTerminal(os.Stdin)
 	prompter := deps.Prompter
+	repoResolver := deps.RepoResolver
+	if repoResolver == nil {
+		repoResolver = config.ResolveRepoRoot
+	}
 
 	var last deployInputs
 	for {
@@ -160,7 +164,14 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 		if err != nil {
 			return deployInputs{}, err
 		}
-		stored := loadDeployDefaults(templatePath)
+		repoRoot, err := repoResolver(filepath.Dir(templatePath))
+		if err != nil {
+			return deployInputs{}, fmt.Errorf("resolve repo root: %w", err)
+		}
+		if err := config.EnsureProjectConfig(repoRoot); err != nil {
+			return deployInputs{}, err
+		}
+		stored := loadDeployDefaults(repoRoot, templatePath)
 		prevEnv := strings.TrimSpace(last.Env)
 		if prevEnv == "" {
 			prevEnv = strings.TrimSpace(stored.Env)
@@ -297,10 +308,7 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 			return deployInputs{}, err
 		}
 
-		projectDir, err := os.Getwd()
-		if err != nil {
-			return deployInputs{}, fmt.Errorf("get working directory: %w", err)
-		}
+		projectDir := repoRoot
 
 		composeFiles := normalizeComposeFiles(cli.Deploy.ComposeFiles, projectDir)
 		ctx := state.Context{
@@ -331,7 +339,7 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 		}
 		if confirmed {
 			if !cli.Deploy.NoSave {
-				if err := saveDeployDefaults(templatePath, inputs); err != nil {
+				if err := saveDeployDefaults(repoRoot, templatePath, inputs); err != nil {
 					fmt.Fprintf(os.Stderr, "Warning: failed to save deploy defaults: %v\n", err)
 				}
 			}
@@ -798,7 +806,15 @@ type storedDeployDefaults struct {
 }
 
 func loadTemplateHistory() []string {
-	cfgPath, err := config.GlobalConfigPath()
+	startDir, err := os.Getwd()
+	if err != nil {
+		return nil
+	}
+	repoRoot, err := config.ResolveRepoRoot(startDir)
+	if err != nil {
+		return nil
+	}
+	cfgPath, err := config.ProjectConfigPath(repoRoot)
 	if err != nil {
 		return nil
 	}
@@ -839,8 +855,8 @@ func resolveTemplateFallback(previous string, candidates []string) (string, erro
 	return normalizeTemplatePath(".")
 }
 
-func loadDeployDefaults(templatePath string) storedDeployDefaults {
-	cfgPath, err := config.GlobalConfigPath()
+func loadDeployDefaults(projectRoot, templatePath string) storedDeployDefaults {
+	cfgPath, err := config.ProjectConfigPath(projectRoot)
 	if err != nil || templatePath == "" {
 		return storedDeployDefaults{}
 	}
@@ -864,13 +880,13 @@ func loadDeployDefaults(templatePath string) storedDeployDefaults {
 	}
 }
 
-func saveDeployDefaults(templatePath string, inputs deployInputs) error {
+func saveDeployDefaults(projectRoot, templatePath string, inputs deployInputs) error {
 	if templatePath == "" {
 		return nil
 	}
-	cfgPath, err := config.GlobalConfigPath()
+	cfgPath, err := config.ProjectConfigPath(projectRoot)
 	if err != nil {
-		return fmt.Errorf("resolve global config path: %w", err)
+		return fmt.Errorf("resolve project config path: %w", err)
 	}
 	cfg, err := config.LoadGlobalConfig(cfgPath)
 	if err != nil {
@@ -976,7 +992,7 @@ func discoverTemplateCandidates() []string {
 			continue
 		}
 		name := entry.Name()
-		if name == ".git" || name == ".esb" || name == "node_modules" || name == ".venv" {
+		if name == ".git" || name == meta.OutputDir || name == "node_modules" || name == ".venv" {
 			continue
 		}
 		if name == "__pycache__" || name == ".pytest_cache" || name == ".mypy_cache" {

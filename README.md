@@ -28,7 +28,7 @@ Why: Provide a single entry point for developers and operators.
 補足:
 - 対話実行時は `--template` / `--env` / `--mode` を省略でき、未指定分は入力を促します。非対話（TTYなし）では必須です。
 - `esb deploy` は起動中の compose project を対話的に選択できます。非対話時は `--project` の指定を推奨します。
-- 対話入力の直近値は `~/.<brand>/config.yaml` に保存され、同一テンプレートパスの既定値やテンプレート選択の履歴に使われます（無効化は `--no-save-defaults`）。
+- 対話入力の直近値は `<repo_root>/.<brand>/config.yaml` に保存され、同一テンプレートパスの既定値やテンプレート選択の履歴に使われます（無効化は `--no-save-defaults`）。
 - テンプレート内の `Parameters` は実行時に対話入力して解決されます。
 - CLI はランタイムの起動・停止機能を提供しておらず、生成物は `docker compose` で起動します。
 
@@ -230,7 +230,7 @@ source .venv/bin/activate  # macOS/Linux
 mise run setup:certs
 ```
 
-これにより `~/.<brand>/certs` に証明書が生成され、ローカル開発環境でHTTPSが利用可能になります。
+これにより `<repo_root>/.<brand>/certs` に証明書が生成され、ローカル開発環境でHTTPSが利用可能になります。
 初回実行時に `step certificate install` が実行され、ローカルのルートCAがシステムにインストールされます。
 CA/サーバー証明書の有効期限は `tools/cert-gen/config.toml` で調整できます。
 

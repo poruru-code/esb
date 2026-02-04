@@ -327,7 +327,7 @@ sudo firecracker-ctr --address /run/firecracker-containerd/containerd.sock \
      - パッケージ: `wireguard-tools`, `wireguard-go`, `iproute2`
    - 設定ファイルをマウント:
      - `/app/config/wireguard/wg0.conf`
-     - 既定の配置: `~/.esb/wireguard/gateway/wg0.conf`
+    - 既定の配置: `<repo_root>/.<brand>/wireguard/gateway/wg0.conf`
    - プロビジョニング手順（TBD）で **gateway 側の wg0.conf も生成/追記**する想定。
    - 起動時に `wg0` を作成し、**Gateway コンテナ内でルートを追加**:
      ```bash
@@ -343,7 +343,7 @@ sudo firecracker-ctr --address /run/firecracker-containerd/containerd.sock \
    - `wireguard` を導入し `wg0` を作成。
    - `sysctl -w net.ipv4.ip_forward=1` を有効化（永続化も行う）。
    - `wg0` 側から `10.88.1.0/24` 宛を **runtime-node 側へ転送**できるようにする。
-   - プロビジョニング手順（TBD）は `~/.esb/wireguard/compute/<node>/wg0.conf` を `/etc/wireguard/wg0.conf` に配置し、
+  - プロビジョニング手順（TBD）は `<repo_root>/.<brand>/wireguard/compute/<node>/wg0.conf` を `/etc/wireguard/wg0.conf` に配置し、
      `wg-quick` の起動までを行う前提。
    - `wireguard-tools` が Control 側にあれば **鍵と config を自動生成**する。
    - 例: （TBD）

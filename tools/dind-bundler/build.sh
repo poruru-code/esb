@@ -43,7 +43,7 @@ fi
 ENV_NAME="${ENV_NAME:-default}"
 MANIFEST_PATH="${BUNDLE_MANIFEST_PATH:-${OUTPUT_ROOT}/${ENV_NAME}/bundle/manifest.json}"
 
-CERT_DIR="${CERT_DIR:-$HOME/.${BRAND_SLUG}/certs}"
+CERT_DIR="${CERT_DIR:-$(pwd)/.${BRAND_SLUG}/certs}"
 RUN_UID="${RUN_UID:-}"
 RUN_GID="${RUN_GID:-}"
 if [ -z "$RUN_UID" ] || [ -z "$RUN_GID" ]; then

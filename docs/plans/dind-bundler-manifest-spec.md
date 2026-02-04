@@ -8,7 +8,7 @@ Why: Make bundle contents deterministic and template-derived; prevent host-state
 この仕様の JSON Schema は `docs/plans/dind-bundler-manifest.schema.json` に定義する。
 
 ## 背景と課題
-現在の DinD バンドラーは、ホスト上の Docker に存在する `com.esb.kind=function` ラベル付きイメージを探索して取り込む。これはテンプレート由来の成果物だけをパッケージする設計要件と矛盾し、以下の問題を引き起こす。
+現在の DinD バンドラーは、ホスト上の Docker に存在する `com.<brand>.kind=function` ラベル付きイメージを探索して取り込む。これはテンプレート由来の成果物だけをパッケージする設計要件と矛盾し、以下の問題を引き起こす。
 
 - テンプレートに無関係な過去ビルドの関数イメージが混入する
 - 再現性がホスト状態に依存し、設計上の入力境界が曖昧になる
@@ -70,9 +70,9 @@ Why: Make bundle contents deterministic and template-derived; prevent host-state
       "kind": "function",
       "source": "template",
       "labels": {
-        "com.esb.project": "esb-default",
-        "com.esb.env": "default",
-        "com.esb.kind": "function"
+        "com.<brand>.project": "<brand>-default",
+        "com.<brand>.env": "default",
+        "com.<brand>.kind": "function"
       },
       "platform": "linux/amd64"
     },

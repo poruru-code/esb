@@ -1,18 +1,19 @@
 // Where: cli/internal/infra/config/global.go
 // What: Global config load/save env.
-// Why: Manage ~/.esb/config.yaml consistently.
+// Why: Manage <repo_root>/.<brand>/config.yaml consistently.
 package config
 
 import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/poruru/edge-serverless-box/meta"
 	"gopkg.in/yaml.v3"
 )
 
-// GlobalConfig represents the ~/.esb/config.yaml global configuration.
+// GlobalConfig represents the <repo_root>/.<brand>/config.yaml project configuration.
 // It tracks registered project paths and last usage.
 type GlobalConfig struct {
 	Version         int                      `yaml:"version"`
@@ -46,26 +47,29 @@ func DefaultGlobalConfig() GlobalConfig {
 	}
 }
 
-// GlobalConfigPath returns the path to the global config file.
-func GlobalConfigPath() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("get user home: %w", err)
+// ProjectConfigPath returns the path to the project config file.
+func ProjectConfigPath(projectRoot string) (string, error) {
+	root := strings.TrimSpace(projectRoot)
+	if root == "" {
+		return "", fmt.Errorf("project root is required")
 	}
-	return filepath.Join(home, meta.HomeDir, "config.yaml"), nil
+	if abs, err := filepath.Abs(root); err == nil {
+		root = abs
+	}
+	return filepath.Join(root, meta.HomeDir, "config.yaml"), nil
 }
 
-// EnsureGlobalConfig creates the global config file if it doesn't exist.
-func EnsureGlobalConfig() error {
-	path, err := GlobalConfigPath()
+// EnsureProjectConfig creates the project config file if it doesn't exist.
+func EnsureProjectConfig(projectRoot string) error {
+	path, err := ProjectConfigPath(projectRoot)
 	if err != nil {
-		return fmt.Errorf("resolve global config path: %w", err)
+		return fmt.Errorf("resolve project config path: %w", err)
 	}
 	if _, err := os.Stat(path); err != nil {
 		if os.IsNotExist(err) {
 			return SaveGlobalConfig(path, DefaultGlobalConfig())
 		}
-		return fmt.Errorf("stat global config: %w", err)
+		return fmt.Errorf("stat project config: %w", err)
 	}
 	return nil
 }
