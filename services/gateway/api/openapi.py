@@ -15,12 +15,15 @@ from fastapi.openapi.utils import get_openapi
 def configure_openapi(app: FastAPI) -> None:
     """Inject routing info into the OpenAPI description used by Swagger UI."""
 
-    def custom_openapi(self: FastAPI) -> dict[str, Any]:
+    # NOTE: FastAPI's default /openapi.json handler calls `self.openapi()`.
+    # When overriding `app.openapi` on an instance, Python does *not* bind the
+    # function like a normal method, so the override must be a 0-arg callable.
+    def custom_openapi() -> dict[str, Any]:
         return get_openapi(
-            title=self.title,
-            version=self.version,
-            description=_build_description(self),
-            routes=self.routes,
+            title=app.title,
+            version=app.version,
+            description=_build_description(app),
+            routes=app.routes,
         )
 
     # FastAPI supports overriding app.openapi at runtime; type stubs are too strict.
