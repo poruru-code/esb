@@ -101,6 +101,8 @@ ENV_NAME="${!ENV_VAR:-${ESB_ENV:-}}"
 OUTPUT_VAR="${ENV_PREFIX}_OUTPUT_DIR"
 OUTPUT_ROOTS=()
 MANIFEST_PATHS=()
+EXPLICIT_OUTPUT_ROOT="${!OUTPUT_VAR:-${ESB_OUTPUT_DIR:-}}"
+declare -A OUTPUT_SUFFIX_COUNTS
 
 expand_home() {
   case "$1" in
@@ -126,6 +128,11 @@ if [ -z "$ENV_NAME" ] && [ -f ".env" ]; then
 fi
 ENV_NAME="${ENV_NAME:-default}"
 
+if [ -n "$EXPLICIT_OUTPUT_ROOT" ] && [ "${#TEMPLATES[@]}" -gt 1 ]; then
+  echo "Error: ESB_OUTPUT_DIR cannot be used with multiple templates."
+  exit 1
+fi
+
 for template in "${TEMPLATES[@]}"; do
   expanded="$(expand_home "$template")"
   if [ "${expanded#/}" != "$expanded" ]; then
@@ -135,7 +142,22 @@ for template in "${TEMPLATES[@]}"; do
   fi
   template_dir="$(cd "$(dirname "$template_abs")" && pwd)"
   default_output_root="${template_dir}/.${BRAND_SLUG}"
-  output_root="${!OUTPUT_VAR:-${ESB_OUTPUT_DIR:-$default_output_root}}"
+  output_root="$default_output_root"
+  if [ -n "$EXPLICIT_OUTPUT_ROOT" ]; then
+    output_root="$EXPLICIT_OUTPUT_ROOT"
+  elif [ "${#TEMPLATES[@]}" -gt 1 ]; then
+    template_base="$(basename "$template_abs")"
+    template_stem="${template_base%.*}"
+    if [ -z "$template_stem" ]; then
+      template_stem="template"
+    fi
+    suffix_count="${OUTPUT_SUFFIX_COUNTS[$template_stem]:-0}"
+    OUTPUT_SUFFIX_COUNTS[$template_stem]=$((suffix_count + 1))
+    if [ "$suffix_count" -gt 0 ]; then
+      template_stem="${template_stem}-$((suffix_count + 1))"
+    fi
+    output_root="${default_output_root}/${template_stem}"
+  fi
   OUTPUT_ROOTS+=("$output_root")
   if [ -n "${BUNDLE_MANIFEST_PATH:-}" ]; then
     MANIFEST_PATHS+=("$BUNDLE_MANIFEST_PATH")
@@ -201,9 +223,14 @@ mkdir -p "$BUILD_DIR"
 # 1. Build Base Services and Functions using esb deploy (build-only)
 for index in "${!TEMPLATES[@]}"; do
   template="${TEMPLATES[$index]}"
+  output_root="${OUTPUT_ROOTS[$index]}"
   manifest_path="${MANIFEST_PATHS[$index]}"
   echo "Running esb deploy (build-only) for template: $template"
-  uv run "$CLI_CMD" deploy --template "$template" --env "$ENV_NAME" --mode docker --verbose --no-save-defaults --build-only --bundle-manifest
+  deploy_output_args=()
+  if [ -n "$EXPLICIT_OUTPUT_ROOT" ] || [ "${#TEMPLATES[@]}" -gt 1 ]; then
+    deploy_output_args=(--output "$output_root")
+  fi
+  uv run "$CLI_CMD" deploy --template "$template" --env "$ENV_NAME" --mode docker --verbose --no-save-defaults --build-only --bundle-manifest "${deploy_output_args[@]}"
   # Verify manifest exists
   if [ ! -f "$manifest_path" ]; then
     echo "Error: Bundle manifest not found at $manifest_path"

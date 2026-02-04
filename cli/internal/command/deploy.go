@@ -323,21 +323,21 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 		for _, tpl := range last.Templates {
 			prevTemplates[tpl.TemplatePath] = tpl
 		}
+		outputKeyCounts := map[string]int{}
 		templateInputs := make([]deployTemplateInput, 0, len(templatePaths))
 		for _, templatePath := range templatePaths {
 			storedTemplate := loadDeployDefaults(repoRoot, templatePath)
-			prevOutput := ""
-			if prev, ok := prevTemplates[templatePath]; ok && strings.TrimSpace(prev.OutputDir) != "" {
-				prevOutput = prev.OutputDir
-			} else if strings.TrimSpace(storedTemplate.OutputDir) != "" {
-				prevOutput = storedTemplate.OutputDir
-			}
-			if envChanged && strings.TrimSpace(cli.Deploy.Output) == "" {
-				prevOutput = ""
-			}
-
 			outputDir := ""
 			if len(templatePaths) == 1 {
+				prevOutput := ""
+				if prev, ok := prevTemplates[templatePath]; ok && strings.TrimSpace(prev.OutputDir) != "" {
+					prevOutput = prev.OutputDir
+				} else if strings.TrimSpace(storedTemplate.OutputDir) != "" {
+					prevOutput = storedTemplate.OutputDir
+				}
+				if envChanged && strings.TrimSpace(cli.Deploy.Output) == "" {
+					prevOutput = ""
+				}
 				var err error
 				outputDir, err = resolveDeployOutput(
 					cli.Deploy.Output,
@@ -350,6 +350,8 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 				if err != nil {
 					return deployInputs{}, err
 				}
+			} else {
+				outputDir = deriveMultiTemplateOutputDir(templatePath, outputKeyCounts)
 			}
 
 			prevParams := storedTemplate.Params
@@ -667,6 +669,21 @@ func resolveDeployOutput(
 		return defaultBase, nil
 	}
 	return cleaned, nil
+}
+
+func deriveMultiTemplateOutputDir(templatePath string, counts map[string]int) string {
+	base := strings.TrimSpace(filepath.Base(templatePath))
+	stem := strings.TrimSuffix(base, filepath.Ext(base))
+	stem = strings.TrimSpace(stem)
+	if stem == "" {
+		stem = "template"
+	}
+	count := counts[stem]
+	counts[stem] = count + 1
+	if count > 0 {
+		stem = fmt.Sprintf("%s-%d", stem, count+1)
+	}
+	return filepath.Join(meta.OutputDir, stem)
 }
 
 func confirmDeployInputs(inputs deployInputs, isTTY bool, prompter interaction.Prompter) (bool, error) {
