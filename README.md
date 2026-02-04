@@ -21,7 +21,7 @@ Why: Provide a single entry point for developers and operators.
 | コマンド       | 説明                                                                                   | 主なオプション                                                                               |
 | -------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | `esb build`    | SAM テンプレート (`template.yaml`) を解析して Dockerfile / config を生成し、関数イメージをビルドします。 | `--template (-t)`, `--env (-e)`, `--mode (-m)`, `--env-file`, `--output (-o)`, `--no-cache`, `--verbose (-v)`, `--force`, `--no-save-defaults`, `--bundle-manifest` |
-| `esb deploy`   | SAM テンプレートを解析し、関数イメージのビルドと `CONFIG_DIR` への設定マージを行います。 | `--template (-t)`, `--env (-e)`, `--mode (-m)`, `--project (-p)`, `--env-file`, `--output (-o)`, `--no-cache`, `--verbose (-v)`, `--force`, `--no-save-defaults` |
+| `esb deploy`   | SAM テンプレートを解析し、関数イメージのビルドと `CONFIG_DIR` への設定マージを行います。 | `--template (-t)`, `--env (-e)`, `--mode (-m)`, `--project (-p)`, `--env-file`, `--output (-o)`, `--no-cache`, `--no-deps` (default), `--with-deps`, `--verbose (-v)`, `--force`, `--no-save-defaults` |
 | `esb completion` | Bash / Zsh / Fish 用の補完スクリプトを生成します。                                      | `bash`, `zsh`, `fish`                                                                        |
 | `esb version`   | CLI のバージョン情報を表示します。                                                      | —                                                                                            |
 

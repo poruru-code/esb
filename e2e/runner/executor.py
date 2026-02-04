@@ -855,6 +855,7 @@ def run_scenario(args, scenario):
             "deploy",
             "--compose-file",
             str(compose_file_path),
+            "--no-deps",
             "--no-save-defaults",
             "--env",
             env_name,
