@@ -61,6 +61,10 @@ The staging root should be resolved in this order:
 If the template directory is not writable, error and instruct the user to set
 `${ENV_PREFIX}_STAGING_DIR` or `${ENV_PREFIX}_STAGING_HOME`.
 
+If `XDG_CACHE_HOME` already points at `<template_dir>/.esb/.cache`, ESB treats
+it as already namespaced and writes staging under `<XDG_CACHE_HOME>/staging`
+without adding an extra `esb` segment.
+
 ## Cleanup
 - Remove a single env:
   `rm -rf <template_dir>/.esb/staging/<compose_project>/<env>`

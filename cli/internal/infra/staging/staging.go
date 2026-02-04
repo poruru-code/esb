@@ -132,6 +132,9 @@ func ensureDir(path string) (string, error) {
 
 func globalRootDir() string {
 	if xdg := strings.TrimSpace(os.Getenv("XDG_CACHE_HOME")); xdg != "" {
+		if isProjectCacheHome(xdg) {
+			return filepath.Join(xdg, "staging")
+		}
 		return filepath.Join(xdg, meta.Slug, "staging")
 	}
 	home, err := os.UserHomeDir()
@@ -139,4 +142,13 @@ func globalRootDir() string {
 		return filepath.Join(fmt.Sprintf(".%s", meta.Slug), ".cache", "staging")
 	}
 	return filepath.Join(home, fmt.Sprintf(".%s", meta.Slug), ".cache", "staging")
+}
+
+func isProjectCacheHome(xdgCacheHome string) bool {
+	cacheBase := filepath.Base(xdgCacheHome)
+	if cacheBase != ".cache" {
+		return false
+	}
+	parentBase := filepath.Base(filepath.Dir(xdgCacheHome))
+	return parentBase == meta.OutputDir
 }
