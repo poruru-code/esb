@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import os
+import socket
 import subprocess
 import threading
 import time
@@ -488,14 +489,48 @@ def _allocate_ports(env_names: list[str]) -> dict[str, dict[str, str]]:
         constants.PORT_S3: 6,
         constants.PORT_S3_MGMT: 7,
     }
-    plan: dict[str, dict[str, str]] = {}
-    for idx, env_name in enumerate(sorted(env_names)):
-        env_ports: dict[str, str] = {}
-        env_base = base + idx * block
-        for key, offset in offsets.items():
-            env_ports[env_key(key)] = str(env_base + offset)
-        plan[env_name] = env_ports
-    return plan
+    env_names_sorted = sorted(env_names)
+
+    def _port_available(port: int) -> bool:
+        # Bind to 0.0.0.0 so we catch conflicts with services bound to all interfaces.
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            try:
+                sock.bind(("0.0.0.0", port))
+            except OSError:
+                return False
+        return True
+
+    # Prefer stable port blocks, but move the whole block-window up if any port
+    # is already in use on the host.
+    group_size = len(env_names_sorted)
+    for shift in range(0, 200):
+        bases: dict[str, int] = {}
+        ok = True
+        for idx, env_name in enumerate(env_names_sorted):
+            env_base = base + (idx + shift * group_size) * block
+            if env_base + max(offsets.values()) >= 65535:
+                ok = False
+                break
+            ports = [env_base + offset for offset in offsets.values()]
+            if not all(_port_available(port) for port in ports):
+                ok = False
+                break
+            bases[env_name] = env_base
+        if not ok:
+            continue
+
+        plan: dict[str, dict[str, str]] = {}
+        for env_name, env_base in bases.items():
+            env_ports: dict[str, str] = {}
+            for key, offset in offsets.items():
+                env_ports[env_key(key)] = str(env_base + offset)
+            plan[env_name] = env_ports
+        return plan
+
+    raise RuntimeError(
+        "Failed to allocate a free host port block for E2E. "
+        f"base={base} block={block} envs={env_names_sorted}"
+    )
 
 
 def _apply_port_overrides(runtime_env: dict[str, str], overrides: dict[str, str] | None) -> None:

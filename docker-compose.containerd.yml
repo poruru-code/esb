@@ -16,9 +16,9 @@ services:
         ROOT_CA_CERT_FILENAME: ${ROOT_CA_CERT_FILENAME:-rootCA.crt}
         ROOT_CA_FINGERPRINT: ${ROOT_CA_FINGERPRINT:-}
       cache_from:
-        - type=local,src=${BUILDX_CACHE_DIR:-.esb/buildx-cache/base}
+        - type=local,src=${BUILDX_CACHE_DIR:-.esb/buildx-cache}/os-base
       cache_to:
-        - type=local,dest=${BUILDX_CACHE_DIR:-.esb/buildx-cache/base},mode=max
+        - type=local,dest=${BUILDX_CACHE_DIR:-.esb/buildx-cache}/os-base,mode=max
 
       secrets:
         - root_ca
@@ -34,9 +34,9 @@ services:
         ROOT_CA_CERT_FILENAME: ${ROOT_CA_CERT_FILENAME:-rootCA.crt}
         ROOT_CA_FINGERPRINT: ${ROOT_CA_FINGERPRINT:-}
       cache_from:
-        - type=local,src=${BUILDX_CACHE_DIR:-.esb/buildx-cache/base}
+        - type=local,src=${BUILDX_CACHE_DIR:-.esb/buildx-cache}/python-base
       cache_to:
-        - type=local,dest=${BUILDX_CACHE_DIR:-.esb/buildx-cache/base},mode=max
+        - type=local,dest=${BUILDX_CACHE_DIR:-.esb/buildx-cache}/python-base,mode=max
       secrets:
         - root_ca
 

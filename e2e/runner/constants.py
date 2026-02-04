@@ -73,5 +73,8 @@ DEFAULT_ROOT_CA_FILENAME = "rootCA.crt"
 DEFAULT_AUTH_Path = "/user/auth/v1"
 
 # E2E port allocation (stable per environment)
-E2E_PORT_BASE = 33000
+# Keep this outside the host ephemeral port range (often 32768-60999 on Linux)
+# to avoid flakiness where Docker cannot bind a port that is temporarily used
+# for outbound connections (TIME_WAIT, etc.).
+E2E_PORT_BASE = 18000
 E2E_PORT_BLOCK = 20
