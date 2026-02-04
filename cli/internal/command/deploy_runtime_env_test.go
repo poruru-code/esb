@@ -13,9 +13,9 @@ import (
 
 func TestInferEnvFromConfigPath(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("XDG_CACHE_HOME", tmp)
 
-	stagingRoot, err := staging.RootDir(filepath.Join(tmp, "template.yaml"))
+	templatePath := filepath.Join(tmp, "template.yaml")
+	stagingRoot, err := staging.RootDir(templatePath)
 	if err != nil {
 		t.Fatalf("resolve staging root: %v", err)
 	}

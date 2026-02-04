@@ -18,6 +18,7 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/template"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
 	"github.com/poruru/edge-serverless-box/meta"
 )
 
@@ -111,6 +112,10 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 
 	artifactBase := resolveOutputDir(cfg.Paths.OutputDir, filepath.Dir(templatePath))
 	cfg.Paths.OutputDir = filepath.Join(artifactBase, request.Env)
+	lockRoot, err := staging.RootDir(templatePath)
+	if err != nil {
+		return err
+	}
 
 	composeProject := strings.TrimSpace(request.ProjectName)
 	if composeProject == "" {
@@ -209,6 +214,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		context.Background(),
 		b.Runner,
 		repoRoot,
+		lockRoot,
 		buildxBuilderOptions{
 			NetworkMode: builderNetworkMode,
 			ConfigPath:  strings.TrimSpace(os.Getenv(constants.EnvBuildkitdConfig)),
@@ -244,7 +250,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	lambdaBaseTag := lambdaBaseImageTag(registryForPush, imageTag)
 	lambdaTags := []string{lambdaBaseTag}
 
-	if err := withBuildLock("base-images", func() error {
+	if err := withBuildLock(lockRoot, "base-images", func() error {
 		proxyArgs := dockerBuildArgMap()
 		commonDir := filepath.Join(repoRoot, "services", "common")
 
@@ -349,6 +355,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 			context.Background(),
 			b.Runner,
 			repoRoot,
+			lockRoot,
 			"esb-base",
 			baseTargets,
 			request.Verbose,
@@ -410,6 +417,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		context.Background(),
 		b.Runner,
 		repoRoot,
+		lockRoot,
 		cfg.Paths.OutputDir,
 		functions,
 		registryForPush,

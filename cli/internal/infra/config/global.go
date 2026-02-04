@@ -7,10 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/constants"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/envutil"
 	"github.com/poruru/edge-serverless-box/meta"
 	"gopkg.in/yaml.v3"
 )
@@ -50,28 +47,7 @@ func DefaultGlobalConfig() GlobalConfig {
 }
 
 // GlobalConfigPath returns the path to the global config file.
-// Respects brand-specific CONFIG_PATH and CONFIG_HOME environment variables.
 func GlobalConfigPath() (string, error) {
-	override, err := envutil.GetHostEnv(constants.HostSuffixConfigPath)
-	if err != nil {
-		return "", fmt.Errorf("get host env %s: %w", constants.HostSuffixConfigPath, err)
-	}
-	if override := strings.TrimSpace(override); override != "" {
-		path := override
-		if !filepath.IsAbs(path) {
-			if abs, err := filepath.Abs(path); err == nil {
-				path = abs
-			}
-		}
-		return path, nil
-	}
-	override, err = envutil.GetHostEnv(constants.HostSuffixConfigHome)
-	if err != nil {
-		return "", fmt.Errorf("get host env %s: %w", constants.HostSuffixConfigHome, err)
-	}
-	if override := strings.TrimSpace(override); override != "" {
-		return filepath.Join(override, "config.yaml"), nil
-	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("get user home: %w", err)

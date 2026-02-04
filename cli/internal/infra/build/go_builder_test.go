@@ -19,7 +19,6 @@ import (
 )
 
 func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 	t.Setenv("ENV_PREFIX", meta.EnvPrefix)
 	t.Setenv("ESB_REGISTRY_WAIT", "0")
 	registryKey, err := envutil.HostEnvKey(constants.HostSuffixRegistry)

@@ -141,13 +141,15 @@ func stageConfigFiles(outputDir, repoRoot, templatePath, composeProject, env str
 	return nil
 }
 
-func withBuildLock(name string, fn func() error) error {
+func withBuildLock(lockRoot, name string, fn func() error) error {
 	key := strings.TrimSpace(name)
 	if key == "" {
 		return fn()
 	}
-	lockRoot, err := staging.RootDir("")
-	if err != nil {
+	if strings.TrimSpace(lockRoot) == "" {
+		return fmt.Errorf("lock root is required")
+	}
+	if err := ensureDir(lockRoot); err != nil {
 		return err
 	}
 	lockPath := filepath.Join(lockRoot, fmt.Sprintf(".lock-%s", key))
@@ -184,6 +186,7 @@ func buildFunctionImages(
 	ctx context.Context,
 	runner compose.CommandRunner,
 	repoRoot string,
+	lockRoot string,
 	outputDir string,
 	functions []template.FunctionSpec,
 	registry string,
@@ -258,6 +261,7 @@ func buildFunctionImages(
 			ctx,
 			runner,
 			repoRoot,
+			lockRoot,
 			"esb-functions",
 			bakeTargets,
 			verbose,

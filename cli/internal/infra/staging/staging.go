@@ -11,8 +11,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/constants"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/envutil"
 	"github.com/poruru/edge-serverless-box/meta"
 )
 
@@ -44,42 +42,18 @@ func stageKey(composeProject, env string) string {
 }
 
 // RootDir returns the absolute cache root for staging assets.
-// It prefers project-scoped staging next to the template directory and requires
-// that location to be writable.
+// It is fixed under the template directory and requires that location to be writable.
 func RootDir(templatePath string) (string, error) {
-	if override := strings.TrimSpace(getHostEnv(constants.HostSuffixStagingDir)); override != "" {
-		root, err := absPath(override)
-		if err != nil {
-			return "", err
-		}
-		return ensureDir(root)
+	projectRoot, err := ProjectRoot(templatePath)
+	if err != nil {
+		return "", err
 	}
-	if override := strings.TrimSpace(getHostEnv(constants.HostSuffixStagingHome)); override != "" {
-		root, err := absPath(filepath.Join(override, "staging"))
-		if err != nil {
-			return "", err
-		}
-		return ensureDir(root)
+	root := filepath.Join(projectRoot, "staging")
+	ensured, err := ensureDir(root)
+	if err != nil {
+		return "", fmt.Errorf("staging root not writable: %s: %w", root, err)
 	}
-
-	if templatePath != "" {
-		templateDir := filepath.Dir(templatePath)
-		if abs, err := filepath.Abs(templateDir); err == nil {
-			templateDir = abs
-		}
-		root := filepath.Join(templateDir, meta.OutputDir, "staging")
-		ensured, err := ensureDir(root)
-		if err != nil {
-			return "", fmt.Errorf("staging root not writable: %s: %w", root, err)
-		}
-		return ensured, nil
-	}
-
-	root := globalRootDir()
-	if abs, err := filepath.Abs(root); err == nil {
-		root = abs
-	}
-	return ensureDir(root)
+	return ensured, nil
 }
 
 // BaseDir returns the absolute staging directory for a project/env combination.
@@ -105,24 +79,6 @@ func ConfigDir(templatePath, composeProject, env string) (string, error) {
 	return filepath.Join(base, "config"), nil
 }
 
-func getHostEnv(suffix string) string {
-	value, err := envutil.GetHostEnv(suffix)
-	if err != nil {
-		return ""
-	}
-	return value
-}
-
-func absPath(path string) (string, error) {
-	if strings.TrimSpace(path) == "" {
-		return "", fmt.Errorf("path is empty")
-	}
-	if filepath.IsAbs(path) {
-		return path, nil
-	}
-	return filepath.Abs(path)
-}
-
 func ensureDir(path string) (string, error) {
 	if err := os.MkdirAll(path, 0o755); err != nil {
 		return "", err
@@ -130,25 +86,14 @@ func ensureDir(path string) (string, error) {
 	return path, nil
 }
 
-func globalRootDir() string {
-	if xdg := strings.TrimSpace(os.Getenv("XDG_CACHE_HOME")); xdg != "" {
-		if isProjectCacheHome(xdg) {
-			return filepath.Join(xdg, "staging")
-		}
-		return filepath.Join(xdg, meta.Slug, "staging")
+// ProjectRoot returns the absolute project cache root for the template.
+func ProjectRoot(templatePath string) (string, error) {
+	if strings.TrimSpace(templatePath) == "" {
+		return "", fmt.Errorf("template path is required")
 	}
-	home, err := os.UserHomeDir()
-	if err != nil || strings.TrimSpace(home) == "" {
-		return filepath.Join(fmt.Sprintf(".%s", meta.Slug), ".cache", "staging")
+	templateDir := filepath.Dir(templatePath)
+	if abs, err := filepath.Abs(templateDir); err == nil {
+		templateDir = abs
 	}
-	return filepath.Join(home, fmt.Sprintf(".%s", meta.Slug), ".cache", "staging")
-}
-
-func isProjectCacheHome(xdgCacheHome string) bool {
-	cacheBase := filepath.Base(xdgCacheHome)
-	if cacheBase != ".cache" {
-		return false
-	}
-	parentBase := filepath.Base(filepath.Dir(xdgCacheHome))
-	return parentBase == meta.OutputDir
+	return filepath.Join(templateDir, meta.OutputDir), nil
 }

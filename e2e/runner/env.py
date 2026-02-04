@@ -202,12 +202,7 @@ def calculate_runtime_env(
     env.setdefault("COMPOSE_DOCKER_CLI_BUILD", "1")
 
     # 9. Staging Config Dir
-    # Replicates applyConfigDirEnv / staging.ConfigDir logic
-    if template_path:
-        template_dir = Path(template_path).expanduser().resolve().parent
-        cache_home = template_dir / BRAND_OUTPUT_DIR / ".cache"
-        env.setdefault("XDG_CACHE_HOME", str(cache_home))
-
+    # Replicates staging.ConfigDir logic (fixed under template)
     config_dir = calculate_staging_dir(project_name, env_name, template_path=template_path)
     env[constants.ENV_CONFIG_DIR] = str(config_dir)
 
@@ -229,16 +224,6 @@ def calculate_staging_dir(
         proj_key = f"{BRAND_SLUG}-{env_name.lower()}" if env_name else BRAND_SLUG
 
     env_label = (env_name or "default").lower()
-
-    staging_dir_override = os.environ.get(env_key("STAGING_DIR"))
-    if staging_dir_override:
-        root = Path(staging_dir_override).expanduser()
-        return root / proj_key / env_label / "config"
-
-    staging_home = os.environ.get(env_key("STAGING_HOME"))
-    if staging_home:
-        root = Path(staging_home).expanduser() / "staging"
-        return root / proj_key / env_label / "config"
 
     if template_path:
         template_dir = Path(template_path).expanduser().resolve().parent

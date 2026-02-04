@@ -171,9 +171,6 @@ def _prepare_context(
     runtime_env[constants.ENV_CONFIG_DIR] = str(staging_config_dir)
     staging_config_dir.mkdir(parents=True, exist_ok=True)
 
-    buildx_cache_dir = PROJECT_ROOT / ".esb" / "buildx-cache" / env_name
-    buildx_cache_dir.mkdir(parents=True, exist_ok=True)
-    runtime_env["BUILDX_CACHE_DIR"] = str(buildx_cache_dir)
     runtime_env["ESB_BUILDX_CACHE"] = "0"
     runtime_env["ESB_BUILDX_CACHE_TO"] = "0"
 

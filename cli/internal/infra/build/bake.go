@@ -44,6 +44,7 @@ func runBakeGroup(
 	ctx context.Context,
 	runner compose.CommandRunner,
 	repoRoot string,
+	lockRoot string,
 	groupName string,
 	targets []bakeTarget,
 	verbose bool,
@@ -77,7 +78,7 @@ func runBakeGroup(
 	args = append(args, bakeAllowArgs(targets)...)
 	args = append(args, bakeProvenanceArgs()...)
 	args = append(args, "-f", bakeFile, "-f", tmpFile)
-	return withBuildLock("bake", func() error {
+	return withBuildLock(lockRoot, "bake", func() error {
 		if verbose {
 			args = append(args, "--progress", "plain")
 			args = append(args, groupName)
@@ -577,11 +578,9 @@ func parseBakeKeyValuePath(spec, key string) string {
 	return ""
 }
 
-func bakeCacheRoot(outputBase string) string {
-	if value := strings.TrimSpace(os.Getenv("BUILDX_CACHE_DIR")); value != "" {
-		return value
-	}
-	return filepath.Join(outputBase, "buildx-cache")
+func bakeCacheRoot(outputDir string) string {
+	base := filepath.Dir(filepath.Clean(outputDir))
+	return filepath.Join(base, "buildx-cache")
 }
 
 type buildxBuilderOptions struct {
@@ -593,6 +592,7 @@ func ensureBuildxBuilder(
 	ctx context.Context,
 	runner compose.CommandRunner,
 	repoRoot string,
+	lockRoot string,
 	opts buildxBuilderOptions,
 ) error {
 	if runner == nil {
@@ -605,7 +605,7 @@ func ensureBuildxBuilder(
 	builder := buildxBuilderName()
 	needsRecreate := false
 	desiredProxyEnv := buildxProxyDriverEnvMap()
-	return withBuildLock("buildx", func() error {
+	return withBuildLock(lockRoot, "buildx", func() error {
 		output, err := runner.RunOutput(
 			ctx,
 			root,

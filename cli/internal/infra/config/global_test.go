@@ -11,13 +11,7 @@ import (
 	"github.com/poruru/edge-serverless-box/meta"
 )
 
-func setEnvPrefix(t *testing.T) {
-	t.Helper()
-	t.Setenv("ENV_PREFIX", meta.EnvPrefix)
-}
-
 func TestGlobalConfigRoundTrip(t *testing.T) {
-	setEnvPrefix(t)
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	cfg := GlobalConfig{
 		Version: 1,
@@ -57,25 +51,24 @@ func TestGlobalConfigRoundTrip(t *testing.T) {
 	}
 }
 
-func TestGlobalConfigPathHonorsOverride(t *testing.T) {
-	setEnvPrefix(t)
-	baseDir := t.TempDir()
-	overridePath := filepath.Join(baseDir, "custom", "config.yaml")
-	t.Setenv("ESB_CONFIG_PATH", overridePath)
+func TestGlobalConfigPathUsesHome(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
 
 	got, err := GlobalConfigPath()
 	if err != nil {
 		t.Fatalf("global config path: %v", err)
 	}
-	if got != overridePath {
+	want := filepath.Join(home, meta.HomeDir, "config.yaml")
+	if got != want {
 		t.Fatalf("unexpected config path: %s", got)
 	}
 }
 
 func TestEnsureGlobalConfigCreatesDefault(t *testing.T) {
-	setEnvPrefix(t)
-	path := filepath.Join(t.TempDir(), "config.yaml")
-	t.Setenv("ESB_CONFIG_PATH", path)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	path := filepath.Join(home, meta.HomeDir, "config.yaml")
 
 	if err := EnsureGlobalConfig(); err != nil {
 		t.Fatalf("ensure global config: %v", err)
@@ -96,9 +89,9 @@ func TestEnsureGlobalConfigCreatesDefault(t *testing.T) {
 }
 
 func TestEnsureGlobalConfigKeepsExisting(t *testing.T) {
-	setEnvPrefix(t)
-	path := filepath.Join(t.TempDir(), "config.yaml")
-	t.Setenv("ESB_CONFIG_PATH", path)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	path := filepath.Join(home, meta.HomeDir, "config.yaml")
 
 	cfg := GlobalConfig{
 		Version: 2,
