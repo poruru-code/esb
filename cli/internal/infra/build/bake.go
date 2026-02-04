@@ -18,19 +18,16 @@ import (
 )
 
 type bakeTarget struct {
-	Name          string
-	Context       string
-	Dockerfile    string
-	Tags          []string
-	Outputs       []string
-	Labels        map[string]string
-	Args          map[string]string
-	Contexts      map[string]string
-	Secrets       []string
-	CacheFrom     []string
-	CacheTo       []string
-	CacheDisabled bool
-	NoCache       bool
+	Name       string
+	Context    string
+	Dockerfile string
+	Tags       []string
+	Outputs    []string
+	Labels     map[string]string
+	Args       map[string]string
+	Contexts   map[string]string
+	Secrets    []string
+	NoCache    bool
 }
 
 func buildxBuilderName() string {
@@ -149,17 +146,6 @@ func renderBakeFile(groupName string, targets []bakeTarget) (string, error) {
 		writeHclMap(&b, "labels", target.Labels)
 		writeHclMap(&b, "args", target.Args)
 		writeHclMap(&b, "contexts", target.Contexts)
-		if target.CacheDisabled {
-			b.WriteString("  cache-from = []\n")
-			b.WriteString("  cache-to = []\n")
-		} else {
-			if len(target.CacheFrom) > 0 {
-				b.WriteString(fmt.Sprintf("  cache-from = %s\n", hclList(target.CacheFrom)))
-			}
-			if len(target.CacheTo) > 0 {
-				b.WriteString(fmt.Sprintf("  cache-to = %s\n", hclList(target.CacheTo)))
-			}
-		}
 		if len(target.Secrets) > 0 {
 			b.WriteString(fmt.Sprintf("  secret = %s\n", hclList(target.Secrets)))
 		}
@@ -481,7 +467,6 @@ func buildxBuilderProxyMismatch(
 
 func bakeAllowArgs(targets []bakeTarget) []string {
 	readPaths := make(map[string]struct{})
-	writePaths := make(map[string]struct{})
 	for _, target := range targets {
 		addBakeReadPath(readPaths, target.Context)
 		for _, contextPath := range target.Contexts {
@@ -494,44 +479,18 @@ func bakeAllowArgs(targets []bakeTarget) []string {
 			}
 			readPaths[path] = struct{}{}
 		}
-		for _, cache := range target.CacheFrom {
-			path := parseBakeCachePath(cache, "src")
-			if path == "" {
-				continue
-			}
-			readPaths[path] = struct{}{}
-		}
-		for _, cache := range target.CacheTo {
-			path := parseBakeCachePath(cache, "dest")
-			if path == "" {
-				continue
-			}
-			writePaths[path] = struct{}{}
-		}
 	}
-	if len(readPaths) == 0 && len(writePaths) == 0 {
+	if len(readPaths) == 0 {
 		return nil
 	}
-	args := make([]string, 0, len(readPaths)+len(writePaths))
-	if len(readPaths) > 0 {
-		ordered := make([]string, 0, len(readPaths))
-		for path := range readPaths {
-			ordered = append(ordered, path)
-		}
-		sort.Strings(ordered)
-		for _, path := range ordered {
-			args = append(args, "--allow=fs.read="+path)
-		}
+	args := make([]string, 0, len(readPaths))
+	ordered := make([]string, 0, len(readPaths))
+	for path := range readPaths {
+		ordered = append(ordered, path)
 	}
-	if len(writePaths) > 0 {
-		ordered := make([]string, 0, len(writePaths))
-		for path := range writePaths {
-			ordered = append(ordered, path)
-		}
-		sort.Strings(ordered)
-		for _, path := range ordered {
-			args = append(args, "--allow=fs.write="+path)
-		}
+	sort.Strings(ordered)
+	for _, path := range ordered {
+		args = append(args, "--allow=fs.read="+path)
 	}
 	return args
 }
@@ -556,10 +515,6 @@ func parseBakeSecretPath(spec string) string {
 	return parseBakeKeyValuePath(spec, "src")
 }
 
-func parseBakeCachePath(spec, key string) string {
-	return parseBakeKeyValuePath(spec, key)
-}
-
 func parseBakeKeyValuePath(spec, key string) string {
 	for _, part := range strings.Split(spec, ",") {
 		part = strings.TrimSpace(part)
@@ -576,10 +531,6 @@ func parseBakeKeyValuePath(spec, key string) string {
 		return strings.TrimSpace(value)
 	}
 	return ""
-}
-
-func bakeCacheRoot(repoRoot string) string {
-	return filepath.Join(repoRoot, meta.OutputDir, "buildx-cache")
 }
 
 type buildxBuilderOptions struct {
@@ -729,73 +680,6 @@ func parseBuildxDriver(output []byte) string {
 		}
 	}
 	return ""
-}
-
-// applyBakeLocalCache configures local cache settings for a bake target.
-// It appends to any existing CacheFrom/CacheTo settings, preserving configuration
-// defined in the base docker-bake.hcl.
-func applyBakeLocalCache(target *bakeTarget, cacheRoot, group string) error {
-	if target == nil {
-		return nil
-	}
-	if buildxCacheDisabled() {
-		target.CacheDisabled = true
-		return nil
-	}
-	if strings.TrimSpace(cacheRoot) == "" {
-		return nil
-	}
-	parts := []string{}
-	if strings.TrimSpace(group) != "" {
-		parts = append(parts, group)
-	}
-	if strings.TrimSpace(target.Name) != "" {
-		parts = append(parts, target.Name)
-	}
-	if len(parts) == 0 {
-		return nil
-	}
-	cacheDir := filepath.Join(append([]string{cacheRoot}, sanitizePathSegments(parts)...)...)
-	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
-		return err
-	}
-	target.CacheFrom = append(target.CacheFrom, fmt.Sprintf("type=local,src=%s", cacheDir))
-	target.CacheTo = append(target.CacheTo, fmt.Sprintf("type=local,dest=%s,mode=max", cacheDir))
-	return nil
-}
-
-func buildxCacheDisabled() bool {
-	value := strings.ToLower(strings.TrimSpace(os.Getenv("ESB_BUILDX_CACHE")))
-	switch value {
-	case "0", "false", "off", "no":
-		return true
-	default:
-		return false
-	}
-}
-
-func sanitizePathSegments(values []string) []string {
-	segments := make([]string, 0, len(values))
-	for _, value := range values {
-		if cleaned := sanitizePathSegment(value); cleaned != "" {
-			segments = append(segments, cleaned)
-		}
-	}
-	return segments
-}
-
-func sanitizePathSegment(value string) string {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return ""
-	}
-	cleaned := strings.NewReplacer(
-		"/", "-",
-		"\\", "-",
-		":", "-",
-		" ", "-",
-	).Replace(trimmed)
-	return cleaned
 }
 
 func mergeStringMap(base, extra map[string]string) map[string]string {

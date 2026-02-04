@@ -194,7 +194,6 @@ func buildFunctionImages(
 	noCache bool,
 	verbose bool,
 	labels map[string]string,
-	cacheRoot string,
 	includeDocker bool,
 ) error {
 	if verbose {
@@ -247,9 +246,6 @@ func buildFunctionImages(
 				Labels:     labels,
 				Args:       proxyArgs,
 				NoCache:    noCache,
-			}
-			if err := applyBakeLocalCache(&target, cacheRoot, "functions"); err != nil {
-				return err
 			}
 			bakeTargets = append(bakeTargets, target)
 			builtFunctions = append(builtFunctions, fn.Name)

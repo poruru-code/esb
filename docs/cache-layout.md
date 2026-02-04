@@ -14,7 +14,7 @@
 - 現在のハッシュ付き staging ディレクトリ名を廃止する。
 
 ## 目的外
-- buildx のキャッシュ内容や仕組みは変更しない。
+- buildx の内部キャッシュ（BuildKit のストレージ実装/保存場所）は仕様対象外とする。
 - TLS / WireGuard などのグローバル資産は変更しない。
 
 ## 旧挙動（参考）
@@ -63,13 +63,15 @@
 ### プロジェクトキャッシュ（テンプレート隣）
 | パス | 内容 | 目的/備考 |
 | --- | --- | --- |
-| `<project_root>/.esb/buildx-cache/` | buildx のローカルキャッシュ | bake の cache-to/cache-from |
 | `<template_dir>/.esb/staging/<compose_project>/<env>/config/functions.yml` | 関数定義 | deploy マージ結果 |
 | `<template_dir>/.esb/staging/<compose_project>/<env>/config/routing.yml` | ルーティング定義 | deploy マージ結果 |
 | `<template_dir>/.esb/staging/<compose_project>/<env>/config/resources.yml` | リソース定義 | deploy マージ結果 |
 | `<template_dir>/.esb/staging/<compose_project>/<env>/services/` | サービス構成 | staging アーティファクト |
 | `<template_dir>/.esb/staging/<compose_project>/<env>/pyproject.toml` | 依存/環境設定 | staging アーティファクト |
 | `<template_dir>/.esb/staging/<compose_project>/<env>/config/.deploy.lock` | 排他ロック | 並行実行保護 |
+
+注記:
+- buildx のキャッシュは export/import（`type=local`）を使用せず、buildx builder（BuildKit）内部キャッシュに任せる。
 
 ## パス解決ルール
 staging ルートは固定で `<template_dir>/.esb/staging` を使用する。

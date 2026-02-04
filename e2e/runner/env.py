@@ -134,15 +134,6 @@ def calculate_runtime_env(
     if env.get(registry_port_key) in ("", "0"):
         env[registry_port_key] = constants.DEFAULT_REGISTRY_PORT
 
-    # Buildx local cache (avoid cross-env corruption in parallel runs)
-    # docker-compose.*.yml uses BUILDX_CACHE_DIR for base image cache_to/cache_from.
-    # If two envs write to the same local cache directory concurrently, BuildKit can
-    # leave the cache in a broken state (missing ingest files).
-    env.setdefault(
-        "BUILDX_CACHE_DIR",
-        str((PROJECT_ROOT / ".esb" / "buildx-cache" / env_name).absolute()),
-    )
-
     # 3. Subnets & Networks (Isolated per project-env)
     if not env.get(constants.ENV_NETWORK_EXTERNAL):
         env[constants.ENV_NETWORK_EXTERNAL] = f"{project_name}-{env_name}-external"

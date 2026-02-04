@@ -245,8 +245,6 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		return err
 	}
 
-	cacheRoot := bakeCacheRoot(repoRoot)
-
 	lambdaBaseTag := lambdaBaseImageTag(registryForPush, imageTag)
 	lambdaTags := []string{lambdaBaseTag}
 
@@ -296,9 +294,6 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 			NoCache: request.NoCache,
 		}
 
-		if err := applyBakeLocalCache(&lambdaTarget, cacheRoot, "base/lambda"); err != nil {
-			return err
-		}
 		baseTargets := []bakeTarget{lambdaTarget}
 		rootCAPath := ""
 		if buildOs || buildPython {
@@ -324,9 +319,6 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 				Secrets: []string{fmt.Sprintf("id=%s,src=%s", meta.RootCAMountID, rootCAPath)},
 				NoCache: request.NoCache,
 			}
-			if err := applyBakeLocalCache(&osTarget, cacheRoot, "base"); err != nil {
-				return err
-			}
 			baseTargets = append(baseTargets, osTarget)
 		}
 		if buildPython {
@@ -344,9 +336,6 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 				}),
 				Secrets: []string{fmt.Sprintf("id=%s,src=%s", meta.RootCAMountID, rootCAPath)},
 				NoCache: request.NoCache,
-			}
-			if err := applyBakeLocalCache(&pythonTarget, cacheRoot, "base"); err != nil {
-				return err
 			}
 			baseTargets = append(baseTargets, pythonTarget)
 		}
@@ -425,7 +414,6 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		request.NoCache,
 		request.Verbose,
 		functionLabels,
-		cacheRoot,
 		includeDockerOutput,
 	); err != nil {
 		if !request.Verbose {

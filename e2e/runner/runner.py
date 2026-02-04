@@ -172,8 +172,6 @@ def _prepare_context(
     runtime_env[constants.ENV_CONFIG_DIR] = str(staging_config_dir)
     staging_config_dir.mkdir(parents=True, exist_ok=True)
 
-    runtime_env["ESB_BUILDX_CACHE"] = "0"
-
     tag_key = env_key(constants.ENV_TAG)
     tag_override = scenario.env_vars.get(tag_key)
     if tag_override:

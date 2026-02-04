@@ -881,8 +881,6 @@ def run_scenario(args, scenario):
     )
     runtime_env[constants.ENV_CONFIG_DIR] = str(staging_config_dir)
     staging_config_dir.mkdir(parents=True, exist_ok=True)
-    # Disable buildx local cache during E2E to avoid flakiness and slow cache flushes.
-    runtime_env["ESB_BUILDX_CACHE"] = "0"
     ensure_buildx_builder(
         runtime_env.get("BUILDX_BUILDER", ""),
         config_path=runtime_env.get(constants.ENV_BUILDKITD_CONFIG, ""),
