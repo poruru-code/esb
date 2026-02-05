@@ -27,7 +27,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: lambda-s3
-      CodeUri: functions/s3/
+      CodeUri: functions/python/s3/
       Events:
         S3Api:
           Type: Api
@@ -53,7 +53,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: lambda-chaos
-      CodeUri: functions/chaos/
+      CodeUri: functions/python/chaos/
       Events:
         FaultyApi:
           Type: Api
@@ -65,7 +65,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: lambda-scaling
-      CodeUri: functions/scaling/
+      CodeUri: functions/python/scaling/
       ReservedConcurrentExecutions: 3
       Events:
         ScalingApi:
@@ -78,7 +78,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: lambda-scheduled
-      CodeUri: functions/scheduled/
+      CodeUri: functions/python/scheduled/
       Events:
         Timer:
           Type: Schedule

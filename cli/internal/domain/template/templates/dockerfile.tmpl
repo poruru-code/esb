@@ -6,13 +6,19 @@
 FROM {{ .BaseImage }}
 
 # ESB Runtime
+{{- if .UseSitecustomize }}
 COPY {{ .SitecustomizeSource }} /opt/python/sitecustomize.py
+{{- end }}
+{{- if .UseJavaWrapper }}
+ENV LAMBDA_ORIGINAL_HANDLER="{{ .OriginalHandler }}"
+COPY {{ .JavaWrapperSource }} /var/task/lib/lambda-java-wrapper.jar
+{{- end }}
 
 {{- range .Layers }}
 # Layer: {{ .Name }}
 COPY {{ .ContentURI }}/ /opt/
 {{- end }}
-{{- if .HasRequirements }}
+{{- if .UsePip }}
 
 # Function dependencies
 COPY {{ .CodeURI }}requirements.txt ${LAMBDA_TASK_ROOT}/

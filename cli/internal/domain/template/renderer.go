@@ -7,10 +7,12 @@ import (
 	"bytes"
 	"embed"
 	"fmt"
+	"path"
 	"strings"
 	"sync"
 	"text/template"
 
+	"github.com/poruru/edge-serverless-box/cli/internal/domain/runtime"
 	"github.com/poruru/edge-serverless-box/meta"
 
 	"github.com/Masterminds/sprig/v3"
@@ -19,7 +21,7 @@ import (
 )
 
 // DefaultSitecustomizeSource is the default sitecustomize.py path used by the build pipeline.
-const DefaultSitecustomizeSource = "cli/internal/infra/build/assets/site-packages/sitecustomize.py"
+const DefaultSitecustomizeSource = "cli/internal/infra/build/assets/python/site-packages/sitecustomize.py"
 
 //go:embed templates/*.tmpl
 var templateFS embed.FS
@@ -36,13 +38,9 @@ func RenderDockerfile(
 		tag = "latest"
 	}
 	registry = normalizeRegistry(registry)
-	runtime := fn.Runtime
-	if runtime == "" {
-		runtime = "python3.12"
-	}
-	pythonVersion := strings.TrimPrefix(runtime, "python")
-	if pythonVersion == runtime {
-		pythonVersion = "3.12"
+	profile, err := runtime.Resolve(fn.Runtime)
+	if err != nil {
+		return "", err
 	}
 
 	sitecustomize := dockerConfig.SitecustomizeSource
@@ -52,19 +50,39 @@ func RenderDockerfile(
 
 	lambdaBase := meta.ImagePrefix + "-lambda-base"
 	baseImage := lambdaBase + ":" + tag
-	if registry != "" {
+	if profile.Kind == runtime.KindJava {
+		if profile.JavaBaseImage == "" {
+			return "", fmt.Errorf("java base image is required for runtime %s", profile.Name)
+		}
+		baseImage = profile.JavaBaseImage
+	} else if registry != "" {
 		baseImage = fmt.Sprintf("%s%s:%s", registry, lambdaBase, tag)
+	}
+
+	handler := fn.Handler
+	originalHandler := ""
+	useJavaWrapper := false
+	javaWrapperSource := ""
+	if profile.UsesJavaWrapper {
+		originalHandler = handler
+		handler = "com.runtime.lambda.HandlerWrapper::handleRequest"
+		useJavaWrapper = true
+		javaWrapperSource = path.Join("functions", fn.Name, "lambda-java-wrapper.jar")
 	}
 
 	data := dockerfileTemplateData{
 		Name:                fn.Name,
 		BaseImage:           baseImage,
 		SitecustomizeSource: sitecustomize,
+		UseSitecustomize:    profile.UsesSitecustomize,
+		UsePip:              profile.UsesPip && fn.HasRequirements,
+		UseJavaWrapper:      useJavaWrapper,
+		JavaWrapperSource:   javaWrapperSource,
+		OriginalHandler:     originalHandler,
 		CodeURI:             fn.CodeURI,
-		Handler:             fn.Handler,
-		HasRequirements:     fn.HasRequirements,
+		Handler:             handler,
 		Layers:              fn.Layers,
-		PythonVersion:       pythonVersion,
+		PythonVersion:       profile.PythonVersion,
 	}
 
 	return renderTemplate("dockerfile.tmpl", data)
@@ -177,9 +195,13 @@ type dockerfileTemplateData struct {
 	Name                string
 	BaseImage           string
 	SitecustomizeSource string
+	UseSitecustomize    bool
+	UsePip              bool
+	UseJavaWrapper      bool
+	JavaWrapperSource   string
+	OriginalHandler     string
 	CodeURI             string
 	Handler             string
-	HasRequirements     bool
 	Layers              []manifest.LayerSpec
 	PythonVersion       string
 }

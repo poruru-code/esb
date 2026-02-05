@@ -70,6 +70,9 @@ certs/
 # Build artifacts
 build/lambda-images/*.tar
 !build/lambda-images/.gitkeep
+cli/internal/infra/build/assets/java/target/
+cli/internal/infra/build/assets/java/lambda-java-wrapper.jar
+cli/internal/infra/build/assets/java/*.jar
 
 # ESB artifacts
 .esb/
@@ -77,6 +80,11 @@ generator.yml
 /.*/meta/version.json
 # Staging and fixtures
 e2e/fixtures/.*/
+e2e/fixtures/functions/java/**/target/
+e2e/fixtures/functions/java/**/build/
+e2e/fixtures/functions/java/**/*.jar
+e2e/fixtures/functions/java/**/*.class
+e2e/fixtures/functions/java/**/app.jar
 services/gateway/.staging/
 services/gateway/.*-staging/
 # WireGuard configs (local secrets)

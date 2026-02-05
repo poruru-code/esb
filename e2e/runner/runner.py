@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import socket
 import subprocess
 import threading
@@ -80,7 +81,8 @@ def run_parallel(
     reporter.emit(Event(EVENT_SUITE_START))
     results: dict[str, bool] = {}
     try:
-        _warmup()
+        warmup_printer = make_prefix_printer("warmup") if args.verbose else None
+        _warmup(scenarios, printer=warmup_printer, verbose=args.verbose)
         infra_printer = make_prefix_printer("infra") if args.verbose else None
         infra.ensure_infra_up(str(PROJECT_ROOT), printer=infra_printer)
         reporter.emit(Event(EVENT_REGISTRY_READY))
@@ -377,10 +379,130 @@ def _phase(
     )
 
 
-def _warmup() -> None:
+def _warmup(
+    scenarios: dict[str, Scenario],
+    *,
+    printer: Callable[[str], None] | None = None,
+    verbose: bool = False,
+) -> None:
     template = PROJECT_ROOT / "e2e" / "fixtures" / "template.yaml"
     if not template.exists():
         raise FileNotFoundError(f"Missing E2E template: {template}")
+    if _uses_java_scenarios(scenarios):
+        _emit_warmup(printer, "=== Java fixture warmup: start ===")
+        _build_java_fixtures(printer=printer, verbose=verbose)
+        _emit_warmup(printer, "=== Java fixture warmup: done ===")
+
+
+def _uses_java_scenarios(scenarios: dict[str, Scenario]) -> bool:
+    for scenario in scenarios.values():
+        for target in scenario.targets:
+            parts = Path(target).parts
+            for idx, part in enumerate(parts):
+                if part == "scenarios" and idx + 1 < len(parts) and parts[idx + 1] == "java":
+                    return True
+    return False
+
+
+def _build_java_fixtures(
+    *,
+    printer: Callable[[str], None] | None = None,
+    verbose: bool = False,
+) -> None:
+    fixtures_dir = PROJECT_ROOT / "e2e" / "fixtures" / "functions" / "java"
+    if not fixtures_dir.exists():
+        return
+
+    for project_dir in sorted(p for p in fixtures_dir.iterdir() if p.is_dir()):
+        pom = project_dir / "pom.xml"
+        if not pom.exists():
+            continue
+        if printer:
+            printer(f"Building Java fixture: {project_dir.name}")
+        _build_java_project(project_dir, verbose=verbose)
+
+
+def _build_java_project(project_dir: Path, *, verbose: bool = False) -> None:
+    cmd = _docker_maven_command(project_dir)
+    result = subprocess.run(
+        cmd,
+        cwd=str(project_dir),
+        capture_output=not verbose,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        details = ""
+        if not verbose:
+            details = f"\n{result.stdout}\n{result.stderr}".rstrip()
+        raise RuntimeError(f"Java fixture build failed: {project_dir}{details}")
+
+    target_dir = project_dir / "target"
+    jar_path = _select_java_jar(target_dir)
+    if not jar_path:
+        raise RuntimeError(f"Java fixture jar not found in {target_dir}")
+    shutil.copy2(jar_path, project_dir / "app.jar")
+
+
+def _select_java_jar(target_dir: Path) -> Path | None:
+    if not target_dir.exists():
+        return None
+    candidates = [
+        path
+        for path in target_dir.glob("*.jar")
+        if not path.name.endswith(("-sources.jar", "-javadoc.jar"))
+    ]
+    if not candidates:
+        return None
+    if len(candidates) == 1:
+        return candidates[0]
+    candidates.sort(key=lambda p: p.stat().st_size, reverse=True)
+    return candidates[0]
+
+
+def _docker_maven_command(project_dir: Path) -> list[str]:
+    cmd = [
+        "docker",
+        "run",
+        "--rm",
+        "-v",
+        f"{project_dir}:/work",
+        "-w",
+        "/work",
+    ]
+    home_dir = Path.home()
+    if home_dir.exists():
+        cmd.extend(["-v", f"{home_dir / '.m2'}:/root/.m2"])
+    for key in (
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "NO_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "no_proxy",
+        "MAVEN_OPTS",
+        "JAVA_TOOL_OPTIONS",
+    ):
+        value = os.environ.get(key)
+        if value:
+            cmd.extend(["-e", f"{key}={value}"])
+    cmd.extend(
+        [
+            "maven:3.9.6-eclipse-temurin-21",
+            "mvn",
+            "-q",
+            "-DskipTests",
+            "package",
+        ]
+    )
+    return cmd
+
+
+def _emit_warmup(printer: Callable[[str], None] | None, message: str) -> None:
+    if printer:
+        printer(message)
+    else:
+        print(message)
 
 
 def _resolve_env_file(env_file: str | None) -> str | None:

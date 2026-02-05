@@ -70,10 +70,12 @@ sequenceDiagram
 6. **ベースイメージのビルド**
    - `esb-lambda-base` / `esb-os-base` / `esb-python-base`
    - 既存イメージが最新の場合はスキップ
+   - Java ランタイムは AWS Lambda Java ベースイメージを使用（独自ベースのビルドなし）
 
 7. **関数イメージのビルド**
    - 画像名は関数名から Docker 安全名へ正規化
    - 画像フィンガープリントが一致する場合はスキップ
+   - Java の `Handler` は `lambda-java-wrapper.jar` に差し替えられ、元の Handler は `LAMBDA_ORIGINAL_HANDLER` に保存されます
 
 ## イメージ命名規則
 

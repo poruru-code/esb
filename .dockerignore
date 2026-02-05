@@ -35,7 +35,8 @@ e2e/
 
 # CLI (Go-based, separate build)
 cli/
-!cli/internal/generator/assets/site-packages/sitecustomize.py
+!cli/internal/infra/build/assets/python/site-packages/sitecustomize.py
+!cli/internal/infra/build/assets/python/layer/trace_bridge.py
 
 # IDE
 .vscode
