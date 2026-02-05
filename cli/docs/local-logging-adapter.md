@@ -78,4 +78,4 @@ Dockerイメージのビルド時に `esb-lambda-base` に配置されます。�
 ---
 
 ## Implementation references
-- `cli/internal/infra/build/assets/site-packages/sitecustomize.py`
+- `cli/internal/infra/build/assets/python/site-packages/sitecustomize.py`

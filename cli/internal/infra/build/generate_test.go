@@ -221,6 +221,69 @@ func TestGenerateFilesStagesLayersAndZip(t *testing.T) {
 	}
 }
 
+func TestGenerateFilesStagesJavaJarAndWrapper(t *testing.T) {
+	root := t.TempDir()
+	templatePath := filepath.Join(root, "template.yaml")
+	writeTestFile(t, templatePath, "Resources: {}")
+
+	jarPath := filepath.Join(root, "converter_jsoncrb.jar")
+	writeTestFile(t, jarPath, "jar")
+
+	wrapperPath := filepath.Join(root, "cli", "internal", "infra", "build", "assets", "java", "target", "lambda-java-wrapper.jar")
+	mustMkdirAll(t, filepath.Dir(wrapperPath))
+	writeTestFile(t, wrapperPath, "wrapper")
+
+	parser := &stubParser{
+		result: template.ParseResult{
+			Functions: []template.FunctionSpec{
+				{
+					Name:    "lambda-java",
+					CodeURI: "converter_jsoncrb.jar",
+					Handler: "com.example.Handler::handleRequest",
+					Runtime: "java21",
+				},
+			},
+		},
+	}
+
+	cfg := config.GeneratorConfig{
+		Paths: config.PathsConfig{
+			SamTemplate: "template.yaml",
+			OutputDir:   "out/",
+		},
+	}
+	opts := GenerateOptions{ProjectRoot: root, Parser: parser}
+
+	if _, err := GenerateFiles(cfg, opts); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	jarDest := filepath.Join(root, "out", "functions", "lambda-java", "src", "lib", "converter_jsoncrb.jar")
+	if _, err := os.Stat(jarDest); err != nil {
+		t.Fatalf("expected jar to be staged: %v", err)
+	}
+
+	wrapperDest := filepath.Join(root, "out", "functions", "lambda-java", "lambda-java-wrapper.jar")
+	if _, err := os.Stat(wrapperDest); err != nil {
+		t.Fatalf("expected wrapper jar to be staged: %v", err)
+	}
+
+	dockerfilePath := filepath.Join(root, "out", "functions", "lambda-java", "Dockerfile")
+	content := readFile(t, dockerfilePath)
+	if !strings.Contains(content, "FROM public.ecr.aws/lambda/java:21") {
+		t.Fatalf("expected java base image in dockerfile")
+	}
+	if !strings.Contains(content, `ENV LAMBDA_ORIGINAL_HANDLER="com.example.Handler::handleRequest"`) {
+		t.Fatalf("expected original handler env in dockerfile")
+	}
+	if !strings.Contains(content, "COPY functions/lambda-java/lambda-java-wrapper.jar /var/task/lib/lambda-java-wrapper.jar") {
+		t.Fatalf("expected wrapper jar copy in dockerfile")
+	}
+	if !strings.Contains(content, `CMD [ "com.runtime.lambda.HandlerWrapper::handleRequest" ]`) {
+		t.Fatalf("expected wrapper handler cmd in dockerfile")
+	}
+}
+
 func TestGenerateFilesLayerNesting(t *testing.T) {
 	root := t.TempDir()
 	templatePath := filepath.Join(root, "template.yaml")

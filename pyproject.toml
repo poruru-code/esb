@@ -84,6 +84,7 @@ exclude = [
 
 [tool.ty.environment]
 python-version = "3.12"
+extra-paths = ["./e2e/fixtures/layers/common/python"]
 
 [tool.ty.rules]
 # No global ignores

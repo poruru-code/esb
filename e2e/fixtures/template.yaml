@@ -24,7 +24,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: lambda-connectivity
-      CodeUri: functions/connectivity/
+      CodeUri: functions/python/connectivity/
       Events:
         HelloApi:
           Type: Api
@@ -36,7 +36,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: lambda-integration
-      CodeUri: functions/integration/
+      CodeUri: functions/python/integration/
       Events:
         LambdaApi:
           Type: Api
@@ -48,7 +48,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: lambda-s3
-      CodeUri: functions/s3/
+      CodeUri: functions/python/s3/
       Events:
         S3Api:
           Type: Api
@@ -65,7 +65,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: lambda-dynamo
-      CodeUri: functions/dynamo/
+      CodeUri: functions/python/dynamo/
       Events:
         DynamoApi:
           Type: Api
@@ -101,7 +101,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: lambda-echo
-      CodeUri: functions/echo/
+      CodeUri: functions/python/echo/
       AutoPublishAlias: live
       Events:
         EchoApi:
@@ -113,11 +113,26 @@ Resources:
       ProvisionedConcurrencyConfig:
         ProvisionedConcurrentExecutions: 1
 
+  JavaEchoFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lambda-echo-java
+      Runtime: java21
+      Handler: com.fixtures.echo.Handler::handleRequest
+      CodeUri: functions/java/echo/app.jar
+      Layers: []
+      Events:
+        JavaEchoApi:
+          Type: Api
+          Properties:
+            Path: /api/echo-java
+            Method: post
+
   ChaosFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: lambda-chaos
-      CodeUri: functions/chaos/
+      CodeUri: functions/python/chaos/
       Events:
         FaultyApi:
           Type: Api
@@ -129,7 +144,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: lambda-scaling
-      CodeUri: functions/scaling/
+      CodeUri: functions/python/scaling/
       ReservedConcurrentExecutions: 3
       Events:
         ScalingApi:
@@ -142,7 +157,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: lambda-scheduled
-      CodeUri: functions/scheduled/
+      CodeUri: functions/python/scheduled/
       Events:
         Timer:
           Type: Schedule

@@ -12,7 +12,7 @@ COPY {{ .SitecustomizeSource }} /opt/python/sitecustomize.py
 # Layer: {{ .Name }}
 COPY {{ .ContentURI }}/ /opt/
 {{- end }}
-{{- if .HasRequirements }}
+{{- if .UsePip }}
 
 # Function dependencies
 COPY {{ .CodeURI }}requirements.txt ${LAMBDA_TASK_ROOT}/

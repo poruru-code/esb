@@ -13,6 +13,11 @@ suites:
     - ../scenarios/autoscaling/
     - ../scenarios/standard/
     exclude: []
+  java:
+    description: Java Runtime Scenarios
+    targets:
+    - ../scenarios/java/
+    exclude: []
 
 matrix:
 # docker runtime
@@ -23,6 +28,7 @@ matrix:
   suites:
   - smoke
   - standard
+  - java
 
 # containerd runtime
 - esb_env: e2e-containerd
@@ -32,6 +38,7 @@ matrix:
   suites:
   - smoke
   - standard
+  - java
 
 # containerd + firecracker runtime (CONTAINERD_RUNTIME=aws.firecracker)
 # - esb_env: e2e-firecracker

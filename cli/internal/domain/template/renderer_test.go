@@ -20,7 +20,7 @@ func TestRenderDockerfileSimple(t *testing.T) {
 		Runtime: "python3.12",
 	}
 	dockerConfig := DockerConfig{
-		SitecustomizeSource: "cli/internal/infra/build/assets/site-packages/sitecustomize.py",
+		SitecustomizeSource: "cli/internal/infra/build/assets/python/site-packages/sitecustomize.py",
 	}
 
 	content, err := RenderDockerfile(fn, dockerConfig, "", "latest")
@@ -31,7 +31,7 @@ func TestRenderDockerfileSimple(t *testing.T) {
 	if !strings.Contains(content, expectedBase) {
 		t.Fatalf("unexpected base image, expected %s, got: %s", expectedBase, content)
 	}
-	if !strings.Contains(content, "COPY cli/internal/infra/build/assets/site-packages/sitecustomize.py") {
+	if !strings.Contains(content, "COPY cli/internal/infra/build/assets/python/site-packages/sitecustomize.py") {
 		t.Fatalf("expected sitecustomize copy")
 	}
 	if !strings.Contains(content, "COPY functions/hello/") {
@@ -63,6 +63,49 @@ func TestRenderDockerfileWithRequirementsAndLayers(t *testing.T) {
 	}
 	if !strings.Contains(content, "COPY functions/lambda-hello/layers/common/ /opt/") {
 		t.Fatalf("expected layer copy")
+	}
+}
+
+func TestRenderDockerfileJavaRuntime(t *testing.T) {
+	cases := []struct {
+		runtime string
+		base    string
+	}{
+		{runtime: "java21", base: "public.ecr.aws/lambda/java:21"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.runtime, func(t *testing.T) {
+			fn := FunctionSpec{
+				Name:    "lambda-java",
+				CodeURI: "functions/java/",
+				Handler: "com.example.Handler::handleRequest",
+				Runtime: tc.runtime,
+			}
+
+			content, err := RenderDockerfile(fn, DockerConfig{}, "", "latest")
+			if err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+			if !strings.Contains(content, "FROM "+tc.base) {
+				t.Fatalf("expected java base image %s, got: %s", tc.base, content)
+			}
+			if !strings.Contains(content, `ENV LAMBDA_ORIGINAL_HANDLER="com.example.Handler::handleRequest"`) {
+				t.Fatalf("expected original handler env var")
+			}
+			if !strings.Contains(content, "COPY functions/lambda-java/lambda-java-wrapper.jar /var/task/lib/lambda-java-wrapper.jar") {
+				t.Fatalf("expected java wrapper copy")
+			}
+			if !strings.Contains(content, `CMD [ "com.runtime.lambda.HandlerWrapper::handleRequest" ]`) {
+				t.Fatalf("expected wrapper handler command")
+			}
+			if strings.Contains(content, "sitecustomize.py") {
+				t.Fatalf("did not expect sitecustomize for java runtime")
+			}
+			if strings.Contains(content, "pip install") {
+				t.Fatalf("did not expect pip install for java runtime")
+			}
+		})
 	}
 }
 

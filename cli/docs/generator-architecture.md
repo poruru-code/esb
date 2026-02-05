@@ -27,7 +27,7 @@ flowchart TD
     Parser --> Functions["functions.yml"]
 
     Renderer --> Dockerfiles["Dockerfiles (`assets/Dockerfile.lambda-base` → `Dockerfile`)"]
-    Renderer --> RuntimeHooks["Runtime Hooks (`assets/site-packages/` + viewer hooks)"]
+    Renderer --> RuntimeHooks["Runtime Hooks (`assets/python/site-packages/` + viewer hooks)"]
 ```
 
 ### コンポーネント
@@ -70,7 +70,7 @@ routes:
 3. **ビルドコンテキストの最小化**
    `renderer.go` は `.dockerignore` 相当の構成を `output_dir/` に書き、関数やレイヤー以外のファイルがビルドコンテキストに入らないようにします。
 4. **Runtime Hooks の配置**
-   `cli/internal/infra/build/assets/site-packages/` 配下のファイル（`sitecustomize.py` など）を各関数のコンテキストにコピーし、Trace ID やログキャプチャの仕組みを Lambda 実行時に提供します。これには VictoriaLogs や X-Ray 互換のフックが含まれます。
+   `cli/internal/infra/build/assets/python/site-packages/` 配下のファイル（`sitecustomize.py` など）を各関数のコンテキストにコピーし、Trace ID やログキャプチャの仕組みを Lambda 実行時に提供します。これには VictoriaLogs や X-Ray 互換のフックが含まれます。
 
 ## ランタイムフックの仕組み (`sitecustomize.py`)
 

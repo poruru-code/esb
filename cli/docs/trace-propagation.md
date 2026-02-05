@@ -161,7 +161,7 @@ async def do_post():
 
 ### 4. sitecustomize.py (自動注入・自動復元)
 
-**ファイル**: `cli/internal/infra/build/assets/site-packages/sitecustomize.py`
+**ファイル**: `cli/internal/infra/build/assets/python/site-packages/sitecustomize.py`
 
 本基盤環境では、Pythonプロセス起動時に `sitecustomize.py` が自動的にロードされ、以下のパッチを適用します。これにより**アプリケーションコードへの変更は一切不要**です。
 
@@ -211,7 +211,7 @@ client.meta.events.register(
 - `services/common/core/trace.py`
 - `services/common/core/request_context.py`
 - `services/gateway/services/lambda_invoker.py`
-- `cli/internal/infra/build/assets/site-packages/sitecustomize.py`
+- `cli/internal/infra/build/assets/python/site-packages/sitecustomize.py`
 
 ---
 

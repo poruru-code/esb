@@ -55,8 +55,11 @@ flowchart LR
 ```
 cli/internal/infra/build/assets/
 ├── Dockerfile.lambda-base
-└── site-packages/
-    └── sitecustomize.py    # AWS SDK パッチ & Direct Logging
+└── python/
+    ├── layer/
+    │   └── trace_bridge.py
+    └── site-packages/
+        └── sitecustomize.py    # AWS SDK パッチ & Direct Logging
 ```
 
 ベースイメージには以下が含まれます:
@@ -79,6 +82,12 @@ COPY tests/fixtures/functions/xxx/ ${LAMBDA_TASK_ROOT}/
 
 CMD [ "lambda_function.lambda_handler" ]
 ```
+
+#### Java ランタイム
+
+- `Runtime: java21` は AWS Lambda Java ベースイメージを使用します。
+- `Handler` は `lambda-java-wrapper.jar` でラップされ、元の Handler は `LAMBDA_ORIGINAL_HANDLER` に格納されます。
+- ラッパーは stdout/stderr をフックし、VictoriaLogs へ送信します（`VICTORIALOGS_URL` 設定時）。
 
 ## ライフサイクル（参照先）
 ワーカーの起動/削除/プール管理は以下を参照してください:
