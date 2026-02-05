@@ -427,6 +427,8 @@ def _template_has_java_runtime(path: Path) -> bool:
         return False
     if not isinstance(data, dict):
         return False
+    if _globals_runtime_is_java(data):
+        return True
     resources = data.get("Resources")
     if not isinstance(resources, dict):
         return False
@@ -444,6 +446,17 @@ def _template_has_java_runtime(path: Path) -> bool:
             if "functions/java/" in code_uri or code_uri.lower().endswith(".jar"):
                 return True
     return False
+
+
+def _globals_runtime_is_java(payload: dict) -> bool:
+    globals_section = payload.get("Globals")
+    if not isinstance(globals_section, dict):
+        return False
+    function_globals = globals_section.get("Function")
+    if not isinstance(function_globals, dict):
+        return False
+    runtime = str(function_globals.get("Runtime", "")).lower().strip()
+    return runtime.startswith("java")
 
 
 class _YamlIgnoreTagsLoader(yaml.SafeLoader):
