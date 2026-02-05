@@ -81,8 +81,9 @@ def run_parallel(
     reporter.emit(Event(EVENT_SUITE_START))
     results: dict[str, bool] = {}
     try:
-        warmup_printer = make_prefix_printer("warmup") if args.verbose else None
-        _warmup(scenarios, printer=warmup_printer, verbose=args.verbose)
+        if not args.test_only:
+            warmup_printer = make_prefix_printer("warmup") if args.verbose else None
+            _warmup(scenarios, printer=warmup_printer, verbose=args.verbose)
         infra_printer = make_prefix_printer("infra") if args.verbose else None
         infra.ensure_infra_up(str(PROJECT_ROOT), printer=infra_printer)
         reporter.emit(Event(EVENT_REGISTRY_READY))
