@@ -95,36 +95,58 @@ func (c *deployCommand) Run(inputs deployInputs, flags DeployCmd) error {
 	if flags.WithDeps {
 		noDeps = false
 	}
-	request := deploy.Request{
-		Context:      inputs.Context,
-		Env:          inputs.Env,
-		Mode:         inputs.Mode,
-		TemplatePath: inputs.TemplatePath,
-		OutputDir:    inputs.OutputDir,
-		Parameters:   inputs.Parameters,
-		Tag:          tag,
-		NoCache:      flags.NoCache,
-		NoDeps:       noDeps,
-		Verbose:      flags.Verbose,
-		ComposeFiles: inputs.ComposeFiles,
+	if len(inputs.Templates) == 0 {
+		return errTemplatePathRequired
 	}
-	if err := deploy.NewDeployWorkflow(c.build, c.applyRuntime, c.ui, c.composeRunner).Run(request); err != nil {
-		return fmt.Errorf("deploy workflow: %w", err)
+	workflow := deploy.NewDeployWorkflow(c.build, c.applyRuntime, c.ui, c.composeRunner)
+	templateCount := len(inputs.Templates)
+	for idx, tpl := range inputs.Templates {
+		buildOnly := flags.BuildOnly || (templateCount > 1 && idx < templateCount-1)
+		ctx := state.Context{
+			ProjectDir:     inputs.ProjectDir,
+			TemplatePath:   tpl.TemplatePath,
+			OutputDir:      tpl.OutputDir,
+			Env:            inputs.Env,
+			Mode:           inputs.Mode,
+			ComposeProject: inputs.Project,
+		}
+		request := deploy.Request{
+			Context:        ctx,
+			Env:            inputs.Env,
+			Mode:           inputs.Mode,
+			TemplatePath:   tpl.TemplatePath,
+			OutputDir:      tpl.OutputDir,
+			Parameters:     tpl.Parameters,
+			Tag:            tag,
+			NoCache:        flags.NoCache,
+			NoDeps:         noDeps,
+			Verbose:        flags.Verbose,
+			ComposeFiles:   inputs.ComposeFiles,
+			BuildOnly:      buildOnly,
+			BundleManifest: flags.Bundle,
+		}
+		if err := workflow.Run(request); err != nil {
+			return fmt.Errorf("deploy workflow (%s): %w", tpl.TemplatePath, err)
+		}
 	}
 	return nil
 }
 
 type deployInputs struct {
-	Context       state.Context
+	ProjectDir    string
 	Env           string
 	EnvSource     string
 	Mode          string
-	TemplatePath  string
-	OutputDir     string
+	Templates     []deployTemplateInput
 	Project       string
 	ProjectSource string
-	Parameters    map[string]string
 	ComposeFiles  []string
+}
+
+type deployTemplateInput struct {
+	TemplatePath string
+	OutputDir    string
+	Parameters   map[string]string
 }
 
 type envChoice struct {
@@ -148,6 +170,7 @@ var (
 	errTemplatePathEmpty          = errors.New("template path is empty")
 	errTemplateNotFound           = errors.New("no template.yaml or template.yml found in directory")
 	errParameterRequiresValue     = errors.New("parameter requires a value")
+	errMultipleTemplateOutput     = errors.New("output directory cannot be used with multiple templates")
 )
 
 func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
@@ -160,18 +183,31 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 
 	var last deployInputs
 	for {
-		templatePath, err := resolveDeployTemplate(cli.Template, isTTY, prompter, last.TemplatePath)
+		previousTemplate := ""
+		if len(last.Templates) > 0 {
+			previousTemplate = last.Templates[0].TemplatePath
+		}
+		templatePaths, err := resolveDeployTemplates(cli.Template, isTTY, prompter, previousTemplate)
 		if err != nil {
 			return deployInputs{}, err
 		}
-		repoRoot, err := repoResolver(filepath.Dir(templatePath))
+		repoRoot, err := repoResolver(filepath.Dir(templatePaths[0]))
 		if err != nil {
 			return deployInputs{}, fmt.Errorf("resolve repo root: %w", err)
+		}
+		for _, path := range templatePaths[1:] {
+			otherRoot, err := repoResolver(filepath.Dir(path))
+			if err != nil {
+				return deployInputs{}, fmt.Errorf("resolve repo root: %w", err)
+			}
+			if otherRoot != repoRoot {
+				return deployInputs{}, fmt.Errorf("template repo root mismatch: %s != %s", otherRoot, repoRoot)
+			}
 		}
 		if err := config.EnsureProjectConfig(repoRoot); err != nil {
 			return deployInputs{}, err
 		}
-		stored := loadDeployDefaults(repoRoot, templatePath)
+		stored := loadDeployDefaults(repoRoot, templatePaths[0])
 		prevEnv := strings.TrimSpace(last.Env)
 		if prevEnv == "" {
 			prevEnv = strings.TrimSpace(stored.Env)
@@ -228,7 +264,7 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 			selectedEnv, err = reconcileEnvWithRuntime(
 				selectedEnv,
 				composeProject,
-				templatePath,
+				templatePaths[0],
 				isTTY,
 				prompter,
 				cli.Deploy.Force,
@@ -280,56 +316,71 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 			}
 		}
 
-		prevOutput := strings.TrimSpace(last.OutputDir)
-		if prevOutput == "" {
-			prevOutput = strings.TrimSpace(stored.OutputDir)
+		if len(templatePaths) > 1 && strings.TrimSpace(cli.Deploy.Output) != "" {
+			return deployInputs{}, errMultipleTemplateOutput
 		}
-		if envChanged && strings.TrimSpace(cli.Deploy.Output) == "" {
-			prevOutput = ""
+		prevTemplates := map[string]deployTemplateInput{}
+		for _, tpl := range last.Templates {
+			prevTemplates[tpl.TemplatePath] = tpl
 		}
-		outputDir, err := resolveDeployOutput(
-			cli.Deploy.Output,
-			templatePath,
-			selectedEnv.Value,
-			isTTY,
-			prompter,
-			prevOutput,
-		)
-		if err != nil {
-			return deployInputs{}, err
-		}
+		outputKeyCounts := map[string]int{}
+		templateInputs := make([]deployTemplateInput, 0, len(templatePaths))
+		for _, templatePath := range templatePaths {
+			storedTemplate := loadDeployDefaults(repoRoot, templatePath)
+			outputDir := ""
+			if len(templatePaths) == 1 {
+				prevOutput := ""
+				if prev, ok := prevTemplates[templatePath]; ok && strings.TrimSpace(prev.OutputDir) != "" {
+					prevOutput = prev.OutputDir
+				} else if strings.TrimSpace(storedTemplate.OutputDir) != "" {
+					prevOutput = storedTemplate.OutputDir
+				}
+				if envChanged && strings.TrimSpace(cli.Deploy.Output) == "" {
+					prevOutput = ""
+				}
+				var err error
+				outputDir, err = resolveDeployOutput(
+					cli.Deploy.Output,
+					templatePath,
+					selectedEnv.Value,
+					isTTY,
+					prompter,
+					prevOutput,
+				)
+				if err != nil {
+					return deployInputs{}, err
+				}
+			} else {
+				outputDir = deriveMultiTemplateOutputDir(templatePath, outputKeyCounts)
+			}
 
-		prevParams := last.Parameters
-		if len(prevParams) == 0 {
-			prevParams = stored.Params
-		}
-		params, err := promptTemplateParameters(templatePath, isTTY, prompter, prevParams)
-		if err != nil {
-			return deployInputs{}, err
+			prevParams := storedTemplate.Params
+			if prev, ok := prevTemplates[templatePath]; ok && len(prev.Parameters) > 0 {
+				prevParams = prev.Parameters
+			}
+			params, err := promptTemplateParameters(templatePath, isTTY, prompter, prevParams)
+			if err != nil {
+				return deployInputs{}, err
+			}
+
+			templateInputs = append(templateInputs, deployTemplateInput{
+				TemplatePath: templatePath,
+				OutputDir:    outputDir,
+				Parameters:   params,
+			})
 		}
 
 		projectDir := repoRoot
-
 		composeFiles := normalizeComposeFiles(cli.Deploy.ComposeFiles, projectDir)
-		ctx := state.Context{
-			ProjectDir:     projectDir,
-			TemplatePath:   templatePath,
-			OutputDir:      outputDir,
-			Env:            selectedEnv.Value,
-			Mode:           mode,
-			ComposeProject: composeProject,
-		}
 
 		inputs := deployInputs{
-			Context:       ctx,
+			ProjectDir:    projectDir,
 			Env:           selectedEnv.Value,
 			EnvSource:     selectedEnv.Source,
 			Mode:          mode,
-			TemplatePath:  templatePath,
-			OutputDir:     outputDir,
+			Templates:     templateInputs,
 			Project:       composeProject,
 			ProjectSource: projectSource,
-			Parameters:    params,
 			ComposeFiles:  composeFiles,
 		}
 
@@ -339,8 +390,10 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 		}
 		if confirmed {
 			if !cli.Deploy.NoSave {
-				if err := saveDeployDefaults(repoRoot, templatePath, inputs); err != nil {
-					fmt.Fprintf(os.Stderr, "Warning: failed to save deploy defaults: %v\n", err)
+				for _, tpl := range templateInputs {
+					if err := saveDeployDefaults(repoRoot, tpl, inputs); err != nil {
+						fmt.Fprintf(os.Stderr, "Warning: failed to save deploy defaults: %v\n", err)
+					}
 				}
 			}
 			return inputs, nil
@@ -435,6 +488,36 @@ func resolveDeployTemplate(
 		}
 		return path, nil
 	}
+}
+
+func resolveDeployTemplates(
+	values []string,
+	isTTY bool,
+	prompter interaction.Prompter,
+	previous string,
+) ([]string, error) {
+	trimmed := make([]string, 0, len(values))
+	for _, value := range values {
+		if v := strings.TrimSpace(value); v != "" {
+			trimmed = append(trimmed, v)
+		}
+	}
+	if len(trimmed) > 0 {
+		out := make([]string, 0, len(trimmed))
+		for _, value := range trimmed {
+			path, err := normalizeTemplatePath(value)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, path)
+		}
+		return out, nil
+	}
+	path, err := resolveDeployTemplate("", isTTY, prompter, previous)
+	if err != nil {
+		return nil, err
+	}
+	return []string{path}, nil
 }
 
 func resolveDeployEnv(
@@ -588,14 +671,26 @@ func resolveDeployOutput(
 	return cleaned, nil
 }
 
+func deriveMultiTemplateOutputDir(templatePath string, counts map[string]int) string {
+	base := strings.TrimSpace(filepath.Base(templatePath))
+	stem := strings.TrimSuffix(base, filepath.Ext(base))
+	stem = strings.TrimSpace(stem)
+	if stem == "" {
+		stem = "template"
+	}
+	count := counts[stem]
+	counts[stem] = count + 1
+	if count > 0 {
+		stem = fmt.Sprintf("%s-%d", stem, count+1)
+	}
+	return filepath.Join(meta.OutputDir, stem)
+}
+
 func confirmDeployInputs(inputs deployInputs, isTTY bool, prompter interaction.Prompter) (bool, error) {
 	if !isTTY || prompter == nil {
 		return true, nil
 	}
 
-	output := domaincfg.ResolveOutputSummary(inputs.TemplatePath, inputs.OutputDir, inputs.Env)
-
-	templateBase := filepath.Dir(inputs.TemplatePath)
 	projectLine := fmt.Sprintf("Project: %s", inputs.Project)
 	if strings.TrimSpace(inputs.ProjectSource) != "" {
 		projectLine = fmt.Sprintf("Project: %s (%s)", inputs.Project, inputs.ProjectSource)
@@ -604,32 +699,67 @@ func confirmDeployInputs(inputs deployInputs, isTTY bool, prompter interaction.P
 	if strings.TrimSpace(inputs.EnvSource) != "" {
 		envLine = fmt.Sprintf("Env: %s (%s)", inputs.Env, inputs.EnvSource)
 	}
-	stagingDir := "<unresolved>"
-	if dir, err := staging.ConfigDir(inputs.TemplatePath, inputs.Project, inputs.Env); err == nil {
-		stagingDir = dir
-	}
-
 	summaryLines := []string{
-		fmt.Sprintf("Template: %s", inputs.TemplatePath),
-		fmt.Sprintf("Template base: %s", templateBase),
 		projectLine,
 		envLine,
 		fmt.Sprintf("Mode: %s", inputs.Mode),
-		fmt.Sprintf("Output: %s", output),
-		fmt.Sprintf("Staging config: %s", stagingDir),
 	}
-	if len(inputs.Parameters) > 0 {
-		keys := make([]string, 0, len(inputs.Parameters))
-		for k := range inputs.Parameters {
-			keys = append(keys, k)
+	if len(inputs.Templates) == 1 {
+		tpl := inputs.Templates[0]
+		output := domaincfg.ResolveOutputSummary(tpl.TemplatePath, tpl.OutputDir, inputs.Env)
+		templateBase := filepath.Dir(tpl.TemplatePath)
+		stagingDir := "<unresolved>"
+		if dir, err := staging.ConfigDir(tpl.TemplatePath, inputs.Project, inputs.Env); err == nil {
+			stagingDir = dir
 		}
-		sort.Strings(keys)
-		paramLines := make([]string, 0, len(keys)+1)
-		paramLines = append(paramLines, "Parameters:")
-		for _, key := range keys {
-			paramLines = append(paramLines, fmt.Sprintf("  %s = %s", key, inputs.Parameters[key]))
+		summaryLines = append(summaryLines,
+			fmt.Sprintf("Template: %s", tpl.TemplatePath),
+			fmt.Sprintf("Template base: %s", templateBase),
+			fmt.Sprintf("Output: %s", output),
+			fmt.Sprintf("Staging config: %s", stagingDir),
+		)
+		if len(tpl.Parameters) > 0 {
+			keys := make([]string, 0, len(tpl.Parameters))
+			for k := range tpl.Parameters {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			paramLines := make([]string, 0, len(keys)+1)
+			paramLines = append(paramLines, "Parameters:")
+			for _, key := range keys {
+				paramLines = append(paramLines, fmt.Sprintf("  %s = %s", key, tpl.Parameters[key]))
+			}
+			summaryLines = append(summaryLines, paramLines...)
 		}
-		summaryLines = append(summaryLines, paramLines...)
+	} else if len(inputs.Templates) > 1 {
+		summaryLines = append(summaryLines, fmt.Sprintf("Templates: %d", len(inputs.Templates)))
+		for _, tpl := range inputs.Templates {
+			output := domaincfg.ResolveOutputSummary(tpl.TemplatePath, tpl.OutputDir, inputs.Env)
+			templateBase := filepath.Dir(tpl.TemplatePath)
+			stagingDir := "<unresolved>"
+			if dir, err := staging.ConfigDir(tpl.TemplatePath, inputs.Project, inputs.Env); err == nil {
+				stagingDir = dir
+			}
+			summaryLines = append(summaryLines,
+				fmt.Sprintf("Template: %s", tpl.TemplatePath),
+				fmt.Sprintf("Template base: %s", templateBase),
+				fmt.Sprintf("Output: %s", output),
+				fmt.Sprintf("Staging config: %s", stagingDir),
+			)
+			if len(tpl.Parameters) > 0 {
+				keys := make([]string, 0, len(tpl.Parameters))
+				for k := range tpl.Parameters {
+					keys = append(keys, k)
+				}
+				sort.Strings(keys)
+				paramLines := make([]string, 0, len(keys)+1)
+				paramLines = append(paramLines, "Parameters:")
+				for _, key := range keys {
+					paramLines = append(paramLines, fmt.Sprintf("  %s = %s", key, tpl.Parameters[key]))
+				}
+				summaryLines = append(summaryLines, paramLines...)
+			}
+		}
 	}
 
 	summary := "Review inputs:\n" + strings.Join(summaryLines, "\n")
@@ -880,8 +1010,8 @@ func loadDeployDefaults(projectRoot, templatePath string) storedDeployDefaults {
 	}
 }
 
-func saveDeployDefaults(projectRoot, templatePath string, inputs deployInputs) error {
-	if templatePath == "" {
+func saveDeployDefaults(projectRoot string, template deployTemplateInput, inputs deployInputs) error {
+	if strings.TrimSpace(template.TemplatePath) == "" {
 		return nil
 	}
 	cfgPath, err := config.ProjectConfigPath(projectRoot)
@@ -895,13 +1025,13 @@ func saveDeployDefaults(projectRoot, templatePath string, inputs deployInputs) e
 	if cfg.BuildDefaults == nil {
 		cfg.BuildDefaults = map[string]config.BuildDefaults{}
 	}
-	cfg.BuildDefaults[templatePath] = config.BuildDefaults{
+	cfg.BuildDefaults[template.TemplatePath] = config.BuildDefaults{
 		Env:       inputs.Env,
 		Mode:      inputs.Mode,
-		OutputDir: inputs.OutputDir,
-		Params:    cloneParams(inputs.Parameters),
+		OutputDir: template.OutputDir,
+		Params:    cloneParams(template.Parameters),
 	}
-	cfg.RecentTemplates = domaintpl.UpdateHistory(cfg.RecentTemplates, templatePath, templateHistoryLimit)
+	cfg.RecentTemplates = domaintpl.UpdateHistory(cfg.RecentTemplates, template.TemplatePath, templateHistoryLimit)
 	if err := config.SaveGlobalConfig(cfgPath, cfg); err != nil {
 		return fmt.Errorf("save global config: %w", err)
 	}

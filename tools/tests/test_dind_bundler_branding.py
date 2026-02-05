@@ -30,8 +30,9 @@ def test_dind_bundler_uses_brand_defaults(tmp_path: Path) -> None:
     assert "CLI_CMD=acme" in output
     assert "ENV_PREFIX=ACME" in output
     assert "BRAND_SLUG=acme" in output
+    assert "TEMPLATES=template.yaml" in output
     assert "OUTPUT_TAG=acme-dind-bundle:latest" in output
     assert "ENV_NAME=dev" in output
-    assert "OUTPUT_ROOT=.acme" in output
-    assert "MANIFEST_PATH=.acme/dev/bundle/manifest.json" in output
+    assert "OUTPUT_ROOTS=.acme" in output
+    assert "MANIFEST_PATHS=.acme/dev/bundle/manifest.json" in output
     assert "CERT_DIR=/tmp/acme/certs" in output

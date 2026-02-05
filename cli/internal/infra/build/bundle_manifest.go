@@ -20,12 +20,13 @@ import (
 	"github.com/poruru/edge-serverless-box/meta"
 )
 
-const bundleManifestSchemaVersion = "1.0"
+const bundleManifestSchemaVersion = "1.1"
 
 type bundleManifest struct {
 	SchemaVersion string                `json:"schema_version"`
 	GeneratedAt   string                `json:"generated_at"`
-	Template      bundleTemplate        `json:"template"`
+	Template      bundleTemplate        `json:"template,omitempty"`
+	Templates     []bundleTemplate      `json:"templates"`
 	Build         bundleBuild           `json:"build"`
 	Images        []bundleManifestImage `json:"images"`
 }
@@ -101,14 +102,16 @@ func writeBundleManifest(ctx context.Context, input bundleManifestInput) (string
 		return "", err
 	}
 
+	template := bundleTemplate{
+		Path:       templatePath,
+		Sha256:     templateHash,
+		Parameters: parameters,
+	}
 	manifest := bundleManifest{
 		SchemaVersion: bundleManifestSchemaVersion,
 		GeneratedAt:   time.Now().UTC().Format(time.RFC3339),
-		Template: bundleTemplate{
-			Path:       templatePath,
-			Sha256:     templateHash,
-			Parameters: parameters,
-		},
+		Template:      template,
+		Templates:     []bundleTemplate{template},
 		Build: bundleBuild{
 			Project:     input.Project,
 			Env:         input.Env,

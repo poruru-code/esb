@@ -31,7 +31,7 @@ type Dependencies struct {
 // CLI defines the command-line interface structure parsed by Kong.
 // It contains global flags and all subcommand definitions.
 type CLI struct {
-	Template   string        `short:"t" help:"Path to SAM template"`
+	Template   []string      `short:"t" help:"Path to SAM template (repeatable)"`
 	EnvFlag    string        `short:"e" name:"env" help:"Environment name"`
 	EnvFile    string        `name:"env-file" help:"Path to .env file"`
 	Deploy     DeployCmd     `cmd:"" help:"Deploy functions"`
@@ -46,6 +46,8 @@ type (
 		Output       string   `short:"o" help:"Output directory for generated artifacts"`
 		Project      string   `short:"p" help:"Compose project name to target"`
 		ComposeFiles []string `name:"compose-file" sep:"," help:"Compose file(s) to use (repeatable or comma-separated)"`
+		BuildOnly    bool     `name:"build-only" help:"Build only (skip provisioner and runtime sync)"`
+		Bundle       bool     `name:"bundle-manifest" help:"Write bundle manifest (for bundling)"`
 		NoCache      bool     `name:"no-cache" help:"Do not use cache when building images"`
 		NoDeps       bool     `name:"no-deps" help:"Do not start dependent services when running provisioner (default)"`
 		WithDeps     bool     `name:"with-deps" help:"Start dependent services when running provisioner"`
@@ -156,7 +158,7 @@ func commandName(args []string) string {
 		}
 		if strings.HasPrefix(arg, "-") {
 			switch arg {
-			case "-e", "--env", "-t", "--template", "--env-file", "-m", "--mode", "-o", "--output":
+			case "-e", "--env", "-t", "--template", "--env-file", "-m", "--mode", "-o", "--output", "-p", "--project":
 				skipNext = true
 			}
 			continue
@@ -188,8 +190,8 @@ func handleParseError(args []string, err error, deps Dependencies, out io.Writer
 		cmd := cliName()
 		switch {
 		case strings.Contains(msg, "--template"):
-			ui.Warn("`-t/--template` expects a value. Provide a path or omit the flag for interactive input.")
-			ui.Info(fmt.Sprintf("Example: %s deploy -t ./template.yaml", cmd))
+			ui.Warn("`-t/--template` expects a value. Provide a path (repeatable) or omit for interactive input.")
+			ui.Info(fmt.Sprintf("Example: %s deploy -t ./template.yaml -t ./extra.yaml", cmd))
 			ui.Info(fmt.Sprintf("Interactive: %s deploy", cmd))
 			return 1
 		case strings.Contains(msg, "--env"):
