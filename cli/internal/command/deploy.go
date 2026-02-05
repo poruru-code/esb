@@ -254,7 +254,10 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 				projectValue = strings.TrimSpace(hostProject)
 			}
 		}
-		runningProjects, _ := discoverRunningComposeProjects(templatePaths[0], isTTY && prompter != nil)
+		runningProjects, _ := discoverRunningComposeProjects(
+			templatePaths[0],
+			isTTY && prompter != nil && !projectFromFlag,
+		)
 		hasRunning := len(runningProjects) > 0
 		if isTTY && hasRunning && !projectFromFlag {
 			projectValue = ""
