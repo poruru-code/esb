@@ -422,7 +422,7 @@ def _template_has_java_runtime(path: Path) -> bool:
     if not path.exists():
         return False
     try:
-        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+        data = yaml.load(path.read_text(encoding="utf-8"), Loader=_YamlIgnoreTagsLoader)
     except (OSError, yaml.YAMLError):
         return False
     if not isinstance(data, dict):
@@ -444,6 +444,23 @@ def _template_has_java_runtime(path: Path) -> bool:
             if "functions/java/" in code_uri or code_uri.lower().endswith(".jar"):
                 return True
     return False
+
+
+class _YamlIgnoreTagsLoader(yaml.SafeLoader):
+    pass
+
+
+def _yaml_ignore_unknown_tags(loader, node):
+    if isinstance(node, yaml.ScalarNode):
+        return loader.construct_scalar(node)
+    if isinstance(node, yaml.SequenceNode):
+        return loader.construct_sequence(node)
+    if isinstance(node, yaml.MappingNode):
+        return loader.construct_mapping(node)
+    return None
+
+
+_YamlIgnoreTagsLoader.add_constructor(None, _yaml_ignore_unknown_tags)
 
 
 def _build_java_fixtures(
