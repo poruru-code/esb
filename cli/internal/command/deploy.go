@@ -244,22 +244,32 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 			flagMode = normalized
 		}
 
-		projectFromFlag := strings.TrimSpace(cli.Deploy.Project) != ""
+		projectValueSource := ""
 		projectValue := strings.TrimSpace(cli.Deploy.Project)
+		if projectValue != "" {
+			projectValueSource = "flag"
+		}
 		if projectValue == "" {
-			projectValue = strings.TrimSpace(os.Getenv(constants.EnvProjectName))
+			if envProject := strings.TrimSpace(os.Getenv(constants.EnvProjectName)); envProject != "" {
+				projectValue = envProject
+				projectValueSource = "env"
+			}
 		}
 		if projectValue == "" {
 			if hostProject, err := envutil.GetHostEnv(constants.HostSuffixProject); err == nil {
-				projectValue = strings.TrimSpace(hostProject)
+				if trimmed := strings.TrimSpace(hostProject); trimmed != "" {
+					projectValue = trimmed
+					projectValueSource = "host"
+				}
 			}
 		}
+		projectExplicit := projectValueSource != ""
 		runningProjects, _ := discoverRunningComposeProjects(
 			templatePaths[0],
-			isTTY && prompter != nil && !projectFromFlag,
+			isTTY && prompter != nil && !projectExplicit,
 		)
 		hasRunning := len(runningProjects) > 0
-		if isTTY && hasRunning && !projectFromFlag {
+		if isTTY && hasRunning && !projectExplicit {
 			projectValue = ""
 		}
 
