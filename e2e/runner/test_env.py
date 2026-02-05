@@ -10,7 +10,7 @@ from e2e.runner.env import (
     hash_mod,
 )
 from e2e.runner.utils import (
-    BRAND_OUTPUT_DIR,
+    BRAND_HOME_DIR,
     BRAND_SLUG,
     ENV_PREFIX,
     env_key,
@@ -67,7 +67,10 @@ def test_calculate_runtime_env_defaults():
             constants.PORT_VICTORIALOGS,
         ):
             key = env_key(p_suffix)
-            assert env[key] == "0"
+            if p_suffix == constants.PORT_REGISTRY:
+                assert env[key] == constants.DEFAULT_REGISTRY_PORT
+            else:
+                assert env[key] == "0"
 
         # Check Credentials generation matches branding
         assert env[constants.ENV_AUTH_USER] == BRAND_SLUG
@@ -109,13 +112,15 @@ def test_calculate_runtime_env_mode_registry_defaults():
 
 
 def test_calculate_staging_dir_logic(tmp_path):
-    template_path = tmp_path / "template.yaml"
+    (tmp_path / "docker-compose.docker.yml").write_text("")
+
+    template_dir = tmp_path / "nested"
+    template_dir.mkdir()
+    template_path = template_dir / "template.yaml"
     template_path.write_text("test")
 
     path = calculate_staging_dir("myproj", "myenv", template_path=str(template_path))
-    assert "myproj" in str(path)
-    assert "myenv" in str(path)
-    assert f"{BRAND_OUTPUT_DIR}/staging" in str(path)
+    assert path == tmp_path / BRAND_HOME_DIR / "staging" / "myproj" / "myenv" / "config"
 
 
 def test_calculate_runtime_env_project_config_dir(tmp_path):

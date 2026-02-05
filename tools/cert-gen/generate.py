@@ -275,14 +275,23 @@ def current_user_group() -> tuple[str, str]:
     return user, group
 
 
+def current_user_chown_spec() -> str:
+    getuid = getattr(os, "getuid", None)
+    getgid = getattr(os, "getgid", None)
+    if callable(getuid) and callable(getgid):
+        return f"{getuid()}:{getgid()}"
+    user, group = current_user_group()
+    return f"{user}:{group}"
+
+
 def attempt_fix_permissions(path: str) -> bool:
     sudo_path = resolve_sudo_path()
     if not sudo_path:
         return False
-    user, group = current_user_group()
+    user_spec = current_user_chown_spec()
     print(f"Attempting to fix permissions with sudo for {path}...")
     try:
-        subprocess.check_call([sudo_path, "chown", "-R", f"{user}:{group}", path])
+        subprocess.check_call([sudo_path, "chown", "-R", user_spec, "--", path])
     except subprocess.CalledProcessError:
         return False
     return True
@@ -290,9 +299,34 @@ def attempt_fix_permissions(path: str) -> bool:
 
 def ensure_user_ownership(output_dir: str) -> None:
     expanded = os.path.expanduser(output_dir)
-    if os.access(expanded, os.W_OK):
+    if not os.path.exists(expanded):
         return
-    attempt_fix_permissions(expanded)
+
+    needs_fix = not os.access(expanded, os.W_OK)
+    scan_error = False
+
+    def onerror(_: OSError) -> None:
+        nonlocal scan_error
+        scan_error = True
+
+    if not needs_fix:
+        for root, dirs, _files in os.walk(expanded, onerror=onerror):
+            for name in dirs:
+                candidate = os.path.join(root, name)
+                if not os.access(candidate, os.W_OK):
+                    needs_fix = True
+                    break
+            if needs_fix:
+                break
+
+    if not needs_fix and not scan_error:
+        return
+    if not attempt_fix_permissions(expanded):
+        print(
+            f"Warning: failed to fix ownership/permissions under {expanded}. "
+            "Some cleanup operations may require sudo.",
+            file=sys.stderr,
+        )
 
 
 def load_env_defaults(root: Path) -> dict[str, str]:
@@ -326,6 +360,7 @@ if __name__ == "__main__":
     defaults = load_env_defaults(repo_root)
     cli_cmd = defaults.get("CLI_CMD", "esb")
     brand_slug = normalize_slug(cli_cmd)
+    brand_dir = repo_root / f".{brand_slug}"
 
     config_path = Path(args.config)
     if not config_path.is_absolute():
@@ -344,7 +379,7 @@ if __name__ == "__main__":
     # 3. Repo root: <repo_root>/.<brand>/certs
     output_dir = cert_cfg.get("output_dir")
     if not output_dir:
-        output_dir = str(repo_root / f".{brand_slug}" / "certs")
+        output_dir = str(brand_dir / "certs")
 
     output_dir = os.path.expanduser(output_dir)
 
@@ -437,3 +472,6 @@ if __name__ == "__main__":
             f"Client certificates exist at {output_dir}. "
             "Skipping generation. Use --force to regenerate."
         )
+
+    # Ensure repo-scoped brand dir is writable after sudo operations.
+    ensure_user_ownership(str(brand_dir))

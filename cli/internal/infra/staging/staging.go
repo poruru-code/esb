@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
 	"github.com/poruru/edge-serverless-box/meta"
 )
 
@@ -42,7 +43,7 @@ func stageKey(composeProject, env string) string {
 }
 
 // RootDir returns the absolute cache root for staging assets.
-// It is fixed under the template directory and requires that location to be writable.
+// It is fixed under the repository root and requires that location to be writable.
 func RootDir(templatePath string) (string, error) {
 	projectRoot, err := ProjectRoot(templatePath)
 	if err != nil {
@@ -86,7 +87,7 @@ func ensureDir(path string) (string, error) {
 	return path, nil
 }
 
-// ProjectRoot returns the absolute project cache root for the template.
+// ProjectRoot returns the absolute cache root for this repository (.<brand>).
 func ProjectRoot(templatePath string) (string, error) {
 	if strings.TrimSpace(templatePath) == "" {
 		return "", fmt.Errorf("template path is required")
@@ -95,5 +96,9 @@ func ProjectRoot(templatePath string) (string, error) {
 	if abs, err := filepath.Abs(templateDir); err == nil {
 		templateDir = abs
 	}
-	return filepath.Join(templateDir, meta.OutputDir), nil
+	repoRoot, err := config.ResolveRepoRootFromPath(templateDir)
+	if err != nil {
+		return "", fmt.Errorf("resolve repo root from template path: %w", err)
+	}
+	return filepath.Join(repoRoot, meta.HomeDir), nil
 }

@@ -8,7 +8,6 @@ from pathlib import Path
 from e2e.runner import constants
 from e2e.runner.utils import (
     BRAND_HOME_DIR,
-    BRAND_OUTPUT_DIR,
     BRAND_SLUG,
     CLI_ROOT,
     ENV_PREFIX,
@@ -208,7 +207,7 @@ def calculate_runtime_env(
     env.setdefault("COMPOSE_DOCKER_CLI_BUILD", "1")
 
     # 9. Staging Config Dir
-    # Replicates staging.ConfigDir logic (fixed under template)
+    # Replicates staging.ConfigDir logic (fixed under repo root)
     config_dir = calculate_staging_dir(project_name, env_name, template_path=template_path)
     env[constants.ENV_CONFIG_DIR] = str(config_dir)
 
@@ -231,13 +230,29 @@ def calculate_staging_dir(
 
     env_label = (env_name or "default").lower()
 
-    if template_path:
-        template_dir = Path(template_path).expanduser().resolve().parent
-    else:
-        template_dir = PROJECT_ROOT / "e2e" / "fixtures"
+    template_dir = (
+        Path(template_path).expanduser().resolve().parent
+        if template_path
+        else (PROJECT_ROOT / "e2e" / "fixtures")
+    )
+    repo_root = resolve_repo_root(template_dir)
 
-    root = template_dir / BRAND_OUTPUT_DIR / "staging"
+    root = repo_root / BRAND_HOME_DIR / "staging"
     return root / proj_key / env_label / "config"
+
+
+def resolve_repo_root(start: Path) -> Path:
+    """Resolve the ESB repository root by searching upward for marker files."""
+    markers = ("docker-compose.docker.yml", "docker-compose.containerd.yml")
+    current = start
+    while True:
+        for marker in markers:
+            if (current / marker).exists():
+                return current
+        if current.parent == current:
+            break
+        current = current.parent
+    raise RuntimeError(f"ESB repository root not found from: {start}")
 
 
 def read_service_env(project_name: str, service: str) -> dict[str, str]:
