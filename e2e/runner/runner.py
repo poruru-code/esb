@@ -13,6 +13,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Callable
 
+import yaml
+
 from e2e.runner import constants, infra
 from e2e.runner.buildx import ensure_buildx_builder
 from e2e.runner.deploy import deploy_templates
@@ -389,19 +391,58 @@ def _warmup(
     template = PROJECT_ROOT / "e2e" / "fixtures" / "template.yaml"
     if not template.exists():
         raise FileNotFoundError(f"Missing E2E template: {template}")
-    if _uses_java_scenarios(scenarios):
+    if _uses_java_templates(scenarios):
         _emit_warmup(printer, "=== Java fixture warmup: start ===")
         _build_java_fixtures(printer=printer, verbose=verbose)
         _emit_warmup(printer, "=== Java fixture warmup: done ===")
 
 
-def _uses_java_scenarios(scenarios: dict[str, Scenario]) -> bool:
+def _uses_java_templates(scenarios: dict[str, Scenario]) -> bool:
+    templates: set[Path] = set()
     for scenario in scenarios.values():
-        for target in scenario.targets:
-            parts = Path(target).parts
-            for idx, part in enumerate(parts):
-                if part == "scenarios" and idx + 1 < len(parts) and parts[idx + 1] == "java":
-                    return True
+        if scenario.deploy_templates:
+            for tmpl in scenario.deploy_templates:
+                templates.add(_resolve_template_path(Path(tmpl)))
+        else:
+            templates.add(PROJECT_ROOT / "e2e" / "fixtures" / "template.yaml")
+
+    for template in templates:
+        if _template_has_java_runtime(template):
+            return True
+    return False
+
+
+def _resolve_template_path(path: Path) -> Path:
+    if path.is_absolute():
+        return path
+    return (PROJECT_ROOT / path).resolve()
+
+
+def _template_has_java_runtime(path: Path) -> bool:
+    if not path.exists():
+        return False
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError):
+        return False
+    if not isinstance(data, dict):
+        return False
+    resources = data.get("Resources")
+    if not isinstance(resources, dict):
+        return False
+    for resource in resources.values():
+        if not isinstance(resource, dict):
+            continue
+        props = resource.get("Properties")
+        if not isinstance(props, dict):
+            continue
+        runtime = str(props.get("Runtime", "")).lower().strip()
+        if runtime.startswith("java"):
+            return True
+        code_uri = props.get("CodeUri", "")
+        if isinstance(code_uri, str):
+            if "functions/java/" in code_uri or code_uri.lower().endswith(".jar"):
+                return True
     return False
 
 
