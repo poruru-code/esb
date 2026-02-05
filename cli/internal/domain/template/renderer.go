@@ -85,7 +85,11 @@ func RenderDockerfile(
 		PythonVersion:       profile.PythonVersion,
 	}
 
-	return renderTemplate("dockerfile.tmpl", data)
+	templateName := "dockerfile_python.tmpl"
+	if profile.Kind == runtime.KindJava {
+		templateName = "dockerfile_java.tmpl"
+	}
+	return renderTemplate(templateName, data)
 }
 
 func RenderFunctionsYml(functions []FunctionSpec, registry, tag string) (string, error) {
