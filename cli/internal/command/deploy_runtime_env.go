@@ -42,17 +42,9 @@ func reconcileEnvWithRuntime(
 		return choice, nil
 	}
 
-	inferred, err := inferEnvFromGateway(composeProject, templatePath)
+	inferred, err := inferEnvFromProject(composeProject, templatePath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: failed to inspect running gateway env: %v\n", err)
-	}
-	if inferred.Env == "" {
-		fallback, err := inferEnvFromStaging(composeProject, templatePath)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to inspect staging env: %v\n", err)
-		} else if fallback.Env != "" {
-			inferred = fallback
-		}
+		fmt.Fprintf(os.Stderr, "Warning: failed to infer running env: %v\n", err)
 	}
 	if inferred.Env == "" || inferred.Env == choice.Value {
 		return choice, nil
@@ -85,7 +77,7 @@ func reconcileEnvWithRuntime(
 			return applyEnvSelection(choice, inferred, selected), nil
 		}
 		return envChoice{}, fmt.Errorf(
-			"%w: running gateway uses %q (%s), deploy uses %q (use --force to override)",
+			"%w: running env uses %q (%s), deploy uses %q (use --force to override)",
 			errEnvMismatch,
 			inferred.Env,
 			inferred.Source,
@@ -105,6 +97,82 @@ func reconcileEnvWithRuntime(
 	choice.Source = inferred.Source
 	choice.Explicit = false
 	return choice, nil
+}
+
+func inferEnvFromProject(composeProject, templatePath string) (envInference, error) {
+	trimmed := strings.TrimSpace(composeProject)
+	if trimmed == "" {
+		return envInference{}, nil
+	}
+
+	var firstErr error
+	inferred, err := inferEnvFromRunningContainerLabels(trimmed)
+	if err != nil {
+		firstErr = err
+	}
+	if inferred.Env != "" {
+		return inferred, nil
+	}
+
+	inferred, err = inferEnvFromGateway(trimmed, templatePath)
+	if err != nil && firstErr == nil {
+		firstErr = err
+	}
+	if inferred.Env != "" {
+		return inferred, nil
+	}
+
+	inferred, err = inferEnvFromStaging(trimmed, templatePath)
+	if err != nil && firstErr == nil {
+		firstErr = err
+	}
+	if inferred.Env != "" {
+		return inferred, nil
+	}
+	return envInference{}, firstErr
+}
+
+func inferEnvFromRunningContainerLabels(composeProject string) (envInference, error) {
+	trimmed := strings.TrimSpace(composeProject)
+	if trimmed == "" {
+		return envInference{}, nil
+	}
+	client, err := compose.NewDockerClient()
+	if err != nil {
+		return envInference{}, fmt.Errorf("create docker client: %w", err)
+	}
+	ctx := context.Background()
+	filterArgs := filters.NewArgs()
+	filterArgs.Add("label", fmt.Sprintf("%s=%s", compose.ComposeProjectLabel, trimmed))
+	containers, err := client.ContainerList(ctx, container.ListOptions{All: false, Filters: filterArgs})
+	if err != nil {
+		return envInference{}, fmt.Errorf("list containers: %w", err)
+	}
+	return inferEnvFromContainerLabels(containers), nil
+}
+
+func inferEnvFromContainerLabels(containers []container.Summary) envInference {
+	envs := map[string]struct{}{}
+	for _, ctr := range containers {
+		if ctr.Labels == nil {
+			continue
+		}
+		env := strings.TrimSpace(ctr.Labels[compose.ESBEnvLabel])
+		if env == "" {
+			continue
+		}
+		envs[env] = struct{}{}
+		if len(envs) > 1 {
+			return envInference{}
+		}
+	}
+	if len(envs) != 1 {
+		return envInference{}
+	}
+	for env := range envs {
+		return envInference{Env: env, Source: "container label"}
+	}
+	return envInference{}
 }
 
 func promptEnvMismatch(current envChoice, inferred envInference, prompter interaction.Prompter) (string, error) {
