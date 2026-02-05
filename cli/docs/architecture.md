@@ -59,9 +59,10 @@ graph TD
 - **グローバル設定**: `<repo_root>/.<brand>/config.yaml`
   - 最近のテンプレート履歴 (`recent_templates`)
   - テンプレートごとのデフォルト入力 (`build_defaults`)
-- **ステージング設定**: `<template_dir>/.<brand>/staging/<compose_project>/<env>/config`
+- **ステージング設定**: `<repo_root>/.<brand>/staging/<compose_project>/<env>/config`
   - `functions.yml` / `routing.yml` / `resources.yml`
   - deploy 後に runtime-config へ同期
+  - 旧 `<template_dir>/.<brand>/staging` は参照しない（アップデート後は再 deploy が必要）
 - **ビルド出力**: `<template_dir>/.<brand>/<env>/...`（`--output` 指定で変更）
 
 > 補足: CLI 名やブランドは `CLI_CMD` / `ENV_PREFIX` などの環境変数と `meta` により決定されます。

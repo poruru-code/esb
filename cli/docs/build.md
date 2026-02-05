@@ -63,8 +63,9 @@ sequenceDiagram
    - `functions.yml` / `routing.yml` / `resources.yml` を出力
 
 5. **staging config への反映**
-   - `<template_dir>/.<brand>/staging/<compose_project>/<env>/config` にマージ
+   - `<repo_root>/.<brand>/staging/<compose_project>/<env>/config` にマージ
    - `.deploy.lock` で排他制御
+   - 旧 `<template_dir>/.<brand>/staging` は参照しない（アップデート後は再 deploy が必要）
 
 6. **ベースイメージのビルド**
    - `esb-lambda-base` / `esb-os-base` / `esb-python-base`

@@ -14,6 +14,10 @@ import (
 func TestInferEnvFromConfigPath(t *testing.T) {
 	tmp := t.TempDir()
 
+	if err := os.WriteFile(filepath.Join(tmp, "docker-compose.docker.yml"), []byte{}, 0o600); err != nil {
+		t.Fatalf("write repo marker: %v", err)
+	}
+
 	templatePath := filepath.Join(tmp, "template.yaml")
 	stagingRoot, err := staging.RootDir(templatePath)
 	if err != nil {

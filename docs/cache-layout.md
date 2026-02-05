@@ -5,13 +5,13 @@
 ## 概要
 このドキュメントは、ESB の deploy/build staging データのキャッシュ構成を定義します。
 グローバル設定は **リポジトリルート配下の `.<brand>`** に保持し、deploy のマージ結果と
-staging アーティファクトはテンプレートの隣に配置します。staging のパスは
+staging アーティファクトも同じルート配下に配置します。staging のパスは
 compose project + env で決まり、ハッシュはパスに使用しません。
 
 ## 目的
 - グローバルで再利用可能な資産は `<repo_root>/.<brand>` に保持する。
-- deploy マージ結果をプロジェクト/テンプレート単位で保存し、プロジェクト間の混入を防ぐ。
-- クリーンアップをテンプレートディレクトリ内で完結できるようにする。
+- deploy マージ結果をプロジェクト/環境単位で保存し、プロジェクト間の混入を防ぐ。
+- クリーンアップをリポジトリルート配下で完結できるようにする。
 - staging ディレクトリ名にハッシュを使わない。
 
 ## 目的外
@@ -30,10 +30,10 @@ compose project + env で決まり、ハッシュはパスに使用しません�
 - 旧 `~/.<brand>` は互換性なしで参照しない。
 
 ### プロジェクトスコープ（新しいデフォルト）
-テンプレートのディレクトリをキャッシュルートとして使う：
+リポジトリルートの `.<brand>` をキャッシュルートとして使う：
 
 ```
-<template_dir>/.<brand>/
+<repo_root>/.<brand>/
   staging/
     <compose_project>/
       <env>/
@@ -62,31 +62,32 @@ compose project + env で決まり、ハッシュはパスに使用しません�
 | `<repo_root>/.<brand>/wireguard/` | WireGuard 設定/鍵 | 共有資産 |
 | `<repo_root>/.<brand>/buildkitd.toml` | buildkitd 設定 | 共有資産 |
 
-### プロジェクトキャッシュ（テンプレート隣）
+### プロジェクトキャッシュ（リポジトリルート配下）
 | パス | 内容 | 目的/備考 |
 | --- | --- | --- |
-| `<template_dir>/.<brand>/staging/<compose_project>/<env>/config/functions.yml` | 関数定義 | deploy マージ結果 |
-| `<template_dir>/.<brand>/staging/<compose_project>/<env>/config/routing.yml` | ルーティング定義 | deploy マージ結果 |
-| `<template_dir>/.<brand>/staging/<compose_project>/<env>/config/resources.yml` | リソース定義 | deploy マージ結果 |
-| `<template_dir>/.<brand>/staging/<compose_project>/<env>/config/.deploy.lock` | 排他ロック | 並行実行保護 |
-| `<template_dir>/.<brand>/staging/<compose_project>/<env>/services/` | サービス構成 | staging アーティファクト |
-| `<template_dir>/.<brand>/staging/<compose_project>/<env>/pyproject.toml` | 依存/環境設定 | staging アーティファクト |
+| `<repo_root>/.<brand>/staging/<compose_project>/<env>/config/functions.yml` | 関数定義 | deploy マージ結果 |
+| `<repo_root>/.<brand>/staging/<compose_project>/<env>/config/routing.yml` | ルーティング定義 | deploy マージ結果 |
+| `<repo_root>/.<brand>/staging/<compose_project>/<env>/config/resources.yml` | リソース定義 | deploy マージ結果 |
+| `<repo_root>/.<brand>/staging/<compose_project>/<env>/config/.deploy.lock` | 排他ロック | 並行実行保護 |
+| `<repo_root>/.<brand>/staging/<compose_project>/<env>/services/` | サービス構成 | staging アーティファクト |
+| `<repo_root>/.<brand>/staging/<compose_project>/<env>/pyproject.toml` | 依存/環境設定 | staging アーティファクト |
 
 ## パス解決ルール
-- staging ルートは固定で `<template_dir>/.<brand>/staging` を使用する。
-- テンプレートディレクトリが書き込み不可の場合はエラーとする。
+- staging ルートは固定で `<repo_root>/.<brand>/staging` を使用する。
+- リポジトリルート配下の `.<brand>` が書き込み不可の場合はエラーとする。
 - `compose_project` の決定順:
   1. `PROJECT_NAME` があればその値
   2. `PROJECT_NAME` が空なら `<CLI_CMD>-<env>`（`env` が空なら `<CLI_CMD>`）
 
 ## クリーンアップ
 - 1つの env を削除:
-  `rm -rf <template_dir>/.<brand>/staging/<compose_project>/<env>`
+  `rm -rf <repo_root>/.<brand>/staging/<compose_project>/<env>`
 - 1つのプロジェクトの env を全部削除:
-  `rm -rf <template_dir>/.<brand>/staging/<compose_project>`
+  `rm -rf <repo_root>/.<brand>/staging/<compose_project>`
 
 グローバル設定と証明書は削除対象外。
 
 ## 互換性メモ
+- 旧レイアウト `<template_dir>/.<brand>/staging` は参照しません（アップデート後は再 deploy が必要です）。
 - 旧レイアウト `~/.<brand>/.cache/staging` は現行 CLI では使用しません（レガシーとして残る可能性あり）。
 - ハッシュは staging のパスには使いませんが、ビルドの fingerprint 生成では引き続き使用します。
