@@ -125,8 +125,8 @@ class GatewayConfig(BaseAppConfig):
         default=60, description="Grace period before removing orphan containers (seconds)"
     )
 
-    # Phase 1: Go Agent Settings
-    AGENT_GRPC_ADDRESS: str = Field(default="agent:50051", description="Go Agent gRPC address")
+    # Phase 1: Agent Settings
+    AGENT_GRPC_ADDRESS: str = Field(default="agent:50051", description="Agent gRPC address")
     AGENT_INVOKE_PROXY: bool = Field(
         default=False, description="Invoke workers via Agent (L7 proxy) instead of direct IP"
     )

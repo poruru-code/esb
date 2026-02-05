@@ -1,0 +1,25 @@
+<!--
+Where: services/provisioner/docs/README.md
+What: Entry point for Provisioner subsystem documentation.
+Why: Keep resource provisioning behavior close to its implementation.
+-->
+# Provisioner ドキュメント
+
+Provisioner は **runtime-config の `resources.yml`** を読み取り、S3/DynamoDB 互換サービスへ
+リソースを作成するバッチコンテナです。`esb deploy` から起動され、基本的に **一度実行して終了**します。
+
+## 目次
+- [アーキテクチャ](./architecture.md)
+- [resources.yml 仕様](./resources-manifest.md)
+- [設定（環境変数）](./configuration.md)
+
+## 関連
+- CLI build/deploy: [cli/docs/build.md](../../../cli/docs/build.md)
+- System-level: [docs/spec.md](../../../docs/spec.md)
+
+---
+
+## Implementation references
+- `services/provisioner/src/main.py`
+- `docker-compose.docker.yml`
+- `docker-compose.containerd.yml`

@@ -5,4 +5,9 @@
 
 - https://github.com/poruru-code/esb-branding-tool/blob/main/docs/branding-flow.md
 
-ESB 本体は `config/defaults.env` の `CLI_CMD=esb` を維持し、下流のみでブランド変更を行います。
+本体リポジトリは `config/defaults.env` の `CLI_CMD=esb` を維持し、下流のみでブランド変更を行います。
+
+---
+
+## Implementation references
+- `config/defaults.env`
