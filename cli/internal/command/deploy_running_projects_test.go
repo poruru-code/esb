@@ -52,7 +52,8 @@ func TestRunningProjectsFilteredByEnv(t *testing.T) {
 		{Labels: map[string]string{compose.ComposeProjectLabel: "proj-a", compose.ComposeServiceLabel: "gateway"}},
 		{Labels: map[string]string{compose.ComposeProjectLabel: "proj-b", compose.ComposeServiceLabel: "other"}},
 		{Labels: map[string]string{compose.ComposeProjectLabel: "proj-c", compose.ComposeServiceLabel: "runtime-node"}},
-		{Labels: map[string]string{compose.ComposeProjectLabel: "proj-d", compose.ComposeServiceLabel: "custom", compose.ESBManagedLabel: "true"}},
+		{Labels: map[string]string{compose.ComposeProjectLabel: "proj-d", compose.ComposeServiceLabel: "database"}},
+		{Labels: map[string]string{compose.ComposeProjectLabel: "proj-e", compose.ComposeServiceLabel: "custom", compose.ESBManagedLabel: "true"}},
 	}
 
 	got := filterRunningProjectsByEnv(containers, runningProjectServices, func(project string) envInference {
@@ -61,6 +62,8 @@ func TestRunningProjectsFilteredByEnv(t *testing.T) {
 			return envInference{Env: "dev"}
 		case "proj-d":
 			return envInference{Env: "prod"}
+		case "proj-e":
+			return envInference{Env: "staging"}
 		default:
 			return envInference{}
 		}

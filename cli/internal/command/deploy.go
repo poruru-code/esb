@@ -896,8 +896,7 @@ func filterRunningProjectsByEnv(
 		if project == "" {
 			continue
 		}
-		managed := strings.EqualFold(strings.TrimSpace(ctr.Labels[compose.ESBManagedLabel]), "true")
-		if _, ok := allowedServices[service]; !ok && !managed {
+		if _, ok := allowedServices[service]; !ok {
 			continue
 		}
 		projects[project] = struct{}{}
