@@ -1,6 +1,6 @@
 // Where: cli/internal/infra/config/repo.go
 // What: Repository discovery logic.
-// Why: Centralize logic to find the ESB repository root from env or file system.
+// Why: Centralize logic to find the ESB repository root from the current working directory.
 package config
 
 import (
@@ -8,11 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
-
-	"github.com/poruru/edge-serverless-box/cli/internal/constants"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/envutil"
-	"github.com/poruru/edge-serverless-box/meta"
 )
 
 var (
@@ -21,37 +16,17 @@ var (
 )
 
 // ResolveRepoRoot determines the ESB repository root path.
-// Priority order.
-// 1. Brand-prefixed REPO environment variable (validated as root or searched upward).
-// 2. Upward search for docker-compose.{mode}.yml from startDir.
+// It only relies on the current working directory (startDir is ignored).
 func ResolveRepoRoot(startDir string) (string, error) {
-	// 1. Try environment variable
-	repo, err := envutil.GetHostEnv(constants.HostSuffixRepo)
+	_ = startDir
+	cwd, err := os.Getwd()
 	if err != nil {
-		if strings.TrimSpace(os.Getenv("ENV_PREFIX")) != "" {
-			return "", fmt.Errorf("get host env %s: %w", constants.HostSuffixRepo, err)
-		}
-		key := fmt.Sprintf("%s_%s", meta.EnvPrefix, constants.HostSuffixRepo)
-		repo = os.Getenv(key)
+		return "", fmt.Errorf("%w: run from repo root", errRepoRootNotFound)
 	}
-	if repo := strings.TrimSpace(repo); repo != "" {
-		if root, ok := findRepoRoot(repo); ok {
-			return root, nil
-		}
+	if root, ok := findRepoRoot(cwd); ok {
+		return root, nil
 	}
-
-	// 2. Search upwards from start directory (dev mode / inside repo)
-	if startDir != "" {
-		if root, ok := findRepoRoot(startDir); ok {
-			return root, nil
-		}
-	}
-
-	key, err := envutil.HostEnvKey(constants.HostSuffixRepo)
-	if err != nil {
-		key = fmt.Sprintf("%s_%s", meta.EnvPrefix, constants.HostSuffixRepo)
-	}
-	return "", fmt.Errorf("%w: run from repo root or set %s", errRepoRootNotFound, key)
+	return "", fmt.Errorf("%w: run from repo root", errRepoRootNotFound)
 }
 
 // ResolveRepoRootFromPath determines the ESB repository root path using only the supplied path.

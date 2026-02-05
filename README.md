@@ -29,9 +29,9 @@ docker compose -f docker-compose.containerd.yml up -d
 詳細な手順・構成は docs に移譲しています。
 
 ## CLI（概要）
-- `esb build`: SAM テンプレートから設定/Dockerfile/関数イメージを生成
-- `esb deploy`: 設定生成 + provisioner 実行
-- `esb completion` / `esb version`
+- `esb deploy`: SAM テンプレート解析、設定/Dockerfile/関数イメージ生成、provisioner 実行（`--build-only`でビルドのみ）
+- `esb completion`: bash/zsh/fish の補完スクリプト生成
+- `esb version`: ビルド情報表示
 
 ## 開発 / コントリビュート
 ### 推奨ツール

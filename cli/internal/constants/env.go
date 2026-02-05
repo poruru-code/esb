@@ -27,7 +27,6 @@ const (
 	HostSuffixMode             = "MODE"
 	HostSuffixProject          = "PROJECT"
 	HostSuffixHome             = "HOME"
-	HostSuffixRepo             = "REPO"
 	HostSuffixTemplate         = "TEMPLATE"
 	HostSuffixConfigDir        = "CONFIG_DIR"
 	HostSuffixInteractive      = "INTERACTIVE"

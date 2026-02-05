@@ -191,12 +191,12 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 		if err != nil {
 			return deployInputs{}, err
 		}
-		repoRoot, err := repoResolver(filepath.Dir(templatePaths[0]))
+		repoRoot, err := repoResolver("")
 		if err != nil {
 			return deployInputs{}, fmt.Errorf("resolve repo root: %w", err)
 		}
-		for _, path := range templatePaths[1:] {
-			otherRoot, err := repoResolver(filepath.Dir(path))
+		for range templatePaths[1:] {
+			otherRoot, err := repoResolver("")
 			if err != nil {
 				return deployInputs{}, fmt.Errorf("resolve repo root: %w", err)
 			}
