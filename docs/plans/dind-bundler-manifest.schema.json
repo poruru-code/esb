@@ -8,14 +8,14 @@
   "required": [
     "schema_version",
     "generated_at",
-    "template",
+    "templates",
     "build",
     "images"
   ],
   "properties": {
     "schema_version": {
       "type": "string",
-      "enum": ["1.0"],
+      "enum": ["1.1"],
       "description": "Manifest schema version."
     },
     "generated_at": {
@@ -43,6 +43,35 @@
           "description": "Resolved template parameters used for build.",
           "additionalProperties": {
             "type": "string"
+          }
+        }
+      }
+    },
+    "templates": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Template list (primary field for multi-template bundling).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sha256", "parameters"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Template path used for build (relative or absolute)."
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "description": "SHA-256 hash of the template file contents."
+          },
+          "parameters": {
+            "type": "object",
+            "description": "Resolved template parameters used for build.",
+            "additionalProperties": {
+              "type": "string"
+            }
           }
         }
       }

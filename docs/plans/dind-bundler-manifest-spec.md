@@ -43,8 +43,17 @@ Why: Make bundle contents deterministic and template-derived; prevent host-state
 
 ```json
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "generated_at": "2026-01-24T13:29:51Z",
+  "templates": [
+    {
+      "path": "e2e/fixtures/template.yaml",
+      "sha256": "<template file hash>",
+      "parameters": {
+        "KeyA": "ValueA"
+      }
+    }
+  ],
   "template": {
     "path": "e2e/fixtures/template.yaml",
     "sha256": "<template file hash>",
@@ -98,9 +107,11 @@ Why: Make bundle contents deterministic and template-derived; prevent host-state
 
 - `schema_version`: マニフェスト仕様のバージョン
 - `generated_at`: 生成時刻（RFC3339 UTC）
-- `template.path`: テンプレートの相対パス
-- `template.sha256`: テンプレートファイルのハッシュ
-- `template.parameters`: 実際に使用されたパラメータ
+- `templates`: テンプレート一覧（複数テンプレート対応の主フィールド）
+  - `templates[].path`: テンプレートの相対パス
+  - `templates[].sha256`: テンプレートファイルのハッシュ
+  - `templates[].parameters`: 実際に使用されたパラメータ
+- `template`: 互換用の単一テンプレート（`templates[0]` と同値）
 - `build.project`: compose project 名
 - `build.env`: 環境名
 - `build.mode`: docker/containerd/firecracker

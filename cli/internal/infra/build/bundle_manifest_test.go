@@ -139,6 +139,12 @@ func TestWriteBundleManifest(t *testing.T) {
 	if !reflect.DeepEqual(manifest.Template.Parameters, map[string]string{"ParamA": "value"}) {
 		t.Fatalf("unexpected parameters: %#v", manifest.Template.Parameters)
 	}
+	if len(manifest.Templates) != 1 {
+		t.Fatalf("unexpected templates length: %d", len(manifest.Templates))
+	}
+	if manifest.Templates[0].Path != "template.yaml" {
+		t.Fatalf("unexpected templates[0] path: %s", manifest.Templates[0].Path)
+	}
 
 	expectedImages := []string{
 		lambdaBaseImageTag("", imageTag),
