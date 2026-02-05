@@ -65,4 +65,8 @@ graph TD
   - 旧 `<template_dir>/.<brand>/staging` は参照しない（アップデート後は再 deploy が必要）
 - **ビルド出力**: `<template_dir>/.<brand>/<env>/...`（`--output` 指定で変更）
 
+> 補足: repo root は **CWD 基準**で決定されます。CWD から上方向に
+> `docker-compose.docker.yml` / `docker-compose.containerd.yml` を探索し、
+> 見つかったディレクトリが `<repo_root>` になります。
+
 > 補足: CLI 名やブランドは `CLI_CMD` / `ENV_PREFIX` などの環境変数と `meta` により決定されます。

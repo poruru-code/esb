@@ -30,9 +30,6 @@ func TestDeployWorkflowRunSuccess(t *testing.T) {
 		t.Fatalf("failed to get absolute path: %v", err)
 	}
 
-	// Set ESB_REPO so ResolveRepoRoot can find it
-	t.Setenv("ESB_REPO", repoRoot)
-
 	ctx := state.Context{
 		ProjectDir:     repoRoot,
 		ComposeProject: "esb-dev",
@@ -98,6 +95,59 @@ func TestDeployWorkflowRunSuccess(t *testing.T) {
 	}
 }
 
+func TestDeployWorkflowRunWithExternalTemplate(t *testing.T) {
+	builder := &recordBuilder{}
+	envApplier := &recordEnvApplier{}
+	ui := &testUI{}
+	runner := &fakeComposeRunner{}
+
+	t.Setenv("ENV_PREFIX", "ESB")
+	t.Setenv("ESB_SKIP_GATEWAY_ALIGN", "1")
+
+	repoRoot, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	repoRoot = filepath.Join(repoRoot, "..", "..", "..")
+	repoRoot, err = filepath.Abs(repoRoot)
+	if err != nil {
+		t.Fatalf("failed to get absolute path: %v", err)
+	}
+
+	externalDir := t.TempDir()
+	externalTemplate := filepath.Join(externalDir, "template.yaml")
+	if err := os.WriteFile(externalTemplate, []byte("Resources: {}"), 0o600); err != nil {
+		t.Fatalf("write external template: %v", err)
+	}
+
+	ctx := state.Context{
+		ProjectDir:     repoRoot,
+		ComposeProject: "esb-dev",
+	}
+	req := Request{
+		Context:      ctx,
+		Env:          "dev",
+		Mode:         "docker",
+		TemplatePath: externalTemplate,
+		OutputDir:    ".out",
+		Tag:          "v1.2.3",
+		BuildOnly:    true,
+	}
+
+	workflow := NewDeployWorkflow(builder.Build, envApplier.Apply, ui, runner)
+	workflow.RegistryWaiter = noopRegistryWaiter
+	if err := workflow.Run(req); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if len(builder.requests) != 1 {
+		t.Fatalf("expected builder to be called once, got %d", len(builder.requests))
+	}
+	if builder.requests[0].TemplatePath != externalTemplate {
+		t.Fatalf("template path mismatch: %s", builder.requests[0].TemplatePath)
+	}
+}
+
 func TestDeployWorkflowRunMissingBuilder(t *testing.T) {
 	workflow := NewDeployWorkflow(nil, nil, nil, nil)
 	err := workflow.Run(Request{Context: state.Context{}})
@@ -124,7 +174,6 @@ func TestRunProvisionerUsesComposeOverride(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get absolute path: %v", err)
 	}
-	t.Setenv("ESB_REPO", repoRoot)
 
 	tempDir := t.TempDir()
 	composePath := filepath.Join(tempDir, "compose.yml")
@@ -179,7 +228,6 @@ func TestRunProvisionerFailsOnOverrideMissingServices(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get absolute path: %v", err)
 	}
-	t.Setenv("ESB_REPO", repoRoot)
 
 	tempDir := t.TempDir()
 	composePath := filepath.Join(tempDir, "compose.yml")
@@ -217,7 +265,6 @@ func TestRunProvisionerWithNoDepsAddsFlag(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get absolute path: %v", err)
 	}
-	t.Setenv("ESB_REPO", repoRoot)
 
 	tempDir := t.TempDir()
 	composePath := filepath.Join(tempDir, "compose.yml")
