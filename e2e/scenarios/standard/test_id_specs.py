@@ -21,7 +21,7 @@ class TestIDSpecs:
 
     # Unskipped for Phase 4 verification
     # @pytest.mark.skip(
-    #     reason="TODO: VictoriaLogs log propagation timing issue - not Go Agent related"
+    #     reason="TODO: VictoriaLogs log propagation timing issue - not Agent related"
     # )
     def test_id_propagation_with_chain(self, auth_token):
         """

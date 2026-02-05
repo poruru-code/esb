@@ -1,0 +1,8 @@
+# Where: services/runtime-node/.dockerignore
+# What: Ignore docs and local artifacts from runtime-node build context.
+# Why: Keep image contexts small and deterministic.
+docs/
+*.md
+tests/
+.git
+.gitignore

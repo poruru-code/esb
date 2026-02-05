@@ -26,7 +26,7 @@ class TestObservability:
 
     # Unskipped for Phase 4 verification
     # Unskipped for Phase 4 verification
-    # @pytest.mark.skip(reason="TODO: Go Agent log driver config not implemented")
+    # @pytest.mark.skip(reason="TODO: Agent log driver config not implemented")
     def test_structured_log_format(self, auth_token):
         """
         E2E: verify log quality and level control via environment variables.
@@ -99,7 +99,7 @@ class TestObservability:
 
     # Unskipped for Phase 4 verification
     # Unskipped for Phase 4 verification
-    # @pytest.mark.skip(reason="TODO: Go Agent log driver config not implemented")
+    # @pytest.mark.skip(reason="TODO: Agent log driver config not implemented")
     def test_cloudwatch_logs_passthrough(self, gateway_health):
         """
         E2E: verify transparent redirect for CloudWatch Logs API.

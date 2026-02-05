@@ -1,7 +1,7 @@
-# ESB CLI アーキテクチャ（deploy-first）
+# CLI アーキテクチャ（deploy-first）
 
 ## 概要
-ESB CLI は **`deploy` を主コマンド**として設計されています。`deploy` は SAM テンプレートを解析し、
+CLI は **`deploy` を主コマンド**として設計されています。`deploy` は SAM テンプレートを解析し、
 `functions.yml` / `routing.yml` / `resources.yml` を生成、関数イメージをビルドし、プロビジョナーを実行します。
 
 補助コマンドは以下のとおりです:

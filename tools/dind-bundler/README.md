@@ -1,7 +1,7 @@
 # DinD Bundler Tools
 
-このディレクトリには、ESB (Edge Serverless Box) スタック全体を単一の Docker-in-Docker (DinD) コンテナにパッケージングするためのツールが含まれています。
-これにより、インターネット接続のない環境や、完全に自己完結したデモ/テスト環境において、`docker pull` やビルドプロセスなしで ESB スタックを実行できます。
+このディレクトリには、本スタック全体を単一の Docker-in-Docker (DinD) コンテナにパッケージングするためのツールが含まれています。
+これにより、インターネット接続のない環境や、完全に自己完結したデモ/テスト環境において、`docker pull` やビルドプロセスなしで本スタックを実行できます。
 
 ## 概要
 
@@ -19,10 +19,10 @@
 ./tools/dind-bundler/build.sh <SAMテンプレートパス> <出力イメージタグ>
 
 # 例: e2eテスト用のテンプレートを使用してビルドする場合
-./tools/dind-bundler/build.sh e2e/fixtures/template.yaml my-esb-bundle:latest
+./tools/dind-bundler/build.sh e2e/fixtures/template.yaml my-stack-bundle:latest
 
 # 例: 複数テンプレートをまとめてビルドする場合
-./tools/dind-bundler/build.sh -t template-a.yaml -t template-b.yaml my-esb-bundle:latest
+./tools/dind-bundler/build.sh -t template-a.yaml -t template-b.yaml my-stack-bundle:latest
 ```
 
 ※ `SAMテンプレートパス` は必須です。
@@ -53,7 +53,7 @@
 作成されたイメージは、特権モード (`--privileged`) で実行する必要があります。
 
 ```bash
-docker run --privileged --name esb-bundle -p 8443:8443 -p 9000:9000 -p 9001:9001 -p 9428:9428 -d my-esb-bundle:latest
+docker run --privileged --name stack-bundle -p 8443:8443 -p 9000:9000 -p 9001:9001 -p 9428:9428 -d my-stack-bundle:latest
 ```
 
 ## アーキテクチャとフロー
@@ -64,7 +64,7 @@ docker run --privileged --name esb-bundle -p 8443:8443 -p 9000:9000 -p 9001:9001
 sequenceDiagram
     participant User as ユーザー
     participant Script as build.sh
-    participant CLI as esb CLI
+    participant CLI as CLI (esb)
     participant Docker as Docker Daemon
     participant Tar as images.tar
     participant Image as Target Image

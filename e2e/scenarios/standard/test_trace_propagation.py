@@ -11,7 +11,7 @@ from e2e.conftest import GATEWAY_URL, VERIFY_SSL, query_victorialogs
 class TestTrace:
     # Unskipped for Phase 4 verification
     # Unskipped for Phase 4 verification
-    # @pytest.mark.skip(reason="TODO: Go Agent log driver config not implemented")
+    # @pytest.mark.skip(reason="TODO: Agent log driver config not implemented")
     def test_chained_trace_consistency(self, auth_token):
         """
         E2E: ensure Trace ID is preserved across Client -> Gateway -> Lambda A -> Lambda B.

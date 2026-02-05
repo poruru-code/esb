@@ -112,7 +112,7 @@ async def lifespan(app: FastAPI):
         """Load scaling config for a function"""
         return function_registry.get_function_config(function_name)
 
-    logger.info(f"Initializing Gateway with Go Agent gRPC Backend: {config.AGENT_GRPC_ADDRESS}")
+    logger.info(f"Initializing Gateway with Agent gRPC Backend: {config.AGENT_GRPC_ADDRESS}")
 
     # New ARCH: PoolManager -> GrpcProvisionClient -> Agent
     from .pb import agent_pb2_grpc

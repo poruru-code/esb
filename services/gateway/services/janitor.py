@@ -187,7 +187,7 @@ class ResourceJanitor:
 
         for w in workers:
             # Condition: PAUSED or RUNNING and exceeding idle_timeout
-            # In Phase 1/Go Agent, we may not pause containers, so we check RUNNING too.
+            # In Phase 1/Agent, we may not pause containers, so we check RUNNING too.
             if (w.status == "PAUSED" or w.status == "RUNNING") and w.last_used_at > 0:
                 idle_seconds = now - w.last_used_at
                 if idle_seconds > self.idle_timeout:

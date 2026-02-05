@@ -1,0 +1,157 @@
+<!--
+Where: cli/docs/container-management.md
+What: Image build and management overview for CLI deploy/build.
+Why: Keep build pipeline and image lifecycle separate from runtime behavior.
+-->
+# コンテナ管理とイメージ運用
+
+本ドキュメントでは、本基盤の **イメージ構成・ビルド手順**を中心に解説します。
+ワーカーのライフサイクルやプール管理は Gateway/Agent 側に移管しました。
+
+## イメージ階層構造
+
+本基盤は効率的なビルドのために、階層化されたイメージ構造を採用しています。
+
+```mermaid
+flowchart TD
+    A[public.ecr.aws/lambda/python:3.12] --> B[esb-lambda-base:latest]
+    B --> C[lambda-xxx:latest]
+    
+    subgraph Base["ベースイメージ (esb-lambda-base)"]
+        B
+        B1[sitecustomize.py]
+        B2[AWS SDK パッチ]
+    end
+    
+    subgraph Function["Lambda関数イメージ"]
+        C
+        C1[Layer: common-lib]
+        C2[関数コード]
+    end
+```
+
+| レイヤー           | 内容                             | 更新頻度 |
+| ------------------ | -------------------------------- | -------- |
+| AWS Lambda RIE     | 公式Pythonランタイム             | 低       |
+| `esb-lambda-base`  | sitecustomize.py (AWS SDKパッチ) | 低       |
+| Lambda関数イメージ | Layers + 関数コード              | 高       |
+
+## ビルドプロセス
+
+deploy 実行時に内部ビルドが走り、以下の順序でビルドが行われます。
+
+```mermaid
+flowchart LR
+    A[esb deploy] --> B[template.yaml パース]
+    B --> C[設定ファイル生成]
+    C --> D[ベースイメージビルド]
+    D --> E[Lambda関数イメージビルド]
+```
+
+### ベースイメージ (`esb-lambda-base`)
+
+**ソース**: `cli/internal/infra/build/assets/`
+
+```
+cli/internal/infra/build/assets/
+├── Dockerfile.lambda-base
+└── site-packages/
+    └── sitecustomize.py    # AWS SDK パッチ & Direct Logging
+```
+
+ベースイメージには以下が含まれます:
+- **sitecustomize.py**: Python 起動時に自動ロードされ、AWS SDK の挙動修正とログの送信を行います。
+
+### Lambda関数イメージ
+
+**ソース**: Generator により自動生成
+
+生成される Dockerfile（`CONTAINER_REGISTRY` 設定時はプレフィックス付き、未設定時はローカルイメージ名を使用）:
+```dockerfile
+# CONTAINER_REGISTRY未設定時の例
+FROM esb-lambda-base:latest
+
+# Layer (template.yaml で定義)
+COPY tests/fixtures/layers/common/ /opt/
+
+# 関数コード
+COPY tests/fixtures/functions/xxx/ ${LAMBDA_TASK_ROOT}/
+
+CMD [ "lambda_function.lambda_handler" ]
+```
+
+## ライフサイクル（参照先）
+ワーカーの起動/削除/プール管理は以下を参照してください:
+- Gateway: [services/gateway/docs/architecture.md](../../services/gateway/docs/architecture.md)
+- Autoscaling/Janitor: [services/gateway/docs/autoscaling.md](../../services/gateway/docs/autoscaling.md)
+- Agent: [services/agent/docs/architecture.md](../../services/agent/docs/architecture.md)
+
+## 運用コマンド
+
+### イメージ管理
+
+```bash
+# 全イメージを強制リビルド
+esb build --no-cache
+
+# Control-plane イメージを起動
+docker compose -f docker-compose.docker.yml up -d
+```
+
+### 未使用イメージのクリーンアップ
+
+```bash
+# 関連イメージのみをクリーンアップ（推奨）
+docker images | grep -E "^(esb-|lambda-)" | awk '{print $3}' | xargs docker rmi
+
+# 全 dangling イメージを削除（注意: 他プロジェクトにも影響）
+docker image prune -f
+```
+
+### コンテナログの確認
+
+```bash
+# Agent のログ（例: esb-prod-agent）
+docker logs <project>-agent
+
+# containerd 側の状態確認（namespace は brand 名）
+ctr -n <brand> containers list
+```
+
+## トラブルシューティング
+
+### 問題: 古いコードが実行される
+
+**原因**: イメージが再ビルドされていない
+
+**解決策**:
+```bash
+esb build --no-cache
+docker compose -f docker-compose.docker.yml up -d
+```
+
+### 問題: 大量の `<untagged>` イメージ
+
+**原因**: 頻繁なリビルドによる中間レイヤーの蓄積
+
+**解決策**:
+```bash
+docker image prune -f
+```
+
+### 問題: コンテナが起動しない
+
+**確認手順**:
+```bash
+# Agent ログの確認
+docker logs <project>-agent
+
+# containerd 側の状態確認（namespace は brand 名）
+ctr -n <brand> containers list
+```
+
+---
+
+## Implementation references
+- `cli/internal/infra/build`
+- `cli/internal/infra/build/assets`

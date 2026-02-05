@@ -1,20 +1,20 @@
 # SAM パース・アーキテクチャ
 
-このドキュメントは、ESB における SAM テンプレートのパース処理を「利用側の視点」で説明します。
+このドキュメントは、CLI における SAM テンプレートのパース処理を「利用側の視点」で説明します。
 `aws-sam-parser-go` は外部ライブラリとして扱い、内部実装の詳細には踏み込みません。
 
 ## 目的
-- SAM テンプレートを ESB 内部 Spec へ変換する流れを示す
-- ESB と外部ライブラリの責務境界を明確にする
+- SAM テンプレートを内部 Spec へ変換する流れを示す
+- CLI 実装と外部ライブラリの責務境界を明確にする
 
 ## 責務分離
 
-### ESB（利用側）
+### CLI（利用側）
 - 入力テンプレートの受け取りとエラーハンドリング
 - パラメータの優先順位ルールの適用
-- Intrinsic 解決ポリシー（ESB 仕様）の実装
-- SAM 型から ESB 内部 Spec（`manifest`）への変換
-- ESB 固有のデフォルト値・命名規約の適用
+- Intrinsic 解決ポリシー（内部仕様）の実装
+- SAM 型から内部 Spec（`manifest`）への変換
+- 内部デフォルト値・命名規約の適用
 
 ### aws-sam-parser-go（外部ライブラリ）
 - YAML の読み取りと Intrinsic タグの正規化
@@ -27,7 +27,7 @@
 graph TD
     A[template.yaml] --> B[sam.DecodeYAML]
     B --> C[normalized map]
-    C --> D[sam.ResolveAll + ESB IntrinsicResolver]
+    C --> D[sam.ResolveAll + Internal IntrinsicResolver]
     D --> E[sam.DecodeTemplate]
     E --> F[infra/sam: Function/Resource 解析]
     F --> G[domain/template.ParseResult]
@@ -41,8 +41,8 @@ graph TD
 - `Parameters.Default` を初期値として取り込み
 - deploy 入力値が **上書き** されます
 
-## Intrinsic 解決（ESB 仕様）
-ESB は以下の Intrinsic を解決します:
+## Intrinsic 解決（内部仕様）
+CLI は以下の Intrinsic を解決します:
 - `Ref`
 - `Fn::If`
 - `Fn::Sub`
@@ -70,7 +70,7 @@ ESB は以下の Intrinsic を解決します:
 - Memory: `128`
 
 ## リソース抽出
-以下のリソースを ESB 内部の manifest に変換します:
+以下のリソースを内部の manifest に変換します:
 - `AWS::DynamoDB::Table`
 - `AWS::S3::Bucket`
 - `AWS::Serverless::LayerVersion`

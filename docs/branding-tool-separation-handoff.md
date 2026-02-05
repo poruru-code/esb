@@ -6,9 +6,9 @@ Why: Preserve decisions, constraints, and executable next steps.
 # ブランディングツール分離: 打ち合わせメモ兼引継ぎ（改訂版）
 
 ## ゴール
-- ブランディング変更ツールを ESB 本体から分離し、下流向けのカスタマイズ時だけ使えるようにする。
+- ブランディング変更ツールを本体リポジトリから分離し、下流向けのカスタマイズ時だけ使えるようにする。
 - ベースリポジトリに下流固有情報を**一切含めない**。
-- テンプレートの更新漏れを防ぎ、ESB 側は最小限の連携だけを残す。
+- テンプレートの更新漏れを防ぎ、本体側は最小限の連携だけを残す。
 
 ## 前提・制約
 - ベースは `CLI_CMD=esb` を維持（`config/defaults.env` を基準にする）。
@@ -20,21 +20,21 @@ Why: Preserve decisions, constraints, and executable next steps.
 ## 決定事項（確定）
 1) テンプレートは**外部ツールリポジトリ**にのみ置く。  
 2) 下流でのブランド変更はツール側で実施し、生成物を下流で固定する。  
-3) ツールの CI が **ESB のコミットをスナップショットとして保持**する。  
-   - submodule は使わず、ESB の SHA / tag をツール側で管理する。
-4) ESB 側 CI に repository_dispatch を入れるのは許容。
+3) ツールの CI が **本体リポジトリのコミットをスナップショットとして保持**する。  
+   - submodule は使わず、本体リポジトリの SHA / tag をツール側で管理する。
+4) 本体側 CI に repository_dispatch を入れるのは許容。
 5) ベースはツールに依存しない（コード・設定から参照しない）。
 
 ## 役割分担
-### ESB リポジトリ
+### 本体リポジトリ
 - `config/defaults.env` は常に `CLI_CMD=esb` / `ENV_PREFIX=ESB` を維持。
 - ツール repo への `repository_dispatch` を送るワークフローのみ保持。
 - `tools/branding` と `mise` の generator タスクは、ツール運用確立後に削除。
 
 ### ツールリポジトリ
 - generator + templates + CI を保持。
-- ESB の SHA / tag を `branding.lock` に記録・更新。
-- ESB の生成物と一致するかを CI で検証。
+- 本体リポジトリの SHA / tag を `branding.lock` に記録・更新。
+- 本体リポジトリの生成物と一致するかを CI で検証。
 
 ### 下流リポジトリ
 - ツール repo を使って生成物を作成し、**生成物のみ**コミット。
@@ -66,14 +66,14 @@ uv --version
 git clone https://github.com/poruru-code/esb-branding-tool
 ```
 
-### 2) ツール repo から ESB を検証（手動）
+### 2) ツール repo から本体リポジトリを検証（手動）
 ```bash
 git clone <esb-repo-url> /tmp/esb-check
 cd <tool-repo>
-# ベースの生成物が正になる（ESB repo 内の生成結果と一致すること）
+# ベースの生成物が正になる（本体 repo 内の生成結果と一致すること）
 uv run python tools/branding/generate.py --root /tmp/esb-check --check --brand esb
 ```
-ESB 側でテンプレート更新が入った場合は、ツール repo 側で更新したテンプレートを使う前提とする。
+本体側でテンプレート更新が入った場合は、ツール repo 側で更新したテンプレートを使う前提とする。
 必要ならツール repo で `generate.py` を実行してから `--check` を行う。
 
 ### 3) 下流でブランド変更（手動）
@@ -87,7 +87,7 @@ git commit -m "Branding: acme"
 ```
 
 ## 連携方式（確定）
-### ESB -> ツール CI 連携（repository_dispatch）
+### 本体 -> ツール CI 連携（repository_dispatch）
 payload 例:
 ```json
 {
@@ -100,24 +100,24 @@ payload 例:
 ```
 
 ```
-ESB CI
+Upstream CI
   └── repository_dispatch (commit SHA)
-      └── ツール CI: ESB commit を checkout
+      └── ツール CI: upstream commit を checkout
           └── branding check 実行
               ├── OK: ツール repo が branding.lock を更新して push
-              └── NG: ESB 側を fail させる（trigger-workflow-and-wait で結果取得）
+              └── NG: 本体側を fail させる（trigger-workflow-and-wait で結果取得）
 ```
-ESB 側の運用方針:
+本体側の運用方針:
 - PR は同期チェックとして組み込む（trigger-workflow-and-wait で結果取得）。
 - main は非同期で dispatch のみ（失敗時は通知/ログ）。
-- ツール側修正後の回復は、ESB 側の再実行で再 dispatch する。
+- ツール側修正後の回復は、本体側の再実行で再 dispatch する。
 
 ## 受入基準（ツール側のチェック）
 - ベース repo で生成した成果物が**正**であり、ツールで生成した成果物が一致すること。
 - 実装: `uv run python tools/branding/generate.py --root <esb_repo> --check --brand esb`
 
 ## branding.lock の仕様（暫定案）
-ツール repo で管理する ESB スナップショット情報。再現性と追跡性を優先する。
+ツール repo で管理する本体リポジトリのスナップショット情報。再現性と追跡性を優先する。
 
 ```yaml
 schema_version: 1
@@ -146,12 +146,17 @@ parameters:
 - 下流運用フロー: https://github.com/poruru-code/esb-branding-tool/blob/main/docs/branding-flow.md
 
 ## 未決事項（次セッションで決める）
-- ツール repo の versioning 方針（タグ / リリース / ESB commit 追従の運用）
+- ツール repo の versioning 方針（タグ / リリース / 本体 commit 追従の運用）
 - `branding.lock` 仕様/更新ルールの最終確定
 - CI 認証方式（PAT / GitHub App 等）
+
+---
+
+## Implementation references
+- `config/defaults.env`
 
 ## 次のアクション案（新セッション）
 1) ツール repo スケルトン作成と CI たたき台追加
 2) branding.lock 仕様の確定
-3) ESB -> ツール CI 連携の実装
-4) ESB 本体から `tools/branding` と `mise` タスクを削除
+3) 本体 -> ツール CI 連携の実装
+4) 本体リポジトリから `tools/branding` と `mise` タスクを削除

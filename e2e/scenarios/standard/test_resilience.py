@@ -27,7 +27,7 @@ from e2e.conftest import (
 class TestResilience:
     """Verify resilience and performance features."""
 
-    # Unskipped - Go Agent restart recovery should work
+    # Unskipped - Agent restart recovery should work
     def test_orchestrator_restart_recovery(self, auth_token):
         """
         E2E: verify container recovery after Manager/Agent restart (Adopt & Sync).

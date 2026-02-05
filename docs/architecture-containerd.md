@@ -1,219 +1,41 @@
-# アーキテクチャ: Docker vs Containerd ランタイム
+<!--
+Where: docs/architecture-containerd.md
+What: High-level runtime mode overview (Docker vs containerd).
+Why: Keep system-level comparison and link to subsystem docs.
+-->
+# アーキテクチャ: Docker vs Containerd（概要）
 
-Edge Serverless Box (ESB) は、開発効率に優れた **Docker ランタイム (標準モード)** と、本番環境に近い低オーバーヘッドな **Containerd ランタイム (Containerd モード)** の 2 つの実行環境をサポートしています。
+本基盤は **Docker モード（標準）** と **containerd モード（高密度/本番寄り）** を提供します。
+詳細なネットワーク・実装は subsystem docs に分離しています。
 
----
+## モード比較（概要）
+| 項目 | Docker | containerd |
+| --- | --- | --- |
+| 実行エンジン | Docker Engine | containerd + CNI |
+| ワーカー IP | Docker Network | CNI Bridge (`10.88.0.0/16`) |
+| DNS 解決 | Docker DNS | CoreDNS (10.88.0.1) |
+| レジストリ | 任意 | 内蔵レジストリ推奨 |
 
-## 1. Docker ランタイム (標準モード)
-
-ホスト上の Docker デーモンを利用して Lambda ワーカーコンテナを管理します。主に開発効率とローカル環境でのテストに最適化されています。
-
-### 構成図 (Docker)
-
+## 概略図（containerd）
 ```mermaid
 flowchart TD
-    Client(["User / Developer"]) -->|"HTTPS :443"| Gateway
-    
-    subgraph CP ["Control Plane (Docker Compose)"]
-        direction TB
-        Gateway["Gateway API<br/>(FastAPI)"]
-        
-        subgraph DS ["Data Services"]
-            direction TB
-            RustFS["RustFS (S3)"]
-            ScyllaDB["ScyllaDB (Dynamo)"]
-            VL["VictoriaLogs"]
-        end
-
-        %% Vertical Stack
-        Gateway --- DS
-    end
-
-    subgraph CMP ["Compute Plane (Docker Runtime)"]
-        direction TB
-        Agent["Go Agent<br/>(AGENT_RUNTIME=docker)"]
-        DockerSock[["/var/run/docker.sock"]]
-        
-        subgraph LW ["Lambda Workers"]
-            direction TB
-            WorkerA["Worker A<br/>(10.x.y.z)"]
-        end
-        
-        %% Vertical Stack
-        Agent --- DockerSock
-        DockerSock --- LW
-    end
-
-    %% Interactions
-    Gateway <-->|"gRPC"| Agent
-    Agent --- DockerSock
-    DockerSock -.->|"Manage"| WorkerA
-    %% Registry is not used in Docker mode
-
-    %% Networking
-    Gateway -->|"Invoke (L3 Direct)"| WorkerA
-    WorkerA -->|"AWS API (S3/Dynamo)"| RustFS
-    WorkerA -->|"AWS API (S3/Dynamo)"| ScyllaDB
-    WorkerA -->|"Push Logs"| VL
+    Client -->|HTTPS| Gateway
+    Gateway -->|gRPC| Agent
+    Agent -->|containerd| RuntimeNode
+    RuntimeNode -->|CNI| Worker
+    Worker -->|DNS| CoreDNS
+    Worker -->|AWS SDK| S3["RustFS"]
+    Worker -->|AWS SDK| DB["ScyllaDB"]
+    Worker -->|Logs| Logs["VictoriaLogs"]
 ```
 
-### 実行シーケンス (Docker)
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant User as User / SDK
-    participant GW as API Gateway
-    participant AG as Go Agent
-    participant DS as Data Services
-    participant WA as Worker A
-
-    User->>GW: HTTP Request
-    GW->>AG: gRPC: acquire_worker
-    Note over AG: Docker API: start container
-    AG-->>GW: Return Worker IP
-    
-    GW->>WA: HTTP POST: Invoke (Worker A)
-    
-    WA->>DS: AWS API Call (S3/Dynamo)
-    Note over DS: Direct Bridge Access
-    DS-->>WA: API Response
-    
-    WA-->>GW: Final Response A
-    GW-->>User: HTTP Response
-```
-
-### ステップ解説 (Docker)
-- **1-4. 準備**: Gateway は Go Agent に対し gRPC でワーカーを要求します。Agent は Docker API を介してコンテナを起動・確保し、IP 情報を返します。
-- **5. 実行**: Gateway は Docker ブリッジを介して、ワーカーの IP に対して直接 HTTP リクエストを送信します。
-- **6-8. 通信**: ワーカーは Docker ネットワーク内のデータサービスへ直接アクセスします。完了後、Gateway 経由でユーザーへ結果を返します。
+## 詳細ドキュメント
+- runtime-node: [services/runtime-node/docs/README.md](../services/runtime-node/docs/README.md)
+- Agent: [services/agent/docs/runtime-containerd.md](../services/agent/docs/runtime-containerd.md)
+- Gateway: [services/gateway/docs/architecture.md](../services/gateway/docs/architecture.md)
 
 ---
 
-### 構成図 (Containerd)
-
-```mermaid
-flowchart TD
-    Client(["User / Developer"]) -->|"HTTPS :443"| Gateway
-
-    subgraph CP ["Control Plane (Containerd)"]
-        direction TB
-        
-        subgraph NetNS ["Shared Network Namespace"]
-            direction TB
-            Agent["Go Agent<br/>(containerd runtime)"]
-            Gateway["Gateway API"]
-            CoreDNS["CoreDNS<br/>(10.88.0.1:53)"]
-            DockerDNS["Docker DNS<br/>(127.0.0.11)"]
-            
-            %% Vertical Stack
-            Agent --- Gateway
-            Gateway --- CoreDNS
-            CoreDNS -->|"Forward"| DockerDNS
-        end
-
-        Containerd[["containerd.sock"]]
-        CNI["CNI Bridge<br/>(esb0: 10.88.0.1)"]
-
-        subgraph CMP ["Compute Plane (Containerd Runtime)"]
-            direction TB
-            WorkerA["Worker A<br/>(10.88.x.y)"]
-        end
-
-        Registry["Local Registry"]
-        
-        %% Vertical Stack
-        NetNS --- Containerd
-        Containerd --- CNI
-        CNI --- CMP
-        CMP --- Registry
-    end
-
-    subgraph DS ["Data Services"]
-        direction TB
-        RustFS["RustFS (S3)"]
-        ScyllaDB["ScyllaDB (Dynamo)"]
-        VL["VictoriaLogs"]
-    end
-
-    %% Interactions
-    Gateway <-->|"gRPC"| Agent
-    Agent --- Containerd
-    Containerd -.->|"Manage"| WorkerA
-    Agent -->|"Pull Image (from Registry)"| Registry
-    
-    %% Networking
-    Gateway -->|"Invoke (L3 Direct)"| WorkerA
-    WorkerA -->|"DNS Query (10.88.0.1)"| CoreDNS
-    CoreDNS -->|"Forward"| DockerDNS
-    DockerDNS -->|"Resolve"| DS
-    WorkerA -->|"AWS API (service name)"| DS
-    %% CNI MASQUERADE handles the routing
-```
-
-### 実行シーケンス (Containerd)
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant User as User / SDK
-    participant GW as API Gateway (localhost)
-    participant AG as Go Agent (localhost)
-    participant DNS as CoreDNS (10.88.0.1)
-    participant DDNS as Docker DNS (127.0.0.11)
-    participant CNI as CNI Bridge (NAT/MASQ)
-    participant WA as Worker A
-
-    User->>GW: HTTP Request
-    GW->>AG: gRPC: acquire_worker
-    Note over AG: containerd API: start container
-    Note over AG: CNI: setup network (nameserver: 10.88.0.1)
-    AG-->>GW: Return Worker IP
-    
-    GW->>CNI: Forward packet
-    CNI->>WA: HTTP POST: Invoke (Worker A)
-    
-    WA->>DNS: Resolve "s3-storage"
-    DNS->>DDNS: Forward query
-    DDNS-->>DNS: Return Container IP
-    DNS-->>WA: Return Container IP
-    
-    WA->>CNI: AWS API Call (S3/Dynamo/VLogs)
-    Note over CNI: MASQUERADE (SNAT)
-    CNI->>DS: Forward to Data Services
-    DS-->>WA: API Response
-    
-    WA-->>GW: Final Response A
-    GW-->>User: HTTP Response
-```
-
-### ステップ解説 (Containerd)
-- **1-4. 準備**: Agent は containerd API を直接操作してコンテナを起動し、CNI を通じて独立した IP を割り当てます。この際、DNS サーバーとして `10.88.0.1` (CoreDNS) が設定されます。
-- **5-7. 実行**: Gateway は CNI ブリッジを介して、ワーカーのプライベート IP に対して直接パケットを送信します。
-- **8-13. 通信**: ワーカーは `CoreDNS` を介してサービス名（`s3-storage` など）を解決し、CoreDNS は Docker DNS (`127.0.0.11`) へフォワードします。実際の通信は CNI ブリッジの `MASQUERADE` ルールによって透過的に外部ネットワークへルーティングされます。
-
-補足:
-- Gateway はコンテナ内部では `:8443` で待ち受け、ホスト公開は `PORT_GATEWAY_HTTPS` に依存します。
-- containerd モードでは `runtime-node` が NetNS の親で、`gateway`/`agent`/`coredns` が `network_mode: service:runtime-node` で同居します。
-- ワーカーの `/etc/resolv.conf` は `CNI_DNS_SERVER` または `CNI_GW_IP` を参照し、CoreDNS に到達できないと `s3-storage`/`database` の名前解決が失敗します。
-- CNI サブネットから control-plane へ到達するため、`runtime-node` の MASQUERADE と FORWARD ルールが必要です。
-
-トラブルシュート:
-- `docker exec esb-<env>-runtime-node iptables -t nat -S POSTROUTING` で `10.88.0.0/16` の MASQUERADE を確認
-- `ctr -n esb task exec ... cat /etc/resolv.conf` で nameserver が設定されているか確認
-- `docker logs esb-<env>-coredns` で DNS の起動ログを確認
-
----
-
-## スペック比較
-
-| 項目                 | Docker ランタイム              | Containerd ランタイム               |
-| :------------------- | :----------------------------- | :---------------------------------- |
-| **Agent ランタイム** | `docker`                       | `containerd`                        |
-| **接続方法**         | `/var/run/docker.sock`         | `/run/containerd/containerd.sock`   |
-| **ワーカーの隔離**   | 名前空間 (Docker ネットワーク) | 名前空間 (CNI ブリッジ)             |
-| **ネットワーク構成** | Docker ブリッジ (L3 接点あり)  | CNI ブリッジ (完全隔離 + CoreDNS)   |
-| **サービス解決**     | Docker DNS (名前で直接)        | CoreDNS (論理名から IP 解決)        |
-| **オーバーヘッド**   | 最小                           | 低 (containerd 直操作)              |
-| **内蔵レジストリ**   | 不要 (ローカルイメージを使用)  | 必要 (イメージ配布に利用)           |
-| **適した用途**       | 開発・デバッグ                 | 本番環境、高性能・高密度環境        |
+## Implementation references
+- `docker-compose.containerd.yml`
+- `services/runtime-node/entrypoint.common.sh`
