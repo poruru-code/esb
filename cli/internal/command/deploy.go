@@ -173,6 +173,24 @@ var (
 	errMultipleTemplateOutput     = errors.New("output directory cannot be used with multiple templates")
 )
 
+var runningProjectServices = map[string]struct{}{
+	"gateway":      {},
+	"agent":        {},
+	"runtime-node": {},
+	"registry":     {},
+	"database":     {},
+	"s3-storage":   {},
+	"victorialogs": {},
+}
+
+var provisionTargetServices = map[string]struct{}{
+	"gateway":      {},
+	"provisioner":  {},
+	"database":     {},
+	"s3-storage":   {},
+	"victorialogs": {},
+}
+
 func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 	isTTY := interaction.IsTerminal(os.Stdin)
 	prompter := deps.Prompter
@@ -226,17 +244,34 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 			flagMode = normalized
 		}
 
+		projectValueSource := ""
 		projectValue := strings.TrimSpace(cli.Deploy.Project)
+		if projectValue != "" {
+			projectValueSource = "flag"
+		}
 		if projectValue == "" {
-			projectValue = strings.TrimSpace(os.Getenv(constants.EnvProjectName))
+			if envProject := strings.TrimSpace(os.Getenv(constants.EnvProjectName)); envProject != "" {
+				projectValue = envProject
+				projectValueSource = "env"
+			}
 		}
 		if projectValue == "" {
 			if hostProject, err := envutil.GetHostEnv(constants.HostSuffixProject); err == nil {
-				projectValue = strings.TrimSpace(hostProject)
+				if trimmed := strings.TrimSpace(hostProject); trimmed != "" {
+					projectValue = trimmed
+					projectValueSource = "host"
+				}
 			}
 		}
-		runningProjects, _ := discoverRunningComposeProjects()
+		projectExplicit := projectValueSource != ""
+		runningProjects, _ := discoverRunningComposeProjects(
+			templatePaths[0],
+			isTTY && prompter != nil && !projectExplicit,
+		)
 		hasRunning := len(runningProjects) > 0
+		if isTTY && hasRunning && !projectExplicit {
+			projectValue = ""
+		}
 
 		selectedEnv := envChoice{}
 		if !hasRunning {
@@ -826,7 +861,7 @@ func defaultDeployProject(env string) string {
 	return fmt.Sprintf("%s-%s", brandName, envName)
 }
 
-func discoverRunningComposeProjects() ([]string, error) {
+func discoverRunningComposeProjects(templatePath string, interactive bool) ([]string, error) {
 	client, err := compose.NewDockerClient()
 	if err != nil {
 		return nil, fmt.Errorf("create docker client: %w", err)
@@ -837,15 +872,30 @@ func discoverRunningComposeProjects() ([]string, error) {
 		return nil, fmt.Errorf("list containers: %w", err)
 	}
 
-	allowedServices := map[string]struct{}{
-		"gateway":      {},
-		"agent":        {},
-		"runtime-node": {},
-		"registry":     {},
-		"database":     {},
-		"s3-storage":   {},
-		"victorialogs": {},
+	allowed := runningProjectServices
+	var inferEnv func(project string) envInference
+	if interactive {
+		allowed = provisionTargetServices
+		inferEnv = func(project string) envInference {
+			inferred, err := inferEnvFromProject(project, templatePath)
+			if err != nil {
+				return envInference{}
+			}
+			return inferred
+		}
 	}
+	projects := filterRunningProjectsByEnv(containers, allowed, inferEnv)
+	if len(projects) == 0 {
+		return nil, nil
+	}
+	return projects, nil
+}
+
+func filterRunningProjectsByEnv(
+	containers []container.Summary,
+	allowedServices map[string]struct{},
+	inferEnv func(project string) envInference,
+) []string {
 	projects := make(map[string]struct{})
 	for _, ctr := range containers {
 		if ctr.Labels == nil {
@@ -863,14 +913,23 @@ func discoverRunningComposeProjects() ([]string, error) {
 	}
 
 	if len(projects) == 0 {
-		return nil, nil
+		return nil
 	}
 	names := make([]string, 0, len(projects))
 	for project := range projects {
-		names = append(names, project)
+		if inferEnv == nil {
+			names = append(names, project)
+			continue
+		}
+		if inferred := inferEnv(project); strings.TrimSpace(inferred.Env) != "" {
+			names = append(names, project)
+		}
+	}
+	if len(names) == 0 {
+		return nil
 	}
 	sort.Strings(names)
-	return names, nil
+	return names
 }
 
 func inferDeployModeFromProject(composeProject string) (string, string, error) {
