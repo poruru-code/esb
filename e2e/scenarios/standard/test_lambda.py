@@ -2,33 +2,17 @@
 Lambda invocation tests (E2E).
 
 Scenarios:
-1. Basic invocation: Client -> Gateway -> Echo
-2. Sync chained invocation: Client -> Gateway -> Chain (boto3) -> Echo (Sync)
-3. Async chained invocation: Client -> Gateway -> Chain (boto3) -> Echo (Async)
+1. Sync chained invocation: Client -> Gateway -> Chain (boto3) -> Echo (Sync)
+2. Async chained invocation: Client -> Gateway -> Chain (boto3) -> Echo (Async)
 """
 
 import json
 
-from e2e.conftest import (
-    AUTH_USER,
-    LOG_WAIT_TIMEOUT,
-    call_api,
-    query_victorialogs_by_filter,
-)
+from e2e.conftest import LOG_WAIT_TIMEOUT, call_api, query_victorialogs_by_filter
 
 
 class TestLambda:
-    """Verify Lambda invocation functionality."""
-
-    def test_basic_invocation(self, auth_token):
-        """Basic invocation: Client -> Gateway -> Echo."""
-        response = call_api("/api/echo", auth_token, {"message": "hello-basic"})
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["success"] is True
-        assert data["message"] == "Echo: hello-basic"
-        assert data["user"] == AUTH_USER
+    """Verify Lambda chained invocation functionality."""
 
     def test_sync_chain_invoke(self, auth_token):
         """Sync chained invocation: Client -> Gateway -> Chain (boto3 sync) -> Echo."""

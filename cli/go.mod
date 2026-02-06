@@ -9,6 +9,7 @@ require (
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/joho/godotenv v1.5.1
 	github.com/poruru-code/aws-sam-parser-go v0.1.1
+	github.com/poruru/edge-serverless-box/runtime v0.0.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -80,3 +81,4 @@ require (
 )
 
 replace github.com/poruru/edge-serverless-box/meta => ../meta
+replace github.com/poruru/edge-serverless-box/runtime => ../runtime

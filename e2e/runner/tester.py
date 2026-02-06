@@ -29,6 +29,7 @@ def run_pytest(
             "pytest",
             "--compose-file",
             str(ctx.compose_file),
+            "--import-mode=importlib",
         ]
         + ctx.scenario.targets
         + ["-v"]

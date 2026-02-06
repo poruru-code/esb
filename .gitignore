@@ -73,6 +73,8 @@ build/lambda-images/*.tar
 cli/internal/infra/build/assets/java/target/
 cli/internal/infra/build/assets/java/lambda-java-wrapper.jar
 cli/internal/infra/build/assets/java/*.jar
+runtime/java/**/target/
+runtime/java/**/*.jar
 
 # ESB artifacts
 .esb/

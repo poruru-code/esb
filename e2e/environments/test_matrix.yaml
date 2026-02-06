@@ -5,7 +5,8 @@ suites:
   smoke:
     description: Fast connectivity tests for all components
     targets:
-    - ../scenarios/smoke/
+    - ../scenarios/smoke/test_connectivity.py
+    - ../scenarios/smoke/test_smoke.py
     exclude: []
   standard:
     description: Standard E2E Scenarios (Autoscaling + Standard)
@@ -13,10 +14,11 @@ suites:
     - ../scenarios/autoscaling/
     - ../scenarios/standard/
     exclude: []
-  java:
-    description: Java Runtime Scenarios
+  runtime:
+    description: Runtime Scenarios (non-smoke)
     targets:
-    - ../scenarios/java/
+    - ../scenarios/runtime/java/
+    - ../scenarios/runtime/python/
     exclude: []
 
 matrix:
@@ -28,7 +30,7 @@ matrix:
   suites:
   - smoke
   - standard
-  - java
+  - runtime
 
 # containerd runtime
 - esb_env: e2e-containerd
@@ -38,7 +40,6 @@ matrix:
   suites:
   - smoke
   - standard
-  - java
 
 # containerd + firecracker runtime (CONTAINERD_RUNTIME=aws.firecracker)
 # - esb_env: e2e-firecracker

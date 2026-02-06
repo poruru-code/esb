@@ -17,3 +17,13 @@ mise exec -- jar --create --file app.jar -C build/classes .
 ## Optional Maven build
 
 If Maven is available and dependencies can be downloaded, you can also use `pom.xml`.
+
+### Connectivity fixture (AWS SDK v2)
+
+The connectivity fixture depends on AWS SDK v2 modules, so it should be built with Maven:
+
+```bash
+cd e2e/fixtures/functions/java/connectivity
+mvn -q -DskipTests package
+cp target/app.jar app.jar
+```
