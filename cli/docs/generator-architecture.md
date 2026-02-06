@@ -26,8 +26,8 @@ flowchart TD
     Parser --> Routing["routing.yml"]
     Parser --> Functions["functions.yml"]
 
-    Renderer --> Dockerfiles["Dockerfiles (`runtime/python/docker/Dockerfile.lambda-base` → `Dockerfile`)"]
-    Renderer --> RuntimeHooks["Runtime Hooks (`runtime/python/hooks/site-packages/` + viewer hooks)"]
+    Renderer --> Dockerfiles["Dockerfiles (`runtime/python/docker/Dockerfile` → `Dockerfile`)"]
+    Renderer --> RuntimeHooks["Runtime Extensions (`runtime/python/extensions/sitecustomize/site-packages/` + viewer hooks)"]
 ```
 
 ### コンポーネント
@@ -64,13 +64,13 @@ routes:
 `functions.yml` にリストアップされた関数ごとに Build Context を作成、`renderer.go` がファイルを生成します。
 
 1. **Dockerfile の生成**
-   `runtime/python/docker/Dockerfile.lambda-base` をベースに、関数/ランタイム特有のステップ（`COPY functions/...` や `ENV` 設定）を動的に組み立てます。
+   `runtime/python/docker/Dockerfile` をベースに、関数/ランタイム特有のステップ（`COPY functions/...` や `ENV` 設定）を動的に組み立てます。
 2. **Layer のステージング**
    `AWS::Serverless::LayerVersion` から抽出したレイヤーは `output_dir/layers/` に展開し、各関数の Dockerfile から共有参照されます。ZIP 形式のレイヤーは展開済みバージョンを `/opt/` にコピー。
 3. **ビルドコンテキストの最小化**
    `renderer.go` は `.dockerignore` 相当の構成を `output_dir/` に書き、関数やレイヤー以外のファイルがビルドコンテキストに入らないようにします。
-4. **Runtime Hooks の配置**
-   `runtime/python/hooks/site-packages/` 配下のファイル（`sitecustomize.py` など）を各関数のコンテキストにコピーし、Trace ID やログキャプチャの仕組みを Lambda 実行時に提供します。これには VictoriaLogs や X-Ray 互換のフックが含まれます。
+4. **Runtime Extensions の配置**
+   `runtime/python/extensions/sitecustomize/site-packages/` 配下のファイル（`sitecustomize.py` など）を各関数のコンテキストにコピーし、Trace ID やログキャプチャの仕組みを Lambda 実行時に提供します。これには VictoriaLogs や X-Ray 互換のフックが含まれます。
 
 ## ランタイムフックの仕組み (`sitecustomize.py`)
 

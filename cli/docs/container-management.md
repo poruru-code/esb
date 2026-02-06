@@ -55,12 +55,12 @@ flowchart LR
 ```
 runtime/python/
 ├── docker/
-│   └── Dockerfile.lambda-base
-└── hooks/
-    ├── layer/
-    │   └── trace_bridge.py
-    └── site-packages/
-        └── sitecustomize.py    # AWS SDK パッチ & Direct Logging
+│   └── Dockerfile
+└── extensions/
+    ├── trace-bridge/
+    │   └── layer/trace_bridge.py
+    └── sitecustomize/
+        └── site-packages/sitecustomize.py    # AWS SDK パッチ & Direct Logging
 ```
 
 ベースイメージには以下が含まれます:

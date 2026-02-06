@@ -161,7 +161,7 @@ async def do_post():
 
 ### 4. sitecustomize.py (自動注入・自動復元)
 
-**ファイル**: `runtime/python/hooks/site-packages/sitecustomize.py`
+**ファイル**: `runtime/python/extensions/sitecustomize/site-packages/sitecustomize.py`
 
 本基盤環境では、Pythonプロセス起動時に `sitecustomize.py` が自動的にロードされ、以下のパッチを適用します。これにより**アプリケーションコードへの変更は一切不要**です。
 
@@ -208,7 +208,7 @@ client.meta.events.register(
 
 ### 5. Java Runtime (javaagent)
 
-**ファイル**: `runtime/java/agent/`
+**ファイル**: `runtime/java/extensions/agent/`
 
 Java ランタイムでは `lambda-java-agent.jar` が `JAVA_TOOL_OPTIONS` で自動注入され、以下を行います。
 
@@ -221,9 +221,9 @@ Java ランタイムでは `lambda-java-agent.jar` が `JAVA_TOOL_OPTIONS` で�
 - `services/common/core/trace.py`
 - `services/common/core/request_context.py`
 - `services/gateway/services/lambda_invoker.py`
-- `runtime/python/hooks/site-packages/sitecustomize.py`
-- `runtime/java/wrapper/src/com/runtime/lambda/HandlerWrapper.java`
-- `runtime/java/agent/src/main/java/com/runtime/agent/AgentMain.java`
+- `runtime/python/extensions/sitecustomize/site-packages/sitecustomize.py`
+- `runtime/java/extensions/wrapper/src/com/runtime/lambda/HandlerWrapper.java`
+- `runtime/java/extensions/agent/src/main/java/com/runtime/agent/AgentMain.java`
 
 ---
 

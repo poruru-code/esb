@@ -20,7 +20,7 @@ func TestRenderDockerfileSimple(t *testing.T) {
 		Runtime: "python3.12",
 	}
 	dockerConfig := DockerConfig{
-		SitecustomizeSource: "runtime/python/hooks/site-packages/sitecustomize.py",
+		SitecustomizeSource: "runtime/python/extensions/sitecustomize/site-packages/sitecustomize.py",
 	}
 
 	content, err := RenderDockerfile(fn, dockerConfig, "", "latest")
@@ -31,7 +31,7 @@ func TestRenderDockerfileSimple(t *testing.T) {
 	if !strings.Contains(content, expectedBase) {
 		t.Fatalf("unexpected base image, expected %s, got: %s", expectedBase, content)
 	}
-	if !strings.Contains(content, "COPY runtime/python/hooks/site-packages/sitecustomize.py") {
+	if !strings.Contains(content, "COPY runtime/python/extensions/sitecustomize/site-packages/sitecustomize.py") {
 		t.Fatalf("expected sitecustomize copy")
 	}
 	if !strings.Contains(content, "COPY functions/hello/") {

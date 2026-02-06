@@ -6,7 +6,7 @@
 FROM esb-lambda-base:latest
 
 # ESB Runtime
-COPY runtime/python/hooks/site-packages/sitecustomize.py /opt/python/sitecustomize.py
+COPY runtime/python/extensions/sitecustomize/site-packages/sitecustomize.py /opt/python/sitecustomize.py
 
 # Function code
 COPY functions/hello/ ${LAMBDA_TASK_ROOT}/

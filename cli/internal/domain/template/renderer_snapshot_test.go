@@ -18,7 +18,7 @@ func TestRendererSnapshots(t *testing.T) {
 			Runtime: "python3.12",
 		}
 		dockerConfig := DockerConfig{
-			SitecustomizeSource: "runtime/python/hooks/site-packages/sitecustomize.py",
+			SitecustomizeSource: "runtime/python/extensions/sitecustomize/site-packages/sitecustomize.py",
 		}
 		content, err := RenderDockerfile(fn, dockerConfig, "", "latest")
 		if err != nil {

@@ -229,10 +229,10 @@ func TestGenerateFilesStagesJavaJarAndWrapper(t *testing.T) {
 	jarPath := filepath.Join(root, "converter_jsoncrb.jar")
 	writeTestFile(t, jarPath, "jar")
 
-	wrapperPath := filepath.Join(root, "runtime", "java", "wrapper", "lambda-java-wrapper.jar")
+	wrapperPath := filepath.Join(root, "runtime", "java", "extensions", "wrapper", "lambda-java-wrapper.jar")
 	mustMkdirAll(t, filepath.Dir(wrapperPath))
 	writeTestFile(t, wrapperPath, "wrapper")
-	agentPath := filepath.Join(root, "runtime", "java", "agent", "lambda-java-agent.jar")
+	agentPath := filepath.Join(root, "runtime", "java", "extensions", "agent", "lambda-java-agent.jar")
 	mustMkdirAll(t, filepath.Dir(agentPath))
 	writeTestFile(t, agentPath, "agent")
 

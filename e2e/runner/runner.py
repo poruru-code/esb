@@ -397,6 +397,9 @@ def _warmup(
 
 
 def _uses_java_templates(scenarios: dict[str, Scenario]) -> bool:
+    runtime_extensions = PROJECT_ROOT / "runtime" / "java" / "extensions"
+    if not runtime_extensions.exists():
+        return False
     templates: set[Path] = set()
     for scenario in scenarios.values():
         if scenario.deploy_templates:

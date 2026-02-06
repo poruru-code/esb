@@ -22,7 +22,7 @@ import (
 )
 
 // DefaultSitecustomizeSource is the default sitecustomize.py path used by the build pipeline.
-const DefaultSitecustomizeSource = "runtime/python/hooks/site-packages/sitecustomize.py"
+const DefaultSitecustomizeSource = "runtime/python/extensions/sitecustomize/site-packages/sitecustomize.py"
 
 //go:embed templates/*.tmpl
 var templateFS embed.FS
@@ -94,9 +94,9 @@ func RenderDockerfile(
 		PythonVersion:       profile.PythonVersion,
 	}
 
-	templateName := "dockerfile_python.tmpl"
+	templateName := "python/dockerfile.tmpl"
 	if profile.Kind == runtime.KindJava {
-		templateName = "dockerfile_java.tmpl"
+		templateName = "java/dockerfile.tmpl"
 	}
 	return renderTemplate(templateName, data)
 }
@@ -197,7 +197,8 @@ func loadTemplate(name string) (*template.Template, error) {
 		return cached, nil
 	}
 	fs, pathName := resolveTemplateSource(name)
-	tmpl, err := template.New(name).Funcs(sprig.TxtFuncMap()).ParseFS(fs, pathName)
+	baseName := path.Base(pathName)
+	tmpl, err := template.New(baseName).Funcs(sprig.TxtFuncMap()).ParseFS(fs, pathName)
 	if err != nil {
 		return nil, err
 	}
@@ -207,10 +208,10 @@ func loadTemplate(name string) (*template.Template, error) {
 
 func resolveTemplateSource(name string) (embed.FS, string) {
 	switch name {
-	case "dockerfile_python.tmpl":
-		return runtimeassets.TemplatesFS, "python/templates/dockerfile_python.tmpl"
-	case "dockerfile_java.tmpl":
-		return runtimeassets.TemplatesFS, "java/templates/dockerfile_java.tmpl"
+	case "python/dockerfile.tmpl":
+		return runtimeassets.TemplatesFS, "python/templates/dockerfile.tmpl"
+	case "java/dockerfile.tmpl":
+		return runtimeassets.TemplatesFS, "java/templates/dockerfile.tmpl"
 	default:
 		return templateFS, "templates/" + name
 	}

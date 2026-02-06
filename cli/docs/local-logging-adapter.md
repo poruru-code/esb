@@ -78,5 +78,5 @@ Dockerイメージのビルド時に `esb-lambda-base` に配置されます。�
 ---
 
 ## Implementation references
-- `runtime/python/hooks/site-packages/sitecustomize.py`
-- `runtime/java/agent/src/main/java/com/runtime/agent/logging/VictoriaLogsHook.java`
+- `runtime/python/extensions/sitecustomize/site-packages/sitecustomize.py`
+- `runtime/java/extensions/agent/src/main/java/com/runtime/agent/logging/VictoriaLogsHook.java`

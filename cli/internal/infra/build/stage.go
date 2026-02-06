@@ -268,8 +268,8 @@ func resolveJavaWrapperSource(ctx stageContext) string {
 		return ""
 	}
 	candidates := []string{
-		filepath.Join(runtimeDir, "wrapper", "target", javaWrapperFileName),
-		filepath.Join(runtimeDir, "wrapper", javaWrapperFileName),
+		filepath.Join(runtimeDir, "extensions", "wrapper", "target", javaWrapperFileName),
+		filepath.Join(runtimeDir, "extensions", "wrapper", javaWrapperFileName),
 	}
 	for _, candidate := range candidates {
 		if fileExists(candidate) {
@@ -298,8 +298,8 @@ func resolveJavaAgentSource(ctx stageContext) string {
 		return ""
 	}
 	candidates := []string{
-		filepath.Join(runtimeDir, "agent", "target", javaAgentFileName),
-		filepath.Join(runtimeDir, "agent", javaAgentFileName),
+		filepath.Join(runtimeDir, "extensions", "agent", "target", javaAgentFileName),
+		filepath.Join(runtimeDir, "extensions", "agent", javaAgentFileName),
 	}
 	for _, candidate := range candidates {
 		if fileExists(candidate) {
@@ -352,6 +352,11 @@ func buildJavaRuntimeJars(ctx stageContext) error {
 		fmt.Printf("  Building Java runtime jars in %s\n", runtimeDir)
 	}
 
+	buildDir := filepath.Join(runtimeDir, "build")
+	if !dirExists(buildDir) {
+		return fmt.Errorf("java runtime build directory not found: %s", buildDir)
+	}
+
 	homeDir, _ := os.UserHomeDir()
 	args := []string{
 		"run",
@@ -387,12 +392,12 @@ func buildJavaRuntimeJars(ctx stageContext) error {
 	}
 	script := strings.Join([]string{
 		"set -euo pipefail",
-		"mkdir -p /tmp/work /tmp/m2 /out/wrapper /out/agent",
+		"mkdir -p /tmp/work /tmp/m2 /out/extensions/wrapper /out/extensions/agent",
 		"cp -a /src/. /tmp/work",
-		"cd /tmp/work",
-		"mvn -q -DskipTests -pl wrapper,agent -am package",
-		"cp wrapper/target/lambda-java-wrapper.jar /out/wrapper/lambda-java-wrapper.jar",
-		"cp agent/target/lambda-java-agent.jar /out/agent/lambda-java-agent.jar",
+		"cd /tmp/work/build",
+		"mvn -q -DskipTests -pl ../extensions/wrapper,../extensions/agent -am package",
+		"cp ../extensions/wrapper/target/lambda-java-wrapper.jar /out/extensions/wrapper/lambda-java-wrapper.jar",
+		"cp ../extensions/agent/target/lambda-java-agent.jar /out/extensions/agent/lambda-java-agent.jar",
 	}, "\n")
 	args = append(args,
 		"maven:3.9.6-eclipse-temurin-21",
