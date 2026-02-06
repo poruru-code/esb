@@ -8,8 +8,6 @@ import java.lang.reflect.Method;
 import net.bytebuddy.asm.Advice;
 
 public final class CloudWatchLogsAdvice {
-    private static final Object SKIP = new Object();
-
     private CloudWatchLogsAdvice() {}
 
     @Advice.OnMethodEnter(skipOn = Advice.OnNonDefaultValue.class)
@@ -18,8 +16,7 @@ public final class CloudWatchLogsAdvice {
             @Advice.AllArguments Object[] args
     ) {
         Object request = (args != null && args.length > 0) ? args[0] : null;
-        Object response = CloudWatchLogsMock.handle(method, request);
-        return response != null ? response : SKIP;
+        return CloudWatchLogsMock.handle(method, request);
     }
 
     @Advice.OnMethodExit
@@ -27,7 +24,7 @@ public final class CloudWatchLogsAdvice {
             @Advice.Enter Object response,
             @Advice.Return(readOnly = false) Object returned
     ) {
-        if (response != null && response != SKIP) {
+        if (response != null) {
             returned = response;
         }
     }
