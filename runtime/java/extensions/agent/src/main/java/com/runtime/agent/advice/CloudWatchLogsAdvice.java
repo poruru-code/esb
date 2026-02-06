@@ -4,6 +4,7 @@
 package com.runtime.agent.advice;
 
 import com.runtime.agent.aws.CloudWatchLogsMock;
+import com.runtime.agent.aws.CloudWatchLogsRequestGuard;
 import java.lang.reflect.Method;
 import net.bytebuddy.asm.Advice;
 
@@ -16,6 +17,9 @@ public final class CloudWatchLogsAdvice {
             @Advice.AllArguments Object[] args
     ) {
         Object request = (args != null && args.length > 0) ? args[0] : null;
+        if (!CloudWatchLogsRequestGuard.isSupported(method, request)) {
+            return null;
+        }
         return CloudWatchLogsMock.handle(method, request);
     }
 

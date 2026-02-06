@@ -109,6 +109,9 @@ public final class AwsClientProxyFactory {
             }
             if (isCloudWatchMethod(method)) {
                 Object request = (args != null && args.length > 0) ? args[0] : null;
+                if (!CloudWatchLogsRequestGuard.isSupported(method, request)) {
+                    return invokeOriginal(target, method, args);
+                }
                 Object response = CloudWatchLogsMock.handle(method, request);
                 if (response != null) {
                     return response;
