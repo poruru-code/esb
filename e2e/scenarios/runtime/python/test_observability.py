@@ -1,8 +1,7 @@
 """
-Observability tests.
-
-- Log quality and level control
-- CloudWatch Logs transparent redirect
+Where: e2e/scenarios/runtime/python/test_observability.py
+What: Python logging and CloudWatch passthrough E2E tests.
+Why: Validate Python runtime logs and CloudWatch redirect behavior.
 """
 
 import json
@@ -21,8 +20,8 @@ from e2e.conftest import (
 )
 
 
-class TestObservability:
-    """Verify logging and observability features."""
+class TestPythonObservability:
+    """Verify Python logging and observability features."""
 
     # Unskipped for Phase 4 verification
     # Unskipped for Phase 4 verification
@@ -123,8 +122,9 @@ class TestObservability:
         time.sleep(5)
 
         # 3. Search logs in VictoriaLogs (using shared helper).
+        raw_query = f'logger:boto3.mock AND log_group:"{log_group}" AND log_stream:"{log_stream}"'
         result = query_victorialogs_by_filter(
-            raw_query=f'logger:boto3.mock AND log_group:"{log_group}" AND log_stream:"{log_stream}"',
+            raw_query=raw_query,
             timeout=30,
             limit=20,
             min_hits=4,

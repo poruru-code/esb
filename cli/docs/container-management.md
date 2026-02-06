@@ -50,12 +50,13 @@ flowchart LR
 
 ### ベースイメージ (`esb-lambda-base`)
 
-**ソース**: `cli/internal/infra/build/assets/`
+**ソース**: `runtime/python/`
 
 ```
-cli/internal/infra/build/assets/
-├── Dockerfile.lambda-base
-└── python/
+runtime/python/
+├── docker/
+│   └── Dockerfile.lambda-base
+└── hooks/
     ├── layer/
     │   └── trace_bridge.py
     └── site-packages/
@@ -87,7 +88,8 @@ CMD [ "lambda_function.lambda_handler" ]
 
 - `Runtime: java21` は AWS Lambda Java ベースイメージを使用します。
 - `Handler` は `lambda-java-wrapper.jar` でラップされ、元の Handler は `LAMBDA_ORIGINAL_HANDLER` に格納されます。
-- ラッパーは stdout/stderr をフックし、VictoriaLogs へ送信します（`VICTORIALOGS_URL` 設定時）。
+- `lambda-java-agent.jar` が `JAVA_TOOL_OPTIONS` により自動注入され、AWS SDK の挙動変更とログ送信を行います。
+- stdout/stderr の VictoriaLogs 送信は javaagent が担当します（`VICTORIALOGS_URL` 設定時）。
 
 ## ライフサイクル（参照先）
 ワーカーの起動/削除/プール管理は以下を参照してください:
@@ -163,4 +165,4 @@ ctr -n <brand> containers list
 
 ## Implementation references
 - `cli/internal/infra/build`
-- `cli/internal/infra/build/assets`
+- `runtime/python`

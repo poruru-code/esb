@@ -229,9 +229,12 @@ func TestGenerateFilesStagesJavaJarAndWrapper(t *testing.T) {
 	jarPath := filepath.Join(root, "converter_jsoncrb.jar")
 	writeTestFile(t, jarPath, "jar")
 
-	wrapperPath := filepath.Join(root, "cli", "internal", "infra", "build", "assets", "java", "target", "lambda-java-wrapper.jar")
+	wrapperPath := filepath.Join(root, "runtime", "java", "wrapper", "lambda-java-wrapper.jar")
 	mustMkdirAll(t, filepath.Dir(wrapperPath))
 	writeTestFile(t, wrapperPath, "wrapper")
+	agentPath := filepath.Join(root, "runtime", "java", "agent", "lambda-java-agent.jar")
+	mustMkdirAll(t, filepath.Dir(agentPath))
+	writeTestFile(t, agentPath, "agent")
 
 	parser := &stubParser{
 		result: template.ParseResult{
@@ -267,6 +270,10 @@ func TestGenerateFilesStagesJavaJarAndWrapper(t *testing.T) {
 	if _, err := os.Stat(wrapperDest); err != nil {
 		t.Fatalf("expected wrapper jar to be staged: %v", err)
 	}
+	agentDest := filepath.Join(root, "out", "functions", "lambda-java", "lambda-java-agent.jar")
+	if _, err := os.Stat(agentDest); err != nil {
+		t.Fatalf("expected agent jar to be staged: %v", err)
+	}
 
 	dockerfilePath := filepath.Join(root, "out", "functions", "lambda-java", "Dockerfile")
 	content := readFile(t, dockerfilePath)
@@ -278,6 +285,15 @@ func TestGenerateFilesStagesJavaJarAndWrapper(t *testing.T) {
 	}
 	if !strings.Contains(content, "COPY functions/lambda-java/lambda-java-wrapper.jar /var/task/lib/lambda-java-wrapper.jar") {
 		t.Fatalf("expected wrapper jar copy in dockerfile")
+	}
+	if !strings.Contains(content, "COPY functions/lambda-java/lambda-java-agent.jar /var/task/lib/lambda-java-agent.jar") {
+		t.Fatalf("expected agent jar copy in dockerfile")
+	}
+	if !strings.Contains(content, "ENV JAVA_AGENT_PRESENT=1") {
+		t.Fatalf("expected java agent flag in dockerfile")
+	}
+	if !strings.Contains(content, "ENV JAVA_TOOL_OPTIONS=\"-javaagent:/var/task/lib/lambda-java-agent.jar") {
+		t.Fatalf("expected java tool options with agent")
 	}
 	if !strings.Contains(content, `CMD [ "com.runtime.lambda.HandlerWrapper::handleRequest" ]`) {
 		t.Fatalf("expected wrapper handler cmd in dockerfile")

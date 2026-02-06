@@ -12,6 +12,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"unicode"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/manifest"
@@ -126,6 +127,20 @@ func stageFunction(fn template.FunctionSpec, ctx stageContext) (stagedFunction, 
 			return stagedFunction{}, err
 		}
 	}
+	if !ctx.DryRun && profile.UsesJavaAgent {
+		agentSrc, err := ensureJavaAgentSource(ctx)
+		if err != nil {
+			return stagedFunction{}, err
+		}
+		if info, err := os.Stat(agentSrc); err == nil {
+			target := filepath.Join(functionDir, javaAgentFileName)
+			if err := linkOrCopyFile(agentSrc, target, info.Mode()); err != nil {
+				return stagedFunction{}, err
+			}
+		} else {
+			return stagedFunction{}, err
+		}
+	}
 
 	return stagedFunction{
 		Function:         fn,
@@ -229,13 +244,16 @@ func resolveSitecustomizeSource(ctx stageContext) string {
 	return ""
 }
 
-const javaWrapperFileName = "lambda-java-wrapper.jar"
+const (
+	javaWrapperFileName = "lambda-java-wrapper.jar"
+	javaAgentFileName   = "lambda-java-agent.jar"
+)
 
 func ensureJavaWrapperSource(ctx stageContext) (string, error) {
 	if src := resolveJavaWrapperSource(ctx); src != "" {
 		return src, nil
 	}
-	if err := buildJavaWrapperJar(ctx); err != nil {
+	if err := buildJavaRuntimeJars(ctx); err != nil {
 		return "", err
 	}
 	if src := resolveJavaWrapperSource(ctx); src != "" {
@@ -245,13 +263,13 @@ func ensureJavaWrapperSource(ctx stageContext) (string, error) {
 }
 
 func resolveJavaWrapperSource(ctx stageContext) string {
-	assetsDir, err := resolveJavaAssetsDir(ctx)
+	runtimeDir, err := resolveJavaRuntimeDir(ctx)
 	if err != nil {
 		return ""
 	}
 	candidates := []string{
-		filepath.Join(assetsDir, "target", javaWrapperFileName),
-		filepath.Join(assetsDir, javaWrapperFileName),
+		filepath.Join(runtimeDir, "wrapper", "target", javaWrapperFileName),
+		filepath.Join(runtimeDir, "wrapper", javaWrapperFileName),
 	}
 	for _, candidate := range candidates {
 		if fileExists(candidate) {
@@ -261,8 +279,38 @@ func resolveJavaWrapperSource(ctx stageContext) string {
 	return ""
 }
 
-func resolveJavaAssetsDir(ctx stageContext) (string, error) {
-	rel := filepath.Join("cli", "internal", "infra", "build", "assets", "java")
+func ensureJavaAgentSource(ctx stageContext) (string, error) {
+	if src := resolveJavaAgentSource(ctx); src != "" {
+		return src, nil
+	}
+	if err := buildJavaRuntimeJars(ctx); err != nil {
+		return "", err
+	}
+	if src := resolveJavaAgentSource(ctx); src != "" {
+		return src, nil
+	}
+	return "", fmt.Errorf("java agent jar not found after build")
+}
+
+func resolveJavaAgentSource(ctx stageContext) string {
+	runtimeDir, err := resolveJavaRuntimeDir(ctx)
+	if err != nil {
+		return ""
+	}
+	candidates := []string{
+		filepath.Join(runtimeDir, "agent", "target", javaAgentFileName),
+		filepath.Join(runtimeDir, "agent", javaAgentFileName),
+	}
+	for _, candidate := range candidates {
+		if fileExists(candidate) {
+			return candidate
+		}
+	}
+	return ""
+}
+
+func resolveJavaRuntimeDir(ctx stageContext) (string, error) {
+	rel := filepath.Join("runtime", "java")
 	candidates := []string{
 		filepath.Clean(filepath.Join(ctx.ProjectRoot, rel)),
 		filepath.Clean(filepath.Join(ctx.BaseDir, rel)),
@@ -272,28 +320,57 @@ func resolveJavaAssetsDir(ctx stageContext) (string, error) {
 			return candidate, nil
 		}
 	}
-	return "", fmt.Errorf("java assets directory not found")
+	return "", fmt.Errorf("java runtime directory not found")
 }
 
-func buildJavaWrapperJar(ctx stageContext) error {
-	assetsDir, err := resolveJavaAssetsDir(ctx)
+func isWritableDir(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil || !info.IsDir() {
+		return false
+	}
+	if os.Geteuid() == 0 {
+		return true
+	}
+	mode := info.Mode().Perm()
+	if stat, ok := info.Sys().(*syscall.Stat_t); ok {
+		if int(stat.Uid) == os.Geteuid() {
+			return mode&0o200 != 0
+		}
+		if int(stat.Gid) == os.Getegid() {
+			return mode&0o020 != 0
+		}
+	}
+	return mode&0o002 != 0
+}
+
+func buildJavaRuntimeJars(ctx stageContext) error {
+	runtimeDir, err := resolveJavaRuntimeDir(ctx)
 	if err != nil {
 		return err
 	}
 	if ctx.Verbose {
-		fmt.Printf("  Building Java wrapper jar in %s\n", assetsDir)
+		fmt.Printf("  Building Java runtime jars in %s\n", runtimeDir)
 	}
 
 	homeDir, _ := os.UserHomeDir()
 	args := []string{
 		"run",
 		"--rm",
-		"-v", fmt.Sprintf("%s:/work", assetsDir),
-		"-w", "/work",
 	}
+	if uid, gid := os.Getuid(), os.Getgid(); uid >= 0 && gid >= 0 {
+		args = append(args, "--user", fmt.Sprintf("%d:%d", uid, gid))
+	}
+	args = append(args,
+		"-v", fmt.Sprintf("%s:/src:ro", runtimeDir),
+		"-v", fmt.Sprintf("%s:/out", runtimeDir),
+	)
 	if homeDir != "" {
-		args = append(args, "-v", fmt.Sprintf("%s:/root/.m2", filepath.Join(homeDir, ".m2")))
+		m2Dir := filepath.Join(homeDir, ".m2")
+		if isWritableDir(m2Dir) {
+			args = append(args, "-v", fmt.Sprintf("%s:/tmp/m2", m2Dir))
+		}
 	}
+	args = append(args, "-e", "MAVEN_CONFIG=/tmp/m2", "-e", "HOME=/tmp")
 	for _, key := range []string{
 		"HTTP_PROXY",
 		"HTTPS_PROXY",
@@ -308,9 +385,18 @@ func buildJavaWrapperJar(ctx stageContext) error {
 			args = append(args, "-e", key+"="+value)
 		}
 	}
+	script := strings.Join([]string{
+		"set -euo pipefail",
+		"mkdir -p /tmp/work /tmp/m2 /out/wrapper /out/agent",
+		"cp -a /src/. /tmp/work",
+		"cd /tmp/work",
+		"mvn -q -DskipTests -pl wrapper,agent -am package",
+		"cp wrapper/target/lambda-java-wrapper.jar /out/wrapper/lambda-java-wrapper.jar",
+		"cp agent/target/lambda-java-agent.jar /out/agent/lambda-java-agent.jar",
+	}, "\n")
 	args = append(args,
 		"maven:3.9.6-eclipse-temurin-21",
-		"mvn", "-q", "-DskipTests", "package",
+		"bash", "-lc", script,
 	)
 
 	cmd := exec.Command("docker", args...)
@@ -325,9 +411,9 @@ func buildJavaWrapperJar(ctx stageContext) error {
 	cmd.Stderr = &output
 	if err := cmd.Run(); err != nil {
 		if errors.Is(err, exec.ErrNotFound) {
-			return fmt.Errorf("docker not found; install docker to build the Java wrapper")
+			return fmt.Errorf("docker not found; install docker to build the Java runtime jars")
 		}
-		return fmt.Errorf("java wrapper build failed: %w\n%s", err, output.String())
+		return fmt.Errorf("java runtime build failed: %w\n%s", err, output.String())
 	}
 	return nil
 }

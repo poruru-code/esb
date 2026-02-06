@@ -7,13 +7,13 @@ Why: Document log forwarding behavior for Lambda runtime images.
 
 ## 概要
 
-本基盤では、Lambda関数からの標準出力（stdout/stderr）およびログ（loggingモジュール）を、**アプリケーションコードの変更なしに** VictoriaLogs へ直接送信する仕組みを提供しています。
+本基盤では、Lambda関数からの標準出力（stdout/stderr）およびログ（loggingモジュール）を、**アプリケーションコードの変更なしに** VictoriaLogs へ直接送信する仕組みを提供しています。Python では `sitecustomize.py`、Java では `lambda-java-agent.jar` により実現します。
 
 以前は Fluentd (Docker Logging Driver) を使用していましたが、短命なコンテナにおけるログ欠損問題（Log Loss）を解決するため、プロセス内から直接 HTTP API を叩く **Direct Logging** 方式に移行しました。
 
 ## アーキテクチャ
 
-**`sitecustomize.py`** が Python プロセス起動時に自動ロードされ、以下のフックを適用します。
+**`sitecustomize.py`** が Python プロセス起動時に自動ロードされ、以下のフックを適用します。Java の場合は javaagent が同等の stdout/stderr フックを行います。
 
 ```mermaid
 flowchart TD
@@ -78,4 +78,5 @@ Dockerイメージのビルド時に `esb-lambda-base` に配置されます。�
 ---
 
 ## Implementation references
-- `cli/internal/infra/build/assets/python/site-packages/sitecustomize.py`
+- `runtime/python/hooks/site-packages/sitecustomize.py`
+- `runtime/java/agent/src/main/java/com/runtime/agent/logging/VictoriaLogsHook.java`

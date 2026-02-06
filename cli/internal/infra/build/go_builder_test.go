@@ -43,7 +43,10 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeTestFile(t, filepath.Join(repoRoot, "pyproject.toml"), "[project]\n")
-	writeTestFile(t, filepath.Join(repoRoot, "cli", "internal", "infra", "build", "assets", "Dockerfile.lambda-base"), "FROM scratch\n")
+	if err := os.MkdirAll(filepath.Join(repoRoot, "runtime", "python", "docker"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, filepath.Join(repoRoot, "runtime", "python", "docker", "Dockerfile.lambda-base"), "FROM scratch\n")
 	writeTestFile(t, filepath.Join(repoRoot, "services", "gateway", "Dockerfile.containerd"), "FROM scratch\n")
 	if err := os.MkdirAll(filepath.Join(repoRoot, "services", "agent"), 0o755); err != nil {
 		t.Fatal(err)

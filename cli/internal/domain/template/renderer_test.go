@@ -20,7 +20,7 @@ func TestRenderDockerfileSimple(t *testing.T) {
 		Runtime: "python3.12",
 	}
 	dockerConfig := DockerConfig{
-		SitecustomizeSource: "cli/internal/infra/build/assets/python/site-packages/sitecustomize.py",
+		SitecustomizeSource: "runtime/python/hooks/site-packages/sitecustomize.py",
 	}
 
 	content, err := RenderDockerfile(fn, dockerConfig, "", "latest")
@@ -31,7 +31,7 @@ func TestRenderDockerfileSimple(t *testing.T) {
 	if !strings.Contains(content, expectedBase) {
 		t.Fatalf("unexpected base image, expected %s, got: %s", expectedBase, content)
 	}
-	if !strings.Contains(content, "COPY cli/internal/infra/build/assets/python/site-packages/sitecustomize.py") {
+	if !strings.Contains(content, "COPY runtime/python/hooks/site-packages/sitecustomize.py") {
 		t.Fatalf("expected sitecustomize copy")
 	}
 	if !strings.Contains(content, "COPY functions/hello/") {
@@ -95,6 +95,15 @@ func TestRenderDockerfileJavaRuntime(t *testing.T) {
 			}
 			if !strings.Contains(content, "COPY functions/lambda-java/lambda-java-wrapper.jar /var/task/lib/lambda-java-wrapper.jar") {
 				t.Fatalf("expected java wrapper copy")
+			}
+			if !strings.Contains(content, "COPY functions/lambda-java/lambda-java-agent.jar /var/task/lib/lambda-java-agent.jar") {
+				t.Fatalf("expected java agent copy")
+			}
+			if !strings.Contains(content, "ENV JAVA_AGENT_PRESENT=1") {
+				t.Fatalf("expected java agent flag")
+			}
+			if !strings.Contains(content, "ENV JAVA_TOOL_OPTIONS=\"-javaagent:/var/task/lib/lambda-java-agent.jar") {
+				t.Fatalf("expected java tool options with agent")
 			}
 			if !strings.Contains(content, `CMD [ "com.runtime.lambda.HandlerWrapper::handleRequest" ]`) {
 				t.Fatalf("expected wrapper handler command")

@@ -161,7 +161,7 @@ async def do_post():
 
 ### 4. sitecustomize.py (自動注入・自動復元)
 
-**ファイル**: `cli/internal/infra/build/assets/python/site-packages/sitecustomize.py`
+**ファイル**: `runtime/python/hooks/site-packages/sitecustomize.py`
 
 本基盤環境では、Pythonプロセス起動時に `sitecustomize.py` が自動的にロードされ、以下のパッチを適用します。これにより**アプリケーションコードへの変更は一切不要**です。
 
@@ -206,12 +206,24 @@ client.meta.events.register(
 
 ---
 
+### 5. Java Runtime (javaagent)
+
+**ファイル**: `runtime/java/agent/`
+
+Java ランタイムでは `lambda-java-agent.jar` が `JAVA_TOOL_OPTIONS` で自動注入され、以下を行います。
+
+- `LambdaClient#invoke()` 呼び出し時に `ClientContext.custom.trace_id` を自動注入
+- `TraceContext` から Trace ID / Request ID を取得し、ログや送信に付与
+- アプリケーションコードへの変更は不要
+
 ## Implementation references
 - `services/gateway/main.py`
 - `services/common/core/trace.py`
 - `services/common/core/request_context.py`
 - `services/gateway/services/lambda_invoker.py`
-- `cli/internal/infra/build/assets/python/site-packages/sitecustomize.py`
+- `runtime/python/hooks/site-packages/sitecustomize.py`
+- `runtime/java/wrapper/src/com/runtime/lambda/HandlerWrapper.java`
+- `runtime/java/agent/src/main/java/com/runtime/agent/AgentMain.java`
 
 ---
 

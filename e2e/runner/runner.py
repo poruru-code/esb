@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import os
-import shutil
 import socket
 import subprocess
 import threading
@@ -498,7 +497,6 @@ def _build_java_project(project_dir: Path, *, verbose: bool = False) -> None:
     cmd = _docker_maven_command(project_dir)
     result = subprocess.run(
         cmd,
-        cwd=str(project_dir),
         capture_output=not verbose,
         text=True,
         check=False,
@@ -509,27 +507,9 @@ def _build_java_project(project_dir: Path, *, verbose: bool = False) -> None:
             details = f"\n{result.stdout}\n{result.stderr}".rstrip()
         raise RuntimeError(f"Java fixture build failed: {project_dir}{details}")
 
-    target_dir = project_dir / "target"
-    jar_path = _select_java_jar(target_dir)
-    if not jar_path:
-        raise RuntimeError(f"Java fixture jar not found in {target_dir}")
-    shutil.copy2(jar_path, project_dir / "app.jar")
-
-
-def _select_java_jar(target_dir: Path) -> Path | None:
-    if not target_dir.exists():
-        return None
-    candidates = [
-        path
-        for path in target_dir.glob("*.jar")
-        if not path.name.endswith(("-sources.jar", "-javadoc.jar"))
-    ]
-    if not candidates:
-        return None
-    if len(candidates) == 1:
-        return candidates[0]
-    candidates.sort(key=lambda p: p.stat().st_size, reverse=True)
-    return candidates[0]
+    jar_path = project_dir / "app.jar"
+    if not jar_path.exists():
+        raise RuntimeError(f"Java fixture jar not found in {project_dir}")
 
 
 def _docker_maven_command(project_dir: Path) -> list[str]:
@@ -537,14 +517,17 @@ def _docker_maven_command(project_dir: Path) -> list[str]:
         "docker",
         "run",
         "--rm",
-        "-v",
-        f"{project_dir}:/work",
-        "-w",
-        "/work",
     ]
+    getuid = getattr(os, "getuid", None)
+    getgid = getattr(os, "getgid", None)
+    if callable(getuid) and callable(getgid):
+        cmd.extend(["--user", f"{getuid()}:{getgid()}"])
+    cmd.extend(["-v", f"{project_dir}:/src:ro", "-v", f"{project_dir}:/out"])
     home_dir = Path.home()
-    if home_dir.exists():
-        cmd.extend(["-v", f"{home_dir / '.m2'}:/root/.m2"])
+    m2_dir = home_dir / ".m2"
+    if m2_dir.exists() and os.access(m2_dir, os.W_OK):
+        cmd.extend(["-v", f"{m2_dir}:/tmp/m2"])
+    cmd.extend(["-e", "MAVEN_CONFIG=/tmp/m2", "-e", "HOME=/tmp"])
     for key in (
         "HTTP_PROXY",
         "HTTPS_PROXY",
@@ -558,13 +541,25 @@ def _docker_maven_command(project_dir: Path) -> list[str]:
         value = os.environ.get(key)
         if value:
             cmd.extend(["-e", f"{key}={value}"])
+    script = "\n".join(
+        [
+            "set -euo pipefail",
+            "mkdir -p /tmp/work /tmp/m2 /out",
+            "cp -a /src/. /tmp/work",
+            "cd /tmp/work",
+            "mvn -q -DskipTests package",
+            "jar=$(ls -S target/*.jar 2>/dev/null | "
+            "grep -vE '(-sources|-javadoc)\\.jar$' | head -n 1 || true)",
+            'if [ -z "$jar" ]; then echo "jar not found in target" >&2; exit 1; fi',
+            'cp "$jar" /out/app.jar',
+        ]
+    )
     cmd.extend(
         [
             "maven:3.9.6-eclipse-temurin-21",
-            "mvn",
-            "-q",
-            "-DskipTests",
-            "package",
+            "bash",
+            "-lc",
+            script,
         ]
     )
     return cmd

@@ -1,4 +1,4 @@
-// Where: cli/internal/infra/build/assets/java/src/com/runtime/lambda/HandlerWrapper.java
+// Where: runtime/java/wrapper/src/com/runtime/lambda/HandlerWrapper.java
 // What: Java Lambda handler wrapper for logging/trace hooks.
 // Why: Provide brand-neutral runtime hooks and handler delegation.
 package com.runtime.lambda;
@@ -31,13 +31,12 @@ import java.util.Map;
 public final class HandlerWrapper implements RequestStreamHandler {
     private static final String ENV_ORIGINAL_HANDLER = "LAMBDA_ORIGINAL_HANDLER";
     private static final String ENV_VICTORIALOGS_URL = "VICTORIALOGS_URL";
+    private static final String ENV_JAVA_AGENT_PRESENT = "JAVA_AGENT_PRESENT";
     private static final String ENV_FUNCTION_NAME = "AWS_LAMBDA_FUNCTION_NAME";
     private static final String DEFAULT_FUNCTION_NAME = "lambda-unknown";
     private static final String DEFAULT_JOB = "lambda";
 
     private static final ObjectMapper MAPPER = new ObjectMapper().findAndRegisterModules();
-    private static final ThreadLocal<String> TRACE_ID = new ThreadLocal<>();
-    private static final ThreadLocal<String> REQUEST_ID = new ThreadLocal<>();
 
     @Override
     public void handleRequest(InputStream input, OutputStream output, Context context) throws IOException {
@@ -47,16 +46,18 @@ public final class HandlerWrapper implements RequestStreamHandler {
         }
 
         byte[] payload = readPayload(input);
-        TRACE_ID.set(resolveTraceId(context, payload));
-        REQUEST_ID.set(context == null ? null : context.getAwsRequestId());
+        TraceContext.set(resolveTraceId(context, payload), context == null ? null : context.getAwsRequestId());
 
         PrintStream originalOut = System.out;
         PrintStream originalErr = System.err;
 
-        VictoriaLogsClient logClient = new VictoriaLogsClient(getenvTrim(ENV_VICTORIALOGS_URL));
+        boolean agentPresent = getenvTrim(ENV_JAVA_AGENT_PRESENT) != null;
+        VictoriaLogsClient logClient = new VictoriaLogsClient(
+                agentPresent ? null : getenvTrim(ENV_VICTORIALOGS_URL)
+        );
         PrintStream hookedOut = originalOut;
         PrintStream hookedErr = originalErr;
-        if (logClient.isEnabled()) {
+        if (!agentPresent && logClient.isEnabled()) {
             hookedOut = new PrintStream(new TeeOutputStream(originalOut, logClient), true, StandardCharsets.UTF_8);
             hookedErr = new PrintStream(new TeeOutputStream(originalErr, logClient), true, StandardCharsets.UTF_8);
             System.setOut(hookedOut);
@@ -77,8 +78,7 @@ public final class HandlerWrapper implements RequestStreamHandler {
             } catch (Exception ignored) {
                 // best effort
             }
-            TRACE_ID.remove();
-            REQUEST_ID.remove();
+            TraceContext.clear();
         }
     }
 
@@ -341,11 +341,11 @@ public final class HandlerWrapper implements RequestStreamHandler {
     }
 
     private static String currentTraceId() {
-        return TRACE_ID.get();
+        return TraceContext.traceId();
     }
 
     private static String currentRequestId() {
-        return REQUEST_ID.get();
+        return TraceContext.requestId();
     }
 
     private static String getenvTrim(String key) {

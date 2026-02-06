@@ -76,6 +76,7 @@ sequenceDiagram
    - 画像名は関数名から Docker 安全名へ正規化
    - 画像フィンガープリントが一致する場合はスキップ
    - Java の `Handler` は `lambda-java-wrapper.jar` に差し替えられ、元の Handler は `LAMBDA_ORIGINAL_HANDLER` に保存されます
+   - Java では `lambda-java-agent.jar` を `JAVA_TOOL_OPTIONS` で注入し、AWS SDK の挙動変更とログ送信を行います
 
 ## イメージ命名規則
 

@@ -14,6 +14,7 @@ import (
 
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/runtime"
 	"github.com/poruru/edge-serverless-box/meta"
+	runtimeassets "github.com/poruru/edge-serverless-box/runtime"
 
 	"github.com/Masterminds/sprig/v3"
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/manifest"
@@ -21,7 +22,7 @@ import (
 )
 
 // DefaultSitecustomizeSource is the default sitecustomize.py path used by the build pipeline.
-const DefaultSitecustomizeSource = "cli/internal/infra/build/assets/python/site-packages/sitecustomize.py"
+const DefaultSitecustomizeSource = "runtime/python/hooks/site-packages/sitecustomize.py"
 
 //go:embed templates/*.tmpl
 var templateFS embed.FS
@@ -63,11 +64,17 @@ func RenderDockerfile(
 	originalHandler := ""
 	useJavaWrapper := false
 	javaWrapperSource := ""
+	useJavaAgent := false
+	javaAgentSource := ""
 	if profile.UsesJavaWrapper {
 		originalHandler = handler
 		handler = "com.runtime.lambda.HandlerWrapper::handleRequest"
 		useJavaWrapper = true
 		javaWrapperSource = path.Join("functions", fn.Name, "lambda-java-wrapper.jar")
+		if profile.UsesJavaAgent {
+			useJavaAgent = true
+			javaAgentSource = path.Join("functions", fn.Name, "lambda-java-agent.jar")
+		}
 	}
 
 	data := dockerfileTemplateData{
@@ -78,6 +85,8 @@ func RenderDockerfile(
 		UsePip:              profile.UsesPip && fn.HasRequirements,
 		UseJavaWrapper:      useJavaWrapper,
 		JavaWrapperSource:   javaWrapperSource,
+		UseJavaAgent:        useJavaAgent,
+		JavaAgentSource:     javaAgentSource,
 		OriginalHandler:     originalHandler,
 		CodeURI:             fn.CodeURI,
 		Handler:             handler,
@@ -187,12 +196,24 @@ func loadTemplate(name string) (*template.Template, error) {
 		}
 		return cached, nil
 	}
-	tmpl, err := template.New(name).Funcs(sprig.TxtFuncMap()).ParseFS(templateFS, "templates/"+name)
+	fs, pathName := resolveTemplateSource(name)
+	tmpl, err := template.New(name).Funcs(sprig.TxtFuncMap()).ParseFS(fs, pathName)
 	if err != nil {
 		return nil, err
 	}
 	templateCache.Store(name, tmpl)
 	return tmpl, nil
+}
+
+func resolveTemplateSource(name string) (embed.FS, string) {
+	switch name {
+	case "dockerfile_python.tmpl":
+		return runtimeassets.TemplatesFS, "python/templates/dockerfile_python.tmpl"
+	case "dockerfile_java.tmpl":
+		return runtimeassets.TemplatesFS, "java/templates/dockerfile_java.tmpl"
+	default:
+		return templateFS, "templates/" + name
+	}
 }
 
 type dockerfileTemplateData struct {
@@ -203,6 +224,8 @@ type dockerfileTemplateData struct {
 	UsePip              bool
 	UseJavaWrapper      bool
 	JavaWrapperSource   string
+	UseJavaAgent        bool
+	JavaAgentSource     string
 	OriginalHandler     string
 	CodeURI             string
 	Handler             string

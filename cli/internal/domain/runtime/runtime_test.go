@@ -41,6 +41,9 @@ func TestResolveJava21(t *testing.T) {
 	if !profile.UsesJavaWrapper {
 		t.Fatalf("expected java wrapper to be enabled")
 	}
+	if !profile.UsesJavaAgent {
+		t.Fatalf("expected java agent to be enabled")
+	}
 	if profile.JavaBaseImage != "public.ecr.aws/lambda/java:21" {
 		t.Fatalf("expected java base image, got %s", profile.JavaBaseImage)
 	}

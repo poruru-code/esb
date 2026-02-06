@@ -26,10 +26,10 @@ Resources:
       FunctionName: lambda-connectivity
       CodeUri: functions/python/connectivity/
       Events:
-        HelloApi:
+        ConnectivityApi:
           Type: Api
           Properties:
-            Path: /api/hello
+            Path: /api/connectivity/python
             Method: post
 
   IntegrationFunction:
@@ -127,6 +127,26 @@ Resources:
           Properties:
             Path: /api/echo-java
             Method: post
+
+  JavaConnectivityFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lambda-connectivity-java
+      Runtime: java21
+      Handler: com.fixtures.connectivity.Handler::handleRequest
+      CodeUri: functions/java/connectivity/app.jar
+      Layers: []
+      Events:
+        JavaConnectivityApi:
+          Type: Api
+          Properties:
+            Path: /api/connectivity/java
+            Method: post
+      Environment:
+        Variables:
+          DYNAMODB_ENDPOINT: "http://${DYNAMODB_ENDPOINT_HOST}:8000"
+          S3_ENDPOINT: "http://${S3_ENDPOINT_HOST}:9000"
+          E2E_TABLE_NAME: "e2e-test-table"
 
   ChaosFunction:
     Type: AWS::Serverless::Function

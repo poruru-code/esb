@@ -1,5 +1,5 @@
 """
-Where: e2e/scenarios/standard/test_java_echo.py
+Where: e2e/scenarios/runtime/java/test_echo.py
 What: Java echo Lambda E2E tests.
 Why: Validate Java runtime fixtures and basic invocation behavior.
 """
