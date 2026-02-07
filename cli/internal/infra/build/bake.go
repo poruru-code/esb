@@ -82,8 +82,33 @@ func runBakeGroup(
 			return runner.Run(ctx, repoRoot, "docker", args...)
 		}
 		args = append(args, groupName)
-		return runner.RunQuiet(ctx, repoRoot, "docker", args...)
+		output, err := runner.RunOutput(ctx, repoRoot, "docker", args...)
+		if err != nil {
+			trimmed := strings.TrimSpace(string(output))
+			if trimmed == "" {
+				return err
+			}
+			if hint := buildxHint(trimmed); hint != "" {
+				return fmt.Errorf("buildx bake failed: %w\n%s\n%s", err, trimmed, hint)
+			}
+			return fmt.Errorf("buildx bake failed: %w\n%s", err, trimmed)
+		}
+		return nil
 	})
+}
+
+func buildxHint(output string) string {
+	if output == "" {
+		return ""
+	}
+	normalized := strings.ToLower(output)
+	if !strings.Contains(normalized, "public.ecr.aws") {
+		return ""
+	}
+	if strings.Contains(normalized, "403") || strings.Contains(normalized, "forbidden") || strings.Contains(normalized, "unauthorized") {
+		return "Hint: public.ecr.aws denied the request. Docker credentials may be stale. Try 'docker logout public.ecr.aws' and retry, or login via 'aws ecr-public get-login-password'."
+	}
+	return ""
 }
 
 func writeBakeFile(groupName string, targets []bakeTarget) (string, error) {

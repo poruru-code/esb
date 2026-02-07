@@ -51,6 +51,7 @@ type Request struct {
 	BuildOnly      bool
 	BundleManifest bool
 	ImagePrewarm   string
+	Emoji          bool
 }
 
 // RegistryWaiter checks registry readiness.
@@ -168,6 +169,7 @@ func (w Workflow) Run(req Request) error {
 		NoCache:      req.NoCache,
 		Verbose:      req.Verbose,
 		Bundle:       req.BundleManifest,
+		Emoji:        req.Emoji,
 	}
 
 	if err := w.Build(buildRequest); err != nil {
@@ -242,9 +244,9 @@ func (w Workflow) Run(req Request) error {
 
 	if w.UserInterface != nil {
 		if req.BuildOnly {
-			w.UserInterface.Success("✓ Build complete")
+			w.UserInterface.Success("Build complete")
 		} else {
-			w.UserInterface.Success("✓ Deploy complete")
+			w.UserInterface.Success("Deploy complete")
 		}
 	}
 	return nil

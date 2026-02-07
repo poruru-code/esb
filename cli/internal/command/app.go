@@ -52,7 +52,9 @@ type (
 		NoCache      bool     `name:"no-cache" help:"Do not use cache when building images"`
 		NoDeps       bool     `name:"no-deps" help:"Do not start dependent services when running provisioner (default)"`
 		WithDeps     bool     `name:"with-deps" help:"Start dependent services when running provisioner"`
-		Verbose      bool     `short:"v" help:"Verbose output (default)" default:"true"`
+		Verbose      bool     `short:"v" help:"Verbose output"`
+		Emoji        bool     `name:"emoji" help:"Enable emoji output (default: auto)"`
+		NoEmoji      bool     `name:"no-emoji" help:"Disable emoji output"`
 		Force        bool     `help:"Allow environment mismatch with running gateway (skip auto-alignment)"`
 		NoSave       bool     `name:"no-save-defaults" help:"Do not persist deploy defaults"`
 	}

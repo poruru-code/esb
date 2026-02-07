@@ -38,15 +38,42 @@ def parse_args():
         help="Run environments in parallel (e.g., e2e-docker and e2e-containerd simultaneously)",
     )
     parser.add_argument(
-        "--no-verbose",
-        dest="verbose",
-        action="store_false",
-        default=True,
-        help="Reduce log output (default: verbose on)",
+        "--verbose",
+        action="store_true",
+        help="Enable verbose output",
+    )
+    parser.add_argument(
+        "--color",
+        dest="color",
+        action="store_const",
+        const=True,
+        help="Force color output",
+    )
+    parser.add_argument(
+        "--no-color",
+        dest="color",
+        action="store_const",
+        const=False,
+        help="Disable color output",
+    )
+    parser.add_argument(
+        "--emoji",
+        dest="emoji",
+        action="store_const",
+        const=True,
+        help="Force emoji output",
+    )
+    parser.add_argument(
+        "--no-emoji",
+        dest="emoji",
+        action="store_const",
+        const=False,
+        help="Disable emoji output",
     )
     parser.add_argument(
         "--no-cache",
         action="store_true",
         help="Disable build cache (pass --no-cache to deploy)",
     )
+    parser.set_defaults(color=None, emoji=None)
     return parser.parse_args()

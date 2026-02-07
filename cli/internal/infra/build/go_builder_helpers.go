@@ -203,7 +203,6 @@ func buildFunctionImages(
 	proxyArgs := dockerBuildArgMap()
 	expectedFingerprint := strings.TrimSpace(labels[compose.ESBImageFingerprintLabel])
 	bakeTargets := make([]bakeTarget, 0, len(functions))
-	builtFunctions := make([]string, 0, len(functions))
 	for _, fn := range functions {
 		if strings.TrimSpace(fn.ImageSource) != "" {
 			if verbose {
@@ -238,8 +237,6 @@ func buildFunctionImages(
 				skipBuild = true
 				if verbose {
 					fmt.Printf("  Skipping %s (up-to-date)\n", fn.Name)
-				} else {
-					fmt.Printf("  - Skipped function image (up-to-date): %s\n", fn.Name)
 				}
 			}
 		}
@@ -255,7 +252,6 @@ func buildFunctionImages(
 				NoCache:    noCache,
 			}
 			bakeTargets = append(bakeTargets, target)
-			builtFunctions = append(builtFunctions, fn.Name)
 		}
 	}
 
@@ -270,11 +266,6 @@ func buildFunctionImages(
 			verbose,
 		); err != nil {
 			return err
-		}
-		if !verbose {
-			for _, name := range builtFunctions {
-				fmt.Printf("  - Built function image: %s\n", name)
-			}
 		}
 	}
 	return nil

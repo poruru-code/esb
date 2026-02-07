@@ -42,9 +42,17 @@ class LogSink:
             self._file.flush()
 
 
-def make_prefix_printer(prefix: str) -> Callable[[str], None]:
+def make_prefix_printer(
+    label: str, phase: str | None = None, *, width: int = 0
+) -> Callable[[str], None]:
+    formatted = label.ljust(width) if width > 0 else label
+    if phase:
+        prefix = f"[{formatted}][{phase}] |"
+    else:
+        prefix = f"[{formatted}]"
+
     def _printer(line: str) -> None:
-        safe_print(line, prefix=f"[{prefix}]")
+        safe_print(line, prefix=prefix)
 
     return _printer
 

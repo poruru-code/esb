@@ -16,4 +16,5 @@ type BuildRequest struct {
 	NoCache      bool
 	Verbose      bool
 	Bundle       bool
+	Emoji        bool
 }

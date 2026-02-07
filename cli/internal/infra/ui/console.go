@@ -6,22 +6,29 @@ package ui
 import (
 	"fmt"
 	"io"
+	"strings"
 )
 
 // Console provides helper methods for formatted output.
 type Console struct {
-	Out io.Writer
+	Out          io.Writer
+	EmojiEnabled bool
 }
 
 // New creates a new Console writing to the provided writer.
 func New(out io.Writer) *Console {
-	return &Console{Out: out}
+	return &Console{Out: out, EmojiEnabled: true}
+}
+
+// NewWithEmoji creates a new Console with explicit emoji settings.
+func NewWithEmoji(out io.Writer, enabled bool) *Console {
+	return &Console{Out: out, EmojiEnabled: enabled}
 }
 
 // Header prints a section header with an emoji.
 // Example: 🔑 Authentication credentials.
 func (c *Console) Header(emoji, title string) {
-	fmt.Fprintf(c.Out, "%s %s\n", emoji, title)
+	fmt.Fprintf(c.Out, "%s%s\n", c.emojiPrefix(emoji), title)
 }
 
 // BlockStart starts a logical block of information with an emoji header.
@@ -53,7 +60,11 @@ func (c *Console) ItemPlain(msg string) {
 
 // Success prints a success message with a checkmark.
 func (c *Console) Success(msg string) {
-	fmt.Fprintf(c.Out, "✅ %s\n", msg)
+	prefix := c.emojiPrefix("✅")
+	if prefix == "" {
+		prefix = "[ok] "
+	}
+	fmt.Fprintf(c.Out, "%s%s\n", prefix, msg)
 }
 
 // Info prints an info message.
@@ -63,5 +74,16 @@ func (c *Console) Info(msg string) {
 
 // Warn prints a warning message with an emoji.
 func (c *Console) Warn(msg string) {
-	fmt.Fprintf(c.Out, "⚠️ %s\n", msg)
+	prefix := c.emojiPrefix("⚠️")
+	if prefix == "" {
+		prefix = "[warn] "
+	}
+	fmt.Fprintf(c.Out, "%s%s\n", prefix, msg)
+}
+
+func (c *Console) emojiPrefix(emoji string) string {
+	if !c.EmojiEnabled || strings.TrimSpace(emoji) == "" {
+		return ""
+	}
+	return emoji + " "
 }

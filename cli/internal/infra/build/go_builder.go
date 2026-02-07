@@ -145,6 +145,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		compose.ESBManagedLabel:       "true",
 		compose.ESBCAFingerprintLabel: rootFingerprint,
 	}
+	phase := newPhaseReporter(request.Verbose, request.Emoji)
 
 	if request.Verbose {
 		fmt.Println("Generating files...")
@@ -154,10 +155,6 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		for k, v := range cfg.Parameters {
 			fmt.Printf("  %s: %v\n", k, v)
 		}
-	}
-
-	if !request.Verbose {
-		fmt.Print("Generating files... ")
 	}
 
 	cfg.Parameters = toAnyMap(defaultGeneratorParameters())
@@ -222,159 +219,126 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	); err != nil {
 		return err
 	}
-	functions, err := b.Generate(cfg, GenerateOptions{
-		ProjectRoot:     repoRoot,
-		Registry:        runtimeRegistry,
-		BuildRegistry:   registryForPush,
-		RuntimeRegistry: runtimeRegistry,
-		Tag:             imageTag,
-		Parameters:      request.Parameters,
-		Verbose:         request.Verbose,
-	})
-	if err != nil {
-		if !request.Verbose {
-			fmt.Println("Failed")
-		}
-		return err
-	}
-	if !request.Verbose {
-		fmt.Println("Done")
-	}
 
-	if err := stageConfigFiles(cfg.Paths.OutputDir, repoRoot, templatePath, composeProject, request.Env); err != nil {
+	var functions []template.FunctionSpec
+	if err := phase.Run("Generate config", func() error {
+		generated, err := b.Generate(cfg, GenerateOptions{
+			ProjectRoot:     repoRoot,
+			Registry:        runtimeRegistry,
+			BuildRegistry:   registryForPush,
+			RuntimeRegistry: runtimeRegistry,
+			Tag:             imageTag,
+			Parameters:      request.Parameters,
+			Verbose:         request.Verbose,
+		})
+		if err != nil {
+			return err
+		}
+		functions = generated
+		if err := stageConfigFiles(cfg.Paths.OutputDir, repoRoot, templatePath, composeProject, request.Env); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
 		return err
 	}
 
 	lambdaBaseTag := lambdaBaseImageTag(registryForPush, imageTag)
 	lambdaTags := []string{lambdaBaseTag}
 
-	if err := withBuildLock(lockRoot, "base-images", func() error {
-		proxyArgs := dockerBuildArgMap()
-		commonDir := filepath.Join(repoRoot, "services", "common")
+	if err := phase.Run("Build base images", func() error {
+		return withBuildLock(lockRoot, "base-images", func() error {
+			proxyArgs := dockerBuildArgMap()
+			commonDir := filepath.Join(repoRoot, "services", "common")
 
-		if !request.Verbose {
-			fmt.Print("Building base image... ")
-		}
-		buildLambda := true
-		buildOs := true
-		buildPython := true
+			buildOs := true
+			buildPython := true
 
-		osBaseTag := fmt.Sprintf("%s-os-base:latest", meta.ImagePrefix)
-		if !request.NoCache && dockerImageHasLabelValue(context.Background(), b.Runner, repoRoot, osBaseTag, compose.ESBCAFingerprintLabel, rootFingerprint) {
-			buildOs = false
-			if request.Verbose {
-				fmt.Println("Skipping OS base image build (already exists).")
-			} else {
-				fmt.Print("Building OS base image... ")
-				fmt.Println("Skipped")
+			osBaseTag := fmt.Sprintf("%s-os-base:latest", meta.ImagePrefix)
+			if !request.NoCache && dockerImageHasLabelValue(context.Background(), b.Runner, repoRoot, osBaseTag, compose.ESBCAFingerprintLabel, rootFingerprint) {
+				buildOs = false
+				if request.Verbose {
+					fmt.Println("Skipping OS base image build (already exists).")
+				}
 			}
-		} else if !request.Verbose {
-			fmt.Print("Building OS base image... ")
-		}
 
-		pythonBaseTag := fmt.Sprintf("%s-python-base:latest", meta.ImagePrefix)
-		if !request.NoCache && dockerImageHasLabelValue(context.Background(), b.Runner, repoRoot, pythonBaseTag, compose.ESBCAFingerprintLabel, rootFingerprint) {
-			buildPython = false
-			if request.Verbose {
-				fmt.Println("Skipping Python base image build (already exists).")
-			} else {
-				fmt.Print("Building Python base image... ")
-				fmt.Println("Skipped")
+			pythonBaseTag := fmt.Sprintf("%s-python-base:latest", meta.ImagePrefix)
+			if !request.NoCache && dockerImageHasLabelValue(context.Background(), b.Runner, repoRoot, pythonBaseTag, compose.ESBCAFingerprintLabel, rootFingerprint) {
+				buildPython = false
+				if request.Verbose {
+					fmt.Println("Skipping Python base image build (already exists).")
+				}
 			}
-		} else if !request.Verbose {
-			fmt.Print("Building Python base image... ")
-		}
 
-		lambdaTarget := bakeTarget{
-			Name:    "lambda-base",
-			Tags:    lambdaTags,
-			Outputs: resolveBakeOutputs(registryForPush, true, includeDockerOutput),
-			Labels:  imageLabels,
-			Args:    proxyArgs,
-			NoCache: request.NoCache,
-		}
-
-		baseTargets := []bakeTarget{lambdaTarget}
-		rootCAPath := ""
-		if buildOs || buildPython {
-			path, err := resolveRootCAPath()
-			if err != nil {
-				return err
-			}
-			rootCAPath = path
-		}
-		if buildOs {
-			osTarget := bakeTarget{
-				Name:       "os-base",
-				Context:    commonDir,
-				Dockerfile: filepath.Join(commonDir, "Dockerfile.os-base"),
-				Tags:       []string{osBaseTag},
-				Outputs:    resolveBakeOutputs(registryForPush, false, includeDockerOutput),
-				Labels:     baseImageLabels,
-				Args: mergeStringMap(proxyArgs, map[string]string{
-					constants.BuildArgCAFingerprint: rootFingerprint,
-					"ROOT_CA_MOUNT_ID":              meta.RootCAMountID,
-					"ROOT_CA_CERT_FILENAME":         meta.RootCACertFilename,
-				}),
-				Secrets: []string{fmt.Sprintf("id=%s,src=%s", meta.RootCAMountID, rootCAPath)},
+			lambdaTarget := bakeTarget{
+				Name:    "lambda-base",
+				Tags:    lambdaTags,
+				Outputs: resolveBakeOutputs(registryForPush, true, includeDockerOutput),
+				Labels:  imageLabels,
+				Args:    proxyArgs,
 				NoCache: request.NoCache,
 			}
-			baseTargets = append(baseTargets, osTarget)
-		}
-		if buildPython {
-			pythonTarget := bakeTarget{
-				Name:       "python-base",
-				Context:    commonDir,
-				Dockerfile: filepath.Join(commonDir, "Dockerfile.python-base"),
-				Tags:       []string{pythonBaseTag},
-				Outputs:    resolveBakeOutputs(registryForPush, false, includeDockerOutput),
-				Labels:     baseImageLabels,
-				Args: mergeStringMap(proxyArgs, map[string]string{
-					constants.BuildArgCAFingerprint: rootFingerprint,
-					"ROOT_CA_MOUNT_ID":              meta.RootCAMountID,
-					"ROOT_CA_CERT_FILENAME":         meta.RootCACertFilename,
-				}),
-				Secrets: []string{fmt.Sprintf("id=%s,src=%s", meta.RootCAMountID, rootCAPath)},
-				NoCache: request.NoCache,
-			}
-			baseTargets = append(baseTargets, pythonTarget)
-		}
 
-		if err := runBakeGroup(
-			context.Background(),
-			b.Runner,
-			repoRoot,
-			lockRoot,
-			"esb-base",
-			baseTargets,
-			request.Verbose,
-		); err != nil {
-			if !request.Verbose {
-				if buildLambda {
-					fmt.Println("Failed")
+			baseTargets := []bakeTarget{lambdaTarget}
+			rootCAPath := ""
+			if buildOs || buildPython {
+				path, err := resolveRootCAPath()
+				if err != nil {
+					return err
 				}
-				if buildOs {
-					fmt.Println("Failed")
-				}
-				if buildPython {
-					fmt.Println("Failed")
-				}
-			}
-			return err
-		}
-
-		if !request.Verbose {
-			if buildLambda {
-				fmt.Println("Done")
+				rootCAPath = path
 			}
 			if buildOs {
-				fmt.Println("Done")
+				osTarget := bakeTarget{
+					Name:       "os-base",
+					Context:    commonDir,
+					Dockerfile: filepath.Join(commonDir, "Dockerfile.os-base"),
+					Tags:       []string{osBaseTag},
+					Outputs:    resolveBakeOutputs(registryForPush, false, includeDockerOutput),
+					Labels:     baseImageLabels,
+					Args: mergeStringMap(proxyArgs, map[string]string{
+						constants.BuildArgCAFingerprint: rootFingerprint,
+						"ROOT_CA_MOUNT_ID":              meta.RootCAMountID,
+						"ROOT_CA_CERT_FILENAME":         meta.RootCACertFilename,
+					}),
+					Secrets: []string{fmt.Sprintf("id=%s,src=%s", meta.RootCAMountID, rootCAPath)},
+					NoCache: request.NoCache,
+				}
+				baseTargets = append(baseTargets, osTarget)
 			}
 			if buildPython {
-				fmt.Println("Done")
+				pythonTarget := bakeTarget{
+					Name:       "python-base",
+					Context:    commonDir,
+					Dockerfile: filepath.Join(commonDir, "Dockerfile.python-base"),
+					Tags:       []string{pythonBaseTag},
+					Outputs:    resolveBakeOutputs(registryForPush, false, includeDockerOutput),
+					Labels:     baseImageLabels,
+					Args: mergeStringMap(proxyArgs, map[string]string{
+						constants.BuildArgCAFingerprint: rootFingerprint,
+						"ROOT_CA_MOUNT_ID":              meta.RootCAMountID,
+						"ROOT_CA_CERT_FILENAME":         meta.RootCACertFilename,
+					}),
+					Secrets: []string{fmt.Sprintf("id=%s,src=%s", meta.RootCAMountID, rootCAPath)},
+					NoCache: request.NoCache,
+				}
+				baseTargets = append(baseTargets, pythonTarget)
 			}
-		}
-		return nil
+
+			if err := runBakeGroup(
+				context.Background(),
+				b.Runner,
+				repoRoot,
+				lockRoot,
+				"esb-base",
+				baseTargets,
+				request.Verbose,
+			); err != nil {
+				return err
+			}
+
+			return nil
+		})
 	}); err != nil {
 		return err
 	}
@@ -399,30 +363,30 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	}
 	functionLabels[compose.ESBKindLabel] = "function"
 
-	if !request.Verbose {
-		fmt.Printf("Building function images (%d functions)...\n", len(functions))
-	}
-	if err := buildFunctionImages(
-		context.Background(),
-		b.Runner,
-		repoRoot,
-		lockRoot,
-		cfg.Paths.OutputDir,
-		functions,
-		registryForPush,
-		imageTag,
-		request.NoCache,
-		request.Verbose,
-		functionLabels,
-		includeDockerOutput,
-	); err != nil {
-		if !request.Verbose {
-			fmt.Printf("Building function images (%d functions)... Failed\n", len(functions))
+	buildCount := 0
+	for _, fn := range functions {
+		if strings.TrimSpace(fn.ImageSource) == "" {
+			buildCount++
 		}
-		return err
 	}
-	if !request.Verbose {
-		fmt.Printf("Building function images (%d functions)... Done\n", len(functions))
+	label := fmt.Sprintf("Build function images (%d)", buildCount)
+	if err := phase.Run(label, func() error {
+		return buildFunctionImages(
+			context.Background(),
+			b.Runner,
+			repoRoot,
+			lockRoot,
+			cfg.Paths.OutputDir,
+			functions,
+			registryForPush,
+			imageTag,
+			request.NoCache,
+			request.Verbose,
+			functionLabels,
+			includeDockerOutput,
+		)
+	}); err != nil {
+		return err
 	}
 	// Control plane images are now built separately via `esb build-infra` or docker compose
 	// Only function images are built during deploy
@@ -518,4 +482,53 @@ func waitForRegistry(registry string, timeout time.Duration) error {
 		time.Sleep(500 * time.Millisecond)
 	}
 	return fmt.Errorf("registry not responding at %s", url)
+}
+
+type phaseReporter struct {
+	verbose bool
+	emoji   bool
+}
+
+func newPhaseReporter(verbose, emoji bool) phaseReporter {
+	return phaseReporter{verbose: verbose, emoji: emoji}
+}
+
+func (p phaseReporter) Run(label string, fn func() error) error {
+	start := time.Now()
+	err := fn()
+	if p.verbose {
+		return err
+	}
+	duration := time.Since(start)
+	ok := err == nil
+	status := "ok"
+	if !ok {
+		status = "failed"
+	}
+	prefix := p.prefix(ok)
+	fmt.Printf("%s%s ... %s (%s)\n", prefix, label, status, formatDuration(duration))
+	return err
+}
+
+func (p phaseReporter) prefix(ok bool) string {
+	if p.emoji {
+		if ok {
+			return "✅ "
+		}
+		return "❌ "
+	}
+	if ok {
+		return "[ok] "
+	}
+	return "[fail] "
+}
+
+func formatDuration(duration time.Duration) string {
+	if duration < time.Minute {
+		return fmt.Sprintf("%.1fs", duration.Seconds())
+	}
+	total := int(duration.Seconds())
+	mins := total / 60
+	secs := total % 60
+	return fmt.Sprintf("%dm%02ds", mins, secs)
 }

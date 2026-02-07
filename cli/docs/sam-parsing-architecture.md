@@ -77,6 +77,18 @@ CLI は以下の Intrinsic を解決します:
 
 実装場所: `cli/internal/infra/sam/template_resources.go`
 
+## 未対応・無視される項目
+以下はパース対象外のため、deploy/build には反映されません:
+- `AWS::IAM::Role` など、上記に含まれないリソース
+- `AWS::Lambda::Function` の ZIP パッケージ（`PackageType: Zip`）
+- `Function.Role`（`!GetAtt ...` で指定しても無視）
+- `Globals.Function.Tags` / `Resources.*.Tags`
+- `EphemeralStorage`
+- `Description`
+- `Outputs`
+
+必要な場合は CLI 側に対応追加が必要です。
+
 ## Image 関数対応
 - `AWS::Serverless::Function`
   - `PackageType: Image` または `ImageUri` を検知

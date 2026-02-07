@@ -78,15 +78,19 @@ def run_parallel(
     reporter: Reporter,
     parallel: bool,
     args,
+    env_label_width: int | None = None,
 ) -> dict[str, bool]:
     reporter.start()
     reporter.emit(Event(EVENT_SUITE_START))
     results: dict[str, bool] = {}
     try:
+        label_width = env_label_width
+        if label_width is None:
+            label_width = max((len(env) for env in scenarios.keys()), default=0)
         if not args.test_only:
-            warmup_printer = make_prefix_printer("warmup") if args.verbose else None
+            warmup_printer = make_prefix_printer("warmup", width=label_width)
             _warmup(scenarios, printer=warmup_printer, verbose=args.verbose)
-        infra_printer = make_prefix_printer("infra") if args.verbose else None
+        infra_printer = make_prefix_printer("infra", width=label_width) if args.verbose else None
         infra.ensure_infra_up(str(PROJECT_ROOT), printer=infra_printer)
         reporter.emit(Event(EVENT_REGISTRY_READY))
 
@@ -101,10 +105,15 @@ def run_parallel(
             log_path = PROJECT_ROOT / "e2e" / f".parallel-{env_name}.log"
             log = LogSink(log_path)
             log.open()
-            printer = make_prefix_printer(env_name) if args.verbose else None
+
+            def phase_printer(phase: str) -> Callable[[str], None] | None:
+                if not args.verbose:
+                    return None
+                return make_prefix_printer(env_name, phase, width=label_width)
+
             try:
                 ctx = _prepare_context(scenario, port_plan.get(env_name))
-                success = _run_env(ctx, reporter, log, printer, args)
+                success = _run_env(ctx, reporter, log, phase_printer, args)
                 return success
             finally:
                 log.close()
@@ -220,41 +229,50 @@ def _run_env(
     ctx: RunContext,
     reporter: Reporter,
     log: LogSink,
-    printer: Callable[[str], None] | None,
+    phase_printer: Callable[[str], Callable[[str], None] | None] | None,
     args,
 ) -> bool:
     reporter.emit(Event(EVENT_ENV_START, env=ctx.scenario.env_name))
     try:
+
+        def _printer_for(phase: str) -> Callable[[str], None] | None:
+            if phase_printer is None:
+                return None
+            return phase_printer(phase)
+
         if args.test_only:
             reporter.emit(Event(EVENT_PHASE_SKIP, env=ctx.scenario.env_name, phase=PHASE_RESET))
             reporter.emit(Event(EVENT_PHASE_SKIP, env=ctx.scenario.env_name, phase=PHASE_COMPOSE))
             reporter.emit(Event(EVENT_PHASE_SKIP, env=ctx.scenario.env_name, phase=PHASE_DEPLOY))
         else:
+            reset_printer = _printer_for(PHASE_RESET)
             _phase(
                 reporter,
                 ctx,
                 PHASE_RESET,
                 log,
-                printer,
-                lambda: reset_environment(ctx, log=log, printer=printer),
+                reset_printer,
+                lambda: reset_environment(ctx, log=log, printer=reset_printer),
             )
 
+            compose_printer = _printer_for(PHASE_COMPOSE)
             _phase(
                 reporter,
                 ctx,
                 PHASE_COMPOSE,
                 log,
-                printer,
-                lambda: _compose_and_wait(ctx, log, printer, args),
+                compose_printer,
+                lambda: _compose_and_wait(ctx, log, compose_printer, args),
             )
 
+            deploy_printer = _printer_for(PHASE_DEPLOY)
             _phase(
                 reporter,
                 ctx,
                 PHASE_DEPLOY,
                 log,
-                printer,
-                lambda: _deploy(ctx, log, printer, args),
+                deploy_printer,
+                lambda: _deploy(ctx, log, deploy_printer, args),
             )
 
         if args.build_only:
@@ -269,13 +287,14 @@ def _run_env(
             return True
 
         if ctx.scenario.targets:
+            test_printer = _printer_for(PHASE_TEST)
             _phase(
                 reporter,
                 ctx,
                 PHASE_TEST,
                 log,
-                printer,
-                lambda: _test(ctx, reporter, log, printer),
+                test_printer,
+                lambda: _test(ctx, reporter, log, test_printer),
             )
         else:
             reporter.emit(Event(EVENT_PHASE_SKIP, env=ctx.scenario.env_name, phase=PHASE_TEST))
@@ -296,11 +315,12 @@ def _run_env(
         return False
     finally:
         if args.cleanup:
-            compose_down(ctx, log=log, printer=printer)
+            cleanup_printer = _printer_for("cleanup")
+            compose_down(ctx, log=log, printer=cleanup_printer)
 
 
 def _compose_and_wait(ctx: RunContext, log: LogSink, printer, args) -> None:
-    build = args.build or _needs_compose_build()
+    build = args.build or args.build_only or _needs_compose_build()
     if build and not args.build:
         log.write_line("Auto-enabling compose build (base images missing).")
         if printer:
