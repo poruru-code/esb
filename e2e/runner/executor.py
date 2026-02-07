@@ -1413,8 +1413,8 @@ def run_profiles_with_executor(
                     cmd.append("--cleanup")
                 if fail_fast:
                     cmd.append("--fail-fast")
-                if not verbose:
-                    cmd.append("--no-verbose")
+                if verbose:
+                    cmd.append("--verbose")
 
                 # Determine log prefix/color
                 profile_index = profiles.index(profile_name)
@@ -1509,8 +1509,8 @@ def run_build_phase_serial(
         ]
         if build:
             cmd.append("--build")
-        if not verbose:
-            cmd.append("--no-verbose")
+        if verbose:
+            cmd.append("--verbose")
 
         color_code = COLORS[idx % len(COLORS)]
         start = time.monotonic()
@@ -1581,8 +1581,8 @@ def run_build_phase_parallel(
                 ]
                 if build:
                     cmd.append("--build")
-                if not verbose:
-                    cmd.append("--no-verbose")
+                if verbose:
+                    cmd.append("--verbose")
 
                 color_code = COLORS[idx % len(COLORS)]
                 if max_workers > 1:

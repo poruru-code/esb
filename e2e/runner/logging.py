@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 import threading
 from pathlib import Path
 from typing import Callable, TextIO
@@ -17,6 +18,12 @@ def safe_print(message: str = "", *, prefix: str | None = None) -> None:
             print(f"{prefix} {message}", flush=True)
         else:
             print(message, flush=True)
+
+
+def write_raw(message: str) -> None:
+    with _OUTPUT_LOCK:
+        sys.stdout.write(message)
+        sys.stdout.flush()
 
 
 class LogSink:
@@ -42,9 +49,17 @@ class LogSink:
             self._file.flush()
 
 
-def make_prefix_printer(prefix: str) -> Callable[[str], None]:
+def make_prefix_printer(
+    label: str, phase: str | None = None, *, width: int = 0
+) -> Callable[[str], None]:
+    formatted = label.ljust(width) if width > 0 else label
+    if phase:
+        prefix = f"[{formatted}][{phase}] |"
+    else:
+        prefix = f"[{formatted}]"
+
     def _printer(line: str) -> None:
-        safe_print(line, prefix=f"[{prefix}]")
+        safe_print(line, prefix=prefix)
 
     return _printer
 

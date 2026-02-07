@@ -40,7 +40,12 @@ func runDeploy(cli CLI, deps Dependencies, out io.Writer) int {
 		repoResolver = config.ResolveRepoRoot
 	}
 
-	cmd, err := newDeployCommand(deps.Deploy, repoResolver, out)
+	emojiEnabled, err := resolveDeployEmojiEnabled(out, cli.Deploy)
+	if err != nil {
+		return exitWithError(out, err)
+	}
+
+	cmd, err := newDeployCommand(deps.Deploy, repoResolver, out, emojiEnabled)
 	if err != nil {
 		return exitWithError(out, err)
 	}
@@ -61,12 +66,14 @@ type deployCommand struct {
 	applyRuntime  func(state.Context) error
 	ui            ui.UserInterface
 	composeRunner compose.CommandRunner
+	emojiEnabled  bool
 }
 
 func newDeployCommand(
 	deployDeps DeployDeps,
 	repoResolver func(string) (string, error),
 	out io.Writer,
+	emojiEnabled bool,
 ) (*deployCommand, error) {
 	if deployDeps.Build == nil {
 		return nil, errDeployBuilderNotConfigured
@@ -77,12 +84,13 @@ func newDeployCommand(
 			return env.ApplyRuntimeEnv(ctx, repoResolver)
 		}
 	}
-	ui := ui.NewLegacyUI(out)
+	ui := ui.NewDeployUI(out, emojiEnabled)
 	return &deployCommand{
 		build:         deployDeps.Build,
 		applyRuntime:  applyRuntimeEnv,
 		ui:            ui,
 		composeRunner: compose.ExecRunner{},
+		emojiEnabled:  emojiEnabled,
 	}, nil
 }
 
@@ -106,6 +114,28 @@ func (c *deployCommand) Run(inputs deployInputs, flags DeployCmd) error {
 	templateCount := len(inputs.Templates)
 	for idx, tpl := range inputs.Templates {
 		buildOnly := flags.BuildOnly || (templateCount > 1 && idx < templateCount-1)
+		if c.ui != nil {
+			title := "Deploy plan"
+			if templateCount > 1 {
+				title = fmt.Sprintf("Deploy plan (%d/%d)", idx+1, templateCount)
+			}
+			outputSummary := domaincfg.ResolveOutputSummary(tpl.TemplatePath, tpl.OutputDir, inputs.Env)
+			composeFiles := "auto"
+			if len(inputs.ComposeFiles) > 0 {
+				composeFiles = strings.Join(inputs.ComposeFiles, ", ")
+			}
+			rows := []ui.KeyValue{
+				{Key: "Template", Value: tpl.TemplatePath},
+				{Key: "Env", Value: inputs.Env},
+				{Key: "Mode", Value: inputs.Mode},
+				{Key: "Project", Value: inputs.Project},
+				{Key: "Output", Value: outputSummary},
+				{Key: "BuildOnly", Value: buildOnly},
+				{Key: "ImagePrewarm", Value: imagePrewarm},
+				{Key: "ComposeFiles", Value: composeFiles},
+			}
+			c.ui.Block("🧭", title, rows)
+		}
 		ctx := state.Context{
 			ProjectDir:     inputs.ProjectDir,
 			TemplatePath:   tpl.TemplatePath,
@@ -129,6 +159,7 @@ func (c *deployCommand) Run(inputs deployInputs, flags DeployCmd) error {
 			BuildOnly:      buildOnly,
 			BundleManifest: flags.Bundle,
 			ImagePrewarm:   imagePrewarm,
+			Emoji:          c.emojiEnabled,
 		}
 		if err := workflow.Run(request); err != nil {
 			return fmt.Errorf("deploy workflow (%s): %w", tpl.TemplatePath, err)
@@ -148,6 +179,29 @@ func normalizeImagePrewarm(value string) (string, error) {
 	default:
 		return "", fmt.Errorf("deploy: invalid --image-prewarm value %q (use off|all)", value)
 	}
+}
+
+func resolveDeployEmojiEnabled(out io.Writer, flags DeployCmd) (bool, error) {
+	if flags.Emoji && flags.NoEmoji {
+		return false, errors.New("deploy: --emoji and --no-emoji cannot be used together")
+	}
+	if flags.Emoji {
+		return true, nil
+	}
+	if flags.NoEmoji {
+		return false, nil
+	}
+	if strings.TrimSpace(os.Getenv("NO_EMOJI")) != "" {
+		return false, nil
+	}
+	term := strings.ToLower(strings.TrimSpace(os.Getenv("TERM")))
+	if term == "dumb" {
+		return false, nil
+	}
+	if file, ok := out.(*os.File); ok {
+		return interaction.IsTerminal(file), nil
+	}
+	return false, nil
 }
 
 type deployInputs struct {

@@ -49,6 +49,7 @@ from e2e.runner.lifecycle import (
     resolve_compose_file,
     wait_for_gateway,
 )
+from e2e.runner.live_display import LiveDisplay
 from e2e.runner.logging import LogSink, make_prefix_printer
 from e2e.runner.models import RunContext, Scenario
 from e2e.runner.tester import run_pytest
@@ -78,20 +79,63 @@ def run_parallel(
     reporter: Reporter,
     parallel: bool,
     args,
+    env_label_width: int | None = None,
+    live_display: LiveDisplay | None = None,
 ) -> dict[str, bool]:
     reporter.start()
     reporter.emit(Event(EVENT_SUITE_START))
     results: dict[str, bool] = {}
     try:
+        label_width = env_label_width
+        if label_width is None:
+            label_width = max((len(env) for env in scenarios.keys()), default=0)
+
+        def format_prefix(label: str, phase: str | None = None) -> str:
+            formatted = label.ljust(label_width) if label_width > 0 else label
+            if phase:
+                return f"[{formatted}][{phase}] |"
+            return f"[{formatted}]"
+
+        def make_system_printer(
+            label: str,
+            phase: str | None = None,
+            *,
+            always: bool = False,
+        ) -> Callable[[str], None] | None:
+            if not always and not args.verbose and not live_display:
+                return None
+            if live_display:
+                prefix = format_prefix(label, phase)
+                return lambda line: live_display.log_line(f"{prefix} {line}")
+            return make_prefix_printer(label, phase, width=label_width)
+
+        def make_env_printer(
+            env_name: str,
+            phase: str | None = None,
+        ) -> Callable[[str], None] | None:
+            if not args.verbose and not live_display:
+                return None
+            if live_display:
+                prefix = format_prefix(env_name, phase)
+                if args.verbose:
+                    return lambda line: live_display.log_line(f"{prefix} {line}")
+                if phase == PHASE_TEST:
+                    return lambda line: live_display.update_line(env_name, f"{prefix} {line}")
+                return lambda line: live_display.update_line(env_name, f"{prefix} {line}")
+            return make_prefix_printer(env_name, phase, width=label_width)
+
         if not args.test_only:
-            warmup_printer = make_prefix_printer("warmup") if args.verbose else None
+            warmup_printer = make_system_printer("warmup", always=True)
             _warmup(scenarios, printer=warmup_printer, verbose=args.verbose)
-        infra_printer = make_prefix_printer("infra") if args.verbose else None
+        infra_printer = make_system_printer("infra")
         infra.ensure_infra_up(str(PROJECT_ROOT), printer=infra_printer)
         reporter.emit(Event(EVENT_REGISTRY_READY))
 
         if not scenarios:
             return results
+
+        if live_display:
+            live_display.start()
 
         max_workers = len(scenarios) if parallel else 1
         port_plan = _allocate_ports(list(scenarios.keys()))
@@ -101,10 +145,13 @@ def run_parallel(
             log_path = PROJECT_ROOT / "e2e" / f".parallel-{env_name}.log"
             log = LogSink(log_path)
             log.open()
-            printer = make_prefix_printer(env_name) if args.verbose else None
+
+            def phase_printer(phase: str) -> Callable[[str], None] | None:
+                return make_env_printer(env_name, phase)
+
             try:
                 ctx = _prepare_context(scenario, port_plan.get(env_name))
-                success = _run_env(ctx, reporter, log, printer, args)
+                success = _run_env(ctx, reporter, log, phase_printer, args)
                 return success
             finally:
                 log.close()
@@ -128,7 +175,20 @@ def run_parallel(
                     break
         return results
     finally:
-        reporter.emit(Event(EVENT_SUITE_END))
+        missing_envs = [env for env in scenarios if env not in results]
+        failed_envs = sorted([env for env, ok in results.items() if not ok] + missing_envs)
+        suite_status = STATUS_PASSED if not failed_envs else STATUS_FAILED
+        if live_display:
+            live_display.stop()
+        reporter.emit(
+            Event(
+                EVENT_SUITE_END,
+                data={
+                    "status": suite_status,
+                    "failed_envs": failed_envs,
+                },
+            )
+        )
         reporter.close()
 
 
@@ -220,87 +280,86 @@ def _run_env(
     ctx: RunContext,
     reporter: Reporter,
     log: LogSink,
-    printer: Callable[[str], None] | None,
+    phase_printer: Callable[[str], Callable[[str], None] | None] | None,
     args,
 ) -> bool:
-    reporter.emit(Event(EVENT_ENV_START, env=ctx.scenario.env_name))
+    env_name = ctx.scenario.env_name
+    reporter.emit(Event(EVENT_ENV_START, env=env_name))
+    log.write_line(f"[{env_name}] started")
     try:
+
+        def _printer_for(phase: str) -> Callable[[str], None] | None:
+            if phase_printer is None:
+                return None
+            return phase_printer(phase)
+
         if args.test_only:
-            reporter.emit(Event(EVENT_PHASE_SKIP, env=ctx.scenario.env_name, phase=PHASE_RESET))
-            reporter.emit(Event(EVENT_PHASE_SKIP, env=ctx.scenario.env_name, phase=PHASE_COMPOSE))
-            reporter.emit(Event(EVENT_PHASE_SKIP, env=ctx.scenario.env_name, phase=PHASE_DEPLOY))
+            reporter.emit(Event(EVENT_PHASE_SKIP, env=env_name, phase=PHASE_RESET))
+            reporter.emit(Event(EVENT_PHASE_SKIP, env=env_name, phase=PHASE_COMPOSE))
+            reporter.emit(Event(EVENT_PHASE_SKIP, env=env_name, phase=PHASE_DEPLOY))
         else:
+            reset_printer = _printer_for(PHASE_RESET)
             _phase(
                 reporter,
                 ctx,
                 PHASE_RESET,
                 log,
-                printer,
-                lambda: reset_environment(ctx, log=log, printer=printer),
+                reset_printer,
+                lambda: reset_environment(ctx, log=log, printer=reset_printer),
             )
 
+            compose_printer = _printer_for(PHASE_COMPOSE)
             _phase(
                 reporter,
                 ctx,
                 PHASE_COMPOSE,
                 log,
-                printer,
-                lambda: _compose_and_wait(ctx, log, printer, args),
+                compose_printer,
+                lambda: _compose_and_wait(ctx, log, compose_printer, args),
             )
 
+            deploy_printer = _printer_for(PHASE_DEPLOY)
             _phase(
                 reporter,
                 ctx,
                 PHASE_DEPLOY,
                 log,
-                printer,
-                lambda: _deploy(ctx, log, printer, args),
+                deploy_printer,
+                lambda: _deploy(ctx, log, deploy_printer, args),
             )
 
         if args.build_only:
-            reporter.emit(Event(EVENT_PHASE_SKIP, env=ctx.scenario.env_name, phase=PHASE_TEST))
-            reporter.emit(
-                Event(
-                    EVENT_ENV_END,
-                    env=ctx.scenario.env_name,
-                    data={"status": STATUS_PASSED},
-                )
-            )
+            reporter.emit(Event(EVENT_PHASE_SKIP, env=env_name, phase=PHASE_TEST))
+            _emit_env_end(reporter, log, env_name, STATUS_PASSED)
             return True
 
         if ctx.scenario.targets:
+            test_printer = _printer_for(PHASE_TEST)
             _phase(
                 reporter,
                 ctx,
                 PHASE_TEST,
                 log,
-                printer,
-                lambda: _test(ctx, reporter, log, printer),
+                test_printer,
+                lambda: _test(ctx, reporter, log, test_printer),
             )
         else:
-            reporter.emit(Event(EVENT_PHASE_SKIP, env=ctx.scenario.env_name, phase=PHASE_TEST))
+            reporter.emit(Event(EVENT_PHASE_SKIP, env=env_name, phase=PHASE_TEST))
 
-        reporter.emit(
-            Event(
-                EVENT_ENV_END,
-                env=ctx.scenario.env_name,
-                data={"status": STATUS_PASSED},
-            )
-        )
+        _emit_env_end(reporter, log, env_name, STATUS_PASSED)
         return True
     except Exception as exc:
         log.write_line(f"[ERROR] {exc}")
-        reporter.emit(
-            Event(EVENT_ENV_END, env=ctx.scenario.env_name, data={"status": STATUS_FAILED})
-        )
+        _emit_env_end(reporter, log, env_name, STATUS_FAILED)
         return False
     finally:
         if args.cleanup:
-            compose_down(ctx, log=log, printer=printer)
+            cleanup_printer = _printer_for("cleanup")
+            compose_down(ctx, log=log, printer=cleanup_printer)
 
 
 def _compose_and_wait(ctx: RunContext, log: LogSink, printer, args) -> None:
-    build = args.build or _needs_compose_build()
+    build = args.build or args.build_only or _needs_compose_build()
     if build and not args.build:
         log.write_line("Auto-enabling compose build (base images missing).")
         if printer:
@@ -391,9 +450,9 @@ def _warmup(
         missing = ", ".join(str(template) for template in missing_templates)
         raise FileNotFoundError(f"Missing E2E template(s): {missing}")
     if _uses_java_templates(scenarios):
-        _emit_warmup(printer, "=== Java fixture warmup: start ===")
+        _emit_warmup(printer, "Java fixture warmup ... start")
         _build_java_fixtures(printer=printer, verbose=verbose)
-        _emit_warmup(printer, "=== Java fixture warmup: done ===")
+        _emit_warmup(printer, "Java fixture warmup ... done")
 
 
 def _uses_java_templates(scenarios: dict[str, Scenario]) -> bool:
@@ -490,13 +549,13 @@ def _build_java_fixtures(
         pom = project_dir / "pom.xml"
         if not pom.exists():
             continue
-        if printer:
+        if printer and verbose:
             printer(f"Building Java fixture: {project_dir.name}")
         _build_java_project(project_dir, verbose=verbose)
 
 
 def _build_java_project(project_dir: Path, *, verbose: bool = False) -> None:
-    cmd = _docker_maven_command(project_dir)
+    cmd = _docker_maven_command(project_dir, verbose=verbose)
     result = subprocess.run(
         cmd,
         capture_output=not verbose,
@@ -514,7 +573,7 @@ def _build_java_project(project_dir: Path, *, verbose: bool = False) -> None:
         raise RuntimeError(f"Java fixture jar not found in {project_dir}")
 
 
-def _docker_maven_command(project_dir: Path) -> list[str]:
+def _docker_maven_command(project_dir: Path, *, verbose: bool = False) -> list[str]:
     cmd = [
         "docker",
         "run",
@@ -543,13 +602,14 @@ def _docker_maven_command(project_dir: Path) -> list[str]:
         value = os.environ.get(key)
         if value:
             cmd.extend(["-e", f"{key}={value}"])
+    maven_cmd = "mvn -DskipTests package" if verbose else "mvn -q -DskipTests package"
     script = "\n".join(
         [
             "set -euo pipefail",
             "mkdir -p /tmp/work /tmp/m2 /out",
             "cp -a /src/. /tmp/work",
             "cd /tmp/work",
-            "mvn -q -DskipTests package",
+            maven_cmd,
             "jar=$(ls -S target/*.jar 2>/dev/null | "
             "grep -vE '(-sources|-javadoc)\\.jar$' | head -n 1 || true)",
             'if [ -z "$jar" ]; then echo "jar not found in target" >&2; exit 1; fi',
@@ -572,6 +632,22 @@ def _emit_warmup(printer: Callable[[str], None] | None, message: str) -> None:
         printer(message)
     else:
         print(message)
+
+
+def _emit_env_end(
+    reporter: Reporter,
+    log: LogSink,
+    env_name: str,
+    status: str,
+) -> None:
+    log.write_line(f"[{env_name}] done ... {status.upper()}")
+    reporter.emit(
+        Event(
+            EVENT_ENV_END,
+            env=env_name,
+            data={"status": status},
+        )
+    )
 
 
 def _resolve_env_file(env_file: str | None) -> str | None:

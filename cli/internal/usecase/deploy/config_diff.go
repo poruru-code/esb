@@ -96,7 +96,7 @@ func emitConfigMergeSummary(printer ui.UserInterface, configDir string, diff dom
 			Value: domaincfg.FormatCountsLabel(counts),
 		})
 	}
-	printer.Block("i", "Config merge summary", rows)
+	printer.Block("🧩", "Config merge summary", rows)
 }
 
 func emitTemplateDeltaSummary(printer ui.UserInterface, configDir string, diff domaincfg.Diff) {
@@ -118,7 +118,7 @@ func emitTemplateDeltaSummary(printer ui.UserInterface, configDir string, diff d
 			Value: domaincfg.FormatTemplateCounts(counts),
 		})
 	}
-	printer.Block("i", "Template delta summary", rows)
+	printer.Block("🧾", "Template delta summary", rows)
 }
 
 func loadYamlFile(path string) (map[string]any, error) {

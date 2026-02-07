@@ -2,6 +2,7 @@
 # Where: e2e/run_tests.py
 # What: E2E test runner for ESB CLI scenarios.
 # Why: Provide a single entry point for scenario setup, execution, and teardown.
+import os
 import subprocess
 import sys
 import warnings
@@ -10,6 +11,7 @@ import urllib3
 
 from e2e.runner.cli import parse_args
 from e2e.runner.config import load_test_matrix
+from e2e.runner.live_display import LiveDisplay
 from e2e.runner.planner import apply_test_target, build_plan
 from e2e.runner.runner import run_parallel
 from e2e.runner.ui import PlainReporter
@@ -32,6 +34,43 @@ def print_tail_logs(failed_entries: list[str], *, lines: int = 40) -> None:
         tail = content[-lines:] if len(content) > lines else content
         for line in tail:
             print(line)
+        if hint := detect_public_ecr_hint(content):
+            print(f"[HINT] {hint}")
+
+
+def detect_public_ecr_hint(lines: list[str]) -> str:
+    if not lines:
+        return ""
+    normalized = "\n".join(lines).lower()
+    if "public.ecr.aws" not in normalized:
+        return ""
+    if "403" in normalized or "forbidden" in normalized or "unauthorized" in normalized:
+        return (
+            "public.ecr.aws denied the request. Docker credentials may be stale. "
+            "Try `docker logout public.ecr.aws` and retry, or login via "
+            "`aws ecr-public get-login-password --region us-east-1 | "
+            "docker login --username AWS --password-stdin public.ecr.aws`."
+        )
+    return ""
+
+
+def resolve_env_label_width(env_scenarios: dict[str, object]) -> int:
+    if not env_scenarios:
+        return 0
+    return max(len(env) for env in env_scenarios.keys())
+
+
+def resolve_live_enabled(no_live: bool) -> bool:
+    if no_live:
+        return False
+    if not sys.stdout.isatty():
+        return False
+    term = os.environ.get("TERM", "")
+    if term.lower() == "dumb":
+        return False
+    if os.environ.get("NO_COLOR") or os.environ.get("NO_EMOJI"):
+        return False
+    return True
 
 
 def main():
@@ -105,19 +144,26 @@ def main():
             print(f"[ERROR] Environment '{args.profile}' not found in matrix.")
             sys.exit(1)
 
-        reporter = PlainReporter(verbose=args.verbose)
+        env_label_width = resolve_env_label_width(env_scenarios)
+        reporter = PlainReporter(
+            verbose=args.verbose,
+            env_label_width=env_label_width,
+            color=args.color,
+            emoji=args.emoji,
+            show_progress=True,
+        )
         results = run_parallel(
             env_scenarios,
             reporter=reporter,
             parallel=False,
             args=args,
+            env_label_width=env_label_width,
+            live_display=None,
         )
         failed = [env for env, ok in results.items() if not ok]
         if failed:
-            print(f"\n[FAILED] The following environments failed: {', '.join(failed)}")
             print_tail_logs(failed)
             sys.exit(1)
-        print("\n[PASSED] ALL MATRIX ENTRIES PASSED!")
         sys.exit(0)
 
     env_scenarios = build_plan(matrix, suites, profile_filter=args.profile)
@@ -130,37 +176,58 @@ def main():
             print(f"[ERROR] Environment '{args.profile}' not found in matrix.")
             sys.exit(1)
 
-        reporter = PlainReporter(verbose=args.verbose)
+        env_label_width = resolve_env_label_width(env_scenarios)
+        reporter = PlainReporter(
+            verbose=args.verbose,
+            env_label_width=env_label_width,
+            color=args.color,
+            emoji=args.emoji,
+            show_progress=True,
+        )
         results = run_parallel(
             env_scenarios,
             reporter=reporter,
             parallel=False,
             args=args,
+            env_label_width=env_label_width,
+            live_display=None,
         )
         failed = [env for env, ok in results.items() if not ok]
         if failed:
-            print(f"\n[FAILED] The following environments failed: {', '.join(failed)}")
             print_tail_logs(failed)
             sys.exit(1)
-        print("\n[PASSED] ALL MATRIX ENTRIES PASSED!")
         sys.exit(0)
 
     parallel_mode = args.parallel and len(env_scenarios) > 1
-    reporter = PlainReporter(verbose=args.verbose)
+    live_enabled = resolve_live_enabled(args.no_live) and parallel_mode and not args.verbose
+    env_label_width = resolve_env_label_width(env_scenarios)
+    live_display = (
+        LiveDisplay(list(env_scenarios.keys()), label_width=env_label_width)
+        if live_enabled
+        else None
+    )
+    reporter = PlainReporter(
+        verbose=args.verbose,
+        env_label_width=env_label_width,
+        color=args.color,
+        emoji=args.emoji,
+        live_display=live_display,
+        show_progress=not (live_display and not args.verbose),
+    )
     results = run_parallel(
         env_scenarios,
         reporter=reporter,
         parallel=parallel_mode,
         args=args,
+        env_label_width=env_label_width,
+        live_display=live_display,
     )
     failed_entries = [env for env, ok in results.items() if not ok]
 
     if failed_entries:
-        print(f"\n[FAILED] The following environments failed: {', '.join(failed_entries)}")
         print_tail_logs(failed_entries)
         sys.exit(1)
 
-    print("\n[PASSED] ALL MATRIX ENTRIES PASSED!")
     sys.exit(0)
 
 
