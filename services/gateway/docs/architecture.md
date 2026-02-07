@@ -55,7 +55,7 @@ sequenceDiagram
     RM-->>GW: function_name
     GW->>PM: acquire_worker(function_name)
     PM->>GP: ensure_container(function_name)
-    GP->>AG: EnsureContainer(function_name, image, owner_id)
+    GP->>AG: EnsureContainer(function_name, image, env, owner_id)
     Note over PM,GP: image は functions.yml 由来（内部レジストリ参照）
     AG-->>GP: WorkerInfo(ip, port)
     GP-->>PM: WorkerInfo

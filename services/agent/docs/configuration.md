@@ -38,8 +38,8 @@ Why: Centralize tunables used by Agent and its gRPC server.
 | `CNI_BIN_DIR` | `/opt/cni/bin` | CNI plugin dir |
 | `CNI_CONF_FILE` | `<CNI_CONF_DIR>/10-<cni>.conflist` | CNI conf ファイル |
 | `CNI_SUBNET` | `10.88.0.0/16` | CNI サブネット |
-| `CNI_GW_IP` | (空) | CNI GW（DNS の既定参照） |
-| `CNI_DNS_SERVER` | `10.88.0.1` | nameserver（未指定時は `CNI_GW_IP`） |
+| `CNI_GW_IP` | (空) | CNI GW（`CNI_DNS_SERVER` 未指定時の参照先） |
+| `CNI_DNS_SERVER` | `10.88.0.1` | nameserver（解決順: `CNI_DNS_SERVER` -> `CNI_GW_IP` -> `10.88.0.1`） |
 | `CNI_NET_DIR` | `/var/lib/cni/networks` | IPAM state の保存先（IP 再解決に使用） |
 
 ## レジストリ / 画像

@@ -42,7 +42,7 @@ deploy 実行時に内部ビルドが走り、以下の順序でビルドが行�
 
 ```mermaid
 flowchart LR
-    A[esb deploy] --> B[template.yaml パース]
+    A[esb deploy] --> B[SAM template(s) パース]
     B --> C[設定ファイル生成]
     C --> D[ベースイメージビルド]
     D --> E[Lambda関数イメージビルド]
@@ -75,7 +75,7 @@ runtime/python/
 # CONTAINER_REGISTRY未設定時の例
 FROM esb-lambda-base:latest
 
-# Layer (template.yaml で定義)
+# Layer (SAM template で定義)
 COPY tests/fixtures/layers/common/ /opt/
 
 # 関数コード
