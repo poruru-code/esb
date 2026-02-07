@@ -8,6 +8,9 @@ Why: Keep agent-specific design details close to the implementation.
 Agent は Gateway からの gRPC リクエストを受け、Lambda ワーカーコンテナ（Docker / containerd）の
 ライフサイクル（作成/削除/一覧/メトリクス/Invoke 代理）を管理します。
 
+Image 関数は **deploy 時の prewarm が必須**です。実行時の Agent は `image`（内部レジストリ参照）だけを扱い、
+外部レジストリへの同期や認証処理は行いません。
+
 ## このディレクトリのスコープ
 - **対象**: `services/agent`（Agent 本体）
 - **対象外**: Gateway 側のオートスケーリングや HTTP API 仕様（`services/gateway/docs` を参照）

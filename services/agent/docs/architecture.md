@@ -69,18 +69,15 @@ sequenceDiagram
     autonumber
     participant GW as Gateway (GrpcProvisionClient)
     participant AG as Agent (gRPC / AgentServer)
-    participant RT as Runtime (containerd)
-    participant CD as containerd
-    participant CNI as CNI (bridge+portmap)
+    participant RT as Runtime (docker/containerd)
+    participant IR as Internal Registry
     participant WK as Worker (Lambda RIE)
 
-    GW->>AG: EnsureContainer(function_name, image?, env, owner_id)
-    AG->>AG: require owner_id
-    AG->>RT: Ensure(EnsureRequest)
-    RT->>CD: Pull/resolve image (if needed)
-    RT->>CD: NewContainer + NewTask + Start
-    RT->>CNI: Setup(id, /proc/pid/ns/net)
-    CNI-->>RT: Result (IP configs)
+    GW->>AG: EnsureContainer(function_name, image, env, owner_id)
+    AG->>AG: require owner_id/image
+    AG->>RT: Ensure(image)
+    RT->>IR: Pull/resolve image (if needed)
+    RT->>RT: Create + Start container
     RT-->>AG: WorkerInfo(id, ip, port=8080, owner_id)
     AG-->>GW: WorkerInfo(id, ip, port)
     Note over GW,WK: Gateway performs readiness check and invocation.
@@ -107,6 +104,11 @@ sequenceDiagram
 ### 5) gRPC TLS（mTLS）はデフォルト有効
 - サーバ側は **デフォルトで mTLS を要求**します。
 - 無効化は `AGENT_GRPC_TLS_DISABLED=1`（信頼済みネットワークのみで使用）。
+
+### 6) 画像解決の責務分離
+- 外部レジストリから内部レジストリへの同期は **CLI deploy prewarm の責務**です。
+- Agent runtime は **内部レジストリ参照の pull のみ**を行います。
+- `image` が内部レジストリに存在しない場合は `EnsureContainer` が `Internal` で失敗します。
 
 ---
 

@@ -93,6 +93,144 @@ Resources:
 	}
 }
 
+func TestParseSAMTemplateServerlessImageFunction(t *testing.T) {
+	content := `
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Resources:
+  ImageFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lambda-image
+      PackageType: Image
+      ImageUri: public.ecr.aws/example/repo:latest
+      Timeout: 45
+`
+
+	result, err := ParseSAMTemplate(content, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(result.Functions) != 1 {
+		t.Fatalf("expected 1 function, got %d", len(result.Functions))
+	}
+	fn := result.Functions[0]
+	if fn.Name != "lambda-image" {
+		t.Fatalf("unexpected name: %s", fn.Name)
+	}
+	if fn.ImageSource != "public.ecr.aws/example/repo:latest" {
+		t.Fatalf("unexpected image source: %s", fn.ImageSource)
+	}
+	if fn.CodeURI != "" {
+		t.Fatalf("expected empty code uri for image function, got %q", fn.CodeURI)
+	}
+	if fn.Timeout != 45 {
+		t.Fatalf("unexpected timeout: %d", fn.Timeout)
+	}
+}
+
+func TestParseSAMTemplateLambdaImageFunction(t *testing.T) {
+	content := `
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  EnvImageRepository:
+    Type: String
+    Default: "example/repo"
+  EnvImageTag:
+    Type: String
+    Default: "latest"
+Resources:
+  LambdaImageFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: lambda-image
+      PackageType: Image
+      Code:
+        ImageUri: !Sub "${AWS::AccountId}.dkr.ecr.ap-northeast-1.amazonaws.com/${EnvImageRepository}:${EnvImageTag}"
+      Timeout: 300
+      MemorySize: 1769
+`
+
+	result, err := ParseSAMTemplate(content, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(result.Functions) != 1 {
+		t.Fatalf("expected 1 function, got %d", len(result.Functions))
+	}
+	fn := result.Functions[0]
+	expected := "local-AccountId.dkr.ecr.ap-northeast-1.amazonaws.com/example/repo:latest"
+	if fn.ImageSource != expected {
+		t.Fatalf("unexpected image source: %s", fn.ImageSource)
+	}
+	if fn.Timeout != 300 {
+		t.Fatalf("unexpected timeout: %d", fn.Timeout)
+	}
+	if fn.MemorySize != 1769 {
+		t.Fatalf("unexpected memory size: %d", fn.MemorySize)
+	}
+}
+
+func TestParseSAMTemplateImageFunctionRequiresImageUri(t *testing.T) {
+	content := `
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  LambdaImageFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: lambda-image
+      PackageType: Image
+      Code: {}
+`
+
+	_, err := ParseSAMTemplate(content, nil)
+	if err == nil {
+		t.Fatalf("expected error for missing Code.ImageUri")
+	}
+}
+
+func TestParseSAMTemplateServerlessImageFunctionRejectsUnresolvedImageURI(t *testing.T) {
+	content := `
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Resources:
+  ImageFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lambda-image
+      PackageType: Image
+      ImageUri: "${MissingRepository}:latest"
+`
+	_, err := ParseSAMTemplate(content, nil)
+	if err == nil {
+		t.Fatalf("expected unresolved ImageUri error")
+	}
+	if !strings.Contains(err.Error(), "unresolved ImageUri") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestParseSAMTemplateLambdaImageFunctionRejectsUnresolvedImageURI(t *testing.T) {
+	content := `
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  LambdaImageFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: lambda-image
+      PackageType: Image
+      Code:
+        ImageUri: "123456789012.dkr.ecr.ap-northeast-1.amazonaws.com/${MissingRepo}:latest"
+`
+	_, err := ParseSAMTemplate(content, nil)
+	if err == nil {
+		t.Fatalf("expected unresolved Code.ImageUri error")
+	}
+	if !strings.Contains(err.Error(), "unresolved Code.ImageUri") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestParseSAMTemplateIntrinsic(t *testing.T) {
 	// This test verifies that Intrinsic Functions (!Ref) are correctly handled
 	// even when parsing into strict schema-generated types.

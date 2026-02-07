@@ -88,6 +88,10 @@ func newDeployCommand(
 
 func (c *deployCommand) Run(inputs deployInputs, flags DeployCmd) error {
 	tag := resolveBrandTag()
+	imagePrewarm, err := normalizeImagePrewarm(flags.ImagePrewarm)
+	if err != nil {
+		return err
+	}
 	if flags.NoDeps && flags.WithDeps {
 		return errors.New("deploy: --no-deps and --with-deps cannot be used together")
 	}
@@ -124,12 +128,26 @@ func (c *deployCommand) Run(inputs deployInputs, flags DeployCmd) error {
 			ComposeFiles:   inputs.ComposeFiles,
 			BuildOnly:      buildOnly,
 			BundleManifest: flags.Bundle,
+			ImagePrewarm:   imagePrewarm,
 		}
 		if err := workflow.Run(request); err != nil {
 			return fmt.Errorf("deploy workflow (%s): %w", tpl.TemplatePath, err)
 		}
 	}
 	return nil
+}
+
+func normalizeImagePrewarm(value string) (string, error) {
+	trimmed := strings.ToLower(strings.TrimSpace(value))
+	if trimmed == "" {
+		return "all", nil
+	}
+	switch trimmed {
+	case "off", "all":
+		return trimmed, nil
+	default:
+		return "", fmt.Errorf("deploy: invalid --image-prewarm value %q (use off|all)", value)
+	}
 }
 
 type deployInputs struct {

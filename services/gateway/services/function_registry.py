@@ -68,19 +68,7 @@ class FunctionRegistry:
             return self._get_registry_copy()
 
         functions_cfg = cfg.get("functions", {})
-        if isinstance(functions_cfg, dict):
-            invalid = []
-            for name, spec in functions_cfg.items():
-                if isinstance(spec, dict) and "image" in spec:
-                    invalid.append(name)
-            if invalid:
-                message = (
-                    "functions.yml does not allow 'image' entries. "
-                    f"Remove image from: {', '.join(sorted(invalid))}"
-                )
-                logger.error(message)
-                return self._get_registry_copy()
-        else:
+        if not isinstance(functions_cfg, dict):
             logger.error("functions.yml has invalid format: functions must be a map")
             return self._get_registry_copy()
 

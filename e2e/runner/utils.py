@@ -87,6 +87,15 @@ BRAND_SLUG = BRANDING.slug
 BRAND_HOME_DIR = BRANDING.paths["home_dir"]
 BRAND_OUTPUT_DIR = BRANDING.paths["output_dir"]
 E2E_STATE_ROOT = PROJECT_ROOT / "e2e" / "fixtures" / BRAND_OUTPUT_DIR
+DEFAULT_E2E_DEPLOY_TEMPLATES = (
+    PROJECT_ROOT / "e2e" / "fixtures" / "template.core.yaml",
+    PROJECT_ROOT / "e2e" / "fixtures" / "template.stateful.yaml",
+    PROJECT_ROOT / "e2e" / "fixtures" / "template.image.yaml",
+)
+
+
+def default_e2e_deploy_templates() -> list[Path]:
+    return [template.resolve() for template in DEFAULT_E2E_DEPLOY_TEMPLATES]
 
 
 def env_key(suffix: str) -> str:

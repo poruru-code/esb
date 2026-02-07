@@ -28,6 +28,7 @@ from e2e.runner.utils import (
     E2E_STATE_ROOT,
     PROJECT_ROOT,
     build_unique_tag,
+    default_e2e_deploy_templates,
     env_key,
     run_esb,
 )
@@ -312,7 +313,30 @@ def _image_safe_name(name: str) -> str:
     return "".join(out).strip("._-")
 
 
-def _load_function_image_names(env_name: str) -> list[str]:
+def _split_image_ref(image_ref: str) -> tuple[str, str] | None:
+    ref = image_ref.strip()
+    if not ref:
+        return None
+    ref_no_digest = ref.split("@", 1)[0]
+    slash = ref_no_digest.rfind("/")
+    colon = ref_no_digest.rfind(":")
+    if colon > slash:
+        name = ref_no_digest[:colon]
+        tag = ref_no_digest[colon + 1 :]
+    else:
+        name = ref_no_digest
+        tag = "latest"
+
+    # Registry host is not part of the v2 API repository path.
+    if "/" in name:
+        first, rest = name.split("/", 1)
+        if "." in first or ":" in first or first == "localhost":
+            name = rest
+
+    return name, tag
+
+
+def _load_function_image_targets(env_name: str) -> list[tuple[str, str]]:
     config_path = E2E_STATE_ROOT / env_name / "config" / "functions.yml"
     if not config_path.exists():
         return []
@@ -327,15 +351,22 @@ def _load_function_image_names(env_name: str) -> list[str]:
     functions = data.get("functions", {})
     if isinstance(functions, dict):
         image_prefix = BRAND_SLUG
-        image_names: list[str] = []
-        for name in functions.keys():
+        image_targets: list[tuple[str, str]] = []
+        for name, spec in functions.items():
             if not isinstance(name, str):
                 continue
+            if isinstance(spec, dict):
+                image = spec.get("image")
+                if isinstance(image, str) and image.strip():
+                    parsed = _split_image_ref(image)
+                    if parsed:
+                        image_targets.append(parsed)
+                    continue
             safe = _image_safe_name(name)
             if not safe:
                 continue
-            image_names.append(f"{image_prefix}-{safe}")
-        return sorted(image_names)
+            image_targets.append((f"{image_prefix}-{safe}", ""))
+        return sorted(image_targets)
     return []
 
 
@@ -448,8 +479,8 @@ def verify_registry_images(env_name: str, project: str, mode: str, compose_file:
         print("[WARN] Registry port not discovered; skipping registry integrity check.")
         return
 
-    image_names = _load_function_image_names(env_name)
-    if not image_names:
+    image_targets = _load_function_image_targets(env_name)
+    if not image_targets:
         print("[WARN] functions.yml not found or empty; skipping registry integrity check.")
         return
 
@@ -463,8 +494,10 @@ def verify_registry_images(env_name: str, project: str, mode: str, compose_file:
     headers_index = {"Accept": "application/vnd.oci.image.index.v1+json"}
     headers_manifest = {"Accept": "application/vnd.oci.image.manifest.v1+json"}
 
-    for name in image_names:
-        tag = os.environ.get(env_key(constants.ENV_TAG), "")
+    default_tag = os.environ.get(env_key(constants.ENV_TAG), "")
+    for name, tag in image_targets:
+        if not tag:
+            tag = default_tag
         if not tag:
             print("[WARN] TAG is empty; skipping registry integrity check.")
             return
@@ -740,18 +773,32 @@ def warmup_environment(
             print("[ERROR] No active environments in matrix.")
         sys.exit(1)
 
-    esb_template = PROJECT_ROOT / "e2e" / "fixtures" / "template.yaml"
-    if not esb_template.exists():
+    template_paths: set[Path] = set()
+    default_templates = default_e2e_deploy_templates()
+    for scenario in matrix:
+        deploy_templates = scenario.get("deploy_templates") or [
+            str(path) for path in default_templates
+        ]
+        for template in deploy_templates:
+            template_path = Path(template)
+            if not template_path.is_absolute():
+                template_path = (PROJECT_ROOT / template_path).resolve()
+            template_paths.add(template_path)
+
+    missing_templates = [template for template in sorted(template_paths) if not template.exists()]
+    if missing_templates:
+        missing = ", ".join(str(template) for template in missing_templates)
         if display:
-            display.system(f"[ERROR] Missing E2E template: {esb_template}")
+            display.system(f"[ERROR] Missing E2E template(s): {missing}")
         else:
-            print(f"[ERROR] Missing E2E template: {esb_template}")
+            print(f"[ERROR] Missing E2E template(s): {missing}")
         sys.exit(1)
 
+    templates_text = ", ".join(str(template) for template in sorted(template_paths))
     if display:
-        display.system(f"[INIT] Using E2E template: {esb_template}")
+        display.system(f"[INIT] Using E2E templates: {templates_text}")
     else:
-        print(f"\n[INIT] Using E2E template: {esb_template}")
+        print(f"\n[INIT] Using E2E templates: {templates_text}")
 
     infra.ensure_infra_up(str(PROJECT_ROOT))
 
@@ -837,16 +884,21 @@ def run_scenario(args, scenario):
 
     # 1.5 Calculate Runtime Env (needed for reset/build too)
     compose_file_path = resolve_compose_file(scenario, mode)
-    template_path = PROJECT_ROOT / "e2e" / "fixtures" / "template.yaml"
-    if not template_path.exists():
-        raise FileNotFoundError(f"Missing E2E template: {template_path}")
-    deploy_templates = scenario.get("deploy_templates") or [str(template_path)]
+    deploy_templates = scenario.get("deploy_templates") or [
+        str(path) for path in default_e2e_deploy_templates()
+    ]
     deploy_paths = []
     for item in deploy_templates:
         path = Path(item)
         if not path.is_absolute():
             path = (PROJECT_ROOT / path).resolve()
+        if not path.exists():
+            raise FileNotFoundError(f"Missing E2E template: {path}")
         deploy_paths.append(path)
+
+    if not deploy_paths:
+        raise FileNotFoundError("Missing E2E templates for deploy")
+    template_path = deploy_paths[0]
 
     def build_deploy_args(tmpl: Path) -> list[str]:
         deploy_args = [
@@ -862,6 +914,9 @@ def run_scenario(args, scenario):
             "--mode",
             mode,
         ]
+        image_prewarm = str(scenario.get("image_prewarm", "")).strip().lower()
+        if image_prewarm:
+            deploy_args.extend(["--image-prewarm", image_prewarm])
         if args.no_cache:
             deploy_args.append("--no-cache")
         return deploy_args
@@ -871,13 +926,13 @@ def run_scenario(args, scenario):
         env_name,
         mode,
         env_file,
-        template_path=str(deploy_paths[0]) if deploy_paths else None,
+        template_path=str(template_path),
     )
     compose_project = f"{project_name}-{env_name}"
     staging_config_dir = calculate_staging_dir(
         compose_project,
         env_name,
-        template_path=str(deploy_paths[0]) if deploy_paths else None,
+        template_path=str(template_path),
     )
     runtime_env[constants.ENV_CONFIG_DIR] = str(staging_config_dir)
     staging_config_dir.mkdir(parents=True, exist_ok=True)

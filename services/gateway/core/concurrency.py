@@ -83,7 +83,7 @@ class ConcurrencyManager:
             if self._function_registry:
                 func_config = self._function_registry.get_function_config(function_name)
                 if func_config:
-                    # Look for scaling.max_capacity first (Padma standard)
+                    # Look for scaling.max_capacity first (custom scaling block)
                     if "scaling" in func_config:
                         limit = func_config["scaling"].get("max_capacity", limit)
                     # Support ReservedConcurrentExecutions (SAM/Lambda standard)

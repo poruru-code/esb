@@ -1,0 +1,20 @@
+# Where: e2e/fixtures/template.image.yaml
+# What: Image-function-only E2E SAM template.
+# Why: Isolate deploy prewarm and image invocation path from code-built functions.
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: E2E Image Function
+
+Resources:
+  ImageFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lambda-image
+      PackageType: Image
+      ImageUri: public.ecr.aws/r9p4t4p0/poruru-code:latest
+      Events:
+        ImageApi:
+          Type: Api
+          Properties:
+            Path: /api/image
+            Method: post

@@ -19,7 +19,7 @@
 ./tools/dind-bundler/build.sh <SAMテンプレートパス> <出力イメージタグ>
 
 # 例: e2eテスト用のテンプレートを使用してビルドする場合
-./tools/dind-bundler/build.sh e2e/fixtures/template.yaml my-stack-bundle:latest
+./tools/dind-bundler/build.sh e2e/fixtures/template.core.yaml my-stack-bundle:latest
 
 # 例: 複数テンプレートをまとめてビルドする場合
 ./tools/dind-bundler/build.sh -t template-a.yaml -t template-b.yaml my-stack-bundle:latest
@@ -69,7 +69,7 @@ sequenceDiagram
     participant Tar as images.tar
     participant Image as Target Image
 
-    User->>Script: 実行 (template.yaml)
+    User->>Script: 実行 (template.core.yaml)
     Script->>Script: 証明書確認 (なければエラー)
     Script->>CLI: esb deploy --build-only --bundle-manifest
     CLI->>Docker: 関数イメージの作成 (com.<brand>.kind=function)

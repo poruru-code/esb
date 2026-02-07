@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/state"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
 )
 
 func TestDeployWorkflowRunSuccess(t *testing.T) {
@@ -92,6 +93,60 @@ func TestDeployWorkflowRunSuccess(t *testing.T) {
 
 	if len(ui.success) != 1 || !strings.Contains(ui.success[0], "Deploy complete") {
 		t.Fatalf("expected deploy success message")
+	}
+}
+
+func TestDeployWorkflowRequiresPrewarmForImageFunctions(t *testing.T) {
+	builder := &recordBuilder{}
+	envApplier := &recordEnvApplier{}
+	ui := &testUI{}
+	runner := &fakeComposeRunner{}
+
+	t.Setenv("ENV_PREFIX", "ESB")
+	t.Setenv("ESB_SKIP_GATEWAY_ALIGN", "1")
+
+	repoRoot, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	repoRoot = filepath.Join(repoRoot, "..", "..", "..")
+	repoRoot, err = filepath.Abs(repoRoot)
+	if err != nil {
+		t.Fatalf("failed to get absolute path: %v", err)
+	}
+
+	templatePath := filepath.Join(repoRoot, "template.yaml")
+	configDir, err := staging.ConfigDir(templatePath, "esb-dev", "dev")
+	if err != nil {
+		t.Fatalf("failed to resolve staging config dir: %v", err)
+	}
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatalf("failed to create staging dir: %v", err)
+	}
+	manifestPath := filepath.Join(configDir, "image-import.json")
+	manifest := `{"version":"1","images":[{"function_name":"lambda-image","image_source":"public.ecr.aws/example/repo:latest","image_ref":"registry:5010/public.ecr.aws/example/repo:latest"}]}`
+	if err := os.WriteFile(manifestPath, []byte(manifest), 0o600); err != nil {
+		t.Fatalf("write image-import.json: %v", err)
+	}
+
+	ctx := state.Context{
+		ProjectDir:     repoRoot,
+		ComposeProject: "esb-dev",
+	}
+	req := Request{
+		Context:      ctx,
+		Env:          "dev",
+		Mode:         "docker",
+		TemplatePath: templatePath,
+		OutputDir:    ".out",
+		ImagePrewarm: "off",
+	}
+
+	workflow := NewDeployWorkflow(builder.Build, envApplier.Apply, ui, runner)
+	workflow.RegistryWaiter = noopRegistryWaiter
+	err = workflow.Run(req)
+	if err == nil || !strings.Contains(err.Error(), "image prewarm is required") {
+		t.Fatalf("expected prewarm required error, got %v", err)
 	}
 }
 

@@ -19,10 +19,14 @@ Why: Provide a stable reference for operators and developers.
 | --- | --- | --- |
 | `AGENT_GRPC_ADDRESS` | `agent:50051` | Agent の gRPC アドレス |
 | `AGENT_INVOKE_PROXY` | `false` | `true` で Agent 経由 invoke |
-| `AGENT_GRPC_TLS_ENABLED` | `false` | Gateway → Agent の mTLS |
+| `AGENT_GRPC_TLS_ENABLED` | `false` | Gateway -> Agent の mTLS |
 | `AGENT_GRPC_TLS_CA_CERT_PATH` | `/app/config/ssl/rootCA.crt` | CA 証明書 |
 | `AGENT_GRPC_TLS_CERT_PATH` | `/app/config/ssl/client.crt` | クライアント証明書 |
 | `AGENT_GRPC_TLS_KEY_PATH` | `/app/config/ssl/client.key` | クライアント秘密鍵 |
+
+> [!NOTE]
+> Gateway は `functions.yml` の `image` を Agent に渡すだけです。
+> 外部レジストリへの同期は `esb deploy --image-prewarm=all` の責務です。
 
 ## 実行 / パフォーマンス
 | 変数 | 既定 | 説明 |

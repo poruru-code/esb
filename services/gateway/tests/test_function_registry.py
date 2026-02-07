@@ -41,7 +41,7 @@ def test_function_registry_get_nonexistent():
             assert registry.get_function_config("nonexistent") is None
 
 
-def test_function_registry_rejects_image_entry_keeps_previous():
+def test_function_registry_accepts_image_entry():
     valid_yaml = """
 defaults:
   environment:
@@ -52,18 +52,18 @@ functions:
     environment:
       FUNC_ENV: "123"
 """
-    invalid_yaml = """
+    image_yaml = """
 functions:
   test-func:
-    image: "test-image:latest"
+    image: "registry:5010/example/repo:latest"
     environment:
       FUNC_ENV: "456"
 """
     valid_open = mock_open(read_data=valid_yaml)
-    invalid_open = mock_open(read_data=invalid_yaml)
+    image_open = mock_open(read_data=image_yaml)
     with patch(
         "builtins.open",
-        side_effect=[valid_open.return_value, invalid_open.return_value],
+        side_effect=[valid_open.return_value, image_open.return_value],
     ):
         with patch("services.gateway.config.config.FUNCTIONS_CONFIG_PATH", "dummy/path.yml"):
             registry = FunctionRegistry()
@@ -73,4 +73,5 @@ functions:
             registry.load_functions_config(force=True)
             config_after = registry.get_function_config("test-func")
             assert config_after is not None
-            assert config_after.environment["FUNC_ENV"] == "123"
+            assert config_after.environment["FUNC_ENV"] == "456"
+            assert config_after.image == "registry:5010/example/repo:latest"

@@ -205,6 +205,12 @@ func buildFunctionImages(
 	bakeTargets := make([]bakeTarget, 0, len(functions))
 	builtFunctions := make([]string, 0, len(functions))
 	for _, fn := range functions {
+		if strings.TrimSpace(fn.ImageSource) != "" {
+			if verbose {
+				fmt.Printf("  Skipping build for image function %s (uses image_ref)\n", fn.Name)
+			}
+			continue
+		}
 		if verbose {
 			fmt.Printf("  Building image for %s...\n", fn.Name)
 		}

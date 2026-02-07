@@ -46,6 +46,7 @@ class GrpcProvisionClient:
 
         # Base env from function config
         env = dict(func_config.environment) if func_config else {}
+        image_ref = func_config.image if func_config else None
 
         # Inject RIE & Observability Variables
         env["AWS_LAMBDA_FUNCTION_NAME"] = function_name
@@ -106,7 +107,7 @@ class GrpcProvisionClient:
 
         req = agent_pb2.EnsureContainerRequest(  # type: ignore[attr-defined]
             function_name=function_name,
-            image="",
+            image=image_ref or "",
             env=env,
             owner_id=self._get_owner_id(),
         )

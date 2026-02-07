@@ -77,6 +77,7 @@ select = ["E", "F", "I", "B"]
 
 [tool.ty.src]
 exclude = [
+    ".esb/",
     "e2e/",
     "**/pb/",
     "**/tests/",

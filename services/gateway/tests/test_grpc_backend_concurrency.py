@@ -15,6 +15,7 @@ import pytest
 
 from services.gateway.core.concurrency import ConcurrencyManager
 from services.gateway.core.exceptions import ResourceExhaustedError
+from services.gateway.models.function import FunctionEntity
 from services.gateway.pb import agent_pb2
 from services.gateway.services.grpc_backend import GrpcBackend
 
@@ -114,3 +115,25 @@ async def test_wait_for_readiness_timeout():
         with pytest.raises(ContainerStartError) as exc:
             await backend._wait_for_readiness("test-func", "1.2.3.4", 8080, timeout=0.2)
         assert "test-func" in str(exc.value)
+
+
+@pytest.mark.asyncio
+async def test_grpc_backend_propagates_image(mock_stub):
+    mock_stub.EnsureContainer = AsyncMock(
+        return_value=agent_pb2.WorkerInfo(id="w1", name="w1", ip_address="10.0.0.5", port=8080)
+    )
+
+    registry = MagicMock()
+    registry.get_function_config.return_value = FunctionEntity(
+        name="test-func",
+        environment={"KEY": "VALUE"},
+        image="registry:5010/public.ecr.aws/example/repo:latest",
+    )
+    backend = GrpcBackend("localhost:50051", function_registry=registry)
+    backend.stub = mock_stub
+
+    with patch.object(backend, "_wait_for_readiness", new_callable=AsyncMock):
+        await backend.acquire_worker("test-func")
+
+    args = mock_stub.EnsureContainer.call_args[0][0]
+    assert args.image == "registry:5010/public.ecr.aws/example/repo:latest"

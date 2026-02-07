@@ -157,8 +157,12 @@ func TestRenderFunctionsYml(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected Lambda-Hello config map")
 	}
-	if _, ok := entry["image"]; ok {
-		t.Fatalf("unexpected image entry in functions.yml: %v", entry["image"])
+	image, ok := entry["image"].(string)
+	if !ok || image == "" {
+		t.Fatalf("expected image entry in functions.yml")
+	}
+	if !strings.Contains(image, "lambda-hello:latest") {
+		t.Fatalf("unexpected image value: %s", image)
 	}
 }
 
@@ -195,6 +199,43 @@ func TestRenderFunctionsYmlRequiresImageName(t *testing.T) {
 	}
 	if _, err := RenderFunctionsYml(functions, "", "latest"); err == nil {
 		t.Fatalf("expected error for missing image name")
+	}
+}
+
+func TestRenderFunctionsYmlForImageSource(t *testing.T) {
+	functions := []FunctionSpec{
+		{
+			Name:        "lambda-image",
+			ImageSource: "public.ecr.aws/example/repo:latest",
+			ImageRef:    "registry:5010/public.ecr.aws/example/repo:latest",
+		},
+	}
+
+	content, err := RenderFunctionsYml(functions, "", "latest")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	var parsed map[string]any
+	if err := yaml.Unmarshal([]byte(content), &parsed); err != nil {
+		t.Fatalf("yaml unmarshal failed: %v", err)
+	}
+	functionsNode, ok := parsed["functions"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected functions map")
+	}
+	entry, ok := functionsNode["lambda-image"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected lambda-image map")
+	}
+	if entry["image"] != "registry:5010/public.ecr.aws/example/repo:latest" {
+		t.Fatalf("unexpected image: %v", entry["image"])
+	}
+	if _, ok := entry["image_source"]; ok {
+		t.Fatalf("image_source should not be rendered")
+	}
+	if _, ok := entry["image_ref"]; ok {
+		t.Fatalf("image_ref should not be rendered")
 	}
 }
 

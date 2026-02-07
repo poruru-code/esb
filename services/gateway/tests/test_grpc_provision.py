@@ -43,6 +43,7 @@ async def test_provision_success(grpc_client, mock_stub, mock_registry):
         environment={"USER_VAR": "val"},
         memory_size=256,
         timeout=60,
+        image="registry:5010/public.ecr.aws/example/repo:latest",
     )
 
     mock_response = agent_pb2.WorkerInfo(
@@ -76,7 +77,7 @@ async def test_provision_success(grpc_client, mock_stub, mock_registry):
         request = args[0]
 
         assert request.function_name == "my-func"
-        assert request.image == ""
+        assert request.image == "registry:5010/public.ecr.aws/example/repo:latest"
         assert request.owner_id == OWNER_ID
 
         # Check Env injection

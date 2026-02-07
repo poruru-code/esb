@@ -27,10 +27,19 @@ Agent 起動時に CNI の `.conflist` を生成します。
 
 ## Ensure（ワーカー起動の要点）
 ### イメージ解決
-`EnsureContainerRequest.image` が空の場合、Agent が関数名からイメージ名を解決します。
+`EnsureContainerRequest.image` を直接使用します（内部レジストリ参照を想定）。
 
 - レジストリ: `CONTAINER_REGISTRY`（既定: `registry:5010`）
 - タグ: `<ENV_PREFIX>_TAG`（例: `ESB_TAG`、既定: `latest`）
+
+> [!NOTE]
+> `image` が空の場合に既定規則で補完する互換コードは runtime 側に残っていますが、
+> 現行 gRPC API では `image` 必須検証を行うため通常経路では使用しません。
+
+### 外部レジストリとの関係
+- containerd runtime は外部レジストリ同期を行いません。
+- 外部イメージ取り込みは `esb deploy --image-prewarm=all` で事前に実施します。
+- runtime は内部レジストリの pull のみを実施します。
 
 ### コンテナ名 / ラベル
 - コンテナ名: `esb-{env}-{function}-{id}`（短い hex ID）
