@@ -5,7 +5,6 @@ CLI は **`deploy` を主コマンド**として設計されています。`depl
 `functions.yml` / `routing.yml` / `resources.yml` を生成、関数イメージをビルドし、プロビジョナーを実行します。
 
 補助コマンドは以下のとおりです:
-- `completion`（bash/zsh/fish の補完スクリプト生成）
 - `version`（ビルド情報からのバージョン表示）
 
 ## 全体フロー
