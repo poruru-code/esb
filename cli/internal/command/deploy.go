@@ -206,6 +206,7 @@ func resolveDeployEmojiEnabled(out io.Writer, flags DeployCmd) (bool, error) {
 
 type deployInputs struct {
 	ProjectDir    string
+	TargetStack   string
 	Env           string
 	EnvSource     string
 	Mode          string
@@ -219,6 +220,12 @@ type deployTemplateInput struct {
 	TemplatePath string
 	OutputDir    string
 	Parameters   map[string]string
+}
+
+type deployTargetStack struct {
+	Name    string
+	Project string
+	Env     string
 }
 
 type envChoice struct {
@@ -245,24 +252,6 @@ var (
 	errMultipleTemplateOutput     = errors.New("output directory cannot be used with multiple templates")
 )
 
-var runningProjectServices = map[string]struct{}{
-	"gateway":      {},
-	"agent":        {},
-	"runtime-node": {},
-	"registry":     {},
-	"database":     {},
-	"s3-storage":   {},
-	"victorialogs": {},
-}
-
-var provisionTargetServices = map[string]struct{}{
-	"gateway":      {},
-	"provisioner":  {},
-	"database":     {},
-	"s3-storage":   {},
-	"victorialogs": {},
-}
-
 func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 	isTTY := interaction.IsTerminal(os.Stdin)
 	prompter := deps.Prompter
@@ -273,48 +262,14 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 
 	var last deployInputs
 	for {
-		previousTemplate := ""
-		if len(last.Templates) > 0 {
-			previousTemplate = last.Templates[0].TemplatePath
-		}
-		templatePaths, err := resolveDeployTemplates(cli.Template, isTTY, prompter, previousTemplate)
-		if err != nil {
-			return deployInputs{}, err
-		}
 		repoRoot, err := repoResolver("")
 		if err != nil {
 			return deployInputs{}, fmt.Errorf("resolve repo root: %w", err)
 		}
-		for range templatePaths[1:] {
-			otherRoot, err := repoResolver("")
-			if err != nil {
-				return deployInputs{}, fmt.Errorf("resolve repo root: %w", err)
-			}
-			if otherRoot != repoRoot {
-				return deployInputs{}, fmt.Errorf("template repo root mismatch: %s != %s", otherRoot, repoRoot)
-			}
-		}
 		if err := config.EnsureProjectConfig(repoRoot); err != nil {
 			return deployInputs{}, err
 		}
-		stored := loadDeployDefaults(repoRoot, templatePaths[0])
 		prevEnv := strings.TrimSpace(last.Env)
-		if prevEnv == "" {
-			prevEnv = strings.TrimSpace(stored.Env)
-		}
-
-		prevMode := strings.TrimSpace(last.Mode)
-		if prevMode == "" {
-			prevMode = strings.TrimSpace(stored.Mode)
-		}
-		flagMode := strings.TrimSpace(cli.Deploy.Mode)
-		if flagMode != "" {
-			normalized, err := runtimecfg.NormalizeMode(flagMode)
-			if err != nil {
-				return deployInputs{}, fmt.Errorf("normalize mode: %w", err)
-			}
-			flagMode = normalized
-		}
 
 		projectValueSource := ""
 		projectValue := strings.TrimSpace(cli.Deploy.Project)
@@ -336,38 +291,73 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 			}
 		}
 		projectExplicit := projectValueSource != ""
-		runningProjects, _ := discoverRunningComposeProjects(
-			templatePaths[0],
-			isTTY && prompter != nil && !projectExplicit,
-		)
-		hasRunning := len(runningProjects) > 0
-		if isTTY && hasRunning && !projectExplicit {
-			projectValue = ""
-		}
 
-		selectedEnv := envChoice{}
-		if !hasRunning {
-			chosen, err := resolveDeployEnv(cli.EnvFlag, isTTY, prompter, prevEnv)
+		var selectedStack deployTargetStack
+		if !projectExplicit {
+			runningStacks, _ := discoverRunningDeployTargetStacks()
+			selectedStack, err = resolveDeployTargetStack(runningStacks, isTTY, prompter)
 			if err != nil {
 				return deployInputs{}, err
 			}
-			selectedEnv = chosen
-		} else if trimmed := strings.TrimSpace(cli.EnvFlag); trimmed != "" {
-			selectedEnv = envChoice{Value: trimmed, Source: "flag", Explicit: true}
 		}
 
-		composeProject, projectSource, err := resolveDeployProject(
-			projectValue,
-			selectedEnv.Value,
+		composeProject := ""
+		projectSource := ""
+		switch {
+		case projectExplicit:
+			composeProject = projectValue
+			projectSource = projectValueSource
+		case strings.TrimSpace(selectedStack.Project) != "":
+			composeProject = selectedStack.Project
+			projectSource = "stack"
+		default:
+			defaultEnv := strings.TrimSpace(cli.EnvFlag)
+			if defaultEnv == "" {
+				defaultEnv = strings.TrimSpace(selectedStack.Env)
+			}
+			if defaultEnv == "" {
+				defaultEnv = prevEnv
+			}
+			composeProject = defaultDeployProject(defaultEnv)
+			projectSource = "default"
+		}
+		if strings.TrimSpace(composeProject) == "" {
+			return deployInputs{}, errComposeProjectRequired
+		}
+
+		selectedEnv, err := resolveDeployEnvFromStack(
+			cli.EnvFlag,
+			selectedStack,
+			composeProject,
 			isTTY,
 			prompter,
-			runningProjects,
+			prevEnv,
 		)
 		if err != nil {
 			return deployInputs{}, err
 		}
 
-		if hasRunning {
+		inferredMode, inferredModeSource, modeInferErr := inferDeployModeFromProject(composeProject)
+
+		previousTemplate := ""
+		if len(last.Templates) > 0 {
+			previousTemplate = last.Templates[0].TemplatePath
+		}
+		templatePaths, err := resolveDeployTemplates(cli.Template, isTTY, prompter, previousTemplate)
+		if err != nil {
+			return deployInputs{}, err
+		}
+		for range templatePaths[1:] {
+			otherRoot, err := repoResolver("")
+			if err != nil {
+				return deployInputs{}, fmt.Errorf("resolve repo root: %w", err)
+			}
+			if otherRoot != repoRoot {
+				return deployInputs{}, fmt.Errorf("template repo root mismatch: %s != %s", otherRoot, repoRoot)
+			}
+		}
+		stored := loadDeployDefaults(repoRoot, templatePaths[0])
+		if inferredMode != "" {
 			selectedEnv, err = reconcileEnvWithRuntime(
 				selectedEnv,
 				composeProject,
@@ -389,34 +379,39 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 		}
 		envChanged := selectedEnv.Value != prevEnv
 
+		prevMode := strings.TrimSpace(last.Mode)
+		if prevMode == "" {
+			prevMode = strings.TrimSpace(stored.Mode)
+		}
+		flagMode := strings.TrimSpace(cli.Deploy.Mode)
+		if flagMode != "" {
+			normalized, err := runtimecfg.NormalizeMode(flagMode)
+			if err != nil {
+				return deployInputs{}, fmt.Errorf("normalize mode: %w", err)
+			}
+			flagMode = normalized
+		}
+
+		if modeInferErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to infer runtime mode: %v\n", modeInferErr)
+		}
+
 		var mode string
 		switch {
-		case hasRunning:
-			inferredMode, source, err := inferDeployModeFromProject(composeProject)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: failed to infer runtime mode: %v\n", err)
+		case inferredMode != "":
+			if flagMode != "" && inferredMode != flagMode {
+				fmt.Fprintf(
+					os.Stderr,
+					"Warning: running project uses %s mode; ignoring --mode %s (source: %s)\n",
+					inferredMode,
+					flagMode,
+					inferredModeSource,
+				)
 			}
-			switch {
-			case inferredMode != "":
-				if flagMode != "" && inferredMode != flagMode {
-					fmt.Fprintf(
-						os.Stderr,
-						"Warning: running project uses %s mode; ignoring --mode %s (source: %s)\n",
-						inferredMode,
-						flagMode,
-						source,
-					)
-				}
-				mode = inferredMode
-			case flagMode != "":
-				mode = flagMode
-			default:
-				mode = runtimecfg.FallbackMode(prevMode)
-			}
+			mode = inferredMode
 		case flagMode != "":
 			mode = flagMode
 		default:
-			var err error
 			mode, err = resolveDeployMode("", isTTY, prompter, prevMode)
 			if err != nil {
 				return deployInputs{}, err
@@ -482,6 +477,7 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 
 		inputs := deployInputs{
 			ProjectDir:    projectDir,
+			TargetStack:   selectedStack.Name,
 			Env:           selectedEnv.Value,
 			EnvSource:     selectedEnv.Source,
 			Mode:          mode,
@@ -656,6 +652,28 @@ func resolveDeployEnv(
 	return envChoice{Value: input, Source: "prompt", Explicit: true}, nil
 }
 
+func resolveDeployEnvFromStack(
+	envValue string,
+	stack deployTargetStack,
+	composeProject string,
+	isTTY bool,
+	prompter interaction.Prompter,
+	previous string,
+) (envChoice, error) {
+	if trimmed := strings.TrimSpace(envValue); trimmed != "" {
+		return envChoice{Value: trimmed, Source: "flag", Explicit: true}, nil
+	}
+	if env := strings.TrimSpace(stack.Env); env != "" {
+		return envChoice{Value: env, Source: "stack", Explicit: false}, nil
+	}
+	if project := strings.TrimSpace(composeProject); project != "" {
+		if inferred, err := inferEnvFromProject(project, ""); err == nil && strings.TrimSpace(inferred.Env) != "" {
+			return envChoice{Value: inferred.Env, Source: inferred.Source, Explicit: false}, nil
+		}
+	}
+	return resolveDeployEnv("", isTTY, prompter, previous)
+}
+
 func resolveDeployMode(
 	value string,
 	isTTY bool,
@@ -736,6 +754,9 @@ func resolveDeployOutput(
 	prompter interaction.Prompter,
 	previous string,
 ) (string, error) {
+	_ = templatePath
+	_ = env
+
 	trimmed := strings.TrimSpace(value)
 	if trimmed != "" {
 		return trimmed, nil
@@ -743,39 +764,10 @@ func resolveDeployOutput(
 	if !isTTY || prompter == nil {
 		return "", nil
 	}
-
-	defaultBase := meta.OutputDir
-	defaultResolved := filepath.Join(filepath.Dir(templatePath), defaultBase, env)
-	defaultValue := defaultResolved
 	if prev := strings.TrimSpace(previous); prev != "" {
-		defaultValue = prev
+		return prev, nil
 	}
-
-	suggestions := []string{}
-	if prev := strings.TrimSpace(previous); prev != "" {
-		suggestions = append(suggestions, prev)
-	}
-	if defaultBase != "" && defaultBase != previous {
-		suggestions = append(suggestions, defaultBase)
-	}
-
-	title := fmt.Sprintf("Output directory (default: %s)", defaultValue)
-	input, err := prompter.Input(title, suggestions)
-	if err != nil {
-		return "", fmt.Errorf("prompt output dir: %w", err)
-	}
-	input = strings.TrimSpace(input)
-	if input == "" {
-		if strings.TrimSpace(previous) != "" {
-			return previous, nil
-		}
-		return "", nil
-	}
-	cleaned := filepath.Clean(input)
-	if filepath.Clean(defaultResolved) == cleaned {
-		return defaultBase, nil
-	}
-	return cleaned, nil
+	return "", nil
 }
 
 func deriveMultiTemplateOutputDir(templatePath string, counts map[string]int) string {
@@ -798,6 +790,10 @@ func confirmDeployInputs(inputs deployInputs, isTTY bool, prompter interaction.P
 		return true, nil
 	}
 
+	stackLine := ""
+	if stack := strings.TrimSpace(inputs.TargetStack); stack != "" {
+		stackLine = fmt.Sprintf("Target Stack: %s", stack)
+	}
 	projectLine := fmt.Sprintf("Project: %s", inputs.Project)
 	if strings.TrimSpace(inputs.ProjectSource) != "" {
 		projectLine = fmt.Sprintf("Project: %s (%s)", inputs.Project, inputs.ProjectSource)
@@ -806,11 +802,15 @@ func confirmDeployInputs(inputs deployInputs, isTTY bool, prompter interaction.P
 	if strings.TrimSpace(inputs.EnvSource) != "" {
 		envLine = fmt.Sprintf("Env: %s (%s)", inputs.Env, inputs.EnvSource)
 	}
-	summaryLines := []string{
+	summaryLines := make([]string, 0, 4)
+	if stackLine != "" {
+		summaryLines = append(summaryLines, stackLine)
+	}
+	summaryLines = append(summaryLines,
 		projectLine,
 		envLine,
 		fmt.Sprintf("Mode: %s", inputs.Mode),
-	}
+	)
 	if len(inputs.Templates) == 1 {
 		tpl := inputs.Templates[0]
 		output := domaincfg.ResolveOutputSummary(tpl.TemplatePath, tpl.OutputDir, inputs.Env)
@@ -884,41 +884,43 @@ func confirmDeployInputs(inputs deployInputs, isTTY bool, prompter interaction.P
 	return choice == "proceed", nil
 }
 
-func resolveDeployProject(
-	value string,
-	env string,
+func resolveDeployTargetStack(
+	stacks []deployTargetStack,
 	isTTY bool,
 	prompter interaction.Prompter,
-	running []string,
-) (string, string, error) {
-	trimmed := strings.TrimSpace(value)
-	if trimmed != "" {
-		return trimmed, "flag", nil
+) (deployTargetStack, error) {
+	if len(stacks) == 0 {
+		return deployTargetStack{}, nil
 	}
-
-	defaultProject := defaultDeployProject(env)
-	if len(running) == 1 && (!isTTY || prompter == nil) {
-		return running[0], "running", nil
+	if len(stacks) == 1 {
+		return stacks[0], nil
 	}
-	if len(running) > 1 && (!isTTY || prompter == nil) {
-		return "", "", fmt.Errorf("%w: %s", errMultipleRunningProjects, strings.Join(running, ", "))
-	}
-	if len(running) > 0 && isTTY && prompter != nil {
-		options := append([]string{}, running...)
-		title := "Compose project (running)"
-		selected, err := prompter.Select(title, options)
-		if err != nil {
-			return "", "", fmt.Errorf("prompt compose project: %w", err)
+	if !isTTY || prompter == nil {
+		options := make([]string, 0, len(stacks))
+		for _, stack := range stacks {
+			options = append(options, stack.Name)
 		}
-		selected = strings.TrimSpace(selected)
-		if selected != "" {
-			return selected, "running", nil
-		}
+		return deployTargetStack{}, fmt.Errorf("%w: %s", errMultipleRunningProjects, strings.Join(options, ", "))
 	}
-	if defaultProject == "" {
-		return "", "", errComposeProjectRequired
+	options := make([]string, 0, len(stacks))
+	lookup := make(map[string]deployTargetStack, len(stacks))
+	for _, stack := range stacks {
+		options = append(options, stack.Name)
+		lookup[stack.Name] = stack
 	}
-	return defaultProject, "default", nil
+	selected, err := prompter.Select("Target stack (running)", options)
+	if err != nil {
+		return deployTargetStack{}, fmt.Errorf("prompt target stack: %w", err)
+	}
+	selected = strings.TrimSpace(selected)
+	if selected == "" {
+		return deployTargetStack{}, nil
+	}
+	stack, ok := lookup[selected]
+	if !ok {
+		return deployTargetStack{}, nil
+	}
+	return stack, nil
 }
 
 func defaultDeployProject(env string) string {
@@ -933,7 +935,7 @@ func defaultDeployProject(env string) string {
 	return fmt.Sprintf("%s-%s", brandName, envName)
 }
 
-func discoverRunningComposeProjects(templatePath string, interactive bool) ([]string, error) {
+func discoverRunningDeployTargetStacks() ([]deployTargetStack, error) {
 	client, err := compose.NewDockerClient()
 	if err != nil {
 		return nil, fmt.Errorf("create docker client: %w", err)
@@ -943,65 +945,94 @@ func discoverRunningComposeProjects(templatePath string, interactive bool) ([]st
 	if err != nil {
 		return nil, fmt.Errorf("list containers: %w", err)
 	}
-
-	allowed := runningProjectServices
-	var inferEnv func(project string) envInference
-	if interactive {
-		allowed = provisionTargetServices
-		inferEnv = func(project string) envInference {
-			inferred, err := inferEnvFromProject(project, templatePath)
-			if err != nil {
-				return envInference{}
-			}
-			return inferred
-		}
-	}
-	projects := filterRunningProjectsByEnv(containers, allowed, inferEnv)
-	if len(projects) == 0 {
+	stacks := extractRunningDeployTargetStacks(containers)
+	if len(stacks) == 0 {
 		return nil, nil
 	}
-	return projects, nil
+	return stacks, nil
 }
 
-func filterRunningProjectsByEnv(
-	containers []container.Summary,
-	allowedServices map[string]struct{},
-	inferEnv func(project string) envInference,
-) []string {
-	projects := make(map[string]struct{})
+func extractRunningDeployTargetStacks(containers []container.Summary) []deployTargetStack {
+	if len(containers) == 0 {
+		return nil
+	}
+	stacks := map[string]deployTargetStack{}
 	for _, ctr := range containers {
 		if ctr.Labels == nil {
 			continue
 		}
+		if strings.TrimSpace(ctr.Labels[compose.ComposeServiceLabel]) != "gateway" {
+			continue
+		}
+		stackName := inferStackFromGatewayName(containerName(ctr.Names))
+		if stackName == "" {
+			continue
+		}
 		project := strings.TrimSpace(ctr.Labels[compose.ComposeProjectLabel])
-		service := strings.TrimSpace(ctr.Labels[compose.ComposeServiceLabel])
-		if project == "" {
-			continue
+		entry := deployTargetStack{
+			Name:    stackName,
+			Project: project,
+			Env:     inferEnvFromStackName(stackName),
 		}
-		if _, ok := allowedServices[service]; !ok {
-			continue
+		if existing, ok := stacks[stackName]; !ok || (existing.Project == "" && entry.Project != "") {
+			stacks[stackName] = entry
 		}
-		projects[project] = struct{}{}
 	}
-
-	if len(projects) == 0 {
+	if len(stacks) == 0 {
 		return nil
 	}
-	names := make([]string, 0, len(projects))
-	for project := range projects {
-		if inferEnv == nil {
-			names = append(names, project)
-			continue
-		}
-		if inferred := inferEnv(project); strings.TrimSpace(inferred.Env) != "" {
-			names = append(names, project)
-		}
-	}
-	if len(names) == 0 {
-		return nil
+	names := make([]string, 0, len(stacks))
+	for name := range stacks {
+		names = append(names, name)
 	}
 	sort.Strings(names)
-	return names
+	out := make([]deployTargetStack, 0, len(names))
+	for _, name := range names {
+		out = append(out, stacks[name])
+	}
+	return out
+}
+
+func inferStackFromGatewayName(name string) string {
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return ""
+	}
+	const suffix = "-gateway"
+	if !strings.HasSuffix(trimmed, suffix) {
+		return ""
+	}
+	stack := strings.TrimSpace(strings.TrimSuffix(trimmed, suffix))
+	if stack == "" {
+		return ""
+	}
+	return stack
+}
+
+func inferEnvFromStackName(stack string) string {
+	trimmed := strings.TrimSpace(stack)
+	if trimmed == "" {
+		return ""
+	}
+	parts := strings.Split(trimmed, "-")
+	if len(parts) < 2 {
+		return ""
+	}
+	env := strings.TrimSpace(parts[len(parts)-1])
+	if env == "" {
+		return ""
+	}
+	return env
+}
+
+func containerName(names []string) string {
+	for _, raw := range names {
+		trimmed := strings.TrimSpace(strings.TrimPrefix(raw, "/"))
+		if trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }
 
 func inferDeployModeFromProject(composeProject string) (string, string, error) {

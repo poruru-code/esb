@@ -5,10 +5,12 @@ package command
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/interaction"
 )
 
 func TestInferEnvFromContainerLabels(t *testing.T) {
@@ -47,30 +49,99 @@ func TestInferEnvFromContainerLabels(t *testing.T) {
 	})
 }
 
-func TestRunningProjectsFilteredByEnv(t *testing.T) {
+func TestExtractRunningDeployTargetStacks(t *testing.T) {
 	containers := []container.Summary{
-		{Labels: map[string]string{compose.ComposeProjectLabel: "proj-a", compose.ComposeServiceLabel: "gateway"}},
-		{Labels: map[string]string{compose.ComposeProjectLabel: "proj-b", compose.ComposeServiceLabel: "other"}},
-		{Labels: map[string]string{compose.ComposeProjectLabel: "proj-c", compose.ComposeServiceLabel: "runtime-node"}},
-		{Labels: map[string]string{compose.ComposeProjectLabel: "proj-d", compose.ComposeServiceLabel: "database"}},
-		{Labels: map[string]string{compose.ComposeProjectLabel: "proj-e", compose.ComposeServiceLabel: "custom", compose.ESBManagedLabel: "true"}},
+		{
+			Names:  []string{"/esb-dev-gateway"},
+			Labels: map[string]string{compose.ComposeServiceLabel: "gateway", compose.ComposeProjectLabel: "esb3"},
+		},
+		{
+			Names:  []string{"/esb-dev-agent"},
+			Labels: map[string]string{compose.ComposeServiceLabel: "agent", compose.ComposeProjectLabel: "esb3"},
+		},
+		{
+			Names:  []string{"/esb-infra-registry"},
+			Labels: map[string]string{compose.ComposeServiceLabel: "registry", compose.ComposeProjectLabel: "esb3"},
+		},
+		{
+			Names:  []string{"/buildx_buildkit_esb-buildx0"},
+			Labels: map[string]string{},
+		},
 	}
 
-	got := filterRunningProjectsByEnv(containers, runningProjectServices, func(project string) envInference {
-		switch project {
-		case "proj-a":
-			return envInference{Env: "dev"}
-		case "proj-d":
-			return envInference{Env: "prod"}
-		case "proj-e":
-			return envInference{Env: "staging"}
-		default:
-			return envInference{}
-		}
-	})
-
-	want := []string{"proj-a", "proj-d"}
+	got := extractRunningDeployTargetStacks(containers)
+	want := []deployTargetStack{
+		{Name: "esb-dev", Project: "esb3", Env: "dev"},
+	}
 	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("unexpected projects: %v", got)
+		t.Fatalf("unexpected stacks: %#v", got)
 	}
+}
+
+func TestResolveDeployTargetStackSingleAutoSelect(t *testing.T) {
+	prompter := &recordingPrompter{}
+	stack, err := resolveDeployTargetStack(
+		[]deployTargetStack{{Name: "esb-dev", Project: "esb3", Env: "dev"}},
+		true,
+		prompter,
+	)
+	if err != nil {
+		t.Fatalf("resolve target stack: %v", err)
+	}
+	if stack.Name != "esb-dev" {
+		t.Fatalf("unexpected stack selected: %q", stack.Name)
+	}
+	if prompter.selectCalls != 0 {
+		t.Fatalf("expected no prompt for single stack, got %d calls", prompter.selectCalls)
+	}
+}
+
+func TestResolveDeployTargetStackMultipleNonTTY(t *testing.T) {
+	_, err := resolveDeployTargetStack(
+		[]deployTargetStack{
+			{Name: "esb-dev", Project: "proj-a", Env: "dev"},
+			{Name: "esb-prod", Project: "proj-b", Env: "prod"},
+		},
+		false,
+		nil,
+	)
+	if err == nil {
+		t.Fatalf("expected error for multiple stacks without tty")
+	}
+	if !strings.Contains(err.Error(), errMultipleRunningProjects.Error()) {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestInferEnvFromStackName(t *testing.T) {
+	if got := inferEnvFromStackName("esb-dev"); got != "dev" {
+		t.Fatalf("expected dev env, got %q", got)
+	}
+	if got := inferEnvFromStackName("esb"); got != "" {
+		t.Fatalf("expected empty env, got %q", got)
+	}
+}
+
+type recordingPrompter struct {
+	inputCalls  int
+	inputValue  string
+	selectCalls int
+	selected    string
+}
+
+func (p *recordingPrompter) Input(_ string, _ []string) (string, error) {
+	p.inputCalls++
+	return p.inputValue, nil
+}
+
+func (p *recordingPrompter) Select(_ string, _ []string) (string, error) {
+	p.selectCalls++
+	if p.selected != "" {
+		return p.selected, nil
+	}
+	return "", nil
+}
+
+func (p *recordingPrompter) SelectValue(_ string, _ []interaction.SelectOption) (string, error) {
+	return "", nil
 }
