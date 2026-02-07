@@ -228,6 +228,17 @@ type deployTargetStack struct {
 	Env     string
 }
 
+var deployStackDiscoveryServicePriority = map[string]int{
+	"gateway":      0,
+	"runtime-node": 1,
+	"agent":        2,
+	"database":     3,
+	"s3-storage":   4,
+	"victorialogs": 5,
+	"provisioner":  6,
+	"coredns":      7,
+}
+
 type envChoice struct {
 	Value    string
 	Source   string
@@ -957,14 +968,17 @@ func extractRunningDeployTargetStacks(containers []container.Summary) []deployTa
 		return nil
 	}
 	stacks := map[string]deployTargetStack{}
+	priorities := map[string]int{}
 	for _, ctr := range containers {
 		if ctr.Labels == nil {
 			continue
 		}
-		if strings.TrimSpace(ctr.Labels[compose.ComposeServiceLabel]) != "gateway" {
+		service := strings.TrimSpace(ctr.Labels[compose.ComposeServiceLabel])
+		priority, allowed := deployStackDiscoveryServicePriority[service]
+		if !allowed {
 			continue
 		}
-		stackName := inferStackFromGatewayName(containerName(ctr.Names))
+		stackName := inferStackFromServiceName(containerName(ctr.Names), service)
 		if stackName == "" {
 			continue
 		}
@@ -974,8 +988,23 @@ func extractRunningDeployTargetStacks(containers []container.Summary) []deployTa
 			Project: project,
 			Env:     inferEnvFromStackName(stackName),
 		}
-		if existing, ok := stacks[stackName]; !ok || (existing.Project == "" && entry.Project != "") {
+		existing, ok := stacks[stackName]
+		if !ok {
 			stacks[stackName] = entry
+			priorities[stackName] = priority
+			continue
+		}
+		if priority < priorities[stackName] {
+			if entry.Project == "" {
+				entry.Project = existing.Project
+			}
+			stacks[stackName] = entry
+			priorities[stackName] = priority
+			continue
+		}
+		if existing.Project == "" && entry.Project != "" {
+			existing.Project = entry.Project
+			stacks[stackName] = existing
 		}
 	}
 	if len(stacks) == 0 {
@@ -993,12 +1022,13 @@ func extractRunningDeployTargetStacks(containers []container.Summary) []deployTa
 	return out
 }
 
-func inferStackFromGatewayName(name string) string {
+func inferStackFromServiceName(name, service string) string {
 	trimmed := strings.TrimSpace(name)
-	if trimmed == "" {
+	serviceName := strings.TrimSpace(service)
+	if trimmed == "" || serviceName == "" {
 		return ""
 	}
-	const suffix = "-gateway"
+	suffix := "-" + serviceName
 	if !strings.HasSuffix(trimmed, suffix) {
 		return ""
 	}

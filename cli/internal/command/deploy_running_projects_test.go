@@ -78,6 +78,56 @@ func TestExtractRunningDeployTargetStacks(t *testing.T) {
 	}
 }
 
+func TestExtractRunningDeployTargetStacksGatewayDown(t *testing.T) {
+	containers := []container.Summary{
+		{
+			Names:  []string{"/esb-dev-agent"},
+			Labels: map[string]string{compose.ComposeServiceLabel: "agent", compose.ComposeProjectLabel: "esb3"},
+		},
+		{
+			Names:  []string{"/esb-dev-database"},
+			Labels: map[string]string{compose.ComposeServiceLabel: "database", compose.ComposeProjectLabel: "esb3"},
+		},
+		{
+			Names:  []string{"/esb-infra-registry"},
+			Labels: map[string]string{compose.ComposeServiceLabel: "registry", compose.ComposeProjectLabel: "esb-infra"},
+		},
+		{
+			Names:  []string{"/buildx_buildkit_esb-buildx0"},
+			Labels: map[string]string{},
+		},
+	}
+
+	got := extractRunningDeployTargetStacks(containers)
+	want := []deployTargetStack{
+		{Name: "esb-dev", Project: "esb3", Env: "dev"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("unexpected stacks: %#v", got)
+	}
+}
+
+func TestExtractRunningDeployTargetStacksPrefersGatewayMetadata(t *testing.T) {
+	containers := []container.Summary{
+		{
+			Names:  []string{"/esb-dev-agent"},
+			Labels: map[string]string{compose.ComposeServiceLabel: "agent", compose.ComposeProjectLabel: "project-from-agent"},
+		},
+		{
+			Names:  []string{"/esb-dev-gateway"},
+			Labels: map[string]string{compose.ComposeServiceLabel: "gateway", compose.ComposeProjectLabel: "project-from-gateway"},
+		},
+	}
+
+	got := extractRunningDeployTargetStacks(containers)
+	want := []deployTargetStack{
+		{Name: "esb-dev", Project: "project-from-gateway", Env: "dev"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("unexpected stacks: %#v", got)
+	}
+}
+
 func TestResolveDeployTargetStackSingleAutoSelect(t *testing.T) {
 	prompter := &recordingPrompter{}
 	stack, err := resolveDeployTargetStack(
@@ -119,6 +169,18 @@ func TestInferEnvFromStackName(t *testing.T) {
 	}
 	if got := inferEnvFromStackName("esb"); got != "" {
 		t.Fatalf("expected empty env, got %q", got)
+	}
+}
+
+func TestInferStackFromServiceName(t *testing.T) {
+	if got := inferStackFromServiceName("esb-dev-runtime-node", "runtime-node"); got != "esb-dev" {
+		t.Fatalf("expected esb-dev stack, got %q", got)
+	}
+	if got := inferStackFromServiceName("esb-dev-gateway", "agent"); got != "" {
+		t.Fatalf("expected empty stack, got %q", got)
+	}
+	if got := inferStackFromServiceName("", "gateway"); got != "" {
+		t.Fatalf("expected empty stack for blank name, got %q", got)
 	}
 }
 
