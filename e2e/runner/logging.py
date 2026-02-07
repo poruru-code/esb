@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 import threading
 from pathlib import Path
 from typing import Callable, TextIO
@@ -17,6 +18,12 @@ def safe_print(message: str = "", *, prefix: str | None = None) -> None:
             print(f"{prefix} {message}", flush=True)
         else:
             print(message, flush=True)
+
+
+def write_raw(message: str) -> None:
+    with _OUTPUT_LOCK:
+        sys.stdout.write(message)
+        sys.stdout.flush()
 
 
 class LogSink:

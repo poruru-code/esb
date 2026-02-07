@@ -43,6 +43,11 @@ def parse_args():
         help="Enable verbose output",
     )
     parser.add_argument(
+        "--no-live",
+        action="store_true",
+        help="Disable live progress updates (TTY only)",
+    )
+    parser.add_argument(
         "--color",
         dest="color",
         action="store_const",

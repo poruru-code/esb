@@ -6,6 +6,7 @@ from __future__ import annotations
 import os
 import sys
 import time
+from datetime import datetime
 
 from e2e.runner.events import (
     EVENT_ENV_END,
@@ -27,6 +28,7 @@ from e2e.runner.events import (
     STATUS_SKIPPED,
     Event,
 )
+from e2e.runner.live_display import LiveDisplay
 from e2e.runner.logging import safe_print
 
 _COLOR_RESET = "\033[0m"
@@ -52,6 +54,12 @@ def _format_duration(seconds: float) -> str:
     return f"{mins}m{secs:02d}s"
 
 
+def _format_wall_time(timestamp: float | None) -> str:
+    if timestamp is None:
+        timestamp = time.time()
+    return datetime.fromtimestamp(timestamp).astimezone().strftime("%Y-%m-%d %H:%M:%S")
+
+
 class Reporter:
     def start(self) -> None:
         return None
@@ -71,9 +79,14 @@ class PlainReporter(Reporter):
         env_label_width: int = 0,
         color: bool | None = None,
         emoji: bool | None = None,
+        live_display: LiveDisplay | None = None,
+        show_progress: bool = True,
     ) -> None:
         self._verbose = verbose
         self._env_label_width = max(env_label_width, 0)
+        self._tag_width = max(self._env_label_width, len("suite"), len("warmup"), len("infra"))
+        self._live_display = live_display
+        self._show_progress = show_progress
         is_tty = sys.stdout.isatty()
         term = os.environ.get("TERM", "").lower()
         color_default = is_tty and term != "dumb" and not os.environ.get("NO_COLOR")
@@ -95,7 +108,8 @@ class PlainReporter(Reporter):
         return f"[{label}]"
 
     def _prefix_tag(self, tag: str) -> str:
-        return f"[{tag}]"
+        label = tag.ljust(self._tag_width) if self._tag_width else tag
+        return f"[{label}]"
 
     def _emoji_prefix(self, emoji: str) -> str:
         if not self._emoji or not emoji:
@@ -139,24 +153,34 @@ class PlainReporter(Reporter):
 
     def emit(self, event: Event) -> None:
         if event.event_type == EVENT_MESSAGE and event.message:
-            safe_print(event.message)
+            self._log_line(event.message)
             return
 
         if event.event_type == EVENT_SUITE_START:
-            safe_print(f"{self._prefix_tag('suite')} {self._emoji_prefix('🧪')}started")
+            started_at = _format_wall_time(event.data.get("wall_time"))
+            self._log_line(
+                f"{self._prefix_tag('suite')} {self._emoji_prefix('🧪')}started @ {started_at}"
+            )
             return
 
         if event.event_type == EVENT_REGISTRY_READY:
-            safe_print(f"{self._prefix_tag('infra')} {self._emoji_prefix('🧰')}registry ready")
+            self._log_line(f"{self._prefix_tag('infra')} {self._emoji_prefix('🧰')}registry ready")
             return
 
         if event.event_type == EVENT_SUITE_END:
-            safe_print(f"{self._prefix_tag('suite')} {self._emoji_prefix('🏁')}finished")
+            finished_at = _format_wall_time(event.data.get("wall_time"))
+            self._log_line(
+                f"{self._prefix_tag('suite')} {self._emoji_prefix('🏁')}finished @ {finished_at}"
+            )
             return
 
         if event.event_type == EVENT_ENV_START and event.env:
             self._env_started[event.env] = time.monotonic()
-            safe_print(f"{self._prefix_env(event.env)} {self._emoji_prefix('🚀')}started")
+            started_at = _format_wall_time(event.data.get("wall_time"))
+            self._update_env_line(
+                event.env,
+                f"{self._prefix_env(event.env)} {self._emoji_prefix('🚀')}started @ {started_at}",
+            )
             return
 
         if event.event_type == EVENT_ENV_END and event.env:
@@ -164,19 +188,21 @@ class PlainReporter(Reporter):
             started = self._env_started.get(event.env)
             duration = _format_duration(time.monotonic() - started) if started else ""
             suffix = f" ({duration})" if duration else ""
+            finished_at = _format_wall_time(event.data.get("wall_time"))
             message = (
                 f"{self._prefix_env(event.env)} {self._emoji_prefix('🏁')}done ... "
-                f"{self._env_status(status)}{suffix}"
+                f"{self._env_status(status)}{suffix} @ {finished_at}"
             )
-            safe_print(message)
+            self._update_env_line(event.env, message)
             return
 
         if event.event_type == EVENT_PHASE_START and event.env and event.phase:
-            if self._verbose:
+            if self._live_display or self._verbose:
                 label = self._phase_label(event.phase)
-                safe_print(
+                message = (
                     f"{self._prefix_env(event.env)} {self._emoji_prefix('⏳')}{label} ... start"
                 )
+                self._update_env_line(event.env, message)
             return
 
         if event.event_type == EVENT_PHASE_END and event.env and event.phase:
@@ -200,22 +226,18 @@ class PlainReporter(Reporter):
                 f"{self._prefix_env(event.env)} {icon_prefix}{label} ... "
                 f"{self._status_word(status)}{suffix}"
             )
-            safe_print(message)
+            self._update_env_line(event.env, message)
             return
 
         if event.event_type == EVENT_PHASE_SKIP and event.env and event.phase:
             label = self._phase_label(event.phase)
-            safe_print(
-                f"{self._prefix_env(event.env)} {self._emoji_prefix('⏭️')}{label} ... skipped"
-            )
+            message = f"{self._prefix_env(event.env)} {self._emoji_prefix('⏭️')}{label} ... skipped"
+            self._update_env_line(event.env, message)
             return
 
-        if (
-            event.event_type == EVENT_PHASE_PROGRESS
-            and event.env
-            and event.phase
-            and not self._verbose
-        ):
+        if event.event_type == EVENT_PHASE_PROGRESS and event.env and event.phase:
+            if self._verbose and not self._live_display:
+                return
             current = event.data.get("current")
             total = event.data.get("total")
             if current is None:
@@ -228,9 +250,23 @@ class PlainReporter(Reporter):
             total_str = "?" if total is None else str(int(total))
             total_value = int(total) if total is not None else None
             self._progress_counts[event.env] = (int(current), total_value)
+            if not self._show_progress:
+                return
             label = self._phase_label(event.phase)
             message = (
                 f"{self._prefix_env(event.env)} {self._emoji_prefix('⏳')}{label} ... "
                 f"{current}/{total_str}"
             )
-            safe_print(message)
+            self._update_env_line(event.env, message)
+
+    def _log_line(self, message: str) -> None:
+        if self._live_display:
+            self._live_display.log_line(message)
+            return
+        safe_print(message)
+
+    def _update_env_line(self, env: str, message: str) -> None:
+        if self._live_display:
+            self._live_display.update_line(env, message)
+            return
+        safe_print(message)

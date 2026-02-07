@@ -11,6 +11,7 @@ import urllib3
 
 from e2e.runner.cli import parse_args
 from e2e.runner.config import load_test_matrix
+from e2e.runner.live_display import LiveDisplay
 from e2e.runner.planner import apply_test_target, build_plan
 from e2e.runner.runner import run_parallel
 from e2e.runner.ui import PlainReporter
@@ -68,6 +69,19 @@ def resolve_emoji_enabled(flag: bool | None) -> bool:
         return False
     term = os.environ.get("TERM", "")
     if term.lower() == "dumb":
+        return False
+    return True
+
+
+def resolve_live_enabled(no_live: bool) -> bool:
+    if no_live:
+        return False
+    if not sys.stdout.isatty():
+        return False
+    term = os.environ.get("TERM", "")
+    if term.lower() == "dumb":
+        return False
+    if os.environ.get("NO_COLOR") or os.environ.get("NO_EMOJI"):
         return False
     return True
 
@@ -149,6 +163,7 @@ def main():
             env_label_width=env_label_width,
             color=args.color,
             emoji=args.emoji,
+            show_progress=True,
         )
         results = run_parallel(
             env_scenarios,
@@ -156,6 +171,7 @@ def main():
             parallel=False,
             args=args,
             env_label_width=env_label_width,
+            live_display=None,
         )
         failed = [env for env, ok in results.items() if not ok]
         if failed:
@@ -183,6 +199,7 @@ def main():
             env_label_width=env_label_width,
             color=args.color,
             emoji=args.emoji,
+            show_progress=True,
         )
         results = run_parallel(
             env_scenarios,
@@ -190,6 +207,7 @@ def main():
             parallel=False,
             args=args,
             env_label_width=env_label_width,
+            live_display=None,
         )
         failed = [env for env, ok in results.items() if not ok]
         if failed:
@@ -202,12 +220,20 @@ def main():
         sys.exit(0)
 
     parallel_mode = args.parallel and len(env_scenarios) > 1
+    live_enabled = resolve_live_enabled(args.no_live) and parallel_mode
     env_label_width = resolve_env_label_width(env_scenarios)
+    live_display = (
+        LiveDisplay(list(env_scenarios.keys()), label_width=env_label_width)
+        if live_enabled
+        else None
+    )
     reporter = PlainReporter(
         verbose=args.verbose,
         env_label_width=env_label_width,
         color=args.color,
         emoji=args.emoji,
+        live_display=live_display,
+        show_progress=not (live_display and not args.verbose),
     )
     results = run_parallel(
         env_scenarios,
@@ -215,6 +241,7 @@ def main():
         parallel=parallel_mode,
         args=args,
         env_label_width=env_label_width,
+        live_display=live_display,
     )
     failed_entries = [env for env, ok in results.items() if not ok]
 

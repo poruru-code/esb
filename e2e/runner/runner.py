@@ -9,6 +9,7 @@ import subprocess
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
@@ -49,6 +50,7 @@ from e2e.runner.lifecycle import (
     resolve_compose_file,
     wait_for_gateway,
 )
+from e2e.runner.live_display import LiveDisplay
 from e2e.runner.logging import LogSink, make_prefix_printer
 from e2e.runner.models import RunContext, Scenario
 from e2e.runner.tester import run_pytest
@@ -79,23 +81,62 @@ def run_parallel(
     parallel: bool,
     args,
     env_label_width: int | None = None,
+    live_display: LiveDisplay | None = None,
 ) -> dict[str, bool]:
     reporter.start()
-    reporter.emit(Event(EVENT_SUITE_START))
+    reporter.emit(Event(EVENT_SUITE_START, data={"wall_time": time.time()}))
     results: dict[str, bool] = {}
     try:
         label_width = env_label_width
         if label_width is None:
             label_width = max((len(env) for env in scenarios.keys()), default=0)
+
+        def format_prefix(label: str, phase: str | None = None) -> str:
+            formatted = label.ljust(label_width) if label_width > 0 else label
+            if phase:
+                return f"[{formatted}][{phase}] |"
+            return f"[{formatted}]"
+
+        def make_system_printer(
+            label: str,
+            phase: str | None = None,
+            *,
+            always: bool = False,
+        ) -> Callable[[str], None] | None:
+            if not always and not args.verbose and not live_display:
+                return None
+            if live_display:
+                prefix = format_prefix(label, phase)
+                return lambda line: live_display.log_line(f"{prefix} {line}")
+            return make_prefix_printer(label, phase, width=label_width)
+
+        def make_env_printer(
+            env_name: str,
+            phase: str | None = None,
+        ) -> Callable[[str], None] | None:
+            if not args.verbose and not live_display:
+                return None
+            if live_display:
+                prefix = format_prefix(env_name, phase)
+                if args.verbose:
+                    return lambda line: live_display.log_line(f"{prefix} {line}")
+                if phase == PHASE_TEST:
+                    return lambda line: live_display.update_line(env_name, f"{prefix} {line}")
+                return lambda line: live_display.update_line(env_name, f"{prefix} {line}")
+            return make_prefix_printer(env_name, phase, width=label_width)
+
         if not args.test_only:
-            warmup_printer = make_prefix_printer("warmup", width=label_width)
+            warmup_printer = make_system_printer("warmup", always=True)
             _warmup(scenarios, printer=warmup_printer, verbose=args.verbose)
-        infra_printer = make_prefix_printer("infra", width=label_width) if args.verbose else None
+        infra_printer = make_system_printer("infra")
         infra.ensure_infra_up(str(PROJECT_ROOT), printer=infra_printer)
         reporter.emit(Event(EVENT_REGISTRY_READY))
 
         if not scenarios:
             return results
+
+        if live_display:
+            live_display.start()
 
         max_workers = len(scenarios) if parallel else 1
         port_plan = _allocate_ports(list(scenarios.keys()))
@@ -107,9 +148,7 @@ def run_parallel(
             log.open()
 
             def phase_printer(phase: str) -> Callable[[str], None] | None:
-                if not args.verbose:
-                    return None
-                return make_prefix_printer(env_name, phase, width=label_width)
+                return make_env_printer(env_name, phase)
 
             try:
                 ctx = _prepare_context(scenario, port_plan.get(env_name))
@@ -137,7 +176,9 @@ def run_parallel(
                     break
         return results
     finally:
-        reporter.emit(Event(EVENT_SUITE_END))
+        reporter.emit(Event(EVENT_SUITE_END, data={"wall_time": time.time()}))
+        if live_display:
+            live_display.stop()
         reporter.close()
 
 
@@ -232,7 +273,10 @@ def _run_env(
     phase_printer: Callable[[str], Callable[[str], None] | None] | None,
     args,
 ) -> bool:
-    reporter.emit(Event(EVENT_ENV_START, env=ctx.scenario.env_name))
+    env_name = ctx.scenario.env_name
+    start_wall = time.time()
+    reporter.emit(Event(EVENT_ENV_START, env=env_name, data={"wall_time": start_wall}))
+    log.write_line(f"[{env_name}] started @ {_format_wall_time(start_wall)}")
     try:
 
         def _printer_for(phase: str) -> Callable[[str], None] | None:
@@ -241,9 +285,9 @@ def _run_env(
             return phase_printer(phase)
 
         if args.test_only:
-            reporter.emit(Event(EVENT_PHASE_SKIP, env=ctx.scenario.env_name, phase=PHASE_RESET))
-            reporter.emit(Event(EVENT_PHASE_SKIP, env=ctx.scenario.env_name, phase=PHASE_COMPOSE))
-            reporter.emit(Event(EVENT_PHASE_SKIP, env=ctx.scenario.env_name, phase=PHASE_DEPLOY))
+            reporter.emit(Event(EVENT_PHASE_SKIP, env=env_name, phase=PHASE_RESET))
+            reporter.emit(Event(EVENT_PHASE_SKIP, env=env_name, phase=PHASE_COMPOSE))
+            reporter.emit(Event(EVENT_PHASE_SKIP, env=env_name, phase=PHASE_DEPLOY))
         else:
             reset_printer = _printer_for(PHASE_RESET)
             _phase(
@@ -276,14 +320,8 @@ def _run_env(
             )
 
         if args.build_only:
-            reporter.emit(Event(EVENT_PHASE_SKIP, env=ctx.scenario.env_name, phase=PHASE_TEST))
-            reporter.emit(
-                Event(
-                    EVENT_ENV_END,
-                    env=ctx.scenario.env_name,
-                    data={"status": STATUS_PASSED},
-                )
-            )
+            reporter.emit(Event(EVENT_PHASE_SKIP, env=env_name, phase=PHASE_TEST))
+            _emit_env_end(reporter, log, env_name, STATUS_PASSED)
             return True
 
         if ctx.scenario.targets:
@@ -297,21 +335,13 @@ def _run_env(
                 lambda: _test(ctx, reporter, log, test_printer),
             )
         else:
-            reporter.emit(Event(EVENT_PHASE_SKIP, env=ctx.scenario.env_name, phase=PHASE_TEST))
+            reporter.emit(Event(EVENT_PHASE_SKIP, env=env_name, phase=PHASE_TEST))
 
-        reporter.emit(
-            Event(
-                EVENT_ENV_END,
-                env=ctx.scenario.env_name,
-                data={"status": STATUS_PASSED},
-            )
-        )
+        _emit_env_end(reporter, log, env_name, STATUS_PASSED)
         return True
     except Exception as exc:
         log.write_line(f"[ERROR] {exc}")
-        reporter.emit(
-            Event(EVENT_ENV_END, env=ctx.scenario.env_name, data={"status": STATUS_FAILED})
-        )
+        _emit_env_end(reporter, log, env_name, STATUS_FAILED)
         return False
     finally:
         if args.cleanup:
@@ -411,9 +441,9 @@ def _warmup(
         missing = ", ".join(str(template) for template in missing_templates)
         raise FileNotFoundError(f"Missing E2E template(s): {missing}")
     if _uses_java_templates(scenarios):
-        _emit_warmup(printer, "=== Java fixture warmup: start ===")
+        _emit_warmup(printer, f"Java fixture warmup ... start @ {_format_wall_time(time.time())}")
         _build_java_fixtures(printer=printer, verbose=verbose)
-        _emit_warmup(printer, "=== Java fixture warmup: done ===")
+        _emit_warmup(printer, f"Java fixture warmup ... done  @ {_format_wall_time(time.time())}")
 
 
 def _uses_java_templates(scenarios: dict[str, Scenario]) -> bool:
@@ -510,7 +540,7 @@ def _build_java_fixtures(
         pom = project_dir / "pom.xml"
         if not pom.exists():
             continue
-        if printer:
+        if printer and verbose:
             printer(f"Building Java fixture: {project_dir.name}")
         _build_java_project(project_dir, verbose=verbose)
 
@@ -592,6 +622,27 @@ def _emit_warmup(printer: Callable[[str], None] | None, message: str) -> None:
         printer(message)
     else:
         print(message)
+
+
+def _format_wall_time(timestamp: float) -> str:
+    return datetime.fromtimestamp(timestamp).astimezone().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _emit_env_end(
+    reporter: Reporter,
+    log: LogSink,
+    env_name: str,
+    status: str,
+) -> None:
+    end_wall = time.time()
+    log.write_line(f"[{env_name}] done ... {status.upper()} @ {_format_wall_time(end_wall)}")
+    reporter.emit(
+        Event(
+            EVENT_ENV_END,
+            env=env_name,
+            data={"status": status, "wall_time": end_wall},
+        )
+    )
 
 
 def _resolve_env_file(env_file: str | None) -> str | None:
