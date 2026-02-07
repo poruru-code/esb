@@ -31,12 +31,11 @@ type Dependencies struct {
 // CLI defines the command-line interface structure parsed by Kong.
 // It contains global flags and all subcommand definitions.
 type CLI struct {
-	Template   []string      `short:"t" help:"Path to SAM template (repeatable)"`
-	EnvFlag    string        `short:"e" name:"env" help:"Environment name"`
-	EnvFile    string        `name:"env-file" help:"Path to .env file"`
-	Deploy     DeployCmd     `cmd:"" help:"Deploy functions"`
-	Completion CompletionCmd `cmd:"" help:"Generate shell completion script"`
-	Version    VersionCmd    `cmd:"" help:"Show version information"`
+	Template []string   `short:"t" help:"Path to SAM template (repeatable)"`
+	EnvFlag  string     `short:"e" name:"env" help:"Environment name"`
+	EnvFile  string     `name:"env-file" help:"Path to .env file"`
+	Deploy   DeployCmd  `cmd:"" help:"Deploy functions"`
+	Version  VersionCmd `cmd:"" help:"Show version information"`
 }
 
 type (
@@ -129,11 +128,8 @@ type commandHandler func(CLI, Dependencies, io.Writer) int
 
 func dispatchCommand(command string, cli CLI, deps Dependencies, out io.Writer) (int, bool) {
 	exactHandlers := map[string]commandHandler{
-		"deploy":          runDeploy,
-		"completion bash": func(_ CLI, _ Dependencies, out io.Writer) int { return runCompletionBash(cli, out) },
-		"completion zsh":  func(_ CLI, _ Dependencies, out io.Writer) int { return runCompletionZsh(cli, out) },
-		"completion fish": func(_ CLI, _ Dependencies, out io.Writer) int { return runCompletionFish(cli, out) },
-		"version":         func(_ CLI, _ Dependencies, out io.Writer) int { return runVersion(cli, out) },
+		"deploy":  runDeploy,
+		"version": func(_ CLI, _ Dependencies, out io.Writer) int { return runVersion(cli, out) },
 	}
 
 	if handler, ok := exactHandlers[command]; ok {

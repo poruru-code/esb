@@ -42,7 +42,6 @@ description = "Build CLI to ~/.local/bin"
 dir = "cli"
 run = [
   "bash -lc 'source ../config/defaults.env && go build -o ~/.local/bin/${CLI_CMD} ./cmd/esb'",
-  "bash -lc 'source ../config/defaults.env && mkdir -p ~/.local/share/bash-completion/completions && ~/.local/bin/${CLI_CMD} completion bash > ~/.local/share/bash-completion/completions/${CLI_CMD}'",
 ]
 
 [tasks.dev-cli]

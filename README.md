@@ -30,7 +30,6 @@ docker compose -f docker-compose.containerd.yml up -d
 
 ## CLI（概要）
 - `esb deploy`: SAM テンプレート解析、設定/Dockerfile/関数イメージ生成、provisioner 実行（`--build-only`でビルドのみ）
-- `esb completion`: bash/zsh/fish の補完スクリプト生成
 - `esb version`: ビルド情報表示
 
 ## 開発 / コントリビュート
