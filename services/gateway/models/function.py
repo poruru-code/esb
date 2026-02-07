@@ -41,6 +41,7 @@ class FunctionEntity(BaseModel):
     name: str
     timeout: int = 300
     memory_size: Optional[int] = None
+    image: Optional[str] = None
     environment: Dict[str, str] = Field(default_factory=dict)
     scaling: ScalingConfig = Field(default_factory=ScalingConfig)
     events: List[FunctionEvent] = Field(default_factory=list)
@@ -61,6 +62,7 @@ class FunctionEntity(BaseModel):
             name=name,
             timeout=data.get("timeout", 300),
             memory_size=data.get("memory_size"),
+            image=data.get("image"),
             environment=data.get("environment", {}),
             scaling=scaling,
             events=data.get("events", []),

@@ -58,6 +58,7 @@ from e2e.runner.utils import (
     E2E_STATE_ROOT,
     PROJECT_ROOT,
     build_unique_tag,
+    default_e2e_deploy_templates,
     env_key,
 )
 
@@ -141,11 +142,8 @@ def _prepare_context(
     env_file = _resolve_env_file(scenario.env_file)
 
     compose_file = resolve_compose_file(scenario)
-    template_path = None
-    if scenario.deploy_templates:
-        template_path = (PROJECT_ROOT / scenario.deploy_templates[0]).resolve()
-    else:
-        template_path = (PROJECT_ROOT / "e2e" / "fixtures" / "template.yaml").resolve()
+    templates = _resolve_templates(scenario)
+    template_path = templates[0]
 
     runtime_env = calculate_runtime_env(
         project_name,
@@ -387,9 +385,11 @@ def _warmup(
     printer: Callable[[str], None] | None = None,
     verbose: bool = False,
 ) -> None:
-    template = PROJECT_ROOT / "e2e" / "fixtures" / "template.yaml"
-    if not template.exists():
-        raise FileNotFoundError(f"Missing E2E template: {template}")
+    templates = _collect_templates(scenarios)
+    missing_templates = [template for template in templates if not template.exists()]
+    if missing_templates:
+        missing = ", ".join(str(template) for template in missing_templates)
+        raise FileNotFoundError(f"Missing E2E template(s): {missing}")
     if _uses_java_templates(scenarios):
         _emit_warmup(printer, "=== Java fixture warmup: start ===")
         _build_java_fixtures(printer=printer, verbose=verbose)
@@ -400,18 +400,17 @@ def _uses_java_templates(scenarios: dict[str, Scenario]) -> bool:
     runtime_extensions = PROJECT_ROOT / "runtime" / "java" / "extensions"
     if not runtime_extensions.exists():
         return False
-    templates: set[Path] = set()
-    for scenario in scenarios.values():
-        if scenario.deploy_templates:
-            for tmpl in scenario.deploy_templates:
-                templates.add(_resolve_template_path(Path(tmpl)))
-        else:
-            templates.add(PROJECT_ROOT / "e2e" / "fixtures" / "template.yaml")
-
-    for template in templates:
+    for template in _collect_templates(scenarios):
         if _template_has_java_runtime(template):
             return True
     return False
+
+
+def _collect_templates(scenarios: dict[str, Scenario]) -> list[Path]:
+    templates: set[Path] = set()
+    for scenario in scenarios.values():
+        templates.update(_resolve_templates(scenario))
+    return sorted(templates)
 
 
 def _resolve_template_path(path: Path) -> Path:
@@ -586,8 +585,8 @@ def _resolve_env_file(env_file: str | None) -> str | None:
 
 def _resolve_templates(scenario: Scenario) -> list[Path]:
     if scenario.deploy_templates:
-        return [Path(t).resolve() for t in scenario.deploy_templates]
-    return [PROJECT_ROOT / "e2e" / "fixtures" / "template.yaml"]
+        return [_resolve_template_path(Path(template)) for template in scenario.deploy_templates]
+    return default_e2e_deploy_templates()
 
 
 def _apply_ports_to_env_dict(ports: dict[str, int], env: dict[str, str]) -> None:

@@ -18,10 +18,10 @@ Why: Keep the runtime control surface and error semantics explicit.
 Agent は `PermissionDenied` を返します。
 
 ### エラーコード（代表例）
-- `InvalidArgument`: `owner_id`/`container_id`/`function_name` が空
+- `InvalidArgument`: `owner_id`/`container_id`/`function_name`/`image` が空
 - `NotFound`: `container_id` が見つからない
 - `PermissionDenied`: `owner_id` が一致しない
-- `Internal`: runtime 操作失敗（create/start/list 等）
+- `Internal`: runtime 操作失敗（create/start/list/pull 等）
 - `DeadlineExceeded`: `InvokeWorker` の HTTP invoke がタイムアウト
 - `ResourceExhausted`: `InvokeWorker` のレスポンスボディが上限超過
 
@@ -31,17 +31,37 @@ Agent は `PermissionDenied` を返します。
 目的: 関数コンテナを **起動**し、接続情報を返します。
 
 入力（抜粋）:
-- `function_name`（必須）
-- `image`（任意、空なら Agent 側で推論）
-- `env`（任意、map）
-- `owner_id`（必須）
+
+| フィールド | 役割 | 補足 |
+| --- | --- | --- |
+| `function_name` | 関数名 | 必須 |
+| `image` | 実行イメージ | 必須。内部レジストリ参照（例: `registry:5010/...`） |
+| `env` | 環境変数 | 任意（map） |
+| `owner_id` | 所有権 | 必須 |
 
 出力:
 - `WorkerInfo { id, ip_address, port }`
 
 補足:
-- `image=""` の場合、`CONTAINER_REGISTRY` + `ESB_TAG` からイメージ名を解決します。
 - Agent は「プール管理」を行わず、基本的に **毎回新規コンテナを作成**します。
+- 外部レジストリからの同期は行いません。`image` が未投入なら runtime pull で失敗します。
+
+#### EnsureContainer のシーケンス
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant GW as Gateway
+    participant AG as Agent
+    participant RT as Runtime
+    participant IR as Internal Registry
+
+    GW->>AG: EnsureContainer(function_name, image, env, owner_id)
+    AG->>RT: Ensure(image)
+    RT->>IR: Pull image (if needed)
+    RT-->>AG: WorkerInfo
+    AG-->>GW: WorkerInfo
+```
 
 ### 2) DestroyContainer
 目的: 指定コンテナを **削除**します（存在しなければ成功扱いにするケースがあります）。

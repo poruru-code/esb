@@ -300,6 +300,58 @@ func TestGenerateFilesStagesJavaJarAndWrapper(t *testing.T) {
 	}
 }
 
+func TestGenerateFilesImageFunctionWritesImportManifest(t *testing.T) {
+	root := t.TempDir()
+	templatePath := filepath.Join(root, "template.yaml")
+	writeTestFile(t, templatePath, "Resources: {}")
+
+	parser := &stubParser{
+		result: template.ParseResult{
+			Functions: []template.FunctionSpec{
+				{
+					Name:        "lambda-image",
+					ImageSource: "public.ecr.aws/example/repo:latest",
+					Timeout:     30,
+				},
+			},
+		},
+	}
+
+	cfg := config.GeneratorConfig{
+		Paths: config.PathsConfig{
+			SamTemplate: "template.yaml",
+			OutputDir:   "out/",
+		},
+	}
+	opts := GenerateOptions{ProjectRoot: root, Parser: parser}
+
+	functions, err := GenerateFiles(cfg, opts)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(functions) != 1 {
+		t.Fatalf("expected 1 function, got %d", len(functions))
+	}
+	if functions[0].ImageRef == "" {
+		t.Fatalf("expected image_ref to be populated")
+	}
+
+	functionDir := filepath.Join(root, "out", "functions", "lambda-image")
+	if _, err := os.Stat(functionDir); !os.IsNotExist(err) {
+		t.Fatalf("did not expect staged function directory for image function")
+	}
+
+	manifestPath := filepath.Join(root, "out", "config", "image-import.json")
+	if _, err := os.Stat(manifestPath); err != nil {
+		t.Fatalf("expected image-import.json to exist: %v", err)
+	}
+
+	content := readFile(t, filepath.Join(root, "out", "config", "functions.yml"))
+	if !strings.Contains(content, "image: \"registry:5010/public.ecr.aws/example/repo:latest\"") {
+		t.Fatalf("expected image entry in functions.yml, got: %s", content)
+	}
+}
+
 func TestGenerateFilesLayerNesting(t *testing.T) {
 	root := t.TempDir()
 	templatePath := filepath.Join(root, "template.yaml")

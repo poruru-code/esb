@@ -67,6 +67,9 @@ func main() {
 
 	// Initialize Runtime
 	var rt runtime.ContainerRuntime
+	var dockerCli *client.Client
+	var err error
+	namespace := meta.RuntimeNamespace
 
 	runtimeType := os.Getenv("AGENT_RUNTIME")
 	if runtimeType == "" {
@@ -129,7 +132,6 @@ func main() {
 		}
 
 		// 2. Create Runtime with CNI networking
-		namespace := meta.RuntimeNamespace
 		rt = agentContainerd.NewRuntime(wrappedClient, cniPlugin, namespace, esbEnv)
 		slog.Info("Runtime initialized", "runtime", "containerd", "namespace", namespace)
 
@@ -137,7 +139,7 @@ func main() {
 		slog.Info("Initializing Docker Runtime...")
 
 		// Initialize Docker Client
-		dockerCli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+		dockerCli, err = client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 		if err != nil {
 			slog.Error("Failed to create Docker client", "error", err)
 			os.Exit(1)

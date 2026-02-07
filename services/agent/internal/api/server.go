@@ -28,18 +28,25 @@ type AgentServer struct {
 	maxResponseSize int64
 }
 
-func NewAgentServer(rt runtime.ContainerRuntime) *AgentServer {
+type ServerOption func(*AgentServer)
+
+func NewAgentServer(rt runtime.ContainerRuntime, options ...ServerOption) *AgentServer {
 	maxSize := int64(config.DefaultMaxResponseSize)
 	if envVal := os.Getenv("AGENT_INVOKE_MAX_RESPONSE_SIZE"); envVal != "" {
 		if val, err := strconv.ParseInt(envVal, 10, 64); err == nil && val > 0 {
 			maxSize = val
 		}
 	}
-
-	return &AgentServer{
+	server := &AgentServer{
 		runtime:         rt,
 		maxResponseSize: maxSize,
 	}
+	for _, option := range options {
+		if option != nil {
+			option(server)
+		}
+	}
+	return server
 }
 
 func (s *AgentServer) EnsureContainer(ctx context.Context, req *pb.EnsureContainerRequest) (*pb.WorkerInfo, error) {
@@ -50,10 +57,14 @@ func (s *AgentServer) EnsureContainer(ctx context.Context, req *pb.EnsureContain
 	if err != nil {
 		return nil, err
 	}
+	image := strings.TrimSpace(req.Image)
+	if image == "" {
+		return nil, status.Error(codes.InvalidArgument, "image is required")
+	}
 
 	info, err := s.runtime.Ensure(ctx, runtime.EnsureRequest{
 		FunctionName: req.FunctionName,
-		Image:        req.Image,
+		Image:        image,
 		Env:          req.Env,
 		OwnerID:      ownerID,
 	})

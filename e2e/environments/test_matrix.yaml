@@ -25,8 +25,9 @@ matrix:
 # docker runtime
 - esb_env: e2e-docker
   deploy_templates:
-  - e2e/fixtures/template.part1.yaml
-  - e2e/fixtures/template.part2.yaml
+  - e2e/fixtures/template.core.yaml
+  - e2e/fixtures/template.stateful.yaml
+  - e2e/fixtures/template.image.yaml
   suites:
   - smoke
   - standard
@@ -35,8 +36,9 @@ matrix:
 # containerd runtime
 - esb_env: e2e-containerd
   deploy_templates:
-  - e2e/fixtures/template.part1.yaml
-  - e2e/fixtures/template.part2.yaml
+  - e2e/fixtures/template.core.yaml
+  - e2e/fixtures/template.stateful.yaml
+  - e2e/fixtures/template.image.yaml
   suites:
   - smoke
   - standard

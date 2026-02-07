@@ -6,7 +6,7 @@ Why: Provide a concise, code-grounded overview of request handling.
 # Gateway アーキテクチャ
 
 ## 概要
-Gateway は FastAPI の HTTP エンドポイントとして動作し、**RouteMatcher → PoolManager → LambdaInvoker** の順に
+Gateway は FastAPI の HTTP エンドポイントとして動作し、**RouteMatcher -> PoolManager -> LambdaInvoker** の順に
 リクエストを処理します。ワーカーの起動/削除は **Agent（gRPC）** に委譲されます。
 
 ## クラス構造（主要コンポーネント）
@@ -55,7 +55,8 @@ sequenceDiagram
     RM-->>GW: function_name
     GW->>PM: acquire_worker(function_name)
     PM->>GP: ensure_container(function_name)
-    GP->>AG: EnsureContainer(owner_id, env)
+    GP->>AG: EnsureContainer(function_name, image, owner_id)
+    Note over PM,GP: image は functions.yml 由来（内部レジストリ参照）
     AG-->>GP: WorkerInfo(ip, port)
     GP-->>PM: WorkerInfo
 
@@ -73,11 +74,28 @@ sequenceDiagram
     GW-->>Client: HTTP Response
 ```
 
+## Image 関数の運用フロー（正式）
+
+```mermaid
+flowchart LR
+    A[esb deploy --image-prewarm=all] --> B[Source Registry から pull]
+    B --> C[Internal Registry registry:5010 へ push]
+    C --> D[functions.yml に内部参照 image を出力]
+    D --> E[Runtime invoke 時は image を pull]
+```
+
+## Image 関数の設定フィールド
+
+| フィールド | 由来 | 役割 |
+| --- | --- | --- |
+| `image` | functions.yml | 実行時に Agent/Runtime が pull する内部レジストリ参照 |
+
 ## 重要ポイント
 - **プール管理**は Gateway が実施（Agent は常に新規作成）
 - **起動時クリーンアップ**: Gateway 起動時に Agent に `ListContainers` を投げ、
   既存コンテナを削除して状態を揃える（コールドスタート増加のトレードオフあり）
 - **L7 invoke 代理**: `AGENT_INVOKE_PROXY=1` で Agent 経由の HTTP proxy を使用可能
+- **Image 関数**: 外部レジストリ同期は deploy 側の責務。runtime は内部レジストリのみを参照
 
 ---
 

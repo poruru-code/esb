@@ -43,6 +43,9 @@ def deploy_templates(
             "--mode",
             ctx.scenario.mode,
         ]
+        image_prewarm = str(ctx.scenario.extra.get("image_prewarm", "")).strip().lower()
+        if image_prewarm:
+            args.extend(["--image-prewarm", image_prewarm])
         if no_cache:
             args.append("--no-cache")
         if verbose and "--verbose" not in args and "-v" not in args:

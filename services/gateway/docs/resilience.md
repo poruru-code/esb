@@ -19,10 +19,10 @@ Gateway サービスには、Lambda 関数（コンテナ）へのリクエス�
 ```mermaid
 stateDiagram-v2
     [*] --> CLOSED
-    
+
     CLOSED --> OPEN: 失敗回数 >= 閾値
     OPEN --> HALF_OPEN: 待機時間 (Recovery Timeout) 経過
-    
+
     HALF_OPEN --> CLOSED: リクエスト成功
     HALF_OPEN --> OPEN: リクエスト失敗
 ```
@@ -37,10 +37,10 @@ stateDiagram-v2
 ### 設定パラメータ
 環境変数で調整可能です。
 
-| 環境変数                           | デフォルト | 説明                                               |
-| ---------------------------------- | ---------- | -------------------------------------------------- |
-| `CIRCUIT_BREAKER_THRESHOLD`        | `5`        | 連続失敗回数の閾値                                 |
-| `CIRCUIT_BREAKER_RECOVERY_TIMEOUT` | `30.0`     | OPEN から HALF_OPEN に遷移するまでの待機時間（秒） |
+| 環境変数 | デフォルト | 説明 |
+| --- | --- | --- |
+| `CIRCUIT_BREAKER_THRESHOLD` | `5` | 連続失敗回数の閾値 |
+| `CIRCUIT_BREAKER_RECOVERY_TIMEOUT` | `30.0` | OPEN から HALF_OPEN に遷移するまでの待機時間（秒） |
 
 ### 判定基準
 以下のケースを「失敗」とカウントします。
@@ -57,6 +57,7 @@ Lambda RIE コンテナは **Agent (gRPC)** によって動的に管理されま
 
 - **オンデマンド起動**: リクエストが来た時点でコンテナを起動します（Cold Start）。プールに残っているコンテナは再利用されます（Warm Start）。
 - **アイドル停止**: 一定時間（デフォルト: 5分）リクエストがないコンテナは Gateway の Janitor が削除します。
+- **Image 関数は deploy 時 prewarm 必須**: `esb deploy --image-prewarm=all` で内部レジストリ投入後に実行します。
 
 詳細は [cli/docs/container-management.md](../../../cli/docs/container-management.md) と
 [services/agent/docs/architecture.md](../../agent/docs/architecture.md) を参照してください。
@@ -75,12 +76,12 @@ Gateway は起動時に Agent に問い合わせ、既存コンテナを一括�
 
 クライアントに返却される主なエラーコードとその意味：
 
-| ステータスコード          | 原因                                                                 |
-| ------------------------- | -------------------------------------------------------------------- |
-| `404 Not Found`           | 指定されたパスに対応する Lambda 関数が定義されていない (Routing)     |
-| `502 Bad Gateway`         | サーキットブレーカー作動中、Agent 到達不可、または Lambda 関数内で未処理の例外が発生 |
-| `503 Service Unavailable` | コンテナ起動失敗（Provisioning 失敗）                              |
-| `504 Gateway Timeout`     | Lambda 関数の実行がタイムアウト設定 (`LAMBDA_INVOKE_TIMEOUT`) を超過 |
+| ステータスコード | 原因 |
+| --- | --- |
+| `404 Not Found` | 指定されたパスに対応する Lambda 関数が定義されていない (Routing) |
+| `502 Bad Gateway` | サーキットブレーカー作動中、Agent 到達不可、または Lambda 関数内で未処理の例外が発生 |
+| `503 Service Unavailable` | コンテナ起動失敗（内部レジストリ未投入の image を含む） |
+| `504 Gateway Timeout` | Lambda 関数の実行がタイムアウト設定 (`LAMBDA_INVOKE_TIMEOUT`) を超過 |
 
 ---
 

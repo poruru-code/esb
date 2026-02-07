@@ -48,6 +48,7 @@ type (
 		ComposeFiles []string `name:"compose-file" sep:"," help:"Compose file(s) to use (repeatable or comma-separated)"`
 		BuildOnly    bool     `name:"build-only" help:"Build only (skip provisioner and runtime sync)"`
 		Bundle       bool     `name:"bundle-manifest" help:"Write bundle manifest (for bundling)"`
+		ImagePrewarm string   `name:"image-prewarm" default:"all" help:"Image prewarm mode (all/off)"`
 		NoCache      bool     `name:"no-cache" help:"Do not use cache when building images"`
 		NoDeps       bool     `name:"no-deps" help:"Do not start dependent services when running provisioner (default)"`
 		WithDeps     bool     `name:"with-deps" help:"Start dependent services when running provisioner"`
@@ -158,7 +159,7 @@ func commandName(args []string) string {
 		}
 		if strings.HasPrefix(arg, "-") {
 			switch arg {
-			case "-e", "--env", "-t", "--template", "--env-file", "-m", "--mode", "-o", "--output", "-p", "--project":
+			case "-e", "--env", "-t", "--template", "--env-file", "-m", "--mode", "-o", "--output", "-p", "--project", "--image-prewarm":
 				skipNext = true
 			}
 			continue

@@ -15,6 +15,8 @@ type ParseResult struct {
 type FunctionSpec struct {
 	LogicalID               string
 	Name                    string
+	ImageRef                string
+	ImageSource             string
 	ImageName               string
 	CodeURI                 string
 	Handler                 string

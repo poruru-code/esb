@@ -4,6 +4,7 @@
 package build
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -264,9 +265,70 @@ func TestMergeResourcesYml(t *testing.T) {
 	}
 }
 
+func TestMergeImageImportManifest(t *testing.T) {
+	tmpDir := t.TempDir()
+	srcDir := filepath.Join(tmpDir, "src", "config")
+	destDir := filepath.Join(tmpDir, "dest")
+
+	if err := os.MkdirAll(srcDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	existing := imageImportManifest{
+		Version:    "1",
+		PushTarget: "127.0.0.1:5010",
+		Images: []imageImportEntry{
+			{
+				FunctionName: "fn-a",
+				ImageSource:  "public.ecr.aws/a/repo:latest",
+				ImageRef:     "registry:5010/public.ecr.aws/a/repo:latest",
+			},
+		},
+	}
+	src := imageImportManifest{
+		Version: "1",
+		Images: []imageImportEntry{
+			{
+				FunctionName: "fn-b",
+				ImageSource:  "public.ecr.aws/b/repo:latest",
+				ImageRef:     "registry:5010/public.ecr.aws/b/repo:latest",
+			},
+		},
+	}
+
+	writeJSON(t, filepath.Join(destDir, "image-import.json"), existing)
+	writeJSON(t, filepath.Join(srcDir, "image-import.json"), src)
+
+	if err := mergeImageImportManifest(srcDir, destDir); err != nil {
+		t.Fatal(err)
+	}
+
+	merged := readJSON(t, filepath.Join(destDir, "image-import.json"))
+	if len(merged.Images) != 2 {
+		t.Fatalf("expected 2 images, got %d", len(merged.Images))
+	}
+	if merged.PushTarget != "127.0.0.1:5010" {
+		t.Fatalf("expected push target to be preserved, got %q", merged.PushTarget)
+	}
+}
+
 func writeYaml(t *testing.T, path string, data map[string]any) {
 	t.Helper()
 	content, err := yaml.Marshal(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, content, 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeJSON(t *testing.T, path string, data any) {
+	t.Helper()
+	content, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -296,4 +358,17 @@ func findByKey(items []any, keyField, keyValue string) map[string]any {
 		}
 	}
 	return nil
+}
+
+func readJSON(t *testing.T, path string) imageImportManifest {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result imageImportManifest
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatal(err)
+	}
+	return result
 }

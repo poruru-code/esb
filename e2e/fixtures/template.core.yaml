@@ -1,9 +1,9 @@
-# Where: e2e/fixtures/template.part1.yaml
-# What: E2E SAM template segment with mixed resources/functions.
-# Why: Split deploys into multiple templates to mirror real workflows.
+# Where: e2e/fixtures/template.core.yaml
+# What: Core E2E SAM template for stateless API/runtime validation.
+# Why: Keep baseline function coverage independent from stateful resources.
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: E2E Test Lambda Functions (Part 1)
+Description: E2E Core Functions (stateless + runtime)
 
 Globals:
   Function:
@@ -46,33 +46,6 @@ Resources:
           Properties:
             Path: /api/lambda
             Method: post
-
-  DynamoIntegrationFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: lambda-dynamo
-      CodeUri: functions/python/dynamo/
-      Events:
-        DynamoApi:
-          Type: Api
-          Properties:
-            Path: /api/dynamo
-            Method: post
-      Environment:
-        Variables:
-          DYNAMODB_ENDPOINT: "http://${DYNAMODB_ENDPOINT_HOST}:8000"
-
-  E2ETable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: e2e-test-table
-      AttributeDefinitions:
-        - AttributeName: id
-          AttributeType: S
-      KeySchema:
-        - AttributeName: id
-          KeyType: HASH
-      BillingMode: PAY_PER_REQUEST
 
   EchoFunction:
     Type: AWS::Serverless::Function

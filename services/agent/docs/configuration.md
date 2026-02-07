@@ -26,7 +26,7 @@ Why: Centralize tunables used by Agent and its gRPC server.
 ## Invoke 代理
 | 変数 | デフォルト | 説明 |
 | --- | --- | --- |
-| `AGENT_INVOKE_MAX_RESPONSE_SIZE` | `10485760` | InvokeWorker の最大レスポンスサイズ（bytes） |
+| `AGENT_INVOKE_MAX_RESPONSE_SIZE` | `10485760` | `InvokeWorker` の最大レスポンスサイズ（bytes） |
 
 ## containerd / CNI
 | 変数 | デフォルト | 説明 |
@@ -45,8 +45,14 @@ Why: Centralize tunables used by Agent and its gRPC server.
 ## レジストリ / 画像
 | 変数 | デフォルト | 説明 |
 | --- | --- | --- |
-| `CONTAINER_REGISTRY` | `registry:5010` | 画像の pull 元 |
-| `<ENV_PREFIX>_TAG` | `latest` | 画像タグ（例: `ESB_TAG`） |
+| `CONTAINER_REGISTRY` | `registry:5010` | 既定の内部レジストリ |
+| `CONTAINER_REGISTRY_INSECURE` | `0` | `1` の場合、内部レジストリ通信を insecure として扱う |
+| `<ENV_PREFIX>_TAG` | `latest` | 既定タグ（互換経路用。通常は Gateway から `image` を明示指定） |
+
+## 運用上の前提
+- `EnsureContainer` は `image` の指定を必須とします（`proto/agent.proto`）。
+- Image 関数の外部レジストリ解決は `esb deploy --image-prewarm=all` 側の責務です。
+- Agent 実行時は内部レジストリ参照のみを pull します。
 
 ---
 

@@ -49,6 +49,8 @@ message EnsureContainerRequest {
   string image = 2;
   map<string, string> env = 3;
   string owner_id = 4;
+  reserved 5, 6;
+  reserved "image_source", "image_ref";
 }
 
 message DestroyContainerRequest {

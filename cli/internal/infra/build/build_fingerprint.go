@@ -46,6 +46,9 @@ func outputFingerprint(outputDir string, functions []template.FunctionSpec) (str
 		if strings.TrimSpace(fn.Name) == "" {
 			continue
 		}
+		if strings.TrimSpace(fn.ImageSource) != "" {
+			continue
+		}
 		paths = append(paths, filepath.Join(outputDir, "functions", fn.Name))
 	}
 	return hashPaths(outputDir, paths)

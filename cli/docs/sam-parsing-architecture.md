@@ -77,6 +77,20 @@ CLI は以下の Intrinsic を解決します:
 
 実装場所: `cli/internal/infra/sam/template_resources.go`
 
+## Image 関数対応
+- `AWS::Serverless::Function`
+  - `PackageType: Image` または `ImageUri` を検知
+  - `ImageUri` を `FunctionSpec.ImageSource` として保持
+- `AWS::Lambda::Function`
+  - `PackageType: Image` + `Code.ImageUri` を検知
+  - `Code.ImageUri` を `FunctionSpec.ImageSource` として保持
+
+`ImageSource` を持つ関数は ZIP 関数と別経路で処理され、`Dockerfile` 生成対象から除外されます。
+
+また、`ImageUri` / `Code.ImageUri` に `${...}` が残っている場合は
+「未解決パラメータ」として parse error にします。
+（実行時失敗ではなく deploy 時に fail-fast するため）
+
 ## 出力
 `ParseResult` として以下を返します:
 - `Functions []FunctionSpec`（関数定義）

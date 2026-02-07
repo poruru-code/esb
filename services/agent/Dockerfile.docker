@@ -38,6 +38,13 @@ ENV IMAGE_RUNTIME="docker"
 
 WORKDIR /app
 
+# aws_ecr auth provider uses AWS CLI to fetch login tokens.
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
+    awscli \
+    && rm -rf /var/lib/apt/lists/*
+
 
 COPY --from=builder /app/agent /app/agent
 

@@ -59,7 +59,10 @@ func ParseSAMTemplate(content string, parameters map[string]string) (template.Pa
 	parsedResources := parseOtherResources(model.Resources)
 	parsedResources.Layers = layers
 
-	functions := parseFunctions(model.Resources, defaults, layerMap)
+	functions, err := parseFunctions(model.Resources, defaults, layerMap)
+	if err != nil {
+		return template.ParseResult{}, err
+	}
 
 	return template.ParseResult{Functions: functions, Resources: parsedResources}, nil
 }

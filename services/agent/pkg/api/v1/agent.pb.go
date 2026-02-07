@@ -1022,7 +1022,7 @@ const file_agent_proto_rawDesc = "" +
 	"\fcontainer_id\x18\x01 \x01(\tR\vcontainerId\x12\x19\n" +
 	"\bowner_id\x18\x02 \x01(\tR\aownerId\"3\n" +
 	"\x17ResumeContainerResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\"\xe7\x01\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"\x8c\x02\n" +
 	"\x16EnsureContainerRequest\x12#\n" +
 	"\rfunction_name\x18\x01 \x01(\tR\ffunctionName\x12\x14\n" +
 	"\x05image\x18\x02 \x01(\tR\x05image\x12?\n" +
@@ -1030,7 +1030,7 @@ const file_agent_proto_rawDesc = "" +
 	"\bowner_id\x18\x04 \x01(\tR\aownerId\x1a6\n" +
 	"\bEnvEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"|\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x05\x10\x06J\x04\b\x06\x10\aR\fimage_sourceR\timage_ref\"|\n" +
 	"\x17DestroyContainerRequest\x12#\n" +
 	"\rfunction_name\x18\x01 \x01(\tR\ffunctionName\x12!\n" +
 	"\fcontainer_id\x18\x02 \x01(\tR\vcontainerId\x12\x19\n" +

@@ -97,14 +97,14 @@ const (
 	otherOwnerID = "owner-2"
 )
 
-func initServer(t *testing.T, mockRT *MockRuntime) *grpc.ClientConn {
+func initServer(t *testing.T, mockRT *MockRuntime, opts ...api.ServerOption) *grpc.ClientConn {
 	t.Helper()
 
 	lis := bufconn.Listen(bufSize)
 	s := grpc.NewServer()
 
 	// Inject mock runtime
-	server := api.NewAgentServer(mockRT)
+	server := api.NewAgentServer(mockRT, opts...)
 	pb.RegisterAgentServiceServer(s, server)
 
 	go func() {
@@ -167,6 +167,21 @@ func TestEnsureContainer(t *testing.T) {
 	assert.Equal(t, expectedWorker.IPAddress, resp.IpAddress)
 
 	mockRT.AssertExpectations(t)
+}
+
+func TestEnsureContainerRequiresImage(t *testing.T) {
+	mockRT := new(MockRuntime)
+	conn := initServer(t, mockRT)
+	defer conn.Close()
+	client := pb.NewAgentServiceClient(conn)
+
+	_, err := client.EnsureContainer(context.Background(), &pb.EnsureContainerRequest{
+		FunctionName: "test-func",
+		Image:        "",
+		OwnerId:      testOwnerID,
+	})
+	assert.Error(t, err)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 }
 
 func TestEnsureContainerRequiresOwnerID(t *testing.T) {

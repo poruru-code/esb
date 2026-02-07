@@ -12,7 +12,7 @@ Usage:
   ./tools/dind-bundler/build.sh -t <sam-template-path> [-t <sam-template-path> ...] [output-image-tag]
 
 Examples:
-  ./tools/dind-bundler/build.sh e2e/fixtures/template.yaml my-esb-bundle:latest
+  ./tools/dind-bundler/build.sh e2e/fixtures/template.core.yaml my-esb-bundle:latest
   ./tools/dind-bundler/build.sh -t template-a.yaml -t template-b.yaml my-esb-bundle:latest
 USAGE
 }

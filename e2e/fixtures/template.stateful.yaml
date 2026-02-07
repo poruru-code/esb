@@ -1,9 +1,9 @@
-# Where: e2e/fixtures/template.part2.yaml
-# What: E2E SAM template segment with mixed resources/functions.
-# Why: Split deploys into multiple templates to mirror real workflows.
+# Where: e2e/fixtures/template.stateful.yaml
+# What: Stateful/resource-heavy E2E SAM template.
+# Why: Isolate DynamoDB/S3/scheduler and stress scenarios from core APIs.
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: E2E Test Lambda Functions (Part 2)
+Description: E2E Stateful Functions (DynamoDB/S3/scheduler/scaling)
 
 Globals:
   Function:
@@ -22,6 +22,33 @@ Resources:
       ContentUri: layers/common/
       CompatibleRuntimes:
         - python3.12
+
+  DynamoIntegrationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lambda-dynamo
+      CodeUri: functions/python/dynamo/
+      Events:
+        DynamoApi:
+          Type: Api
+          Properties:
+            Path: /api/dynamo
+            Method: post
+      Environment:
+        Variables:
+          DYNAMODB_ENDPOINT: "http://${DYNAMODB_ENDPOINT_HOST}:8000"
+
+  E2ETable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: e2e-test-table
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
 
   S3IntegrationFunction:
     Type: AWS::Serverless::Function

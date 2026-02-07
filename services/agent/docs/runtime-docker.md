@@ -12,9 +12,16 @@ containerd と違い CNI は使わず、Docker ネットワーク上で IP を�
 ## 起動の流れ（要点）
 - コンテナ名: `{brand}-{env}-{function}-{id}`
   - `brand` は `meta.Slug`（例: `esb`）
-- イメージ解決: `CONTAINER_REGISTRY` + `<ENV_PREFIX>_TAG`
+- イメージ解決:
+  - API で受け取った `image` を使用
+  - `image` は内部レジストリ参照（例: `registry:5010/...`）を前提
 - Docker ネットワーク: `CONTAINERS_NETWORK` で指定
 - `ContainerInspect` をリトライし IP を解決
+
+## 外部レジストリとの関係
+- Docker runtime は Source Registry への pull を実行しません。
+- 外部イメージ取り込みは `esb deploy --image-prewarm=all` の責務です。
+- runtime は内部レジストリからの pull のみを行います。
 
 ## 制限事項
 - **Pause/Resume は未実装**（gRPC API は互換のために存在）

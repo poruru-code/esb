@@ -50,6 +50,7 @@ type Request struct {
 	ComposeFiles   []string
 	BuildOnly      bool
 	BundleManifest bool
+	ImagePrewarm   string
 }
 
 // RegistryWaiter checks registry readiness.
@@ -114,6 +115,10 @@ func (w Workflow) Run(req Request) error {
 	}
 	if w.ComposeRunner == nil {
 		return errComposeRunnerNotConfigured
+	}
+	imagePrewarm, err := normalizeImagePrewarmMode(req.ImagePrewarm)
+	if err != nil {
+		return err
 	}
 
 	req = w.alignGatewayRuntime(req)
@@ -193,6 +198,27 @@ func (w Workflow) Run(req Request) error {
 	}
 
 	if !req.BuildOnly {
+		manifestPath := filepath.Join(stagingDir, "image-import.json")
+		manifest, exists, err := loadImageImportManifest(manifestPath)
+		if err != nil {
+			return err
+		}
+		if exists && len(manifest.Images) > 0 {
+			if imagePrewarm != "all" {
+				return fmt.Errorf("image prewarm is required for templates with image functions (use --image-prewarm=all)")
+			}
+		}
+		if imagePrewarm == "all" {
+			if err := runImagePrewarm(
+				context.Background(),
+				w.ComposeRunner,
+				w.UserInterface,
+				manifestPath,
+				req.Verbose,
+			); err != nil {
+				return err
+			}
+		}
 		if err := w.syncRuntimeConfig(req); err != nil {
 			return err
 		}
@@ -222,6 +248,19 @@ func (w Workflow) Run(req Request) error {
 		}
 	}
 	return nil
+}
+
+func normalizeImagePrewarmMode(value string) (string, error) {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	if normalized == "" {
+		return "all", nil
+	}
+	switch normalized {
+	case "off", "all":
+		return normalized, nil
+	default:
+		return "", fmt.Errorf("invalid image prewarm mode %q (use off|all)", value)
+	}
 }
 
 type gatewayRuntimeInfo struct {
@@ -519,7 +558,7 @@ func copyConfigFiles(srcDir, destDir string) error {
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		return fmt.Errorf("create config dir: %w", err)
 	}
-	for _, name := range []string{"functions.yml", "routing.yml", "resources.yml"} {
+	for _, name := range []string{"functions.yml", "routing.yml", "resources.yml", "image-import.json"} {
 		src := filepath.Join(srcDir, name)
 		if _, err := os.Stat(src); err != nil {
 			continue
@@ -537,7 +576,7 @@ func copyConfigToVolume(runner compose.CommandRunner, srcDir, volume string) err
 		return errComposeRunnerNotConfigured
 	}
 	cmd := "mkdir -p /app/runtime-config && " +
-		"for f in functions.yml routing.yml resources.yml; do " +
+		"for f in functions.yml routing.yml resources.yml image-import.json; do " +
 		"if [ -f \"/src/${f}\" ]; then cp -f \"/src/${f}\" \"/app/runtime-config/${f}\"; fi; " +
 		"done"
 	args := []string{
@@ -561,7 +600,7 @@ func copyConfigToContainer(runner compose.CommandRunner, srcDir, containerID str
 		return errComposeRunnerNotConfigured
 	}
 	ctx := context.Background()
-	for _, name := range []string{"functions.yml", "routing.yml", "resources.yml"} {
+	for _, name := range []string{"functions.yml", "routing.yml", "resources.yml", "image-import.json"} {
 		src := filepath.Join(srcDir, name)
 		if _, err := os.Stat(src); err != nil {
 			continue

@@ -20,6 +20,8 @@ type Template struct {
 type FunctionProperties struct {
 	FunctionName                 any `json:"FunctionName,omitempty"`
 	CodeURI                      any `json:"CodeUri,omitempty"`
+	PackageType                  any `json:"PackageType,omitempty"`
+	ImageURI                     any `json:"ImageUri,omitempty"`
 	Handler                      any `json:"Handler,omitempty"`
 	Runtime                      any `json:"Runtime,omitempty"`
 	Timeout                      any `json:"Timeout,omitempty"`
@@ -31,6 +33,22 @@ type FunctionProperties struct {
 	Architectures                any `json:"Architectures,omitempty"`
 	Environment                  any `json:"Environment,omitempty"`
 	RuntimeManagementConfig      any `json:"RuntimeManagementConfig,omitempty"`
+}
+
+// LambdaCodeProperties captures relevant AWS::Lambda::Function Code properties.
+type LambdaCodeProperties struct {
+	ImageURI any `json:"ImageUri,omitempty"`
+}
+
+// LambdaFunctionProperties captures relevant AWS::Lambda::Function properties.
+type LambdaFunctionProperties struct {
+	FunctionName  any                  `json:"FunctionName,omitempty"`
+	PackageType   any                  `json:"PackageType,omitempty"`
+	Code          LambdaCodeProperties `json:"Code,omitempty"`
+	Timeout       any                  `json:"Timeout,omitempty"`
+	MemorySize    any                  `json:"MemorySize,omitempty"`
+	Architectures any                  `json:"Architectures,omitempty"`
+	Environment   any                  `json:"Environment,omitempty"`
 }
 
 // DecodeTemplate converts a resolved SAM template into a Template struct.
@@ -47,6 +65,15 @@ func DecodeFunctionProps(props map[string]any) (FunctionProperties, error) {
 	var spec FunctionProperties
 	if err := samparser.Decode(props, &spec, nil); err != nil {
 		return FunctionProperties{}, fmt.Errorf("decode function properties: %w", err)
+	}
+	return spec, nil
+}
+
+// DecodeLambdaFunctionProps decodes Lambda function properties into a typed struct.
+func DecodeLambdaFunctionProps(props map[string]any) (LambdaFunctionProperties, error) {
+	var spec LambdaFunctionProperties
+	if err := samparser.Decode(props, &spec, nil); err != nil {
+		return LambdaFunctionProperties{}, fmt.Errorf("decode lambda function properties: %w", err)
 	}
 	return spec, nil
 }

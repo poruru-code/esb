@@ -16,94 +16,215 @@ func parseFunctions(
 	resources map[string]any,
 	defaults functionDefaults,
 	layerMap map[string]manifest.LayerSpec,
-) []template.FunctionSpec {
+) ([]template.FunctionSpec, error) {
 	functions := make([]template.FunctionSpec, 0)
 	for logicalID, raw := range resources {
 		m := value.AsMap(raw)
-		if m == nil || value.AsString(m["Type"]) != "AWS::Serverless::Function" {
+		if m == nil {
 			continue
 		}
-
-		props := value.AsMap(m["Properties"])
-		if props == nil {
-			continue
-		}
-
-		// Parse strict properties using parser.Decode
-		fnProps, err := DecodeFunctionProps(props)
-		if err != nil {
-			// Report error but continue with what we have
-			fmt.Printf("Warning: failed to map properties for function %s: %v\n", logicalID, err)
-		}
-
-		fnName := ResolveFunctionName(fnProps.FunctionName, logicalID)
-		codeURI := ResolveCodeURI(fnProps.CodeURI)
-		codeURI = value.EnsureTrailingSlash(codeURI)
-
-		handler := value.AsStringDefault(fnProps.Handler, defaults.Handler)
-		runtime := value.AsStringDefault(fnProps.Runtime, defaults.Runtime)
-		timeout := value.AsIntDefault(fnProps.Timeout, defaults.Timeout)
-		memory := value.AsIntDefault(fnProps.MemorySize, defaults.Memory)
-
-		envVars := mergeEnv(defaults.EnvironmentDefaults, props)
-
-		if fnProps.Events != nil {
-			eventsRaw, err := DecodeMap(fnProps.Events)
-			if err == nil {
-				fnProps.Events = eventsRaw
+		resourceType := value.AsString(m["Type"])
+		switch resourceType {
+		case "AWS::Serverless::Function":
+			fn, ok, err := parseServerlessFunction(logicalID, m, defaults, layerMap)
+			if err != nil {
+				return nil, err
+			}
+			if ok {
+				functions = append(functions, fn)
+			}
+		case "AWS::Lambda::Function":
+			fn, ok, err := parseLambdaFunction(logicalID, m, defaults)
+			if err != nil {
+				return nil, err
+			}
+			if ok {
+				functions = append(functions, fn)
 			}
 		}
-		events := parseEvents(value.AsMap(fnProps.Events))
-
-		scalingInput := map[string]any{}
-		if val := fnProps.ReservedConcurrentExecutions; val != nil {
-			scalingInput["ReservedConcurrentExecutions"] = val
-		}
-		if fnProps.ProvisionedConcurrencyConfig != nil {
-			// Convert strictly typed ProvisionedConcurrencyConfig back to map?
-			// Actually, schema definition says ProvisionedConcurrencyConfig interface{}
-			if pMap, ok := fnProps.ProvisionedConcurrencyConfig.(map[string]any); ok {
-				scalingInput["ProvisionedConcurrencyConfig"] = pMap
-			} else {
-				// Try converting if it's map[interface{}]interface{} or other json types
-				if converted, err := DecodeMap(fnProps.ProvisionedConcurrencyConfig); err == nil {
-					scalingInput["ProvisionedConcurrencyConfig"] = converted
-				}
-			}
-		}
-		scaling := parseScaling(scalingInput)
-
-		layerRefs := fnProps.Layers
-		if layerRefs == nil {
-			layerRefs = defaults.Layers
-		}
-		layers := collectLayers(layerRefs, layerMap)
-
-		architectures := resolveArchitectures(props, defaults.Architectures)
-
-		runtimeManagement := runtimeManagementFromConfig(fnProps.RuntimeManagementConfig)
-		if runtimeManagement.UpdateRuntimeOn == "" && defaults.RuntimeManagement != nil {
-			runtimeManagement = runtimeManagementFromConfig(defaults.RuntimeManagement)
-		}
-
-		functions = append(functions, template.FunctionSpec{
-			LogicalID:               logicalID,
-			Name:                    fnName,
-			CodeURI:                 codeURI,
-			Handler:                 handler,
-			Runtime:                 runtime,
-			Timeout:                 timeout,
-			MemorySize:              memory,
-			Environment:             envVars,
-			Events:                  events,
-			Scaling:                 scaling,
-			Layers:                  layers,
-			Architectures:           architectures,
-			RuntimeManagementConfig: runtimeManagement,
-		})
 	}
 
-	return functions
+	return functions, nil
+}
+
+func parseServerlessFunction(
+	logicalID string,
+	resource map[string]any,
+	defaults functionDefaults,
+	layerMap map[string]manifest.LayerSpec,
+) (template.FunctionSpec, bool, error) {
+	props := value.AsMap(resource["Properties"])
+	if props == nil {
+		return template.FunctionSpec{}, false, nil
+	}
+
+	// Parse strict properties using parser.Decode
+	fnProps, err := DecodeFunctionProps(props)
+	if err != nil {
+		fmt.Printf("Warning: failed to map properties for function %s: %v\n", logicalID, err)
+	}
+
+	fnName := ResolveFunctionName(fnProps.FunctionName, logicalID)
+	timeout := value.AsIntDefault(fnProps.Timeout, defaults.Timeout)
+	memory := value.AsIntDefault(fnProps.MemorySize, defaults.Memory)
+	envVars := mergeEnv(defaults.EnvironmentDefaults, props)
+	architectures := resolveArchitectures(props, defaults.Architectures)
+
+	isImageFunction := strings.EqualFold(value.AsString(fnProps.PackageType), "Image") ||
+		strings.TrimSpace(value.AsString(fnProps.ImageURI)) != ""
+	if isImageFunction {
+		imageURI := strings.TrimSpace(value.AsString(fnProps.ImageURI))
+		if imageURI == "" {
+			return template.FunctionSpec{}, false, fmt.Errorf(
+				"image function %s (%s) requires ImageUri",
+				fnName,
+				logicalID,
+			)
+		}
+		if hasUnresolvedImageURI(imageURI) {
+			return template.FunctionSpec{}, false, fmt.Errorf(
+				"image function %s (%s) has unresolved ImageUri: %s",
+				fnName,
+				logicalID,
+				imageURI,
+			)
+		}
+		return template.FunctionSpec{
+			LogicalID:       logicalID,
+			Name:            fnName,
+			ImageSource:     imageURI,
+			Timeout:         timeout,
+			MemorySize:      memory,
+			Environment:     envVars,
+			Architectures:   architectures,
+			Scaling:         parseScaling(props),
+			Events:          parseEvents(value.AsMap(fnProps.Events)),
+			Layers:          nil,
+			Runtime:         "",
+			Handler:         "",
+			CodeURI:         "",
+			HasRequirements: false,
+		}, true, nil
+	}
+
+	codeURI := ResolveCodeURI(fnProps.CodeURI)
+	codeURI = value.EnsureTrailingSlash(codeURI)
+	handler := value.AsStringDefault(fnProps.Handler, defaults.Handler)
+	runtime := value.AsStringDefault(fnProps.Runtime, defaults.Runtime)
+
+	if fnProps.Events != nil {
+		eventsRaw, err := DecodeMap(fnProps.Events)
+		if err == nil {
+			fnProps.Events = eventsRaw
+		}
+	}
+	events := parseEvents(value.AsMap(fnProps.Events))
+
+	scalingInput := map[string]any{}
+	if val := fnProps.ReservedConcurrentExecutions; val != nil {
+		scalingInput["ReservedConcurrentExecutions"] = val
+	}
+	if fnProps.ProvisionedConcurrencyConfig != nil {
+		// Convert strictly typed ProvisionedConcurrencyConfig back to map?
+		// Actually, schema definition says ProvisionedConcurrencyConfig interface{}
+		if pMap, ok := fnProps.ProvisionedConcurrencyConfig.(map[string]any); ok {
+			scalingInput["ProvisionedConcurrencyConfig"] = pMap
+		} else {
+			// Try converting if it's map[interface{}]interface{} or other json types
+			if converted, err := DecodeMap(fnProps.ProvisionedConcurrencyConfig); err == nil {
+				scalingInput["ProvisionedConcurrencyConfig"] = converted
+			}
+		}
+	}
+	scaling := parseScaling(scalingInput)
+
+	layerRefs := fnProps.Layers
+	if layerRefs == nil {
+		layerRefs = defaults.Layers
+	}
+	layers := collectLayers(layerRefs, layerMap)
+
+	runtimeManagement := runtimeManagementFromConfig(fnProps.RuntimeManagementConfig)
+	if runtimeManagement.UpdateRuntimeOn == "" && defaults.RuntimeManagement != nil {
+		runtimeManagement = runtimeManagementFromConfig(defaults.RuntimeManagement)
+	}
+
+	return template.FunctionSpec{
+		LogicalID:               logicalID,
+		Name:                    fnName,
+		CodeURI:                 codeURI,
+		Handler:                 handler,
+		Runtime:                 runtime,
+		Timeout:                 timeout,
+		MemorySize:              memory,
+		Environment:             envVars,
+		Events:                  events,
+		Scaling:                 scaling,
+		Layers:                  layers,
+		Architectures:           architectures,
+		RuntimeManagementConfig: runtimeManagement,
+	}, true, nil
+}
+
+func parseLambdaFunction(
+	logicalID string,
+	resource map[string]any,
+	defaults functionDefaults,
+) (template.FunctionSpec, bool, error) {
+	props := value.AsMap(resource["Properties"])
+	if props == nil {
+		return template.FunctionSpec{}, false, nil
+	}
+
+	fnProps, err := DecodeLambdaFunctionProps(props)
+	if err != nil {
+		fmt.Printf("Warning: failed to map lambda properties for function %s: %v\n", logicalID, err)
+	}
+
+	packageType := strings.TrimSpace(value.AsString(fnProps.PackageType))
+	imageURI := strings.TrimSpace(value.AsString(fnProps.Code.ImageURI))
+	if !strings.EqualFold(packageType, "Image") && imageURI == "" {
+		// AWS::Lambda::Function Zip package is out of scope.
+		return template.FunctionSpec{}, false, nil
+	}
+	if imageURI == "" {
+		return template.FunctionSpec{}, false, fmt.Errorf(
+			"image lambda function %s (%s) requires Code.ImageUri",
+			ResolveFunctionName(fnProps.FunctionName, logicalID),
+			logicalID,
+		)
+	}
+	if hasUnresolvedImageURI(imageURI) {
+		return template.FunctionSpec{}, false, fmt.Errorf(
+			"image lambda function %s (%s) has unresolved Code.ImageUri: %s",
+			ResolveFunctionName(fnProps.FunctionName, logicalID),
+			logicalID,
+			imageURI,
+		)
+	}
+
+	fnName := ResolveFunctionName(fnProps.FunctionName, logicalID)
+	timeout := value.AsIntDefault(fnProps.Timeout, defaults.Timeout)
+	memory := value.AsIntDefault(fnProps.MemorySize, defaults.Memory)
+	envVars := mergeEnv(defaults.EnvironmentDefaults, props)
+	architectures := resolveArchitectures(props, defaults.Architectures)
+
+	return template.FunctionSpec{
+		LogicalID:       logicalID,
+		Name:            fnName,
+		ImageSource:     imageURI,
+		Timeout:         timeout,
+		MemorySize:      memory,
+		Environment:     envVars,
+		Scaling:         parseScaling(props),
+		Architectures:   architectures,
+		Layers:          nil,
+		Events:          nil,
+		Runtime:         "",
+		Handler:         "",
+		CodeURI:         "",
+		HasRequirements: false,
+	}, true, nil
 }
 
 func mergeEnv(defaultEnv map[string]string, props map[string]any) map[string]string {
@@ -229,6 +350,11 @@ func runtimeManagementFromConfig(config any) template.RuntimeManagementConfig {
 		return template.RuntimeManagementConfig{}
 	}
 	return template.RuntimeManagementConfig{UpdateRuntimeOn: value.AsString(m["UpdateRuntimeOn"])}
+}
+
+func hasUnresolvedImageURI(value string) bool {
+	trimmed := strings.TrimSpace(value)
+	return strings.Contains(trimmed, "${")
 }
 
 func copyStringSlice(input []string) []string {

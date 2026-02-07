@@ -29,3 +29,15 @@ func TestApplyImageNamesDetectsCollisions(t *testing.T) {
 		t.Fatalf("expected collision error, got nil")
 	}
 }
+
+func TestApplyImageNamesSkipsImageSourceFunctions(t *testing.T) {
+	functions := []FunctionSpec{
+		{Name: "FromSource", ImageSource: "public.ecr.aws/example/repo:latest"},
+	}
+	if err := ApplyImageNames(functions); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if functions[0].ImageName != "" {
+		t.Fatalf("expected empty image name for image-source function, got %q", functions[0].ImageName)
+	}
+}

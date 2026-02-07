@@ -4,10 +4,13 @@
 package build
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"syscall"
 	"time"
 
@@ -58,6 +61,10 @@ func MergeConfig(outputDir, templatePath, composeProject, env string) error {
 	// Merge resources.yml
 	if err := mergeResourcesYml(srcConfigDir, configDir); err != nil {
 		return fmt.Errorf("failed to merge resources.yml: %w", err)
+	}
+	// Merge image-import.json
+	if err := mergeImageImportManifest(srcConfigDir, configDir); err != nil {
+		return fmt.Errorf("failed to merge image-import.json: %w", err)
 	}
 
 	return nil
@@ -255,6 +262,55 @@ func mergeResourcesYml(srcDir, destDir string) error {
 	return atomicWriteYaml(destPath, merged)
 }
 
+func mergeImageImportManifest(srcDir, destDir string) error {
+	srcPath := filepath.Join(srcDir, "image-import.json")
+	destPath := filepath.Join(destDir, "image-import.json")
+
+	src, srcExists, err := loadImageImportManifest(srcPath)
+	if err != nil {
+		return err
+	}
+	if !srcExists {
+		return nil
+	}
+
+	existing, _, err := loadImageImportManifest(destPath)
+	if err != nil {
+		return err
+	}
+	merged := imageImportManifest{
+		Version:    firstNonEmpty(src.Version, existing.Version, "1"),
+		PushTarget: firstNonEmpty(src.PushTarget, existing.PushTarget),
+		Images:     []imageImportEntry{},
+	}
+
+	index := map[string]imageImportEntry{}
+	for _, entry := range existing.Images {
+		key := imageImportKey(entry)
+		if key == "" {
+			continue
+		}
+		index[key] = entry
+	}
+	for _, entry := range src.Images {
+		key := imageImportKey(entry)
+		if key == "" {
+			continue
+		}
+		index[key] = entry
+	}
+
+	keys := make([]string, 0, len(index))
+	for key := range index {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		merged.Images = append(merged.Images, index[key])
+	}
+	return atomicWriteJSON(destPath, merged)
+}
+
 func acquireDeployLock(lockFile *os.File, timeout time.Duration) error {
 	if lockFile == nil {
 		return fmt.Errorf("lock file is nil")
@@ -316,6 +372,24 @@ func loadYamlFile(path string) (map[string]any, error) {
 	return result, nil
 }
 
+func loadImageImportManifest(path string) (imageImportManifest, bool, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return imageImportManifest{}, false, nil
+		}
+		return imageImportManifest{}, false, err
+	}
+	var result imageImportManifest
+	if err := json.Unmarshal(data, &result); err != nil {
+		return imageImportManifest{}, false, err
+	}
+	if result.Images == nil {
+		result.Images = []imageImportEntry{}
+	}
+	return result, true, nil
+}
+
 // atomicWriteYaml writes data to a YAML file atomically using tmp + rename.
 func atomicWriteYaml(path string, data map[string]any) error {
 	content, err := yaml.Marshal(data)
@@ -348,4 +422,57 @@ func atomicWriteYaml(path string, data map[string]any) error {
 	}
 
 	return nil
+}
+
+func atomicWriteJSON(path string, value any) error {
+	content, err := json.MarshalIndent(value, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, content, 0o600); err != nil {
+		return err
+	}
+
+	f, err := os.Open(tmpPath)
+	if err != nil {
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	_ = f.Close()
+
+	if err := os.Rename(tmpPath, path); err != nil {
+		_ = os.Remove(tmpPath)
+		return err
+	}
+
+	return nil
+}
+
+func imageImportKey(entry imageImportEntry) string {
+	if name := strings.TrimSpace(entry.FunctionName); name != "" {
+		return name
+	}
+	source := strings.TrimSpace(entry.ImageSource)
+	ref := strings.TrimSpace(entry.ImageRef)
+	if source == "" && ref == "" {
+		return ""
+	}
+	return source + "|" + ref
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }

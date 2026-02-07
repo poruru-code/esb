@@ -60,6 +60,7 @@ def build_env_scenarios(matrix: list, suites: dict, profile_filter: str | None =
                 "targets": [],
                 "exclude": [],
                 "deploy_templates": entry.get("deploy_templates", []) or [],
+                "image_prewarm": entry.get("image_prewarm", ""),
             }
 
         for suite_name in suite_names:

@@ -15,6 +15,9 @@ defaults:
 functions:
 {{- range .Functions }}
   {{ .Name }}:
+    {{- if .Image }}
+    image: {{ .Image | quote }}
+    {{- end }}
     {{- if .Timeout }}
     timeout: {{ .Timeout }}
     {{- end }}
