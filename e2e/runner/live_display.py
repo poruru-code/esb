@@ -16,6 +16,7 @@ class LiveDisplay:
         self._index = {profile: idx for idx, profile in enumerate(self._profiles)}
         self._lock = threading.Lock()
         self._started = False
+        self._cursor_below_block = True
 
     def start(self) -> None:
         if not self._profiles:
@@ -28,12 +29,14 @@ class LiveDisplay:
                 self._lines[profile] = line
                 write_raw(f"{line}\n")
             self._started = True
+            self._cursor_below_block = True
 
     def stop(self) -> None:
         with self._lock:
             if not self._started:
                 return
-            write_raw("\n")
+            if not self._cursor_below_block:
+                write_raw("\n")
             self._started = False
 
     def update_line(self, profile: str, line: str) -> None:
@@ -44,6 +47,7 @@ class LiveDisplay:
             if not self._started:
                 return
             self._rewrite_line(profile, line)
+            self._cursor_below_block = True
 
     def log_line(self, message: str) -> None:
         if not self._started:
@@ -59,6 +63,7 @@ class LiveDisplay:
             for profile in self._profiles:
                 line = self._lines.get(profile) or self._placeholder(profile)
                 write_raw(f"{line}\n")
+            self._cursor_below_block = True
 
     def _rewrite_line(self, profile: str, line: str) -> None:
         line_count = len(self._profiles)

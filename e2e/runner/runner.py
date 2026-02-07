@@ -9,7 +9,6 @@ import subprocess
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
@@ -84,7 +83,7 @@ def run_parallel(
     live_display: LiveDisplay | None = None,
 ) -> dict[str, bool]:
     reporter.start()
-    reporter.emit(Event(EVENT_SUITE_START, data={"wall_time": time.time()}))
+    reporter.emit(Event(EVENT_SUITE_START))
     results: dict[str, bool] = {}
     try:
         label_width = env_label_width
@@ -176,9 +175,20 @@ def run_parallel(
                     break
         return results
     finally:
-        reporter.emit(Event(EVENT_SUITE_END, data={"wall_time": time.time()}))
+        missing_envs = [env for env in scenarios if env not in results]
+        failed_envs = sorted([env for env, ok in results.items() if not ok] + missing_envs)
+        suite_status = STATUS_PASSED if not failed_envs else STATUS_FAILED
         if live_display:
             live_display.stop()
+        reporter.emit(
+            Event(
+                EVENT_SUITE_END,
+                data={
+                    "status": suite_status,
+                    "failed_envs": failed_envs,
+                },
+            )
+        )
         reporter.close()
 
 
@@ -274,9 +284,8 @@ def _run_env(
     args,
 ) -> bool:
     env_name = ctx.scenario.env_name
-    start_wall = time.time()
-    reporter.emit(Event(EVENT_ENV_START, env=env_name, data={"wall_time": start_wall}))
-    log.write_line(f"[{env_name}] started @ {_format_wall_time(start_wall)}")
+    reporter.emit(Event(EVENT_ENV_START, env=env_name))
+    log.write_line(f"[{env_name}] started")
     try:
 
         def _printer_for(phase: str) -> Callable[[str], None] | None:
@@ -441,9 +450,9 @@ def _warmup(
         missing = ", ".join(str(template) for template in missing_templates)
         raise FileNotFoundError(f"Missing E2E template(s): {missing}")
     if _uses_java_templates(scenarios):
-        _emit_warmup(printer, f"Java fixture warmup ... start @ {_format_wall_time(time.time())}")
+        _emit_warmup(printer, "Java fixture warmup ... start")
         _build_java_fixtures(printer=printer, verbose=verbose)
-        _emit_warmup(printer, f"Java fixture warmup ... done  @ {_format_wall_time(time.time())}")
+        _emit_warmup(printer, "Java fixture warmup ... done")
 
 
 def _uses_java_templates(scenarios: dict[str, Scenario]) -> bool:
@@ -546,7 +555,7 @@ def _build_java_fixtures(
 
 
 def _build_java_project(project_dir: Path, *, verbose: bool = False) -> None:
-    cmd = _docker_maven_command(project_dir)
+    cmd = _docker_maven_command(project_dir, verbose=verbose)
     result = subprocess.run(
         cmd,
         capture_output=not verbose,
@@ -564,7 +573,7 @@ def _build_java_project(project_dir: Path, *, verbose: bool = False) -> None:
         raise RuntimeError(f"Java fixture jar not found in {project_dir}")
 
 
-def _docker_maven_command(project_dir: Path) -> list[str]:
+def _docker_maven_command(project_dir: Path, *, verbose: bool = False) -> list[str]:
     cmd = [
         "docker",
         "run",
@@ -593,13 +602,14 @@ def _docker_maven_command(project_dir: Path) -> list[str]:
         value = os.environ.get(key)
         if value:
             cmd.extend(["-e", f"{key}={value}"])
+    maven_cmd = "mvn -DskipTests package" if verbose else "mvn -q -DskipTests package"
     script = "\n".join(
         [
             "set -euo pipefail",
             "mkdir -p /tmp/work /tmp/m2 /out",
             "cp -a /src/. /tmp/work",
             "cd /tmp/work",
-            "mvn -q -DskipTests package",
+            maven_cmd,
             "jar=$(ls -S target/*.jar 2>/dev/null | "
             "grep -vE '(-sources|-javadoc)\\.jar$' | head -n 1 || true)",
             'if [ -z "$jar" ]; then echo "jar not found in target" >&2; exit 1; fi',
@@ -624,23 +634,18 @@ def _emit_warmup(printer: Callable[[str], None] | None, message: str) -> None:
         print(message)
 
 
-def _format_wall_time(timestamp: float) -> str:
-    return datetime.fromtimestamp(timestamp).astimezone().strftime("%Y-%m-%d %H:%M:%S")
-
-
 def _emit_env_end(
     reporter: Reporter,
     log: LogSink,
     env_name: str,
     status: str,
 ) -> None:
-    end_wall = time.time()
-    log.write_line(f"[{env_name}] done ... {status.upper()} @ {_format_wall_time(end_wall)}")
+    log.write_line(f"[{env_name}] done ... {status.upper()}")
     reporter.emit(
         Event(
             EVENT_ENV_END,
             env=env_name,
-            data={"status": status, "wall_time": end_wall},
+            data={"status": status},
         )
     )
 

@@ -6,7 +6,6 @@ from __future__ import annotations
 import os
 import sys
 import time
-from datetime import datetime
 
 from e2e.runner.events import (
     EVENT_ENV_END,
@@ -52,12 +51,6 @@ def _format_duration(seconds: float) -> str:
     mins = total // 60
     secs = total % 60
     return f"{mins}m{secs:02d}s"
-
-
-def _format_wall_time(timestamp: float | None) -> str:
-    if timestamp is None:
-        timestamp = time.time()
-    return datetime.fromtimestamp(timestamp).astimezone().strftime("%Y-%m-%d %H:%M:%S")
 
 
 class Reporter:
@@ -157,10 +150,7 @@ class PlainReporter(Reporter):
             return
 
         if event.event_type == EVENT_SUITE_START:
-            started_at = _format_wall_time(event.data.get("wall_time"))
-            self._log_line(
-                f"{self._prefix_tag('suite')} {self._emoji_prefix('🧪')}started @ {started_at}"
-            )
+            self._log_line(f"{self._prefix_tag('suite')} {self._emoji_prefix('🧪')}started")
             return
 
         if event.event_type == EVENT_REGISTRY_READY:
@@ -168,18 +158,31 @@ class PlainReporter(Reporter):
             return
 
         if event.event_type == EVENT_SUITE_END:
-            finished_at = _format_wall_time(event.data.get("wall_time"))
-            self._log_line(
-                f"{self._prefix_tag('suite')} {self._emoji_prefix('🏁')}finished @ {finished_at}"
-            )
+            status = str(event.data.get("status", "")).strip()
+            if status == STATUS_PASSED:
+                self._log_line(
+                    f"{self._prefix_tag('suite')} {self._emoji_prefix('✅')}"
+                    f"[PASSED] ALL MATRIX ENTRIES PASSED!"
+                )
+                return
+            if status == STATUS_FAILED:
+                failed = event.data.get("failed_envs")
+                if isinstance(failed, list) and failed:
+                    failed_text = ", ".join(str(item) for item in failed)
+                else:
+                    failed_text = "unknown"
+                self._log_line(
+                    f"{self._prefix_tag('suite')} {self._emoji_prefix('❌')}"
+                    f"[FAILED] The following environments failed: "
+                    f"{failed_text}"
+                )
             return
 
         if event.event_type == EVENT_ENV_START and event.env:
             self._env_started[event.env] = time.monotonic()
-            started_at = _format_wall_time(event.data.get("wall_time"))
             self._update_env_line(
                 event.env,
-                f"{self._prefix_env(event.env)} {self._emoji_prefix('🚀')}started @ {started_at}",
+                f"{self._prefix_env(event.env)} {self._emoji_prefix('🚀')}started",
             )
             return
 
@@ -188,10 +191,9 @@ class PlainReporter(Reporter):
             started = self._env_started.get(event.env)
             duration = _format_duration(time.monotonic() - started) if started else ""
             suffix = f" ({duration})" if duration else ""
-            finished_at = _format_wall_time(event.data.get("wall_time"))
             message = (
                 f"{self._prefix_env(event.env)} {self._emoji_prefix('🏁')}done ... "
-                f"{self._env_status(status)}{suffix} @ {finished_at}"
+                f"{self._env_status(status)}{suffix}"
             )
             self._update_env_line(event.env, message)
             return

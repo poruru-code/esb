@@ -60,19 +60,6 @@ def resolve_env_label_width(env_scenarios: dict[str, object]) -> int:
     return max(len(env) for env in env_scenarios.keys())
 
 
-def resolve_emoji_enabled(flag: bool | None) -> bool:
-    if flag is not None:
-        return bool(flag)
-    if not sys.stdout.isatty():
-        return False
-    if os.environ.get("NO_EMOJI"):
-        return False
-    term = os.environ.get("TERM", "")
-    if term.lower() == "dumb":
-        return False
-    return True
-
-
 def resolve_live_enabled(no_live: bool) -> bool:
     if no_live:
         return False
@@ -175,12 +162,8 @@ def main():
         )
         failed = [env for env, ok in results.items() if not ok]
         if failed:
-            icon = "❌" if resolve_emoji_enabled(args.emoji) else ""
-            print(f"\n{icon} [FAILED] The following environments failed: {', '.join(failed)}")
             print_tail_logs(failed)
             sys.exit(1)
-        icon = "✅" if resolve_emoji_enabled(args.emoji) else ""
-        print(f"\n{icon} [PASSED] ALL MATRIX ENTRIES PASSED!")
         sys.exit(0)
 
     env_scenarios = build_plan(matrix, suites, profile_filter=args.profile)
@@ -211,16 +194,12 @@ def main():
         )
         failed = [env for env, ok in results.items() if not ok]
         if failed:
-            icon = "❌" if resolve_emoji_enabled(args.emoji) else ""
-            print(f"\n{icon} [FAILED] The following environments failed: {', '.join(failed)}")
             print_tail_logs(failed)
             sys.exit(1)
-        icon = "✅" if resolve_emoji_enabled(args.emoji) else ""
-        print(f"\n{icon} [PASSED] ALL MATRIX ENTRIES PASSED!")
         sys.exit(0)
 
     parallel_mode = args.parallel and len(env_scenarios) > 1
-    live_enabled = resolve_live_enabled(args.no_live) and parallel_mode
+    live_enabled = resolve_live_enabled(args.no_live) and parallel_mode and not args.verbose
     env_label_width = resolve_env_label_width(env_scenarios)
     live_display = (
         LiveDisplay(list(env_scenarios.keys()), label_width=env_label_width)
@@ -246,13 +225,9 @@ def main():
     failed_entries = [env for env, ok in results.items() if not ok]
 
     if failed_entries:
-        icon = "❌" if resolve_emoji_enabled(args.emoji) else ""
-        print(f"\n{icon} [FAILED] The following environments failed: {', '.join(failed_entries)}")
         print_tail_logs(failed_entries)
         sys.exit(1)
 
-    icon = "✅" if resolve_emoji_enabled(args.emoji) else ""
-    print(f"\n{icon} [PASSED] ALL MATRIX ENTRIES PASSED!")
     sys.exit(0)
 
 
