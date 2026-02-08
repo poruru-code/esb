@@ -5,16 +5,17 @@ Why: Keep system-level comparison and link to subsystem docs.
 -->
 # アーキテクチャ: Docker vs Containerd（概要）
 
-本基盤は **Docker モード（標準）** と **containerd モード（高密度/本番寄り）** を提供します。
-詳細なネットワーク・実装は subsystem docs に分離しています。
+本基盤は Docker モード（標準）と containerd モード（高密度/本番寄り）を提供します。
+詳細なネットワーク・起動・CNI 実装は subsystem docs に分離しています。
 
 ## モード比較（概要）
 | 項目 | Docker | containerd |
 | --- | --- | --- |
 | 実行エンジン | Docker Engine | containerd + CNI |
-| ワーカー IP | Docker Network | CNI Bridge (`10.88.0.0/16`) |
-| DNS 解決 | Docker DNS | CoreDNS (10.88.0.1) |
-| レジストリ | 任意 | 内蔵レジストリ推奨 |
+| Worker IP | Docker network | CNI bridge (`10.88.0.0/16`) |
+| DNS | Docker DNS | CoreDNS (`10.88.0.1`) |
+| Agent 接続 | Docker API | containerd socket + CNI |
+| Firecracker | 非対応 | `CONTAINERD_RUNTIME=aws.firecracker` |
 
 ## 概略図（containerd）
 ```mermaid
@@ -29,13 +30,16 @@ flowchart TD
     Worker -->|Logs| Logs["VictoriaLogs"]
 ```
 
-## 詳細ドキュメント
-- runtime-node: [services/runtime-node/docs/README.md](../services/runtime-node/docs/README.md)
-- Agent: [services/agent/docs/runtime-containerd.md](../services/agent/docs/runtime-containerd.md)
-- Gateway: [services/gateway/docs/architecture.md](../services/gateway/docs/architecture.md)
+## 関連仕様
+- Agent runtime split: `services/agent/docs/runtime-containerd.md`
+- runtime-node startup: `services/runtime-node/docs/startup.md`
+- Gateway lifecycle split: `services/gateway/docs/architecture.md`
+- E2E smoke contract: `docs/e2e-runtime-smoke.md`
 
 ---
 
 ## Implementation references
 - `docker-compose.containerd.yml`
+- `services/agent/internal/runtime/containerd/runtime.go`
 - `services/runtime-node/entrypoint.common.sh`
+- `services/gateway/lifecycle.py`

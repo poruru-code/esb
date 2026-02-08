@@ -25,6 +25,11 @@ Why: Provide a stable reference for operators and developers.
 | `AGENT_GRPC_TLS_KEY_PATH` | `/app/config/ssl/client.key` | クライアント秘密鍵 |
 
 > [!NOTE]
+> `AGENT_GRPC_ADDRESS` の実効値は compose により上書きされる場合があります。
+> 例: `docker-compose.containerd.yml` では `network_mode: service:runtime-node` を使うため
+> `localhost:50051` が設定されます。
+
+> [!NOTE]
 > Gateway は `functions.yml` の `image` を Agent に渡すだけです。
 > 外部レジストリへの同期は `esb deploy --image-prewarm=all` の責務です。
 
@@ -60,5 +65,6 @@ Why: Provide a stable reference for operators and developers.
 ## Implementation references
 - `services/gateway/config.py`
 - `services/gateway/main.py`
+- `services/gateway/services/grpc_channel.py`
 - `docker-compose.docker.yml`
 - `docker-compose.containerd.yml`

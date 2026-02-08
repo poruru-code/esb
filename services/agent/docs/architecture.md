@@ -110,6 +110,19 @@ sequenceDiagram
 - Agent runtime は **内部レジストリ参照の pull のみ**を行います。
 - `image` が内部レジストリに存在しない場合は `EnsureContainer` が `Internal` で失敗します。
 
+## WS3: containerd runtime の責務分割
+containerd runtime 実装は 1 ファイル集中ではなく、以下に分割されています。
+
+| ファイル | 役割 |
+| --- | --- |
+| `services/agent/internal/runtime/containerd/runtime.go` | Runtime 本体、共通設定、Destroy/Suspend/Resume/List/Metrics の入口 |
+| `services/agent/internal/runtime/containerd/ensure.go` | `EnsureContainer` 実行パス（container/task 起動、CNI attach、失敗時 rollback） |
+| `services/agent/internal/runtime/containerd/cni.go` | CNI setup/remove と retry 制御 |
+| `services/agent/internal/runtime/containerd/list.go` | 管理コンテナ列挙と CNI IP 再解決 |
+| `services/agent/internal/runtime/containerd/metrics.go` | cgroup v1/v2 差異を吸収した metrics 取得 |
+
+運用上の詳細（snapshotter や CNI 前提）は `runtime-containerd.md` を参照してください。
+
 ---
 
 ## Implementation references
@@ -118,6 +131,10 @@ sequenceDiagram
 - `services/agent/internal/api/server.go`
 - `services/agent/internal/runtime/interface.go`
 - `services/agent/internal/runtime/containerd/runtime.go`
+- `services/agent/internal/runtime/containerd/ensure.go`
+- `services/agent/internal/runtime/containerd/cni.go`
+- `services/agent/internal/runtime/containerd/list.go`
+- `services/agent/internal/runtime/containerd/metrics.go`
 - `services/agent/internal/runtime/docker/runtime.go`
 - `services/agent/internal/cni/generator.go`
 - `services/gateway/services/grpc_provision.py`

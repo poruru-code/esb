@@ -8,12 +8,11 @@ Why: Keep agent-specific design details close to the implementation.
 Agent は Gateway からの gRPC リクエストを受け、Lambda ワーカーコンテナ（Docker / containerd）の
 ライフサイクル（作成/削除/一覧/メトリクス/Invoke 代理）を管理します。
 
-Image 関数は **deploy 時の prewarm が必須**です。実行時の Agent は `image`（内部レジストリ参照）だけを扱い、
-外部レジストリへの同期や認証処理は行いません。
+Image 関数は deploy 時 prewarm を前提とし、実行時 Agent は内部レジストリ参照を扱います。
 
 ## このディレクトリのスコープ
-- **対象**: `services/agent`（Agent 本体）
-- **対象外**: Gateway 側のオートスケーリングや HTTP API 仕様（`services/gateway/docs` を参照）
+- 対象: `services/agent`（Agent 本体）
+- 対象外: Gateway 側の HTTP API 詳細（`services/gateway/docs` を参照）
 
 ## 目次
 - [アーキテクチャ](./architecture.md)
@@ -21,6 +20,7 @@ Image 関数は **deploy 時の prewarm が必須**です。実行時の Agent �
 - [Runtime: containerd](./runtime-containerd.md)
 - [Runtime: docker](./runtime-docker.md)
 - [設定（環境変数）](./configuration.md)
+- [Proto Generation](./proto-generation.md)
 
 ## 関連
 - System-level: [docs/spec.md](../../../docs/spec.md)
@@ -31,6 +31,7 @@ Image 関数は **deploy 時の prewarm が必須**です。実行時の Agent �
 
 ## Implementation references
 - `proto/agent.proto`
+- `tools/gen_proto.py`
 - `services/agent/cmd/agent/main.go`
 - `services/agent/internal/api/server.go`
 - `services/agent/internal/runtime/interface.go`
