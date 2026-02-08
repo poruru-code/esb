@@ -17,6 +17,8 @@ from e2e.runner.runner import run_parallel
 from e2e.runner.ui import PlainReporter
 from e2e.runner.utils import GO_CLI_ROOT, PROJECT_ROOT
 
+# Canonical E2E execution path: e2e.runner.runner (legacy executor removed).
+
 
 def print_tail_logs(failed_entries: list[str], *, lines: int = 40) -> None:
     for env_name in failed_entries:

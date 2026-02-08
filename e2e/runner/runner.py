@@ -1,29 +1,23 @@
 # Where: e2e/runner/runner.py
 # What: Orchestrates E2E runs per environment and in parallel.
-# Why: Separate planning/execution from CLI entrypoint and UI.
+# Why: Keep execution flow centralized in runner.py (legacy executor.py removed).
 from __future__ import annotations
 
-import os
-import socket
 import subprocess
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from pathlib import Path
 from typing import Callable
 
-import yaml
-
-from e2e.runner import constants, infra
-from e2e.runner.buildx import ensure_buildx_builder
-from e2e.runner.deploy import deploy_templates
-from e2e.runner.env import (
-    apply_gateway_env_from_container,
-    calculate_runtime_env,
-    calculate_staging_dir,
-    discover_ports,
-    read_env_file,
+from e2e.runner import infra
+from e2e.runner.context import (
+    _apply_ports_to_env_dict,
+    _prepare_context,
+    _resolve_templates,
+    _sync_gateway_env,
 )
+from e2e.runner.deploy import deploy_templates
+from e2e.runner.env import discover_ports
 from e2e.runner.events import (
     EVENT_ENV_END,
     EVENT_ENV_START,
@@ -42,35 +36,15 @@ from e2e.runner.events import (
     STATUS_PASSED,
     Event,
 )
-from e2e.runner.lifecycle import (
-    compose_down,
-    compose_up,
-    reset_environment,
-    resolve_compose_file,
-    wait_for_gateway,
-)
+from e2e.runner.lifecycle import compose_down, compose_up, reset_environment, wait_for_gateway
 from e2e.runner.live_display import LiveDisplay
 from e2e.runner.logging import LogSink, make_prefix_printer
 from e2e.runner.models import RunContext, Scenario
+from e2e.runner.ports import _allocate_ports
 from e2e.runner.tester import run_pytest
 from e2e.runner.ui import Reporter
-from e2e.runner.utils import (
-    BRAND_SLUG,
-    E2E_STATE_ROOT,
-    PROJECT_ROOT,
-    build_unique_tag,
-    default_e2e_deploy_templates,
-    env_key,
-)
-
-_CREDENTIAL_KEYS = {
-    constants.ENV_AUTH_USER,
-    constants.ENV_AUTH_PASS,
-    constants.ENV_JWT_SECRET_KEY,
-    constants.ENV_X_API_KEY,
-    constants.ENV_RUSTFS_ACCESS_KEY,
-    constants.ENV_RUSTFS_SECRET_KEY,
-}
+from e2e.runner.utils import BRAND_SLUG, PROJECT_ROOT
+from e2e.runner.warmup import _warmup
 
 
 def run_parallel(
@@ -190,90 +164,6 @@ def run_parallel(
             )
         )
         reporter.close()
-
-
-def _prepare_context(
-    scenario: Scenario,
-    port_overrides: dict[str, str] | None = None,
-) -> RunContext:
-    env_name = scenario.env_name
-    project_name = scenario.project_name or BRAND_SLUG
-    compose_project = f"{project_name}-{env_name}"
-    env_file = _resolve_env_file(scenario.env_file)
-
-    compose_file = resolve_compose_file(scenario)
-    templates = _resolve_templates(scenario)
-    template_path = templates[0]
-
-    runtime_env = calculate_runtime_env(
-        project_name,
-        env_name,
-        scenario.mode,
-        env_file,
-        template_path=str(template_path),
-    )
-
-    state_env = _load_state_env(env_name)
-    for key in _CREDENTIAL_KEYS:
-        if key in state_env:
-            runtime_env[key] = state_env[key]
-
-    runtime_env.update(scenario.env_vars)
-    _apply_port_overrides(runtime_env, port_overrides)
-    runtime_env[env_key("PROJECT")] = project_name
-    runtime_env[env_key("ENV")] = env_name
-    runtime_env[env_key("INTERACTIVE")] = "0"
-    runtime_env[env_key("HOME")] = str((E2E_STATE_ROOT / env_name).absolute())
-    runtime_env[constants.ENV_PROJECT_NAME] = compose_project
-
-    staging_config_dir = calculate_staging_dir(
-        compose_project,
-        env_name,
-        template_path=str(template_path),
-    )
-    runtime_env[constants.ENV_CONFIG_DIR] = str(staging_config_dir)
-    staging_config_dir.mkdir(parents=True, exist_ok=True)
-
-    tag_key = env_key(constants.ENV_TAG)
-    tag_override = scenario.env_vars.get(tag_key)
-    if tag_override:
-        runtime_env[tag_key] = tag_override
-    else:
-        current_tag = runtime_env.get(tag_key, "").strip()
-        if current_tag in ("", "latest"):
-            runtime_env[tag_key] = build_unique_tag(env_name)
-
-    host_addr, service_addr = infra.get_registry_config()
-    runtime_registry = host_addr if scenario.mode.lower() == "docker" else service_addr
-    runtime_env["HOST_REGISTRY_ADDR"] = host_addr
-    runtime_env[constants.ENV_CONTAINER_REGISTRY] = runtime_registry
-    runtime_env["REGISTRY"] = f"{runtime_registry}/"
-
-    deploy_env = os.environ.copy()
-    deploy_env.update(runtime_env)
-    deploy_env["PROJECT_NAME"] = compose_project
-    deploy_env["ESB_META_REUSE"] = "1"
-    deploy_env.update(scenario.env_vars)
-
-    pytest_env = os.environ.copy()
-    pytest_env.update(runtime_env)
-    pytest_env.update(scenario.env_vars)
-
-    ensure_buildx_builder(
-        runtime_env.get("BUILDX_BUILDER", ""),
-        config_path=runtime_env.get(constants.ENV_BUILDKITD_CONFIG, ""),
-    )
-
-    return RunContext(
-        scenario=scenario,
-        project_name=project_name,
-        compose_project=compose_project,
-        compose_file=compose_file,
-        env_file=env_file,
-        runtime_env=runtime_env,
-        deploy_env=deploy_env,
-        pytest_env=pytest_env,
-    )
 
 
 def _run_env(
@@ -438,202 +328,6 @@ def _phase(
     )
 
 
-def _warmup(
-    scenarios: dict[str, Scenario],
-    *,
-    printer: Callable[[str], None] | None = None,
-    verbose: bool = False,
-) -> None:
-    templates = _collect_templates(scenarios)
-    missing_templates = [template for template in templates if not template.exists()]
-    if missing_templates:
-        missing = ", ".join(str(template) for template in missing_templates)
-        raise FileNotFoundError(f"Missing E2E template(s): {missing}")
-    if _uses_java_templates(scenarios):
-        _emit_warmup(printer, "Java fixture warmup ... start")
-        _build_java_fixtures(printer=printer, verbose=verbose)
-        _emit_warmup(printer, "Java fixture warmup ... done")
-
-
-def _uses_java_templates(scenarios: dict[str, Scenario]) -> bool:
-    runtime_extensions = PROJECT_ROOT / "runtime" / "java" / "extensions"
-    if not runtime_extensions.exists():
-        return False
-    for template in _collect_templates(scenarios):
-        if _template_has_java_runtime(template):
-            return True
-    return False
-
-
-def _collect_templates(scenarios: dict[str, Scenario]) -> list[Path]:
-    templates: set[Path] = set()
-    for scenario in scenarios.values():
-        templates.update(_resolve_templates(scenario))
-    return sorted(templates)
-
-
-def _resolve_template_path(path: Path) -> Path:
-    if path.is_absolute():
-        return path
-    return (PROJECT_ROOT / path).resolve()
-
-
-def _template_has_java_runtime(path: Path) -> bool:
-    if not path.exists():
-        return False
-    try:
-        data = yaml.load(path.read_text(encoding="utf-8"), Loader=_YamlIgnoreTagsLoader)
-    except (OSError, yaml.YAMLError):
-        return False
-    if not isinstance(data, dict):
-        return False
-    if _globals_runtime_is_java(data):
-        return True
-    resources = data.get("Resources")
-    if not isinstance(resources, dict):
-        return False
-    for resource in resources.values():
-        if not isinstance(resource, dict):
-            continue
-        props = resource.get("Properties")
-        if not isinstance(props, dict):
-            continue
-        runtime = str(props.get("Runtime", "")).lower().strip()
-        if runtime.startswith("java"):
-            return True
-        code_uri = props.get("CodeUri", "")
-        if isinstance(code_uri, str):
-            if "functions/java/" in code_uri or code_uri.lower().endswith(".jar"):
-                return True
-    return False
-
-
-def _globals_runtime_is_java(payload: dict) -> bool:
-    globals_section = payload.get("Globals")
-    if not isinstance(globals_section, dict):
-        return False
-    function_globals = globals_section.get("Function")
-    if not isinstance(function_globals, dict):
-        return False
-    runtime = str(function_globals.get("Runtime", "")).lower().strip()
-    return runtime.startswith("java")
-
-
-class _YamlIgnoreTagsLoader(yaml.SafeLoader):
-    pass
-
-
-def _yaml_ignore_unknown_tags(loader, node):
-    if isinstance(node, yaml.ScalarNode):
-        return loader.construct_scalar(node)
-    if isinstance(node, yaml.SequenceNode):
-        return loader.construct_sequence(node)
-    if isinstance(node, yaml.MappingNode):
-        return loader.construct_mapping(node)
-    return None
-
-
-_YamlIgnoreTagsLoader.add_constructor(None, _yaml_ignore_unknown_tags)
-
-
-def _build_java_fixtures(
-    *,
-    printer: Callable[[str], None] | None = None,
-    verbose: bool = False,
-) -> None:
-    fixtures_dir = PROJECT_ROOT / "e2e" / "fixtures" / "functions" / "java"
-    if not fixtures_dir.exists():
-        return
-
-    for project_dir in sorted(p for p in fixtures_dir.iterdir() if p.is_dir()):
-        pom = project_dir / "pom.xml"
-        if not pom.exists():
-            continue
-        if printer and verbose:
-            printer(f"Building Java fixture: {project_dir.name}")
-        _build_java_project(project_dir, verbose=verbose)
-
-
-def _build_java_project(project_dir: Path, *, verbose: bool = False) -> None:
-    cmd = _docker_maven_command(project_dir, verbose=verbose)
-    result = subprocess.run(
-        cmd,
-        capture_output=not verbose,
-        text=True,
-        check=False,
-    )
-    if result.returncode != 0:
-        details = ""
-        if not verbose:
-            details = f"\n{result.stdout}\n{result.stderr}".rstrip()
-        raise RuntimeError(f"Java fixture build failed: {project_dir}{details}")
-
-    jar_path = project_dir / "app.jar"
-    if not jar_path.exists():
-        raise RuntimeError(f"Java fixture jar not found in {project_dir}")
-
-
-def _docker_maven_command(project_dir: Path, *, verbose: bool = False) -> list[str]:
-    cmd = [
-        "docker",
-        "run",
-        "--rm",
-    ]
-    getuid = getattr(os, "getuid", None)
-    getgid = getattr(os, "getgid", None)
-    if callable(getuid) and callable(getgid):
-        cmd.extend(["--user", f"{getuid()}:{getgid()}"])
-    cmd.extend(["-v", f"{project_dir}:/src:ro", "-v", f"{project_dir}:/out"])
-    home_dir = Path.home()
-    m2_dir = home_dir / ".m2"
-    if m2_dir.exists() and os.access(m2_dir, os.W_OK):
-        cmd.extend(["-v", f"{m2_dir}:/tmp/m2"])
-    cmd.extend(["-e", "MAVEN_CONFIG=/tmp/m2", "-e", "HOME=/tmp"])
-    for key in (
-        "HTTP_PROXY",
-        "HTTPS_PROXY",
-        "NO_PROXY",
-        "http_proxy",
-        "https_proxy",
-        "no_proxy",
-        "MAVEN_OPTS",
-        "JAVA_TOOL_OPTIONS",
-    ):
-        value = os.environ.get(key)
-        if value:
-            cmd.extend(["-e", f"{key}={value}"])
-    maven_cmd = "mvn -DskipTests package" if verbose else "mvn -q -DskipTests package"
-    script = "\n".join(
-        [
-            "set -euo pipefail",
-            "mkdir -p /tmp/work /tmp/m2 /out",
-            "cp -a /src/. /tmp/work",
-            "cd /tmp/work",
-            maven_cmd,
-            "jar=$(ls -S target/*.jar 2>/dev/null | "
-            "grep -vE '(-sources|-javadoc)\\.jar$' | head -n 1 || true)",
-            'if [ -z "$jar" ]; then echo "jar not found in target" >&2; exit 1; fi',
-            'cp "$jar" /out/app.jar',
-        ]
-    )
-    cmd.extend(
-        [
-            "maven:3.9.6-eclipse-temurin-21",
-            "bash",
-            "-lc",
-            script,
-        ]
-    )
-    return cmd
-
-
-def _emit_warmup(printer: Callable[[str], None] | None, message: str) -> None:
-    if printer:
-        printer(message)
-    else:
-        print(message)
-
-
 def _emit_env_end(
     reporter: Reporter,
     log: LogSink,
@@ -650,80 +344,6 @@ def _emit_env_end(
     )
 
 
-def _resolve_env_file(env_file: str | None) -> str | None:
-    if not env_file:
-        return None
-    path = Path(env_file)
-    if not path.is_absolute():
-        path = PROJECT_ROOT / path
-    return str(path.absolute())
-
-
-def _resolve_templates(scenario: Scenario) -> list[Path]:
-    if scenario.deploy_templates:
-        return [_resolve_template_path(Path(template)) for template in scenario.deploy_templates]
-    return default_e2e_deploy_templates()
-
-
-def _apply_ports_to_env_dict(ports: dict[str, int], env: dict[str, str]) -> None:
-    for key, value in ports.items():
-        env[key] = str(value)
-
-    gw_key = env_key(constants.PORT_GATEWAY_HTTPS)
-    if gw_key in ports:
-        gw_port = ports[gw_key]
-        env[gw_key] = str(gw_port)
-        env[constants.ENV_GatewayPort] = str(gw_port)
-        env[constants.ENV_GatewayURL] = f"https://localhost:{gw_port}"
-
-    vl_key = env_key(constants.PORT_VICTORIALOGS)
-    if vl_key in ports:
-        vl_port = ports[vl_key]
-        env[vl_key] = str(vl_port)
-        env[constants.ENV_VictoriaLogsPort] = str(vl_port)
-        env[constants.ENV_VictoriaLogsURL] = f"http://localhost:{vl_port}"
-
-    agent_key = env_key(constants.PORT_AGENT_GRPC)
-    if agent_key in ports:
-        agent_port = ports[agent_key]
-        env[agent_key] = str(agent_port)
-        env[constants.ENV_AgentGrpcAddress] = f"localhost:{agent_port}"
-
-    agent_metrics_key = env_key(constants.PORT_AGENT_METRICS)
-    if agent_metrics_key in ports:
-        metrics_port = ports[agent_metrics_key]
-        env[agent_metrics_key] = str(metrics_port)
-        env["AGENT_METRICS_PORT"] = str(metrics_port)
-        env["AGENT_METRICS_URL"] = f"http://localhost:{metrics_port}"
-
-
-def _state_env_path(env_name: str) -> Path:
-    return E2E_STATE_ROOT / env_name / "config" / ".env"
-
-
-def _load_state_env(env_name: str) -> dict[str, str]:
-    path = _state_env_path(env_name)
-    if not path.exists():
-        return {}
-    return read_env_file(str(path))
-
-
-def _persist_state_env(env_name: str, runtime_env: dict[str, str]) -> None:
-    path = _state_env_path(env_name)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    lines = []
-    for key in sorted(_CREDENTIAL_KEYS):
-        value = runtime_env.get(key)
-        if value:
-            lines.append(f"{key}={value}")
-    path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
-
-
-def _sync_gateway_env(ctx: RunContext) -> None:
-    apply_gateway_env_from_container(ctx.pytest_env, ctx.compose_project)
-    _persist_state_env(ctx.scenario.env_name, ctx.pytest_env)
-
-
 def _needs_compose_build() -> bool:
     images = [
         f"{BRAND_SLUG}-os-base:latest",
@@ -738,69 +358,3 @@ def _needs_compose_build() -> bool:
         if result.returncode != 0:
             return True
     return False
-
-
-def _allocate_ports(env_names: list[str]) -> dict[str, dict[str, str]]:
-    base = constants.E2E_PORT_BASE
-    block = constants.E2E_PORT_BLOCK
-    offsets = {
-        constants.PORT_GATEWAY_HTTPS: 0,
-        constants.PORT_GATEWAY_HTTP: 1,
-        constants.PORT_AGENT_GRPC: 2,
-        constants.PORT_AGENT_METRICS: 3,
-        constants.PORT_VICTORIALOGS: 4,
-        constants.PORT_DATABASE: 5,
-        constants.PORT_S3: 6,
-        constants.PORT_S3_MGMT: 7,
-    }
-    env_names_sorted = sorted(env_names)
-
-    def _port_available(port: int) -> bool:
-        # Bind to 0.0.0.0 so we catch conflicts with services bound to all interfaces.
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            try:
-                sock.bind(("0.0.0.0", port))
-            except OSError:
-                return False
-        return True
-
-    # Prefer stable port blocks, but move the whole block-window up if any port
-    # is already in use on the host.
-    group_size = len(env_names_sorted)
-    for shift in range(0, 200):
-        bases: dict[str, int] = {}
-        ok = True
-        for idx, env_name in enumerate(env_names_sorted):
-            env_base = base + (idx + shift * group_size) * block
-            if env_base + max(offsets.values()) >= 65535:
-                ok = False
-                break
-            ports = [env_base + offset for offset in offsets.values()]
-            if not all(_port_available(port) for port in ports):
-                ok = False
-                break
-            bases[env_name] = env_base
-        if not ok:
-            continue
-
-        plan: dict[str, dict[str, str]] = {}
-        for env_name, env_base in bases.items():
-            env_ports: dict[str, str] = {}
-            for key, offset in offsets.items():
-                env_ports[env_key(key)] = str(env_base + offset)
-            plan[env_name] = env_ports
-        return plan
-
-    raise RuntimeError(
-        "Failed to allocate a free host port block for E2E. "
-        f"base={base} block={block} envs={env_names_sorted}"
-    )
-
-
-def _apply_port_overrides(runtime_env: dict[str, str], overrides: dict[str, str] | None) -> None:
-    if not overrides:
-        return
-    for key, value in overrides.items():
-        current = runtime_env.get(key)
-        if not current or current == "0":
-            runtime_env[key] = value

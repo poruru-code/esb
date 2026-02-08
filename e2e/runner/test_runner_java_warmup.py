@@ -4,7 +4,7 @@
 import textwrap
 from pathlib import Path
 
-from e2e.runner import runner
+from e2e.runner import warmup
 
 
 def _write(tmp_path: Path, name: str, content: str) -> Path:
@@ -31,7 +31,7 @@ def test_template_has_java_runtime_from_globals(tmp_path):
               CodeUri: functions/python/echo/
         """,
     )
-    assert runner._template_has_java_runtime(template)
+    assert warmup._template_has_java_runtime(template)
 
 
 def test_template_has_java_runtime_from_resource_runtime(tmp_path):
@@ -50,7 +50,7 @@ def test_template_has_java_runtime_from_resource_runtime(tmp_path):
               CodeUri: functions/java/echo/app.jar
         """,
     )
-    assert runner._template_has_java_runtime(template)
+    assert warmup._template_has_java_runtime(template)
 
 
 def test_template_has_java_runtime_with_cfn_tags(tmp_path):
@@ -80,7 +80,7 @@ def test_template_has_java_runtime_with_cfn_tags(tmp_path):
               CodeUri: functions/java/echo/app.jar
         """,
     )
-    assert runner._template_has_java_runtime(template)
+    assert warmup._template_has_java_runtime(template)
 
 
 def test_template_has_java_runtime_from_codeuri_only(tmp_path):
@@ -98,7 +98,7 @@ def test_template_has_java_runtime_from_codeuri_only(tmp_path):
               CodeUri: functions/java/echo/app.jar
         """,
     )
-    assert runner._template_has_java_runtime(template)
+    assert warmup._template_has_java_runtime(template)
 
 
 def test_template_has_no_java_runtime(tmp_path):
@@ -119,4 +119,4 @@ def test_template_has_no_java_runtime(tmp_path):
               CodeUri: functions/python/echo/
         """,
     )
-    assert not runner._template_has_java_runtime(template)
+    assert not warmup._template_has_java_runtime(template)
