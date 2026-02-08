@@ -43,6 +43,10 @@ func (w Workflow) syncRuntimeConfig(req Request) error {
 	if err != nil {
 		return err
 	}
+	return w.syncRuntimeConfigToTarget(stagingDir, target)
+}
+
+func (w Workflow) syncRuntimeConfigToTarget(stagingDir string, target runtimeConfigTarget) error {
 	if target.BindPath == "" && target.VolumeName == "" && target.ContainerID == "" {
 		return nil
 	}
@@ -54,20 +58,21 @@ func (w Workflow) syncRuntimeConfig(req Request) error {
 	}
 	var containerErr error
 	if target.ContainerID != "" {
-		if err := copyConfigToContainer(w.ComposeRunner, stagingDir, target.ContainerID); err == nil {
+		copyErr := copyConfigToContainer(w.ComposeRunner, stagingDir, target.ContainerID)
+		if copyErr == nil {
 			return nil
 		}
-		containerErr = err
+		containerErr = copyErr
 	}
 	if target.VolumeName != "" {
-		err := copyConfigToVolume(w.ComposeRunner, stagingDir, target.VolumeName)
-		if err == nil {
+		volumeErr := copyConfigToVolume(w.ComposeRunner, stagingDir, target.VolumeName)
+		if volumeErr == nil {
 			return nil
 		}
 		if containerErr != nil {
-			return fmt.Errorf("sync runtime config failed: %w", errors.Join(containerErr, err))
+			return fmt.Errorf("sync runtime config failed: %w", errors.Join(containerErr, volumeErr))
 		}
-		return fmt.Errorf("sync runtime config failed: %w", err)
+		return fmt.Errorf("sync runtime config failed: %w", volumeErr)
 	}
 	return containerErr
 }
