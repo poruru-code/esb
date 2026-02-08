@@ -4,24 +4,30 @@ What: Tests for OpenAPI injection of routing.yml routes.
 Why: Ensure /docs can execute routed endpoints via Swagger UI after each deploy.
 """
 
+import pytest
 
-def test_openapi_description_does_not_include_routing_markdown(client, monkeypatch):
+
+@pytest.mark.asyncio
+async def test_openapi_description_does_not_include_routing_markdown(
+    async_client, main_app, monkeypatch
+):
     sample_routes = [
         {"path": "/api/hello", "method": "get", "function": "hello-func"},
         {"path": "/api/items/{id}", "method": "POST", "function": "items-func"},
     ]
 
-    matcher = client.app.state.route_matcher
+    matcher = main_app.state.route_matcher
     monkeypatch.setattr(matcher, "list_routes", lambda: sample_routes)
 
-    response = client.get("/openapi.json")
+    response = await async_client.get("/openapi.json")
     assert response.status_code == 200
 
     description = response.json()["info"].get("description") or ""
     assert "## Routing" not in description
 
 
-def test_openapi_injects_routing_paths_as_operations(client, monkeypatch):
+@pytest.mark.asyncio
+async def test_openapi_injects_routing_paths_as_operations(async_client, main_app, monkeypatch):
     sample_routes = [
         {"path": "/api/hello", "method": "get", "function": "hello-func"},
         {"path": "/api/items/{id}", "method": "POST", "function": "items-func"},
@@ -29,10 +35,10 @@ def test_openapi_injects_routing_paths_as_operations(client, monkeypatch):
         {"path": "", "method": "", "function": "lambda-scheduled"},
     ]
 
-    matcher = client.app.state.route_matcher
+    matcher = main_app.state.route_matcher
     monkeypatch.setattr(matcher, "list_routes", lambda: sample_routes)
 
-    response = client.get("/openapi.json")
+    response = await async_client.get("/openapi.json")
     assert response.status_code == 200
 
     schema = response.json()

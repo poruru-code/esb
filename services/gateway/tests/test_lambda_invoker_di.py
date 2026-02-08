@@ -163,8 +163,6 @@ async def test_lambda_invoker_always_uses_pool_backend():
     """
     Step 2: ensure PoolManager is injected even when ENABLE_CONTAINER_POOLING is False.
     """
-    from fastapi.testclient import TestClient
-
     from services.gateway.main import app
     from services.gateway.services.pool_manager import PoolManager
 
@@ -188,8 +186,8 @@ async def test_lambda_invoker_always_uses_pool_backend():
         mock_config.HEARTBEAT_INTERVAL = 30
         mock_config.GATEWAY_IDLE_TIMEOUT_SECONDS = 300
 
-        # Use TestClient to run lifespan.
-        with TestClient(app) as _:
+        # Enter lifespan directly without TestClient.
+        async with app.router.lifespan_context(app):
             invoker = app.state.lambda_invoker
             # Ensure backend is a PoolManager instance.
             assert isinstance(invoker.backend, PoolManager)

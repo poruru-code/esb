@@ -70,12 +70,10 @@ def mock_dependencies(main_app):
 
 
 @pytest.mark.asyncio
-async def test_lambda_connection_error_logged_at_error_level(caplog):
+async def test_lambda_connection_error_logged_at_error_level(main_app, async_client, caplog):
     """
     Verify Lambda connection failures are logged at error level.
     """
-    from services.gateway.main import app
-
     # Capture logs from gateway.lambda_invoker where the error is now logged
     caplog.set_level(logging.ERROR, logger="gateway.lambda_invoker")
     logging.getLogger("gateway.lambda_invoker").error(
@@ -105,38 +103,46 @@ async def test_lambda_connection_error_logged_at_error_level(caplog):
 
     invoker = LambdaInvoker(mock_client, mock_registry, config, mock_backend)
 
-    app.dependency_overrides[get_http_client] = lambda: mock_client
-    app.dependency_overrides[get_orchestrator_client] = lambda: mock_manager
-    app.dependency_overrides[get_lambda_invoker] = lambda: invoker
+    async def http_client_override():
+        return mock_client
+
+    async def orchestrator_override():
+        return mock_manager
+
+    async def lambda_invoker_override():
+        return invoker
+
+    main_app.dependency_overrides[get_http_client] = http_client_override
+    main_app.dependency_overrides[get_orchestrator_client] = orchestrator_override
+    main_app.dependency_overrides[get_lambda_invoker] = lambda_invoker_override
     from services.gateway.api.deps import get_processor
     from services.gateway.services.processor import GatewayRequestProcessor
 
-    app.dependency_overrides[get_processor] = lambda: GatewayRequestProcessor(
-        invoker, app.state.event_builder
-    )
-    app.dependency_overrides[verify_authorization] = lambda: "test-user"
-    app.dependency_overrides[resolve_lambda_target] = lambda: TargetFunction(
-        container_name="test-container",
-        path_params={},
-        route_path="/test-path",
-        function_config={},
-    )
+    async def processor_override():
+        return GatewayRequestProcessor(invoker, main_app.state.event_builder)
 
-    from fastapi.testclient import TestClient
+    main_app.dependency_overrides[get_processor] = processor_override
 
-    # Trigger Lambda connection error via gateway_handler
-    # proxy_to_lambda is imported in main.py, so we patch it there.
-    # Note: proxy_to_lambda is gone. We mock invoker now (overridden dependency).
-    # But mock_client is used in invoker? Yes we set up invoker with mock_client.
-    # And we trigger error via mock_client side_effect.
+    async def auth_override() -> str:
+        return "test-user"
 
-    with TestClient(app) as client:
-        # Trigger Lambda connection error
-        mock_client.post.side_effect = httpx.ConnectError("Connection refused")
-        client.get("/test-path", headers={"Authorization": "Bearer valid-token"})
+    async def target_override() -> TargetFunction:
+        return TargetFunction(
+            container_name="test-container",
+            path_params={},
+            route_path="/test-path",
+            function_config={},
+        )
+
+    main_app.dependency_overrides[verify_authorization] = auth_override
+    main_app.dependency_overrides[resolve_lambda_target] = target_override
+
+    # Trigger Lambda connection error via gateway_handler.
+    mock_client.post.side_effect = httpx.ConnectError("Connection refused")
+    await async_client.get("/test-path", headers={"Authorization": "Bearer valid-token"})
 
     # Clean up overrides
-    app.dependency_overrides = {}
+    main_app.dependency_overrides = {}
 
     # Assert: Error level log should exist
     assert any(
@@ -148,12 +154,11 @@ async def test_lambda_connection_error_logged_at_error_level(caplog):
 
 
 @pytest.mark.asyncio
-async def test_lambda_connection_error_includes_detailed_info(caplog):
+async def test_lambda_connection_error_includes_detailed_info(main_app, async_client, caplog):
     """
     Verify logs include detailed info (host, port, timeout, error_detail) on connection failure.
     """
     from services.gateway.config import config
-    from services.gateway.main import app
 
     caplog.set_level(logging.ERROR, logger="gateway.lambda_invoker")
     logging.getLogger("gateway.lambda_invoker").error(
@@ -179,33 +184,46 @@ async def test_lambda_connection_error_includes_detailed_info(caplog):
 
     invoker = LambdaInvoker(mock_client, mock_registry, config, mock_backend)
 
-    app.dependency_overrides[get_http_client] = lambda: mock_client
-    app.dependency_overrides[get_orchestrator_client] = lambda: mock_manager
-    app.dependency_overrides[get_lambda_invoker] = lambda: invoker
+    async def http_client_override():
+        return mock_client
+
+    async def orchestrator_override():
+        return mock_manager
+
+    async def lambda_invoker_override():
+        return invoker
+
+    main_app.dependency_overrides[get_http_client] = http_client_override
+    main_app.dependency_overrides[get_orchestrator_client] = orchestrator_override
+    main_app.dependency_overrides[get_lambda_invoker] = lambda_invoker_override
     from services.gateway.api.deps import get_processor
     from services.gateway.services.processor import GatewayRequestProcessor
 
-    app.dependency_overrides[get_processor] = lambda: GatewayRequestProcessor(
-        invoker, app.state.event_builder
-    )
-    app.dependency_overrides[verify_authorization] = lambda: "test-user"
-    app.dependency_overrides[resolve_lambda_target] = lambda: TargetFunction(
-        container_name="test-container",
-        path_params={},
-        route_path="/test-path",
-        function_config={},
-    )
+    async def processor_override():
+        return GatewayRequestProcessor(invoker, main_app.state.event_builder)
 
-    from fastapi.testclient import TestClient
+    main_app.dependency_overrides[get_processor] = processor_override
 
-    with TestClient(app) as client:
-        # Trigger Lambda connection error
-        mock_client.post.side_effect = httpx.ConnectTimeout("Timeout after 30s")
+    async def auth_override() -> str:
+        return "test-user"
 
-        client.get("/test-path", headers={"Authorization": "Bearer valid-token"})
+    async def target_override() -> TargetFunction:
+        return TargetFunction(
+            container_name="test-container",
+            path_params={},
+            route_path="/test-path",
+            function_config={},
+        )
+
+    main_app.dependency_overrides[verify_authorization] = auth_override
+    main_app.dependency_overrides[resolve_lambda_target] = target_override
+
+    # Trigger Lambda connection error.
+    mock_client.post.side_effect = httpx.ConnectTimeout("Timeout after 30s")
+    await async_client.get("/test-path", headers={"Authorization": "Bearer valid-token"})
 
     # Clean up overrides
-    app.dependency_overrides = {}
+    main_app.dependency_overrides = {}
 
     # Assert: Log record should contain detailed info in extra fields
     error_records = [
