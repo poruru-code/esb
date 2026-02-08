@@ -1,12 +1,12 @@
 from unittest.mock import patch
 
-from fastapi.testclient import TestClient
+import pytest
 
 from services.gateway.core.exceptions import ResourceExhaustedError
-from services.gateway.main import app
 
 
-def test_resource_exhausted_error_returns_429():
+@pytest.mark.asyncio
+async def test_resource_exhausted_error_returns_429(async_client):
     """
     Ensure HTTP 429 is returned when ResourceExhaustedError occurs.
     """
@@ -15,8 +15,7 @@ def test_resource_exhausted_error_returns_429():
     with patch(
         "services.gateway.main.health_check", side_effect=ResourceExhaustedError("Queue full")
     ):
-        client = TestClient(app)
-        response = client.get("/health")
+        response = await async_client.get("/health")
 
         # Expected: 429
         # Before implementation: 500 (or unhandled exception)

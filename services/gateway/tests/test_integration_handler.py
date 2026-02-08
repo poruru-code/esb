@@ -1,15 +1,16 @@
 from unittest.mock import AsyncMock, Mock
 
 import pytest
-from fastapi.testclient import TestClient
+from starlette.requests import Request
 
 from services.gateway.api.deps import (
     get_processor,
     resolve_lambda_target,
     verify_authorization,
 )
-from services.gateway.main import app
+from services.gateway.main import gateway_handler
 from services.gateway.models import TargetFunction
+from services.gateway.models.context import InputContext
 from services.gateway.models.result import InvocationResult
 from services.gateway.services.function_registry import FunctionRegistry
 from services.gateway.services.route_matcher import RouteMatcher
@@ -28,20 +29,30 @@ def mock_processor():
     return processor
 
 
-def test_gateway_handler_propagates_request_id(mock_processor):
+@pytest.mark.asyncio
+async def test_gateway_handler_propagates_request_id(main_app, async_client, mock_processor):
     """Verify that GatewayRequestProcessor is called and context is passed."""
-    # Override dependencies
-    app.dependency_overrides[verify_authorization] = lambda: "test-user"
-    app.dependency_overrides[resolve_lambda_target] = lambda: TargetFunction(
-        container_name="test-function",
-        function_config={"environment": {}},
-        path_params={},
-        route_path="/api/test",
-    )
-    app.dependency_overrides[get_processor] = lambda: mock_processor
 
-    with TestClient(app) as client:
-        response = client.post("/api/test", json={"action": "test"})
+    # Override dependencies
+    async def auth_override() -> str:
+        return "test-user"
+
+    async def target_override() -> TargetFunction:
+        return TargetFunction(
+            container_name="test-function",
+            function_config={"environment": {}},
+            path_params={},
+            route_path="/api/test",
+        )
+
+    async def processor_override():
+        return mock_processor
+
+    main_app.dependency_overrides[verify_authorization] = auth_override
+    main_app.dependency_overrides[resolve_lambda_target] = target_override
+    main_app.dependency_overrides[get_processor] = processor_override
+
+    response = await async_client.post("/api/test", json={"action": "test"})
 
     # Verify
     assert response.status_code == 200
@@ -53,10 +64,11 @@ def test_gateway_handler_propagates_request_id(mock_processor):
     assert context.user_id == "test-user"
 
     # Clean up
-    app.dependency_overrides = {}
+    main_app.dependency_overrides = {}
 
 
-def test_gateway_handler_returns_error_result(mock_processor):
+@pytest.mark.asyncio
+async def test_gateway_handler_returns_error_result(main_app, async_client, mock_processor):
     """Verify that failed InvocationResult is handled correctly."""
     # Setup mock to return a failure
     mock_processor.process_request.return_value = InvocationResult(
@@ -65,47 +77,66 @@ def test_gateway_handler_returns_error_result(mock_processor):
         error="Service Unavailable",
     )
 
-    app.dependency_overrides[verify_authorization] = lambda: "test-user"
-    app.dependency_overrides[resolve_lambda_target] = lambda: TargetFunction(
-        container_name="test-function",
-        function_config={"environment": {}},
-        path_params={},
-        route_path="/api/test",
-    )
-    app.dependency_overrides[get_processor] = lambda: mock_processor
+    async def auth_override() -> str:
+        return "test-user"
 
-    with TestClient(app) as client:
-        response = client.get("/api/test")
+    async def target_override() -> TargetFunction:
+        return TargetFunction(
+            container_name="test-function",
+            function_config={"environment": {}},
+            path_params={},
+            route_path="/api/test",
+        )
+
+    async def processor_override():
+        return mock_processor
+
+    main_app.dependency_overrides[verify_authorization] = auth_override
+    main_app.dependency_overrides[resolve_lambda_target] = target_override
+    main_app.dependency_overrides[get_processor] = processor_override
+
+    response = await async_client.get("/api/test")
 
     # Verify
     assert response.status_code == 503
     assert response.json() == {"message": "Service Unavailable"}
 
-    app.dependency_overrides = {}
+    main_app.dependency_overrides = {}
 
 
-def test_gateway_handler_allows_patch(mock_processor):
+@pytest.mark.asyncio
+async def test_gateway_handler_allows_patch(main_app, async_client, mock_processor):
     """Verify PATCH method is accepted by the catch-all handler."""
-    app.dependency_overrides[verify_authorization] = lambda: "test-user"
-    app.dependency_overrides[resolve_lambda_target] = lambda: TargetFunction(
-        container_name="test-function",
-        function_config={"environment": {}},
-        path_params={},
-        route_path="/api/test",
-    )
-    app.dependency_overrides[get_processor] = lambda: mock_processor
 
-    with TestClient(app) as client:
-        response = client.patch("/api/test", json={"action": "patch"})
+    async def auth_override() -> str:
+        return "test-user"
+
+    async def target_override() -> TargetFunction:
+        return TargetFunction(
+            container_name="test-function",
+            function_config={"environment": {}},
+            path_params={},
+            route_path="/api/test",
+        )
+
+    async def processor_override():
+        return mock_processor
+
+    main_app.dependency_overrides[verify_authorization] = auth_override
+    main_app.dependency_overrides[resolve_lambda_target] = target_override
+    main_app.dependency_overrides[get_processor] = processor_override
+
+    response = await async_client.patch("/api/test", json={"action": "patch"})
 
     assert response.status_code == 200
     assert mock_processor.process_request.called
 
-    app.dependency_overrides = {}
+    main_app.dependency_overrides = {}
 
 
-def test_gateway_handler_head_falls_back_to_get_route(tmp_path, mock_processor):
-    """Verify HEAD resolves to a GET route and returns an empty body."""
+@pytest.mark.asyncio
+async def test_gateway_handler_head_falls_back_to_get_route(main_app, tmp_path, mock_processor):
+    """Verify HEAD resolves to GET route and handler returns an empty body."""
     mock_processor.process_request.return_value = InvocationResult(
         success=True,
         status_code=200,
@@ -113,8 +144,14 @@ def test_gateway_handler_head_falls_back_to_get_route(tmp_path, mock_processor):
         headers={},
     )
 
-    app.dependency_overrides[verify_authorization] = lambda: "test-user"
-    app.dependency_overrides[get_processor] = lambda: mock_processor
+    async def auth_override() -> str:
+        return "test-user"
+
+    async def processor_override():
+        return mock_processor
+
+    main_app.dependency_overrides[verify_authorization] = auth_override
+    main_app.dependency_overrides[get_processor] = processor_override
 
     routing_path = tmp_path / "routing.yml"
     routing_path.write_text(
@@ -133,35 +170,65 @@ routes:
     matcher.config_path = str(routing_path)
     matcher.load_routing_config()
 
-    with TestClient(app) as client:
-        original_matcher = app.state.route_matcher
-        app.state.route_matcher = matcher
-        response = client.head("/api/test/123")
-        app.state.route_matcher = original_matcher
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0"},
+        "http_version": "1.1",
+        "method": "HEAD",
+        "path": "/api/test/123",
+        "raw_path": b"/api/test/123",
+        "query_string": b"",
+        "headers": [],
+        "client": ("testclient", 50000),
+        "server": ("testserver", 80),
+        "scheme": "http",
+        "root_path": "",
+        "app": main_app,
+    }
+
+    async def receive():
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    request = Request(scope, receive)
+    target = await resolve_lambda_target(request, matcher)
+    assert target.route_path == "/api/test/{id}"
+    assert target.path_params == {"id": "123"}
+
+    context = InputContext(
+        function_name=target.container_name,
+        method="HEAD",
+        path="/api/test/123",
+        headers={},
+        multi_headers={},
+        query_params={},
+        multi_query_params={},
+        body=b"",
+        user_id="test-user",
+        path_params=target.path_params,
+        route_path=target.route_path,
+        timeout=30.0,
+    )
+    response = await gateway_handler(context, mock_processor)
 
     assert response.status_code == 200
-    assert response.content == b""
+    assert response.body == b""
     assert response.headers.get("content-type") == "text/plain"
-
-    context = mock_processor.process_request.call_args[0][0]
     assert context.method == "HEAD"
     assert context.path == "/api/test/123"
     assert context.route_path == "/api/test/{id}"
 
-    app.dependency_overrides = {}
 
-
-def test_cors_preflight_returns_headers():
+@pytest.mark.asyncio
+async def test_cors_preflight_returns_headers(async_client):
     """Verify OPTIONS preflight returns CORS headers without auth."""
-    with TestClient(app) as client:
-        response = client.options(
-            "/any/path",
-            headers={
-                "Origin": "https://example.com",
-                "Access-Control-Request-Method": "POST",
-                "Access-Control-Request-Headers": "Authorization,Content-Type",
-            },
-        )
+    response = await async_client.options(
+        "/any/path",
+        headers={
+            "Origin": "https://example.com",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "Authorization,Content-Type",
+        },
+    )
 
     assert response.status_code == 204
     assert response.headers.get("access-control-allow-origin") == "https://example.com"

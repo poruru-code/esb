@@ -5,8 +5,8 @@ import urllib.request
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
-from starlette.testclient import TestClient
 
 
 # Avoid starting background queue listeners in tests; we don't need async log shipping here.
@@ -59,8 +59,17 @@ def main_app():
             "services.gateway.services.pool_manager.PoolManager.cleanup_all_containers",
             return_value=0,
         ),
+        patch(
+            "services.gateway.services.pool_manager.PoolManager.shutdown_all",
+            new_callable=AsyncMock,
+        ),
         patch("services.gateway.services.janitor.HeartbeatJanitor.start", new_callable=AsyncMock),
+        patch("services.gateway.services.janitor.HeartbeatJanitor.stop", new_callable=AsyncMock),
         patch("services.gateway.services.scheduler.SchedulerService.start", new_callable=AsyncMock),
+        patch("services.gateway.services.scheduler.SchedulerService.stop", new_callable=AsyncMock),
+        patch("services.gateway.lifecycle.init_reloader", return_value=None),
+        patch("services.gateway.lifecycle.start_reloader", return_value=None),
+        patch("services.gateway.lifecycle.stop_reloader", return_value=None),
     ):
         from services.gateway.main import app
 
@@ -68,6 +77,8 @@ def main_app():
 
 
 @pytest.fixture
-def client(main_app):
-    with TestClient(main_app) as client:
-        yield client
+async def async_client(main_app):
+    async with main_app.router.lifespan_context(main_app):
+        transport = httpx.ASGITransport(app=main_app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+            yield client
