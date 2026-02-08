@@ -1,13 +1,15 @@
 <!--
 Where: services/agent/docs/grpc-api.md
 What: gRPC API contract and behavior notes for the Agent.
-Why: Keep the runtime control surface and error semantics explicit.
+Why: Keep runtime control surface and error semantics explicit.
 -->
 # Agent gRPC API
 
 ## 参照（Source of Truth）
 - Proto 定義: `proto/agent.proto`
 - 実装: `services/agent/internal/api/server.go`
+
+> Generated artifact の配置と生成手順は `proto-generation.md` を参照してください。
 
 ## サービス
 `esb.agent.v1.AgentService`
@@ -28,10 +30,9 @@ Agent は `PermissionDenied` を返します。
 ## RPC 一覧
 
 ### 1) EnsureContainer
-目的: 関数コンテナを **起動**し、接続情報を返します。
+目的: 関数コンテナを起動し、接続情報を返します。
 
 入力（抜粋）:
-
 | フィールド | 役割 | 補足 |
 | --- | --- | --- |
 | `function_name` | 関数名 | 必須 |
@@ -43,11 +44,10 @@ Agent は `PermissionDenied` を返します。
 - `WorkerInfo { id, ip_address, port }`
 
 補足:
-- Agent は「プール管理」を行わず、基本的に **毎回新規コンテナを作成**します。
-- 外部レジストリからの同期は行いません。`image` が未投入なら runtime pull で失敗します。
+- Agent はプール管理を行わず、基本的に毎回新規コンテナを作成します。
+- 外部レジストリ同期は行いません。`image` が未投入なら runtime pull で失敗します。
 
 #### EnsureContainer のシーケンス
-
 ```mermaid
 sequenceDiagram
     autonumber
@@ -64,7 +64,7 @@ sequenceDiagram
 ```
 
 ### 2) DestroyContainer
-目的: 指定コンテナを **削除**します（存在しなければ成功扱いにするケースがあります）。
+目的: 指定コンテナを削除します（存在しなければ成功扱いにするケースがあります）。
 
 入力（抜粋）:
 - `container_id`（必須）
@@ -74,11 +74,11 @@ sequenceDiagram
 - `success: bool`
 
 ### 3) PauseContainer / ResumeContainer
-目的: 将来的な warm start のための一時停止/再開 API です。
+目的: warm start のための一時停止/再開 API です。
 
 補足:
-- containerd runtime では `task.Pause/Resume` を使用します。
-- docker runtime では現状 `Unimplemented` です（互換のため RPC は存在します）。
+- containerd runtime では `task.Pause/Resume` を使用
+- docker runtime では現状 `Unimplemented`
 
 ### 4) ListContainers
 目的: Agent が管理するコンテナ一覧を返します。
@@ -87,10 +87,10 @@ sequenceDiagram
 - `owner_id`（必須）
 
 出力:
-- `ContainerState[]`（`owner_id` でフィルタされます）
+- `ContainerState[]`（`owner_id` でフィルタ）
 
 ### 5) GetContainerMetrics
-目的: コンテナのメトリクスを取得します（cgroup stats ベース）。
+目的: コンテナメトリクスを取得します（cgroup stats ベース）。
 
 入力:
 - `container_id`（必須）
@@ -100,14 +100,14 @@ sequenceDiagram
 - `ContainerMetrics`
 
 ### 6) InvokeWorker
-目的: Worker への HTTP invoke を **Agent が代理**して行い、結果を返します。
+目的: Worker への HTTP invoke を Agent が代理して行い、結果を返します。
 
 入力（抜粋）:
 - `container_id`（必須）
-- `path`（任意、空なら RIE の既定パス）
+- `path`（任意、空なら RIE 既定）
 - `payload`（bytes）
 - `headers`（map）
-- `timeout_ms`（任意、0/未指定時は既定値）
+- `timeout_ms`（任意、0/未指定時は既定）
 - `owner_id`（必須）
 
 出力:
@@ -116,7 +116,6 @@ sequenceDiagram
 - `body`
 
 #### 代理 Invoke のシーケンス
-
 ```mermaid
 sequenceDiagram
     autonumber
@@ -133,9 +132,7 @@ sequenceDiagram
 
 #### サイズ上限
 `AGENT_INVOKE_MAX_RESPONSE_SIZE`（bytes）でレスポンスサイズを制限します。
-超過した場合は `ResourceExhausted` を返します。
-
----
+超過時は `ResourceExhausted` を返します。
 
 ## TLS / 運用系エンドポイント
 ### mTLS（デフォルト有効）
@@ -149,13 +146,14 @@ sequenceDiagram
 - 有効化: `AGENT_GRPC_REFLECTION=1`
 
 ### Health / Metrics
-- gRPC health service を提供します。
-- Prometheus `/metrics` を `AGENT_METRICS_PORT`（既定 `9091`）で公開します。
+- gRPC health service を提供
+- Prometheus `/metrics` を `AGENT_METRICS_PORT`（既定 `9091`）で公開
 
 ---
 
 ## Implementation references
 - `proto/agent.proto`
+- `tools/gen_proto.py`
 - `services/agent/internal/api/server.go`
 - `services/agent/internal/runtime/interface.go`
 - `services/agent/cmd/agent/main.go`
