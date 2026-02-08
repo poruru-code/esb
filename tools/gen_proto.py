@@ -7,6 +7,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PROTO_DIR = PROJECT_ROOT / "proto"
 GO_OUT_DIR = PROJECT_ROOT / "services/agent/pkg/api/v1"
+LEGACY_GO_OUT_DIR = GO_OUT_DIR / "proto"
 PYTHON_OUT_DIR = PROJECT_ROOT / "services/gateway/pb"
 
 
@@ -83,6 +84,27 @@ def gen_go_docker():
     run_command(cmd)
 
 
+def cleanup_legacy_go_outputs():
+    # Legacy generated Go files in pkg/api/v1/proto are no longer used.
+    if not LEGACY_GO_OUT_DIR.exists():
+        return
+
+    removed_files = []
+    for file in LEGACY_GO_OUT_DIR.glob("*.pb.go"):
+        file.unlink()
+        removed_files.append(file.name)
+
+    if removed_files:
+        print(f"Removed legacy Go proto outputs: {', '.join(sorted(removed_files))}")
+
+    # Remove directory only when empty to avoid deleting unrelated files.
+    try:
+        LEGACY_GO_OUT_DIR.rmdir()
+        print(f"Removed empty legacy proto directory: {LEGACY_GO_OUT_DIR}")
+    except OSError:
+        pass
+
+
 if __name__ == "__main__":
     print(f"Project Root: {PROJECT_ROOT}")
     os.makedirs(GO_OUT_DIR, exist_ok=True)
@@ -99,6 +121,7 @@ if __name__ == "__main__":
     print("Generating Go code (via Docker)...")
     try:
         gen_go_docker()
+        cleanup_legacy_go_outputs()
         print("Go code generated.")
     except Exception as e:
         print(f"Failed to generate Go code: {e}")
