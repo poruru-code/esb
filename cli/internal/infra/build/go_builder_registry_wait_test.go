@@ -19,6 +19,7 @@ func TestShouldBypassRegistryProxy(t *testing.T) {
 		{name: "registry-service", registry: "registry:5010", want: true},
 		{name: "localhost", registry: "localhost:5010", want: true},
 		{name: "loopback", registry: "127.0.0.1:5010", want: true},
+		{name: "ipv6-loopback", registry: "[::1]:5010", want: true},
 		{name: "host-docker-internal", registry: "host.docker.internal:5010", want: true},
 		{name: "external", registry: "public.ecr.aws", want: false},
 	}
@@ -48,6 +49,22 @@ func TestRegistryWaitHTTPClientBypassesProxyForLocalRegistry(t *testing.T) {
 	}
 	if transport.Proxy != nil {
 		t.Fatal("expected nil proxy function for local registry")
+	}
+}
+
+func TestRegistryWaitHTTPClientBypassesProxyForIPv6LoopbackRegistry(t *testing.T) {
+	t.Setenv("HTTP_PROXY", "http://proxy.example:8080")
+	t.Setenv("http_proxy", "http://proxy.example:8080")
+	t.Setenv("NO_PROXY", "")
+	t.Setenv("no_proxy", "")
+
+	client := registryWaitHTTPClient("[::1]:5010")
+	transport, ok := client.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("unexpected transport type %T", client.Transport)
+	}
+	if transport.Proxy != nil {
+		t.Fatal("expected nil proxy function for IPv6 loopback registry")
 	}
 }
 

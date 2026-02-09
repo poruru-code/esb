@@ -439,7 +439,17 @@ func resolveRegistryHost(registry string) string {
 	if slash := strings.Index(trimmed, "/"); slash != -1 {
 		trimmed = trimmed[:slash]
 	}
-	host := trimmed
+	host := strings.TrimSpace(trimmed)
+	if host == "" {
+		return ""
+	}
+	if splitHost, _, err := net.SplitHostPort(host); err == nil {
+		return strings.TrimSpace(splitHost)
+	}
+	host = strings.Trim(host, "[]")
+	if ip := net.ParseIP(host); ip != nil {
+		return host
+	}
 	if colon := strings.Index(host, ":"); colon != -1 {
 		host = host[:colon]
 	}
