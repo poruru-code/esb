@@ -166,7 +166,9 @@ def wait_for_gateway(
     last_err = None
     while time.time() < deadline:
         try:
-            response = requests.get(url, timeout=2.0, verify=False)
+            with requests.Session() as session:
+                session.trust_env = False
+                response = session.get(url, timeout=2.0, verify=False)
             if response.status_code == 200:
                 return
             last_err = f"Status code {response.status_code}"

@@ -13,6 +13,8 @@ import yaml
 from e2e.runner.models import Scenario
 from e2e.runner.utils import PROJECT_ROOT, default_e2e_deploy_templates
 
+HOST_M2_SETTINGS_PATH = "/tmp/host-m2-settings.xml"
+
 
 def _warmup(
     scenarios: dict[str, Scenario],
@@ -155,6 +157,38 @@ def _build_java_project(project_dir: Path, *, verbose: bool = False) -> None:
         raise RuntimeError(f"Java fixture jar not found in {project_dir}")
 
 
+def _append_m2_mounts(cmd: list[str], home_dir: Path) -> None:
+    m2_dir = home_dir / ".m2"
+    if not m2_dir.exists():
+        return
+    if os.access(m2_dir, os.W_OK):
+        cmd.extend(["-v", f"{m2_dir}:/tmp/m2"])
+        return
+
+    settings_path = m2_dir / "settings.xml"
+    if settings_path.exists() and os.access(settings_path, os.R_OK):
+        cmd.extend(["-v", f"{settings_path}:{HOST_M2_SETTINGS_PATH}:ro"])
+
+
+def _resolved_java_env() -> list[tuple[str, str]]:
+    env_pairs = (
+        ("HTTP_PROXY", "http_proxy"),
+        ("HTTPS_PROXY", "https_proxy"),
+        ("NO_PROXY", "no_proxy"),
+    )
+    resolved: list[tuple[str, str]] = []
+    for upper, lower in env_pairs:
+        value = os.environ.get(upper) or os.environ.get(lower)
+        if value:
+            resolved.append((upper, value))
+            resolved.append((lower, value))
+    for key in ("MAVEN_OPTS", "JAVA_TOOL_OPTIONS"):
+        value = os.environ.get(key)
+        if value:
+            resolved.append((key, value))
+    return resolved
+
+
 def _docker_maven_command(project_dir: Path, *, verbose: bool = False) -> list[str]:
     cmd = [
         "docker",
@@ -167,28 +201,16 @@ def _docker_maven_command(project_dir: Path, *, verbose: bool = False) -> list[s
         cmd.extend(["--user", f"{getuid()}:{getgid()}"])
     cmd.extend(["-v", f"{project_dir}:/src:ro", "-v", f"{project_dir}:/out"])
     home_dir = Path.home()
-    m2_dir = home_dir / ".m2"
-    if m2_dir.exists() and os.access(m2_dir, os.W_OK):
-        cmd.extend(["-v", f"{m2_dir}:/tmp/m2"])
+    _append_m2_mounts(cmd, home_dir)
     cmd.extend(["-e", "MAVEN_CONFIG=/tmp/m2", "-e", "HOME=/tmp"])
-    for key in (
-        "HTTP_PROXY",
-        "HTTPS_PROXY",
-        "NO_PROXY",
-        "http_proxy",
-        "https_proxy",
-        "no_proxy",
-        "MAVEN_OPTS",
-        "JAVA_TOOL_OPTIONS",
-    ):
-        value = os.environ.get(key)
-        if value:
-            cmd.extend(["-e", f"{key}={value}"])
+    for key, value in _resolved_java_env():
+        cmd.extend(["-e", f"{key}={value}"])
     maven_cmd = "mvn -DskipTests package" if verbose else "mvn -q -DskipTests package"
     script = "\n".join(
         [
             "set -euo pipefail",
             "mkdir -p /tmp/work /tmp/m2 /out",
+            f"if [ -f {HOST_M2_SETTINGS_PATH} ]; then cp {HOST_M2_SETTINGS_PATH} /tmp/m2/settings.xml; fi",
             "cp -a /src/. /tmp/work",
             "cd /tmp/work",
             maven_cmd,
