@@ -40,6 +40,7 @@ type stagedFunction struct {
 const (
 	hostM2SettingsPath      = "/tmp/host-m2-settings.xml"
 	containerM2SettingsPath = "/tmp/m2/settings.xml"
+	javaRuntimeBuildImage   = "public.ecr.aws/sam/build-java21:latest"
 )
 
 // stageFunction prepares the function source, layers, and sitecustomize file
@@ -479,7 +480,7 @@ func buildJavaRuntimeJars(ctx stageContext) error {
 		"cp ../extensions/agent/target/lambda-java-agent.jar /out/extensions/agent/lambda-java-agent.jar",
 	}, "\n")
 	args = append(args,
-		"maven:3.9.6-eclipse-temurin-21",
+		javaRuntimeBuildImage,
 		"bash", "-lc", script,
 	)
 

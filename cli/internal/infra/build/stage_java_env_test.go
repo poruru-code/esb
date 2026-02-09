@@ -75,6 +75,15 @@ func TestJavaRuntimeMavenBuildLineUsesSettingsFileWhenAvailable(t *testing.T) {
 	}
 }
 
+func TestJavaRuntimeBuildImageUsesAWSBuildImage(t *testing.T) {
+	t.Parallel()
+
+	want := "public.ecr.aws/sam/build-java21:latest"
+	if javaRuntimeBuildImage != want {
+		t.Fatalf("javaRuntimeBuildImage=%q, want %q", javaRuntimeBuildImage, want)
+	}
+}
+
 func envAssignments(args []string) map[string]string {
 	assignments := make(map[string]string)
 	for idx := 0; idx < len(args)-1; idx++ {

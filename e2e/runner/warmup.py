@@ -15,6 +15,7 @@ from e2e.runner.utils import PROJECT_ROOT, default_e2e_deploy_templates
 
 HOST_M2_SETTINGS_PATH = "/tmp/host-m2-settings.xml"
 M2_SETTINGS_PATH = "/tmp/m2/settings.xml"
+JAVA_BUILD_IMAGE = "public.ecr.aws/sam/build-java21:latest"
 
 
 def _warmup(
@@ -228,7 +229,7 @@ def _docker_maven_command(project_dir: Path, *, verbose: bool = False) -> list[s
     )
     cmd.extend(
         [
-            "maven:3.9.6-eclipse-temurin-21",
+            JAVA_BUILD_IMAGE,
             "bash",
             "-lc",
             script,

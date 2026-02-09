@@ -7,14 +7,14 @@ It includes the Lambda handler wrapper and the Java agent under extensions.
 - `extensions/agent/`: Java agent jar that patches AWS SDK v2 at runtime.
 - `build/`: Maven aggregator project for building wrapper/agent.
 
-Build with Docker (default at deploy time):
+Build with Docker (default at deploy time, using AWS SAM build image):
 
 ```
 cd runtime/java
 docker run --rm \
   -v "$(pwd):/src:ro" -v "$(pwd):/out" \
   -v "${HOME}/.m2:/tmp/m2" -e MAVEN_CONFIG=/tmp/m2 -e HOME=/tmp \
-  maven:3.9.6-eclipse-temurin-21 \
+  public.ecr.aws/sam/build-java21:latest \
   bash -lc 'set -euo pipefail; \
     mkdir -p /tmp/work; \
     cp -a /src/. /tmp/work; \

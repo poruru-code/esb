@@ -44,6 +44,7 @@ def test_docker_maven_command_injects_proxy_aliases_and_settings_fallback(monkey
     assert "no_proxy=localhost,127.0.0.1" in joined
     assert f"cp {warmup.HOST_M2_SETTINGS_PATH} /tmp/m2/settings.xml" in cmd[-1]
     assert f"mvn -s {warmup.M2_SETTINGS_PATH} -q -DskipTests package" in cmd[-1]
+    assert warmup.JAVA_BUILD_IMAGE in joined
 
 
 def test_docker_maven_command_prefers_writable_m2_mount(monkeypatch, tmp_path):
