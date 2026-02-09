@@ -85,7 +85,7 @@ func buildxHint(output string) string {
 		return ""
 	}
 	if strings.Contains(normalized, "403") || strings.Contains(normalized, "forbidden") || strings.Contains(normalized, "unauthorized") {
-		return "Hint: public.ecr.aws denied the request. Docker credentials may be stale. Try 'docker logout public.ecr.aws' and retry, or login via 'aws ecr-public get-login-password'."
+		return "Hint: public.ecr.aws denied the request. Docker credentials may be stale. Try 'docker logout public.ecr.aws' and retry, or run 'docker login public.ecr.aws'."
 	}
 	return ""
 }
