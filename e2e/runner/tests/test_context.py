@@ -17,7 +17,7 @@ def test_prepare_context_merges_runtime_env_and_overrides(monkeypatch, tmp_path)
     compose_file = tmp_path / "docker-compose.docker.yml"
     compose_file.write_text("services: {}\n", encoding="utf-8")
     staging_dir = tmp_path / "staging" / "config"
-    buildx_calls: list[tuple[str, str]] = []
+    buildx_calls: list[tuple[str, str, str]] = []
 
     monkeypatch.setattr(
         "e2e.runner.context.calculate_runtime_env",
@@ -50,8 +50,11 @@ def test_prepare_context_merges_runtime_env_and_overrides(monkeypatch, tmp_path)
     )
     monkeypatch.setattr(
         "e2e.runner.context.ensure_buildx_builder",
-        lambda builder_name, network_mode="host", config_path=None: buildx_calls.append(
-            (builder_name, str(config_path))
+        lambda builder_name,
+        network_mode="host",
+        config_path=None,
+        proxy_source=None: buildx_calls.append(
+            (builder_name, str(config_path), str((proxy_source or {}).get("BUILDX_BUILDER", "")))
         ),
     )
 
@@ -96,7 +99,7 @@ def test_prepare_context_merges_runtime_env_and_overrides(monkeypatch, tmp_path)
     assert ctx.deploy_env["EXTRA_KEY"] == "EXTRA_VAL"
     assert ctx.pytest_env["EXTRA_KEY"] == "EXTRA_VAL"
     assert staging_dir.exists()
-    assert buildx_calls == [("esb-buildx", "/tmp/buildkitd.toml")]
+    assert buildx_calls == [("esb-buildx", "/tmp/buildkitd.toml", "esb-buildx")]
 
 
 def test_prepare_context_reapplies_proxy_defaults_after_scenario_override(monkeypatch, tmp_path):

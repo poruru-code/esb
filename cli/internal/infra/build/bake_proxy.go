@@ -127,9 +127,16 @@ func buildxProxyDriverOptsFromMap(envs map[string]string) []string {
 	sort.Strings(keys)
 	opts := make([]string, 0, len(keys))
 	for _, key := range keys {
-		opts = append(opts, fmt.Sprintf("env.%s=%s", key, envs[key]))
+		opts = append(opts, quoteBuildxDriverOpt(fmt.Sprintf("env.%s=%s", key, envs[key])))
 	}
 	return opts
+}
+
+func quoteBuildxDriverOpt(opt string) string {
+	if !strings.ContainsAny(opt, ",\"\n\r") {
+		return opt
+	}
+	return `"` + strings.ReplaceAll(opt, `"`, `""`) + `"`
 }
 
 func buildxBuilderProxyEnv(

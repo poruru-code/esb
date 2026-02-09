@@ -5,15 +5,192 @@ from __future__ import annotations
 
 import os
 import subprocess
+import tempfile
+import urllib.parse
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
+from xml.sax.saxutils import escape as xml_escape
 
 import yaml
 
 from e2e.runner.models import Scenario
 from e2e.runner.utils import PROJECT_ROOT, default_e2e_deploy_templates
 
-HOST_M2_SETTINGS_PATH = "/tmp/host-m2-settings.xml"
+M2_SETTINGS_PATH = "/tmp/m2/settings.xml"
+JAVA_BUILD_IMAGE = "public.ecr.aws/sam/build-java21@sha256:5f78d6d9124e54e5a7a9941ef179d74d88b7a5b117526ea8574137e5403b51b7"
+
+
+@dataclass(frozen=True)
+class _ProxyEndpoint:
+    host: str
+    port: int
+    username: str
+    password: str
+
+
+def _first_configured_env(*keys: str) -> str | None:
+    for key in keys:
+        value = os.environ.get(key, "").strip()
+        if value:
+            return value
+    return None
+
+
+def _validate_proxy_url(env_label: str, raw_url: str) -> None:
+    try:
+        parsed = urllib.parse.urlsplit(raw_url.strip())
+    except ValueError as exc:  # pragma: no cover - defensive for malformed URLs
+        raise ValueError(f"{env_label} is invalid: {raw_url}") from exc
+
+    if not parsed.scheme or not parsed.hostname:
+        raise ValueError(f"{env_label} must include scheme and host: {raw_url}")
+    if parsed.scheme.lower() not in {"http", "https"}:
+        raise ValueError(f"{env_label} must use http or https scheme: {raw_url}")
+    if parsed.query or parsed.fragment or parsed.path not in {"", "/"}:
+        raise ValueError(f"{env_label} must not include path/query/fragment: {raw_url}")
+
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError(f"{env_label} has invalid port: {raw_url}") from exc
+    if port is None:
+        port = 80 if parsed.scheme.lower() == "http" else 443
+    if port < 1 or port > 65535:
+        raise ValueError(f"{env_label} has invalid port: {raw_url}")
+
+    _ = urllib.parse.unquote(parsed.username or "")
+    _ = urllib.parse.unquote(parsed.password or "")
+
+
+def _parse_proxy_endpoint(env_label: str, raw_url: str) -> _ProxyEndpoint:
+    _validate_proxy_url(env_label, raw_url)
+    parsed = urllib.parse.urlsplit(raw_url.strip())
+    scheme = parsed.scheme.lower()
+    port = parsed.port if parsed.port is not None else (80 if scheme == "http" else 443)
+    return _ProxyEndpoint(
+        host=parsed.hostname or "",
+        port=port,
+        username=urllib.parse.unquote(parsed.username or ""),
+        password=urllib.parse.unquote(parsed.password or ""),
+    )
+
+
+def _normalize_non_proxy_token(token: str) -> str:
+    normalized = token.strip()
+    if not normalized:
+        return ""
+
+    if normalized.startswith("[") and "]" in normalized:
+        closing_index = normalized.find("]")
+        ipv6_host = normalized[1:closing_index].strip()
+        if ipv6_host:
+            normalized = ipv6_host
+    elif normalized.count(":") == 1:
+        host, port = normalized.rsplit(":", 1)
+        if port.isdigit():
+            normalized = host.strip()
+
+    if normalized.startswith(".") and not normalized.startswith("*."):
+        normalized = f"*{normalized}"
+
+    return normalized
+
+
+def _maven_non_proxy_hosts() -> str:
+    raw_value = _first_configured_env("NO_PROXY", "no_proxy")
+    if not raw_value:
+        return ""
+
+    seen: set[str] = set()
+    normalized_tokens: list[str] = []
+    for chunk in raw_value.replace(";", ",").split(","):
+        normalized = _normalize_non_proxy_token(chunk)
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        normalized_tokens.append(normalized)
+    return "|".join(normalized_tokens)
+
+
+def _render_proxy_block(
+    *,
+    proxy_id: str,
+    protocol: str,
+    endpoint: _ProxyEndpoint,
+    non_proxy_hosts: str,
+) -> list[str]:
+    lines = [
+        "    <proxy>",
+        f"      <id>{xml_escape(proxy_id)}</id>",
+        "      <active>true</active>",
+        f"      <protocol>{xml_escape(protocol)}</protocol>",
+        f"      <host>{xml_escape(endpoint.host)}</host>",
+        f"      <port>{endpoint.port}</port>",
+    ]
+    if endpoint.username:
+        lines.append(f"      <username>{xml_escape(endpoint.username)}</username>")
+    if endpoint.password:
+        lines.append(f"      <password>{xml_escape(endpoint.password)}</password>")
+    if non_proxy_hosts:
+        lines.append(f"      <nonProxyHosts>{xml_escape(non_proxy_hosts)}</nonProxyHosts>")
+    lines.append("    </proxy>")
+    return lines
+
+
+def _render_maven_settings_xml() -> str:
+    http_raw = _first_configured_env("HTTP_PROXY", "http_proxy")
+    https_raw = _first_configured_env("HTTPS_PROXY", "https_proxy")
+
+    http_endpoint = _parse_proxy_endpoint("HTTP_PROXY/http_proxy", http_raw) if http_raw else None
+    https_endpoint = (
+        _parse_proxy_endpoint("HTTPS_PROXY/https_proxy", https_raw) if https_raw else None
+    )
+    if https_endpoint is None and http_endpoint is not None:
+        https_endpoint = http_endpoint
+
+    non_proxy_hosts = _maven_non_proxy_hosts()
+    lines = [
+        "<settings>",
+        "  <proxies>",
+    ]
+    if http_endpoint is not None:
+        lines.extend(
+            _render_proxy_block(
+                proxy_id="http-proxy",
+                protocol="http",
+                endpoint=http_endpoint,
+                non_proxy_hosts=non_proxy_hosts,
+            )
+        )
+    if https_endpoint is not None:
+        lines.extend(
+            _render_proxy_block(
+                proxy_id="https-proxy",
+                protocol="https",
+                endpoint=https_endpoint,
+                non_proxy_hosts=non_proxy_hosts,
+            )
+        )
+    lines.extend(
+        [
+            "  </proxies>",
+            "</settings>",
+        ]
+    )
+    return "\n".join(lines) + "\n"
+
+
+def _write_temp_maven_settings() -> Path:
+    settings_xml = _render_maven_settings_xml()
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        suffix="-esb-m2-settings.xml",
+        delete=False,
+    ) as temp_file:
+        temp_file.write(settings_xml)
+        return Path(temp_file.name)
 
 
 def _warmup(
@@ -139,57 +316,50 @@ def _build_java_fixtures(
 
 
 def _build_java_project(project_dir: Path, *, verbose: bool = False) -> None:
-    cmd = _docker_maven_command(project_dir, verbose=verbose)
-    result = subprocess.run(
-        cmd,
-        capture_output=not verbose,
-        text=True,
-        check=False,
-    )
-    if result.returncode != 0:
-        details = ""
-        if not verbose:
-            details = f"\n{result.stdout}\n{result.stderr}".rstrip()
-        raise RuntimeError(f"Java fixture build failed: {project_dir}{details}")
+    try:
+        settings_path = _write_temp_maven_settings()
+    except ValueError as exc:
+        raise RuntimeError(f"Invalid proxy configuration for Java fixture build: {exc}") from exc
+    try:
+        cmd = _docker_maven_command(project_dir, settings_path, verbose=verbose)
+        result = subprocess.run(
+            cmd,
+            capture_output=not verbose,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            details = ""
+            if not verbose:
+                details = f"\n{result.stdout}\n{result.stderr}".rstrip()
+            raise RuntimeError(f"Java fixture build failed: {project_dir}{details}")
+    finally:
+        settings_path.unlink(missing_ok=True)
 
     jar_path = project_dir / "app.jar"
     if not jar_path.exists():
         raise RuntimeError(f"Java fixture jar not found in {project_dir}")
 
 
-def _append_m2_mounts(cmd: list[str], home_dir: Path) -> None:
-    m2_dir = home_dir / ".m2"
-    if not m2_dir.exists():
-        return
-    if os.access(m2_dir, os.W_OK):
-        cmd.extend(["-v", f"{m2_dir}:/tmp/m2"])
-        return
-
-    settings_path = m2_dir / "settings.xml"
-    if settings_path.exists() and os.access(settings_path, os.R_OK):
-        cmd.extend(["-v", f"{settings_path}:{HOST_M2_SETTINGS_PATH}:ro"])
-
-
-def _resolved_java_env() -> list[tuple[str, str]]:
-    env_pairs = (
-        ("HTTP_PROXY", "http_proxy"),
-        ("HTTPS_PROXY", "https_proxy"),
-        ("NO_PROXY", "no_proxy"),
-    )
-    resolved: list[tuple[str, str]] = []
-    for upper, lower in env_pairs:
-        value = os.environ.get(upper) or os.environ.get(lower)
-        if value:
-            resolved.append((upper, value))
-            resolved.append((lower, value))
-    for key in ("MAVEN_OPTS", "JAVA_TOOL_OPTIONS"):
-        value = os.environ.get(key)
-        if value:
-            resolved.append((key, value))
-    return resolved
+def _java_proxy_env_overrides() -> list[tuple[str, str]]:
+    return [
+        ("HTTP_PROXY", ""),
+        ("http_proxy", ""),
+        ("HTTPS_PROXY", ""),
+        ("https_proxy", ""),
+        ("NO_PROXY", ""),
+        ("no_proxy", ""),
+        ("MAVEN_OPTS", ""),
+        ("JAVA_TOOL_OPTIONS", ""),
+    ]
 
 
-def _docker_maven_command(project_dir: Path, *, verbose: bool = False) -> list[str]:
+def _docker_maven_command(
+    project_dir: Path,
+    settings_path: Path,
+    *,
+    verbose: bool = False,
+) -> list[str]:
     cmd = [
         "docker",
         "run",
@@ -200,20 +370,22 @@ def _docker_maven_command(project_dir: Path, *, verbose: bool = False) -> list[s
     if callable(getuid) and callable(getgid):
         cmd.extend(["--user", f"{getuid()}:{getgid()}"])
     cmd.extend(["-v", f"{project_dir}:/src:ro", "-v", f"{project_dir}:/out"])
-    home_dir = Path.home()
-    _append_m2_mounts(cmd, home_dir)
+    cmd.extend(["-v", f"{settings_path}:{M2_SETTINGS_PATH}:ro"])
     cmd.extend(["-e", "MAVEN_CONFIG=/tmp/m2", "-e", "HOME=/tmp"])
-    for key, value in _resolved_java_env():
+    for key, value in _java_proxy_env_overrides():
         cmd.extend(["-e", f"{key}={value}"])
-    maven_cmd = "mvn -DskipTests package" if verbose else "mvn -q -DskipTests package"
+    maven_cmd_with_settings = (
+        f"mvn -s {M2_SETTINGS_PATH} -Dmaven.artifact.threads=1 -DskipTests package"
+        if verbose
+        else f"mvn -s {M2_SETTINGS_PATH} -q -Dmaven.artifact.threads=1 -DskipTests package"
+    )
     script = "\n".join(
         [
             "set -euo pipefail",
-            "mkdir -p /tmp/work /tmp/m2 /out",
-            f"if [ -f {HOST_M2_SETTINGS_PATH} ]; then cp {HOST_M2_SETTINGS_PATH} /tmp/m2/settings.xml; fi",
+            "mkdir -p /tmp/work /out",
             "cp -a /src/. /tmp/work",
             "cd /tmp/work",
-            maven_cmd,
+            maven_cmd_with_settings,
             "jar=$(ls -S target/*.jar 2>/dev/null | "
             "grep -vE '(-sources|-javadoc)\\.jar$' | head -n 1 || true)",
             'if [ -z "$jar" ]; then echo "jar not found in target" >&2; exit 1; fi',
@@ -222,7 +394,7 @@ def _docker_maven_command(project_dir: Path, *, verbose: bool = False) -> list[s
     )
     cmd.extend(
         [
-            "maven:3.9.6-eclipse-temurin-21",
+            JAVA_BUILD_IMAGE,
             "bash",
             "-lc",
             script,
