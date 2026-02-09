@@ -15,6 +15,23 @@ from e2e.runner.utils import (
     env_key,
 )
 
+_DEFAULT_NO_PROXY_TARGETS = (
+    "agent",
+    "database",
+    "gateway",
+    "local-proxy",
+    "localhost",
+    "registry",
+    "runtime-node",
+    "s3-storage",
+    "victorialogs",
+    "::1",
+    "10.88.0.0/16",
+    "10.99.0.1",
+    "127.0.0.1",
+    "172.20.0.0/16",
+)
+
 
 def hash_mod(value: str, mod: int) -> int:
     if mod <= 0:
@@ -53,6 +70,53 @@ def read_env_file(path: str) -> dict[str, str]:
             value = value.replace("<brand>", BRAND_SLUG)
         env[key.strip()] = value
     return env
+
+
+def _split_no_proxy(value: str) -> list[str]:
+    if not value:
+        return []
+    normalized = value.replace(";", ",")
+    return [item.strip() for item in normalized.split(",") if item.strip()]
+
+
+def _sync_proxy_aliases(env: dict[str, str], upper: str, lower: str) -> None:
+    upper_value = env.get(upper, "").strip()
+    lower_value = env.get(lower, "").strip()
+    if upper_value and not lower_value:
+        env[lower] = upper_value
+        return
+    if lower_value and not upper_value:
+        env[upper] = lower_value
+
+
+def apply_proxy_defaults(env: dict[str, str]) -> None:
+    proxy_keys = ("HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy")
+    has_proxy = any(env.get(key, "").strip() for key in proxy_keys)
+    existing_no_proxy = env.get("NO_PROXY", "").strip() or env.get("no_proxy", "").strip()
+    extra_no_proxy = env.get(env_key("NO_PROXY_EXTRA"), "").strip()
+
+    if not has_proxy and not existing_no_proxy and not extra_no_proxy:
+        return
+
+    merged: list[str] = []
+    seen: set[str] = set()
+    for item in (
+        _split_no_proxy(existing_no_proxy)
+        + list(_DEFAULT_NO_PROXY_TARGETS)
+        + _split_no_proxy(extra_no_proxy)
+    ):
+        if item in seen:
+            continue
+        seen.add(item)
+        merged.append(item)
+
+    if merged:
+        no_proxy = ",".join(merged)
+        env["NO_PROXY"] = no_proxy
+        env["no_proxy"] = no_proxy
+
+    _sync_proxy_aliases(env, "HTTP_PROXY", "http_proxy")
+    _sync_proxy_aliases(env, "HTTPS_PROXY", "https_proxy")
 
 
 def calculate_runtime_env(
@@ -213,6 +277,7 @@ def calculate_runtime_env(
 
     # 10. E2E safety toggles
     env.setdefault("ESB_SKIP_GATEWAY_ALIGN", "1")
+    apply_proxy_defaults(env)
 
     return env
 

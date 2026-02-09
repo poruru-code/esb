@@ -10,6 +10,7 @@ from e2e.runner import constants, infra
 from e2e.runner.buildx import ensure_buildx_builder
 from e2e.runner.env import (
     apply_gateway_env_from_container,
+    apply_proxy_defaults,
     calculate_runtime_env,
     calculate_staging_dir,
     read_env_file,
@@ -62,6 +63,7 @@ def _prepare_context(
             runtime_env[key] = state_env[key]
 
     runtime_env.update(scenario.env_vars)
+    apply_proxy_defaults(runtime_env)
     _apply_port_overrides(runtime_env, port_overrides)
     runtime_env[env_key("PROJECT")] = project_name
     runtime_env[env_key("ENV")] = env_name

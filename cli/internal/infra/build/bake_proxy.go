@@ -111,9 +111,6 @@ func buildxProxyDriverEnvMap() map[string]string {
 	envs := buildxProxyEnvMap()
 	driverEnv := make(map[string]string)
 	for key, value := range envs {
-		if strings.Contains(value, ",") && strings.EqualFold(key, "no_proxy") {
-			continue
-		}
 		driverEnv[key] = value
 	}
 	return driverEnv
