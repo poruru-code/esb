@@ -2,7 +2,7 @@ import logging
 import os
 import subprocess
 import time
-import urllib.request
+from http.client import HTTPConnection
 from typing import Callable, Tuple
 
 from e2e.runner import constants
@@ -104,11 +104,21 @@ def wait_for_registry_ready(host_addr: str, timeout: int = 60) -> None:
     url = f"http://{host_addr}/v2/"
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        try:
-            with urllib.request.urlopen(url, timeout=2) as response:
-                if response.status == 200:
-                    return
-        except Exception:
-            pass
+        if _registry_v2_ready(host_addr, timeout=2):
+            return
         time.sleep(1)
     raise RuntimeError(f"Registry not responding at {url}")
+
+
+def _registry_v2_ready(host_addr: str, timeout: int = 2) -> bool:
+    # This check targets the local dev registry; bypass proxy resolution entirely.
+    conn = HTTPConnection(host_addr, timeout=timeout)
+    try:
+        conn.request("GET", "/v2/")
+        response = conn.getresponse()
+        response.read()
+        return response.status == 200
+    except OSError:
+        return False
+    finally:
+        conn.close()

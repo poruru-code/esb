@@ -37,6 +37,8 @@ type stagedFunction struct {
 	SitecustomizeRef string
 }
 
+const hostM2SettingsPath = "/tmp/host-m2-settings.xml"
+
 // stageFunction prepares the function source, layers, and sitecustomize file
 // under the output directory so downstream steps can render Dockerfiles.
 func stageFunction(fn template.FunctionSpec, ctx stageContext) (stagedFunction, error) {
@@ -343,6 +345,79 @@ func isWritableDir(path string) bool {
 	return mode&0o002 != 0
 }
 
+func isReadableFile(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil || info.IsDir() {
+		return false
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	_ = file.Close()
+	return true
+}
+
+func appendM2MountArgs(args []string, homeDir string) []string {
+	if homeDir == "" {
+		return args
+	}
+	m2Dir := filepath.Join(homeDir, ".m2")
+	if isWritableDir(m2Dir) {
+		return append(args, "-v", fmt.Sprintf("%s:/tmp/m2", m2Dir))
+	}
+	settingsPath := filepath.Join(m2Dir, "settings.xml")
+	if isReadableFile(settingsPath) {
+		return append(
+			args,
+			"-v",
+			fmt.Sprintf("%s:%s:ro", settingsPath, hostM2SettingsPath),
+		)
+	}
+	return args
+}
+
+func firstConfiguredEnv(keys ...string) (string, bool) {
+	for _, key := range keys {
+		value, ok := os.LookupEnv(key)
+		if !ok {
+			continue
+		}
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		return trimmed, true
+	}
+	return "", false
+}
+
+func appendJavaBuildEnvArgs(args []string) []string {
+	pairs := []struct {
+		upper string
+		lower string
+	}{
+		{upper: "HTTP_PROXY", lower: "http_proxy"},
+		{upper: "HTTPS_PROXY", lower: "https_proxy"},
+		{upper: "NO_PROXY", lower: "no_proxy"},
+	}
+	for _, pair := range pairs {
+		value, ok := firstConfiguredEnv(pair.upper, pair.lower)
+		if !ok {
+			continue
+		}
+		args = append(args, "-e", pair.upper+"="+value, "-e", pair.lower+"="+value)
+	}
+	for _, key := range []string{"MAVEN_OPTS", "JAVA_TOOL_OPTIONS"} {
+		value, ok := firstConfiguredEnv(key)
+		if !ok {
+			continue
+		}
+		args = append(args, "-e", key+"="+value)
+	}
+	return args
+}
+
 func buildJavaRuntimeJars(ctx stageContext) error {
 	runtimeDir, err := resolveJavaRuntimeDir(ctx)
 	if err != nil {
@@ -369,30 +444,17 @@ func buildJavaRuntimeJars(ctx stageContext) error {
 		"-v", fmt.Sprintf("%s:/src:ro", runtimeDir),
 		"-v", fmt.Sprintf("%s:/out", runtimeDir),
 	)
-	if homeDir != "" {
-		m2Dir := filepath.Join(homeDir, ".m2")
-		if isWritableDir(m2Dir) {
-			args = append(args, "-v", fmt.Sprintf("%s:/tmp/m2", m2Dir))
-		}
-	}
+	args = appendM2MountArgs(args, homeDir)
 	args = append(args, "-e", "MAVEN_CONFIG=/tmp/m2", "-e", "HOME=/tmp")
-	for _, key := range []string{
-		"HTTP_PROXY",
-		"HTTPS_PROXY",
-		"NO_PROXY",
-		"http_proxy",
-		"https_proxy",
-		"no_proxy",
-		"MAVEN_OPTS",
-		"JAVA_TOOL_OPTIONS",
-	} {
-		if value, ok := os.LookupEnv(key); ok {
-			args = append(args, "-e", key+"="+value)
-		}
-	}
+	args = appendJavaBuildEnvArgs(args)
 	script := strings.Join([]string{
 		"set -euo pipefail",
 		"mkdir -p /tmp/work /tmp/m2 /out/extensions/wrapper /out/extensions/agent",
+		fmt.Sprintf(
+			"if [ -f %s ]; then cp %s /tmp/m2/settings.xml; fi",
+			hostM2SettingsPath,
+			hostM2SettingsPath,
+		),
 		"cp -a /src/. /tmp/work",
 		"cd /tmp/work/build",
 		"mvn -q -DskipTests -pl ../extensions/wrapper,../extensions/agent -am package",

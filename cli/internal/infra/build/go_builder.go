@@ -8,6 +8,7 @@ package build
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -465,7 +466,7 @@ func waitForRegistry(registry string, timeout time.Duration) error {
 		return nil
 	}
 	url := fmt.Sprintf("http://%s/v2/", trimmed)
-	client := &http.Client{Timeout: 2 * time.Second}
+	client := registryWaitHTTPClient(trimmed)
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
@@ -482,6 +483,32 @@ func waitForRegistry(registry string, timeout time.Duration) error {
 		time.Sleep(500 * time.Millisecond)
 	}
 	return fmt.Errorf("registry not responding at %s", url)
+}
+
+func registryWaitHTTPClient(registry string) *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	if shouldBypassRegistryProxy(registry) {
+		transport.Proxy = nil
+	} else {
+		transport.Proxy = http.ProxyFromEnvironment
+	}
+	return &http.Client{
+		Timeout:   2 * time.Second,
+		Transport: transport,
+	}
+}
+
+func shouldBypassRegistryProxy(registry string) bool {
+	host := resolveRegistryHost(registry)
+	normalized := strings.ToLower(strings.TrimSpace(host))
+	if normalized == "" {
+		return false
+	}
+	if isLocalRegistryHost(normalized) || normalized == "host.docker.internal" {
+		return true
+	}
+	ip := net.ParseIP(normalized)
+	return ip != nil && ip.IsLoopback()
 }
 
 type phaseReporter struct {
