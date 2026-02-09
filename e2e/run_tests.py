@@ -49,9 +49,8 @@ def detect_public_ecr_hint(lines: list[str]) -> str:
     if "403" in normalized or "forbidden" in normalized or "unauthorized" in normalized:
         return (
             "public.ecr.aws denied the request. Docker credentials may be stale. "
-            "Try `docker logout public.ecr.aws` and retry, or login via "
-            "`aws ecr-public get-login-password --region us-east-1 | "
-            "docker login --username AWS --password-stdin public.ecr.aws`."
+            "Try `docker logout public.ecr.aws` and retry, or run "
+            "`docker login public.ecr.aws` with valid credentials."
         )
     return ""
 

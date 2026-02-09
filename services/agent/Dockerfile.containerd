@@ -46,7 +46,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     iproute2 \
     iptables \
     curl \
-    awscli \
     && CNI_PLUGINS_VERSION="v1.3.0" \
     && ARCH=$(uname -m) \
     && if [ "$ARCH" = "x86_64" ]; then ARCH="amd64"; fi \

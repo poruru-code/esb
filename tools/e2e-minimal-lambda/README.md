@@ -2,26 +2,23 @@
 
 Minimal AWS Lambda container image (Python 3.12) for ESB E2E `PackageType: Image` tests.
 
-## Prerequisites
+## Repository usage
 
-- Docker
-- AWS CLI v2 (recommended via mise):
-  - `mise install aws-cli`
-- Authenticated AWS session for ECR Public login
+This repository consumes the published image from:
 
-## Build and push
+- `public.ecr.aws/r9p4t4p0/poruru-code:latest`
+
+E2E image tests reference that URI directly via `e2e/fixtures/template.image.yaml`.
+
+## Local build (optional)
 
 ```bash
-ECR_PUBLIC_REPO_URI=public.ecr.aws/r9p4t4p0/poruru-code \
-IMAGE_TAG=latest \
-AWS_REGION=us-east-1 \
-./tools/e2e-minimal-lambda/build_push.sh
+docker buildx build \
+  --platform linux/amd64 \
+  --load \
+  --tag e2e-minimal-lambda:latest \
+  ./tools/e2e-minimal-lambda
 ```
-
-Notes:
-
-- ECR Public authentication API is only in `us-east-1`.
-- To build only without pushing, set `NO_PUSH=1`.
 
 ## Local smoke run (optional)
 
