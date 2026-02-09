@@ -14,6 +14,7 @@ from e2e.runner.models import Scenario
 from e2e.runner.utils import PROJECT_ROOT, default_e2e_deploy_templates
 
 HOST_M2_SETTINGS_PATH = "/tmp/host-m2-settings.xml"
+M2_SETTINGS_PATH = "/tmp/m2/settings.xml"
 
 
 def _warmup(
@@ -206,6 +207,11 @@ def _docker_maven_command(project_dir: Path, *, verbose: bool = False) -> list[s
     for key, value in _resolved_java_env():
         cmd.extend(["-e", f"{key}={value}"])
     maven_cmd = "mvn -DskipTests package" if verbose else "mvn -q -DskipTests package"
+    maven_cmd_with_settings = (
+        f"mvn -s {M2_SETTINGS_PATH} -DskipTests package"
+        if verbose
+        else f"mvn -s {M2_SETTINGS_PATH} -q -DskipTests package"
+    )
     script = "\n".join(
         [
             "set -euo pipefail",
@@ -213,7 +219,7 @@ def _docker_maven_command(project_dir: Path, *, verbose: bool = False) -> list[s
             f"if [ -f {HOST_M2_SETTINGS_PATH} ]; then cp {HOST_M2_SETTINGS_PATH} /tmp/m2/settings.xml; fi",
             "cp -a /src/. /tmp/work",
             "cd /tmp/work",
-            maven_cmd,
+            f"if [ -f {M2_SETTINGS_PATH} ]; then {maven_cmd_with_settings}; else {maven_cmd}; fi",
             "jar=$(ls -S target/*.jar 2>/dev/null | "
             "grep -vE '(-sources|-javadoc)\\.jar$' | head -n 1 || true)",
             'if [ -z "$jar" ]; then echo "jar not found in target" >&2; exit 1; fi',

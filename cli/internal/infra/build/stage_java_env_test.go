@@ -60,6 +60,21 @@ func TestAppendM2MountArgsFallsBackToSettingsFile(t *testing.T) {
 	}
 }
 
+func TestJavaRuntimeMavenBuildLineUsesSettingsFileWhenAvailable(t *testing.T) {
+	t.Parallel()
+
+	line := javaRuntimeMavenBuildLine()
+	if !strings.Contains(line, "if [ -f "+containerM2SettingsPath+" ]") {
+		t.Fatalf("expected settings existence check in %q", line)
+	}
+	if !strings.Contains(line, "mvn -s "+containerM2SettingsPath+" -q -DskipTests") {
+		t.Fatalf("expected settings-enabled mvn command in %q", line)
+	}
+	if !strings.Contains(line, "else mvn -q -DskipTests") {
+		t.Fatalf("expected fallback mvn command in %q", line)
+	}
+}
+
 func envAssignments(args []string) map[string]string {
 	assignments := make(map[string]string)
 	for idx := 0; idx < len(args)-1; idx++ {

@@ -37,7 +37,10 @@ type stagedFunction struct {
 	SitecustomizeRef string
 }
 
-const hostM2SettingsPath = "/tmp/host-m2-settings.xml"
+const (
+	hostM2SettingsPath      = "/tmp/host-m2-settings.xml"
+	containerM2SettingsPath = "/tmp/m2/settings.xml"
+)
 
 // stageFunction prepares the function source, layers, and sitecustomize file
 // under the output directory so downstream steps can render Dockerfiles.
@@ -418,6 +421,20 @@ func appendJavaBuildEnvArgs(args []string) []string {
 	return args
 }
 
+func javaRuntimeMavenBuildLine() string {
+	withSettings := fmt.Sprintf(
+		"mvn -s %s -q -DskipTests -pl ../extensions/wrapper,../extensions/agent -am package",
+		containerM2SettingsPath,
+	)
+	withoutSettings := "mvn -q -DskipTests -pl ../extensions/wrapper,../extensions/agent -am package"
+	return fmt.Sprintf(
+		"if [ -f %s ]; then %s; else %s; fi",
+		containerM2SettingsPath,
+		withSettings,
+		withoutSettings,
+	)
+}
+
 func buildJavaRuntimeJars(ctx stageContext) error {
 	runtimeDir, err := resolveJavaRuntimeDir(ctx)
 	if err != nil {
@@ -457,7 +474,7 @@ func buildJavaRuntimeJars(ctx stageContext) error {
 		),
 		"cp -a /src/. /tmp/work",
 		"cd /tmp/work/build",
-		"mvn -q -DskipTests -pl ../extensions/wrapper,../extensions/agent -am package",
+		javaRuntimeMavenBuildLine(),
 		"cp ../extensions/wrapper/target/lambda-java-wrapper.jar /out/extensions/wrapper/lambda-java-wrapper.jar",
 		"cp ../extensions/agent/target/lambda-java-agent.jar /out/extensions/agent/lambda-java-agent.jar",
 	}, "\n")
