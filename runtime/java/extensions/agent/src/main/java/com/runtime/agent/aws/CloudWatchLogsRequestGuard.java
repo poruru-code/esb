@@ -4,11 +4,19 @@
 package com.runtime.agent.aws;
 
 import java.lang.reflect.Method;
+import java.util.Set;
 import java.util.function.Consumer;
 
 public final class CloudWatchLogsRequestGuard {
     private static final String REQUEST_PACKAGE_PREFIX =
             "software.amazon.awssdk.services.cloudwatchlogs.model.";
+    private static final Set<String> SUPPORTED_CONSUMER_OVERLOADS = Set.of(
+            "createLogGroup",
+            "createLogStream",
+            "deleteLogGroup",
+            "deleteLogStream",
+            "describeLogGroups",
+            "describeLogStreams");
 
     private CloudWatchLogsRequestGuard() {}
 
@@ -18,8 +26,11 @@ public final class CloudWatchLogsRequestGuard {
         }
 
         Class<?>[] parameterTypes = method.getParameterTypes();
-        if (parameterTypes.length == 0 || Consumer.class.isAssignableFrom(parameterTypes[0])) {
+        if (parameterTypes.length == 0) {
             return false;
+        }
+        if (Consumer.class.isAssignableFrom(parameterTypes[0])) {
+            return SUPPORTED_CONSUMER_OVERLOADS.contains(method.getName());
         }
 
         String requestClassName = request.getClass().getName();
