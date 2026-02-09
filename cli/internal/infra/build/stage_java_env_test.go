@@ -1,62 +1,173 @@
 // Where: cli/internal/infra/build/stage_java_env_test.go
-// What: Tests for Java build env/mount argument helpers.
-// Why: Keep proxy and Maven settings propagation stable for containerized builds.
+// What: Tests for Java Maven proxy contract in deploy-time build path.
+// Why: Keep Go implementation aligned with Python via shared case vectors.
 package build
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
 
-func TestAppendJavaBuildEnvArgsMirrorsProxyKeys(t *testing.T) {
-	t.Setenv("HTTP_PROXY", "http://proxy.example:8080")
-	t.Setenv("http_proxy", "")
-	t.Setenv("no_proxy", "localhost,127.0.0.1")
-	t.Setenv("NO_PROXY", "")
+type mavenProxyCase struct {
+	Name                   string            `json:"name"`
+	Env                    map[string]string `json:"env"`
+	ExpectedXML            string            `json:"expected_xml"`
+	ExpectedErrorSubstring string            `json:"expected_error_substring"`
+}
 
+func TestAppendJavaBuildEnvArgsClearsProxyInputs(t *testing.T) {
 	args := appendJavaBuildEnvArgs(nil)
 	got := envAssignments(args)
 
-	if got["HTTP_PROXY"] != "http://proxy.example:8080" {
-		t.Fatalf("HTTP_PROXY not propagated: %#v", got)
-	}
-	if got["http_proxy"] != "http://proxy.example:8080" {
-		t.Fatalf("http_proxy mirror missing: %#v", got)
-	}
-	if got["NO_PROXY"] != "localhost,127.0.0.1" {
-		t.Fatalf("NO_PROXY mirror missing: %#v", got)
-	}
-	if got["no_proxy"] != "localhost,127.0.0.1" {
-		t.Fatalf("no_proxy not propagated: %#v", got)
+	for _, key := range []string{
+		"HTTP_PROXY",
+		"http_proxy",
+		"HTTPS_PROXY",
+		"https_proxy",
+		"NO_PROXY",
+		"no_proxy",
+		"MAVEN_OPTS",
+		"JAVA_TOOL_OPTIONS",
+	} {
+		value, ok := got[key]
+		if !ok {
+			t.Fatalf("missing %s in args: %#v", key, got)
+		}
+		if value != "" {
+			t.Fatalf("expected %s to be empty, got %q", key, value)
+		}
 	}
 }
 
-func TestAppendM2MountArgsFallsBackToSettingsFile(t *testing.T) {
+func TestJavaRuntimeMavenBuildLineAlwaysUsesSettingsFile(t *testing.T) {
 	t.Parallel()
 
-	home := t.TempDir()
-	m2Dir := filepath.Join(home, ".m2")
-	if err := os.MkdirAll(m2Dir, 0o755); err != nil {
-		t.Fatalf("mkdir m2: %v", err)
+	line := javaRuntimeMavenBuildLine()
+	if !strings.Contains(
+		line,
+		"mvn -s "+containerM2SettingsPath+" -q -Dmaven.artifact.threads=1 -DskipTests",
+	) {
+		t.Fatalf("expected settings-enabled mvn command in %q", line)
 	}
-	settingsPath := filepath.Join(m2Dir, "settings.xml")
-	if err := os.WriteFile(settingsPath, []byte("<settings/>\n"), 0o644); err != nil {
-		t.Fatalf("write settings: %v", err)
+	if strings.Contains(line, "if [ -f") {
+		t.Fatalf("unexpected fallback condition in %q", line)
 	}
-	if err := os.Chmod(m2Dir, 0o555); err != nil {
-		t.Fatalf("chmod m2: %v", err)
+	if strings.Contains(line, "else mvn") {
+		t.Fatalf("unexpected fallback mvn command in %q", line)
+	}
+}
+
+func TestRenderMavenSettingsXMLMatchesSharedCases(t *testing.T) {
+	for _, tc := range loadMavenProxyCases(t) {
+		if tc.ExpectedXML == "" {
+			continue
+		}
+		t.Run(tc.Name, func(t *testing.T) {
+			applyCaseEnv(t, tc.Env)
+			got, err := renderMavenSettingsXML()
+			if err != nil {
+				t.Fatalf("renderMavenSettingsXML returned error: %v", err)
+			}
+			if got != tc.ExpectedXML {
+				t.Fatalf("rendered XML mismatch\n--- got ---\n%s\n--- want ---\n%s", got, tc.ExpectedXML)
+			}
+		})
+	}
+}
+
+func TestRenderMavenSettingsXMLRejectsInvalidSharedCases(t *testing.T) {
+	for _, tc := range loadMavenProxyCases(t) {
+		if tc.ExpectedErrorSubstring == "" {
+			continue
+		}
+		t.Run(tc.Name, func(t *testing.T) {
+			applyCaseEnv(t, tc.Env)
+			_, err := renderMavenSettingsXML()
+			if err == nil {
+				t.Fatalf("expected error containing %q, got nil", tc.ExpectedErrorSubstring)
+			}
+			if !strings.Contains(err.Error(), tc.ExpectedErrorSubstring) {
+				t.Fatalf("expected error containing %q, got %v", tc.ExpectedErrorSubstring, err)
+			}
+		})
+	}
+}
+
+func TestWriteTempMavenSettingsFileAlwaysCreatesExpectedSettings(t *testing.T) {
+	cases := loadMavenProxyCases(t)
+	if len(cases) == 0 || cases[0].ExpectedXML == "" {
+		t.Fatalf("missing expected XML case in shared vectors")
+	}
+	applyCaseEnv(t, cases[0].Env)
+
+	path, err := writeTempMavenSettingsFile()
+	if err != nil {
+		t.Fatalf("writeTempMavenSettingsFile returned error: %v", err)
 	}
 	t.Cleanup(func() {
-		_ = os.Chmod(m2Dir, 0o755)
+		_ = os.Remove(path)
 	})
 
-	args := appendM2MountArgs(nil, home)
-	joined := strings.Join(args, " ")
-	want := settingsPath + ":" + hostM2SettingsPath + ":ro"
-	if !strings.Contains(joined, want) {
-		t.Fatalf("expected fallback settings mount %q in %q", want, joined)
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read generated settings: %v", err)
+	}
+	if string(content) != cases[0].ExpectedXML {
+		t.Fatalf("generated settings mismatch\n--- got ---\n%s\n--- want ---\n%s", string(content), cases[0].ExpectedXML)
+	}
+}
+
+func TestJavaRuntimeBuildImageUsesAWSBuildImage(t *testing.T) {
+	t.Parallel()
+
+	want := "public.ecr.aws/sam/build-java21@sha256:5f78d6d9124e54e5a7a9941ef179d74d88b7a5b117526ea8574137e5403b51b7"
+	if javaRuntimeBuildImage != want {
+		t.Fatalf("javaRuntimeBuildImage=%q, want %q", javaRuntimeBuildImage, want)
+	}
+	if strings.Contains(javaRuntimeBuildImage, ":latest") {
+		t.Fatalf("javaRuntimeBuildImage must be digest-pinned, got %q", javaRuntimeBuildImage)
+	}
+	if !strings.Contains(javaRuntimeBuildImage, "@sha256:") {
+		t.Fatalf("javaRuntimeBuildImage must include digest, got %q", javaRuntimeBuildImage)
+	}
+}
+
+func loadMavenProxyCases(t *testing.T) []mavenProxyCase {
+	t.Helper()
+	path := filepath.Join("..", "..", "..", "..", "runtime", "java", "testdata", "maven_proxy_cases.json")
+	payload, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read shared proxy cases: %v", err)
+	}
+	var cases []mavenProxyCase
+	if err := json.Unmarshal(payload, &cases); err != nil {
+		t.Fatalf("parse shared proxy cases: %v", err)
+	}
+	if len(cases) == 0 {
+		t.Fatalf("shared proxy cases are empty")
+	}
+	return cases
+}
+
+func applyCaseEnv(t *testing.T, values map[string]string) {
+	t.Helper()
+	for _, key := range []string{
+		"HTTP_PROXY",
+		"http_proxy",
+		"HTTPS_PROXY",
+		"https_proxy",
+		"NO_PROXY",
+		"no_proxy",
+		"MAVEN_OPTS",
+		"JAVA_TOOL_OPTIONS",
+	} {
+		t.Setenv(key, "")
+	}
+	for key, value := range values {
+		t.Setenv(key, value)
 	}
 }
 

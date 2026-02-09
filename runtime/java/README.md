@@ -7,19 +7,24 @@ It includes the Lambda handler wrapper and the Java agent under extensions.
 - `extensions/agent/`: Java agent jar that patches AWS SDK v2 at runtime.
 - `build/`: Maven aggregator project for building wrapper/agent.
 
-Build with Docker (default at deploy time):
+Build with Docker (default at deploy time, fixed AWS SAM build image digest).
+ESB always generates a temporary Maven `settings.xml` per run and mounts it read-only.
+Proxy configuration is rendered into this file from proxy env inputs:
 
 ```
 cd runtime/java
 docker run --rm \
   -v "$(pwd):/src:ro" -v "$(pwd):/out" \
-  -v "${HOME}/.m2:/tmp/m2" -e MAVEN_CONFIG=/tmp/m2 -e HOME=/tmp \
-  maven:3.9.6-eclipse-temurin-21 \
+  -v "/path/to/generated-settings.xml:/tmp/m2/settings.xml:ro" \
+  -e MAVEN_CONFIG=/tmp/m2 -e HOME=/tmp \
+  -e HTTP_PROXY= -e http_proxy= -e HTTPS_PROXY= -e https_proxy= -e NO_PROXY= -e no_proxy= \
+  public.ecr.aws/sam/build-java21@sha256:5f78d6d9124e54e5a7a9941ef179d74d88b7a5b117526ea8574137e5403b51b7 \
   bash -lc 'set -euo pipefail; \
     mkdir -p /tmp/work; \
     cp -a /src/. /tmp/work; \
     cd /tmp/work/build; \
-    mvn -q -DskipTests -pl ../extensions/wrapper,../extensions/agent -am package; \
+    mvn -s /tmp/m2/settings.xml -q -Dmaven.artifact.threads=1 -DskipTests \
+      -pl ../extensions/wrapper,../extensions/agent -am package; \
     cp ../extensions/wrapper/target/lambda-java-wrapper.jar /out/extensions/wrapper/lambda-java-wrapper.jar; \
     cp ../extensions/agent/target/lambda-java-agent.jar /out/extensions/agent/lambda-java-agent.jar'
 ```
@@ -27,3 +32,18 @@ docker run --rm \
 The build produces shaded jars:
 - `extensions/wrapper/lambda-java-wrapper.jar`
 - `extensions/agent/lambda-java-agent.jar`
+
+Notes:
+- The Java build image is pinned to a fixed digest for reproducibility.
+- No runtime override is provided; all Java builds use the same pinned image.
+- `~/.m2/settings.xml` is not used as a runtime dependency.
+- Maven execution without `-s /tmp/m2/settings.xml` is not supported.
+- Maven proxy source of truth is generated `settings.xml` (not container proxy env).
+- Maven dependency resolution is serialized with `-Dmaven.artifact.threads=1`.
+- Contract reference: `docs/java-maven-proxy-contract.md`
+
+Static contract check:
+
+```bash
+bash tools/ci/check_java_proxy_contract.sh
+```
