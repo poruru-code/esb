@@ -2,7 +2,7 @@ import logging
 import os
 import subprocess
 import time
-from http.client import HTTPConnection
+from http.client import HTTPConnection, HTTPException
 from typing import Callable, Tuple
 
 from e2e.runner import constants
@@ -118,7 +118,7 @@ def _registry_v2_ready(host_addr: str, timeout: int = 2) -> bool:
         response = conn.getresponse()
         response.read()
         return response.status == 200
-    except OSError:
+    except (OSError, HTTPException):
         return False
     finally:
         conn.close()

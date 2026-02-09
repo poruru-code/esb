@@ -3,6 +3,8 @@
 # Why: Prevent proxy-related regressions in infra registry startup checks.
 from __future__ import annotations
 
+from http.client import HTTPException
+
 from e2e.runner import infra
 
 
@@ -57,3 +59,22 @@ def test_wait_for_registry_ready_retries_until_success(monkeypatch):
 
     assert attempts == [2, 2, 2]
     assert sleeps == [1, 1]
+
+
+def test_registry_v2_ready_returns_false_on_http_exception(monkeypatch):
+    class _BrokenConnection:
+        def __init__(self, _host: str, timeout: int) -> None:
+            _ = timeout
+            pass
+
+        def request(self, _method: str, _path: str) -> None:
+            return
+
+        def getresponse(self):
+            raise HTTPException("malformed response")
+
+        def close(self) -> None:
+            return
+
+    monkeypatch.setattr(infra, "HTTPConnection", _BrokenConnection)
+    assert infra._registry_v2_ready("127.0.0.1:5010", timeout=2) is False
