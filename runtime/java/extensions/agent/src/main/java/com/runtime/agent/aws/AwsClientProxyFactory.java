@@ -112,10 +112,9 @@ public final class AwsClientProxyFactory {
                 if (!CloudWatchLogsRequestGuard.isSupported(method, request)) {
                     return invokeOriginal(target, method, args);
                 }
-                Object response = CloudWatchLogsMock.handle(method, request);
-                if (response != null) {
-                    return response;
-                }
+                // Supported calls are always handled locally to avoid proxy-induced
+                // fallback to external CloudWatch endpoints.
+                return CloudWatchLogsMock.handle(method, request);
             }
             return invokeOriginal(target, method, args);
         }

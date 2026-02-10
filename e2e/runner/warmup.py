@@ -15,9 +15,10 @@ from xml.sax.saxutils import escape as xml_escape
 import yaml
 
 from e2e.runner.models import Scenario
-from e2e.runner.utils import PROJECT_ROOT, default_e2e_deploy_templates
+from e2e.runner.utils import BRAND_HOME_DIR, PROJECT_ROOT, default_e2e_deploy_templates
 
 M2_SETTINGS_PATH = "/tmp/m2/settings.xml"
+M2_REPOSITORY_PATH = "/tmp/m2/repository"
 JAVA_BUILD_IMAGE = "public.ecr.aws/sam/build-java21@sha256:5f78d6d9124e54e5a7a9941ef179d74d88b7a5b117526ea8574137e5403b51b7"
 
 
@@ -354,12 +355,19 @@ def _java_proxy_env_overrides() -> list[tuple[str, str]]:
     ]
 
 
+def _project_maven_repo_cache_dir() -> Path:
+    cache_dir = PROJECT_ROOT / BRAND_HOME_DIR / "cache" / "m2" / "repository"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir
+
+
 def _docker_maven_command(
     project_dir: Path,
     settings_path: Path,
     *,
     verbose: bool = False,
 ) -> list[str]:
+    m2_repo_cache_dir = _project_maven_repo_cache_dir()
     cmd = [
         "docker",
         "run",
@@ -371,13 +379,16 @@ def _docker_maven_command(
         cmd.extend(["--user", f"{getuid()}:{getgid()}"])
     cmd.extend(["-v", f"{project_dir}:/src:ro", "-v", f"{project_dir}:/out"])
     cmd.extend(["-v", f"{settings_path}:{M2_SETTINGS_PATH}:ro"])
+    cmd.extend(["-v", f"{m2_repo_cache_dir}:{M2_REPOSITORY_PATH}"])
     cmd.extend(["-e", "MAVEN_CONFIG=/tmp/m2", "-e", "HOME=/tmp"])
     for key, value in _java_proxy_env_overrides():
         cmd.extend(["-e", f"{key}={value}"])
     maven_cmd_with_settings = (
-        f"mvn -s {M2_SETTINGS_PATH} -Dmaven.artifact.threads=1 -DskipTests package"
+        f"mvn -s {M2_SETTINGS_PATH} -Dmaven.repo.local={M2_REPOSITORY_PATH} "
+        "-Dmaven.artifact.threads=1 -DskipTests package"
         if verbose
-        else f"mvn -s {M2_SETTINGS_PATH} -q -Dmaven.artifact.threads=1 -DskipTests package"
+        else f"mvn -s {M2_SETTINGS_PATH} -q -Dmaven.repo.local={M2_REPOSITORY_PATH} "
+        "-Dmaven.artifact.threads=1 -DskipTests package"
     )
     script = "\n".join(
         [

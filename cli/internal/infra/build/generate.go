@@ -103,6 +103,7 @@ func GenerateFiles(cfg config.GeneratorConfig, opts GenerateOptions) ([]template
 	}
 
 	functions := make([]template.FunctionSpec, 0, len(parsed.Functions))
+	javaRuntimeBuild := &javaRuntimeBuildState{}
 
 	for _, fn := range parsed.Functions {
 		if opts.Verbose {
@@ -122,6 +123,7 @@ func GenerateFiles(cfg config.GeneratorConfig, opts GenerateOptions) ([]template
 				LayerCacheDir:     layerCacheDir,
 				DryRun:            opts.DryRun,
 				Verbose:           opts.Verbose,
+				JavaRuntimeBuild:  javaRuntimeBuild,
 				ProjectRoot:       projectRoot,
 				SitecustomizePath: opts.SitecustomizeSource,
 			},

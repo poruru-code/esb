@@ -1,6 +1,6 @@
 // Where: runtime/java/extensions/agent/src/test/java/com/runtime/agent/aws/CloudWatchLogsRequestGuardTest.java
 // What: Unit tests for CloudWatch Logs request argument guard.
-// Why: Prevent Consumer overloads from being treated as request-object invocations.
+// Why: Allow only safe Consumer overloads while preventing unsupported request shapes.
 package com.runtime.agent.aws;
 
 import static org.junit.Assert.assertFalse;
@@ -15,6 +15,18 @@ public class CloudWatchLogsRequestGuardTest {
     private interface CloudWatchOverloadsShape {
         Object putLogEvents(Consumer<Object> requestBuilderConsumer);
 
+        Object createLogGroup(Consumer<Object> requestBuilderConsumer);
+
+        Object createLogStream(Consumer<Object> requestBuilderConsumer);
+
+        Object deleteLogGroup(Consumer<Object> requestBuilderConsumer);
+
+        Object deleteLogStream(Consumer<Object> requestBuilderConsumer);
+
+        Object describeLogGroups(Consumer<Object> requestBuilderConsumer);
+
+        Object describeLogStreams(Consumer<Object> requestBuilderConsumer);
+
         Object putLogEvents(Object request);
     }
 
@@ -25,9 +37,23 @@ public class CloudWatchLogsRequestGuardTest {
     }
 
     @Test
-    public void returnsFalseForConsumerOverloadEvenWithRequestLikeObject() throws Exception {
-        Method method = CloudWatchOverloadsShape.class.getMethod("putLogEvents", Consumer.class);
-        assertFalse(CloudWatchLogsRequestGuard.isSupported(method, new FakeLogRequest()));
+    public void returnsFalseForUnsupportedConsumerOverload() throws Exception {
+        assertConsumerOverloadSupport("putLogEvents", false);
+    }
+
+    @Test
+    public void returnsTrueForAllSafeConsumerOverloads() throws Exception {
+        String[] supportedMethods = {
+                "createLogGroup",
+                "createLogStream",
+                "deleteLogGroup",
+                "deleteLogStream",
+                "describeLogGroups",
+                "describeLogStreams",
+        };
+        for (String methodName : supportedMethods) {
+            assertConsumerOverloadSupport(methodName, true);
+        }
     }
 
     @Test
@@ -48,5 +74,16 @@ public class CloudWatchLogsRequestGuardTest {
         } catch (NoSuchMethodException e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    private void assertConsumerOverloadSupport(String methodName, boolean expected) throws Exception {
+        Method method = CloudWatchOverloadsShape.class.getMethod(methodName, Consumer.class);
+        Consumer<Object> noopConsumer = ignored -> {};
+        boolean actual = CloudWatchLogsRequestGuard.isSupported(method, noopConsumer);
+        if (expected) {
+            assertTrue(actual);
+            return;
+        }
+        assertFalse(actual);
     }
 }

@@ -23,8 +23,6 @@ type Profile struct {
 	Kind              Kind
 	UsesSitecustomize bool
 	UsesPip           bool
-	UsesJavaWrapper   bool
-	UsesJavaAgent     bool
 	NestPythonLayers  bool
 	PythonVersion     string
 	JavaBaseImage     string
@@ -65,11 +63,9 @@ func Resolve(runtime string) (Profile, error) {
 		switch normalized {
 		case "java21":
 			return Profile{
-				Name:            normalized,
-				Kind:            KindJava,
-				UsesJavaWrapper: true,
-				UsesJavaAgent:   true,
-				JavaBaseImage:   "public.ecr.aws/lambda/java:21",
+				Name:          normalized,
+				Kind:          KindJava,
+				JavaBaseImage: "public.ecr.aws/lambda/java:21",
 			}, nil
 		default:
 			return Profile{}, fmt.Errorf("unsupported java runtime: %s", runtime)

@@ -9,6 +9,8 @@ import com.runtime.agent.logging.VictoriaLogsSink;
 import com.runtime.agent.util.ReflectionUtils;
 import com.runtime.agent.util.TraceContextAccessor;
 import java.lang.reflect.Method;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -31,38 +33,39 @@ public final class CloudWatchLogsMock {
             return null;
         }
         String name = method.getName();
-        Object context = request != null ? request : method.getDeclaringClass();
         Object response = switch (name) {
-            case "putLogEvents" -> handlePutLogEvents(request, context);
-            case "createLogGroup" -> buildEmptyResponse(
-                    "software.amazon.awssdk.services.cloudwatchlogs.model.CreateLogGroupResponse",
-                    context);
-            case "createLogStream" -> buildEmptyResponse(
-                    "software.amazon.awssdk.services.cloudwatchlogs.model.CreateLogStreamResponse",
-                    context);
-            case "deleteLogGroup" -> buildEmptyResponse(
-                    "software.amazon.awssdk.services.cloudwatchlogs.model.DeleteLogGroupResponse",
-                    context);
-            case "deleteLogStream" -> buildEmptyResponse(
-                    "software.amazon.awssdk.services.cloudwatchlogs.model.DeleteLogStreamResponse",
-                    context);
-            case "describeLogGroups" -> buildDescribeLogGroupsResponse(context);
-            case "describeLogStreams" -> buildDescribeLogStreamsResponse(context);
+            case "putLogEvents" -> {
+                handlePutLogEvents(request);
+                yield null;
+            }
+            case "createLogGroup",
+                    "createLogStream",
+                    "deleteLogGroup",
+                    "deleteLogStream",
+                    "describeLogGroups",
+                    "describeLogStreams" -> null;
             default -> null;
         };
+
+        if (response == null) {
+            response = buildResponseFromMethod(method, name);
+        }
 
         if (response == null) {
             return null;
         }
         if (CompletableFuture.class.isAssignableFrom(method.getReturnType())) {
+            if (response instanceof CompletableFuture<?>) {
+                return response;
+            }
             return CompletableFuture.completedFuture(response);
         }
         return response;
     }
 
-    private static Object handlePutLogEvents(Object request, Object context) {
+    private static void handlePutLogEvents(Object request) {
         if (request == null) {
-            return null;
+            return;
         }
         String logGroup = asString(ReflectionUtils.invoke(request, "logGroupName"));
         String logStream = asString(ReflectionUtils.invoke(request, "logStreamName"));
@@ -79,8 +82,6 @@ public final class CloudWatchLogsMock {
             Long timestamp = asLong(ReflectionUtils.invoke(event, "timestamp"));
             emitLogEntry(logGroup, logStream, containerName, message, timestamp);
         }
-
-        return buildPutLogEventsResponse(context);
     }
 
     private static void emitLogEntry(
@@ -125,72 +126,62 @@ public final class CloudWatchLogsMock {
         }
     }
 
-    private static Object buildPutLogEventsResponse(Object context) {
+    private static Object buildResponseFromMethod(Method method, String methodName) {
+        Class<?> returnType = method.getReturnType();
+        if (returnType == null || returnType == Void.TYPE) {
+            return null;
+        }
+        if (CompletableFuture.class.isAssignableFrom(returnType)) {
+            return CompletableFuture.completedFuture(buildAsyncResponsePayload(method, methodName));
+        }
+
         try {
-            Class<?> responseClass = ReflectionUtils.loadClass(
-                    "software.amazon.awssdk.services.cloudwatchlogs.model.PutLogEventsResponse",
-                    context);
-            if (responseClass == null) {
-                return null;
-            }
-            Object builder = ReflectionUtils.invokeStatic(responseClass, "builder");
+            Object builder = ReflectionUtils.invokeStatic(returnType, "builder");
             if (builder == null) {
                 return null;
             }
-            ReflectionUtils.invoke(builder, "nextSequenceToken", "mock-token");
+
+            if ("putLogEvents".equals(methodName)) {
+                ReflectionUtils.invoke(builder, "nextSequenceToken", "mock-token");
+            } else if ("describeLogGroups".equals(methodName)) {
+                ReflectionUtils.invoke(builder, "logGroups", new ArrayList<>());
+            } else if ("describeLogStreams".equals(methodName)) {
+                ReflectionUtils.invoke(builder, "logStreams", new ArrayList<>());
+            }
+
             return ReflectionUtils.invoke(builder, "build");
         } catch (Exception ignored) {
             return null;
         }
     }
 
-    private static Object buildDescribeLogGroupsResponse(Object context) {
-        try {
-            Class<?> responseClass = ReflectionUtils.loadClass(
-                    "software.amazon.awssdk.services.cloudwatchlogs.model.DescribeLogGroupsResponse",
-                    context);
-            if (responseClass == null) {
-                return null;
-            }
-            Object builder = ReflectionUtils.invokeStatic(responseClass, "builder");
-            if (builder == null) {
-                return null;
-            }
-            ReflectionUtils.invoke(builder, "logGroups", new ArrayList<>());
-            return ReflectionUtils.invoke(builder, "build");
-        } catch (Exception ignored) {
+    private static Object buildAsyncResponsePayload(Method method, String methodName) {
+        if (method == null) {
             return null;
         }
-    }
-
-    private static Object buildDescribeLogStreamsResponse(Object context) {
-        try {
-            Class<?> responseClass = ReflectionUtils.loadClass(
-                    "software.amazon.awssdk.services.cloudwatchlogs.model.DescribeLogStreamsResponse",
-                    context);
-            if (responseClass == null) {
-                return null;
-            }
-            Object builder = ReflectionUtils.invokeStatic(responseClass, "builder");
-            if (builder == null) {
-                return null;
-            }
-            ReflectionUtils.invoke(builder, "logStreams", new ArrayList<>());
-            return ReflectionUtils.invoke(builder, "build");
-        } catch (Exception ignored) {
+        Type generic = method.getGenericReturnType();
+        if (!(generic instanceof ParameterizedType parameterizedType)) {
             return null;
         }
-    }
-
-    private static Object buildEmptyResponse(String className, Object context) {
+        Type[] args = parameterizedType.getActualTypeArguments();
+        if (args.length == 0) {
+            return null;
+        }
+        Type responseType = args[0];
+        if (!(responseType instanceof Class<?> responseClass)) {
+            return null;
+        }
         try {
-            Class<?> responseClass = ReflectionUtils.loadClass(className, context);
-            if (responseClass == null) {
-                return null;
-            }
             Object builder = ReflectionUtils.invokeStatic(responseClass, "builder");
             if (builder == null) {
                 return null;
+            }
+            if ("putLogEvents".equals(methodName)) {
+                ReflectionUtils.invoke(builder, "nextSequenceToken", "mock-token");
+            } else if ("describeLogGroups".equals(methodName)) {
+                ReflectionUtils.invoke(builder, "logGroups", new ArrayList<>());
+            } else if ("describeLogStreams".equals(methodName)) {
+                ReflectionUtils.invoke(builder, "logStreams", new ArrayList<>());
             }
             return ReflectionUtils.invoke(builder, "build");
         } catch (Exception ignored) {
