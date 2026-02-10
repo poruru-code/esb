@@ -229,12 +229,28 @@ func TestGenerateFilesStagesJavaJarAndWrapper(t *testing.T) {
 	jarPath := filepath.Join(root, "converter_jsoncrb.jar")
 	writeTestFile(t, jarPath, "jar")
 
+	mustMkdirAll(t, filepath.Join(root, "runtime", "java", "build"))
+
 	wrapperPath := filepath.Join(root, "runtime", "java", "extensions", "wrapper", "lambda-java-wrapper.jar")
 	mustMkdirAll(t, filepath.Dir(wrapperPath))
-	writeTestFile(t, wrapperPath, "wrapper")
+	writeTestFile(t, wrapperPath, "stale-wrapper")
 	agentPath := filepath.Join(root, "runtime", "java", "extensions", "agent", "lambda-java-agent.jar")
 	mustMkdirAll(t, filepath.Dir(agentPath))
-	writeTestFile(t, agentPath, "agent")
+	writeTestFile(t, agentPath, "stale-agent")
+
+	installFakeDockerForJavaBuild(t)
+	for _, key := range []string{
+		"HTTP_PROXY",
+		"http_proxy",
+		"HTTPS_PROXY",
+		"https_proxy",
+		"NO_PROXY",
+		"no_proxy",
+		"MAVEN_OPTS",
+		"JAVA_TOOL_OPTIONS",
+	} {
+		t.Setenv(key, "")
+	}
 
 	parser := &stubParser{
 		result: template.ParseResult{
@@ -270,9 +286,15 @@ func TestGenerateFilesStagesJavaJarAndWrapper(t *testing.T) {
 	if _, err := os.Stat(wrapperDest); err != nil {
 		t.Fatalf("expected wrapper jar to be staged: %v", err)
 	}
+	if got := readFile(t, wrapperDest); got != "fresh-wrapper" {
+		t.Fatalf("expected rebuilt wrapper jar content, got %q", got)
+	}
 	agentDest := filepath.Join(root, "out", "functions", "lambda-java", "lambda-java-agent.jar")
 	if _, err := os.Stat(agentDest); err != nil {
 		t.Fatalf("expected agent jar to be staged: %v", err)
+	}
+	if got := readFile(t, agentDest); got != "fresh-agent" {
+		t.Fatalf("expected rebuilt agent jar content, got %q", got)
 	}
 
 	dockerfilePath := filepath.Join(root, "out", "functions", "lambda-java", "Dockerfile")
@@ -622,4 +644,40 @@ func writeZip(t *testing.T, path string, files map[string]string) {
 	if err := writer.Close(); err != nil {
 		t.Fatalf("zip close: %v", err)
 	}
+}
+
+func installFakeDockerForJavaBuild(t *testing.T) {
+	t.Helper()
+
+	binDir := t.TempDir()
+	scriptPath := filepath.Join(binDir, "docker")
+	script := `#!/usr/bin/env bash
+set -euo pipefail
+out=""
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = "-v" ] && [ "$#" -ge 2 ]; then
+    case "$2" in
+      *:/out) out="${2%:/out}" ;;
+    esac
+    shift 2
+    continue
+  fi
+  shift
+done
+
+if [ -z "$out" ]; then
+  echo "missing /out volume mount" >&2
+  exit 1
+fi
+
+mkdir -p "$out/extensions/wrapper" "$out/extensions/agent"
+printf 'fresh-wrapper' > "$out/extensions/wrapper/lambda-java-wrapper.jar"
+printf 'fresh-agent' > "$out/extensions/agent/lambda-java-agent.jar"
+`
+	if err := os.WriteFile(scriptPath, []byte(script), 0o700); err != nil {
+		t.Fatalf("write fake docker script: %v", err)
+	}
+
+	origPath := os.Getenv("PATH")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+origPath)
 }

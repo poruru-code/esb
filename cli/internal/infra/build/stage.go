@@ -126,6 +126,11 @@ func stageFunction(fn template.FunctionSpec, ctx stageContext) (stagedFunction, 
 		}
 	}
 
+	if !ctx.DryRun && (profile.UsesJavaWrapper || profile.UsesJavaAgent) {
+		if err := buildJavaRuntimeJars(ctx); err != nil {
+			return stagedFunction{}, err
+		}
+	}
 	if !ctx.DryRun && profile.UsesJavaWrapper {
 		wrapperSrc, err := ensureJavaWrapperSource(ctx)
 		if err != nil {
@@ -266,12 +271,6 @@ func ensureJavaWrapperSource(ctx stageContext) (string, error) {
 	if src := resolveJavaWrapperSource(ctx); src != "" {
 		return src, nil
 	}
-	if err := buildJavaRuntimeJars(ctx); err != nil {
-		return "", err
-	}
-	if src := resolveJavaWrapperSource(ctx); src != "" {
-		return src, nil
-	}
 	return "", fmt.Errorf("java wrapper jar not found after build")
 }
 
@@ -281,7 +280,6 @@ func resolveJavaWrapperSource(ctx stageContext) string {
 		return ""
 	}
 	candidates := []string{
-		filepath.Join(runtimeDir, "extensions", "wrapper", "target", javaWrapperFileName),
 		filepath.Join(runtimeDir, "extensions", "wrapper", javaWrapperFileName),
 	}
 	for _, candidate := range candidates {
@@ -296,12 +294,6 @@ func ensureJavaAgentSource(ctx stageContext) (string, error) {
 	if src := resolveJavaAgentSource(ctx); src != "" {
 		return src, nil
 	}
-	if err := buildJavaRuntimeJars(ctx); err != nil {
-		return "", err
-	}
-	if src := resolveJavaAgentSource(ctx); src != "" {
-		return src, nil
-	}
 	return "", fmt.Errorf("java agent jar not found after build")
 }
 
@@ -311,7 +303,6 @@ func resolveJavaAgentSource(ctx stageContext) string {
 		return ""
 	}
 	candidates := []string{
-		filepath.Join(runtimeDir, "extensions", "agent", "target", javaAgentFileName),
 		filepath.Join(runtimeDir, "extensions", "agent", javaAgentFileName),
 	}
 	for _, candidate := range candidates {
