@@ -126,12 +126,11 @@ func stageFunction(fn template.FunctionSpec, ctx stageContext) (stagedFunction, 
 		}
 	}
 
-	if !ctx.DryRun && (profile.UsesJavaWrapper || profile.UsesJavaAgent) {
+	if !ctx.DryRun && profile.Kind == runtime.KindJava {
 		if err := buildJavaRuntimeJars(ctx); err != nil {
 			return stagedFunction{}, err
 		}
-	}
-	if !ctx.DryRun && profile.UsesJavaWrapper {
+
 		wrapperSrc, err := ensureJavaWrapperSource(ctx)
 		if err != nil {
 			return stagedFunction{}, err
@@ -144,8 +143,7 @@ func stageFunction(fn template.FunctionSpec, ctx stageContext) (stagedFunction, 
 		} else {
 			return stagedFunction{}, err
 		}
-	}
-	if !ctx.DryRun && profile.UsesJavaAgent {
+
 		agentSrc, err := ensureJavaAgentSource(ctx)
 		if err != nil {
 			return stagedFunction{}, err

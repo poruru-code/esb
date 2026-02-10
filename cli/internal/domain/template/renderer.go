@@ -66,15 +66,13 @@ func RenderDockerfile(
 	javaWrapperSource := ""
 	useJavaAgent := false
 	javaAgentSource := ""
-	if profile.UsesJavaWrapper {
+	if profile.Kind == runtime.KindJava {
 		originalHandler = handler
 		handler = "com.runtime.lambda.HandlerWrapper::handleRequest"
 		useJavaWrapper = true
 		javaWrapperSource = path.Join("functions", fn.Name, "lambda-java-wrapper.jar")
-		if profile.UsesJavaAgent {
-			useJavaAgent = true
-			javaAgentSource = path.Join("functions", fn.Name, "lambda-java-agent.jar")
-		}
+		useJavaAgent = true
+		javaAgentSource = path.Join("functions", fn.Name, "lambda-java-agent.jar")
 	}
 
 	data := dockerfileTemplateData{
