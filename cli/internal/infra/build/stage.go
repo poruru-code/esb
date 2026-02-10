@@ -19,6 +19,7 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/manifest"
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/runtime"
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/template"
+	"github.com/poruru/edge-serverless-box/meta"
 )
 
 type stageContext struct {
@@ -30,6 +31,11 @@ type stageContext struct {
 	LayerCacheDir     string
 	DryRun            bool
 	Verbose           bool
+	JavaRuntimeBuild  *javaRuntimeBuildState
+}
+
+type javaRuntimeBuildState struct {
+	Built bool
 }
 
 type stagedFunction struct {
@@ -40,6 +46,7 @@ type stagedFunction struct {
 
 const (
 	containerM2SettingsPath = "/tmp/m2/settings.xml"
+	containerM2RepoPath     = "/tmp/m2/repository"
 	javaRuntimeBuildImage   = "public.ecr.aws/sam/build-java21@sha256:5f78d6d9124e54e5a7a9941ef179d74d88b7a5b117526ea8574137e5403b51b7"
 )
 
@@ -127,8 +134,14 @@ func stageFunction(fn template.FunctionSpec, ctx stageContext) (stagedFunction, 
 	}
 
 	if !ctx.DryRun && profile.Kind == runtime.KindJava {
-		if err := buildJavaRuntimeJars(ctx); err != nil {
-			return stagedFunction{}, err
+		needsBuild := ctx.JavaRuntimeBuild == nil || !ctx.JavaRuntimeBuild.Built
+		if needsBuild {
+			if err := buildJavaRuntimeJars(ctx); err != nil {
+				return stagedFunction{}, err
+			}
+			if ctx.JavaRuntimeBuild != nil {
+				ctx.JavaRuntimeBuild.Built = true
+			}
 		}
 
 		wrapperSrc, err := ensureJavaWrapperSource(ctx)
@@ -323,6 +336,17 @@ func resolveJavaRuntimeDir(ctx stageContext) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("java runtime directory not found")
+}
+
+func ensureJavaM2RepositoryCacheDir(ctx stageContext) (string, error) {
+	if strings.TrimSpace(ctx.ProjectRoot) == "" {
+		return "", fmt.Errorf("project root is required for java m2 cache")
+	}
+	cacheDir := filepath.Join(ctx.ProjectRoot, meta.HomeDir, "cache", "m2", "repository")
+	if err := ensureDir(cacheDir); err != nil {
+		return "", fmt.Errorf("prepare java m2 cache dir: %w", err)
+	}
+	return cacheDir, nil
 }
 
 func firstConfiguredEnv(keys ...string) (string, bool) {
@@ -592,9 +616,10 @@ func writeTempMavenSettingsFile() (string, error) {
 
 func javaRuntimeMavenBuildLine() string {
 	return fmt.Sprintf(
-		"mvn -s %s -q -Dmaven.artifact.threads=1 -DskipTests "+
+		"mvn -s %s -q -Dmaven.repo.local=%s -Dmaven.artifact.threads=1 -DskipTests "+
 			"-pl ../extensions/wrapper,../extensions/agent -am package",
 		containerM2SettingsPath,
+		containerM2RepoPath,
 	)
 }
 
@@ -610,6 +635,10 @@ func buildJavaRuntimeJars(ctx stageContext) error {
 	buildDir := filepath.Join(runtimeDir, "build")
 	if !dirExists(buildDir) {
 		return fmt.Errorf("java runtime build directory not found: %s", buildDir)
+	}
+	m2RepoCacheDir, err := ensureJavaM2RepositoryCacheDir(ctx)
+	if err != nil {
+		return err
 	}
 
 	args := []string{
@@ -630,6 +659,7 @@ func buildJavaRuntimeJars(ctx stageContext) error {
 		"-v", fmt.Sprintf("%s:/src:ro", runtimeDir),
 		"-v", fmt.Sprintf("%s:/out", runtimeDir),
 		"-v", fmt.Sprintf("%s:%s:ro", settingsPath, containerM2SettingsPath),
+		"-v", fmt.Sprintf("%s:%s", m2RepoCacheDir, containerM2RepoPath),
 	)
 	args = append(args, "-e", "MAVEN_CONFIG=/tmp/m2", "-e", "HOME=/tmp")
 	args = appendJavaBuildEnvArgs(args)

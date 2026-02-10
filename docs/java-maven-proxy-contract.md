@@ -21,6 +21,7 @@ This contract applies to both paths:
 6. Java build image is fixed to this digest only:
    `public.ecr.aws/sam/build-java21@sha256:5f78d6d9124e54e5a7a9941ef179d74d88b7a5b117526ea8574137e5403b51b7`
 7. Maven dependency resolution runs with `-Dmaven.artifact.threads=1` for reproducibility.
+8. Maven local repository uses project-scope cache: `.esb/cache/m2/repository`.
 
 ## Forbidden
 - Host `~/.m2/settings.xml` dependency.

@@ -16,6 +16,7 @@ cd runtime/java
 docker run --rm \
   -v "$(pwd):/src:ro" -v "$(pwd):/out" \
   -v "/path/to/generated-settings.xml:/tmp/m2/settings.xml:ro" \
+  -v "/path/to/repo/.esb/cache/m2/repository:/tmp/m2/repository" \
   -e MAVEN_CONFIG=/tmp/m2 -e HOME=/tmp \
   -e HTTP_PROXY= -e http_proxy= -e HTTPS_PROXY= -e https_proxy= -e NO_PROXY= -e no_proxy= \
   public.ecr.aws/sam/build-java21@sha256:5f78d6d9124e54e5a7a9941ef179d74d88b7a5b117526ea8574137e5403b51b7 \
@@ -23,7 +24,7 @@ docker run --rm \
     mkdir -p /tmp/work; \
     cp -a /src/. /tmp/work; \
     cd /tmp/work/build; \
-    mvn -s /tmp/m2/settings.xml -q -Dmaven.artifact.threads=1 -DskipTests \
+    mvn -s /tmp/m2/settings.xml -q -Dmaven.repo.local=/tmp/m2/repository -Dmaven.artifact.threads=1 -DskipTests \
       -pl ../extensions/wrapper,../extensions/agent -am package; \
     cp ../extensions/wrapper/target/lambda-java-wrapper.jar /out/extensions/wrapper/lambda-java-wrapper.jar; \
     cp ../extensions/agent/target/lambda-java-agent.jar /out/extensions/agent/lambda-java-agent.jar'
@@ -40,7 +41,14 @@ Notes:
 - Maven execution without `-s /tmp/m2/settings.xml` is not supported.
 - Maven proxy source of truth is generated `settings.xml` (not container proxy env).
 - Maven dependency resolution is serialized with `-Dmaven.artifact.threads=1`.
+- Maven local repository cache path is `./.esb/cache/m2/repository`.
 - Contract reference: `docs/java-maven-proxy-contract.md`
+
+Reset Maven cache:
+
+```bash
+rm -rf .esb/cache/m2/repository
+```
 
 Static contract check:
 

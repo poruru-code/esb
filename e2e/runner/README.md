@@ -111,6 +111,7 @@ Java warmup と deploy の Java build は次の契約を常に満たします。
 - `HTTP_PROXY`/`HTTPS_PROXY`（大小文字）から `settings.xml` 内に `<proxy>` を生成する
 - Java build コンテナ内の proxy env は空値に固定し、proxy ソースを `settings.xml` に一本化する
 - Maven 依存取得は `-Dmaven.artifact.threads=1` で直列化し、認証付き proxy の再現性を優先する
+- Maven local repository は `./.esb/cache/m2/repository` を共有キャッシュとして使用する
 - `~/.m2/settings.xml` 依存、`-s` なし実行、`latest` タグを禁止する
 - 契約仕様の正本は `docs/java-maven-proxy-contract.md`
 
@@ -118,6 +119,12 @@ Java warmup と deploy の Java build は次の契約を常に満たします。
 
 ```bash
 bash tools/ci/check_java_proxy_contract.sh
+```
+
+Maven キャッシュをクリアする場合:
+
+```bash
+rm -rf .esb/cache/m2/repository
 ```
 
 ```bash

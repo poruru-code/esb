@@ -48,7 +48,7 @@ func TestJavaRuntimeMavenBuildLineAlwaysUsesSettingsFile(t *testing.T) {
 	line := javaRuntimeMavenBuildLine()
 	if !strings.Contains(
 		line,
-		"mvn -s "+containerM2SettingsPath+" -q -Dmaven.artifact.threads=1 -DskipTests",
+		"mvn -s "+containerM2SettingsPath+" -q -Dmaven.repo.local="+containerM2RepoPath+" -Dmaven.artifact.threads=1 -DskipTests",
 	) {
 		t.Fatalf("expected settings-enabled mvn command in %q", line)
 	}

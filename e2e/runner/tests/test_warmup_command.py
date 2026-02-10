@@ -72,9 +72,10 @@ def test_docker_maven_command_always_uses_settings_mount_and_settings_only_proxy
     joined = " ".join(str(item) for item in cmd)
 
     assert f"{settings_path}:{warmup.M2_SETTINGS_PATH}:ro" in joined
+    assert f":{warmup.M2_REPOSITORY_PATH}" in joined
     assert (
-        f"mvn -s {warmup.M2_SETTINGS_PATH} -q -Dmaven.artifact.threads=1 -DskipTests package"
-        in cmd[-1]
+        f"mvn -s {warmup.M2_SETTINGS_PATH} -q -Dmaven.repo.local={warmup.M2_REPOSITORY_PATH} "
+        "-Dmaven.artifact.threads=1 -DskipTests package" in cmd[-1]
     )
     assert "if [ -f /tmp/m2/settings.xml ]" not in cmd[-1]
     assert "else mvn" not in cmd[-1]
