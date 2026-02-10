@@ -1,7 +1,7 @@
-// Where: cli/internal/infra/build/bundle_manifest_test.go
+// Where: cli/internal/infra/templategen/bundle_manifest_test.go
 // What: Tests for bundle manifest generation.
 // Why: Ensure manifest is stable and records expected images.
-package build
+package templategen
 
 import (
 	"context"
@@ -105,7 +105,7 @@ func TestWriteBundleManifest(t *testing.T) {
 		t.Fatalf("ensure output dir: %v", err)
 	}
 
-	path, err := writeBundleManifest(t.Context(), bundleManifestInput{
+	path, err := WriteBundleManifest(t.Context(), BundleManifestInput{
 		RepoRoot:     tmpDir,
 		OutputDir:    outputDir,
 		TemplatePath: templatePath,
@@ -212,7 +212,7 @@ func TestWriteBundleManifestContainerdIncludesRuntimeImages(t *testing.T) {
 		t.Fatalf("ensure output dir: %v", err)
 	}
 
-	_, err := writeBundleManifest(t.Context(), bundleManifestInput{
+	_, err := WriteBundleManifest(t.Context(), BundleManifestInput{
 		RepoRoot:        tmpDir,
 		OutputDir:       outputDir,
 		TemplatePath:    templatePath,
@@ -244,7 +244,7 @@ func TestWriteBundleManifestFailsWhenImageMissing(t *testing.T) {
 		t.Fatalf("ensure output dir: %v", err)
 	}
 
-	_, err := writeBundleManifest(t.Context(), bundleManifestInput{
+	_, err := WriteBundleManifest(t.Context(), BundleManifestInput{
 		RepoRoot:     tmpDir,
 		OutputDir:    outputDir,
 		TemplatePath: templatePath,

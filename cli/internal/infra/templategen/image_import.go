@@ -1,7 +1,7 @@
-// Where: cli/internal/infra/build/image_import.go
+// Where: cli/internal/infra/templategen/image_import.go
 // What: Image source/reference normalization and import manifest generation.
 // Why: Support SAM image functions by mapping external image sources to the internal registry.
-package build
+package templategen
 
 import (
 	"encoding/json"

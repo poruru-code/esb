@@ -1,26 +1,21 @@
 // Where: cli/internal/infra/build/go_builder.go
 // What: Go-native deploy implementation for CLI deploy.
-// Why: Build function images only during deploy. Control plane images are built
-//
-//	separately via docker compose up (which auto-builds if images don't exist).
+// Why: Keep Build focused on orchestration while delegating per-phase details.
 package build
 
 import (
 	"context"
 	"fmt"
-	"net"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/template"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
-	"github.com/poruru/edge-serverless-box/meta"
+	templategen "github.com/poruru/edge-serverless-box/cli/internal/infra/templategen"
 )
 
 // PortDiscoverer defines the interface for discovering dynamically assigned ports.
@@ -29,22 +24,24 @@ type PortDiscoverer interface {
 }
 
 type GoBuilder struct {
-	Runner         compose.CommandRunner
-	ComposeRunner  compose.CommandRunner
-	PortDiscoverer PortDiscoverer
-	BuildCompose   func(ctx context.Context, runner compose.CommandRunner, opts compose.BuildOptions) error
-	Generate       func(cfg config.GeneratorConfig, opts GenerateOptions) ([]template.FunctionSpec, error)
-	FindRepoRoot   func(start string) (string, error)
+	Runner              compose.CommandRunner
+	ComposeRunner       compose.CommandRunner
+	PortDiscoverer      PortDiscoverer
+	BuildCompose        func(ctx context.Context, runner compose.CommandRunner, opts compose.BuildOptions) error
+	Generate            func(cfg config.GeneratorConfig, opts templategen.GenerateOptions) ([]template.FunctionSpec, error)
+	WriteBundleManifest func(ctx context.Context, input templategen.BundleManifestInput) (string, error)
+	FindRepoRoot        func(start string) (string, error)
 }
 
 func NewGoBuilder(discoverer PortDiscoverer) *GoBuilder {
 	return &GoBuilder{
-		Runner:         compose.ExecRunner{},
-		ComposeRunner:  compose.ExecRunner{},
-		PortDiscoverer: discoverer,
-		BuildCompose:   compose.BuildProject,
-		Generate:       GenerateFiles,
-		FindRepoRoot:   findRepoRoot,
+		Runner:              compose.ExecRunner{},
+		ComposeRunner:       compose.ExecRunner{},
+		PortDiscoverer:      discoverer,
+		BuildCompose:        compose.BuildProject,
+		Generate:            templategen.GenerateFiles,
+		WriteBundleManifest: templategen.WriteBundleManifest,
+		FindRepoRoot:        findRepoRoot,
 	}
 }
 
@@ -80,7 +77,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		return fmt.Errorf("repo root finder is not configured")
 	}
 
-	templatePath, err := resolveTemplatePath(request.TemplatePath, request.ProjectDir)
+	templatePath, err := templategen.ResolveTemplatePath(request.TemplatePath, request.ProjectDir)
 	if err != nil {
 		return fmt.Errorf("template not found: %w", err)
 	}
@@ -104,36 +101,22 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	}
 
 	mode := strings.TrimSpace(request.Mode)
-	registry, err := resolveRegistryConfig()
-	if err != nil {
-		return err
-	}
 	imageTag := strings.TrimSpace(request.Tag)
 	includeDockerOutput := !strings.EqualFold(mode, compose.ModeContainerd)
 
-	artifactBase := resolveOutputDir(cfg.Paths.OutputDir, filepath.Dir(templatePath))
+	artifactBase := templategen.ResolveOutputDir(cfg.Paths.OutputDir, filepath.Dir(templatePath))
 	cfg.Paths.OutputDir = filepath.Join(artifactBase, request.Env)
 	lockRoot, err := staging.RootDir(templatePath)
 	if err != nil {
 		return err
 	}
 
-	composeProject := strings.TrimSpace(request.ProjectName)
-	if composeProject == "" {
-		brandName := strings.ToLower(cfg.App.Name)
-		if brandName == "" {
-			brandName = strings.ToLower(os.Getenv("CLI_CMD"))
-		}
-		if brandName == "" {
-			brandName = meta.Slug
-		}
-		composeProject = fmt.Sprintf("%s-%s", brandName, strings.ToLower(request.Env))
-	}
-
+	composeProject := resolveComposeProjectName(request.ProjectName, cfg.App.Name, request.Env)
 	if err := applyBuildEnv(request.Env, templatePath, composeProject); err != nil {
 		return err
 	}
 	_ = os.Setenv("META_MODULE_CONTEXT", filepath.Join(repoRoot, "meta"))
+
 	imageLabels := brandingImageLabels(composeProject, request.Env)
 	rootFingerprint, err := resolveRootCAFingerprint()
 	if err != nil {
@@ -142,12 +125,8 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	if os.Getenv(constants.BuildArgCAFingerprint) == "" {
 		_ = os.Setenv(constants.BuildArgCAFingerprint, rootFingerprint)
 	}
-	baseImageLabels := map[string]string{
-		compose.ESBManagedLabel:       "true",
-		compose.ESBCAFingerprintLabel: rootFingerprint,
-	}
-	phase := newPhaseReporter(request.Verbose, request.Emoji)
 
+	phase := newPhaseReporter(request.Verbose, request.Emoji)
 	if request.Verbose {
 		fmt.Println("Generating files...")
 		fmt.Printf("Using Template: %s\n", templatePath)
@@ -162,51 +141,15 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	for key, value := range request.Parameters {
 		cfg.Parameters[key] = value
 	}
-	runtimeRegistry := registry.Registry
-	if value := strings.TrimSpace(os.Getenv(constants.EnvContainerRegistry)); value != "" {
-		if !strings.HasSuffix(value, "/") {
-			value += "/"
-		}
-		runtimeRegistry = value
-	}
-	registryForPush := registry.Registry
-	builderNetworkMode := ""
-	if registryForPush != "" {
-		registryHost := resolveRegistryHost(registryForPush)
-		isLocal := isLocalRegistryHost(registryHost)
-		if isLocal {
-			hostRegistryAddr, explicitHostAddr := resolveHostRegistryAddress()
-			if strings.EqualFold(registryHost, "registry") {
-				// Buildx needs host networking for external pulls; push via host-mapped registry port.
-				builderNetworkMode = "host"
-				registryForPush = fmt.Sprintf("%s/", hostRegistryAddr)
-			} else {
-				builderNetworkMode = "host"
-			}
-			if b.PortDiscoverer != nil && !explicitHostAddr {
-				ports, err := b.PortDiscoverer.Discover(
-					context.Background(),
-					repoRoot,
-					composeProject,
-					request.Mode,
-				)
-				if err != nil {
-					return err
-				}
-				if port, ok := ports[constants.EnvPortRegistry]; ok && port > 0 {
-					hostRegistryAddr = fmt.Sprintf("127.0.0.1:%d", port)
-					if strings.EqualFold(registryHost, "registry") {
-						registryForPush = fmt.Sprintf("127.0.0.1:%d/", port)
-					}
-					if strings.EqualFold(registryHost, "localhost") || registryHost == "127.0.0.1" {
-						registryForPush = fmt.Sprintf("127.0.0.1:%d/", port)
-					}
-				}
-			}
-			if err := waitForRegistry(hostRegistryAddr, 30*time.Second); err != nil {
-				return err
-			}
-		}
+
+	registryInfo, err := b.resolveBuildRegistryInfo(
+		context.Background(),
+		repoRoot,
+		composeProject,
+		request,
+	)
+	if err != nil {
+		return err
 	}
 	if err := ensureBuildxBuilder(
 		context.Background(),
@@ -214,7 +157,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		repoRoot,
 		lockRoot,
 		buildxBuilderOptions{
-			NetworkMode: builderNetworkMode,
+			NetworkMode: registryInfo.BuilderNetworkMode,
 			ConfigPath:  strings.TrimSpace(os.Getenv(constants.EnvBuildkitdConfig)),
 		},
 	); err != nil {
@@ -223,122 +166,44 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 
 	var functions []template.FunctionSpec
 	if err := phase.Run("Generate config", func() error {
-		generated, err := b.Generate(cfg, GenerateOptions{
-			ProjectRoot:     repoRoot,
-			Registry:        runtimeRegistry,
-			BuildRegistry:   registryForPush,
-			RuntimeRegistry: runtimeRegistry,
-			Tag:             imageTag,
-			Parameters:      request.Parameters,
-			Verbose:         request.Verbose,
-		})
+		generated, err := b.generateAndStageConfig(
+			cfg,
+			templategen.GenerateOptions{
+				ProjectRoot:     repoRoot,
+				Registry:        registryInfo.RuntimeRegistry,
+				BuildRegistry:   registryInfo.PushRegistry,
+				RuntimeRegistry: registryInfo.RuntimeRegistry,
+				Tag:             imageTag,
+				Parameters:      request.Parameters,
+				Verbose:         request.Verbose,
+			},
+			repoRoot,
+			templatePath,
+			composeProject,
+			request.Env,
+		)
 		if err != nil {
 			return err
 		}
 		functions = generated
-		if err := stageConfigFiles(cfg.Paths.OutputDir, repoRoot, templatePath, composeProject, request.Env); err != nil {
-			return err
-		}
 		return nil
 	}); err != nil {
 		return err
 	}
 
-	lambdaBaseTag := lambdaBaseImageTag(registryForPush, imageTag)
-	lambdaTags := []string{lambdaBaseTag}
-
+	lambdaBaseTag := lambdaBaseImageTag(registryInfo.PushRegistry, imageTag)
 	if err := phase.Run("Build base images", func() error {
-		return withBuildLock(lockRoot, "base-images", func() error {
-			proxyArgs := dockerBuildArgMap()
-			commonDir := filepath.Join(repoRoot, "services", "common")
-
-			buildOs := true
-			buildPython := true
-
-			osBaseTag := fmt.Sprintf("%s-os-base:latest", meta.ImagePrefix)
-			if !request.NoCache && dockerImageHasLabelValue(context.Background(), b.Runner, repoRoot, osBaseTag, compose.ESBCAFingerprintLabel, rootFingerprint) {
-				buildOs = false
-				if request.Verbose {
-					fmt.Println("Skipping OS base image build (already exists).")
-				}
-			}
-
-			pythonBaseTag := fmt.Sprintf("%s-python-base:latest", meta.ImagePrefix)
-			if !request.NoCache && dockerImageHasLabelValue(context.Background(), b.Runner, repoRoot, pythonBaseTag, compose.ESBCAFingerprintLabel, rootFingerprint) {
-				buildPython = false
-				if request.Verbose {
-					fmt.Println("Skipping Python base image build (already exists).")
-				}
-			}
-
-			lambdaTarget := bakeTarget{
-				Name:    "lambda-base",
-				Tags:    lambdaTags,
-				Outputs: resolveBakeOutputs(registryForPush, true, includeDockerOutput),
-				Labels:  imageLabels,
-				Args:    proxyArgs,
-				NoCache: request.NoCache,
-			}
-
-			baseTargets := []bakeTarget{lambdaTarget}
-			rootCAPath := ""
-			if buildOs || buildPython {
-				path, err := resolveRootCAPath()
-				if err != nil {
-					return err
-				}
-				rootCAPath = path
-			}
-			if buildOs {
-				osTarget := bakeTarget{
-					Name:       "os-base",
-					Context:    commonDir,
-					Dockerfile: filepath.Join(commonDir, "Dockerfile.os-base"),
-					Tags:       []string{osBaseTag},
-					Outputs:    resolveBakeOutputs(registryForPush, false, includeDockerOutput),
-					Labels:     baseImageLabels,
-					Args: mergeStringMap(proxyArgs, map[string]string{
-						constants.BuildArgCAFingerprint: rootFingerprint,
-						"ROOT_CA_MOUNT_ID":              meta.RootCAMountID,
-						"ROOT_CA_CERT_FILENAME":         meta.RootCACertFilename,
-					}),
-					Secrets: []string{fmt.Sprintf("id=%s,src=%s", meta.RootCAMountID, rootCAPath)},
-					NoCache: request.NoCache,
-				}
-				baseTargets = append(baseTargets, osTarget)
-			}
-			if buildPython {
-				pythonTarget := bakeTarget{
-					Name:       "python-base",
-					Context:    commonDir,
-					Dockerfile: filepath.Join(commonDir, "Dockerfile.python-base"),
-					Tags:       []string{pythonBaseTag},
-					Outputs:    resolveBakeOutputs(registryForPush, false, includeDockerOutput),
-					Labels:     baseImageLabels,
-					Args: mergeStringMap(proxyArgs, map[string]string{
-						constants.BuildArgCAFingerprint: rootFingerprint,
-						"ROOT_CA_MOUNT_ID":              meta.RootCAMountID,
-						"ROOT_CA_CERT_FILENAME":         meta.RootCACertFilename,
-					}),
-					Secrets: []string{fmt.Sprintf("id=%s,src=%s", meta.RootCAMountID, rootCAPath)},
-					NoCache: request.NoCache,
-				}
-				baseTargets = append(baseTargets, pythonTarget)
-			}
-
-			if err := runBakeGroup(
-				context.Background(),
-				b.Runner,
-				repoRoot,
-				lockRoot,
-				"esb-base",
-				baseTargets,
-				request.Verbose,
-			); err != nil {
-				return err
-			}
-
-			return nil
+		return b.buildBaseImages(baseImageBuildInput{
+			RepoRoot:            repoRoot,
+			LockRoot:            lockRoot,
+			RegistryForPush:     registryInfo.PushRegistry,
+			ImageTag:            imageTag,
+			ImageLabels:         imageLabels,
+			RootFingerprint:     rootFingerprint,
+			NoCache:             request.NoCache,
+			Verbose:             request.Verbose,
+			IncludeDockerOutput: includeDockerOutput,
+			LambdaBaseTag:       lambdaBaseTag,
 		})
 	}); err != nil {
 		return err
@@ -379,7 +244,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 			lockRoot,
 			cfg.Paths.OutputDir,
 			functions,
-			registryForPush,
+			registryInfo.PushRegistry,
 			imageTag,
 			request.NoCache,
 			request.Verbose,
@@ -389,12 +254,16 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	}); err != nil {
 		return err
 	}
-	// Control plane images are now built separately via `esb build-infra` or docker compose
-	// Only function images are built during deploy
+
+	// Control plane images are now built separately via `esb build-infra` or docker compose.
+	// Only function images are built during deploy.
 	if request.Bundle {
-		manifestPath, err := writeBundleManifest(
+		if b.WriteBundleManifest == nil {
+			return fmt.Errorf("bundle manifest writer is not configured")
+		}
+		manifestPath, err := b.WriteBundleManifest(
 			context.Background(),
-			bundleManifestInput{
+			templategen.BundleManifestInput{
 				RepoRoot:        repoRoot,
 				OutputDir:       cfg.Paths.OutputDir,
 				TemplatePath:    templatePath,
@@ -403,8 +272,8 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 				Env:             request.Env,
 				Mode:            request.Mode,
 				ImageTag:        imageTag,
-				Registry:        registryForPush,
-				ServiceRegistry: registry.Registry,
+				Registry:        registryInfo.PushRegistry,
+				ServiceRegistry: registryInfo.ServiceRegistry,
 				Functions:       functions,
 				Runner:          b.Runner,
 			},
@@ -417,155 +286,4 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		}
 	}
 	return nil
-}
-
-func isLocalRegistryHost(host string) bool {
-	switch strings.ToLower(strings.TrimSpace(host)) {
-	case "registry", "localhost", "127.0.0.1":
-		return true
-	default:
-		return false
-	}
-}
-
-func resolveRegistryHost(registry string) string {
-	trimmed := strings.TrimSpace(registry)
-	if trimmed == "" {
-		return ""
-	}
-	trimmed = strings.TrimSuffix(trimmed, "/")
-	trimmed = strings.TrimPrefix(trimmed, "http://")
-	trimmed = strings.TrimPrefix(trimmed, "https://")
-	if slash := strings.Index(trimmed, "/"); slash != -1 {
-		trimmed = trimmed[:slash]
-	}
-	host := strings.TrimSpace(trimmed)
-	if host == "" {
-		return ""
-	}
-	if splitHost, _, err := net.SplitHostPort(host); err == nil {
-		return strings.TrimSpace(splitHost)
-	}
-	host = strings.Trim(host, "[]")
-	if ip := net.ParseIP(host); ip != nil {
-		return host
-	}
-	if colon := strings.Index(host, ":"); colon != -1 {
-		host = host[:colon]
-	}
-	return host
-}
-
-func resolveHostRegistryAddress() (string, bool) {
-	if value := strings.TrimSpace(os.Getenv("HOST_REGISTRY_ADDR")); value != "" {
-		return strings.TrimPrefix(value, "http://"), true
-	}
-	port := strings.TrimSpace(os.Getenv(constants.EnvPortRegistry))
-	if port == "" {
-		port = "5010"
-	}
-	return fmt.Sprintf("127.0.0.1:%s", port), false
-}
-
-func waitForRegistry(registry string, timeout time.Duration) error {
-	if strings.TrimSpace(os.Getenv("ESB_REGISTRY_WAIT")) == "0" {
-		return nil
-	}
-	trimmed := strings.TrimSuffix(strings.TrimSpace(registry), "/")
-	if trimmed == "" {
-		return nil
-	}
-	url := fmt.Sprintf("http://%s/v2/", trimmed)
-	client := registryWaitHTTPClient(trimmed)
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
-		if err != nil {
-			return fmt.Errorf("create registry request: %w", err)
-		}
-		resp, err := client.Do(req)
-		if err == nil {
-			_ = resp.Body.Close()
-			if resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusInternalServerError {
-				return nil
-			}
-		}
-		time.Sleep(500 * time.Millisecond)
-	}
-	return fmt.Errorf("registry not responding at %s", url)
-}
-
-func registryWaitHTTPClient(registry string) *http.Client {
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	if shouldBypassRegistryProxy(registry) {
-		transport.Proxy = nil
-	} else {
-		transport.Proxy = http.ProxyFromEnvironment
-	}
-	return &http.Client{
-		Timeout:   2 * time.Second,
-		Transport: transport,
-	}
-}
-
-func shouldBypassRegistryProxy(registry string) bool {
-	host := resolveRegistryHost(registry)
-	normalized := strings.ToLower(strings.TrimSpace(host))
-	if normalized == "" {
-		return false
-	}
-	if isLocalRegistryHost(normalized) || normalized == "host.docker.internal" {
-		return true
-	}
-	ip := net.ParseIP(normalized)
-	return ip != nil && ip.IsLoopback()
-}
-
-type phaseReporter struct {
-	verbose bool
-	emoji   bool
-}
-
-func newPhaseReporter(verbose, emoji bool) phaseReporter {
-	return phaseReporter{verbose: verbose, emoji: emoji}
-}
-
-func (p phaseReporter) Run(label string, fn func() error) error {
-	start := time.Now()
-	err := fn()
-	if p.verbose {
-		return err
-	}
-	duration := time.Since(start)
-	ok := err == nil
-	status := "ok"
-	if !ok {
-		status = "failed"
-	}
-	prefix := p.prefix(ok)
-	fmt.Printf("%s%s ... %s (%s)\n", prefix, label, status, formatDuration(duration))
-	return err
-}
-
-func (p phaseReporter) prefix(ok bool) string {
-	if p.emoji {
-		if ok {
-			return "✅ "
-		}
-		return "❌ "
-	}
-	if ok {
-		return "[ok] "
-	}
-	return "[fail] "
-}
-
-func formatDuration(duration time.Duration) string {
-	if duration < time.Minute {
-		return fmt.Sprintf("%.1fs", duration.Seconds())
-	}
-	total := int(duration.Seconds())
-	mins := total / 60
-	secs := total % 60
-	return fmt.Sprintf("%dm%02ds", mins, secs)
 }

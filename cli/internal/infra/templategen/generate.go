@@ -1,19 +1,17 @@
-// Where: cli/internal/infra/build/generate.go
-// What: Generator entrypoints for file generation.
-// Why: Provide a Go-based implementation of the Python generator workflow.
-package build
+// Where: cli/internal/infra/templategen/generate.go
+// What: Generator entrypoint orchestration.
+// Why: Coordinate parse, staging, and render phases for deploy artifacts.
+package templategen
 
 import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/template"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
 	samparser "github.com/poruru/edge-serverless-box/cli/internal/infra/sam"
-	"github.com/poruru/edge-serverless-box/meta"
 )
 
 // GenerateOptions configures Generator.GenerateFiles behavior.
@@ -191,105 +189,4 @@ func GenerateFiles(cfg config.GeneratorConfig, opts GenerateOptions) ([]template
 	}
 
 	return functions, nil
-}
-
-// resolveTemplatePath determines the absolute path to the SAM template.
-func resolveTemplatePath(samTemplate, projectRoot string) (string, error) {
-	if strings.TrimSpace(samTemplate) == "" {
-		return "", fmt.Errorf("sam_template is required")
-	}
-	path, err := expandHomePath(strings.TrimSpace(samTemplate))
-	if err != nil {
-		return "", err
-	}
-	if !filepath.IsAbs(path) {
-		path = filepath.Join(projectRoot, path)
-	}
-	path = filepath.Clean(path)
-	if _, err := os.Stat(path); err != nil {
-		return "", err
-	}
-	return path, nil
-}
-
-func expandHomePath(path string) (string, error) {
-	if path == "" || !strings.HasPrefix(path, "~") {
-		return path, nil
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	if path == "~" {
-		return home, nil
-	}
-	if len(path) > 1 && (path[1] == '/' || path[1] == '\\') {
-		return filepath.Join(home, path[2:]), nil
-	}
-	return path, nil
-}
-
-// resolveOutputDir returns the absolute output directory where artifacts will be staged.
-func resolveOutputDir(outputDir, baseDir string) string {
-	normalized := normalizeOutputDir(outputDir)
-	path := normalized
-	if !filepath.IsAbs(path) {
-		path = filepath.Join(baseDir, path)
-	}
-	return filepath.Clean(path)
-}
-
-// resolveTag picks the Docker image tag from opts first, then generator config, then "latest".
-func resolveTag(tag, fallback string) string {
-	if strings.TrimSpace(tag) != "" {
-		return tag
-	}
-	if strings.TrimSpace(fallback) != "" {
-		return fallback
-	}
-	return "latest"
-}
-
-func sortFunctionsByName(functions []template.FunctionSpec) {
-	sort.Slice(functions, func(i, j int) bool {
-		return functions[i].Name < functions[j].Name
-	})
-}
-
-// mergeParameters merges generator config parameters with runtime overrides.
-func mergeParameters(cfgParams map[string]any, overrides map[string]string) map[string]string {
-	out := map[string]string{}
-	for key, value := range cfgParams {
-		if value == nil {
-			continue
-		}
-		out[key] = fmt.Sprint(value)
-	}
-	for key, value := range overrides {
-		if strings.TrimSpace(key) == "" {
-			continue
-		}
-		out[key] = value
-	}
-	return out
-}
-
-// resolveConfigPath chooses where to write config files (functions/routing).
-func resolveConfigPath(explicit, baseDir, outputDir, name string) string {
-	if strings.TrimSpace(explicit) == "" {
-		return filepath.Join(outputDir, "config", name)
-	}
-	path := explicit
-	if !filepath.IsAbs(path) {
-		path = filepath.Join(baseDir, path)
-	}
-	return filepath.Clean(path)
-}
-
-func normalizeOutputDir(outputDir string) string {
-	trimmed := strings.TrimRight(strings.TrimSpace(outputDir), "/\\")
-	if trimmed == "" {
-		return meta.OutputDir
-	}
-	return trimmed
 }

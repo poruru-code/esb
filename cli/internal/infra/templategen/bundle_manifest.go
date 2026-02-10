@@ -1,12 +1,10 @@
-// Where: cli/internal/infra/build/bundle_manifest.go
-// What: DinD bundle manifest writer for deterministic image bundling.
-// Why: Ensure bundler only packages template-derived images with traceability metadata.
-package build
+// Where: cli/internal/infra/templategen/bundle_manifest.go
+// What: Bundle manifest write flow and image collection logic.
+// Why: Keep orchestration readable while delegating schema and utility helpers.
+package templategen
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -15,67 +13,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/domain/template"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
 	"github.com/poruru/edge-serverless-box/meta"
 )
 
-const bundleManifestSchemaVersion = "1.1"
-
-type bundleManifest struct {
-	SchemaVersion string                `json:"schema_version"`
-	GeneratedAt   string                `json:"generated_at"`
-	Template      bundleTemplate        `json:"template,omitempty"`
-	Templates     []bundleTemplate      `json:"templates"`
-	Build         bundleBuild           `json:"build"`
-	Images        []bundleManifestImage `json:"images"`
-}
-
-type bundleTemplate struct {
-	Path       string            `json:"path"`
-	Sha256     string            `json:"sha256"`
-	Parameters map[string]string `json:"parameters"`
-}
-
-type bundleBuild struct {
-	Project     string         `json:"project"`
-	Env         string         `json:"env"`
-	Mode        string         `json:"mode"`
-	ImagePrefix string         `json:"image_prefix"`
-	ImageTag    string         `json:"image_tag"`
-	Git         bundleBuildGit `json:"git"`
-}
-
-type bundleBuildGit struct {
-	Commit string `json:"commit"`
-	Dirty  bool   `json:"dirty"`
-}
-
-type bundleManifestImage struct {
-	Name     string            `json:"name"`
-	Digest   string            `json:"digest"`
-	Kind     string            `json:"kind"`
-	Source   string            `json:"source"`
-	Labels   map[string]string `json:"labels,omitempty"`
-	Platform string            `json:"platform"`
-}
-
-type bundleManifestInput struct {
-	RepoRoot        string
-	OutputDir       string
-	TemplatePath    string
-	Parameters      map[string]any
-	Project         string
-	Env             string
-	Mode            string
-	ImageTag        string
-	Registry        string
-	ServiceRegistry string
-	Functions       []template.FunctionSpec
-	Runner          compose.CommandRunner
-}
-
-func writeBundleManifest(ctx context.Context, input bundleManifestInput) (string, error) {
+// WriteBundleManifest writes bundle/manifest.json for deterministic image bundling.
+func WriteBundleManifest(ctx context.Context, input BundleManifestInput) (string, error) {
 	if strings.TrimSpace(input.OutputDir) == "" {
 		return "", fmt.Errorf("bundle manifest output dir is required")
 	}
@@ -141,7 +84,7 @@ func writeBundleManifest(ctx context.Context, input bundleManifestInput) (string
 	return path, nil
 }
 
-func collectBundleImages(ctx context.Context, input bundleManifestInput) ([]bundleManifestImage, error) {
+func collectBundleImages(ctx context.Context, input BundleManifestInput) ([]bundleManifestImage, error) {
 	mode := strings.ToLower(strings.TrimSpace(input.Mode))
 	if mode == "" {
 		mode = compose.ModeDocker
@@ -173,7 +116,6 @@ func collectBundleImages(ctx context.Context, input bundleManifestInput) ([]bund
 		return nil
 	}
 
-	// Base images
 	if err := add(lambdaBaseImageTag(functionRegistry, input.ImageTag), "base", "generated"); err != nil {
 		return nil, err
 	}
@@ -184,14 +126,12 @@ func collectBundleImages(ctx context.Context, input bundleManifestInput) ([]bund
 		return nil, err
 	}
 
-	// Control plane images
 	for _, name := range controlPlaneImages(mode, serviceRegistry, input.ImageTag) {
 		if err := add(name, "service", "internal"); err != nil {
 			return nil, err
 		}
 	}
 
-	// Function images
 	for _, fn := range input.Functions {
 		imageTag := ""
 		if strings.TrimSpace(fn.ImageSource) != "" {
@@ -208,7 +148,6 @@ func collectBundleImages(ctx context.Context, input bundleManifestInput) ([]bund
 		}
 	}
 
-	// External images
 	for _, name := range externalImages(mode) {
 		if err := ensureDockerImage(ctx, input.Runner, input.RepoRoot, name); err != nil {
 			return nil, err
@@ -264,58 +203,6 @@ func externalImages(mode string) []string {
 	}
 	sort.Strings(external)
 	return external
-}
-
-func resolveManifestTemplatePath(repoRoot, templatePath string) string {
-	root := strings.TrimSpace(repoRoot)
-	path := strings.TrimSpace(templatePath)
-	if root == "" || path == "" {
-		return path
-	}
-	rel, err := filepath.Rel(root, path)
-	if err != nil || strings.HasPrefix(rel, "..") {
-		return path
-	}
-	return filepath.ToSlash(rel)
-}
-
-func stringifyParameters(values map[string]any) map[string]string {
-	if len(values) == 0 {
-		return map[string]string{}
-	}
-	keys := make([]string, 0, len(values))
-	for k := range values {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	out := make(map[string]string, len(values))
-	for _, key := range keys {
-		val := values[key]
-		out[key] = fmt.Sprint(val)
-	}
-	return out
-}
-
-func resolveGitMetadata(ctx context.Context, runner compose.CommandRunner, repoRoot string) (string, bool, error) {
-	commit, err := runGit(ctx, runner, repoRoot, "rev-parse", "HEAD")
-	if err != nil {
-		return "", false, err
-	}
-	out, err := runner.RunOutput(ctx, repoRoot, "git", "status", "--porcelain")
-	if err != nil {
-		return "", false, fmt.Errorf("git status failed: %w", err)
-	}
-	dirty := strings.TrimSpace(string(out)) != ""
-	return commit, dirty, nil
-}
-
-func hashFileSha256(path string) (string, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", fmt.Errorf("read template: %w", err)
-	}
-	sum := sha256.Sum256(data)
-	return hex.EncodeToString(sum[:]), nil
 }
 
 func dockerImagePlatform(

@@ -13,6 +13,7 @@
 - `OutputDir` / `Parameters` / `NoCache` / `Verbose`
 
 `deploy` の入力解決が完了すると、usecase がこのリクエストを組み立てて `infra/build` に渡します。
+`infra/build` はオーケストレーション専任で、生成処理本体は `infra/templategen` を呼び出します。
 
 ## 出力
 
@@ -31,15 +32,17 @@ sequenceDiagram
     participant CLI as esb deploy
     participant UC as Deploy Usecase
     participant Build as infra/build
+    participant TGen as infra/templategen
     participant SAM as infra/sam
     participant Tpl as domain/template
     participant Docker as Docker Buildx
 
     CLI->>UC: BuildRequest
     UC->>Build: Build()
-    Build->>SAM: ParseSAMTemplate
-    SAM-->>Build: ParseResult
-    Build->>Tpl: Render Dockerfile / config
+    Build->>TGen: GenerateFiles / WriteBundleManifest
+    TGen->>SAM: ParseSAMTemplate
+    SAM-->>TGen: ParseResult
+    TGen->>Tpl: Render Dockerfile / config
     Build->>Docker: buildx bake (base + functions)
     Build-->>UC: success
 ```
@@ -50,16 +53,16 @@ sequenceDiagram
    - `TemplatePath` を絶対パス化
    - `Parameters.Default` と CLI 入力値を統合（CLI が優先）
 
-2. **SAM 解析**
+2. **SAM 解析（`infra/templategen`）**
    - `infra/sam` で Intrinsic 解決
    - `FunctionSpec` と `manifest.ResourcesSpec` を生成
 
-3. **ステージング**
+3. **ステージング（`infra/templategen`）**
    - 関数コードを `functions/<name>/src` にコピー
    - Layer を `functions/<name>/layers/<layer>` へ展開
    - `sitecustomize.py` をコピー/リンク
 
-4. **設定ファイル生成**
+4. **設定ファイル生成（`infra/templategen`）**
    - `functions.yml` / `routing.yml` / `resources.yml` を出力
 
 5. **staging config への反映**

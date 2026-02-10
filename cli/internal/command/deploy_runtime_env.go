@@ -4,31 +4,18 @@
 package command
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
-	"sort"
 	"strings"
 
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/filters"
-	dockerclient "github.com/docker/docker/client"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/interaction"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
+	runtimeinfra "github.com/poruru/edge-serverless-box/cli/internal/infra/runtime"
 )
 
 var (
-	errEnvMismatch             = errors.New("environment mismatch")
-	errUnsupportedDockerClient = errors.New("unsupported docker client")
+	errEnvMismatch = errors.New("environment mismatch")
 )
-
-type envInference struct {
-	Env    string
-	Source string
-}
 
 func reconcileEnvWithRuntime(
 	choice envChoice,
@@ -36,13 +23,17 @@ func reconcileEnvWithRuntime(
 	templatePath string,
 	isTTY bool,
 	prompter interaction.Prompter,
+	resolver runtimeinfra.EnvResolver,
 	allowMismatch bool,
 ) (envChoice, error) {
 	if strings.TrimSpace(composeProject) == "" {
 		return choice, nil
 	}
+	if resolver == nil {
+		return choice, nil
+	}
 
-	inferred, err := inferEnvFromProject(composeProject, templatePath)
+	inferred, err := resolver.InferEnvFromProject(composeProject, templatePath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to infer running env: %v\n", err)
 	}
@@ -99,83 +90,11 @@ func reconcileEnvWithRuntime(
 	return choice, nil
 }
 
-func inferEnvFromProject(composeProject, templatePath string) (envInference, error) {
-	trimmed := strings.TrimSpace(composeProject)
-	if trimmed == "" {
-		return envInference{}, nil
-	}
-
-	var firstErr error
-	inferred, err := inferEnvFromRunningContainerLabels(trimmed)
-	if err != nil {
-		firstErr = err
-	}
-	if inferred.Env != "" {
-		return inferred, nil
-	}
-
-	inferred, err = inferEnvFromGateway(trimmed, templatePath)
-	if err != nil && firstErr == nil {
-		firstErr = err
-	}
-	if inferred.Env != "" {
-		return inferred, nil
-	}
-
-	inferred, err = inferEnvFromStaging(trimmed, templatePath)
-	if err != nil && firstErr == nil {
-		firstErr = err
-	}
-	if inferred.Env != "" {
-		return inferred, nil
-	}
-	return envInference{}, firstErr
-}
-
-func inferEnvFromRunningContainerLabels(composeProject string) (envInference, error) {
-	trimmed := strings.TrimSpace(composeProject)
-	if trimmed == "" {
-		return envInference{}, nil
-	}
-	client, err := compose.NewDockerClient()
-	if err != nil {
-		return envInference{}, fmt.Errorf("create docker client: %w", err)
-	}
-	ctx := context.Background()
-	filterArgs := filters.NewArgs()
-	filterArgs.Add("label", fmt.Sprintf("%s=%s", compose.ComposeProjectLabel, trimmed))
-	containers, err := client.ContainerList(ctx, container.ListOptions{All: false, Filters: filterArgs})
-	if err != nil {
-		return envInference{}, fmt.Errorf("list containers: %w", err)
-	}
-	return inferEnvFromContainerLabels(containers), nil
-}
-
-func inferEnvFromContainerLabels(containers []container.Summary) envInference {
-	envs := map[string]struct{}{}
-	for _, ctr := range containers {
-		if ctr.Labels == nil {
-			continue
-		}
-		env := strings.TrimSpace(ctr.Labels[compose.ESBEnvLabel])
-		if env == "" {
-			continue
-		}
-		envs[env] = struct{}{}
-		if len(envs) > 1 {
-			return envInference{}
-		}
-	}
-	if len(envs) != 1 {
-		return envInference{}
-	}
-	for env := range envs {
-		return envInference{Env: env, Source: "container label"}
-	}
-	return envInference{}
-}
-
-func promptEnvMismatch(current envChoice, inferred envInference, prompter interaction.Prompter) (string, error) {
+func promptEnvMismatch(
+	current envChoice,
+	inferred runtimeinfra.EnvInference,
+	prompter interaction.Prompter,
+) (string, error) {
 	title := fmt.Sprintf(
 		"Environment mismatch (running: %s, current: %s)",
 		inferred.Env,
@@ -198,7 +117,11 @@ func promptEnvMismatch(current envChoice, inferred envInference, prompter intera
 	return selected, nil
 }
 
-func applyEnvSelection(current envChoice, inferred envInference, selected string) envChoice {
+func applyEnvSelection(
+	current envChoice,
+	inferred runtimeinfra.EnvInference,
+	selected string,
+) envChoice {
 	if selected == inferred.Env {
 		return envChoice{
 			Value:    inferred.Env,
@@ -211,153 +134,4 @@ func applyEnvSelection(current envChoice, inferred envInference, selected string
 		current.Source = "prompt"
 	}
 	return current
-}
-
-func inferEnvFromGateway(composeProject, templatePath string) (envInference, error) {
-	trimmed := strings.TrimSpace(composeProject)
-	if trimmed == "" {
-		return envInference{}, nil
-	}
-	client, err := compose.NewDockerClient()
-	if err != nil {
-		return envInference{}, fmt.Errorf("create docker client: %w", err)
-	}
-	rawClient, ok := client.(*dockerclient.Client)
-	if !ok {
-		return envInference{}, errUnsupportedDockerClient
-	}
-
-	ctx := context.Background()
-	filterArgs := filters.NewArgs()
-	filterArgs.Add("label", fmt.Sprintf("%s=gateway", compose.ComposeServiceLabel))
-	filterArgs.Add("label", fmt.Sprintf("%s=%s", compose.ComposeProjectLabel, trimmed))
-	containers, err := rawClient.ContainerList(ctx, container.ListOptions{All: true, Filters: filterArgs})
-	if err != nil {
-		return envInference{}, fmt.Errorf("list containers: %w", err)
-	}
-	if len(containers) == 0 {
-		return envInference{}, nil
-	}
-	selected := containers[0]
-	for _, ctr := range containers {
-		if strings.EqualFold(ctr.State, "running") {
-			selected = ctr
-			break
-		}
-	}
-	inspect, err := rawClient.ContainerInspect(ctx, selected.ID)
-	if err != nil {
-		return envInference{}, fmt.Errorf("inspect container: %w", err)
-	}
-	envMap := envSliceToMap(inspect.Config.Env)
-	if env := strings.TrimSpace(envMap["ENV"]); env != "" {
-		return envInference{Env: env, Source: "gateway env"}, nil
-	}
-	rootDir, err := staging.RootDir(templatePath)
-	if err != nil {
-		return envInference{}, nil
-	}
-	for _, mount := range inspect.Mounts {
-		if mount.Destination != "/app/runtime-config" {
-			continue
-		}
-		if strings.EqualFold(string(mount.Type), "bind") && mount.Source != "" {
-			if env := inferEnvFromConfigPath(mount.Source, rootDir); env != "" {
-				return envInference{Env: env, Source: "gateway config mount"}, nil
-			}
-		}
-	}
-	return envInference{}, nil
-}
-
-func inferEnvFromConfigPath(path, rootDir string) string {
-	cleaned := filepath.Clean(strings.TrimSpace(path))
-	if cleaned == "" {
-		return ""
-	}
-	if filepath.Base(cleaned) != "config" {
-		return ""
-	}
-	if strings.TrimSpace(rootDir) == "" {
-		return ""
-	}
-	stagingRoot := filepath.Clean(rootDir) + string(filepath.Separator)
-	if !strings.HasPrefix(cleaned+string(filepath.Separator), stagingRoot) {
-		return ""
-	}
-	env := filepath.Base(filepath.Dir(cleaned))
-	if env == "" || env == "." || env == string(filepath.Separator) {
-		return ""
-	}
-	return env
-}
-
-func inferEnvFromStaging(composeProject, templatePath string) (envInference, error) {
-	trimmed := strings.TrimSpace(composeProject)
-	if trimmed == "" {
-		return envInference{}, nil
-	}
-	rootDir, err := staging.RootDir(templatePath)
-	if err != nil {
-		return envInference{}, err
-	}
-	envs, err := discoverStagingEnvs(rootDir, trimmed)
-	if err != nil {
-		return envInference{}, err
-	}
-	if len(envs) == 1 {
-		return envInference{Env: envs[0], Source: "staging"}, nil
-	}
-	return envInference{}, nil
-}
-
-func discoverStagingEnvs(rootDir, composeProject string) ([]string, error) {
-	baseDir := filepath.Join(rootDir, composeProject)
-	entries, err := os.ReadDir(baseDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("read staging dir: %w", err)
-	}
-	envs := make(map[string]struct{})
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		candidate := filepath.Join(baseDir, entry.Name(), "config")
-		if _, err := os.Stat(candidate); err == nil {
-			envs[entry.Name()] = struct{}{}
-		}
-	}
-
-	if len(envs) == 0 {
-		return nil, nil
-	}
-	out := make([]string, 0, len(envs))
-	for env := range envs {
-		out = append(out, env)
-	}
-	sort.Strings(out)
-	return out, nil
-}
-
-func envSliceToMap(env []string) map[string]string {
-	out := make(map[string]string, len(env))
-	for _, entry := range env {
-		if entry == "" {
-			continue
-		}
-		parts := strings.SplitN(entry, "=", 2)
-		key := strings.TrimSpace(parts[0])
-		if key == "" {
-			continue
-		}
-		value := ""
-		if len(parts) > 1 {
-			value = parts[1]
-		}
-		out[key] = value
-	}
-	return out
 }

@@ -42,7 +42,7 @@ deploy 実行時に内部ビルドが走り、以下の順序でビルドが行�
 
 ```mermaid
 flowchart LR
-    A[esb deploy] --> B[SAM template(s) パース]
+    A[esb deploy] --> B[SAM template パース]
     B --> C[設定ファイル生成]
     C --> D[ベースイメージビルド]
     D --> E[Lambda関数イメージビルド]
@@ -68,7 +68,7 @@ runtime/python/
 
 ### Lambda関数イメージ
 
-**ソース**: Generator により自動生成
+**ソース**: `cli/internal/infra/templategen` により自動生成
 
 生成される Dockerfile（`CONTAINER_REGISTRY` 設定時はプレフィックス付き、未設定時はローカルイメージ名を使用）:
 ```dockerfile
@@ -206,4 +206,5 @@ python tools/image-import/import_images.py .<brand>/<env>/config/image-import.js
 
 ## Implementation references
 - `cli/internal/infra/build`
+- `cli/internal/infra/templategen`
 - `runtime/python`

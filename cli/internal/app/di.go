@@ -16,6 +16,7 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/interaction"
+	runtimeinfra "github.com/poruru/edge-serverless-box/cli/internal/infra/runtime"
 )
 
 // Stdout is the writer used for CLI output (used by app.Dependencies).
@@ -62,7 +63,8 @@ func BuildDependencies(_ []string) (command.Dependencies, io.Closer, error) {
 		Prompter:     interaction.HuhPrompter{},
 		RepoResolver: config.ResolveRepoRoot,
 		Deploy: command.DeployDeps{
-			Build: builder.Build,
+			Build:              builder.Build,
+			RuntimeEnvResolver: runtimeinfra.NewEnvResolver(),
 		},
 	}
 

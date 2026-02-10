@@ -11,6 +11,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/interaction"
+	runtimeinfra "github.com/poruru/edge-serverless-box/cli/internal/infra/runtime"
 )
 
 func TestInferEnvFromContainerLabels(t *testing.T) {
@@ -18,7 +19,7 @@ func TestInferEnvFromContainerLabels(t *testing.T) {
 		containers := []container.Summary{
 			{Labels: map[string]string{compose.ESBEnvLabel: "dev"}},
 		}
-		got := inferEnvFromContainerLabels(containers)
+		got := runtimeinfra.InferEnvFromContainerLabels(containers)
 		if got.Env != "dev" {
 			t.Fatalf("expected env 'dev', got %q", got.Env)
 		}
@@ -32,7 +33,7 @@ func TestInferEnvFromContainerLabels(t *testing.T) {
 			{Labels: map[string]string{compose.ESBEnvLabel: "dev"}},
 			{Labels: map[string]string{compose.ESBEnvLabel: "prod"}},
 		}
-		got := inferEnvFromContainerLabels(containers)
+		got := runtimeinfra.InferEnvFromContainerLabels(containers)
 		if got.Env != "" {
 			t.Fatalf("expected empty env, got %q", got.Env)
 		}
@@ -42,7 +43,7 @@ func TestInferEnvFromContainerLabels(t *testing.T) {
 		containers := []container.Summary{
 			{Labels: map[string]string{}},
 		}
-		got := inferEnvFromContainerLabels(containers)
+		got := runtimeinfra.InferEnvFromContainerLabels(containers)
 		if got.Env != "" {
 			t.Fatalf("expected empty env, got %q", got.Env)
 		}

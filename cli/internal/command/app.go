@@ -15,6 +15,7 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/build"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/interaction"
+	runtimeinfra "github.com/poruru/edge-serverless-box/cli/internal/infra/runtime"
 	"github.com/poruru/edge-serverless-box/cli/internal/version"
 )
 
@@ -61,8 +62,9 @@ type (
 	VersionCmd struct{}
 
 	DeployDeps struct {
-		Build           func(build.BuildRequest) error
-		ApplyRuntimeEnv func(state.Context) error
+		Build              func(build.BuildRequest) error
+		ApplyRuntimeEnv    func(state.Context) error
+		RuntimeEnvResolver runtimeinfra.EnvResolver
 	}
 )
 

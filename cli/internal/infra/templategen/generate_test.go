@@ -1,7 +1,7 @@
-// Where: cli/internal/infra/build/generate_test.go
+// Where: cli/internal/infra/templategen/generate_test.go
 // What: Tests for GenerateFiles staging/output behavior.
 // Why: Validate file generation and parser injection.
-package build
+package templategen
 
 import (
 	"archive/zip"

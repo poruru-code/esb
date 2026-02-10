@@ -7,9 +7,9 @@ Why: Document the CLI pipeline as source-of-truth for build artifacts.
 
 ## 概要
 
-`cli/internal/infra/build` は、AWS SAM テンプレート (`template.yaml`) を解析し、本基盤上で
+`cli/internal/infra/templategen` は、AWS SAM テンプレート (`template.yaml`) を解析し、本基盤上で
 実行可能な設定ファイルと Docker アーティファクトを生成する中核コンポーネントです。`esb` CLI は deploy 実行時に
-このビルドパイプラインを呼び出し、SAM テンプレートを "Single Source of Truth" として扱えるワークフローを提供します。
+`infra/build` から `infra/templategen` を呼び出し、SAM テンプレートを "Single Source of Truth" として扱えるワークフローを提供します。
 
 ## アーキテクチャ構成
 
@@ -17,9 +17,10 @@ Why: Document the CLI pipeline as source-of-truth for build artifacts.
 flowchart TD
     User["Developer"] -->|"esb deploy"| CLI["CLI (`cli/cmd/esb`)"]
 
-    CLI --> Build["Build Pipeline (`cli/internal/infra/build`)"]
-    Build --> Parser["Parser (`cli/internal/infra/sam/template_parser.go`)"]
-    Build --> Renderer["Renderer (`cli/internal/domain/template/renderer.go`)"]
+    CLI --> Build["Orchestrator (`cli/internal/infra/build`)"]
+    Build --> Gen["Template Generator (`cli/internal/infra/templategen`)"]
+    Gen --> Parser["Parser (`cli/internal/infra/sam/template_parser.go`)"]
+    Gen --> Renderer["Renderer (`cli/internal/domain/template/renderer.go`)"]
 
     SAM["template.yaml"] -.->|Read| Parser
 
@@ -50,7 +51,7 @@ flowchart TD
 ### ビルドフェーズ（deploy 内部）
 
 #### Phase 1: 設定生成
-`template_parser.go` が `template.yaml` を読み、最終的な `functions.yml`, `routing.yml` を `output_dir/config/` に書き出します。
+`infra/templategen` が `template_parser.go` を使って `template.yaml` を読み、最終的な `functions.yml`, `routing.yml` を `output_dir/config/` に書き出します。
 
 **出力例 (`routing.yml`)**:
 ```yaml
@@ -86,6 +87,7 @@ Lambda RIE は `X-Amzn-Trace-Id` ヘッダーを環境変数に変換しませ�
 ---
 
 ## Implementation references
+- `cli/internal/infra/templategen`
 - `cli/internal/infra/build`
 - `cli/internal/infra/sam`
 - `cli/internal/domain/template`

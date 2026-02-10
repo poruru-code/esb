@@ -1,7 +1,7 @@
-// Where: cli/internal/infra/build/image_import_test.go
+// Where: cli/internal/infra/templategen/image_import_test.go
 // What: Tests for image source normalization and import manifest generation.
 // Why: Keep image ref mapping deterministic across deploys.
-package build
+package templategen
 
 import (
 	"testing"

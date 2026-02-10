@@ -1,7 +1,7 @@
-// Where: cli/internal/infra/build/stage_java_env_test.go
+// Where: cli/internal/infra/templategen/stage_java_env_test.go
 // What: Tests for Java Maven proxy contract in deploy-time build path.
 // Why: Keep Go implementation aligned with Python via shared case vectors.
-package build
+package templategen
 
 import (
 	"encoding/json"
