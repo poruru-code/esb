@@ -12,6 +12,7 @@ Why: Keep /docs focused on overall architecture and link to subsystem docs.
 - [ランタイムモード概要（Docker / containerd）](./architecture-containerd.md)
 - [構成の伝播（概念）](./environment-variables.md)
 - [E2E Runtime Smoke 設計](./e2e-runtime-smoke.md)
+- [CycloneDX SBOM 運用](./sbom-cyclonedx.md)
 
 ## Subsystem Docs
 ### Gateway
@@ -54,4 +55,5 @@ Why: Keep /docs focused on overall architecture and link to subsystem docs.
 - `docs/spec.md`
 - `docs/architecture-containerd.md`
 - `docs/e2e-runtime-smoke.md`
+- `docs/sbom-cyclonedx.md`
 - `e2e/runner/README.md`

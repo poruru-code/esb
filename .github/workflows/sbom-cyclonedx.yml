@@ -1,0 +1,107 @@
+# Where: .github/workflows/sbom-cyclonedx.yml
+# What: Generate and publish CycloneDX SBOM artifacts for production manifests.
+# Why: Keep SBOM generation automated and maintainable across PR, main, and releases.
+
+name: sbom-cyclonedx
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+  release:
+    types:
+      - published
+
+jobs:
+  generate-sbom:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.1"
+          cache: true
+          cache-dependency-path: |
+            cli/go.sum
+            services/agent/go.sum
+            runtime/go.sum
+            meta/go.sum
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Ensure Maven
+        run: |
+          set -euo pipefail
+          if command -v mvn >/dev/null 2>&1; then
+            mvn -version
+            exit 0
+          fi
+
+          if command -v sudo >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y maven
+          else
+            apt-get update
+            apt-get install -y maven
+          fi
+
+          mvn -version
+
+      - name: Load SBOM tool versions
+        run: |
+          set -euo pipefail
+          source tools/ci/sbom-tool-versions.env
+          echo "CYCLONEDX_GOMOD_VERSION=${CYCLONEDX_GOMOD_VERSION}" >> "$GITHUB_ENV"
+          echo "CYCLONEDX_MAVEN_PLUGIN_VERSION=${CYCLONEDX_MAVEN_PLUGIN_VERSION}" >> "$GITHUB_ENV"
+
+      - name: Install cyclonedx-gomod
+        run: |
+          set -euo pipefail
+          go install "github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@${CYCLONEDX_GOMOD_VERSION}"
+          echo "${HOME}/go/bin" >> "$GITHUB_PATH"
+
+      - name: Generate CycloneDX SBOM
+        run: |
+          uv run python tools/ci/generate_cyclonedx_sbom.py \
+            --output-dir sbom \
+            --schema-version 1.5 \
+            --strict
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cyclonedx-sbom-${{ github.sha }}
+          path: sbom/
+          if-no-files-found: error
+
+      - name: Publish SBOM assets to release
+        if: github.event_name == 'release' && github.event.action == 'published'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            sbom/*
+          fail_on_unmatched_files: true

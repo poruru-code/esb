@@ -1,0 +1,35 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "enabledManagers": ["github-actions", "gomod", "maven", "pep621", "custom.regex"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Track CycloneDX Go module SBOM tool version",
+      "fileMatch": ["^tools/ci/sbom-tool-versions\\.env$"],
+      "matchStrings": ["CYCLONEDX_GOMOD_VERSION=(?<currentValue>[^\\n]+)"],
+      "depNameTemplate": "CycloneDX/cyclonedx-gomod",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "semver-coerced"
+    },
+    {
+      "customType": "regex",
+      "description": "Track CycloneDX Maven plugin version",
+      "fileMatch": ["^tools/ci/sbom-tool-versions\\.env$"],
+      "matchStrings": ["CYCLONEDX_MAVEN_PLUGIN_VERSION=(?<currentValue>[^\\n]+)"],
+      "depNameTemplate": "org.cyclonedx:cyclonedx-maven-plugin",
+      "datasourceTemplate": "maven",
+      "versioningTemplate": "maven"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Group CycloneDX toolchain updates into one PR",
+      "matchDepNames": [
+        "CycloneDX/cyclonedx-gomod",
+        "org.cyclonedx:cyclonedx-maven-plugin"
+      ],
+      "groupName": "cyclonedx-toolchain"
+    }
+  ]
+}
