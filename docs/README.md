@@ -34,6 +34,15 @@ Why: Keep /docs focused on overall architecture and link to subsystem docs.
 ### E2E Runner
 - [e2e/runner/README.md](../e2e/runner/README.md)
 
+## CI Required Checks
+- `quality-gates / python-static`
+- `quality-gates / go-lint-agent`
+- `quality-gates / go-lint-cli`
+
+## 現在サイクルのスコープ
+- 本サイクルは品質ゲート強化（Lint/Type/CI）と設定不整合修正のみを対象とする
+- `deploy.go` / `main.go` / `server.go` の大規模分割は対象外（別Issueで追跡）
+
 ## ドキュメントのルール
 - 図は Mermaid を使用する
 - 各ページ末尾に **Implementation references** を置く

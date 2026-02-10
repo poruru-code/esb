@@ -40,7 +40,10 @@ DEFAULT_NO_PROXY_TARGETS = (
 )
 DEFAULT_COMMAND = ["uv", "run", "e2e/run_tests.py", "--parallel", "--verbose"]
 CHECK_URL = "https://repo.maven.apache.org/maven2/"
-JAVA_PROXY_PROOF_IMAGE = "public.ecr.aws/sam/build-java21@sha256:5f78d6d9124e54e5a7a9941ef179d74d88b7a5b117526ea8574137e5403b51b7"
+JAVA_PROXY_PROOF_IMAGE = (
+    "public.ecr.aws/sam/build-java21"
+    "@sha256:5f78d6d9124e54e5a7a9941ef179d74d88b7a5b117526ea8574137e5403b51b7"
+)
 JAVA_PROXY_PROOF_PROJECT = Path("e2e/fixtures/functions/java/echo")
 JAVA_PROXY_PROOF_SETTINGS_PATH = "/tmp/m2/settings.xml"
 JAVA_PROXY_PROOF_COMMAND = (

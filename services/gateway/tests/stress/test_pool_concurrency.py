@@ -103,7 +103,7 @@ async def test_container_pool_provision_failure_notification():
     async def acquire_a():
         try:
             await pool.acquire(failing_provision)
-        except:
+        except RuntimeError:
             pass
 
     task_a = asyncio.create_task(acquire_a())
