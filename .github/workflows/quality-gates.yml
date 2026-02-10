@@ -1,0 +1,80 @@
+# Where: .github/workflows/quality-gates.yml
+# What: Run required static quality gates for Python and Go.
+# Why: Prevent lint/type regressions from merging.
+
+name: quality-gates
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  python-static:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --extra dev --frozen
+
+      - name: Ruff check
+        run: uv run ruff check .
+
+      - name: Ty check
+        run: uv run ty check
+
+  go-lint-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.1"
+          cache: true
+          cache-dependency-path: services/agent/go.sum
+
+      - name: Run golangci-lint (agent)
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.64.8
+          install-mode: goinstall
+          working-directory: services/agent
+          args: ./...
+
+  go-lint-cli:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.1"
+          cache: true
+          cache-dependency-path: cli/go.sum
+
+      - name: Run golangci-lint (cli)
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.64.8
+          install-mode: goinstall
+          working-directory: cli
+          args: ./...
