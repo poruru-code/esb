@@ -7,29 +7,34 @@ import com.runtime.agent.aws.CloudWatchLogsMock;
 import com.runtime.agent.aws.CloudWatchLogsRequestGuard;
 import java.lang.reflect.Method;
 import net.bytebuddy.asm.Advice;
+import net.bytebuddy.implementation.bytecode.assign.Assigner;
 
 public final class CloudWatchLogsAdvice {
     private CloudWatchLogsAdvice() {}
 
     @Advice.OnMethodEnter(skipOn = Advice.OnNonDefaultValue.class)
-    public static Object onEnter(
+    public static boolean onEnter(
             @Advice.Origin Method method,
-            @Advice.AllArguments Object[] args
+            @Advice.AllArguments Object[] args,
+            @Advice.Local("mockResponse") Object mockResponse
     ) {
         Object request = (args != null && args.length > 0) ? args[0] : null;
         if (!CloudWatchLogsRequestGuard.isSupported(method, request)) {
-            return null;
+            mockResponse = null;
+            return false;
         }
-        return CloudWatchLogsMock.handle(method, request);
+        mockResponse = CloudWatchLogsMock.handle(method, request);
+        return true;
     }
 
     @Advice.OnMethodExit
     public static void onExit(
-            @Advice.Enter Object response,
-            @Advice.Return(readOnly = false) Object returned
+            @Advice.Enter boolean intercepted,
+            @Advice.Local("mockResponse") Object mockResponse,
+            @Advice.Return(readOnly = false, typing = Assigner.Typing.DYNAMIC) Object returned
     ) {
-        if (response != null) {
-            returned = response;
+        if (intercepted) {
+            returned = mockResponse;
         }
     }
 }
