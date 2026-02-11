@@ -1,7 +1,7 @@
 <!--
-Where: cli/docs/local-logging-adapter.md
-What: Direct logging adapter design via sitecustomize.py.
-Why: Document log forwarding behavior for Lambda runtime images.
+Where: docs/local-logging-adapter.md
+What: Direct logging adapter design via sitecustomize.py and javaagent.
+Why: Document platform-wide log forwarding behavior for runtime images.
 -->
 # 透過的ロギングアダプター設計 (Direct Logging)
 
@@ -21,21 +21,21 @@ flowchart TD
         UserCode[Lambda Function]
         Print["print() / sys.stdout"]
         Logging["logging.getLogger()"]
-        
+
         subgraph Sitecustomize ["sitecustomize.py"]
             Hook[VictoriaLogsStdoutHook]
             Handler[VictoriaLogsHandler]
         end
     end
-    
+
     VL[VictoriaLogs]
-    
+
     UserCode -->|print| Print
     UserCode -->|log| Logging
-    
+
     Print --> Hook
     Logging --> Handler
-    
+
     Hook -->|POST /insert/jsonline| VL
     Handler -.->|delegates to| Hook
 ```

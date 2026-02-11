@@ -59,7 +59,8 @@ Lambda RIE コンテナは **Agent (gRPC)** によって動的に管理されま
 - **アイドル停止**: 一定時間（デフォルト: 5分）リクエストがないコンテナは Gateway の Janitor が削除します。
 - **Image 関数は deploy 時 prewarm 必須**: `esb deploy --image-prewarm=all` で内部レジストリ投入後に実行します。
 
-詳細は [cli/docs/container-management.md](../../../cli/docs/container-management.md) と
+詳細は [docs/container-runtime-operations.md](../../../docs/container-runtime-operations.md) と
+[cli/docs/container-management.md](../../../cli/docs/container-management.md) および
 [services/agent/docs/architecture.md](../../agent/docs/architecture.md) を参照してください。
 
 ---

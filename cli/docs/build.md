@@ -1,107 +1,82 @@
+<!--
+Where: cli/docs/build.md
+What: Build pipeline behavior and extension rules for deploy.
+Why: Keep build-phase implementation and developer changes aligned.
+-->
 # ビルドパイプライン（deploy 内部）
 
 ## 概要
-`esb deploy` は内部でビルドパイプラインを実行します。SAM テンプレートを解析し、
-`functions.yml` / `routing.yml` / `resources.yml` と各関数の Dockerfile を生成した上で、
-**関数イメージのみ**をビルドします（コントロールプレーンは Docker Compose 側でビルド）。
+`esb deploy` は `cli/internal/infra/build` の `GoBuilder` を通して、次を順に実行します。
 
-## 入力
+1. 生成（templategen）
+2. base image build
+3. function image build
+4. staging config merge
+5. （任意）bundle manifest 出力
 
-ビルド処理は `build.BuildRequest` で駆動されます。主なフィールド:
-- `TemplatePath` / `ProjectDir`
-- `Env` / `Mode` / `Tag`
-- `OutputDir` / `Parameters` / `NoCache` / `Verbose`
+`control-plane` イメージ（gateway/agent/provisioner/runtime-node）は deploy では直接ビルドしません（`docker compose` 側で管理）。
 
-`deploy` の入力解決が完了すると、usecase がこのリクエストを組み立てて `infra/build` に渡します。
-`infra/build` はオーケストレーション専任で、生成処理本体は `infra/templategen` を呼び出します。
+## 主要コンポーネント
+- オーケストレーション: `cli/internal/infra/build/go_builder.go`
+- フェーズ進捗表示: `cli/internal/infra/build/go_builder_phase.go`
+- テンプレート生成: `cli/internal/infra/templategen/generate.go`
+- buildx 実行: `cli/internal/infra/build/bake_exec.go`
+- staging merge: `cli/internal/infra/build/merge_config_entry.go`
 
-## 出力
-
-- `functions.yml` / `routing.yml` / `resources.yml`
-- 各関数の `Dockerfile`
-- 関数ごとのビルドコンテキスト (`functions/<name>/...`)
-
-デフォルトの出力先は以下です:
-- `<template_dir>/.<brand>/<env>/...`
-- `--output` 指定時は `<template_dir>/<output>/<env>/...`
-
-## ビルドフロー
+## 実行フロー
 
 ```mermaid
 sequenceDiagram
-    participant CLI as esb deploy
-    participant UC as Deploy Usecase
-    participant Build as infra/build
-    participant TGen as infra/templategen
-    participant SAM as infra/sam
-    participant Tpl as domain/template
-    participant Docker as Docker Buildx
+    participant UC as usecase/deploy
+    participant B as infra/build.GoBuilder
+    participant G as infra/templategen
+    participant S as infra/sam
+    participant DX as docker buildx
 
-    CLI->>UC: BuildRequest
-    UC->>Build: Build()
-    Build->>TGen: GenerateFiles / WriteBundleManifest
-    TGen->>SAM: ParseSAMTemplate
-    SAM-->>TGen: ParseResult
-    TGen->>Tpl: Render Dockerfile / config
-    Build->>Docker: buildx bake (base + functions)
-    Build-->>UC: success
+    UC->>B: Build(request)
+    B->>G: GenerateFiles(...)
+    G->>S: Parse(content, parameters)
+    S-->>G: ParseResult
+    B->>DX: bake base-images
+    B->>DX: bake function images
+    B->>B: merge staging config
+    B-->>UC: success/error
 ```
 
-## 詳細ステップ
+## 入力契約（抜粋）
+`build.BuildRequest` の重要項目:
 
-1. **テンプレート解決**
-   - `TemplatePath` を絶対パス化
-   - `Parameters.Default` と CLI 入力値を統合（CLI が優先）
+- `ProjectDir`, `ProjectName`
+- `TemplatePath`, `OutputDir`
+- `Env`, `Mode`, `Tag`
+- `Parameters`
+- `NoCache`, `Verbose`, `Bundle`, `Emoji`
 
-2. **SAM 解析（`infra/templategen`）**
-   - `infra/sam` で Intrinsic 解決
-   - `FunctionSpec` と `manifest.ResourcesSpec` を生成
+## 失敗契約
+- 必須入力不足（`TemplatePath`, `Env`, `Mode`, `Tag`）は即時エラー
+- generator/buildx/merge の失敗は deploy 全体を失敗として返却
+- `Bundle=true` かつ writer 未注入はエラー
 
-3. **ステージング（`infra/templategen`）**
-   - 関数コードを `functions/<name>/src` にコピー
-   - Layer を `functions/<name>/layers/<layer>` へ展開
-   - `sitecustomize.py` をコピー/リンク
+## 拡張ポイント
 
-4. **設定ファイル生成（`infra/templategen`）**
-   - `functions.yml` / `routing.yml` / `resources.yml` を出力
+### 1. 新しい base image ターゲットを追加
+1. `docker-bake.hcl` に target/group を追加
+2. `cli/internal/infra/build/go_builder_base_images.go` に組み込む
+3. 必要なら fingerprint/label 管理を更新
+4. テスト: `cli/internal/infra/build/go_builder_test.go`
 
-5. **staging config への反映**
-   - `<repo_root>/.<brand>/staging/<compose_project>/<env>/config` にマージ
-   - `.deploy.lock` で排他制御
-   - 旧 `<template_dir>/.<brand>/staging` は参照しない（アップデート後は再 deploy が必要）
+### 2. 関数イメージ build 条件を変更
+1. `cli/internal/infra/build/go_builder_functions.go` を更新
+2. `template.FunctionSpec` の解釈（`ImageSource` など）を確認
+3. テスト: `cli/internal/infra/build/go_builder_test.go`
 
-6. **ベースイメージのビルド**
-   - `esb-lambda-base` / `esb-os-base` / `esb-python-base`
-   - 既存イメージが最新の場合はスキップ
-   - Java ランタイムは AWS Lambda Java ベースイメージを使用（独自ベースのビルドなし）
+### 3. merge 対象ファイルを追加
+1. `cli/internal/infra/build/merge_config_yaml.go` または `merge_config_image_import.go` を更新
+2. `runtime_config.go` 側の同期対象も必要なら更新
+3. テスト: `cli/internal/infra/build/merge_config_test.go`
 
-7. **関数イメージのビルド**
-   - 画像名は関数名から Docker 安全名へ正規化
-   - 画像フィンガープリントが一致する場合はスキップ
-   - Java の `Handler` は `lambda-java-wrapper.jar` に差し替えられ、元の Handler は `LAMBDA_ORIGINAL_HANDLER` に保存されます
-   - Java では `lambda-java-agent.jar` を `JAVA_TOOL_OPTIONS` で注入し、AWS SDK の挙動変更とログ送信を行います
+## 変更時の最小テスト
 
-## イメージ命名規則
-
-- ベース: `esb-lambda-base:<tag>` / `esb-os-base:latest` / `esb-python-base:latest`
-- 関数: `esb-<sanitized-function-name>:<tag>`
-
-`sanitized-function-name` は英小文字/数字/`._-` のみを許容し、
-それ以外は `-` に変換します。衝突した場合はエラーで停止します。
-
-## レジストリの扱い
-
-- 実行時のレジストリは `CONTAINER_REGISTRY` を参照
-- ホスト側の待機には `HOST_REGISTRY_ADDR` / `PORT_REGISTRY` を使用
-- `ESB_REGISTRY_WAIT=0` でレジストリ待機を無効化可能
-
-## ZIP レイヤ展開の安全性
-
-Layer の ZIP 展開には以下の安全対策があります:
-- **パストラバーサル防止**: 展開先が `layer cache` 配下であることを検証
-- **サイズ上限**: 1 エントリあたり **200 MiB** を超える場合はエラー
-
-## 付記
-- deploy は **関数イメージのみ**をビルドします。
-- Control-plane（Gateway/Agent/Provisioner/Runtime Node）は Docker Compose 側でビルドされます。
-- `BuildRequest.Bundle=true` の場合、bundle 用 manifest を生成します（内部用途）。
+```bash
+cd cli && go test ./internal/infra/build ./internal/infra/templategen ./internal/usecase/deploy -count=1
+```

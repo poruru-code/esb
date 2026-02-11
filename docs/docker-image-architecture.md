@@ -1,7 +1,7 @@
 <!--
-Where: cli/docs/docker-architecture.md
-What: Image design principles and build pipeline structure.
-Why: Capture base image strategy and build constraints.
+Where: docs/docker-image-architecture.md
+What: System-wide Docker image design principles and build pipeline structure.
+Why: Keep platform-level image architecture outside CLI-local docs.
 -->
 # Docker イメージ設計アーキテクチャ
 

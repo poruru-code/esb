@@ -1,7 +1,7 @@
 <!--
-Where: cli/docs/trace-propagation.md
+Where: docs/trace-propagation.md
 What: Trace propagation via X-Amzn-Trace-Id and ClientContext.
-Why: Explain runtime hooks and Gateway propagation logic.
+Why: Explain system-wide runtime hooks and Gateway propagation logic.
 -->
 # X-Amzn-Trace-Id によるトレーシング
 
@@ -36,8 +36,8 @@ Gateway はリクエストごとにユニークな `Request ID` (UUID) を生成
 - **クライアントへの返却**: レスポンスヘッダ `x-amzn-RequestId` に含まれます。
 - **ログ**: Gateway の構造化ログには `aws_request_id` フィールドとして記録されます。
 - **Lambda への伝播**:
-    - `event.requestContext.requestId`: Gateway が生成した ID が格納されます。
-    - `context.aws_request_id`: Lambda RIE が生成する実行 ID です（**Gateway の ID とは異なる場合があります**）。
+  - `event.requestContext.requestId`: Gateway が生成した ID が格納されます。
+  - `context.aws_request_id`: Lambda RIE が生成する実行 ID です（**Gateway の ID とは異なる場合があります**）。
 
 ## トレース伝播フロー
 
@@ -50,20 +50,20 @@ sequenceDiagram
     participant LambdaB as Lambda B (RIE)
 
     Client->>Gateway: POST /api/xxx<br/>X-Amzn-Trace-Id: Root=1-xxx
-    
+
     Note over Gateway: 1. Middleware でパース<br/>2. ContextVar に保存
-    
+
     Gateway->>Agent: EnsureContainer (gRPC)
     Agent-->>Gateway: WorkerInfo (ip:port)
-    
+
     Gateway->>LambdaA: POST /invocations<br/>X-Amzn-Trace-Id: Root=1-xxx<br/>X-Amz-Client-Context: base64({custom:{trace_id:...}})
-    
+
     Note over LambdaA: sitecustomize.py が<br/>自動的に ClientContext から<br/>復元し _X_AMZN_TRACE_ID にセット
-    
+
     LambdaA->>LambdaB: boto3.invoke()<br/>※sitecustomize.py が<br/>ClientContext に自動注入
-    
+
     Note over LambdaB: 同様に trace_id を復元
-    
+
     LambdaB-->>LambdaA: Response
     LambdaA-->>Gateway: Response
     Gateway-->>Client: Response<br/>X-Amzn-Trace-Id: Root=1-xxx
@@ -80,19 +80,19 @@ sequenceDiagram
 async def request_id_middleware(request: Request, call_next):
     # ヘッダーから Trace ID を取得または新規生成
     trace_id_str = request.headers.get("X-Amzn-Trace-Id")
-    
+
     if trace_id_str:
         set_trace_id(trace_id_str)  # パースして ContextVar に保存
     else:
         trace = TraceId.generate()
         trace_id_str = str(trace)
         set_trace_id(trace_id_str)
-    
+
     response = await call_next(request)
-    
+
     # レスポンスヘッダーに付与
     response.headers["X-Amzn-Trace-Id"] = trace_id_str
-    
+
     clear_trace_id()  # リクエスト終了時にクリア
     return response
 ```
@@ -138,11 +138,11 @@ def set_trace_id(trace_id_str: str) -> str:
 ```python
 async def do_post():
     headers = {"Content-Type": "application/json"}
-    
+
     if trace_id:
         # HTTP ヘッダーとして伝播
         headers["X-Amzn-Trace-Id"] = trace_id
-        
+
         # RIE 対策: ClientContext に埋め込む
         client_context = {"custom": {"trace_id": trace_id}}
         json_ctx = json.dumps(client_context)
@@ -156,8 +156,6 @@ async def do_post():
 - ClientContext は Base64 エンコードされた JSON
 
 ---
-
-
 
 ### 4. sitecustomize.py (自動注入・自動復元)
 
@@ -178,14 +176,14 @@ def _inject_client_context_hook(params, **kwargs):
     trace_id = _get_current_trace_id()  # 環境変数から取得
     if not trace_id:
         return
-    
+
     ctx_data = {}
     if "ClientContext" in params:
         ctx_data = json.loads(base64.b64decode(params["ClientContext"]))
-    
+
     if "custom" not in ctx_data:
         ctx_data["custom"] = {}
-    
+
     if "trace_id" not in ctx_data["custom"]:
         ctx_data["custom"]["trace_id"] = trace_id
         params["ClientContext"] = base64.b64encode(
@@ -256,7 +254,6 @@ class CustomJsonFormatter(logging.Formatter):
 
 **解決策**:
 Dockerfileで `sitecustomize.py` が正しくコピーされているか、また環境変数 `PYTHONPATH` が正しく設定されているか確認してください。本基盤標準のベースイメージを使用していれば自動的に設定されます。
-```
 
 ### Lambda 連鎖呼び出しで Trace ID が途切れる
 

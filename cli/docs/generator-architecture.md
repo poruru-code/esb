@@ -1,93 +1,70 @@
 <!--
 Where: cli/docs/generator-architecture.md
-What: Build pipeline architecture for SAM -> config/Dockerfile generation.
-Why: Document the CLI pipeline as source-of-truth for build artifacts.
+What: Template generator architecture for deploy artifacts.
+Why: Explain parse/stage/render boundaries and safe extension paths.
 -->
-# Build Pipeline Architecture
+# Generator アーキテクチャ
 
 ## 概要
+`cli/internal/infra/templategen` は、SAM テンプレートから deploy 用アーティファクトを生成します。
 
-`cli/internal/infra/templategen` は、AWS SAM テンプレート (`template.yaml`) を解析し、本基盤上で
-実行可能な設定ファイルと Docker アーティファクトを生成する中核コンポーネントです。`esb` CLI は deploy 実行時に
-`infra/build` から `infra/templategen` を呼び出し、SAM テンプレートを "Single Source of Truth" として扱えるワークフローを提供します。
+- `functions.yml`
+- `routing.yml`
+- `resources.yml`
+- `image-import.json`
+- 各関数の build context / Dockerfile
 
-## アーキテクチャ構成
+## 役割分担
+- 入口: `cli/internal/infra/templategen/generate.go`
+- SAM 解析: `cli/internal/infra/sam/template_parser.go`
+- 関数 staging: `cli/internal/infra/templategen/stage.go`
+- layer staging: `cli/internal/infra/templategen/stage_layers.go`
+- Java runtime 補助: `cli/internal/infra/templategen/stage_java_runtime.go`
+- manifest 出力: `cli/internal/infra/templategen/bundle_manifest.go`
+
+## パイプライン
 
 ```mermaid
 flowchart TD
-    User["Developer"] -->|"esb deploy"| CLI["CLI (`cli/cmd/esb`)"]
-
-    CLI --> Build["Orchestrator (`cli/internal/infra/build`)"]
-    Build --> Gen["Template Generator (`cli/internal/infra/templategen`)"]
-    Gen --> Parser["Parser (`cli/internal/infra/sam/template_parser.go`)"]
-    Gen --> Renderer["Renderer (`cli/internal/domain/template/renderer.go`)"]
-
-    SAM["template.yaml"] -.->|Read| Parser
-
-    Parser --> Routing["routing.yml"]
-    Parser --> Functions["functions.yml"]
-
-    Renderer --> Dockerfiles["Dockerfiles (`runtime/python/docker/Dockerfile` → `Dockerfile`)"]
-    Renderer --> RuntimeHooks["Runtime Extensions (`runtime/python/extensions/sitecustomize/site-packages/` + viewer hooks)"]
+    A[template.yaml] --> B[ParseSAMTemplate]
+    B --> C[FunctionSpec / ResourcesSpec]
+    C --> D[stageFunction]
+    D --> E[RenderDockerfile]
+    E --> F[write functions.yml / routing.yml / resources.yml]
+    F --> G[write image-import.json]
 ```
 
-### コンポーネント
+## 生成上のルール
+- `ImageSource` を持つ関数は Dockerfile 生成対象外（runtime pull 前提）
+- 関数名は `template.ApplyImageNames` で正規化
+- warnings は `stderr` 系出力へ集約
+- 出力先は `<output>/<env>` 配下で完結
 
-1. **CLI (`cli/cmd/esb`)**
-   `esb` CLI がユーザーインターフェースを提供し、deploy を通じてビルドパイプラインと Docker ビルドをオーケストレートします。
+## 拡張プレイブック
 
-2. **Parser (`cli/internal/infra/sam/template_parser.go`) → Phase 1**
-   SAM テンプレートを解析し、中間設定ファイル（`routing.yml`, `functions.yml`）を組み立てます。主な役割は以下です：
-   - `AWS::Serverless::Function` リソースの抽出
-   - `Events` プロパティから API ルーティング情報の抽出
-   - `ReservedConcurrentExecutions` や `ProvisionedConcurrencyConfig` などからスケーリング設定の取り出し
-   - `Globals.Function` の環境変数/ランタイム/アーキテクチャの適用
+### 1. 新しい関数属性を扱う
+1. `cli/internal/infra/sam/template_functions_*.go` で抽出
+2. `cli/internal/domain/template/types.go` に必要な型を追加
+3. `generate.go` / renderer に反映
+4. テスト:
+   - `cli/internal/infra/sam/template_functions_test.go`
+   - `cli/internal/infra/templategen/generate_test.go`
 
-3. **Renderer (`cli/internal/domain/template/renderer.go`) → Phase 2**
-   抽出された関数メタデータを元に、Go テンプレートで Dockerfile や補助ファイルを生成し、`output_dir` 以下のビルドコンテキストを整備します。
+### 2. 新しい生成ファイルを追加
+1. `generate.go` に書き出しを追加
+2. `build/merge_config_*` と `usecase/deploy/runtime_config.go` への反映要否を確認
+3. テスト:
+   - `cli/internal/infra/templategen/generate_test.go`
+   - `cli/internal/usecase/deploy/runtime_config_test.go`
 
-## 生成プロセス詳細
+### 3. Java build 挙動を変更
+1. `stage_java_runtime.go` / `stage_java_maven.go` を更新
+2. Docker 実行オプション・proxy 設定・成果物コピー契約を維持
+3. テスト:
+   - `cli/internal/infra/templategen/stage_java_env_test.go`
 
-### ビルドフェーズ（deploy 内部）
+## 変更時の最小テスト
 
-#### Phase 1: 設定生成
-`infra/templategen` が `template_parser.go` を使って `template.yaml` を読み、最終的な `functions.yml`, `routing.yml` を `output_dir/config/` に書き出します。
-
-**出力例 (`routing.yml`)**:
-```yaml
-routes:
-  - path: /hello
-    method: get
-    function: lambda-hello
+```bash
+cd cli && go test ./internal/infra/sam ./internal/infra/templategen -count=1
 ```
-
-#### Phase 2: アーティファクト生成
-`functions.yml` にリストアップされた関数ごとに Build Context を作成、`renderer.go` がファイルを生成します。
-
-1. **Dockerfile の生成**
-   `runtime/python/docker/Dockerfile` をベースに、関数/ランタイム特有のステップ（`COPY functions/...` や `ENV` 設定）を動的に組み立てます。
-2. **Layer のステージング**
-   `AWS::Serverless::LayerVersion` から抽出したレイヤーは `output_dir/layers/` に展開し、各関数の Dockerfile から共有参照されます。ZIP 形式のレイヤーは展開済みバージョンを `/opt/` にコピー。
-3. **ビルドコンテキストの最小化**
-   `renderer.go` は `.dockerignore` 相当の構成を `output_dir/` に書き、関数やレイヤー以外のファイルがビルドコンテキストに入らないようにします。
-4. **Runtime Extensions の配置**
-   `runtime/python/extensions/sitecustomize/site-packages/` 配下のファイル（`sitecustomize.py` など）を各関数のコンテキストにコピーし、Trace ID やログキャプチャの仕組みを Lambda 実行時に提供します。これには VictoriaLogs や X-Ray 互換のフックが含まれます。
-
-## ランタイムフックの仕組み (`sitecustomize.py`)
-
-Go ビルドパイプラインは、Python の `sitecustomize` を利用してユーザーコードを変更せずにランタイム挙動を拡張します。
-
-### Trace ID Hydration（復元）
-Lambda RIE は `X-Amzn-Trace-Id` ヘッダーを環境変数に変換しません。`sitecustomize.py` は `awslambdaric` にパッチを当て、
-**ClientContext** から Trace ID を抽出し `_X_AMZN_TRACE_ID` にセットします。
-
-### Direct Logging
-`sys.stdout`/`sys.stderr` をフックし、ログを VictoriaLogs へ非同期送信します。ローカル実行でも本番と同じログ集約が可能になります。
-
----
-
-## Implementation references
-- `cli/internal/infra/templategen`
-- `cli/internal/infra/build`
-- `cli/internal/infra/sam`
-- `cli/internal/domain/template`

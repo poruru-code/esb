@@ -10,6 +10,10 @@ Why: Keep /docs focused on overall architecture and link to subsystem docs.
 ## システム設計
 - [システム仕様（概要）](./spec.md)
 - [ランタイムモード概要（Docker / containerd）](./architecture-containerd.md)
+- [Docker イメージ設計アーキテクチャ](./docker-image-architecture.md)
+- [コンテナ運用とランタイム管理](./container-runtime-operations.md)
+- [透過的ロギングアダプター設計](./local-logging-adapter.md)
+- [X-Amzn-Trace-Id によるトレーシング](./trace-propagation.md)
 - [構成の伝播（概念）](./environment-variables.md)
 - [E2E Runtime Smoke 設計](./e2e-runtime-smoke.md)
 

@@ -155,7 +155,7 @@ func buildJavaRuntimeJars(ctx stageContext) error {
 	}, "\n")
 	args = append(args,
 		javaRuntimeBuildImage,
-		"bash", "-lc", script,
+		"bash", "-c", script,
 	)
 
 	cmd := exec.Command("docker", args...)
