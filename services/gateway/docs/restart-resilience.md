@@ -1,13 +1,14 @@
 <!--
-Where: services/gateway/docs/orchestrator-restart-resilience.md
+Where: services/gateway/docs/restart-resilience.md
 What: Container cleanup strategy on Gateway/Agent restart.
 Why: Avoid state drift after restarts and document tradeoffs.
 -->
-# Gateway / Agent 再起動時のコンテナ整理
+# Gateway / Agent 再起動時の整合性維持
 
 ## 概要
 
-本基盤は Agent (gRPC) + containerd の構成に移行しており、従来の Python Orchestrator による **Adopt & Sync** は使用しません。現在は **Gateway 起動時のクリーンアップ** と **Janitor のリコンシリエーション** により、再起動後の状態不整合を防ぎます。
+現行構成は Agent (gRPC) を正本とし、Gateway はインメモリ状態を持つため、再起動時の整合性回復が必要です。  
+現在は **Gateway 起動時のクリーンアップ** と **Janitor のリコンシリエーション** により、状態不整合を防ぎます。
 
 ## 現在の方針
 
@@ -25,7 +26,7 @@ Gateway の Janitor は周期的に Agent の一覧を取得し、Gateway が管
 
 ## Agent 再起動時の挙動
 
-Agent は containerd 上のコンテナを `ListContainers` で列挙できます。Gateway が稼働中の場合は Janitor がリコンシリエーションを継続するため、必要に応じて削除されます。Gateway も再起動した場合は前述のクリーンアップで全削除されます。
+Agent は runtime（docker / containerd）に依存せず `ListContainers` で管理対象コンテナを列挙できます。Gateway が稼働中の場合は Janitor がリコンシリエーションを継続するため、必要に応じて削除されます。Gateway も再起動した場合は前述のクリーンアップで全削除されます。
 
 ## 確認方法
 
@@ -36,8 +37,11 @@ docker compose restart agent
 # Gateway 再起動
 docker compose restart gateway
 
-# コンテナ状態の確認 (containerd)
-ctr -n esb-runtime containers list
+# コンテナ状態の確認 (docker mode)
+docker ps --format '{{.Names}}'
+
+# コンテナ状態の確認 (containerd mode, namespace: <brand> / default: esb)
+ctr -n <brand> containers list
 ```
 
 ## 関連実装

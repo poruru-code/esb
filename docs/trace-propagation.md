@@ -5,11 +5,11 @@ Why: Explain system-wide runtime hooks and Gateway propagation logic.
 -->
 # X-Amzn-Trace-Id によるトレーシング
 
-本ドキュメントでは、本基盤における分散トレーシングの実装について、コードレベルで解説します。
+本ドキュメントは、Gateway と各 runtime での Trace 伝播契約を定義します。
 
-## 概要
-
-AWS Lambda 本番環境では `X-Amzn-Trace-Id` ヘッダーが自動的に `_X_AMZN_TRACE_ID` 環境変数に変換されますが、Lambda RIE (Runtime Interface Emulator) ではこの機能がありません。本基盤では **ClientContext 経由のブリッジ機構**を実装してこの制限を回避しています。
+## 背景
+AWS Lambda 本番では `X-Amzn-Trace-Id` が runtime 側へ反映されますが、RIE では同等挙動がありません。  
+本基盤では `X-Amz-Client-Context` の `custom.trace_id` を併用し、runtime 側で復元する設計にしています。
 
 ## Trace ID フォーマット
 
@@ -27,19 +27,16 @@ Root=1-{timestamp:08x}-{unique_id:24hex};Sampled=1
 | `Parent` | 親スパンID（オプション） |
 | `Sampled` | サンプリングフラグ (`0` or `1`) |
 
-**実装**: `services/common/core/trace.py`
+実装: `services/common/core/trace.py`
 
-## Request ID について
+## Request ID の扱い
+Gateway は各リクエストで `Request ID`（UUID）を生成し、Trace ID とは独立して扱います。
 
-Gateway はリクエストごとにユニークな `Request ID` (UUID) を生成します。Trace ID とは別の識別子です。
+- クライアント返却: `x-amzn-RequestId`
+- ログ項目: `aws_request_id`
+- Lambda event: `requestContext.requestId` に Gateway 側 ID を設定
 
-- **クライアントへの返却**: レスポンスヘッダ `x-amzn-RequestId` に含まれます。
-- **ログ**: Gateway の構造化ログには `aws_request_id` フィールドとして記録されます。
-- **Lambda への伝播**:
-  - `event.requestContext.requestId`: Gateway が生成した ID が格納されます。
-  - `context.aws_request_id`: Lambda RIE が生成する実行 ID です（**Gateway の ID とは異なる場合があります**）。
-
-## トレース伝播フロー
+## 伝播フロー
 
 ```mermaid
 sequenceDiagram
@@ -49,224 +46,58 @@ sequenceDiagram
     participant LambdaA as Lambda A (RIE)
     participant LambdaB as Lambda B (RIE)
 
-    Client->>Gateway: POST /api/xxx<br/>X-Amzn-Trace-Id: Root=1-xxx
-
-    Note over Gateway: 1. Middleware でパース<br/>2. ContextVar に保存
-
-    Gateway->>Agent: EnsureContainer (gRPC)
-    Agent-->>Gateway: WorkerInfo (ip:port)
-
-    Gateway->>LambdaA: POST /invocations<br/>X-Amzn-Trace-Id: Root=1-xxx<br/>X-Amz-Client-Context: base64({custom:{trace_id:...}})
-
-    Note over LambdaA: sitecustomize.py が<br/>自動的に ClientContext から<br/>復元し _X_AMZN_TRACE_ID にセット
-
-    LambdaA->>LambdaB: boto3.invoke()<br/>※sitecustomize.py が<br/>ClientContext に自動注入
-
-    Note over LambdaB: 同様に trace_id を復元
-
+    Client->>Gateway: Request + X-Amzn-Trace-Id (optional)
+    Note over Gateway: middleware が trace/request context を確立
+    Gateway->>Agent: EnsureContainer
+    Agent-->>Gateway: WorkerInfo
+    Gateway->>LambdaA: Invoke + X-Amzn-Trace-Id + X-Amz-Client-Context(custom.trace_id)
+    Note over LambdaA: runtime hook が trace を復元
+    LambdaA->>LambdaB: AWS SDK Lambda.invoke (trace を ClientContext に注入)
     LambdaB-->>LambdaA: Response
     LambdaA-->>Gateway: Response
-    Gateway-->>Client: Response<br/>X-Amzn-Trace-Id: Root=1-xxx
+    Gateway-->>Client: Response + X-Amzn-Trace-Id + x-amzn-RequestId
 ```
 
-## コンポーネント詳細
+## コンポーネント契約
 
-### 1. Gateway Middleware
+### 1. Gateway middleware
+`services/gateway/middleware.py`
+- 受信ヘッダーの `X-Amzn-Trace-Id` を解釈し、未指定時は新規生成
+- `ContextVar` に trace/request を保存
+- レスポンスヘッダーへ `X-Amzn-Trace-Id` と `x-amzn-RequestId` を付与
 
-**ファイル**: `services/gateway/main.py`
+### 2. Gateway -> Worker invoke
+`services/gateway/services/lambda_invoker.py`
+- `X-Amzn-Trace-Id` をヘッダーに付与
+- `X-Amz-Client-Context` に `custom.trace_id` を埋め込み
 
-```python
-@app.middleware("http")
-async def request_id_middleware(request: Request, call_next):
-    # ヘッダーから Trace ID を取得または新規生成
-    trace_id_str = request.headers.get("X-Amzn-Trace-Id")
+### 3. Runtime 側の復元と再注入
+- Python: `runtime/python/extensions/sitecustomize/site-packages/sitecustomize.py`
+  - `ClientContext` から `_X_AMZN_TRACE_ID` を復元
+  - `boto3 Lambda.invoke` に `custom.trace_id` を自動注入
+- Java:
+  - wrapper: `runtime/java/extensions/wrapper/src/com/runtime/lambda/HandlerWrapper.java`
+  - agent: `runtime/java/extensions/agent/src/main/java/com/runtime/agent/aws/LambdaClientContextInjector.java`
+  - いずれも `ClientContext` 連鎖を維持する
 
-    if trace_id_str:
-        set_trace_id(trace_id_str)  # パースして ContextVar に保存
-    else:
-        trace = TraceId.generate()
-        trace_id_str = str(trace)
-        set_trace_id(trace_id_str)
+### 4. ログ出力
+`services/common/core/logging_config.py`
+- `trace_id` / `aws_request_id` を構造化ログに付与
+- runtime hook 側ログにも同 ID を可能な範囲で付与
 
-    response = await call_next(request)
-
-    # レスポンスヘッダーに付与
-    response.headers["X-Amzn-Trace-Id"] = trace_id_str
-
-    clear_trace_id()  # リクエスト終了時にクリア
-    return response
-```
-
-**役割**:
-- 受信した `X-Amzn-Trace-Id` ヘッダーをパース
-- 存在しない場合は新規生成
-- `ContextVar` に保存して後続処理で利用可能に
-- レスポンスヘッダーにも付与
-
----
-
-### 2. Request Context (ContextVar)
-
-**ファイル**: `services/common/core/request_context.py`
-
-```python
-from contextvars import ContextVar
-
-_trace_id_var: ContextVar[Optional[str]] = ContextVar("trace_id", default=None)
-
-def get_trace_id() -> Optional[str]:
-    """現在のリクエストの Trace ID を取得"""
-    return _trace_id_var.get()
-
-def set_trace_id(trace_id_str: str) -> str:
-    """Trace ID をパースしてセット"""
-    trace = TraceId.parse(trace_id_str)
-    _trace_id_var.set(str(trace))
-    return str(trace)
-```
-
-**役割**:
-- `asyncio` 対応のスレッドローカル変数
-- どこからでも `get_trace_id()` で現在の Trace ID を取得可能
-
----
-
-### 3. Lambda Invoker (ClientContext 注入)
-
-**ファイル**: `services/gateway/services/lambda_invoker.py`
-
-```python
-async def do_post():
-    headers = {"Content-Type": "application/json"}
-
-    if trace_id:
-        # HTTP ヘッダーとして伝播
-        headers["X-Amzn-Trace-Id"] = trace_id
-
-        # RIE 対策: ClientContext に埋め込む
-        client_context = {"custom": {"trace_id": trace_id}}
-        json_ctx = json.dumps(client_context)
-        b64_ctx = base64.b64encode(json_ctx.encode("utf-8")).decode("utf-8")
-        headers["X-Amz-Client-Context"] = b64_ctx
-```
-
-**役割**:
-- Lambda RIE へのリクエスト時に `X-Amzn-Trace-Id` ヘッダーを付与
-- **RIE はこのヘッダーを無視するため**、`X-Amz-Client-Context` にも埋め込む
-- ClientContext は Base64 エンコードされた JSON
-
----
-
-### 4. sitecustomize.py (自動注入・自動復元)
-
-**ファイル**: `runtime/python/extensions/sitecustomize/site-packages/sitecustomize.py`
-
-本基盤環境では、Pythonプロセス起動時に `sitecustomize.py` が自動的にロードされ、以下のパッチを適用します。これにより**アプリケーションコードへの変更は一切不要**です。
-
-#### A. 自動復元 (Hydration)
-`awslambdaric` (Lambda Runtime Interface Client) にパッチを当て、イベント受信時に `ClientContext` から Trace ID を取り出し、`_X_AMZN_TRACE_ID` 環境変数にセットします。
-
-#### B. 自動注入 (Injection)
-```python
-def _inject_client_context_hook(params, **kwargs):
-    """
-    boto3 Lambda.invoke() 呼び出し時に自動的に
-    ClientContext に trace_id を注入するフック
-    """
-    trace_id = _get_current_trace_id()  # 環境変数から取得
-    if not trace_id:
-        return
-
-    ctx_data = {}
-    if "ClientContext" in params:
-        ctx_data = json.loads(base64.b64decode(params["ClientContext"]))
-
-    if "custom" not in ctx_data:
-        ctx_data["custom"] = {}
-
-    if "trace_id" not in ctx_data["custom"]:
-        ctx_data["custom"]["trace_id"] = trace_id
-        params["ClientContext"] = base64.b64encode(
-            json.dumps(ctx_data).encode()
-        ).decode()
-
-# boto3 イベントに登録
-client.meta.events.register(
-    "provide-client-params.lambda.Invoke",
-    _inject_client_context_hook
-)
-```
-
-**役割**:
-- Lambda 関数内から `boto3.client("lambda").invoke()` を呼び出した時
-- 自動的に現在の Trace ID を ClientContext に注入
-- 開発者は何もせずに Trace ID が連鎖伝播される
-
----
-
-### 5. Java Runtime (javaagent)
-
-**ファイル**: `runtime/java/extensions/agent/`
-
-Java ランタイムでは `lambda-java-agent.jar` が `JAVA_TOOL_OPTIONS` で自動注入され、以下を行います。
-
-- `LambdaClient#invoke()` 呼び出し時に `ClientContext.custom.trace_id` を自動注入
-- `TraceContext` から Trace ID / Request ID を取得し、ログや送信に付与
-- アプリケーションコードへの変更は不要
+## 失敗時チェックリスト
+1. Gateway レスポンスに `X-Amzn-Trace-Id` と `x-amzn-RequestId` があるか
+2. Gateway -> Worker invoke ヘッダーに `X-Amz-Client-Context` があるか
+3. Python runtime なら `sitecustomize` 初期化ログがあるか
+4. Java runtime なら wrapper/agent が有効化されているか
+5. VictoriaLogs 検索時に `trace_id` で絞り込めるか
 
 ## Implementation references
-- `services/gateway/main.py`
 - `services/common/core/trace.py`
 - `services/common/core/request_context.py`
+- `services/gateway/middleware.py`
 - `services/gateway/services/lambda_invoker.py`
+- `services/common/core/logging_config.py`
 - `runtime/python/extensions/sitecustomize/site-packages/sitecustomize.py`
 - `runtime/java/extensions/wrapper/src/com/runtime/lambda/HandlerWrapper.java`
-- `runtime/java/extensions/agent/src/main/java/com/runtime/agent/AgentMain.java`
-
----
-
-## ログへの Trace ID 付与
-
-**ファイル**: `services/common/core/logging_config.py`
-
-```python
-class CustomJsonFormatter(logging.Formatter):
-    def format(self, record):
-        log_record = {
-            "_time": self._format_time(record),
-            "level": record.levelname,
-            "message": record.getMessage(),
-            "trace_id": get_trace_id(),  # ContextVar から取得
-            # ...
-        }
-        return json.dumps(log_record)
-```
-
-すべてのログに自動的に `trace_id` フィールドが追加されます。
-
----
-
-## トラブルシューティング
-
-### Trace ID が `not-found` になる
-
-**原因**: `sitecustomize.py` のパッチが適用されていない可能性があります。
-
-**解決策**:
-Dockerfileで `sitecustomize.py` が正しくコピーされているか、また環境変数 `PYTHONPATH` が正しく設定されているか確認してください。本基盤標準のベースイメージを使用していれば自動的に設定されます。
-
-### Lambda 連鎖呼び出しで Trace ID が途切れる
-
-**原因**: sitecustomize.py が正しくロードされていない
-
-**確認方法**:
-```bash
-docker logs lambda-xxx | grep sitecustomize
-# "[sitecustomize] All patches applied" が出力されていれば OK
-```
-
-### VictoriaLogs で Trace ID が表示されない
-
-**原因**: ログフォーマッタが `trace_id` フィールドを出力していない
-
-**確認**: fluent-bit 経由でログが正しくパースされているか確認
+- `runtime/java/extensions/agent/src/main/java/com/runtime/agent/aws/LambdaClientContextInjector.java`

@@ -6,15 +6,23 @@ Why: Keep runtime-node operational details near its implementation.
 # runtime-node ドキュメント
 
 runtime-node は containerd + CNI + CoreDNS を束ねる **実行ノード**です。
-Gateway / Agent / CoreDNS と NetNS を共有し、Lambda ワーカーのネットワークと実行環境を支えます。
+containerd compose では Gateway / Agent / CoreDNS と NetNS を共有し、Lambda ワーカーのネットワークと実行環境を支えます。
 
-## 目次
-- [起動フロー](./startup.md)
-- [ネットワーク設計](./networking.md)
-- [devmapper](./devmapper.md)
-- [Firecracker](./firecracker.md)
-- [設定（環境変数）](./configuration.md)
-- [Firecracker Roadmap](./firecracker-roadmap.md)
+## まず読む順序
+1. [起動フロー](./startup.md)
+2. [ネットワーク設計](./networking.md)
+3. [設定（環境変数）](./configuration.md)
+4. [Firecracker](./firecracker.md)
+5. [devmapper](./devmapper.md)
+
+## 目的別ガイド
+| 目的 | 参照先 |
+| --- | --- |
+| 起動シーケンスを確認したい | [startup.md](./startup.md) |
+| CNI/CoreDNS/NAT を確認したい | [networking.md](./networking.md) |
+| 設定値を確認したい | [configuration.md](./configuration.md) |
+| Firecracker モードを確認したい | [firecracker.md](./firecracker.md) |
+| devmapper 事前準備を確認したい | [devmapper.md](./devmapper.md) |
 
 ## 関連
 - Agent: [services/agent/docs/runtime-containerd.md](../../agent/docs/runtime-containerd.md)

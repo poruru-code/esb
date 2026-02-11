@@ -52,6 +52,6 @@ Why: Consolidate auth endpoint specification and related controls.
 ---
 
 ## Implementation references
-- `services/gateway/main.py`
 - `services/gateway/config.py`
 - `services/gateway/core/security.py`
+- `services/gateway/routes.py`

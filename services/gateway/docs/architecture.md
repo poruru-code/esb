@@ -1,7 +1,7 @@
 <!--
 Where: services/gateway/docs/architecture.md
 What: Gateway architecture, module boundaries, and runtime request flow.
-Why: Reflect WS3 split of app assembly, lifecycle, middleware, and routes.
+Why: Explain app assembly, lifecycle, middleware, and route flow from current code.
 -->
 # Gateway アーキテクチャ
 
@@ -12,7 +12,7 @@ Gateway は FastAPI ベースの HTTP エントリポイントです。
 `/2015-03-31/functions/{function_name}/invocations` 経路は RouteMatcher を使わず、
 `LambdaInvoker -> PoolManager` を直接通ります。
 
-## WS3 での責務分割
+## 責務分割
 | ファイル | 主責務 |
 | --- | --- |
 | `services/gateway/main.py` | FastAPI app 組み立て、lifespan/middleware/route 登録 |

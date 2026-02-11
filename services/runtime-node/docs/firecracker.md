@@ -19,16 +19,12 @@ CONTAINERD_RUNTIME=aws.firecracker docker compose -f docker-compose.containerd.y
 - `firecracker-containerd` 設定: `/etc/firecracker-containerd/config.toml`
 - `firecracker` / `jailer` バイナリが同梱されます（Dockerfile で取得）
 - `VHOST_VSOCK_REQUIRED=1` の場合、`/dev/vhost-vsock` が必須になります
+- `DEVMAPPER_POOL` は事前作成済み thin-pool を指定する必要があります
 
 ## 関連ファイル
 - `services/runtime-node/firecracker-containerd.toml`
 - `services/runtime-node/firecracker-runtime.json`
 - `services/runtime-node/firecracker-runc-config.json`
-
-## Roadmap
-詳細は [Firecracker Roadmap](./firecracker-roadmap.md) を参照してください。
-
----
 
 ## Implementation references
 - `services/runtime-node/Dockerfile.containerd`

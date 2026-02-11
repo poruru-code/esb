@@ -8,10 +8,17 @@ Why: Keep resource provisioning behavior close to its implementation.
 Provisioner は **runtime-config の `resources.yml`** を読み取り、S3/DynamoDB 互換サービスへ
 リソースを作成するバッチコンテナです。`esb deploy` から起動され、基本的に **一度実行して終了**します。
 
-## 目次
-- [アーキテクチャ](./architecture.md)
-- [resources.yml 仕様](./resources-manifest.md)
-- [設定（環境変数）](./configuration.md)
+## まず読む順序
+1. [アーキテクチャ](./architecture.md)
+2. [resources.yml 仕様](./resources-manifest.md)
+3. [設定（環境変数）](./configuration.md)
+
+## 目的別ガイド
+| 目的 | 参照先 |
+| --- | --- |
+| 実行フローを知りたい | [architecture.md](./architecture.md) |
+| CLI から渡る入力仕様を知りたい | [resources-manifest.md](./resources-manifest.md) |
+| 接続設定を確認したい | [configuration.md](./configuration.md) |
 
 ## 関連
 - CLI build/deploy: [cli/docs/build.md](../../../cli/docs/build.md)

@@ -5,78 +5,63 @@ Why: Document platform-wide log forwarding behavior for runtime images.
 -->
 # 透過的ロギングアダプター設計 (Direct Logging)
 
-## 概要
+## 目的
+アプリケーションコードを変更せずに、Lambda 実行時ログを構造化して収集すること。
 
-本基盤では、Lambda関数からの標準出力（stdout/stderr）およびログ（loggingモジュール）を、**アプリケーションコードの変更なしに** VictoriaLogs へ直接送信する仕組みを提供しています。Python では `sitecustomize.py`、Java では `lambda-java-agent.jar` により実現します。
+- Python: `sitecustomize.py` で stdout/stderr と logging をフック
+- Java: `lambda-java-agent.jar` で stdout/stderr と AWS SDK 呼び出しをフック
 
-以前は Fluentd (Docker Logging Driver) を使用していましたが、短命なコンテナにおけるログ欠損問題（Log Loss）を解決するため、プロセス内から直接 HTTP API を叩く **Direct Logging** 方式に移行しました。
-
-## アーキテクチャ
-
-**`sitecustomize.py`** が Python プロセス起動時に自動ロードされ、以下のフックを適用します。Java の場合は javaagent が同等の stdout/stderr フックを行います。
-
+## ログ経路
 ```mermaid
-flowchart TD
-    subgraph Process ["Lambda Process"]
-        UserCode[Lambda Function]
-        Print["print() / sys.stdout"]
-        Logging["logging.getLogger()"]
-
-        subgraph Sitecustomize ["sitecustomize.py"]
-            Hook[VictoriaLogsStdoutHook]
-            Handler[VictoriaLogsHandler]
-        end
-    end
-
-    VL[VictoriaLogs]
-
-    UserCode -->|print| Print
-    UserCode -->|log| Logging
-
-    Print --> Hook
-    Logging --> Handler
-
-    Hook -->|POST /insert/jsonline| VL
-    Handler -.->|delegates to| Hook
+flowchart LR
+    UserCode["Lambda user code"] --> STD["stdout/stderr"]
+    UserCode --> LOG["logging framework"]
+    STD --> Hook["runtime hook (Python/Java)"]
+    LOG --> Hook
+    Hook -->|always| LocalOut["container stdout"]
+    Hook -->|if VICTORIALOGS_URL set| VL["VictoriaLogs /insert/jsonline"]
 ```
 
-## 実装詳細
+重要点:
+- まずコンテナ stdout へ出力し、VictoriaLogs 送信は追加経路として扱う
+- VictoriaLogs 送信失敗でアプリ実行は失敗させない（best effort）
+- `trace_id` / `aws_request_id` を可能な範囲で自動付与する
 
-### 1. `sitecustomize.py`
-Dockerイメージのビルド時に `esb-lambda-base` に配置されます。コンテナ起動時に自動的に実行され、環境変数 `VICTORIALOGS_URL` が存在する場合のみ有効化されます。
+## 設定項目
+| 変数名 | 用途 | 備考 |
+| --- | --- | --- |
+| `VICTORIALOGS_URL` | 直接送信の有効化 | 未設定なら stdout のみ |
+| `LOG_LEVEL` | Python logging 閾値 | `INFO` など |
+| `AWS_LAMBDA_FUNCTION_NAME` | `container_name` の補完 | 未設定時は fallback 名 |
 
-- **Stdout Hook**: `sys.stdout` と `sys.stderr` をラップし、書き込みが発生するたびに非同期（または擬似的な同期）で VictoriaLogs へ送信します。
-- **Windows環境対策**: Windows上のDockerでは、短命なコンテナが終了する際、バッファに残ったログが出力されずにプロセスが死ぬことがあります。これを防ぐため、Lambda関数の実行終了時（`finally` ブロック）に明示的に `sys.stdout.flush()` を呼び出しています。
-- **Logging Handler**: 標準の `logging` モジュールのルートロガーに JSON フォーマッタを設定し、構造化ログを出力します。
+## 実装対応表
+| runtime | 主実装 |
+| --- | --- |
+| Python | `runtime/python/extensions/sitecustomize/site-packages/sitecustomize.py` |
+| Java | `runtime/java/extensions/agent/src/main/java/com/runtime/agent/logging/VictoriaLogsHook.java` |
+| Java sink | `runtime/java/extensions/agent/src/main/java/com/runtime/agent/logging/VictoriaLogsSink.java` |
 
-### 2. 環境変数
+## 確認手順
+```bash
+# 1) ランタイム起動
+docker compose -f docker-compose.docker.yml up -d
 
-| 変数名 | 説明 | デフォルト |
-|--------|------|------------|
-| `VICTORIALOGS_URL` | ログ送信先エンドポイント | `http://victorialogs:9428` |
-| `LOG_LEVEL` | ログ出力レベル | `INFO` |
-| `AWS_LAMBDA_FUNCTION_NAME` | ログの `container_name` タグとして使用 | コンテナ名 |
+# 2) invoke 実行後にログ確認
+docker logs <project>-gateway
+docker logs <project>-agent
 
-> [!NOTE]
-> `VICTORIALOGS_URL` は **ベース URL** を指定します。`sitecustomize.py` が内部で `/insert/jsonline` を付与します。
+# 3) VictoriaLogs UI（有効時）
+# http://localhost:9428/select/vmui
+```
 
-## VictoriaLogs UI
-
-- URL: `http://localhost:9428/select/vmui`
-- 検索クエリ例:
-  - 全ログ: `_stream_id: "stdout"`
-  - 特定のLambda: `container_name: "lambda-hello"`
-  - エラーのみ: `level: "ERROR"`
-  - Trace ID検索: `trace_id: "xxx"`
-
-## メリット
-
-1. **ログ欠損なし**: プロセス終了直前のログ書き込みもフラッシュされるため、コンテナが即座に削除されてもログが残ります。
-2. **構造化ログ**: テキストの `print()` 出力も、可能な限り JSON としてパースし、タグ付けして保存されます。
-3. **Trace ID 連携**: コンテキストから Trace ID を自動的に抽出し、ログレコードに付与します。
+検索例:
+- `container_name:"lambda-hello"`
+- `trace_id:"Root=1-..."`
+- `level:"ERROR"`
 
 ---
 
 ## Implementation references
 - `runtime/python/extensions/sitecustomize/site-packages/sitecustomize.py`
 - `runtime/java/extensions/agent/src/main/java/com/runtime/agent/logging/VictoriaLogsHook.java`
+- `runtime/java/extensions/agent/src/main/java/com/runtime/agent/logging/VictoriaLogsSink.java`

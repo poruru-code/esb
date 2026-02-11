@@ -5,9 +5,12 @@ Why: Keep platform operations guidance separate from CLI implementation docs.
 -->
 # コンテナ運用とランタイム管理
 
-本ドキュメントは、Gateway / Agent / runtime-node を含むランタイム運用を扱います。
+本ドキュメントは Gateway / Agent / runtime-node の運用手順を扱います。  
+CLI の実装詳細は `cli/docs/container-management.md` を参照してください。
 
-CLI の build/deploy 実装そのものは `cli/docs/container-management.md` を参照してください。
+## スコープ
+- 対象: スタック起動、ログ確認、ランタイム状態確認、クリーンアップ
+- 非対象: `esb deploy` の内部設計（`cli/docs/*` 側）
 
 ## ライフサイクル責務
 
@@ -21,13 +24,22 @@ CLI の build/deploy 実装そのものは `cli/docs/container-management.md` �
 - Agent: `services/agent/docs/architecture.md`
 - runtime-node: `services/runtime-node/docs/README.md`
 
-## 日常運用コマンド
+## 日常運用コマンド（最小セット）
 
-### イメージ/スタック
+`<project>` は compose project 名（通常は `CLI_CMD` ベース）、`<brand>` は runtime namespace 名です。
+
+確認方法:
+- `docker ps --format '{{.Names}}' | grep -E '(gateway|agent)$'`
+- `grep '^CLI_CMD=' config/defaults.env`
+
+### スタック起動
 
 ```bash
 # Control-plane 起動（Docker mode）
 docker compose -f docker-compose.docker.yml up -d
+
+# Control-plane 起動（containerd mode）
+docker compose -f docker-compose.containerd.yml up -d
 
 # 関数イメージ再ビルド（CLI）
 esb build --no-cache
@@ -40,7 +52,7 @@ esb build --no-cache
 docker logs <project>-gateway
 docker logs <project>-agent
 
-# containerd 側の状態確認
+# containerd 側の状態確認（containerd mode）
 ctr -n <brand> containers list
 ```
 
@@ -63,7 +75,7 @@ docker image prune -f
 
 ### 2. 古いコードが実行される
 1. `esb build --no-cache`
-2. `docker compose -f docker-compose.docker.yml up -d`
+2. 実行モードに対応する compose で再起動
 
 ### 3. Image 関数で `503` が出る
 原因:
@@ -79,6 +91,8 @@ docker image prune -f
 ---
 
 ## Implementation references
+- `docker-compose.docker.yml`
+- `docker-compose.containerd.yml`
 - `services/gateway/services/pool_manager.py`
 - `services/gateway/services/janitor.py`
 - `services/agent/internal/runtime`

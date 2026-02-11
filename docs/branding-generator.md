@@ -3,14 +3,14 @@ Where: docs/branding-generator.md
 What: Pointer to branding documentation in tool repo.
 Why: Keep branding operations documented where the tool lives.
 -->
-# ブランディング生成（移管）
+# ブランディング運用（外部ツール）
 
-本ドキュメントは `esb-branding-tool` に統合しました。  
-詳細は以下を参照してください。
+ブランディング生成と下流リポジトリ向け配布手順は、`esb-branding-tool` 側を source of truth とします。
 
 - https://github.com/poruru-code/esb-branding-tool/blob/main/docs/branding-flow.md
 
-本体リポジトリは `config/defaults.env` の `CLI_CMD=esb` を維持し、生成はツール repo から実行します。
+本リポジトリでは `config/defaults.env` の `CLI_CMD=esb` を基準値として維持します。
+ブランド変更は本体で直接行わず、外部ツールで生成・適用してください。
 
 ---
 
