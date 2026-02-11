@@ -6,6 +6,7 @@ package build
 import (
 	"context"
 	"fmt"
+	"io"
 	"path/filepath"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
@@ -24,9 +25,11 @@ type baseImageBuildInput struct {
 	Verbose             bool
 	IncludeDockerOutput bool
 	LambdaBaseTag       string
+	Out                 io.Writer
 }
 
 func (b *GoBuilder) buildBaseImages(input baseImageBuildInput) error {
+	out := resolveBuildOutput(input.Out)
 	return withBuildLock(input.LockRoot, "base-images", func() error {
 		proxyArgs := dockerBuildArgMap()
 		commonDir := filepath.Join(input.RepoRoot, "services", "common")
@@ -45,7 +48,7 @@ func (b *GoBuilder) buildBaseImages(input baseImageBuildInput) error {
 		) {
 			buildOS = false
 			if input.Verbose {
-				fmt.Println("Skipping OS base image build (already exists).")
+				_, _ = fmt.Fprintln(out, "Skipping OS base image build (already exists).")
 			}
 		}
 
@@ -60,7 +63,7 @@ func (b *GoBuilder) buildBaseImages(input baseImageBuildInput) error {
 		) {
 			buildPython = false
 			if input.Verbose {
-				fmt.Println("Skipping Python base image build (already exists).")
+				_, _ = fmt.Fprintln(out, "Skipping Python base image build (already exists).")
 			}
 		}
 

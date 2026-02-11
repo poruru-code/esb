@@ -3,10 +3,6 @@
 // Why: Keep usecase focused on orchestration, not compose command details.
 package deploy
 
-import (
-	infradeploy "github.com/poruru/edge-serverless-box/cli/internal/infra/deploy"
-)
-
 func (w Workflow) checkServicesStatus(composeProject, mode string) {
 	provisioner := w.composeProvisioner()
 	if provisioner == nil {
@@ -27,19 +23,16 @@ func (w Workflow) runProvisioner(
 	if provisioner == nil {
 		return nil
 	}
-	return provisioner.RunProvisioner(infradeploy.ProvisionerRequest{
-		ComposeProject: composeProject,
-		Mode:           mode,
-		NoDeps:         noDeps,
-		Verbose:        verbose,
-		ProjectDir:     projectDir,
-		ComposeFiles:   composeFiles,
-	})
+	return provisioner.RunProvisioner(
+		composeProject,
+		mode,
+		noDeps,
+		verbose,
+		projectDir,
+		composeFiles,
+	)
 }
 
-func (w Workflow) composeProvisioner() infradeploy.ComposeProvisioner {
-	if w.ComposeProvisioner != nil {
-		return w.ComposeProvisioner
-	}
-	return infradeploy.NewComposeProvisioner(w.ComposeRunner, w.UserInterface)
+func (w Workflow) composeProvisioner() ComposeProvisioner {
+	return w.ComposeProvisioner
 }

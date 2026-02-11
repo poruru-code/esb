@@ -111,9 +111,7 @@ func buildJavaRuntimeJars(ctx stageContext) error {
 	if err != nil {
 		return err
 	}
-	if ctx.Verbose {
-		fmt.Printf("  Building Java runtime jars in %s\n", runtimeDir)
-	}
+	ctx.verbosef("  Building Java runtime jars in %s\n", runtimeDir)
 
 	buildDir := filepath.Join(runtimeDir, "build")
 	if !dirExists(buildDir) {
@@ -162,8 +160,8 @@ func buildJavaRuntimeJars(ctx stageContext) error {
 
 	cmd := exec.Command("docker", args...)
 	if ctx.Verbose {
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+		cmd.Stdout = resolveGenerateOutput(ctx.Out)
+		cmd.Stderr = resolveGenerateErrOutput(ctx.Out)
 		return cmd.Run()
 	}
 

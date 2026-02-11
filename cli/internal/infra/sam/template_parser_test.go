@@ -49,10 +49,40 @@ Resources:
 	if fn.MemorySize != 0 { // Default
 		t.Logf("memory size: %d", fn.MemorySize)
 	}
+	if len(result.Warnings) != 0 {
+		t.Fatalf("expected no warnings, got %v", result.Warnings)
+	}
 
 	// Add a test case specifically for a field that relies on strict typing logic if possible
 	// But since the struct fields are mostly standard types (string, int), existing tests cover the values.
 	// We can add a check for a field that might be sensitive to type mapping.
+}
+
+func TestParseSAMTemplateCollectsWarnings(t *testing.T) {
+	content := `
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  BadImageFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: bad-image
+      PackageType: Image
+      Code: invalid
+`
+
+	result, err := ParseSAMTemplate(content, nil)
+	if err != nil {
+		t.Fatalf("expected parse success with warnings, got error: %v", err)
+	}
+	if len(result.Functions) != 0 {
+		t.Fatalf("expected no functions from invalid lambda properties, got %d", len(result.Functions))
+	}
+	if len(result.Warnings) == 0 {
+		t.Fatalf("expected warnings to be collected")
+	}
+	if !strings.Contains(result.Warnings[0], "BadImageFunction") {
+		t.Fatalf("expected warning to include logical id, got %q", result.Warnings[0])
+	}
 }
 
 func TestParseSAMTemplateStrictTypes(t *testing.T) {

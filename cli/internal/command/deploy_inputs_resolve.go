@@ -6,6 +6,7 @@ package command
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
@@ -19,14 +20,16 @@ import (
 func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 	isTTY := interaction.IsTerminal(os.Stdin)
 	prompter := deps.Prompter
+	errOut := resolveErrWriter(deps.ErrOut)
 	repoResolver := deps.RepoResolver
 	if repoResolver == nil {
 		repoResolver = config.ResolveRepoRoot
 	}
-	runtimeResolver := deps.Deploy.RuntimeEnvResolver
+	runtimeResolver := deps.Deploy.Runtime.RuntimeEnvResolver
 	if runtimeResolver == nil {
 		runtimeResolver = runtimeinfra.NewEnvResolver()
 	}
+	dockerClientFactory := deps.Deploy.Runtime.DockerClient
 
 	var last deployInputs
 	for {
@@ -62,7 +65,10 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 
 		var selectedStack deployTargetStack
 		if !projectExplicit {
-			runningStacks, _ := discoverRunningDeployTargetStacks()
+			runningStacks, stackDiscoverErr := discoverRunningDeployTargetStacks(dockerClientFactory)
+			if stackDiscoverErr != nil {
+				writeWarningf(errOut, "Warning: failed to discover running stacks: %v\n", stackDiscoverErr)
+			}
 			selectedStack, err = resolveDeployTargetStack(runningStacks, isTTY, prompter)
 			if err != nil {
 				return deployInputs{}, err
@@ -106,23 +112,30 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 			return deployInputs{}, err
 		}
 
-		inferredMode, inferredModeSource, modeInferErr := inferDeployModeFromProject(composeProject)
+		inferredMode, inferredModeSource, modeInferErr := inferDeployModeFromProject(composeProject, dockerClientFactory)
 
 		previousTemplate := ""
 		if len(last.Templates) > 0 {
 			previousTemplate = last.Templates[0].TemplatePath
 		}
-		templatePaths, err := resolveDeployTemplates(cli.Template, isTTY, prompter, previousTemplate)
+		templatePaths, err := resolveDeployTemplates(cli.Template, isTTY, prompter, previousTemplate, errOut)
 		if err != nil {
 			return deployInputs{}, err
 		}
-		for range templatePaths[1:] {
-			otherRoot, err := repoResolver("")
+		templateRoot, err := repoResolver(filepath.Dir(templatePaths[0]))
+		if err != nil {
+			return deployInputs{}, fmt.Errorf("resolve repo root: %w", err)
+		}
+		if templateRoot != repoRoot {
+			return deployInputs{}, fmt.Errorf("template repo root mismatch: %s != %s", templateRoot, repoRoot)
+		}
+		for _, otherTemplate := range templatePaths[1:] {
+			otherRoot, err := repoResolver(filepath.Dir(otherTemplate))
 			if err != nil {
 				return deployInputs{}, fmt.Errorf("resolve repo root: %w", err)
 			}
-			if otherRoot != repoRoot {
-				return deployInputs{}, fmt.Errorf("template repo root mismatch: %s != %s", otherRoot, repoRoot)
+			if otherRoot != templateRoot {
+				return deployInputs{}, fmt.Errorf("template repo root mismatch: %s != %s", otherRoot, templateRoot)
 			}
 		}
 		stored := loadDeployDefaults(repoRoot, templatePaths[0])
@@ -135,6 +148,7 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 				prompter,
 				runtimeResolver,
 				cli.Deploy.Force,
+				errOut,
 			)
 			if err != nil {
 				return deployInputs{}, err
@@ -163,15 +177,15 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 		}
 
 		if modeInferErr != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to infer runtime mode: %v\n", modeInferErr)
+			writeWarningf(errOut, "Warning: failed to infer runtime mode: %v\n", modeInferErr)
 		}
 
 		var mode string
 		switch {
 		case inferredMode != "":
 			if flagMode != "" && inferredMode != flagMode {
-				fmt.Fprintf(
-					os.Stderr,
+				writeWarningf(
+					errOut,
 					"Warning: running project uses %s mode; ignoring --mode %s (source: %s)\n",
 					inferredMode,
 					flagMode,
@@ -182,7 +196,7 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 		case flagMode != "":
 			mode = flagMode
 		default:
-			mode, err = resolveDeployMode("", isTTY, prompter, prevMode)
+			mode, err = resolveDeployMode("", isTTY, prompter, prevMode, errOut)
 			if err != nil {
 				return deployInputs{}, err
 			}
@@ -229,7 +243,7 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 			if prev, ok := prevTemplates[templatePath]; ok && len(prev.Parameters) > 0 {
 				prevParams = prev.Parameters
 			}
-			params, err := promptTemplateParameters(templatePath, isTTY, prompter, prevParams)
+			params, err := promptTemplateParameters(templatePath, isTTY, prompter, prevParams, errOut)
 			if err != nil {
 				return deployInputs{}, err
 			}
@@ -264,7 +278,7 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 			if !cli.Deploy.NoSave {
 				for _, tpl := range templateInputs {
 					if err := saveDeployDefaults(repoRoot, tpl, inputs); err != nil {
-						fmt.Fprintf(os.Stderr, "Warning: failed to save deploy defaults: %v\n", err)
+						writeWarningf(errOut, "Warning: failed to save deploy defaults: %v\n", err)
 					}
 				}
 			}

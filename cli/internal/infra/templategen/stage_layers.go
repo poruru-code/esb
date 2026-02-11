@@ -4,7 +4,6 @@
 package templategen
 
 import (
-	"fmt"
 	"path/filepath"
 	"strings"
 	"unicode"
@@ -39,9 +38,7 @@ func stageLayers(
 			continue
 		}
 
-		if ctx.Verbose {
-			fmt.Printf("  Staging layer: %s -> %s\n", layer.Name, targetName)
-		}
+		ctx.verbosef("  Staging layer: %s -> %s\n", layer.Name, targetName)
 
 		layerRef := filepath.ToSlash(filepath.Join("functions", functionName, "layers", targetName))
 		if !ctx.DryRun {

@@ -10,14 +10,13 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/state"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/build"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
-	infradeploy "github.com/poruru/edge-serverless-box/cli/internal/infra/deploy"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/ui"
 )
 
 var (
 	errBuilderNotConfigured       = errors.New("builder is not configured")
 	errComposeRunnerNotConfigured = errors.New("compose runner is not configured")
-	errUnsupportedDockerClient    = errors.New("unsupported docker client")
+	errDockerClientNotConfigured  = errors.New("docker client is not configured")
 	errRegistryNotResponding      = errors.New("registry not responding")
 )
 
@@ -46,9 +45,26 @@ type Workflow struct {
 	ApplyRuntimeEnv    func(state.Context) error
 	UserInterface      ui.UserInterface
 	ComposeRunner      compose.CommandRunner
-	ComposeProvisioner infradeploy.ComposeProvisioner
+	ComposeProvisioner ComposeProvisioner
 	RegistryWaiter     RegistryWaiter
+	DockerClient       DockerClientFactory
 }
+
+// ComposeProvisioner defines compose-related operational behavior consumed by the workflow.
+type ComposeProvisioner interface {
+	CheckServicesStatus(composeProject, mode string)
+	RunProvisioner(
+		composeProject string,
+		mode string,
+		noDeps bool,
+		verbose bool,
+		projectDir string,
+		composeFiles []string,
+	) error
+}
+
+// DockerClientFactory constructs Docker SDK clients used by runtime inspection paths.
+type DockerClientFactory func() (compose.DockerClient, error)
 
 // NewDeployWorkflow constructs a Workflow.
 func NewDeployWorkflow(
@@ -58,12 +74,11 @@ func NewDeployWorkflow(
 	composeRunner compose.CommandRunner,
 ) Workflow {
 	return Workflow{
-		Build:              build,
-		ApplyRuntimeEnv:    applyRuntimeEnv,
-		UserInterface:      ui,
-		ComposeRunner:      composeRunner,
-		ComposeProvisioner: infradeploy.NewComposeProvisioner(composeRunner, ui),
-		RegistryWaiter:     defaultRegistryWaiter,
+		Build:           build,
+		ApplyRuntimeEnv: applyRuntimeEnv,
+		UserInterface:   ui,
+		ComposeRunner:   composeRunner,
+		RegistryWaiter:  defaultRegistryWaiter,
 	}
 }
 

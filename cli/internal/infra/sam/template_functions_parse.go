@@ -13,9 +13,11 @@ func parseFunctions(
 	resources map[string]any,
 	defaults functionDefaults,
 	layerMap map[string]manifest.LayerSpec,
+	warnf func(string, ...any),
 ) ([]template.FunctionSpec, error) {
 	functions := make([]template.FunctionSpec, 0)
-	for logicalID, raw := range resources {
+	for _, logicalID := range sortedMapKeys(resources) {
+		raw := resources[logicalID]
 		m := value.AsMap(raw)
 		if m == nil {
 			continue
@@ -23,7 +25,7 @@ func parseFunctions(
 		resourceType := value.AsString(m["Type"])
 		switch resourceType {
 		case "AWS::Serverless::Function":
-			fn, ok, err := parseServerlessFunction(logicalID, m, defaults, layerMap)
+			fn, ok, err := parseServerlessFunction(logicalID, m, defaults, layerMap, warnf)
 			if err != nil {
 				return nil, err
 			}
@@ -31,7 +33,7 @@ func parseFunctions(
 				functions = append(functions, fn)
 			}
 		case "AWS::Lambda::Function":
-			fn, ok, err := parseLambdaFunction(logicalID, m, defaults)
+			fn, ok, err := parseLambdaFunction(logicalID, m, defaults, warnf)
 			if err != nil {
 				return nil, err
 			}

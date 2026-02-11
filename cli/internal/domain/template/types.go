@@ -9,6 +9,7 @@ import "github.com/poruru/edge-serverless-box/cli/internal/domain/manifest"
 type ParseResult struct {
 	Functions []FunctionSpec
 	Resources manifest.ResourcesSpec
+	Warnings  []string
 }
 
 // FunctionSpec captures resolved function metadata.

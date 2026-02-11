@@ -62,4 +62,7 @@ const (
 
 	// Build args.
 	BuildArgCAFingerprint = "ROOT_CA_FINGERPRINT"
+
+	// Shared mount path for runtime-config synchronization and discovery.
+	RuntimeConfigMountPath = "/app/runtime-config"
 )

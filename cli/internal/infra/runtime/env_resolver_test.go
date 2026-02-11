@@ -4,11 +4,18 @@
 package runtime
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/api/types/network"
+	"github.com/docker/docker/api/types/volume"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
 )
@@ -95,4 +102,134 @@ func TestDiscoverStagingEnvs(t *testing.T) {
 	if len(envs) != 2 || envs[0] != "dev" || envs[1] != "prod" {
 		t.Fatalf("unexpected envs: %v", envs)
 	}
+}
+
+func TestSelectGatewayContainerDeterministic(t *testing.T) {
+	selected := selectGatewayContainer([]container.Summary{
+		{
+			ID:    "exited-zeta",
+			State: "exited",
+			Names: []string{"/z-gateway"},
+		},
+		{
+			ID:    "running-zeta",
+			State: "running",
+			Names: []string{"/z-gateway"},
+		},
+		{
+			ID:    "running-alpha",
+			State: "running",
+			Names: []string{"/a-gateway"},
+		},
+	})
+	if selected.ID != "running-alpha" {
+		t.Fatalf("expected running-alpha, got %q", selected.ID)
+	}
+}
+
+func TestDockerEnvResolverRequiresFactory(t *testing.T) {
+	resolver := DockerEnvResolver{}
+	_, err := resolver.InferEnvFromProject("esb-dev", "")
+	if err == nil {
+		t.Fatal("expected docker client factory configuration error")
+	}
+	if !strings.Contains(err.Error(), "docker client factory is not configured") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestDockerEnvResolverReturnsFactoryError(t *testing.T) {
+	resolver := DockerEnvResolver{
+		DockerClientFactory: func() (compose.DockerClient, error) {
+			return nil, errors.New("boom")
+		},
+	}
+	_, err := resolver.InferEnvFromProject("esb-dev", "")
+	if err == nil {
+		t.Fatal("expected factory error")
+	}
+	if !strings.Contains(err.Error(), "create docker client") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestDockerEnvResolverRejectsNilClient(t *testing.T) {
+	resolver := DockerEnvResolver{
+		DockerClientFactory: func() (compose.DockerClient, error) {
+			return nil, nil
+		},
+	}
+	_, err := resolver.InferEnvFromProject("esb-dev", "")
+	if err == nil {
+		t.Fatal("expected nil client error")
+	}
+	if !strings.Contains(err.Error(), "returned nil client") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestDockerEnvResolverInferEnvFromRunningLabels(t *testing.T) {
+	resolver := DockerEnvResolver{
+		DockerClientFactory: func() (compose.DockerClient, error) {
+			return envResolverDockerClient{
+				containers: []container.Summary{
+					{
+						Labels: map[string]string{
+							compose.ESBEnvLabel: "dev",
+						},
+					},
+				},
+			}, nil
+		},
+	}
+	got, err := resolver.InferEnvFromProject("esb-dev", "template.yaml")
+	if err != nil {
+		t.Fatalf("infer env: %v", err)
+	}
+	if got.Env != "dev" {
+		t.Fatalf("expected dev, got %q", got.Env)
+	}
+	if got.Source != "container label" {
+		t.Fatalf("expected source container label, got %q", got.Source)
+	}
+}
+
+type envResolverDockerClient struct {
+	containers []container.Summary
+}
+
+func (c envResolverDockerClient) ContainerList(_ context.Context, _ container.ListOptions) ([]container.Summary, error) {
+	return c.containers, nil
+}
+
+func (c envResolverDockerClient) ContainerInspect(_ context.Context, _ string) (container.InspectResponse, error) {
+	return container.InspectResponse{}, nil
+}
+
+func (c envResolverDockerClient) ImageList(_ context.Context, _ image.ListOptions) ([]image.Summary, error) {
+	return nil, nil
+}
+
+func (c envResolverDockerClient) ContainerStop(_ context.Context, _ string, _ container.StopOptions) error {
+	return nil
+}
+
+func (c envResolverDockerClient) ContainerRemove(_ context.Context, _ string, _ container.RemoveOptions) error {
+	return nil
+}
+
+func (c envResolverDockerClient) ContainersPrune(_ context.Context, _ filters.Args) (container.PruneReport, error) {
+	return container.PruneReport{}, nil
+}
+
+func (c envResolverDockerClient) ImagesPrune(_ context.Context, _ filters.Args) (image.PruneReport, error) {
+	return image.PruneReport{}, nil
+}
+
+func (c envResolverDockerClient) NetworksPrune(_ context.Context, _ filters.Args) (network.PruneReport, error) {
+	return network.PruneReport{}, nil
+}
+
+func (c envResolverDockerClient) VolumesPrune(_ context.Context, _ filters.Args) (volume.PruneReport, error) {
+	return volume.PruneReport{}, nil
 }

@@ -12,15 +12,16 @@ import (
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/command"
+	"github.com/poruru/edge-serverless-box/cli/internal/domain/state"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/build"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
+	infradeploy "github.com/poruru/edge-serverless-box/cli/internal/infra/deploy"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/env"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/interaction"
 	runtimeinfra "github.com/poruru/edge-serverless-box/cli/internal/infra/runtime"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/ui"
 )
-
-// Stdout is the writer used for CLI output (used by app.Dependencies).
-var Stdout = os.Stdout
 
 type composePortDiscoverer struct{}
 
@@ -57,16 +58,49 @@ func (composePortDiscoverer) Discover(ctx context.Context, rootDir, project, mod
 // bundle, a closer for cleanup, and any initialization error.
 func BuildDependencies(_ []string) (command.Dependencies, io.Closer, error) {
 	builder := build.NewGoBuilder(composePortDiscoverer{})
+	composeRunner := compose.ExecRunner{}
 
 	deps := command.Dependencies{
-		Out:          Stdout,
+		Out:          os.Stdout,
+		ErrOut:       os.Stderr,
 		Prompter:     interaction.HuhPrompter{},
 		RepoResolver: config.ResolveRepoRoot,
 		Deploy: command.DeployDeps{
-			Build:              builder.Build,
-			RuntimeEnvResolver: runtimeinfra.NewEnvResolver(),
+			Build:     newDeployBuildDeps(builder),
+			Runtime:   newDeployRuntimeDeps(config.ResolveRepoRoot),
+			Provision: newDeployProvisionDeps(composeRunner),
 		},
 	}
 
 	return deps, nil, nil
+}
+
+func newDeployBuildDeps(builder *build.GoBuilder) command.DeployBuildDeps {
+	return command.DeployBuildDeps{
+		Build: builder.Build,
+	}
+}
+
+func newDeployRuntimeDeps(repoResolver func(string) (string, error)) command.DeployRuntimeDeps {
+	return command.DeployRuntimeDeps{
+		ApplyRuntimeEnv: func(ctx state.Context) error {
+			return env.ApplyRuntimeEnv(ctx, repoResolver)
+		},
+		RuntimeEnvResolver: runtimeinfra.NewEnvResolver(),
+		DockerClient:       compose.NewDockerClient,
+	}
+}
+
+func newDeployProvisionDeps(composeRunner compose.CommandRunner) command.DeployProvisionDeps {
+	deployUIFactory := func(out io.Writer, emojiEnabled bool) ui.UserInterface {
+		return ui.NewDeployUI(out, emojiEnabled)
+	}
+	composeProvisionerFactory := func(u ui.UserInterface) command.ComposeProvisioner {
+		return infradeploy.NewComposeProvisioner(composeRunner, u)
+	}
+	return command.DeployProvisionDeps{
+		ComposeRunner:             composeRunner,
+		ComposeProvisionerFactory: composeProvisionerFactory,
+		NewDeployUI:               deployUIFactory,
+	}
 }

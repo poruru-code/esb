@@ -33,6 +33,7 @@ const (
 // This interface enables mocking the Docker client in tests.
 type DockerClient interface {
 	ContainerList(ctx context.Context, options container.ListOptions) ([]container.Summary, error)
+	ContainerInspect(ctx context.Context, containerID string) (container.InspectResponse, error)
 	ImageList(ctx context.Context, options image.ListOptions) ([]image.Summary, error)
 	ContainerStop(ctx context.Context, containerID string, options container.StopOptions) error
 	ContainerRemove(ctx context.Context, containerID string, options container.RemoveOptions) error
@@ -47,6 +48,17 @@ type ContainerInfo struct {
 	Name    string
 	Service string
 	State   string
+}
+
+// PrimaryContainerName resolves the first non-empty container name.
+func PrimaryContainerName(names []string) string {
+	for _, raw := range names {
+		name := strings.TrimSpace(strings.TrimPrefix(raw, "/"))
+		if name != "" {
+			return name
+		}
+	}
+	return ""
 }
 
 // ListContainersByProject returns container information for all containers
@@ -74,9 +86,7 @@ func ListContainersByProject(
 		}
 
 		name := ""
-		if len(ctr.Names) > 0 {
-			name = strings.TrimPrefix(ctr.Names[0], "/")
-		}
+		name = PrimaryContainerName(ctr.Names)
 
 		result = append(result, ContainerInfo{
 			Name:    name,

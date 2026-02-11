@@ -26,12 +26,20 @@ type ProvisionerRequest struct {
 // ComposeProvisioner provides compose-related operational behavior for deploy.
 type ComposeProvisioner interface {
 	CheckServicesStatus(composeProject, mode string)
-	RunProvisioner(request ProvisionerRequest) error
+	RunProvisioner(
+		composeProject string,
+		mode string,
+		noDeps bool,
+		verbose bool,
+		projectDir string,
+		composeFiles []string,
+	) error
 }
 
 type composeProvisioner struct {
 	composeRunner compose.CommandRunner
 	userInterface ui.UserInterface
+	newDocker     dockerClientFactory
 }
 
 // NewComposeProvisioner constructs a compose provisioner service.
@@ -39,14 +47,38 @@ func NewComposeProvisioner(
 	composeRunner compose.CommandRunner,
 	userInterface ui.UserInterface,
 ) ComposeProvisioner {
+	return newComposeProvisioner(composeRunner, userInterface, compose.NewDockerClient)
+}
+
+func newComposeProvisioner(
+	composeRunner compose.CommandRunner,
+	userInterface ui.UserInterface,
+	factory dockerClientFactory,
+) composeProvisioner {
 	return composeProvisioner{
 		composeRunner: composeRunner,
 		userInterface: userInterface,
+		newDocker:     factory,
 	}
 }
 
 // RunProvisioner runs the deploy profile provisioner via docker compose.
-func (p composeProvisioner) RunProvisioner(request ProvisionerRequest) error {
+func (p composeProvisioner) RunProvisioner(
+	composeProject string,
+	mode string,
+	noDeps bool,
+	verbose bool,
+	projectDir string,
+	composeFiles []string,
+) error {
+	request := ProvisionerRequest{
+		ComposeProject: composeProject,
+		Mode:           mode,
+		NoDeps:         noDeps,
+		Verbose:        verbose,
+		ProjectDir:     projectDir,
+		ComposeFiles:   composeFiles,
+	}
 	if p.composeRunner == nil {
 		return fmt.Errorf("compose runner is not configured")
 	}
@@ -83,12 +115,6 @@ func (p composeProvisioner) RunProvisioner(request ProvisionerRequest) error {
 			)
 		}
 		files = result.Files
-		if len(files) > 0 {
-			ok, missingServices := p.composeHasServices(repoRoot, request.ComposeProject, files, required)
-			if !ok {
-				return fmt.Errorf("compose config missing services: %s", strings.Join(missingServices, ", "))
-			}
-		}
 		if len(files) == 0 {
 			files = defaultComposeFiles(repoRoot, request.Mode)
 		}

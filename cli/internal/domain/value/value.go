@@ -95,3 +95,24 @@ func EnsureTrailingSlash(value string) string {
 	}
 	return value + "/"
 }
+
+// EnvSliceToMap converts container-style env entries (KEY=VALUE) into a map.
+func EnvSliceToMap(env []string) map[string]string {
+	out := make(map[string]string, len(env))
+	for _, entry := range env {
+		if entry == "" {
+			continue
+		}
+		parts := strings.SplitN(entry, "=", 2)
+		key := strings.TrimSpace(parts[0])
+		if key == "" {
+			continue
+		}
+		value := ""
+		if len(parts) > 1 {
+			value = parts[1]
+		}
+		out[key] = value
+	}
+	return out
+}

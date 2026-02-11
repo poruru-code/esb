@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
 	"github.com/poruru/edge-serverless-box/meta"
@@ -103,6 +104,7 @@ func discoverTemplateCandidates() []string {
 		}
 		candidates = append(candidates, name)
 	}
+	sort.Strings(candidates)
 	return candidates
 }
 

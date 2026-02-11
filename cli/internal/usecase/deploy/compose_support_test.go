@@ -6,8 +6,6 @@ package deploy
 import (
 	"errors"
 	"testing"
-
-	infradeploy "github.com/poruru/edge-serverless-box/cli/internal/infra/deploy"
 )
 
 type recordProvisioner struct {
@@ -17,8 +15,15 @@ type recordProvisioner struct {
 		mode    string
 	}
 	runCalls int
-	runReq   infradeploy.ProvisionerRequest
-	runErr   error
+	runReq   struct {
+		project      string
+		mode         string
+		noDeps       bool
+		verbose      bool
+		projectDir   string
+		composeFiles []string
+	}
+	runErr error
 }
 
 func (p *recordProvisioner) CheckServicesStatus(composeProject, mode string) {
@@ -27,9 +32,21 @@ func (p *recordProvisioner) CheckServicesStatus(composeProject, mode string) {
 	p.statusReq.mode = mode
 }
 
-func (p *recordProvisioner) RunProvisioner(request infradeploy.ProvisionerRequest) error {
+func (p *recordProvisioner) RunProvisioner(
+	composeProject string,
+	mode string,
+	noDeps bool,
+	verbose bool,
+	projectDir string,
+	composeFiles []string,
+) error {
 	p.runCalls++
-	p.runReq = request
+	p.runReq.project = composeProject
+	p.runReq.mode = mode
+	p.runReq.noDeps = noDeps
+	p.runReq.verbose = verbose
+	p.runReq.projectDir = projectDir
+	p.runReq.composeFiles = append([]string{}, composeFiles...)
 	return p.runErr
 }
 
@@ -68,23 +85,23 @@ func TestRunProvisionerDelegatesRequest(t *testing.T) {
 	if provisioner.runCalls != 1 {
 		t.Fatalf("expected one run call, got %d", provisioner.runCalls)
 	}
-	if provisioner.runReq.ComposeProject != "esb-dev" {
-		t.Fatalf("compose project mismatch: %q", provisioner.runReq.ComposeProject)
+	if provisioner.runReq.project != "esb-dev" {
+		t.Fatalf("compose project mismatch: %q", provisioner.runReq.project)
 	}
-	if provisioner.runReq.Mode != "containerd" {
-		t.Fatalf("mode mismatch: %q", provisioner.runReq.Mode)
+	if provisioner.runReq.mode != "containerd" {
+		t.Fatalf("mode mismatch: %q", provisioner.runReq.mode)
 	}
-	if !provisioner.runReq.NoDeps {
+	if !provisioner.runReq.noDeps {
 		t.Fatalf("expected noDeps=true")
 	}
-	if !provisioner.runReq.Verbose {
+	if !provisioner.runReq.verbose {
 		t.Fatalf("expected verbose=true")
 	}
-	if provisioner.runReq.ProjectDir != "/tmp/project" {
-		t.Fatalf("project dir mismatch: %q", provisioner.runReq.ProjectDir)
+	if provisioner.runReq.projectDir != "/tmp/project" {
+		t.Fatalf("project dir mismatch: %q", provisioner.runReq.projectDir)
 	}
-	if len(provisioner.runReq.ComposeFiles) != 1 || provisioner.runReq.ComposeFiles[0] != "/tmp/docker-compose.yml" {
-		t.Fatalf("compose files mismatch: %#v", provisioner.runReq.ComposeFiles)
+	if len(provisioner.runReq.composeFiles) != 1 || provisioner.runReq.composeFiles[0] != "/tmp/docker-compose.yml" {
+		t.Fatalf("compose files mismatch: %#v", provisioner.runReq.composeFiles)
 	}
 }
 

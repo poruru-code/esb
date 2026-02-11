@@ -15,6 +15,7 @@ func parseLambdaFunction(
 	logicalID string,
 	resource map[string]any,
 	defaults functionDefaults,
+	warnf func(string, ...any),
 ) (template.FunctionSpec, bool, error) {
 	props := value.AsMap(resource["Properties"])
 	if props == nil {
@@ -23,7 +24,9 @@ func parseLambdaFunction(
 
 	fnProps, err := DecodeLambdaFunctionProps(props)
 	if err != nil {
-		fmt.Printf("Warning: failed to map lambda properties for function %s: %v\n", logicalID, err)
+		if warnf != nil {
+			warnf("failed to map lambda properties for function %s: %v", logicalID, err)
+		}
 	}
 
 	packageType := strings.TrimSpace(value.AsString(fnProps.PackageType))

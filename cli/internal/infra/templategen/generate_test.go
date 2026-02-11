@@ -5,6 +5,7 @@ package templategen
 
 import (
 	"archive/zip"
+	"bytes"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -110,6 +111,81 @@ func TestGenerateFilesUsesParserOverride(t *testing.T) {
 	}
 	if _, err := os.Stat(routingYml); err != nil {
 		t.Fatalf("expected routing.yml to exist: %v", err)
+	}
+}
+
+func TestGenerateFilesWritesWarningsToInjectedOutput(t *testing.T) {
+	root := t.TempDir()
+	templatePath := filepath.Join(root, "template.yaml")
+	writeTestFile(t, templatePath, "Resources: {}")
+
+	parser := &stubParser{
+		result: template.ParseResult{
+			Warnings: []string{"sample warning"},
+		},
+	}
+
+	cfg := config.GeneratorConfig{
+		Paths: config.PathsConfig{
+			SamTemplate: "template.yaml",
+			OutputDir:   "out/",
+		},
+	}
+	var out bytes.Buffer
+	opts := GenerateOptions{
+		ProjectRoot: root,
+		Parser:      parser,
+		Out:         &out,
+	}
+
+	if _, err := GenerateFiles(cfg, opts); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if !strings.Contains(out.String(), "Warning: sample warning") {
+		t.Fatalf("expected warning output, got %q", out.String())
+	}
+}
+
+func TestGenerateFilesVerboseWritesToInjectedOutput(t *testing.T) {
+	root := t.TempDir()
+	templatePath := filepath.Join(root, "template.yaml")
+	writeTestFile(t, templatePath, "Resources: {}")
+
+	parser := &stubParser{
+		result: template.ParseResult{
+			Functions: []template.FunctionSpec{
+				{
+					Name:        "lambda-image",
+					ImageSource: "public.ecr.aws/example/image:latest",
+					ImageName:   "lambda-image",
+				},
+			},
+		},
+	}
+
+	cfg := config.GeneratorConfig{
+		Paths: config.PathsConfig{
+			SamTemplate: "template.yaml",
+			OutputDir:   "out/",
+		},
+	}
+	var out bytes.Buffer
+	opts := GenerateOptions{
+		ProjectRoot: root,
+		Parser:      parser,
+		Out:         &out,
+		Verbose:     true,
+	}
+
+	if _, err := GenerateFiles(cfg, opts); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	log := out.String()
+	if !strings.Contains(log, "Parsing template...") {
+		t.Fatalf("expected parse log, got %q", log)
+	}
+	if !strings.Contains(log, "Processing function: lambda-image") {
+		t.Fatalf("expected function log, got %q", log)
 	}
 }
 

@@ -6,6 +6,7 @@ package build
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -56,9 +57,11 @@ func buildFunctionImages(
 	verbose bool,
 	labels map[string]string,
 	includeDocker bool,
+	out io.Writer,
 ) error {
+	out = resolveBuildOutput(out)
 	if verbose {
-		fmt.Println("Building function images...")
+		_, _ = fmt.Fprintln(out, "Building function images...")
 	}
 	proxyArgs := dockerBuildArgMap()
 	expectedFingerprint := strings.TrimSpace(labels[compose.ESBImageFingerprintLabel])
@@ -66,12 +69,12 @@ func buildFunctionImages(
 	for _, fn := range functions {
 		if strings.TrimSpace(fn.ImageSource) != "" {
 			if verbose {
-				fmt.Printf("  Skipping build for image function %s (uses image_ref)\n", fn.Name)
+				_, _ = fmt.Fprintf(out, "  Skipping build for image function %s (uses image_ref)\n", fn.Name)
 			}
 			continue
 		}
 		if verbose {
-			fmt.Printf("  Building image for %s...\n", fn.Name)
+			_, _ = fmt.Fprintf(out, "  Building image for %s...\n", fn.Name)
 		}
 		if strings.TrimSpace(fn.Name) == "" {
 			return fmt.Errorf("function name is required")
@@ -96,7 +99,7 @@ func buildFunctionImages(
 			if dockerImageHasLabelValue(ctx, runner, outputDir, imageTag, compose.ESBImageFingerprintLabel, expectedFingerprint) {
 				skipBuild = true
 				if verbose {
-					fmt.Printf("  Skipping %s (up-to-date)\n", fn.Name)
+					_, _ = fmt.Fprintf(out, "  Skipping %s (up-to-date)\n", fn.Name)
 				}
 			}
 		}

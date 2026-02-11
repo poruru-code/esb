@@ -5,7 +5,7 @@ package command
 
 import (
 	"fmt"
-	"os"
+	"io"
 	"strings"
 
 	runtimecfg "github.com/poruru/edge-serverless-box/cli/internal/domain/runtime"
@@ -70,6 +70,7 @@ func resolveDeployMode(
 	isTTY bool,
 	prompter interaction.Prompter,
 	previous string,
+	errOut io.Writer,
 ) (string, error) {
 	trimmed := strings.TrimSpace(strings.ToLower(value))
 	if trimmed != "" {
@@ -101,7 +102,7 @@ func resolveDeployMode(
 		}
 		selected = strings.TrimSpace(strings.ToLower(selected))
 		if selected == "" {
-			fmt.Fprintln(os.Stderr, "Runtime mode is required.")
+			writeWarningf(errOut, "Runtime mode is required.\n")
 			continue
 		}
 		normalized, err := runtimecfg.NormalizeMode(selected)

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/state"
+	infradeploy "github.com/poruru/edge-serverless-box/cli/internal/infra/deploy"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
 )
 
@@ -215,8 +216,9 @@ func TestRunProvisionerUsesComposeOverride(t *testing.T) {
 	runner := &fakeComposeRunner{}
 	ui := &testUI{}
 	workflow := Workflow{
-		ComposeRunner: runner,
-		UserInterface: ui,
+		ComposeRunner:      runner,
+		UserInterface:      ui,
+		ComposeProvisioner: infradeploy.NewComposeProvisioner(runner, ui),
 	}
 	t.Setenv("ENV_PREFIX", "ESB")
 
@@ -269,8 +271,9 @@ func TestRunProvisionerFailsOnOverrideMissingServices(t *testing.T) {
 	runner := &fakeComposeRunner{output: []byte("provisioner\n")}
 	ui := &testUI{}
 	workflow := Workflow{
-		ComposeRunner: runner,
-		UserInterface: ui,
+		ComposeRunner:      runner,
+		UserInterface:      ui,
+		ComposeProvisioner: infradeploy.NewComposeProvisioner(runner, ui),
 	}
 	t.Setenv("ENV_PREFIX", "ESB")
 
@@ -306,8 +309,9 @@ func TestRunProvisionerWithNoDepsAddsFlag(t *testing.T) {
 	runner := &fakeComposeRunner{}
 	ui := &testUI{}
 	workflow := Workflow{
-		ComposeRunner: runner,
-		UserInterface: ui,
+		ComposeRunner:      runner,
+		UserInterface:      ui,
+		ComposeProvisioner: infradeploy.NewComposeProvisioner(runner, ui),
 	}
 	t.Setenv("ENV_PREFIX", "ESB")
 

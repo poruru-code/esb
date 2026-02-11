@@ -13,6 +13,8 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
 )
 
+type dockerClientFactory func() (compose.DockerClient, error)
+
 func filterExistingComposeFiles(repoRoot string, files []string) ([]string, []string) {
 	existing := make([]string, 0, len(files))
 	missing := []string{}
@@ -93,9 +95,15 @@ func (p composeProvisioner) resolveComposeFilesForProject(
 	if trimmedProject == "" {
 		return compose.FilesResult{}, nil
 	}
-	client, err := compose.NewDockerClient()
+	if p.newDocker == nil {
+		return compose.FilesResult{}, fmt.Errorf("docker client factory is not configured")
+	}
+	client, err := p.newDocker()
 	if err != nil {
 		return compose.FilesResult{}, fmt.Errorf("create docker client: %w", err)
+	}
+	if client == nil {
+		return compose.FilesResult{}, fmt.Errorf("docker client factory returned nil client")
 	}
 	result, err := compose.ResolveComposeFilesFromProject(ctx, client, trimmedProject)
 	if err != nil {

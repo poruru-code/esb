@@ -4,6 +4,8 @@
 package compose
 
 import (
+	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -128,6 +130,31 @@ func TestBuildProjectStreamsWhenEnabled(t *testing.T) {
 
 	if runner.lastCall != "run" {
 		t.Fatalf("expected stream build to use Run, got %s", runner.lastCall)
+	}
+}
+
+func TestBuildProjectWritesFailureOutputToConfiguredErrOut(t *testing.T) {
+	root := t.TempDir()
+	writeComposeFiles(t, root, "docker-compose.docker.yml")
+
+	runner := &fakeRunner{
+		output:    []byte("compose failed output\n"),
+		outputErr: errors.New("boom"),
+	}
+	var errOut bytes.Buffer
+
+	err := BuildProject(t.Context(), runner, BuildOptions{
+		RootDir:  root,
+		Project:  "esb-default",
+		Mode:     ModeDocker,
+		Services: []string{"gateway"},
+		ErrOut:   &errOut,
+	})
+	if err == nil {
+		t.Fatal("expected build error")
+	}
+	if errOut.String() != "compose failed output\n" {
+		t.Fatalf("unexpected err output: %q", errOut.String())
 	}
 }
 

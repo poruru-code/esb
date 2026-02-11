@@ -15,6 +15,12 @@ import (
 
 const internalImportPrefix = "github.com/poruru/edge-serverless-box/cli/internal/"
 
+var forbiddenPackageImports = map[string][]string{
+	"usecase/deploy": {
+		internalImportPrefix + "infra/deploy",
+	},
+}
+
 func TestLayeringRules(t *testing.T) {
 	t.Parallel()
 
@@ -36,6 +42,7 @@ func TestLayeringRules(t *testing.T) {
 		if err != nil {
 			return err
 		}
+		sourcePkg := filepath.ToSlash(filepath.Dir(rel))
 		sourceLayer := topLayer(rel)
 		if sourceLayer == "" {
 			return nil
@@ -53,6 +60,10 @@ func TestLayeringRules(t *testing.T) {
 				continue
 			}
 			if violatesRule(sourceLayer, importLayer) {
+				violations = append(violations, rel+" -> "+importPath)
+				continue
+			}
+			if violatesPackageRule(sourcePkg, importPath) {
 				violations = append(violations, rel+" -> "+importPath)
 			}
 		}
@@ -109,4 +120,21 @@ func violatesRule(sourceLayer, importLayer string) bool {
 	default:
 		return false
 	}
+}
+
+func violatesPackageRule(sourcePkg, importPath string) bool {
+	pkg := strings.TrimSpace(sourcePkg)
+	if pkg == "" {
+		return false
+	}
+	rules, ok := forbiddenPackageImports[pkg]
+	if !ok {
+		return false
+	}
+	for _, forbidden := range rules {
+		if importPath == forbidden || strings.HasPrefix(importPath, forbidden+"/") {
+			return true
+		}
+	}
+	return false
 }

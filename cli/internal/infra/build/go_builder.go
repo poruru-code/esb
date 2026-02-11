@@ -6,8 +6,10 @@ package build
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
@@ -27,6 +29,7 @@ type GoBuilder struct {
 	Runner              compose.CommandRunner
 	ComposeRunner       compose.CommandRunner
 	PortDiscoverer      PortDiscoverer
+	Out                 io.Writer
 	BuildCompose        func(ctx context.Context, runner compose.CommandRunner, opts compose.BuildOptions) error
 	Generate            func(cfg config.GeneratorConfig, opts templategen.GenerateOptions) ([]template.FunctionSpec, error)
 	WriteBundleManifest func(ctx context.Context, input templategen.BundleManifestInput) (string, error)
@@ -38,6 +41,7 @@ func NewGoBuilder(discoverer PortDiscoverer) *GoBuilder {
 		Runner:              compose.ExecRunner{},
 		ComposeRunner:       compose.ExecRunner{},
 		PortDiscoverer:      discoverer,
+		Out:                 os.Stdout,
 		BuildCompose:        compose.BuildProject,
 		Generate:            templategen.GenerateFiles,
 		WriteBundleManifest: templategen.WriteBundleManifest,
@@ -76,6 +80,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	if b.FindRepoRoot == nil {
 		return fmt.Errorf("repo root finder is not configured")
 	}
+	out := resolveBuildOutput(b.Out)
 
 	templatePath, err := templategen.ResolveTemplatePath(request.TemplatePath, request.ProjectDir)
 	if err != nil {
@@ -126,20 +131,19 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		_ = os.Setenv(constants.BuildArgCAFingerprint, rootFingerprint)
 	}
 
-	phase := newPhaseReporter(request.Verbose, request.Emoji)
-	if request.Verbose {
-		fmt.Println("Generating files...")
-		fmt.Printf("Using Template: %s\n", templatePath)
-		fmt.Printf("Output Dir: %s\n", cfg.Paths.OutputDir)
-		fmt.Println("Parameters:")
-		for k, v := range cfg.Parameters {
-			fmt.Printf("  %s: %v\n", k, v)
-		}
-	}
-
 	cfg.Parameters = toAnyMap(defaultGeneratorParameters())
 	for key, value := range request.Parameters {
 		cfg.Parameters[key] = value
+	}
+	phase := newPhaseReporter(request.Verbose, request.Emoji, out)
+	if request.Verbose {
+		_, _ = fmt.Fprintln(out, "Generating files...")
+		_, _ = fmt.Fprintf(out, "Using Template: %s\n", templatePath)
+		_, _ = fmt.Fprintf(out, "Output Dir: %s\n", cfg.Paths.OutputDir)
+		_, _ = fmt.Fprintln(out, "Parameters:")
+		for _, key := range sortedAnyKeys(cfg.Parameters) {
+			_, _ = fmt.Fprintf(out, "  %s: %v\n", key, cfg.Parameters[key])
+		}
 	}
 
 	registryInfo, err := b.resolveBuildRegistryInfo(
@@ -170,6 +174,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 			cfg,
 			templategen.GenerateOptions{
 				ProjectRoot:     repoRoot,
+				Out:             out,
 				Registry:        registryInfo.RuntimeRegistry,
 				BuildRegistry:   registryInfo.PushRegistry,
 				RuntimeRegistry: registryInfo.RuntimeRegistry,
@@ -204,6 +209,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 			Verbose:             request.Verbose,
 			IncludeDockerOutput: includeDockerOutput,
 			LambdaBaseTag:       lambdaBaseTag,
+			Out:                 out,
 		})
 	}); err != nil {
 		return err
@@ -250,6 +256,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 			request.Verbose,
 			functionLabels,
 			includeDockerOutput,
+			out,
 		)
 	}); err != nil {
 		return err
@@ -282,8 +289,17 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 			return err
 		}
 		if request.Verbose {
-			fmt.Printf("Bundle manifest written: %s\n", manifestPath)
+			_, _ = fmt.Fprintf(out, "Bundle manifest written: %s\n", manifestPath)
 		}
 	}
 	return nil
+}
+
+func sortedAnyKeys(values map[string]any) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }

@@ -5,6 +5,7 @@ package command
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"sort"
 	"strings"
@@ -18,6 +19,7 @@ func promptTemplateParameters(
 	isTTY bool,
 	prompter interaction.Prompter,
 	previous map[string]string,
+	errOut io.Writer,
 ) (map[string]string, error) {
 	content, err := os.ReadFile(templatePath)
 	if err != nil {
@@ -105,7 +107,7 @@ func promptTemplateParameters(
 					values[name] = ""
 					break
 				}
-				fmt.Fprintf(os.Stderr, "Parameter %q is required.\n", name)
+				writeWarningf(errOut, "Parameter %q is required.\n", name)
 				continue
 			}
 			values[name] = input

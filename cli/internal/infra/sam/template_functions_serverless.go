@@ -17,6 +17,7 @@ func parseServerlessFunction(
 	resource map[string]any,
 	defaults functionDefaults,
 	layerMap map[string]manifest.LayerSpec,
+	warnf func(string, ...any),
 ) (template.FunctionSpec, bool, error) {
 	props := value.AsMap(resource["Properties"])
 	if props == nil {
@@ -26,7 +27,9 @@ func parseServerlessFunction(
 	// Parse strict properties using parser.Decode.
 	fnProps, err := DecodeFunctionProps(props)
 	if err != nil {
-		fmt.Printf("Warning: failed to map properties for function %s: %v\n", logicalID, err)
+		if warnf != nil {
+			warnf("failed to map properties for function %s: %v", logicalID, err)
+		}
 	}
 
 	fnName := ResolveFunctionName(fnProps.FunctionName, logicalID)

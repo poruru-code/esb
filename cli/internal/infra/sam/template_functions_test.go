@@ -62,7 +62,7 @@ func TestParseFunctionsParsesServerlessAndLambdaImage(t *testing.T) {
 		},
 	}
 
-	functions, err := parseFunctions(resources, defaults, layerMap)
+	functions, err := parseFunctions(resources, defaults, layerMap, nil)
 	if err != nil {
 		t.Fatalf("parseFunctions error: %v", err)
 	}
@@ -117,7 +117,7 @@ func TestParseFunctionsRejectsUnresolvedImageURI(t *testing.T) {
 		},
 	}
 
-	_, err := parseFunctions(resources, functionDefaults{}, nil)
+	_, err := parseFunctions(resources, functionDefaults{}, nil, nil)
 	if err == nil {
 		t.Fatal("expected unresolved image uri error")
 	}
@@ -158,6 +158,31 @@ func TestParseEventsAndScalingHelpers(t *testing.T) {
 	}
 }
 
+func TestParseEventsDeterministicOrder(t *testing.T) {
+	events := parseEvents(map[string]any{
+		"z_event": map[string]any{
+			"Type": "Api",
+			"Properties": map[string]any{
+				"Path":   "/z",
+				"Method": "GET",
+			},
+		},
+		"a_event": map[string]any{
+			"Type": "Api",
+			"Properties": map[string]any{
+				"Path":   "/a",
+				"Method": "POST",
+			},
+		},
+	})
+	if len(events) != 2 {
+		t.Fatalf("expected 2 events, got %d", len(events))
+	}
+	if events[0].Path != "/a" || events[1].Path != "/z" {
+		t.Fatalf("expected sorted event order by key, got %+v", events)
+	}
+}
+
 func TestLayerAndRuntimeHelpers(t *testing.T) {
 	layerMap := map[string]manifest.LayerSpec{
 		"A": {Name: "A"},
@@ -178,6 +203,91 @@ func TestLayerAndRuntimeHelpers(t *testing.T) {
 	}
 	if hasUnresolvedImageURI("public.ecr.aws/example/repo:latest") {
 		t.Fatal("expected resolved image uri")
+	}
+}
+
+func TestParseFunctionsDeterministicOrder(t *testing.T) {
+	resources := map[string]any{
+		"ZFunc": map[string]any{
+			"Type": "AWS::Serverless::Function",
+			"Properties": map[string]any{
+				"FunctionName": "z-fn",
+				"CodeUri":      "functions/z",
+				"Handler":      "app.handler",
+				"Runtime":      "python3.12",
+			},
+		},
+		"AFunc": map[string]any{
+			"Type": "AWS::Serverless::Function",
+			"Properties": map[string]any{
+				"FunctionName": "a-fn",
+				"CodeUri":      "functions/a",
+				"Handler":      "app.handler",
+				"Runtime":      "python3.12",
+			},
+		},
+	}
+	functions, err := parseFunctions(resources, functionDefaults{}, nil, nil)
+	if err != nil {
+		t.Fatalf("parseFunctions error: %v", err)
+	}
+	if len(functions) != 2 {
+		t.Fatalf("expected 2 functions, got %d", len(functions))
+	}
+	if functions[0].Name != "a-fn" || functions[1].Name != "z-fn" {
+		t.Fatalf("unexpected function order: %+v", functions)
+	}
+}
+
+func TestParseLayerResourcesDeterministicOrder(t *testing.T) {
+	resources := map[string]any{
+		"ZLayer": map[string]any{
+			"Type": "AWS::Serverless::LayerVersion",
+			"Properties": map[string]any{
+				"LayerName":  "z-layer",
+				"ContentUri": "layers/z",
+			},
+		},
+		"ALayer": map[string]any{
+			"Type": "AWS::Serverless::LayerVersion",
+			"Properties": map[string]any{
+				"LayerName":  "a-layer",
+				"ContentUri": "layers/a",
+			},
+		},
+	}
+	_, layers := parseLayerResources(resources)
+	if len(layers) != 2 {
+		t.Fatalf("expected 2 layers, got %d", len(layers))
+	}
+	if layers[0].Name != "a-layer" || layers[1].Name != "z-layer" {
+		t.Fatalf("unexpected layer order: %+v", layers)
+	}
+}
+
+func TestParseOtherResourcesDeterministicOrder(t *testing.T) {
+	resources := map[string]any{
+		"ZTable": map[string]any{
+			"Type": "AWS::DynamoDB::Table",
+			"Properties": map[string]any{
+				"TableName":   "z-table",
+				"BillingMode": "PAY_PER_REQUEST",
+			},
+		},
+		"ATable": map[string]any{
+			"Type": "AWS::DynamoDB::Table",
+			"Properties": map[string]any{
+				"TableName":   "a-table",
+				"BillingMode": "PAY_PER_REQUEST",
+			},
+		},
+	}
+	parsed := parseOtherResources(resources, nil)
+	if len(parsed.DynamoDB) != 2 {
+		t.Fatalf("expected 2 dynamodb resources, got %d", len(parsed.DynamoDB))
+	}
+	if parsed.DynamoDB[0].TableName != "a-table" || parsed.DynamoDB[1].TableName != "z-table" {
+		t.Fatalf("unexpected dynamodb order: %+v", parsed.DynamoDB)
 	}
 }
 

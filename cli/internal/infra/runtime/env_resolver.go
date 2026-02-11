@@ -13,7 +13,8 @@ import (
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
-	dockerclient "github.com/docker/docker/client"
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/cli/internal/domain/value"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
 )
@@ -31,24 +32,29 @@ type EnvResolver interface {
 
 // DockerEnvResolver infers environment using Docker labels, gateway config mounts,
 // and staged config directories.
-type DockerEnvResolver struct{}
-
-var errUnsupportedDockerClient = fmt.Errorf("unsupported docker client")
+type DockerEnvResolver struct {
+	DockerClientFactory func() (compose.DockerClient, error)
+}
 
 // NewEnvResolver constructs a runtime environment resolver.
 func NewEnvResolver() EnvResolver {
-	return DockerEnvResolver{}
+	return NewDockerEnvResolver(compose.NewDockerClient)
+}
+
+// NewDockerEnvResolver constructs a runtime resolver with an explicit Docker client factory.
+func NewDockerEnvResolver(factory func() (compose.DockerClient, error)) EnvResolver {
+	return DockerEnvResolver{DockerClientFactory: factory}
 }
 
 // InferEnvFromProject tries multiple sources and returns the first stable env.
-func (DockerEnvResolver) InferEnvFromProject(composeProject, templatePath string) (EnvInference, error) {
+func (r DockerEnvResolver) InferEnvFromProject(composeProject, templatePath string) (EnvInference, error) {
 	trimmed := strings.TrimSpace(composeProject)
 	if trimmed == "" {
 		return EnvInference{}, nil
 	}
 
 	var firstErr error
-	inferred, err := inferEnvFromRunningContainerLabels(trimmed)
+	inferred, err := r.inferEnvFromRunningContainerLabels(trimmed)
 	if err != nil {
 		firstErr = err
 	}
@@ -56,7 +62,7 @@ func (DockerEnvResolver) InferEnvFromProject(composeProject, templatePath string
 		return inferred, nil
 	}
 
-	inferred, err = inferEnvFromGateway(trimmed, templatePath)
+	inferred, err = r.inferEnvFromGateway(trimmed, templatePath)
 	if err != nil && firstErr == nil {
 		firstErr = err
 	}
@@ -74,14 +80,14 @@ func (DockerEnvResolver) InferEnvFromProject(composeProject, templatePath string
 	return EnvInference{}, firstErr
 }
 
-func inferEnvFromRunningContainerLabels(composeProject string) (EnvInference, error) {
+func (r DockerEnvResolver) inferEnvFromRunningContainerLabels(composeProject string) (EnvInference, error) {
 	trimmed := strings.TrimSpace(composeProject)
 	if trimmed == "" {
 		return EnvInference{}, nil
 	}
-	client, err := compose.NewDockerClient()
+	client, err := r.newDockerClient()
 	if err != nil {
-		return EnvInference{}, fmt.Errorf("create docker client: %w", err)
+		return EnvInference{}, err
 	}
 	ctx := context.Background()
 	filterArgs := filters.NewArgs()
@@ -118,43 +124,33 @@ func InferEnvFromContainerLabels(containers []container.Summary) EnvInference {
 	return EnvInference{}
 }
 
-func inferEnvFromGateway(composeProject, templatePath string) (EnvInference, error) {
+func (r DockerEnvResolver) inferEnvFromGateway(composeProject, templatePath string) (EnvInference, error) {
 	trimmed := strings.TrimSpace(composeProject)
 	if trimmed == "" {
 		return EnvInference{}, nil
 	}
-	client, err := compose.NewDockerClient()
+	client, err := r.newDockerClient()
 	if err != nil {
-		return EnvInference{}, fmt.Errorf("create docker client: %w", err)
-	}
-	rawClient, ok := client.(*dockerclient.Client)
-	if !ok {
-		return EnvInference{}, errUnsupportedDockerClient
+		return EnvInference{}, err
 	}
 
 	ctx := context.Background()
 	filterArgs := filters.NewArgs()
 	filterArgs.Add("label", fmt.Sprintf("%s=gateway", compose.ComposeServiceLabel))
 	filterArgs.Add("label", fmt.Sprintf("%s=%s", compose.ComposeProjectLabel, trimmed))
-	containers, err := rawClient.ContainerList(ctx, container.ListOptions{All: true, Filters: filterArgs})
+	containers, err := client.ContainerList(ctx, container.ListOptions{All: true, Filters: filterArgs})
 	if err != nil {
 		return EnvInference{}, fmt.Errorf("list containers: %w", err)
 	}
 	if len(containers) == 0 {
 		return EnvInference{}, nil
 	}
-	selected := containers[0]
-	for _, ctr := range containers {
-		if strings.EqualFold(ctr.State, "running") {
-			selected = ctr
-			break
-		}
-	}
-	inspect, err := rawClient.ContainerInspect(ctx, selected.ID)
+	selected := selectGatewayContainer(containers)
+	inspect, err := client.ContainerInspect(ctx, selected.ID)
 	if err != nil {
 		return EnvInference{}, fmt.Errorf("inspect container: %w", err)
 	}
-	envMap := envSliceToMap(inspect.Config.Env)
+	envMap := value.EnvSliceToMap(inspect.Config.Env)
 	if env := strings.TrimSpace(envMap["ENV"]); env != "" {
 		return EnvInference{Env: env, Source: "gateway env"}, nil
 	}
@@ -163,7 +159,7 @@ func inferEnvFromGateway(composeProject, templatePath string) (EnvInference, err
 		return EnvInference{}, nil
 	}
 	for _, mount := range inspect.Mounts {
-		if mount.Destination != "/app/runtime-config" {
+		if mount.Destination != constants.RuntimeConfigMountPath {
 			continue
 		}
 		if strings.EqualFold(string(mount.Type), "bind") && mount.Source != "" {
@@ -173,6 +169,36 @@ func inferEnvFromGateway(composeProject, templatePath string) (EnvInference, err
 		}
 	}
 	return EnvInference{}, nil
+}
+
+func selectGatewayContainer(containers []container.Summary) container.Summary {
+	if len(containers) == 0 {
+		return container.Summary{}
+	}
+	sorted := append([]container.Summary(nil), containers...)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		iRunning := strings.EqualFold(sorted[i].State, "running")
+		jRunning := strings.EqualFold(sorted[j].State, "running")
+		if iRunning != jRunning {
+			return iRunning
+		}
+		return compose.PrimaryContainerName(sorted[i].Names) < compose.PrimaryContainerName(sorted[j].Names)
+	})
+	return sorted[0]
+}
+
+func (r DockerEnvResolver) newDockerClient() (compose.DockerClient, error) {
+	if r.DockerClientFactory == nil {
+		return nil, fmt.Errorf("docker client factory is not configured")
+	}
+	client, err := r.DockerClientFactory()
+	if err != nil {
+		return nil, fmt.Errorf("create docker client: %w", err)
+	}
+	if client == nil {
+		return nil, fmt.Errorf("docker client factory returned nil client")
+	}
+	return client, nil
 }
 
 func inferEnvFromStaging(composeProject, templatePath string) (EnvInference, error) {
@@ -247,24 +273,4 @@ func DiscoverStagingEnvs(rootDir, composeProject string) ([]string, error) {
 	}
 	sort.Strings(out)
 	return out, nil
-}
-
-func envSliceToMap(env []string) map[string]string {
-	out := make(map[string]string, len(env))
-	for _, entry := range env {
-		if entry == "" {
-			continue
-		}
-		parts := strings.SplitN(entry, "=", 2)
-		key := strings.TrimSpace(parts[0])
-		if key == "" {
-			continue
-		}
-		value := ""
-		if len(parts) > 1 {
-			value = parts[1]
-		}
-		out[key] = value
-	}
-	return out
 }

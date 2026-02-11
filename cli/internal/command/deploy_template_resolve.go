@@ -4,8 +4,9 @@
 package command
 
 import (
+	"errors"
 	"fmt"
-	"os"
+	"io"
 	"strings"
 
 	domaintpl "github.com/poruru/edge-serverless-box/cli/internal/domain/template"
@@ -17,6 +18,7 @@ func resolveDeployTemplate(
 	isTTY bool,
 	prompter interaction.Prompter,
 	previous string,
+	errOut io.Writer,
 ) (string, error) {
 	trimmed := strings.TrimSpace(value)
 	if trimmed != "" {
@@ -50,27 +52,20 @@ func resolveDeployTemplate(
 				if err != nil {
 					return "", fmt.Errorf("prompt template path: %w", err)
 				}
-				input = strings.TrimSpace(input)
-				if input == "" {
-					if defaultValue != "" {
-						input = defaultValue
-					} else if path, err := resolveTemplateFallback(previous, candidates); err == nil {
-						return path, nil
-					} else {
-						fmt.Fprintln(os.Stderr, "Template path is required.")
-						continue
-					}
-				}
-				path, err := normalizeTemplatePath(input)
+				path, err := resolveTemplatePromptInput(input, defaultValue, previous, candidates)
 				if err != nil {
-					fmt.Fprintf(os.Stderr, "Invalid template path: %v\n", err)
+					if errors.Is(err, errTemplatePathRequired) {
+						writeWarningf(errOut, "Template path is required.\n")
+					} else {
+						writeWarningf(errOut, "Invalid template path: %v\n", err)
+					}
 					continue
 				}
 				return path, nil
 			}
 			path, err := normalizeTemplatePath(selected)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Invalid template path: %v\n", err)
+				writeWarningf(errOut, "Invalid template path: %v\n", err)
 				continue
 			}
 			return path, nil
@@ -80,24 +75,42 @@ func resolveDeployTemplate(
 		if err != nil {
 			return "", fmt.Errorf("prompt template path: %w", err)
 		}
-		input = strings.TrimSpace(input)
-		if input == "" {
-			if defaultValue != "" {
-				input = defaultValue
-			} else if path, err := resolveTemplateFallback(previous, candidates); err == nil {
-				return path, nil
-			} else {
-				fmt.Fprintln(os.Stderr, "Template path is required.")
-				continue
-			}
-		}
-		path, err := normalizeTemplatePath(input)
+		path, err := resolveTemplatePromptInput(input, defaultValue, previous, candidates)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Invalid template path: %v\n", err)
+			if errors.Is(err, errTemplatePathRequired) {
+				writeWarningf(errOut, "Template path is required.\n")
+			} else {
+				writeWarningf(errOut, "Invalid template path: %v\n", err)
+			}
 			continue
 		}
 		return path, nil
 	}
+}
+
+func resolveTemplatePromptInput(
+	input string,
+	defaultValue string,
+	previous string,
+	candidates []string,
+) (string, error) {
+	trimmed := strings.TrimSpace(input)
+	if trimmed == "" {
+		if strings.TrimSpace(defaultValue) != "" {
+			trimmed = strings.TrimSpace(defaultValue)
+		} else {
+			fallbackPath, fallbackErr := resolveTemplateFallback(previous, candidates)
+			if fallbackErr != nil {
+				return "", errTemplatePathRequired
+			}
+			return fallbackPath, nil
+		}
+	}
+	path, err := normalizeTemplatePath(trimmed)
+	if err != nil {
+		return "", err
+	}
+	return path, nil
 }
 
 func resolveDeployTemplates(
@@ -105,6 +118,7 @@ func resolveDeployTemplates(
 	isTTY bool,
 	prompter interaction.Prompter,
 	previous string,
+	errOut io.Writer,
 ) ([]string, error) {
 	trimmed := make([]string, 0, len(values))
 	for _, value := range values {
@@ -123,7 +137,7 @@ func resolveDeployTemplates(
 		}
 		return out, nil
 	}
-	path, err := resolveDeployTemplate("", isTTY, prompter, previous)
+	path, err := resolveDeployTemplate("", isTTY, prompter, previous, errOut)
 	if err != nil {
 		return nil, err
 	}

@@ -211,6 +211,23 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	// and is no longer part of the deploy workflow
 }
 
+func TestSortedAnyKeys(t *testing.T) {
+	keys := sortedAnyKeys(map[string]any{
+		"b": 2,
+		"a": 1,
+		"c": 3,
+	})
+	want := []string{"a", "b", "c"}
+	if len(keys) != len(want) {
+		t.Fatalf("unexpected key count: %v", keys)
+	}
+	for i := range want {
+		if keys[i] != want[i] {
+			t.Fatalf("unexpected order: %v", keys)
+		}
+	}
+}
+
 type recordRunner struct {
 	calls     []commandCall
 	err       error

@@ -5,6 +5,7 @@ package templategen
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"path/filepath"
@@ -22,6 +23,7 @@ type stageContext struct {
 	LayerCacheDir     string
 	DryRun            bool
 	Verbose           bool
+	Out               io.Writer
 	JavaRuntimeBuild  *javaRuntimeBuildState
 }
 
@@ -33,6 +35,13 @@ type stagedFunction struct {
 	Function         template.FunctionSpec
 	FunctionDir      string
 	SitecustomizeRef string
+}
+
+func (ctx stageContext) verbosef(format string, args ...any) {
+	if !ctx.Verbose {
+		return
+	}
+	_, _ = fmt.Fprintf(resolveGenerateOutput(ctx.Out), format, args...)
 }
 
 // stageFunction prepares the function source, layers, and sitecustomize file

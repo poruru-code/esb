@@ -15,7 +15,8 @@ func parseEvents(events map[string]any) []template.EventSpec {
 		return nil
 	}
 	result := []template.EventSpec{}
-	for _, raw := range events {
+	for _, eventName := range sortedMapKeys(events) {
+		raw := events[eventName]
 		event := value.AsMap(raw)
 		if event == nil {
 			continue
@@ -26,7 +27,8 @@ func parseEvents(events map[string]any) []template.EventSpec {
 			continue
 		}
 
-		if eventType == "Api" {
+		switch eventType {
+		case "Api":
 			path := value.AsString(props["Path"])
 			method := value.AsString(props["Method"])
 			if path == "" || method == "" {
@@ -37,7 +39,7 @@ func parseEvents(events map[string]any) []template.EventSpec {
 				Path:   path,
 				Method: strings.ToLower(method),
 			})
-		} else if eventType == "Schedule" {
+		case "Schedule":
 			schedule := value.AsString(props["Schedule"])
 			if schedule == "" {
 				continue

@@ -8,14 +8,17 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/alecthomas/kong"
 	"github.com/joho/godotenv"
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/state"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/build"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/interaction"
 	runtimeinfra "github.com/poruru/edge-serverless-box/cli/internal/infra/runtime"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/ui"
 	"github.com/poruru/edge-serverless-box/cli/internal/version"
 )
 
@@ -24,6 +27,7 @@ import (
 // implementations of various subsystems.
 type Dependencies struct {
 	Out          io.Writer
+	ErrOut       io.Writer
 	Prompter     interaction.Prompter
 	RepoResolver func(string) (string, error)
 	Deploy       DeployDeps
@@ -62,9 +66,45 @@ type (
 	VersionCmd struct{}
 
 	DeployDeps struct {
-		Build              func(build.BuildRequest) error
+		Build     DeployBuildDeps
+		Runtime   DeployRuntimeDeps
+		Provision DeployProvisionDeps
+	}
+
+	DeployBuildDeps struct {
+		Build func(build.BuildRequest) error
+	}
+
+	DeployRuntimeDeps struct {
 		ApplyRuntimeEnv    func(state.Context) error
 		RuntimeEnvResolver runtimeinfra.EnvResolver
+		RegistryWaiter     RegistryWaiter
+		DockerClient       DockerClientFactory
+	}
+
+	DeployProvisionDeps struct {
+		ComposeRunner             compose.CommandRunner
+		ComposeProvisioner        ComposeProvisioner
+		ComposeProvisionerFactory func(ui.UserInterface) ComposeProvisioner
+		NewDeployUI               func(io.Writer, bool) ui.UserInterface
+	}
+)
+
+type (
+	RegistryWaiter func(registry string, timeout time.Duration) error
+
+	DockerClientFactory func() (compose.DockerClient, error)
+
+	ComposeProvisioner interface {
+		CheckServicesStatus(composeProject, mode string)
+		RunProvisioner(
+			composeProject string,
+			mode string,
+			noDeps bool,
+			verbose bool,
+			projectDir string,
+			composeFiles []string,
+		) error
 	}
 )
 
@@ -75,6 +115,9 @@ func Run(args []string, deps Dependencies) int {
 	out := deps.Out
 	if out == nil {
 		out = os.Stdout
+	}
+	if deps.ErrOut == nil {
+		deps.ErrOut = os.Stderr
 	}
 	ui := legacyUI(out)
 

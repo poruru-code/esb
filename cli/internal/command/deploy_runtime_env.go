@@ -6,16 +6,14 @@ package command
 import (
 	"errors"
 	"fmt"
-	"os"
+	"io"
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/interaction"
 	runtimeinfra "github.com/poruru/edge-serverless-box/cli/internal/infra/runtime"
 )
 
-var (
-	errEnvMismatch = errors.New("environment mismatch")
-)
+var errEnvMismatch = errors.New("environment mismatch")
 
 func reconcileEnvWithRuntime(
 	choice envChoice,
@@ -25,6 +23,7 @@ func reconcileEnvWithRuntime(
 	prompter interaction.Prompter,
 	resolver runtimeinfra.EnvResolver,
 	allowMismatch bool,
+	errOut io.Writer,
 ) (envChoice, error) {
 	if strings.TrimSpace(composeProject) == "" {
 		return choice, nil
@@ -35,15 +34,15 @@ func reconcileEnvWithRuntime(
 
 	inferred, err := resolver.InferEnvFromProject(composeProject, templatePath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: failed to infer running env: %v\n", err)
+		writeWarningf(errOut, "Warning: failed to infer running env: %v\n", err)
 	}
 	if inferred.Env == "" || inferred.Env == choice.Value {
 		return choice, nil
 	}
 
 	if allowMismatch && strings.TrimSpace(choice.Value) != "" {
-		fmt.Fprintf(
-			os.Stderr,
+		writeWarningf(
+			errOut,
 			"Warning: environment mismatch (running=%q, deploy=%q); keeping %q due to --force\n",
 			inferred.Env,
 			choice.Value,

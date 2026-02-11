@@ -54,6 +54,53 @@ func TestResolveComposeFilesFromProject(t *testing.T) {
 	}
 }
 
+func TestResolveComposeFilesFromProject_TieUsesStableLexicalOrder(t *testing.T) {
+	root := t.TempDir()
+	fileA := filepath.Join(root, "a.yml")
+	fileZ := filepath.Join(root, "z.yml")
+	if err := writeTestFile(fileA, "test"); err != nil {
+		t.Fatalf("write compose file A: %v", err)
+	}
+	if err := writeTestFile(fileZ, "test"); err != nil {
+		t.Fatalf("write compose file Z: %v", err)
+	}
+
+	client := &fakeDockerClient{
+		containers: []container.Summary{
+			{
+				State: "running",
+				Labels: map[string]string{
+					ComposeProjectLabel:     "esb-test",
+					ComposeConfigFilesLabel: "z.yml",
+					ComposeWorkingDirLabel:  root,
+				},
+			},
+			{
+				State: "running",
+				Labels: map[string]string{
+					ComposeProjectLabel:     "esb-test",
+					ComposeConfigFilesLabel: "a.yml",
+					ComposeWorkingDirLabel:  root,
+				},
+			},
+		},
+	}
+
+	result, err := ResolveComposeFilesFromProject(t.Context(), client, "esb-test")
+	if err != nil {
+		t.Fatalf("resolve compose files: %v", err)
+	}
+	if result.SetCount != 2 {
+		t.Fatalf("expected set count 2, got %d", result.SetCount)
+	}
+	if len(result.Files) != 1 {
+		t.Fatalf("expected 1 file, got %d", len(result.Files))
+	}
+	if result.Files[0] != fileA {
+		t.Fatalf("expected lexical-first file %s, got %s", fileA, result.Files[0])
+	}
+}
+
 func writeTestFile(path, content string) error {
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		return fmt.Errorf("write %s: %w", path, err)

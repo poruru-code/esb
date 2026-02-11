@@ -5,6 +5,7 @@ package templategen
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,6 +20,7 @@ type GenerateOptions struct {
 	ProjectRoot         string
 	DryRun              bool
 	Verbose             bool
+	Out                 io.Writer
 	Registry            string
 	BuildRegistry       string
 	RuntimeRegistry     string
@@ -30,6 +32,9 @@ type GenerateOptions struct {
 
 // GenerateFiles runs the generator pipeline: parse, stage assets, and render configs.
 func GenerateFiles(cfg config.GeneratorConfig, opts GenerateOptions) ([]template.FunctionSpec, error) {
+	out := resolveGenerateOutput(opts.Out)
+	errOut := resolveGenerateErrOutput(opts.Out)
+
 	projectRoot := opts.ProjectRoot
 	if projectRoot == "" {
 		wd, err := os.Getwd()
@@ -63,12 +68,15 @@ func GenerateFiles(cfg config.GeneratorConfig, opts GenerateOptions) ([]template
 	}
 
 	if opts.Verbose {
-		fmt.Println("Parsing template...")
+		_, _ = fmt.Fprintln(out, "Parsing template...")
 	}
 
 	parsed, err := parser.Parse(string(contents), parameters)
 	if err != nil {
 		return nil, err
+	}
+	for _, warning := range parsed.Warnings {
+		_, _ = fmt.Fprintf(errOut, "Warning: %s\n", warning)
 	}
 	if err := template.ApplyImageNames(parsed.Functions); err != nil {
 		return nil, err
@@ -105,7 +113,7 @@ func GenerateFiles(cfg config.GeneratorConfig, opts GenerateOptions) ([]template
 
 	for _, fn := range parsed.Functions {
 		if opts.Verbose {
-			fmt.Printf("Processing function: %s\n", fn.Name)
+			_, _ = fmt.Fprintf(out, "Processing function: %s\n", fn.Name)
 		}
 		if strings.TrimSpace(fn.ImageSource) != "" {
 			functions = append(functions, fn)
@@ -121,6 +129,7 @@ func GenerateFiles(cfg config.GeneratorConfig, opts GenerateOptions) ([]template
 				LayerCacheDir:     layerCacheDir,
 				DryRun:            opts.DryRun,
 				Verbose:           opts.Verbose,
+				Out:               out,
 				JavaRuntimeBuild:  javaRuntimeBuild,
 				ProjectRoot:       projectRoot,
 				SitecustomizePath: opts.SitecustomizeSource,

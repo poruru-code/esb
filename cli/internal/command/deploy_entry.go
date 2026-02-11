@@ -14,8 +14,6 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/state"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/build"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/env"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/interaction"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/ui"
 	"github.com/poruru/edge-serverless-box/cli/internal/usecase/deploy"
@@ -23,20 +21,16 @@ import (
 
 // runDeploy executes the 'deploy' command.
 func runDeploy(cli CLI, deps Dependencies, out io.Writer) int {
-	repoResolver := deps.RepoResolver
-	if repoResolver == nil {
-		repoResolver = config.ResolveRepoRoot
-	}
-
 	emojiEnabled, err := resolveDeployEmojiEnabled(out, cli.Deploy)
 	if err != nil {
 		return exitWithError(out, err)
 	}
 
-	cmd, err := newDeployCommand(deps.Deploy, repoResolver, out, emojiEnabled)
+	commandConfig, err := resolveDeployCommandConfig(deps.Deploy, out, emojiEnabled)
 	if err != nil {
 		return exitWithError(out, err)
 	}
+	cmd := newDeployCommand(commandConfig)
 
 	inputs, err := resolveDeployInputs(cli, deps)
 	if err != nil {
@@ -54,32 +48,124 @@ type deployCommand struct {
 	applyRuntime  func(state.Context) error
 	ui            ui.UserInterface
 	composeRunner compose.CommandRunner
+	workflow      deployWorkflowDeps
 	emojiEnabled  bool
 }
 
-func newDeployCommand(
+type deployWorkflowDeps struct {
+	composeProvisioner deploy.ComposeProvisioner
+	registryWaiter     deploy.RegistryWaiter
+	dockerClient       deploy.DockerClientFactory
+}
+
+type deployCommandConfig struct {
+	build         func(build.BuildRequest) error
+	applyRuntime  func(state.Context) error
+	ui            ui.UserInterface
+	composeRunner compose.CommandRunner
+	workflow      deployWorkflowDeps
+	emojiEnabled  bool
+}
+
+type deployRuntimeComponent struct {
+	applyRuntime   func(state.Context) error
+	registryWaiter deploy.RegistryWaiter
+	dockerClient   deploy.DockerClientFactory
+}
+
+type deployProvisionComponent struct {
+	ui                 ui.UserInterface
+	composeRunner      compose.CommandRunner
+	composeProvisioner deploy.ComposeProvisioner
+}
+
+func resolveDeployCommandConfig(
 	deployDeps DeployDeps,
-	repoResolver func(string) (string, error),
 	out io.Writer,
 	emojiEnabled bool,
-) (*deployCommand, error) {
-	if deployDeps.Build == nil {
+) (deployCommandConfig, error) {
+	buildFn, err := resolveDeployBuildComponent(deployDeps.Build)
+	if err != nil {
+		return deployCommandConfig{}, err
+	}
+	runtimeComponent, err := resolveDeployRuntimeComponent(deployDeps.Runtime)
+	if err != nil {
+		return deployCommandConfig{}, err
+	}
+	provisionComponent, err := resolveDeployProvisionComponent(deployDeps.Provision, out, emojiEnabled)
+	if err != nil {
+		return deployCommandConfig{}, err
+	}
+	return deployCommandConfig{
+		build:         buildFn,
+		applyRuntime:  runtimeComponent.applyRuntime,
+		ui:            provisionComponent.ui,
+		composeRunner: provisionComponent.composeRunner,
+		workflow: deployWorkflowDeps{
+			composeProvisioner: provisionComponent.composeProvisioner,
+			registryWaiter:     runtimeComponent.registryWaiter,
+			dockerClient:       runtimeComponent.dockerClient,
+		},
+		emojiEnabled: emojiEnabled,
+	}, nil
+}
+
+func resolveDeployBuildComponent(buildDeps DeployBuildDeps) (func(build.BuildRequest) error, error) {
+	if buildDeps.Build == nil {
 		return nil, errDeployBuilderNotConfigured
 	}
-	applyRuntimeEnv := deployDeps.ApplyRuntimeEnv
-	if applyRuntimeEnv == nil {
-		applyRuntimeEnv = func(ctx state.Context) error {
-			return env.ApplyRuntimeEnv(ctx, repoResolver)
-		}
+	return buildDeps.Build, nil
+}
+
+func resolveDeployRuntimeComponent(
+	runtimeDeps DeployRuntimeDeps,
+) (deployRuntimeComponent, error) {
+	if runtimeDeps.ApplyRuntimeEnv == nil {
+		return deployRuntimeComponent{}, errors.New("deploy: runtime env applier not configured")
 	}
-	ui := ui.NewDeployUI(out, emojiEnabled)
-	return &deployCommand{
-		build:         deployDeps.Build,
-		applyRuntime:  applyRuntimeEnv,
-		ui:            ui,
-		composeRunner: compose.ExecRunner{},
-		emojiEnabled:  emojiEnabled,
+	return deployRuntimeComponent{
+		applyRuntime:   runtimeDeps.ApplyRuntimeEnv,
+		registryWaiter: deploy.RegistryWaiter(runtimeDeps.RegistryWaiter),
+		dockerClient:   deploy.DockerClientFactory(runtimeDeps.DockerClient),
 	}, nil
+}
+
+func resolveDeployProvisionComponent(
+	provisionDeps DeployProvisionDeps,
+	out io.Writer,
+	emojiEnabled bool,
+) (deployProvisionComponent, error) {
+	if provisionDeps.ComposeRunner == nil {
+		return deployProvisionComponent{}, errors.New("deploy: compose runner not configured")
+	}
+	deployUIFactory := provisionDeps.NewDeployUI
+	if deployUIFactory == nil {
+		return deployProvisionComponent{}, errors.New("deploy: deploy ui factory not configured")
+	}
+	deployUI := deployUIFactory(out, emojiEnabled)
+	composeProvisioner := provisionDeps.ComposeProvisioner
+	if composeProvisioner == nil && provisionDeps.ComposeProvisionerFactory != nil {
+		composeProvisioner = provisionDeps.ComposeProvisionerFactory(deployUI)
+	}
+	if composeProvisioner == nil {
+		return deployProvisionComponent{}, errors.New("deploy: compose provisioner not configured")
+	}
+	return deployProvisionComponent{
+		ui:                 deployUI,
+		composeRunner:      provisionDeps.ComposeRunner,
+		composeProvisioner: composeProvisioner,
+	}, nil
+}
+
+func newDeployCommand(config deployCommandConfig) *deployCommand {
+	return &deployCommand{
+		build:         config.build,
+		applyRuntime:  config.applyRuntime,
+		ui:            config.ui,
+		composeRunner: config.composeRunner,
+		workflow:      config.workflow,
+		emojiEnabled:  config.emojiEnabled,
+	}
 }
 
 func (c *deployCommand) Run(inputs deployInputs, flags DeployCmd) error {
@@ -99,6 +185,15 @@ func (c *deployCommand) Run(inputs deployInputs, flags DeployCmd) error {
 		return errTemplatePathRequired
 	}
 	workflow := deploy.NewDeployWorkflow(c.build, c.applyRuntime, c.ui, c.composeRunner)
+	if c.workflow.composeProvisioner != nil {
+		workflow.ComposeProvisioner = c.workflow.composeProvisioner
+	}
+	if c.workflow.registryWaiter != nil {
+		workflow.RegistryWaiter = c.workflow.registryWaiter
+	}
+	if c.workflow.dockerClient != nil {
+		workflow.DockerClient = c.workflow.dockerClient
+	}
 	templateCount := len(inputs.Templates)
 	for idx, tpl := range inputs.Templates {
 		buildOnly := flags.BuildOnly || (templateCount > 1 && idx < templateCount-1)
