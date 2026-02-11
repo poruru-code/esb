@@ -12,6 +12,7 @@ Gateway のスケーリングは `PoolManager` + `ContainerPool` + `HeartbeatJan
 - idle worker を再利用して cold start を抑制
 - idle timeout 超過時は Janitor が削除（scale-to-zero）
 - 起動時・再起動時は orphan cleanup で整合性を回復
+- `min_capacity` は設定値として保持されるが、現状は起動時の先行 warmup（事前起動）は行わない
 
 ## コンポーネント
 | コンポーネント | 役割 |
@@ -19,7 +20,7 @@ Gateway のスケーリングは `PoolManager` + `ContainerPool` + `HeartbeatJan
 | `PoolManager` | 関数ごとの `ContainerPool` を生成し、acquire/release/evict を統括 |
 | `ContainerPool` | 同時実行制御、idle/busy/provisioning 状態管理 |
 | `HeartbeatJanitor` | 周期的に idle prune と orphan reconciliation を実行 |
-| `GrpcProvisionClient` | Agent への `EnsureContainer` / `DestroyContainer` 連携 |
+| `GrpcProvisionClient` | Agent への `EnsureContainer` / `DestroyContainer` 連携と起動後 readiness 確認 |
 
 ## 基本フロー
 ```mermaid
@@ -29,7 +30,9 @@ sequenceDiagram
     participant GW as Gateway
     participant PM as PoolManager
     participant Pool as ContainerPool
+    participant GP as GrpcProvisionClient
     participant AG as Agent
+    participant WK as Worker
 
     Client->>GW: Invoke
     GW->>PM: acquire_worker(function)
@@ -37,12 +40,18 @@ sequenceDiagram
     alt idle worker available
         Pool-->>PM: reused worker
     else need provisioning
-        PM->>AG: EnsureContainer
-        AG-->>PM: WorkerInfo
+        PM->>GP: provision(function)
+        GP->>AG: EnsureContainer
+        AG-->>GP: WorkerInfo
+        GP->>WK: TCP readiness probe(:8080)
+        WK-->>GP: reachable
+        GP-->>PM: WorkerInfo(new)
     end
     PM-->>GW: worker
     GW->>GW: invoke + process response
-    GW->>PM: release_worker(function, worker)
+    opt worker not evicted
+        GW->>PM: release_worker(function, worker)
+    end
 ```
 
 ## Janitor フロー
@@ -75,6 +84,7 @@ sequenceDiagram
 - `/metrics/pools` で関数ごとのプール状態を確認できます。
 - `/metrics/containers` は Agent runtime 実装に依存し、Docker モードでは `501` になる場合があります。
 - 再起動直後は startup cleanup の影響で cold start が増えることがあります。
+- Janitor は `manager_client` 未設定時（現行の `lifecycle.py` 構成）でも `prune_all_pools` と `reconcile_orphans` は実行します。
 
 ---
 

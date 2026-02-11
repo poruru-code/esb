@@ -64,12 +64,14 @@ sequenceDiagram
     participant PR as GatewayRequestProcessor
     participant LI as LambdaInvoker
     participant PM as PoolManager
+    participant GP as GrpcProvisionClient
     participant AG as Agent (gRPC)
     participant WK as Worker (RIE)
 
     Client->>MW: HTTP request
     MW->>RT: route handler
     RT->>DP: resolve_input_context()
+    DP->>DP: verify_authorization(JWT)
     DP->>RM: match_route(path, method)
     RM-->>DP: function_name
     DP-->>RT: InputContext
@@ -79,8 +81,12 @@ sequenceDiagram
     alt idle worker exists
         PM-->>LI: WorkerInfo(reused)
     else provision required
-        PM->>AG: EnsureContainer(function_name, image, env, owner_id)
-        AG-->>PM: WorkerInfo(ip, port)
+        PM->>GP: provision(function_name)
+        GP->>AG: EnsureContainer(function_name, image, env, owner_id)
+        AG-->>GP: WorkerInfo(ip, port)
+        GP->>WK: TCP readiness probe(:8080)
+        WK-->>GP: reachable
+        GP-->>PM: WorkerInfo(new)
         PM-->>LI: WorkerInfo(new)
     end
 
@@ -94,7 +100,22 @@ sequenceDiagram
         WK-->>LI: response
     end
 
-    LI->>PM: release_worker()
+    alt invoke failed and retryable (at most once)
+        LI->>PM: evict_worker(function_name, worker)
+        LI->>PM: acquire_worker(function_name)
+        alt AGENT_INVOKE_PROXY=1
+            LI->>AG: InvokeWorker(container_id, payload) [retry]
+            AG->>WK: HTTP POST /invocations
+            WK-->>AG: response
+            AG-->>LI: InvokeWorkerResponse
+        else direct invoke
+            LI->>WK: HTTP POST /invocations [retry]
+            WK-->>LI: response
+        end
+    end
+    opt worker exists and not evicted
+        LI->>PM: release_worker()
+    end
     PR-->>RT: InvocationResult
     MW-->>Client: response + trace headers
 ```
