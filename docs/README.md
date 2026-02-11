@@ -1,57 +1,69 @@
 <!--
 Where: docs/README.md
-What: System-level documentation index and navigation.
-Why: Keep /docs focused on overall architecture and link to subsystem docs.
+What: System-level documentation index and onboarding navigation.
+Why: Help new contributors find the source-of-truth document without guessing.
 -->
-# システム設計ドキュメント（System-level）
+# システムドキュメント案内
 
-この `docs/` は **全体設計の概要**のみを扱います。詳細は各サブシステムの docs を参照してください。
+`docs/` は **システム全体の設計・運用方針**を扱います。  
+実装詳細は各サブシステム配下の docs を参照してください。
 
-## システム設計
-- [システム仕様（概要）](./spec.md)
-- [ランタイムモード概要（Docker / containerd）](./architecture-containerd.md)
-- [構成の伝播（概念）](./environment-variables.md)
-- [E2E Runtime Smoke 設計](./e2e-runtime-smoke.md)
+## 初回セットアップ導線
+- 開発環境セットアップと基本コマンドはリポジトリ直下の `README.md` を参照
+- E2E 実行の詳細は `e2e/runner/README.md` を参照
 
-## Subsystem Docs
-### Gateway
-- [services/gateway/docs/README.md](../services/gateway/docs/README.md)
+## 新規着任者向け: まず読む順序
+1. [システム仕様（概要）](./spec.md)
+2. [ランタイムモード概要（Docker / containerd）](./architecture-containerd.md)
+3. [コンテナ運用とランタイム管理](./container-runtime-operations.md)
+4. [CLI アーキテクチャ](../cli/docs/architecture.md)
+5. [E2E Runtime Smoke 設計](./e2e-runtime-smoke.md)
 
-### Agent
-- [services/agent/docs/README.md](../services/agent/docs/README.md)
+## 目的別ナビゲーション
+| 目的 | 最初に読むドキュメント |
+| --- | --- |
+| 全体構成を把握したい | [spec.md](./spec.md) |
+| Docker/containerd の差分を知りたい | [architecture-containerd.md](./architecture-containerd.md) |
+| ランタイム障害の運用手順を確認したい | [container-runtime-operations.md](./container-runtime-operations.md) |
+| イメージ設計・ビルド方針を確認したい | [docker-image-architecture.md](./docker-image-architecture.md) |
+| Trace/ログ連携の仕様を確認したい | [trace-propagation.md](./trace-propagation.md), [local-logging-adapter.md](./local-logging-adapter.md) |
+| Java の Maven Proxy 契約を確認したい | [java-maven-proxy-contract.md](./java-maven-proxy-contract.md) |
+| Branding 運用を確認したい | [branding-generator.md](./branding-generator.md) |
 
-### Provisioner
-- [services/provisioner/docs/README.md](../services/provisioner/docs/README.md)
+## システムドキュメント一覧
+- [spec.md](./spec.md)
+- [architecture-containerd.md](./architecture-containerd.md)
+- [container-runtime-operations.md](./container-runtime-operations.md)
+- [docker-image-architecture.md](./docker-image-architecture.md)
+- [environment-variables.md](./environment-variables.md)
+- [e2e-runtime-smoke.md](./e2e-runtime-smoke.md)
+- [local-logging-adapter.md](./local-logging-adapter.md)
+- [trace-propagation.md](./trace-propagation.md)
+- [java-maven-proxy-contract.md](./java-maven-proxy-contract.md)
+- [branding-generator.md](./branding-generator.md)
 
-### runtime-node
-- [services/runtime-node/docs/README.md](../services/runtime-node/docs/README.md)
+## サブシステム実装ドキュメント
+- Gateway: [services/gateway/docs/README.md](../services/gateway/docs/README.md)
+- Agent: [services/agent/docs/README.md](../services/agent/docs/README.md)
+- Provisioner: [services/provisioner/docs/README.md](../services/provisioner/docs/README.md)
+- runtime-node: [services/runtime-node/docs/README.md](../services/runtime-node/docs/README.md)
+- CLI: [cli/docs/architecture.md](../cli/docs/architecture.md), [cli/docs/build.md](../cli/docs/build.md), [cli/docs/container-management.md](../cli/docs/container-management.md)
+- E2E Runner: [e2e/runner/README.md](../e2e/runner/README.md)
 
-### CLI
-- [cli/docs/architecture.md](../cli/docs/architecture.md)
-- [cli/docs/build.md](../cli/docs/build.md)
-- [cli/docs/container-management.md](../cli/docs/container-management.md)
-
-### E2E Runner
-- [e2e/runner/README.md](../e2e/runner/README.md)
-
-## CI Required Checks
+## 品質ゲート（最低限）
 - `quality-gates / python-static`
 - `quality-gates / go-lint-agent`
 - `quality-gates / go-lint-cli`
 
-## 現在サイクルのスコープ
-- 本サイクルは品質ゲート強化（Lint/Type/CI）と設定不整合修正のみを対象とする
-- `deploy.go` / `main.go` / `server.go` の大規模分割は対象外（別Issueで追跡）
-
-## ドキュメントのルール
+## ドキュメント運用ルール
+- システム全体の方針は `docs/`、実装詳細は subsystem docs に置く
 - 図は Mermaid を使用する
 - 各ページ末尾に **Implementation references** を置く
-- 仕様の詳細は subsystem docs に寄せ、`docs/` は概要に留める
 
 ---
 
 ## Implementation references
 - `docs/spec.md`
 - `docs/architecture-containerd.md`
-- `docs/e2e-runtime-smoke.md`
-- `e2e/runner/README.md`
+- `docs/container-runtime-operations.md`
+- `cli/docs/architecture.md`

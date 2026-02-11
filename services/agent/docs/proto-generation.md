@@ -1,7 +1,7 @@
 <!--
 Where: services/agent/docs/proto-generation.md
 What: gRPC proto generation workflow and generated artifact locations.
-Why: Reflect WS4 consolidation of generated Go artifacts.
+Why: Keep proto contract and generated artifact paths consistent.
 -->
 # Proto Generation
 
@@ -16,20 +16,17 @@ Agent の API 契約は proto を正本とし、Go/Python の generated code は
 | Go (Agent) | `services/agent/pkg/api/v1/` | `agent.pb.go`, `agent_grpc.pb.go` |
 | Python (Gateway) | `services/gateway/pb/` | `agent_pb2.py`, `agent_pb2_grpc.py` |
 
-## WS4 Consolidation
-WS4 で Go 生成物の重複配置を撤去しました。
+## 出力配置の方針
+Go 生成物は canonical path のみに配置します。
 
-- Removed: `services/agent/pkg/api/v1/proto/`
-- Removed files:
-  - `services/agent/pkg/api/v1/proto/agent.pb.go`
-  - `services/agent/pkg/api/v1/proto/agent_grpc.pb.go`
 - Canonical path: `services/agent/pkg/api/v1/`
+- Legacy path: `services/agent/pkg/api/v1/proto/`（再作成しない）
 
 新規生成物を追加する場合は canonical path のみを使用してください。
 
 ## Generation Command
 ```bash
-python tools/gen_proto.py
+uv run python tools/gen_proto.py
 ```
 
 処理内容:
@@ -53,8 +50,6 @@ python tools/gen_proto.py
 ## Implementation references
 - `proto/agent.proto`
 - `tools/gen_proto.py`
-- `services/agent/pkg/api/v1/proto/agent.pb.go` (removed)
-- `services/agent/pkg/api/v1/proto/agent_grpc.pb.go` (removed)
 - `services/agent/pkg/api/v1/agent.pb.go`
 - `services/agent/pkg/api/v1/agent_grpc.pb.go`
 - `services/gateway/pb/agent_pb2.py`

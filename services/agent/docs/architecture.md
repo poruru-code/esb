@@ -110,7 +110,7 @@ sequenceDiagram
 - Agent runtime は **内部レジストリ参照の pull のみ**を行います。
 - `image` が内部レジストリに存在しない場合は `EnsureContainer` が `Internal` で失敗します。
 
-## WS3: containerd runtime の責務分割
+## containerd runtime の責務分割
 containerd runtime 実装は 1 ファイル集中ではなく、以下に分割されています。
 
 | ファイル | 役割 |

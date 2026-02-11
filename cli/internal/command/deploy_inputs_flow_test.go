@@ -3,7 +3,11 @@
 // Why: Keep stack-first env resolution behavior stable for interactive deploy UX.
 package command
 
-import "testing"
+import (
+	"testing"
+
+	runtimeinfra "github.com/poruru/edge-serverless-box/cli/internal/infra/runtime"
+)
 
 func TestResolveDeployEnvFromStackPrefersFlag(t *testing.T) {
 	prompter := &recordingPrompter{inputValue: "ignored"}
@@ -13,6 +17,7 @@ func TestResolveDeployEnvFromStackPrefersFlag(t *testing.T) {
 		"esb3",
 		true,
 		prompter,
+		nil,
 		"default",
 	)
 	if err != nil {
@@ -37,6 +42,7 @@ func TestResolveDeployEnvFromStackUsesStackEnvWithoutPrompt(t *testing.T) {
 		"",
 		true,
 		prompter,
+		nil,
 		"default",
 	)
 	if err != nil {
@@ -61,6 +67,7 @@ func TestResolveDeployEnvFromStackFallsBackToPrompt(t *testing.T) {
 		"",
 		true,
 		prompter,
+		nil,
 		"default",
 	)
 	if err != nil {
@@ -74,6 +81,33 @@ func TestResolveDeployEnvFromStackFallsBackToPrompt(t *testing.T) {
 	}
 	if prompter.inputCalls != 1 {
 		t.Fatalf("expected one prompt call, got %d", prompter.inputCalls)
+	}
+}
+
+func TestResolveDeployEnvFromStackUsesRuntimeResolver(t *testing.T) {
+	prompter := &recordingPrompter{inputValue: "ignored"}
+	got, err := resolveDeployEnvFromStack(
+		"",
+		deployTargetStack{},
+		"esb-dev",
+		true,
+		prompter,
+		fixedEnvResolver{
+			inferred: runtimeinfra.EnvInference{Env: "qa", Source: "container label"},
+		},
+		"default",
+	)
+	if err != nil {
+		t.Fatalf("resolve env from stack: %v", err)
+	}
+	if got.Value != "qa" {
+		t.Fatalf("expected env qa, got %q", got.Value)
+	}
+	if got.Source != "container label" {
+		t.Fatalf("expected source container label, got %q", got.Source)
+	}
+	if prompter.inputCalls != 0 {
+		t.Fatalf("expected no prompt call, got %d", prompter.inputCalls)
 	}
 }
 

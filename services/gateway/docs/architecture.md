@@ -1,7 +1,7 @@
 <!--
 Where: services/gateway/docs/architecture.md
 What: Gateway architecture, module boundaries, and runtime request flow.
-Why: Reflect WS3 split of app assembly, lifecycle, middleware, and routes.
+Why: Explain app assembly, lifecycle, middleware, and route flow from current code.
 -->
 # Gateway アーキテクチャ
 
@@ -12,7 +12,7 @@ Gateway は FastAPI ベースの HTTP エントリポイントです。
 `/2015-03-31/functions/{function_name}/invocations` 経路は RouteMatcher を使わず、
 `LambdaInvoker -> PoolManager` を直接通ります。
 
-## WS3 での責務分割
+## 責務分割
 | ファイル | 主責務 |
 | --- | --- |
 | `services/gateway/main.py` | FastAPI app 組み立て、lifespan/middleware/route 登録 |
@@ -64,12 +64,14 @@ sequenceDiagram
     participant PR as GatewayRequestProcessor
     participant LI as LambdaInvoker
     participant PM as PoolManager
+    participant GP as GrpcProvisionClient
     participant AG as Agent (gRPC)
     participant WK as Worker (RIE)
 
     Client->>MW: HTTP request
     MW->>RT: route handler
     RT->>DP: resolve_input_context()
+    DP->>DP: verify_authorization(JWT)
     DP->>RM: match_route(path, method)
     RM-->>DP: function_name
     DP-->>RT: InputContext
@@ -79,8 +81,12 @@ sequenceDiagram
     alt idle worker exists
         PM-->>LI: WorkerInfo(reused)
     else provision required
-        PM->>AG: EnsureContainer(function_name, image, env, owner_id)
-        AG-->>PM: WorkerInfo(ip, port)
+        PM->>GP: provision(function_name)
+        GP->>AG: EnsureContainer(function_name, image, env, owner_id)
+        AG-->>GP: WorkerInfo(ip, port)
+        GP->>WK: TCP readiness probe(:8080)
+        WK-->>GP: reachable
+        GP-->>PM: WorkerInfo(new)
         PM-->>LI: WorkerInfo(new)
     end
 
@@ -94,7 +100,22 @@ sequenceDiagram
         WK-->>LI: response
     end
 
-    LI->>PM: release_worker()
+    alt invoke failed and retryable (at most once)
+        LI->>PM: evict_worker(function_name, worker)
+        LI->>PM: acquire_worker(function_name)
+        alt AGENT_INVOKE_PROXY=1
+            LI->>AG: InvokeWorker(container_id, payload) [retry]
+            AG->>WK: HTTP POST /invocations
+            WK-->>AG: response
+            AG-->>LI: InvokeWorkerResponse
+        else direct invoke
+            LI->>WK: HTTP POST /invocations [retry]
+            WK-->>LI: response
+        end
+    end
+    opt worker exists and not evicted
+        LI->>PM: release_worker()
+    end
     PR-->>RT: InvocationResult
     MW-->>Client: response + trace headers
 ```

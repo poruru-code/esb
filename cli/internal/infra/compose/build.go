@@ -6,6 +6,7 @@ package compose
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 )
 
@@ -21,6 +22,7 @@ type BuildOptions struct {
 	NoCache    bool
 	Verbose    bool
 	Stream     bool
+	ErrOut     io.Writer
 }
 
 // BuildProject runs docker compose build with the appropriate configuration
@@ -59,11 +61,18 @@ func BuildProject(ctx context.Context, runner CommandRunner, opts BuildOptions) 
 	output, err := runner.RunOutput(ctx, opts.RootDir, "docker", args...)
 	if err != nil {
 		if len(output) > 0 {
-			_, _ = os.Stderr.Write(output)
+			_, _ = resolveComposeBuildErrOut(opts.ErrOut).Write(output)
 		}
 		return fmt.Errorf("compose build failed: %w", err)
 	}
 	return nil
+}
+
+func resolveComposeBuildErrOut(out io.Writer) io.Writer {
+	if out != nil {
+		return out
+	}
+	return os.Stderr
 }
 
 // ensureService adds a service to the list if not already present.

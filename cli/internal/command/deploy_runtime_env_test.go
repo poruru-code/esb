@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	runtimeinfra "github.com/poruru/edge-serverless-box/cli/internal/infra/runtime"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
 )
 
@@ -28,11 +29,11 @@ func TestInferEnvFromConfigPath(t *testing.T) {
 		t.Fatalf("mkdir staging path: %v", err)
 	}
 
-	if got := inferEnvFromConfigPath(path, stagingRoot); got != "dev" {
+	if got := runtimeinfra.InferEnvFromConfigPath(path, stagingRoot); got != "dev" {
 		t.Fatalf("expected env 'dev', got %q", got)
 	}
 
-	if got := inferEnvFromConfigPath(filepath.Join(tmp, "config"), stagingRoot); got != "" {
+	if got := runtimeinfra.InferEnvFromConfigPath(filepath.Join(tmp, "config"), stagingRoot); got != "" {
 		t.Fatalf("expected empty env for non-staging path, got %q", got)
 	}
 }
@@ -50,7 +51,7 @@ func TestDiscoverStagingEnvs(t *testing.T) {
 	mk(filepath.Join(root, "demo", "prod", "config"))
 	mk(filepath.Join(root, "other", "staging", "config"))
 
-	envs, err := discoverStagingEnvs(root, "demo")
+	envs, err := runtimeinfra.DiscoverStagingEnvs(root, "demo")
 	if err != nil {
 		t.Fatalf("discover staging envs: %v", err)
 	}

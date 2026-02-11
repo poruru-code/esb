@@ -407,7 +407,7 @@ def _docker_maven_command(
         [
             JAVA_BUILD_IMAGE,
             "bash",
-            "-lc",
+            "-c",
             script,
         ]
     )

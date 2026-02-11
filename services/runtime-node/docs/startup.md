@@ -36,7 +36,8 @@ flowchart TD
 ## 重要ポイント
 - `IMAGE_RUNTIME` は `containerd` 固定（`entrypoint.sh` でチェック）
 - devmapper pool は **事前に存在**している必要があります（作成はしない）
-- `apply_cni_nat` が CNI サブネットの **SNAT** と **FORWARD** を設定します
+- `apply_cni_nat` が **`10.88.0.0/16` 固定**で SNAT/FORWARD を設定します
+- containerd compose では Gateway/Agent/CoreDNS が runtime-node の NetNS を共有します
 
 ---
 

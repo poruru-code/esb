@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 var (
@@ -16,14 +17,17 @@ var (
 )
 
 // ResolveRepoRoot determines the ESB repository root path.
-// It only relies on the current working directory (startDir is ignored).
+// If startDir is empty, it falls back to the current working directory.
 func ResolveRepoRoot(startDir string) (string, error) {
-	_ = startDir
-	cwd, err := os.Getwd()
-	if err != nil {
-		return "", fmt.Errorf("%w: run from repo root", errRepoRootNotFound)
+	base := strings.TrimSpace(startDir)
+	if base == "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return "", fmt.Errorf("%w: run from repo root", errRepoRootNotFound)
+		}
+		base = cwd
 	}
-	if root, ok := findRepoRoot(cwd); ok {
+	if root, ok := findRepoRoot(base); ok {
 		return root, nil
 	}
 	return "", fmt.Errorf("%w: run from repo root", errRepoRootNotFound)

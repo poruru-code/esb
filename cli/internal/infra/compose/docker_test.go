@@ -25,6 +25,11 @@ func (f *fakeDockerClient) ContainerList(_ context.Context, _ container.ListOpti
 	return f.containers, nil
 }
 
+func (f *fakeDockerClient) ContainerInspect(_ context.Context, _ string) (container.InspectResponse, error) {
+	f.calls++
+	return container.InspectResponse{}, nil
+}
+
 func (f *fakeDockerClient) ImageList(_ context.Context, _ image.ListOptions) ([]image.Summary, error) {
 	f.calls++
 	return f.images, nil
@@ -79,6 +84,17 @@ func TestListContainersByProject(t *testing.T) {
 	expected := ContainerInfo{State: "running"}
 	if containers[0] != expected {
 		t.Fatalf("unexpected container state: %v", containers[0])
+	}
+}
+
+func TestPrimaryContainerName(t *testing.T) {
+	got := PrimaryContainerName([]string{"", "   ", "/gateway", "/other"})
+	if got != "gateway" {
+		t.Fatalf("expected gateway, got %q", got)
+	}
+
+	if empty := PrimaryContainerName([]string{"", " ", "/"}); empty != "" {
+		t.Fatalf("expected empty name, got %q", empty)
 	}
 }
 

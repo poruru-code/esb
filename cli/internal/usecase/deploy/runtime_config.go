@@ -10,10 +10,12 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
 )
@@ -22,6 +24,15 @@ type runtimeConfigTarget struct {
 	BindPath    string
 	VolumeName  string
 	ContainerID string
+}
+
+const runtimeConfigMountPath = constants.RuntimeConfigMountPath
+
+var runtimeConfigFiles = []string{
+	"functions.yml",
+	"routing.yml",
+	"resources.yml",
+	"image-import.json",
 }
 
 func (w Workflow) syncRuntimeConfig(req Request) error {
@@ -39,7 +50,7 @@ func (w Workflow) syncRuntimeConfig(req Request) error {
 		}
 		return fmt.Errorf("stat staging dir: %w", err)
 	}
-	target, err := resolveRuntimeConfigTarget(composeProject)
+	target, err := w.resolveRuntimeConfigTarget(composeProject)
 	if err != nil {
 		return err
 	}
@@ -77,8 +88,11 @@ func (w Workflow) syncRuntimeConfigToTarget(stagingDir string, target runtimeCon
 	return containerErr
 }
 
-func resolveRuntimeConfigTarget(composeProject string) (runtimeConfigTarget, error) {
-	client, err := compose.NewDockerClient()
+func (w Workflow) resolveRuntimeConfigTarget(composeProject string) (runtimeConfigTarget, error) {
+	if w.DockerClient == nil {
+		return runtimeConfigTarget{}, nil
+	}
+	client, err := w.newDockerClient()
 	if err != nil {
 		return runtimeConfigTarget{}, fmt.Errorf("create docker client: %w", err)
 	}
@@ -89,25 +103,13 @@ func resolveRuntimeConfigTarget(composeProject string) (runtimeConfigTarget, err
 	if err != nil {
 		return runtimeConfigTarget{}, fmt.Errorf("list containers: %w", err)
 	}
-	var fallback *container.Summary
-	for i, ctr := range containers {
-		if ctr.Labels == nil {
-			continue
-		}
-		if ctr.Labels[compose.ComposeServiceLabel] == "gateway" {
-			fallback = &containers[i]
-			break
-		}
-	}
-	if fallback == nil && len(containers) > 0 {
-		fallback = &containers[0]
-	}
-	if fallback == nil {
+	selected := selectRuntimeConfigContainer(containers)
+	if selected == nil {
 		return runtimeConfigTarget{}, nil
 	}
-	target := runtimeConfigTarget{ContainerID: fallback.ID}
-	for _, mount := range fallback.Mounts {
-		if mount.Destination != "/app/runtime-config" {
+	target := runtimeConfigTarget{ContainerID: selected.ID}
+	for _, mount := range selected.Mounts {
+		if mount.Destination != runtimeConfigMountPath {
 			continue
 		}
 		if strings.EqualFold(string(mount.Type), "bind") {
@@ -128,11 +130,40 @@ func resolveRuntimeConfigTarget(composeProject string) (runtimeConfigTarget, err
 	return target, nil
 }
 
+func selectRuntimeConfigContainer(containers []container.Summary) *container.Summary {
+	if len(containers) == 0 {
+		return nil
+	}
+	copied := append([]container.Summary(nil), containers...)
+	sort.SliceStable(copied, func(i, j int) bool {
+		iPriority := runtimeConfigServicePriority(copied[i])
+		jPriority := runtimeConfigServicePriority(copied[j])
+		if iPriority != jPriority {
+			return iPriority < jPriority
+		}
+		iRunning := strings.EqualFold(copied[i].State, "running")
+		jRunning := strings.EqualFold(copied[j].State, "running")
+		if iRunning != jRunning {
+			return iRunning
+		}
+		return gatewayContainerName(copied[i]) < gatewayContainerName(copied[j])
+	})
+	return &copied[0]
+}
+
+func runtimeConfigServicePriority(summary container.Summary) int {
+	service := strings.TrimSpace(summary.Labels[compose.ComposeServiceLabel])
+	if service == "gateway" {
+		return 0
+	}
+	return 1
+}
+
 func copyConfigFiles(srcDir, destDir string) error {
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		return fmt.Errorf("create config dir: %w", err)
 	}
-	for _, name := range []string{"functions.yml", "routing.yml", "resources.yml", "image-import.json"} {
+	for _, name := range runtimeConfigFiles {
 		src := filepath.Join(srcDir, name)
 		if _, err := os.Stat(src); err != nil {
 			continue
@@ -149,14 +180,14 @@ func copyConfigToVolume(runner compose.CommandRunner, srcDir, volume string) err
 	if runner == nil {
 		return errComposeRunnerNotConfigured
 	}
-	cmd := "mkdir -p /app/runtime-config && " +
-		"for f in functions.yml routing.yml resources.yml image-import.json; do " +
-		"if [ -f \"/src/${f}\" ]; then cp -f \"/src/${f}\" \"/app/runtime-config/${f}\"; fi; " +
+	cmd := "mkdir -p " + runtimeConfigMountPath + " && " +
+		"for f in " + strings.Join(runtimeConfigFiles, " ") + "; do " +
+		"if [ -f \"/src/${f}\" ]; then cp -f \"/src/${f}\" \"" + runtimeConfigMountPath + "/${f}\"; fi; " +
 		"done"
 	args := []string{
 		"run",
 		"--rm",
-		"-v", volume + ":/app/runtime-config",
+		"-v", volume + ":" + runtimeConfigMountPath,
 		"-v", srcDir + ":/src:ro",
 		"alpine",
 		"sh",
@@ -174,12 +205,12 @@ func copyConfigToContainer(runner compose.CommandRunner, srcDir, containerID str
 		return errComposeRunnerNotConfigured
 	}
 	ctx := context.Background()
-	for _, name := range []string{"functions.yml", "routing.yml", "resources.yml", "image-import.json"} {
+	for _, name := range runtimeConfigFiles {
 		src := filepath.Join(srcDir, name)
 		if _, err := os.Stat(src); err != nil {
 			continue
 		}
-		dest := containerID + ":/app/runtime-config/" + name
+		dest := containerID + ":" + runtimeConfigMountPath + "/" + name
 		if err := runner.Run(ctx, "", "docker", "cp", src, dest); err != nil {
 			return fmt.Errorf("copy config to container: %w", err)
 		}
@@ -193,17 +224,39 @@ func copyFile(src, dest string) error {
 		return fmt.Errorf("open %s: %w", src, err)
 	}
 	defer in.Close()
-	out, err := os.Create(dest)
+	destDir := filepath.Dir(dest)
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
+		return fmt.Errorf("create %s: %w", destDir, err)
+	}
+	out, err := os.CreateTemp(destDir, "."+filepath.Base(dest)+".tmp-*")
 	if err != nil {
 		return fmt.Errorf("create %s: %w", dest, err)
 	}
-	defer func() { _ = out.Close() }()
+	tempPath := out.Name()
+	keepTemp := true
+	closed := false
+	defer func() {
+		if !closed {
+			_ = out.Close()
+		}
+		if keepTemp {
+			_ = os.Remove(tempPath)
+		}
+	}()
 	if _, err := io.Copy(out, in); err != nil {
 		return fmt.Errorf("copy %s to %s: %w", src, dest, err)
 	}
 	if err := out.Sync(); err != nil {
 		return fmt.Errorf("sync %s: %w", dest, err)
 	}
+	if err := out.Close(); err != nil {
+		return fmt.Errorf("close %s: %w", dest, err)
+	}
+	closed = true
+	if err := os.Rename(tempPath, dest); err != nil {
+		return fmt.Errorf("rename %s to %s: %w", tempPath, dest, err)
+	}
+	keepTemp = false
 	return nil
 }
 

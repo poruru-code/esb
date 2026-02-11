@@ -19,7 +19,7 @@ func TestResolveRepoRootUsesCwd(t *testing.T) {
 	}
 	chdir(t, workDir)
 
-	root, err := ResolveRepoRoot("ignored")
+	root, err := ResolveRepoRoot("")
 	if err != nil {
 		t.Fatalf("resolve repo root: %v", err)
 	}
@@ -31,8 +31,27 @@ func TestResolveRepoRootUsesCwd(t *testing.T) {
 func TestResolveRepoRootErrorsWhenMissing(t *testing.T) {
 	startDir := t.TempDir()
 	chdir(t, startDir)
-	if _, err := ResolveRepoRoot("ignored"); err == nil {
+	if _, err := ResolveRepoRoot(""); err == nil {
 		t.Fatalf("expected error for missing repo root")
+	}
+}
+
+func TestResolveRepoRootUsesStartDirWhenProvided(t *testing.T) {
+	base := t.TempDir()
+	repoPath := makeRepo(t, base, "repo-path")
+
+	startDir := filepath.Join(repoPath, "nested")
+	if err := os.MkdirAll(startDir, 0o755); err != nil {
+		t.Fatalf("create start dir: %v", err)
+	}
+	chdir(t, t.TempDir())
+
+	root, err := ResolveRepoRoot(startDir)
+	if err != nil {
+		t.Fatalf("resolve repo root: %v", err)
+	}
+	if root != repoPath {
+		t.Fatalf("expected path repo %q, got %q", repoPath, root)
 	}
 }
 

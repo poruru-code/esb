@@ -16,7 +16,7 @@ python e2e/run_tests.py   # full E2E suite
 python e2e/run_tests.py --profile e2e-containerd  # specific profile
 python e2e/run_tests.py --unit-only
 ```
-Use `uv run esb ...` if the venv is not activated.
+Use `esb ...` after `mise run setup` (or `mise run build-cli`) installs the Go CLI binary to `~/.local/bin`.
 
 ## Coding Style & Naming Conventions
 - Python: 4-space indent; `ruff format` + `ruff check` (line length 100). Go: `goimports` and `golangci-lint` in `services/agent`.

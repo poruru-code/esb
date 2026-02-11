@@ -91,9 +91,6 @@ extra-paths = ["./e2e/fixtures/layers/common/python"]
 # No global ignores
 
 
-[project.scripts]
-esb = "cli.go_cli:main"
-
 [tool.pytest.ini_options]
 testpaths = ["e2e", "tools", "services/common/tests", "services/gateway/tests"]
 asyncio_mode = "auto"

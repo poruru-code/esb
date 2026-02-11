@@ -1,114 +1,80 @@
+<!--
+Where: cli/docs/sam-parsing-architecture.md
+What: SAM parsing behavior and extension contracts for CLI.
+Why: Prevent parsing regressions and clarify where to add new SAM support.
+-->
 # SAM パース・アーキテクチャ
 
-このドキュメントは、CLI における SAM テンプレートのパース処理を「利用側の視点」で説明します。
-`aws-sam-parser-go` は外部ライブラリとして扱い、内部実装の詳細には踏み込みません。
+## 概要
+CLI は `aws-sam-parser-go` を利用しつつ、`cli/internal/infra/sam` で内部仕様を定義します。
 
-## 目的
-- SAM テンプレートを内部 Spec へ変換する流れを示す
-- CLI 実装と外部ライブラリの責務境界を明確にする
+- YAML decode / walker は外部ライブラリ
+- intrinsic 解決ポリシー、関数/リソース変換は CLI 側
 
-## 責務分離
-
-### CLI（利用側）
-- 入力テンプレートの受け取りとエラーハンドリング
-- パラメータの優先順位ルールの適用
-- Intrinsic 解決ポリシー（内部仕様）の実装
-- SAM 型から内部 Spec（`manifest`）への変換
-- 内部デフォルト値・命名規約の適用
-
-### aws-sam-parser-go（外部ライブラリ）
-- YAML の読み取りと Intrinsic タグの正規化
-- Resolver インタフェースと再帰的ウォーカー
-- SAM スキーマ型（`schema` パッケージ）の提供
-
-## パース・パイプライン
+## パースフロー
 
 ```mermaid
-graph TD
-    A[template.yaml] --> B[sam.DecodeYAML]
-    B --> C[normalized map]
-    C --> D[sam.ResolveAll + Internal IntrinsicResolver]
-    D --> E[sam.DecodeTemplate]
-    E --> F[infra/sam: Function/Resource 解析]
-    F --> G[domain/template.ParseResult]
-
-    P1[deploy 入力値] --> P_MERGE{パラメータ統合}
-    P2[Parameters.Default] --> P_MERGE
-    P_MERGE --> D
+flowchart TD
+    A[template.yaml] --> B[DecodeYAML]
+    B --> C[extract Parameter Defaults]
+    C --> D[ResolveAll + IntrinsicResolver]
+    D --> E[DecodeTemplate]
+    E --> F[parseFunctions]
+    E --> G[parseOtherResources]
+    F --> H[template.ParseResult]
+    G --> H
 ```
 
-## パラメータの優先順位
-- `Parameters.Default` を初期値として取り込み
-- deploy 入力値が **上書き** されます
+実装:
+- 入口: `cli/internal/infra/sam/template_parser.go`
+- intrinsic: `cli/internal/infra/sam/intrinsics_*.go`
+- 関数: `cli/internal/infra/sam/template_functions_*.go`
+- リソース: `cli/internal/infra/sam/template_resources.go`
 
-## Intrinsic 解決（内部仕様）
-CLI は以下の Intrinsic を解決します:
-- `Ref`
-- `Fn::If`
-- `Fn::Sub`
-- `Fn::Join`
-- `Fn::GetAtt`
-- `Fn::Split`
-- `Fn::Select`
-- `Fn::ImportValue`
-- `Condition` / `Fn::Equals` / `Fn::Not` / `Fn::And` / `Fn::Or`
+## パラメータ優先順位
+1. `Parameters.Default`（テンプレート内）
+2. deploy 入力値（CLI で上書き）
 
-実装場所: `cli/internal/infra/sam/intrinsics_resolver.go`
+## 関数サポート
+- `AWS::Serverless::Function`
+  - Zip 関数
+  - Image 関数（`PackageType: Image` / `ImageUri`）
+- `AWS::Lambda::Function`
+  - Image 関数（`Code.ImageUri`）
+  - Zip は対象外
 
-## デフォルト値の適用
-`Globals.Function` を読み、以下をデフォルトとして適用します:
-- Runtime / Handler / Timeout / MemorySize
-- Environment.Variables
-- Architectures
-- Layers
-- RuntimeManagementConfig
+`ImageUri` に未解決変数が残る場合は fail-fast でエラー。
 
-未指定時の既定値は以下です:
-- Runtime: `python3.12`
-- Handler: `lambda_function.lambda_handler`
-- Timeout: `30`
-- Memory: `128`
-
-## リソース抽出
-以下のリソースを内部の manifest に変換します:
+## リソースサポート
 - `AWS::DynamoDB::Table`
 - `AWS::S3::Bucket`
 - `AWS::Serverless::LayerVersion`
 
-実装場所: `cli/internal/infra/sam/template_resources.go`
+## 警告/エラー方針
+- decode 不能や契約違反は error
+- 型マッピングの一部失敗は warning collector に集約
+- warning は generator 経由で出力される
 
-## 未対応・無視される項目
-以下はパース対象外のため、deploy/build には反映されません:
-- `AWS::IAM::Role` など、上記に含まれないリソース
-- `AWS::Lambda::Function` の ZIP パッケージ（`PackageType: Zip`）
-- `Function.Role`（`!GetAtt ...` で指定しても無視）
-- `Globals.Function.Tags` / `Resources.*.Tags`
-- `EphemeralStorage`
-- `Description`
-- `Outputs`
+## 拡張プレイブック
 
-必要な場合は CLI 側に対応追加が必要です。
+### 1. 新しい SAM リソース型を追加
+1. `template_resources.go` に抽出ロジック追加
+2. `domain/manifest` 型を必要に応じて拡張
+3. renderer/templategen 反映
+4. テスト: `template_parser_test.go`, `template_functions_test.go`
 
-## Image 関数対応
-- `AWS::Serverless::Function`
-  - `PackageType: Image` または `ImageUri` を検知
-  - `ImageUri` を `FunctionSpec.ImageSource` として保持
-- `AWS::Lambda::Function`
-  - `PackageType: Image` + `Code.ImageUri` を検知
-  - `Code.ImageUri` を `FunctionSpec.ImageSource` として保持
+### 2. 新しい Intrinsic を追加
+1. `intrinsics_resolve_dispatch.go` にディスパッチ追加
+2. 必要なら `intrinsics_conditions.go` / helper 更新
+3. テスト: `intrinsics_test.go`, `intrinsics_helpers_test.go`
 
-`ImageSource` を持つ関数は ZIP 関数と別経路で処理され、`Dockerfile` 生成対象から除外されます。
+### 3. 関数プロパティの対応を追加
+1. `template_functions_serverless.go` か `template_functions_lambda.go` に追加
+2. `template.FunctionSpec` へ反映
+3. テスト: `template_functions_test.go`
 
-また、`ImageUri` / `Code.ImageUri` に `${...}` が残っている場合は
-「未解決パラメータ」として parse error にします。
-（実行時失敗ではなく deploy 時に fail-fast するため）
+## 変更時の最小テスト
 
-## 出力
-`ParseResult` として以下を返します:
-- `Functions []FunctionSpec`（関数定義）
-- `Resources manifest.ResourcesSpec`（DynamoDB / S3 / Layers）
-
-## テスト観点
-- Intrinsic resolver の単体テスト
-- `ParseSAMTemplate` の統合テスト（イベント、デフォルト、リソース抽出）
-- 生成結果は renderer のスナップショットで確認
+```bash
+cd cli && go test ./internal/infra/sam -count=1
+```

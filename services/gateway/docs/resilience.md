@@ -1,91 +1,66 @@
 <!--
 Where: services/gateway/docs/resilience.md
-What: Resilience mechanisms implemented in the Gateway.
-Why: Keep reliability behavior and tradeoffs explicit for operators.
+What: Gateway resilience mechanisms.
+Why: Document failure handling and recovery behavior at runtime.
 -->
 # Gateway レジリエンス
 
-## 概要
-本ドキュメントでは、Gateway が担う信頼性機構（サーキットブレーカー、コンテナ整理、再起動耐性）
-について解説します。
+## 対象
+Gateway の信頼性機構として、以下を扱います。
 
-## 1. Circuit Breaker (Gateway)
+- Circuit Breaker
+- Worker lifecycle recovery（evict/retry）
+- Startup cleanup / orphan reconciliation
 
-Gateway サービスには、Lambda 関数（コンテナ）へのリクエスト失敗を監視し、障害が継続する場合にシステムの巻き添えを防ぐための **サーキットブレーカー (Circuit Breaker)** が実装されています。
-
-### 動作仕様
-各 Lambda 関数ごとに独立したブレーカーを持ち、以下の3つの状態を遷移します。
+## 1. Circuit Breaker
+Gateway は関数ごとに独立した breaker を持ちます。
 
 ```mermaid
 stateDiagram-v2
     [*] --> CLOSED
-
-    CLOSED --> OPEN: 失敗回数 >= 閾値
-    OPEN --> HALF_OPEN: 待機時間 (Recovery Timeout) 経過
-
-    HALF_OPEN --> CLOSED: リクエスト成功
-    HALF_OPEN --> OPEN: リクエスト失敗
+    CLOSED --> OPEN: failures >= threshold
+    OPEN --> HALF_OPEN: recovery timeout elapsed
+    HALF_OPEN --> CLOSED: success
+    HALF_OPEN --> OPEN: failure
 ```
 
-- **CLOSED (通常)**: リクエストを通常通り転送します。失敗をカウントします。
-- **OPEN (遮断)**: 即座にエラー（現行は `502 Bad Gateway`）を返し、バックエンドへのアクセスを行いません。これにより、障害中のコンテナへの負荷を軽減し、Gateway のリソース枯渇を防ぎます。
-- **HALF_OPEN (試行)**: 1回だけリクエストを通します。成功すれば CLOSED に復帰し、失敗すれば即座に OPEN に戻ります。
-
-> [!NOTE]
-> **コンテナプールとの連携**: サーキットブレーカーが OPEN の状態でも、リクエストは一度コンテナプールからワーカーを確保 (`acquire`) しようとします。これにより同時実行数が制御されますが、ブレーカーによって即座に拒否された場合、ワーカーは直ちにプールに返却 (`release`) され、リソースは解放されます。
-
-### 設定パラメータ
-環境変数で調整可能です。
-
-| 環境変数 | デフォルト | 説明 |
+### 設定
+| 変数 | 既定 | 説明 |
 | --- | --- | --- |
-| `CIRCUIT_BREAKER_THRESHOLD` | `5` | 連続失敗回数の閾値 |
-| `CIRCUIT_BREAKER_RECOVERY_TIMEOUT` | `30.0` | OPEN から HALF_OPEN に遷移するまでの待機時間（秒） |
+| `CIRCUIT_BREAKER_THRESHOLD` | `5` | 連続失敗閾値 |
+| `CIRCUIT_BREAKER_RECOVERY_TIMEOUT` | `30.0` | OPEN 維持時間（秒） |
 
-### 判定基準
-以下のケースを「失敗」とカウントします。
-- HTTP ステータス 500 以上
-- ネットワークエラー（接続拒否、タイムアウト）
-- Lambda RIE からのシステムエラー (`X-Amz-Function-Error` ヘッダ)
+### 失敗判定（主な例）
+- HTTP 5xx
+- `X-Amz-Function-Error` ヘッダー
+- 接続エラー / gRPC 到達不可
 
----
+## 2. Worker 回復
+`LambdaInvoker` は次の回復処理を行います。
 
-## 2. Container Lifecycle Management (Agent)
+- 接続失敗時に worker を `evict`
+- retry 可能条件なら worker を再取得して再実行
+- `finally` で非 eviction worker を確実に `release`
 
-Lambda RIE コンテナは **Agent (gRPC)** によって動的に管理されます。
-リソース効率と応答速度のバランスを取るため、以下の戦略を採用しています。
+## 3. 再起動時の整合（概要）
+- Gateway 起動時に `cleanup_all_containers()` で既存コンテナを明示削除
+- Janitor が `reconcile_orphans()` を周期実行
+- `ORPHAN_GRACE_PERIOD_SECONDS` 以内の新規コンテナは誤削除を防止
+- 詳細な運用手順・確認コマンドは `restart-resilience.md` を正本として参照
 
-- **オンデマンド起動**: リクエストが来た時点でコンテナを起動します（Cold Start）。プールに残っているコンテナは再利用されます（Warm Start）。
-- **アイドル停止**: 一定時間（デフォルト: 5分）リクエストがないコンテナは Gateway の Janitor が削除します。
-- **Image 関数は deploy 時 prewarm 必須**: `esb deploy --image-prewarm=all` で内部レジストリ投入後に実行します。
-
-詳細は [cli/docs/container-management.md](../../../cli/docs/container-management.md) と
-[services/agent/docs/architecture.md](../../agent/docs/architecture.md) を参照してください。
-
----
-
-## 3. Gateway / Agent Restart Resilience
-
-Gateway は起動時に Agent に問い合わせ、既存コンテナを一括削除してクリーンな状態から再構築します。これにより状態不整合を回避し、再起動後の安定性を優先します。
-
-詳細は [orchestrator-restart-resilience.md](./orchestrator-restart-resilience.md) を参照してください。
-
----
-
-## 4. エラーハンドリング仕様
-
-クライアントに返却される主なエラーコードとその意味：
-
-| ステータスコード | 原因 |
+## 4. クライアントへの代表的なエラー
+| ステータス | 主な原因 |
 | --- | --- |
-| `404 Not Found` | 指定されたパスに対応する Lambda 関数が定義されていない (Routing) |
-| `502 Bad Gateway` | サーキットブレーカー作動中、Agent 到達不可、または Lambda 関数内で未処理の例外が発生 |
-| `503 Service Unavailable` | コンテナ起動失敗（内部レジストリ未投入の image を含む） |
-| `504 Gateway Timeout` | Lambda 関数の実行がタイムアウト設定 (`LAMBDA_INVOKE_TIMEOUT`) を超過 |
+| `404` | ルート未定義 / 関数未定義 |
+| `502` | breaker 作動、invoke 失敗、関数実行エラー |
+| `503` | worker 起動失敗 |
+| `504` | invoke timeout |
 
 ---
 
 ## Implementation references
 - `services/gateway/core/circuit_breaker.py`
+- `services/gateway/services/lambda_invoker.py`
 - `services/gateway/services/pool_manager.py`
 - `services/gateway/services/janitor.py`
+- `services/gateway/lifecycle.py`

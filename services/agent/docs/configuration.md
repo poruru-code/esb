@@ -47,6 +47,7 @@ Why: Centralize tunables used by Agent and its gRPC server.
 | --- | --- | --- |
 | `CONTAINER_REGISTRY` | `registry:5010` | 既定の内部レジストリ |
 | `CONTAINER_REGISTRY_INSECURE` | `0` | `1` の場合、内部レジストリ通信を insecure として扱う |
+| `IMAGE_PULL_POLICY` | `if-not-present` | `always` / `if-not-present`（不正値は `if-not-present` 扱い） |
 | `<ENV_PREFIX>_TAG` | `latest` | 既定タグ（互換経路用。通常は Gateway から `image` を明示指定） |
 
 ## 運用上の前提
@@ -60,3 +61,4 @@ Why: Centralize tunables used by Agent and its gRPC server.
 - `services/agent/cmd/agent/main.go`
 - `services/agent/internal/config/constants.go`
 - `services/agent/internal/runtime/containerd/runtime.go`
+- `services/agent/internal/runtime/containerd/image.go`

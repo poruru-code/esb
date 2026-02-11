@@ -15,6 +15,7 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/envutil"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
+	templategen "github.com/poruru/edge-serverless-box/cli/internal/infra/templategen"
 	"github.com/poruru/edge-serverless-box/meta"
 )
 
@@ -63,8 +64,8 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	writeTestFile(t, filepath.Join(repoRoot, "docker-bake.hcl"), "# bake stub\n")
 
 	var gotCfg config.GeneratorConfig
-	var gotOpts GenerateOptions
-	generate := func(cfg config.GeneratorConfig, opts GenerateOptions) ([]template.FunctionSpec, error) {
+	var gotOpts templategen.GenerateOptions
+	generate := func(cfg config.GeneratorConfig, opts templategen.GenerateOptions) ([]template.FunctionSpec, error) {
 		gotCfg = cfg
 		gotOpts = opts
 
@@ -208,6 +209,23 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 
 	// Registry is now started separately via `esb up` or docker compose
 	// and is no longer part of the deploy workflow
+}
+
+func TestSortedAnyKeys(t *testing.T) {
+	keys := sortedAnyKeys(map[string]any{
+		"b": 2,
+		"a": 1,
+		"c": 3,
+	})
+	want := []string{"a", "b", "c"}
+	if len(keys) != len(want) {
+		t.Fatalf("unexpected key count: %v", keys)
+	}
+	for i := range want {
+		if keys[i] != want[i] {
+			t.Fatalf("unexpected order: %v", keys)
+		}
+	}
 }
 
 type recordRunner struct {
@@ -364,5 +382,15 @@ func writeComposeFiles(t *testing.T, root string, names ...string) {
 	t.Helper()
 	for _, name := range names {
 		writeTestFile(t, filepath.Join(root, name), "version: '3'\n")
+	}
+}
+
+func writeTestFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("write file: %v", err)
 	}
 }

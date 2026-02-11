@@ -54,17 +54,22 @@ func ParseSAMTemplate(content string, parameters map[string]string) (template.Pa
 
 	functionGlobals := extractFunctionGlobals(resolved)
 	defaults := parseFunctionDefaults(functionGlobals)
+	warnings := &warningCollector{}
 
 	layerMap, layers := parseLayerResources(model.Resources)
-	parsedResources := parseOtherResources(model.Resources)
+	parsedResources := parseOtherResources(model.Resources, warnings.warnf)
 	parsedResources.Layers = layers
 
-	functions, err := parseFunctions(model.Resources, defaults, layerMap)
+	functions, err := parseFunctions(model.Resources, defaults, layerMap, warnings.warnf)
 	if err != nil {
 		return template.ParseResult{}, err
 	}
 
-	return template.ParseResult{Functions: functions, Resources: parsedResources}, nil
+	return template.ParseResult{
+		Functions: functions,
+		Resources: parsedResources,
+		Warnings:  warnings.list(),
+	}, nil
 }
 
 func extractParameterDefaults(data map[string]any) map[string]string {
