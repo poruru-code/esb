@@ -842,8 +842,8 @@ if [ -z "$repo" ]; then
   echo "missing /tmp/m2/repository volume mount" >&2
   exit 1
 fi
-if [ -n "${ESB_FAKE_DOCKER_CALLS:-}" ]; then
-  printf '%s\n' "$repo" >> "${ESB_FAKE_DOCKER_CALLS}"
+if [ -n "${FAKE_DOCKER_CALLS:-}" ]; then
+  printf '%s\n' "$repo" >> "${FAKE_DOCKER_CALLS}"
 fi
 
 mkdir -p "$out/extensions/wrapper" "$out/extensions/agent"
@@ -856,6 +856,6 @@ printf 'fresh-agent' > "$out/extensions/agent/lambda-java-agent.jar"
 
 	origPath := os.Getenv("PATH")
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+origPath)
-	t.Setenv("ESB_FAKE_DOCKER_CALLS", callsLogPath)
+	t.Setenv("FAKE_DOCKER_CALLS", callsLogPath)
 	return callsLogPath
 }

@@ -13,7 +13,7 @@ Why: Clarify what branding tool covers and what remains outside of coverage befo
   - `META_REUSE`, `BUILDKITD_OVERWRITE`, `BUILDX_NETWORK_MODE`, `TINYPROXY_*`
 - `runtime-safe` スコープ（docs/test除外）では `ESB_*` は 0 件。
 - `e2e/environments/*.env` の `ESB_*` は中立キーへ更新済み（`ENV`, `TEMPLATE`, `PORT_*`）。
-- `ESB_*` 残存は docs と test 補助キーのみ（例: `ESB_FAKE_DOCKER_CALLS`）。
+- `ESB_*` 残存は baseline 記述を含む docs のみ。
 
 現状確認コマンド:
 
@@ -283,13 +283,13 @@ PR は 1 本化前提で進める。CI ガード追加は本計画スコープ�
 2. `runtime-safe` スコープで `ESB_*` が 0 件。
 3. E2E 主要フレーク（非同期ログ到達待ち）を共通ヘルパー化して安定化。
 4. E2E 環境ファイルの `ESB_*` を中立キーへ更新（`ENV`, `TEMPLATE`, `PORT_*`）。
+5. テスト補助キー `ESB_FAKE_DOCKER_CALLS` を `FAKE_DOCKER_CALLS` に更新。
 
 次タスク（PR 1本化）:
 1. `P0`: `esb-branding-tool` 側の未確定差分を確定し、`generate.py` / `update_lock.py` / templates / docs を一本化コミットする。
 2. `P0`: `esb-branding-tool` で `generate --check` を `brand=esb,acme,app` で実行し、命名（`base/upstream`）と生成差分ゼロを確認する。
 3. `P0`: `esb` 側へ再生成物を取り込み、`--parallel` を含む E2E 回帰で最終確認する。
-4. `P1`: テスト補助キーの旧名（例: `ESB_FAKE_DOCKER_CALLS`）を中立名へ整理する。
-5. `P1`: baseline 文書と現行運用文書を分離し、誤参照を防ぐ（本書は baseline、運用は `docs/branding-generator.md` を正とする）。
+4. `P1`: baseline 文書と現行運用文書を分離し、誤参照を防ぐ（本書は baseline、運用は `docs/branding-generator.md` を正とする）。
 
 完了条件（DoD）:
 1. PR 内の全コミットで `runtime-safe` スコープ `ESB_*` 0 を維持する。
