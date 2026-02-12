@@ -7,7 +7,12 @@ Why: Ensure Java runtime logs carry trace context and structured fields.
 import time
 import uuid
 
-from e2e.conftest import LOG_WAIT_TIMEOUT, call_api, query_victorialogs_by_filter
+from e2e.conftest import (
+    LOG_WAIT_TIMEOUT,
+    call_api,
+    query_victorialogs_by_filter,
+    wait_for_victorialogs_hits,
+)
 
 
 class TestJavaObservability:
@@ -28,22 +33,18 @@ class TestJavaObservability:
         )
         assert response.status_code == 200
 
-        logs = query_victorialogs_by_filter(
+        hits, found_echo = wait_for_victorialogs_hits(
             filters={
                 "trace_id": root_trace_id,
                 "container_name": "lambda-echo-java",
             },
-            min_hits=2,
             timeout=LOG_WAIT_TIMEOUT,
+            min_hits=2,
+            poll_interval=0.5,
+            matcher=lambda hit: "Echo: Log quality test" in (hit.get("message") or "")
+            or "Echo: Log quality test" in (hit.get("_msg") or ""),
         )
-
-        hits = logs.get("hits", [])
         assert hits, f"No logs found for trace_id: {root_trace_id}"
-
-        def log_message(hit):
-            return hit.get("message") or hit.get("_msg") or ""
-
-        found_echo = any("Echo: Log quality test" in log_message(hit) for hit in hits)
         found_debug = any(str(hit.get("level", "")).upper() == "DEBUG" for hit in hits)
         found_time = any("_time" in hit for hit in hits)
 
