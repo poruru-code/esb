@@ -190,6 +190,23 @@ func TestResolveTemplateConfigDirResolvesRelativeOutputDir(t *testing.T) {
 	}
 }
 
+func TestLoadConfigSnapshotDoesNotErrorWhenFilesMissing(t *testing.T) {
+	dir := t.TempDir()
+	snapshot, err := loadConfigSnapshot(dir)
+	if err != nil {
+		t.Fatalf("load config snapshot: %v", err)
+	}
+	if len(snapshot.Functions) != 0 {
+		t.Fatalf("expected no functions, got %#v", snapshot.Functions)
+	}
+	if len(snapshot.Routes) != 0 {
+		t.Fatalf("expected no routes, got %#v", snapshot.Routes)
+	}
+	if len(snapshot.Resources) != 0 {
+		t.Fatalf("expected no resources, got %#v", snapshot.Resources)
+	}
+}
+
 type captureUI struct {
 	blockCalls int
 	blockEmoji string
