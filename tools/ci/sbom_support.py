@@ -126,6 +126,34 @@ def validate_sbom(path: Path, schema_version: str) -> list[str]:
     return errors
 
 
+def uv_export_supports_cyclonedx(help_text: str) -> bool:
+    return "cyclonedx1.5" in help_text
+
+
+def assert_uv_supports_cyclonedx_export() -> None:
+    command = ["uv", "export", "--help"]
+    rendered = " ".join(shlex.quote(part) for part in command)
+    log(f"run (.): {rendered}")
+    try:
+        completed = subprocess.run(command, check=False, capture_output=True, text=True)
+    except FileNotFoundError as exc:
+        raise RuntimeError("command not found: uv") from exc
+
+    if completed.returncode != 0:
+        if completed.stdout:
+            log(f"stdout:\n{completed.stdout.strip()}")
+        if completed.stderr:
+            log(f"stderr:\n{completed.stderr.strip()}")
+        raise RuntimeError(f"failed to inspect uv export formats: {rendered}")
+
+    if not uv_export_supports_cyclonedx(completed.stdout):
+        raise RuntimeError(
+            "installed uv does not support '--format cyclonedx1.5'. "
+            "Upgrade uv or pin UV_VERSION in tools/ci/sbom-tool-versions.env "
+            "to a release that includes CycloneDX export."
+        )
+
+
 def build_python_export_command(project_dir: Path, output_file: Path) -> list[str]:
     return [
         "uv",
@@ -142,6 +170,7 @@ def build_python_export_command(project_dir: Path, output_file: Path) -> list[st
 
 
 def generate_python_sboms(output_dir: Path) -> list[GeneratedSBOM]:
+    assert_uv_supports_cyclonedx_export()
     generated: list[GeneratedSBOM] = []
     for project_dir in discover_python_projects():
         output_file = output_dir / f"python-{slug_for(project_dir)}.cdx.json"

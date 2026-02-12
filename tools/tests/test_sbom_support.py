@@ -37,3 +37,13 @@ def test_build_python_export_command_uses_supported_uv_options() -> None:
     ]
     assert "--preview-features" not in command
     assert "--preview" not in command
+
+
+def test_uv_export_supports_cyclonedx_returns_true_when_format_is_listed() -> None:
+    help_text = "possible values: requirements.txt, pylock.toml, cyclonedx1.5"
+    assert sbom_support.uv_export_supports_cyclonedx(help_text) is True
+
+
+def test_uv_export_supports_cyclonedx_returns_false_without_cyclonedx() -> None:
+    help_text = "possible values: requirements.txt, pylock.toml"
+    assert sbom_support.uv_export_supports_cyclonedx(help_text) is False

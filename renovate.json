@@ -20,6 +20,15 @@
       "depNameTemplate": "org.cyclonedx:cyclonedx-maven-plugin",
       "datasourceTemplate": "maven",
       "versioningTemplate": "maven"
+    },
+    {
+      "customType": "regex",
+      "description": "Track uv version for CycloneDX SBOM Python export support",
+      "fileMatch": ["^tools/ci/sbom-tool-versions\\.env$"],
+      "matchStrings": ["UV_VERSION=(?<currentValue>[^\\n]+)"],
+      "depNameTemplate": "astral-sh/uv",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "semver-coerced"
     }
   ],
   "packageRules": [
@@ -27,7 +36,8 @@
       "description": "Group CycloneDX toolchain updates into one PR",
       "matchDepNames": [
         "CycloneDX/cyclonedx-gomod",
-        "org.cyclonedx:cyclonedx-maven-plugin"
+        "org.cyclonedx:cyclonedx-maven-plugin",
+        "astral-sh/uv"
       ],
       "groupName": "cyclonedx-toolchain"
     }

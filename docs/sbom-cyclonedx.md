@@ -60,6 +60,7 @@ SBOM出力ディレクトリ（`sbom/`）に以下を生成します。
 
 - `CYCLONEDX_GOMOD_VERSION`
 - `CYCLONEDX_MAVEN_PLUGIN_VERSION`
+- `UV_VERSION`
 
 `renovate.json` で以下を自動更新対象にします。
 

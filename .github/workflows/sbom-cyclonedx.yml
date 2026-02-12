@@ -25,6 +25,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Load SBOM tool versions
+        id: tool-versions
+        run: |
+          set -euo pipefail
+          source tools/ci/sbom-tool-versions.env
+          echo "uv=${UV_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "cyclonedx_gomod=${CYCLONEDX_GOMOD_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "cyclonedx_maven_plugin=${CYCLONEDX_MAVEN_PLUGIN_VERSION}" >> "$GITHUB_OUTPUT"
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -33,6 +42,7 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@v4
         with:
+          version: ${{ steps.tool-versions.outputs.uv }}
           enable-cache: true
 
       - name: Set up Go
@@ -71,17 +81,10 @@ jobs:
 
           mvn -version
 
-      - name: Load SBOM tool versions
-        run: |
-          set -euo pipefail
-          source tools/ci/sbom-tool-versions.env
-          echo "CYCLONEDX_GOMOD_VERSION=${CYCLONEDX_GOMOD_VERSION}" >> "$GITHUB_ENV"
-          echo "CYCLONEDX_MAVEN_PLUGIN_VERSION=${CYCLONEDX_MAVEN_PLUGIN_VERSION}" >> "$GITHUB_ENV"
-
       - name: Install cyclonedx-gomod
         run: |
           set -euo pipefail
-          go install "github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@${CYCLONEDX_GOMOD_VERSION}"
+          go install "github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@${{ steps.tool-versions.outputs.cyclonedx_gomod }}"
           echo "${HOME}/go/bin" >> "$GITHUB_PATH"
 
       - name: Generate CycloneDX SBOM
@@ -89,6 +92,7 @@ jobs:
           uv run python tools/ci/generate_cyclonedx_sbom.py \
             --output-dir sbom \
             --schema-version 1.5 \
+            --maven-plugin-version "${{ steps.tool-versions.outputs.cyclonedx_maven_plugin }}" \
             --strict
 
       - name: Upload SBOM artifact
