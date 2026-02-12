@@ -8,7 +8,8 @@ Why: Prevent plan drift by defining hard invariants and forbidden paths.
 ## Scope
 This contract applies to both paths:
 - E2E Java warmup (`e2e/runner/warmup.py`)
-- Deploy-time Java runtime jar build (`cli/internal/infra/build/stage.go`)
+- Deploy-time Java runtime jar build (`cli/internal/infra/templategen/stage_java_runtime.go`)
+- Maven settings/proxy rendering (`cli/internal/infra/templategen/stage_java_maven.go`)
 
 ## Invariants
 1. A temporary Maven `settings.xml` is generated for every run.
@@ -27,6 +28,7 @@ This contract applies to both paths:
 - Host `~/.m2/settings.xml` dependency.
 - Conditional fallback such as `if [ -f /tmp/m2/settings.xml ] ... else mvn ...`.
 - `build-java21:latest`.
+- Passing runtime proxy env (`HTTP_PROXY`/`HTTPS_PROXY`) into Java build container as behavior source.
 
 ## Proxy Parsing Rules
 1. Proxy URL must include scheme and host.
@@ -47,3 +49,19 @@ This contract applies to both paths:
 - Shared test vectors: `runtime/java/testdata/maven_proxy_cases.json`
 - Static contract check: `tools/ci/check_java_proxy_contract.sh`
 - Proxy proof runner: `tools/e2e_proxy/run_with_tinyproxy.py`
+
+## Verification Commands
+```bash
+bash tools/ci/check_java_proxy_contract.sh
+cd cli && go test ./internal/infra/templategen -count=1
+uv run pytest -q e2e/runner/tests
+```
+
+---
+
+## Implementation references
+- `cli/internal/infra/templategen/stage_java_runtime.go`
+- `cli/internal/infra/templategen/stage_java_maven.go`
+- `cli/internal/infra/templategen/stage_java_env_test.go`
+- `e2e/runner/warmup.py`
+- `runtime/java/README.md`

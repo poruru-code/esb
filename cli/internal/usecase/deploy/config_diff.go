@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,7 +30,7 @@ func loadConfigSnapshot(configDir string) (domaincfg.Snapshot, error) {
 	}
 
 	functions, err := loadYamlFile(filepath.Join(configDir, "functions.yml"))
-	if err != nil && !os.IsNotExist(err) {
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return snapshot, err
 	}
 	if len(functions) > 0 {
@@ -41,7 +42,7 @@ func loadConfigSnapshot(configDir string) (domaincfg.Snapshot, error) {
 	}
 
 	routing, err := loadYamlFile(filepath.Join(configDir, "routing.yml"))
-	if err != nil && !os.IsNotExist(err) {
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return snapshot, err
 	}
 	if len(routing) > 0 {
@@ -58,7 +59,7 @@ func loadConfigSnapshot(configDir string) (domaincfg.Snapshot, error) {
 	}
 
 	resources, err := loadYamlFile(filepath.Join(configDir, "resources.yml"))
-	if err != nil && !os.IsNotExist(err) {
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return snapshot, err
 	}
 	if len(resources) > 0 {

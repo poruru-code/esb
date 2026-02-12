@@ -3,6 +3,7 @@ package compose
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 )
@@ -15,13 +16,30 @@ type CommandRunner interface {
 }
 
 // ExecRunner is a concrete implementation of CommandRunner using os/exec.
-type ExecRunner struct{}
+type ExecRunner struct {
+	Out    io.Writer
+	ErrOut io.Writer
+}
+
+func (r ExecRunner) stdout() io.Writer {
+	if r.Out != nil {
+		return r.Out
+	}
+	return os.Stdout
+}
+
+func (r ExecRunner) stderr() io.Writer {
+	if r.ErrOut != nil {
+		return r.ErrOut
+	}
+	return os.Stderr
+}
 
 func (r ExecRunner) Run(ctx context.Context, dir, name string, args ...string) error {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = r.stdout()
+	cmd.Stderr = r.stderr()
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("run %s: %w", name, err)
 	}

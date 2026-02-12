@@ -14,13 +14,22 @@ Image 関数は deploy 時 prewarm を前提とし、実行時 Agent は内部�
 - 対象: `services/agent`（Agent 本体）
 - 対象外: Gateway 側の HTTP API 詳細（`services/gateway/docs` を参照）
 
-## 目次
-- [アーキテクチャ](./architecture.md)
-- [gRPC API](./grpc-api.md)
-- [Runtime: containerd](./runtime-containerd.md)
-- [Runtime: docker](./runtime-docker.md)
-- [設定（環境変数）](./configuration.md)
-- [Proto Generation](./proto-generation.md)
+## まず読む順序
+1. [アーキテクチャ](./architecture.md)
+2. [gRPC API](./grpc-api.md)
+3. [Runtime: containerd](./runtime-containerd.md)
+4. [Runtime: docker](./runtime-docker.md)
+5. [設定（環境変数）](./configuration.md)
+6. [Proto Generation](./proto-generation.md)
+
+## 目的別ガイド
+| 目的 | 参照先 |
+| --- | --- |
+| API 契約を確認したい | [grpc-api.md](./grpc-api.md) |
+| containerd 実装を追いたい | [runtime-containerd.md](./runtime-containerd.md) |
+| docker モード差分を確認したい | [runtime-docker.md](./runtime-docker.md) |
+| 環境変数を確認したい | [configuration.md](./configuration.md) |
+| proto 生成手順を確認したい | [proto-generation.md](./proto-generation.md) |
 
 ## 関連
 - System-level: [docs/spec.md](../../../docs/spec.md)

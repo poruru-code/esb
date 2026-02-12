@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/docker/docker/api/types/container"
@@ -59,7 +60,6 @@ func ResolveComposeFilesFromProject(ctx context.Context, client DockerClient, pr
 		count int
 	}
 	sets := map[string]*fileSet{}
-	order := []string{}
 	for _, ctr := range candidates {
 		labels := ctr.Labels
 		if labels == nil {
@@ -79,7 +79,6 @@ func ResolveComposeFilesFromProject(ctx context.Context, client DockerClient, pr
 		if !ok {
 			entry = &fileSet{files: files}
 			sets[key] = entry
-			order = append(order, key)
 		}
 		entry.count++
 	}
@@ -87,9 +86,14 @@ func ResolveComposeFilesFromProject(ctx context.Context, client DockerClient, pr
 		return FilesResult{}, nil
 	}
 
-	bestKey := order[0]
+	keys := make([]string, 0, len(sets))
+	for key := range sets {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	bestKey := keys[0]
 	bestCount := sets[bestKey].count
-	for _, key := range order[1:] {
+	for _, key := range keys[1:] {
 		if sets[key].count > bestCount {
 			bestKey = key
 			bestCount = sets[key].count

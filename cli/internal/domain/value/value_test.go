@@ -54,4 +54,25 @@ func TestValueHelpers(t *testing.T) {
 	if got := EnsureTrailingSlash("path/"); got != "path/" {
 		t.Errorf("EnsureTrailingSlash(path/) = %s", got)
 	}
+
+	envMap := EnvSliceToMap([]string{
+		"A=1",
+		" B =2",
+		"NO_EQUALS",
+		"",
+		"=skip",
+		"A=override",
+	})
+	if envMap["A"] != "override" {
+		t.Errorf("EnvSliceToMap A = %s", envMap["A"])
+	}
+	if envMap["B"] != "2" {
+		t.Errorf("EnvSliceToMap B = %s", envMap["B"])
+	}
+	if envMap["NO_EQUALS"] != "" {
+		t.Errorf("EnvSliceToMap NO_EQUALS = %s", envMap["NO_EQUALS"])
+	}
+	if _, ok := envMap[""]; ok {
+		t.Errorf("EnvSliceToMap should ignore empty key")
+	}
 }

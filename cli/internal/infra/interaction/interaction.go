@@ -38,8 +38,19 @@ var IsTerminal = func(file *os.File) bool {
 
 // PromptYesNo prints a confirmation prompt and returns true for yes.
 func PromptYesNo(message string) (bool, error) {
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Fprintf(os.Stderr, "%s [y/N]: ", message)
+	return PromptYesNoWithIO(os.Stdin, os.Stderr, message)
+}
+
+// PromptYesNoWithIO prints a confirmation prompt to out and reads the answer from in.
+func PromptYesNoWithIO(in io.Reader, out io.Writer, message string) (bool, error) {
+	if in == nil {
+		in = os.Stdin
+	}
+	if out == nil {
+		out = os.Stderr
+	}
+	reader := bufio.NewReader(in)
+	_, _ = fmt.Fprintf(out, "%s [y/N]: ", message)
 	line, err := reader.ReadString('\n')
 	if err != nil && !errors.Is(err, io.EOF) {
 		return false, fmt.Errorf("read confirmation: %w", err)

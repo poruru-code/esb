@@ -7,13 +7,14 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/network"
-	dockerclient "github.com/docker/docker/client"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/cli/internal/domain/value"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
 )
 
@@ -27,7 +28,7 @@ func (w Workflow) alignGatewayRuntime(req Request) Request {
 	if skipGatewayAlign() {
 		return req
 	}
-	info, err := resolveGatewayRuntime(req.Context.ComposeProject)
+	info, err := w.resolveGatewayRuntime(req.Context.ComposeProject)
 	if err != nil {
 		if w.UserInterface != nil {
 			w.UserInterface.Warn(fmt.Sprintf("Warning: failed to resolve gateway runtime: %v", err))
@@ -57,14 +58,13 @@ func skipGatewayAlign() bool {
 	return value == "1" || value == "true" || value == "yes"
 }
 
-func resolveGatewayRuntime(composeProject string) (gatewayRuntimeInfo, error) {
-	client, err := compose.NewDockerClient()
+func (w Workflow) resolveGatewayRuntime(composeProject string) (gatewayRuntimeInfo, error) {
+	if w.DockerClient == nil {
+		return gatewayRuntimeInfo{}, nil
+	}
+	client, err := w.newDockerClient()
 	if err != nil {
 		return gatewayRuntimeInfo{}, fmt.Errorf("create docker client: %w", err)
-	}
-	rawClient, ok := client.(*dockerclient.Client)
-	if !ok {
-		return gatewayRuntimeInfo{}, errUnsupportedDockerClient
 	}
 
 	ctx := context.Background()
@@ -73,73 +73,58 @@ func resolveGatewayRuntime(composeProject string) (gatewayRuntimeInfo, error) {
 	if strings.TrimSpace(composeProject) != "" {
 		filterArgs.Add("label", fmt.Sprintf("%s=%s", compose.ComposeProjectLabel, composeProject))
 	}
-	containers, err := rawClient.ContainerList(ctx, container.ListOptions{All: true, Filters: filterArgs})
+	containers, err := client.ContainerList(ctx, container.ListOptions{All: true, Filters: filterArgs})
 	if err != nil {
 		return gatewayRuntimeInfo{}, fmt.Errorf("list containers: %w", err)
-	}
-	if len(containers) == 0 && strings.TrimSpace(composeProject) == "" {
-		filterArgs = filters.NewArgs()
-		filterArgs.Add("label", fmt.Sprintf("%s=gateway", compose.ComposeServiceLabel))
-		containers, err = rawClient.ContainerList(ctx, container.ListOptions{All: true, Filters: filterArgs})
-		if err != nil {
-			return gatewayRuntimeInfo{}, fmt.Errorf("list containers: %w", err)
-		}
 	}
 	if len(containers) == 0 {
 		return gatewayRuntimeInfo{}, nil
 	}
-
-	selected := containers[0]
-	for _, ctr := range containers {
-		if strings.EqualFold(ctr.State, "running") {
-			selected = ctr
-			break
+	sort.SliceStable(containers, func(i, j int) bool {
+		iRunning := strings.EqualFold(containers[i].State, "running")
+		jRunning := strings.EqualFold(containers[j].State, "running")
+		if iRunning != jRunning {
+			return iRunning
 		}
-	}
-	inspect, err := rawClient.ContainerInspect(ctx, selected.ID)
+		return gatewayContainerName(containers[i]) < gatewayContainerName(containers[j])
+	})
+	selected := containers[0]
+	inspect, err := client.ContainerInspect(ctx, selected.ID)
 	if err != nil {
 		return gatewayRuntimeInfo{}, fmt.Errorf("inspect container: %w", err)
 	}
-	envMap := envSliceToMap(inspect.Config.Env)
+	envValues := []string{}
+	if inspect.Config != nil {
+		envValues = inspect.Config.Env
+	}
+	envMap := value.EnvSliceToMap(envValues)
 	info := gatewayRuntimeInfo{
 		ComposeProject:    strings.TrimSpace(selected.Labels[compose.ComposeProjectLabel]),
 		ProjectName:       strings.TrimSpace(envMap[constants.EnvProjectName]),
 		ContainersNetwork: strings.TrimSpace(envMap["CONTAINERS_NETWORK"]),
 	}
-	if info.ContainersNetwork == "" {
+	if info.ContainersNetwork == "" && inspect.NetworkSettings != nil {
 		info.ContainersNetwork = pickGatewayNetwork(inspect.NetworkSettings.Networks)
 	}
 	return info, nil
 }
 
-func envSliceToMap(env []string) map[string]string {
-	out := make(map[string]string, len(env))
-	for _, entry := range env {
-		if entry == "" {
-			continue
-		}
-		parts := strings.SplitN(entry, "=", 2)
-		key := strings.TrimSpace(parts[0])
-		if key == "" {
-			continue
-		}
-		value := ""
-		if len(parts) > 1 {
-			value = parts[1]
-		}
-		out[key] = value
-	}
-	return out
-}
-
 func pickGatewayNetwork(networks map[string]*network.EndpointSettings) string {
+	if len(networks) == 0 {
+		return ""
+	}
+	names := make([]string, 0, len(networks))
 	for name := range networks {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
 		if strings.Contains(name, "external") {
 			return name
 		}
 	}
-	for name := range networks {
-		return name
+	if len(names) > 0 {
+		return names[0]
 	}
 	return ""
 }
@@ -151,7 +136,10 @@ func (w Workflow) warnInfraNetworkMismatch(composeProject, gatewayNetwork string
 	if strings.TrimSpace(gatewayNetwork) == "" {
 		return
 	}
-	client, err := compose.NewDockerClient()
+	if w.DockerClient == nil {
+		return
+	}
+	client, err := w.newDockerClient()
 	if err != nil {
 		return
 	}
@@ -169,16 +157,21 @@ func (w Workflow) warnInfraNetworkMismatch(composeProject, gatewayNetwork string
 		"s3-storage":   {},
 		"victorialogs": {},
 	}
-	missing := make([]string, 0, len(required))
+	missingSet := make(map[string]struct{}, len(required))
 	for _, ctr := range containers {
 		service := strings.TrimSpace(ctr.Labels[compose.ComposeServiceLabel])
 		if _, ok := required[service]; !ok {
 			continue
 		}
 		if !containerOnNetwork(&ctr, gatewayNetwork) {
-			missing = append(missing, service)
+			missingSet[service] = struct{}{}
 		}
 	}
+	missing := make([]string, 0, len(missingSet))
+	for service := range missingSet {
+		missing = append(missing, service)
+	}
+	sort.Strings(missing)
 	if len(missing) == 0 {
 		return
 	}
@@ -201,4 +194,22 @@ func containerOnNetwork(ctr *container.Summary, network string) bool {
 		}
 	}
 	return false
+}
+
+func (w Workflow) newDockerClient() (compose.DockerClient, error) {
+	if w.DockerClient == nil {
+		return nil, errDockerClientNotConfigured
+	}
+	client, err := w.DockerClient()
+	if err != nil {
+		return nil, err
+	}
+	if client == nil {
+		return nil, errDockerClientNotConfigured
+	}
+	return client, nil
+}
+
+func gatewayContainerName(summary container.Summary) string {
+	return compose.PrimaryContainerName(summary.Names)
 }

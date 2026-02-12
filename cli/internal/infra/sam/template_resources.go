@@ -4,8 +4,6 @@
 package sam
 
 import (
-	"fmt"
-
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/manifest"
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/value"
 )
@@ -14,7 +12,8 @@ func parseLayerResources(resources map[string]any) (map[string]manifest.LayerSpe
 	layerMap := map[string]manifest.LayerSpec{}
 	var layers []manifest.LayerSpec
 
-	for logicalID, resource := range resources {
+	for _, logicalID := range sortedMapKeys(resources) {
+		resource := resources[logicalID]
 		m := value.AsMap(resource)
 		if m == nil || value.AsString(m["Type"]) != "AWS::Serverless::LayerVersion" {
 			continue
@@ -46,10 +45,11 @@ func parseLayerResources(resources map[string]any) (map[string]manifest.LayerSpe
 	return layerMap, layers
 }
 
-func parseOtherResources(resources map[string]any) manifest.ResourcesSpec {
+func parseOtherResources(resources map[string]any, warnf func(string, ...any)) manifest.ResourcesSpec {
 	parsed := manifest.ResourcesSpec{}
 
-	for logicalID, raw := range resources {
+	for _, logicalID := range sortedMapKeys(resources) {
+		raw := resources[logicalID]
 		resource := value.AsMap(raw)
 		if resource == nil {
 			continue
@@ -65,8 +65,8 @@ func parseOtherResources(resources map[string]any) manifest.ResourcesSpec {
 			tableName := ResolveTableName(props, logicalID)
 
 			tableProps, err := DecodeDynamoDBProps(props)
-			if err != nil {
-				fmt.Printf("Warning: failed to map DynamoDB table %s: %v\n", logicalID, err)
+			if err != nil && warnf != nil {
+				warnf("failed to map DynamoDB table %s: %v", logicalID, err)
 			}
 
 			tableProps.TableName = tableName
@@ -76,8 +76,8 @@ func parseOtherResources(resources map[string]any) manifest.ResourcesSpec {
 			bucketName := ResolveS3BucketName(props, logicalID)
 
 			s3Props, err := DecodeS3BucketProps(props)
-			if err != nil {
-				fmt.Printf("Warning: failed to map S3 bucket %s: %v\n", logicalID, err)
+			if err != nil && warnf != nil {
+				warnf("failed to map S3 bucket %s: %v", logicalID, err)
 			}
 
 			s3Props.BucketName = bucketName

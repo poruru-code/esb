@@ -21,6 +21,20 @@ const (
 	imageDigestMismatchCode = "IMAGE_DIGEST_MISMATCH"
 )
 
+// NormalizeImagePrewarmMode normalizes deploy image prewarm mode.
+func NormalizeImagePrewarmMode(value string) (string, error) {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	if normalized == "" {
+		return "all", nil
+	}
+	switch normalized {
+	case "off", "all":
+		return normalized, nil
+	default:
+		return "", fmt.Errorf("deploy: invalid --image-prewarm value %q (use off|all)", value)
+	}
+}
+
 type imageImportManifest struct {
 	Version    string             `json:"version"`
 	PushTarget string             `json:"push_target"`

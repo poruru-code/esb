@@ -80,10 +80,10 @@ func defaultDeployProject(env string) string {
 	return fmt.Sprintf("%s-%s", brandName, envName)
 }
 
-func discoverRunningDeployTargetStacks() ([]deployTargetStack, error) {
-	client, err := compose.NewDockerClient()
+func discoverRunningDeployTargetStacks(factory DockerClientFactory) ([]deployTargetStack, error) {
+	client, err := newDockerClient(factory)
 	if err != nil {
-		return nil, fmt.Errorf("create docker client: %w", err)
+		return nil, err
 	}
 	ctx := context.Background()
 	containers, err := client.ContainerList(ctx, container.ListOptions{All: false})
@@ -112,7 +112,7 @@ func extractRunningDeployTargetStacks(containers []container.Summary) []deployTa
 		if !allowed {
 			continue
 		}
-		stackName := inferStackFromServiceName(containerName(ctr.Names), service)
+		stackName := inferStackFromServiceName(compose.PrimaryContainerName(ctr.Names), service)
 		if stackName == "" {
 			continue
 		}
@@ -189,24 +189,17 @@ func inferEnvFromStackName(stack string) string {
 	return env
 }
 
-func containerName(names []string) string {
-	for _, raw := range names {
-		trimmed := strings.TrimSpace(strings.TrimPrefix(raw, "/"))
-		if trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
-}
-
-func inferDeployModeFromProject(composeProject string) (string, string, error) {
+func inferDeployModeFromProject(
+	composeProject string,
+	factory DockerClientFactory,
+) (string, string, error) {
 	trimmed := strings.TrimSpace(composeProject)
 	if trimmed == "" {
 		return "", "", nil
 	}
-	client, err := compose.NewDockerClient()
+	client, err := newDockerClient(factory)
 	if err != nil {
-		return "", "", fmt.Errorf("create docker client: %w", err)
+		return "", "", err
 	}
 	ctx := context.Background()
 
@@ -251,4 +244,18 @@ func containerInfos(containers []container.Summary) []runtimecfg.ContainerInfo {
 		})
 	}
 	return out
+}
+
+func newDockerClient(factory DockerClientFactory) (compose.DockerClient, error) {
+	if factory == nil {
+		return nil, fmt.Errorf("docker client factory is not configured")
+	}
+	client, err := factory()
+	if err != nil {
+		return nil, fmt.Errorf("create docker client: %w", err)
+	}
+	if client == nil {
+		return nil, fmt.Errorf("docker client factory returned nil client")
+	}
+	return client, nil
 }
