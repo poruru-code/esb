@@ -86,5 +86,6 @@ CycloneDX関連更新は `cyclonedx-toolchain` グループとして1つのPRに
 ## Implementation references
 - `.github/workflows/sbom-cyclonedx.yml`
 - `tools/ci/generate_cyclonedx_sbom.py`
+- `tools/ci/sbom_support.py`
 - `tools/ci/sbom-tool-versions.env`
 - `renovate.json`
