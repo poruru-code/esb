@@ -20,6 +20,11 @@ suites:
     - ../scenarios/runtime/java/
     - ../scenarios/runtime/python/
     exclude: []
+  restart:
+    description: Restart scenarios
+    targets:
+    - ../scenarios/restart/
+    exclude: []
 
 matrix:
 # docker runtime
@@ -32,6 +37,7 @@ matrix:
   - smoke
   - standard
   - runtime
+  - restart
 
 # containerd runtime
 - esb_env: e2e-containerd
