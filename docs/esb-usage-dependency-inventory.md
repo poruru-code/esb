@@ -275,12 +275,27 @@ CI の連鎖依存。
 `generate.py` 非管理の 146 ファイル（616件）に ESB 依存が残っています。
 代表カテゴリは `cli/`（206件）、`services/`（195件）、`e2e/`（84件）、`tools/`（53件）。
 
-### 7.3 次フェーズ向け優先順位（実装タスク案）
-- `P0`: 管理対象テンプレート内の ESB 固定文字列を置換可能構造へ変更（`ESB_TAG`, `ESB_REGISTRY`, `esb_cni_*` など）。
-- `P0`: ヘッダー生成物だが非管理の5ファイルを、テンプレート復元 + `TEMPLATES` 管理へ統合。
-- `P1`: 実行依存の `ESB_*` キー参照（CLI/E2E/tools）をブランド中立または移行可能形式へ整理。
-- `P1`: CI連携の `source.esb_*` / `.esb-info` 命名を将来方針に合わせて再設計。
-- `P2`: テスト/文書/生成コードの命名追従（互換方針確定後に一括整備）。
+### 7.3 現状ベースの最新計画（2026-02-12）
+PR は 1 本化前提で進める。CI ガード追加は本計画スコープ外。
+
+完了済み（esb リポジトリ側）:
+1. 実行系の中立キー化（`TAG`, `REGISTRY`, `SKIP_GATEWAY_ALIGN`, `REGISTRY_WAIT`, `CLI_BIN`, `META_REUSE`, `BUILDKITD_OVERWRITE`, `BUILDX_NETWORK_MODE`, `TINYPROXY_*`）。
+2. `runtime-safe` スコープで `ESB_*` が 0 件。
+3. E2E 主要フレーク（非同期ログ到達待ち）を共通ヘルパー化して安定化。
+4. E2E 環境ファイルの `ESB_*` を中立キーへ更新（`ENV`, `TEMPLATE`, `PORT_*`）。
+
+次タスク（PR 1本化）:
+1. `P0`: `esb-branding-tool` 側の未確定差分を確定し、`generate.py` / `update_lock.py` / templates / docs を一本化コミットする。
+2. `P0`: `esb-branding-tool` で `generate --check` を `brand=esb,acme,app` で実行し、命名（`base/upstream`）と生成差分ゼロを確認する。
+3. `P0`: `esb` 側へ再生成物を取り込み、`--parallel` を含む E2E 回帰で最終確認する。
+4. `P1`: テスト補助キーの旧名（例: `ESB_FAKE_DOCKER_CALLS`）を中立名へ整理する。
+5. `P1`: baseline 文書と現行運用文書を分離し、誤参照を防ぐ（本書は baseline、運用は `docs/branding-generator.md` を正とする）。
+
+完了条件（DoD）:
+1. PR 内の全コミットで `runtime-safe` スコープ `ESB_*` 0 を維持する。
+2. `esb-branding-tool` の `branding-check` 相当検証が成功する。
+3. `esb` 側で unit + E2E（`--parallel`）が成功する。
+4. ドキュメント上で「baseline」と「現行方針」が明確に区別される。
 
 ## 8. 検証シナリオ（このドキュメントの妥当性）
 1. `カバー済み9件` が `~/esb-branding-tool/tools/branding/generate.py` の `TEMPLATES` と一致する。
