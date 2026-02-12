@@ -13,9 +13,8 @@ DOCKLE_TMP_MODE ?= file
 BRAND_SLUG ?= esb
 TAG ?= latest
 IMAGE_TAG ?= $(TAG)
-REGISTRY ?=
-ESB_REGISTRY ?= registry:5010/
-IMAGE_REGISTRY ?= $(if $(strip $(REGISTRY)),$(REGISTRY),$(ESB_REGISTRY))
+REGISTRY ?= registry:5010/
+IMAGE_REGISTRY ?= $(REGISTRY)
 DOCKLE_TMP_VOLUME ?= $(BRAND_SLUG)-dockle-tmp
 DOCKLE_IGNORES ?= $(shell if [ -f .dockleignore ]; then grep -vE '^[[:space:]]*(#|$$)' .dockleignore | paste -sd, -; fi)
 

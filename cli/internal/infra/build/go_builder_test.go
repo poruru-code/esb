@@ -21,7 +21,7 @@ import (
 
 func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	t.Setenv("ENV_PREFIX", meta.EnvPrefix)
-	t.Setenv("ESB_REGISTRY_WAIT", "0")
+	t.Setenv(constants.EnvRegistryWait, "0")
 	registryKey, err := envutil.HostEnvKey(constants.HostSuffixRegistry)
 	if err != nil {
 		t.Fatal(err)

@@ -127,7 +127,7 @@ services:
   # Provisioner (Runtime Resource Initialization)
   # ============================================
   provisioner:
-    image: ${REGISTRY:-${ESB_REGISTRY:-registry:5010/}}esb-provisioner:${TAG:-${ESB_TAG:-latest}}
+    image: ${REGISTRY:-registry:5010/}esb-provisioner:${TAG:-latest}
     pull_policy: never
     build:
       context: services/provisioner
@@ -167,7 +167,7 @@ services:
   # Runtime Node (Containerd Host Container)
   # ============================================
   runtime-node:
-    image: ${REGISTRY:-${ESB_REGISTRY:-registry:5010/}}esb-runtime-node-containerd:${TAG:-${ESB_TAG:-latest}}
+    image: ${REGISTRY:-registry:5010/}esb-runtime-node-containerd:${TAG:-latest}
     pull_policy: never
     build:
       context: services/runtime-node
@@ -220,7 +220,7 @@ services:
   # Agent (Containerd Runtime)
   # ============================================
   agent:
-    image: ${REGISTRY:-${ESB_REGISTRY:-registry:5010/}}esb-agent-containerd:${TAG:-${ESB_TAG:-latest}}
+    image: ${REGISTRY:-registry:5010/}esb-agent-containerd:${TAG:-latest}
     pull_policy: never
     build:
       context: services/agent
@@ -245,7 +245,7 @@ services:
       - ${CERT_DIR:-./.${CLI_CMD:-esb}/certs}:/app/config/ssl:ro
     environment:
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - TAG=${TAG:-${ESB_TAG:-latest}}
+      - TAG=${TAG:-latest}
       - PORT=50051
       - CONTAINER_REGISTRY=${CONTAINER_REGISTRY:-registry:5010}
       - CONTAINER_REGISTRY_INSECURE=${CONTAINER_REGISTRY_INSECURE:-1}
@@ -268,7 +268,7 @@ services:
   # API Gateway (Facade)
   # ============================================
   gateway:
-    image: ${REGISTRY:-${ESB_REGISTRY:-registry:5010/}}esb-gateway-containerd:${TAG:-${ESB_TAG:-latest}}
+    image: ${REGISTRY:-registry:5010/}esb-gateway-containerd:${TAG:-latest}
     pull_policy: never
     user: "0:0"
     build:

@@ -12,7 +12,6 @@ func TestGetCompatEnvPrefersCanonical(t *testing.T) {
 	t.Setenv("ENV_PREFIX", "APP")
 	t.Setenv("TAG", "v3")
 	t.Setenv("APP_TAG", "v2")
-	t.Setenv("ESB_TAG", "v1")
 
 	value, source := GetCompatEnv("TAG", "TAG")
 	if value != "v3" || source != "TAG" {
@@ -30,19 +29,8 @@ func TestGetCompatEnvFallsBackToPrefixed(t *testing.T) {
 	}
 }
 
-func TestGetCompatEnvFallsBackToLegacy(t *testing.T) {
-	t.Setenv("ENV_PREFIX", "")
-	t.Setenv("ESB_TAG", "v1")
-
-	value, source := GetCompatEnv("TAG", "TAG")
-	if value != "v1" || source != "ESB_TAG" {
-		t.Fatalf("got value=%q source=%q", value, source)
-	}
-}
-
 func TestSetCompatEnvWritesCanonicalAndPrefixed(t *testing.T) {
 	t.Setenv("ENV_PREFIX", "APP")
-	t.Setenv("ESB_TAG", "legacy")
 
 	if err := SetCompatEnv("TAG", "TAG", "v9"); err != nil {
 		t.Fatalf("SetCompatEnv: %v", err)
@@ -52,9 +40,6 @@ func TestSetCompatEnvWritesCanonicalAndPrefixed(t *testing.T) {
 	}
 	if got := os.Getenv("APP_TAG"); got != "v9" {
 		t.Fatalf("APP_TAG=%q", got)
-	}
-	if got := os.Getenv("ESB_TAG"); got != "legacy" {
-		t.Fatalf("ESB_TAG must not be overwritten, got %q", got)
 	}
 }
 

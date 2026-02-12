@@ -12,7 +12,7 @@ var errEnvPrefixRequired = errors.New("ENV_PREFIX is required")
 
 // HostEnvKey constructs a host-level environment variable name.
 // by combining ENV_PREFIX with the given suffix.
-// Example: HostEnvKey("ENV") returns "ESB_ENV" when ENV_PREFIX=ESB.
+// Example: HostEnvKey("ENV") returns "APP_ENV" when ENV_PREFIX=APP.
 func HostEnvKey(suffix string) (string, error) {
 	prefix := strings.TrimSpace(os.Getenv("ENV_PREFIX"))
 	if prefix == "" {
@@ -22,7 +22,7 @@ func HostEnvKey(suffix string) (string, error) {
 }
 
 // GetHostEnv retrieves a host-level environment variable.
-// Example: GetHostEnv("ENV") returns the value of ESB_ENV.
+// Example: GetHostEnv("ENV") returns the value of APP_ENV.
 func GetHostEnv(suffix string) (string, error) {
 	key, err := HostEnvKey(suffix)
 	if err != nil {
@@ -32,7 +32,7 @@ func GetHostEnv(suffix string) (string, error) {
 }
 
 // SetHostEnv sets a host-level environment variable.
-// Example: SetHostEnv("ENV", "production") sets ESB_ENV=production.
+// Example: SetHostEnv("ENV", "production") sets APP_ENV=production.
 func SetHostEnv(suffix, value string) error {
 	key, err := HostEnvKey(suffix)
 	if err != nil {
@@ -52,11 +52,10 @@ func hostEnvKeyIfConfigured(suffix string) (string, bool, error) {
 	return prefix + "_" + suffix, true, nil
 }
 
-// GetCompatEnv resolves a value from canonical and legacy keys.
+// GetCompatEnv resolves a value from canonical and prefixed keys.
 // Resolution order:
 //  1. canonical key (for example TAG)
 //  2. ENV_PREFIX-derived key (for example APP_TAG)
-//  3. ESB legacy key (for example ESB_TAG)
 //
 // It returns the value and the key it came from.
 func GetCompatEnv(suffix, canonicalKey string) (string, string) {
@@ -72,19 +71,10 @@ func GetCompatEnv(suffix, canonicalKey string) (string, string) {
 			return value, hostKey
 		}
 	}
-
-	trimmedSuffix := strings.TrimSpace(suffix)
-	if trimmedSuffix != "" {
-		legacyKey := "ESB_" + trimmedSuffix
-		if value := strings.TrimSpace(os.Getenv(legacyKey)); value != "" {
-			return value, legacyKey
-		}
-	}
 	return "", ""
 }
 
 // SetCompatEnv sets canonical and ENV_PREFIX-derived keys.
-// Legacy ESB_* keys are intentionally not written.
 func SetCompatEnv(suffix, canonicalKey, value string) error {
 	written := false
 	trimmedCanonical := strings.TrimSpace(canonicalKey)

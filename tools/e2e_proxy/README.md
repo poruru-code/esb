@@ -69,7 +69,7 @@ uv run e2e/run_tests.py --parallel --verbose
 By default, proxy host is Docker bridge gateway (`docker network inspect bridge ...`),
 so both host processes and Docker containers can reach the same proxy endpoint.
 
-Canonical environment variable names (legacy `ESB_*` is still accepted as fallback):
+Canonical environment variable names:
 - `TINYPROXY_IMAGE`
 - `TINYPROXY_CONTAINER`
 - `TINYPROXY_PORT`
@@ -82,7 +82,7 @@ Canonical environment variable names (legacy `ESB_*` is still accepted as fallba
 ## Auth Notes
 
 - You can also set credentials with env vars:
-  - `TINYPROXY_USER`（互換: `ESB_TINYPROXY_USER`）
-  - `TINYPROXY_PASSWORD`（互換: `ESB_TINYPROXY_PASSWORD`）
+  - `TINYPROXY_USER`
+  - `TINYPROXY_PASSWORD`
 - `tinyproxy` BasicAuth values must not contain whitespace/control characters.
 - Java proxy-proof uses `-Dmaven.artifact.threads=1` for reproducible authenticated proxy runs.

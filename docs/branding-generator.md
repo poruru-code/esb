@@ -9,7 +9,7 @@ Why: Keep branding operations documented where the tool lives.
 
 - https://github.com/poruru-code/esb-branding-tool/blob/main/docs/branding-flow.md
 - 現状棚卸し: `docs/esb-usage-dependency-inventory.md`
-- 推奨実行キー: `TAG`, `REGISTRY`, `SKIP_GATEWAY_ALIGN`, `REGISTRY_WAIT`, `CLI_BIN`, `META_REUSE`（`ESB_*` は互換 fallback）
+- 推奨実行キー: `TAG`, `REGISTRY`, `SKIP_GATEWAY_ALIGN`, `REGISTRY_WAIT`, `CLI_BIN`, `META_REUSE`
 
 本リポジトリでは `config/defaults.env` の `CLI_CMD=esb` を基準値として維持します。
 ブランド変更は本体で直接行わず、外部ツールで生成・適用してください。

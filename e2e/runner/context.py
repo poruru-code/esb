@@ -98,7 +98,6 @@ def _prepare_context(
     deploy_env.update(runtime_env)
     deploy_env["PROJECT_NAME"] = compose_project
     deploy_env[constants.ENV_META_REUSE] = "1"
-    deploy_env.setdefault("ESB_META_REUSE", deploy_env[constants.ENV_META_REUSE])
     deploy_env.update(scenario.env_vars)
 
     pytest_env = os.environ.copy()

@@ -36,16 +36,14 @@ func TestResolveFunctionImageTagUsesEnv(t *testing.T) {
 func TestResolveFunctionImageTagPrefersCanonicalTag(t *testing.T) {
 	t.Setenv("TAG", "v2.0.0")
 	t.Setenv(meta.EnvPrefix+"_TAG", "v1.2.3")
-	t.Setenv("ESB_TAG", "v1.0.0")
 	if got := ResolveFunctionImageTag(); got != "v2.0.0" {
 		t.Fatalf("unexpected tag: %s", got)
 	}
 }
 
-func TestResolveFunctionImageTagFallsBackToLegacyTag(t *testing.T) {
+func TestResolveFunctionImageTagFallsBackToPrefixedTag(t *testing.T) {
 	t.Setenv("TAG", "")
-	t.Setenv(meta.EnvPrefix+"_TAG", "")
-	t.Setenv("ESB_TAG", "v1.1.0")
+	t.Setenv(meta.EnvPrefix+"_TAG", "v1.1.0")
 	if got := ResolveFunctionImageTag(); got != "v1.1.0" {
 		t.Fatalf("unexpected tag: %s", got)
 	}

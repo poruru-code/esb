@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/state"
 	infradeploy "github.com/poruru/edge-serverless-box/cli/internal/infra/deploy"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
@@ -18,7 +19,7 @@ func TestDeployWorkflowRunSuccess(t *testing.T) {
 	runner := &fakeComposeRunner{}
 
 	t.Setenv("ENV_PREFIX", "ESB")
-	t.Setenv("ESB_SKIP_GATEWAY_ALIGN", "1")
+	t.Setenv(constants.EnvSkipGatewayAlign, "1")
 
 	// Use the actual repo root for testing
 	repoRoot, err := os.Getwd()
@@ -104,7 +105,7 @@ func TestDeployWorkflowRequiresPrewarmForImageFunctions(t *testing.T) {
 	runner := &fakeComposeRunner{}
 
 	t.Setenv("ENV_PREFIX", "ESB")
-	t.Setenv("ESB_SKIP_GATEWAY_ALIGN", "1")
+	t.Setenv(constants.EnvSkipGatewayAlign, "1")
 
 	repoRoot, err := os.Getwd()
 	if err != nil {
@@ -158,7 +159,7 @@ func TestDeployWorkflowRunWithExternalTemplate(t *testing.T) {
 	runner := &fakeComposeRunner{}
 
 	t.Setenv("ENV_PREFIX", "ESB")
-	t.Setenv("ESB_SKIP_GATEWAY_ALIGN", "1")
+	t.Setenv(constants.EnvSkipGatewayAlign, "1")
 
 	repoRoot, err := os.Getwd()
 	if err != nil {

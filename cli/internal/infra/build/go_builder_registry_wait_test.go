@@ -101,7 +101,6 @@ func TestRegistryWaitHTTPClientUsesProxyForExternalRegistry(t *testing.T) {
 
 func TestWaitForRegistrySkipsWhenCanonicalWaitDisabled(t *testing.T) {
 	t.Setenv("REGISTRY_WAIT", "0")
-	t.Setenv("ESB_REGISTRY_WAIT", "1")
 
 	if err := waitForRegistry("127.0.0.1:65535", 10*time.Millisecond); err != nil {
 		t.Fatalf("waitForRegistry should skip when REGISTRY_WAIT=0: %v", err)

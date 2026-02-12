@@ -170,11 +170,7 @@ def build_esb_cmd(
     env: Optional[dict[str, str]] = None,
 ) -> List[str]:
     lookup = env or os.environ
-    override = (
-        lookup.get(constants.ENV_CLI_BIN)
-        or lookup.get(constants.ENV_ESB_CLI)
-        or lookup.get("ESB_BIN")
-    )
+    override = lookup.get(constants.ENV_CLI_BIN)
     if override and override.strip():
         base_cmd = [override.strip()]
     else:

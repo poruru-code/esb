@@ -56,16 +56,6 @@ JAVA_PROXY_PROOF_COMMAND = (
 )
 
 
-def _compat_env(canonical: str, legacy: str, default: str) -> str:
-    value = os.environ.get(canonical, "").strip()
-    if value:
-        return value
-    value = os.environ.get(legacy, "").strip()
-    if value:
-        return value
-    return default
-
-
 def split_no_proxy(value: str) -> list[str]:
     if not value:
         return []
@@ -499,45 +489,43 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     )
     parser.add_argument(
         "--image",
-        default=_compat_env("TINYPROXY_IMAGE", "ESB_TINYPROXY_IMAGE", DEFAULT_IMAGE),
+        default=os.environ.get("TINYPROXY_IMAGE", DEFAULT_IMAGE),
         help=f"Tinyproxy image (default: {DEFAULT_IMAGE})",
     )
     parser.add_argument(
         "--container-name",
-        default=_compat_env(
-            "TINYPROXY_CONTAINER", "ESB_TINYPROXY_CONTAINER", DEFAULT_CONTAINER_NAME
-        ),
+        default=os.environ.get("TINYPROXY_CONTAINER", DEFAULT_CONTAINER_NAME),
         help=f"Tinyproxy container name (default: {DEFAULT_CONTAINER_NAME})",
     )
     parser.add_argument(
         "--port",
         type=int,
-        default=int(_compat_env("TINYPROXY_PORT", "ESB_TINYPROXY_PORT", str(DEFAULT_PORT))),
+        default=int(os.environ.get("TINYPROXY_PORT", str(DEFAULT_PORT))),
         help=f"Host port to expose tinyproxy (default: {DEFAULT_PORT})",
     )
     parser.add_argument(
         "--acl",
-        default=_compat_env("TINYPROXY_ACL", "ESB_TINYPROXY_ACL", DEFAULT_ACL),
+        default=os.environ.get("TINYPROXY_ACL", DEFAULT_ACL),
         help=f"tinyproxy ACL argument(s), shell-split (default: {DEFAULT_ACL})",
     )
     parser.add_argument(
         "--proxy-host",
-        default=_compat_env("TINYPROXY_HOST", "ESB_TINYPROXY_HOST", ""),
+        default=os.environ.get("TINYPROXY_HOST", ""),
         help="Proxy host used in HTTP(S)_PROXY. Default is Docker bridge gateway.",
     )
     parser.add_argument(
         "--proxy-user",
-        default=_compat_env("TINYPROXY_USER", "ESB_TINYPROXY_USER", ""),
+        default=os.environ.get("TINYPROXY_USER", ""),
         help="Proxy auth username (enables tinyproxy BasicAuth when paired with password).",
     )
     parser.add_argument(
         "--proxy-password",
-        default=_compat_env("TINYPROXY_PASSWORD", "ESB_TINYPROXY_PASSWORD", ""),
+        default=os.environ.get("TINYPROXY_PASSWORD", ""),
         help="Proxy auth password (enables tinyproxy BasicAuth when paired with username).",
     )
     parser.add_argument(
         "--no-proxy-extra",
-        default=_compat_env("TINYPROXY_NO_PROXY_EXTRA", "ESB_TINYPROXY_NO_PROXY_EXTRA", ""),
+        default=os.environ.get("TINYPROXY_NO_PROXY_EXTRA", ""),
         help="Additional NO_PROXY entries (comma/semicolon separated).",
     )
     parser.add_argument(
