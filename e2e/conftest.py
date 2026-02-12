@@ -8,7 +8,9 @@ Each test file uses fixtures and constants from this conftest.py.
 import json
 import os
 import time
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import pytest
 import requests
@@ -243,6 +245,47 @@ def query_victorialogs_by_filter(
             time.sleep(poll_interval)
 
     return {"hits": []}
+
+
+def wait_for_victorialogs_hits(
+    *,
+    filters: dict[str, str] | None = None,
+    raw_query: str | None = None,
+    timeout: int = LOG_WAIT_TIMEOUT,
+    limit: int = 100,
+    min_hits: int = 1,
+    poll_interval: float = 0.5,
+    matcher: Callable[[dict[str, Any]], bool] | None = None,
+) -> tuple[list[dict[str, Any]], bool]:
+    """
+    Poll VictoriaLogs until required hits are available and optional matcher passes.
+
+    Returns:
+        (hits, matched)
+        - hits: last observed hits
+        - matched: True when condition is satisfied before timeout
+    """
+    deadline = time.time() + timeout
+    last_hits: list[dict[str, Any]] = []
+    while time.time() < deadline:
+        remaining = max(1.0, deadline - time.time())
+        result = query_victorialogs_by_filter(
+            filters=filters,
+            raw_query=raw_query,
+            timeout=min(3.0, remaining),
+            limit=limit,
+            min_hits=1,
+            poll_interval=poll_interval,
+        )
+        hits_raw = result.get("hits", [])
+        hits = [hit for hit in hits_raw if isinstance(hit, dict)]
+        last_hits = hits
+        enough_hits = len(hits) >= min_hits
+        matcher_ok = any(matcher(hit) for hit in hits) if matcher else True
+        if enough_hits and matcher_ok:
+            return hits, True
+        time.sleep(poll_interval)
+    return last_hits, False
 
 
 def query_victorialogs(

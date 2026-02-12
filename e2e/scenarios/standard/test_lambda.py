@@ -8,7 +8,7 @@ Scenarios:
 
 import json
 
-from e2e.conftest import LOG_WAIT_TIMEOUT, call_api, query_victorialogs_by_filter
+from e2e.conftest import LOG_WAIT_TIMEOUT, call_api, wait_for_victorialogs_hits
 
 
 class TestLambda:
@@ -54,22 +54,17 @@ class TestLambda:
         root_trace_id = trace_id.split(";")[0].replace("Root=", "")
 
         # Check lambda-echo logs in VictoriaLogs.
-        logs = query_victorialogs_by_filter(
+        hits, found_echo = wait_for_victorialogs_hits(
             filters={
                 "trace_id": root_trace_id,
                 "container_name": "lambda-echo",
             },
-            min_hits=2,
             timeout=LOG_WAIT_TIMEOUT,
+            min_hits=1,
+            poll_interval=0.5,
+            matcher=lambda hit: "Echo: from-chain" in hit.get("message", "")
+            or "Echo: from-chain" in hit.get("_msg", ""),
         )
 
-        assert len(logs["hits"]) >= 1, (
-            f"Async execution log not found for trace_id: {root_trace_id}"
-        )
-        # Ensure Echo message appears in logs (field name message or _msg).
-        found_echo = any(
-            "Echo: from-chain" in hit.get("message", "")
-            or "Echo: from-chain" in hit.get("_msg", "")
-            for hit in logs["hits"]
-        )
-        assert found_echo is True, f"Echo message not found in logs: {logs['hits']}"
+        assert len(hits) >= 1, f"Async execution log not found for trace_id: {root_trace_id}"
+        assert found_echo is True, f"Echo message not found in logs: {hits}"
