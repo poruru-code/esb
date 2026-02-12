@@ -53,11 +53,9 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 			}
 		}
 		if projectValue == "" {
-			if hostProject, err := envutil.GetHostEnv(constants.HostSuffixProject); err == nil {
-				if trimmed := strings.TrimSpace(hostProject); trimmed != "" {
-					projectValue = trimmed
-					projectValueSource = "host"
-				}
+			if hostProject, _ := envutil.GetCompatEnv(constants.HostSuffixProject, "PROJECT"); strings.TrimSpace(hostProject) != "" {
+				projectValue = strings.TrimSpace(hostProject)
+				projectValueSource = "host"
 			}
 		}
 		projectExplicit := projectValueSource != ""

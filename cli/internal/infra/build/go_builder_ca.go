@@ -18,18 +18,12 @@ import (
 )
 
 func resolveRootCAPath() (string, error) {
-	value, err := envutil.GetHostEnv(constants.HostSuffixCACertPath)
-	if err != nil {
-		return "", err
-	}
+	value, _ := envutil.GetCompatEnv(constants.HostSuffixCACertPath, "CA_CERT_PATH")
 	if value := strings.TrimSpace(value); value != "" {
 		return ensureRootCAPath(expandHome(value))
 	}
 
-	value, err = envutil.GetHostEnv(constants.HostSuffixCertDir)
-	if err != nil {
-		return "", err
-	}
+	value, _ = envutil.GetCompatEnv(constants.HostSuffixCertDir, "CERT_DIR")
 	if value := strings.TrimSpace(value); value != "" {
 		return ensureRootCAPath(filepath.Join(expandHome(value), meta.RootCACertFilename))
 	}

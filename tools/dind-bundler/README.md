@@ -29,9 +29,9 @@
 
 ### ビルドオプション (環境変数)
 
-*   `ESB_ENV=<env>` / `${ENV_PREFIX}_ENV`: `esb deploy --env` に渡す環境名を指定します。
+*   `ENV=<env>` / `${ENV_PREFIX}_ENV`（互換: `ESB_ENV`）: `esb deploy --env` に渡す環境名を指定します。
 *   `CERT_DIR=<path>`: 証明書の保存先を指定します（デフォルト: `./.<cli_cmd>/certs`）。存在しない場合はエラーになります。
-*   `ESB_OUTPUT_DIR=<path>` / `${ENV_PREFIX}_OUTPUT_DIR`: `esb deploy` の出力ディレクトリ（デフォルト: `.<cli_cmd>`）。
+*   `OUTPUT_DIR=<path>` / `${ENV_PREFIX}_OUTPUT_DIR`（互換: `ESB_OUTPUT_DIR`）: `esb deploy` の出力ディレクトリ（デフォルト: `.<cli_cmd>`）。
 *   `BUNDLE_MANIFEST_PATH=<path>`: バンドル用マニフェストのパスを明示指定します（複数テンプレートでは使用不可）。
 
 `.env` が存在する場合は DinD イメージに同梱されます。`.env` がない場合は、

@@ -97,11 +97,11 @@ fi
 OUTPUT_TAG=${OUTPUT_TAG:-"${BRAND_SLUG}-dind-bundle:latest"}
 BUILD_DIR="tools/dind-bundler/build-context"
 ENV_VAR="${ENV_PREFIX}_ENV"
-ENV_NAME="${!ENV_VAR:-${ESB_ENV:-}}"
+ENV_NAME="${ENV:-${!ENV_VAR:-${ESB_ENV:-}}}"
 OUTPUT_VAR="${ENV_PREFIX}_OUTPUT_DIR"
 OUTPUT_ROOTS=()
 MANIFEST_PATHS=()
-EXPLICIT_OUTPUT_ROOT="${!OUTPUT_VAR:-${ESB_OUTPUT_DIR:-}}"
+EXPLICIT_OUTPUT_ROOT="${OUTPUT_DIR:-${!OUTPUT_VAR:-${ESB_OUTPUT_DIR:-}}}"
 declare -A OUTPUT_SUFFIX_COUNTS
 
 expand_home() {
@@ -129,7 +129,7 @@ fi
 ENV_NAME="${ENV_NAME:-default}"
 
 if [ -n "$EXPLICIT_OUTPUT_ROOT" ] && [ "${#TEMPLATES[@]}" -gt 1 ]; then
-  echo "Error: ESB_OUTPUT_DIR cannot be used with multiple templates."
+  echo "Error: OUTPUT_DIR cannot be used with multiple templates."
   exit 1
 fi
 

@@ -32,7 +32,7 @@ func applyConfigDirEnv(ctx state.Context, resolver func(string) (string, error))
 		return fmt.Errorf("stat config dir: %w", err)
 	}
 	val := filepath.ToSlash(stagingAbs)
-	if err := envutil.SetHostEnv(constants.HostSuffixConfigDir, val); err != nil {
+	if err := envutil.SetCompatEnv(constants.HostSuffixConfigDir, constants.EnvConfigDir, val); err != nil {
 		return fmt.Errorf("set host env %s: %w", constants.HostSuffixConfigDir, err)
 	}
 	setEnvIfEmpty(constants.EnvConfigDir, val)
@@ -48,12 +48,9 @@ func setEnvIfEmpty(key, value string) {
 }
 
 func setHostEnvIfEmpty(suffix, value string) error {
-	key, err := envutil.HostEnvKey(suffix)
-	if err != nil {
-		return err
-	}
-	if strings.TrimSpace(os.Getenv(key)) != "" {
+	current, _ := envutil.GetCompatEnv(suffix, "")
+	if strings.TrimSpace(current) != "" {
 		return nil
 	}
-	return envutil.SetHostEnv(suffix, value)
+	return envutil.SetCompatEnv(suffix, "", value)
 }

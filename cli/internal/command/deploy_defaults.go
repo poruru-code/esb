@@ -118,13 +118,8 @@ func saveDeployDefaults(projectRoot string, template deployTemplateInput, inputs
 }
 
 func resolveBrandTag() string {
-	// Use brand-prefixed environment variable (e.g., ESB_TAG).
-	key, err := envutil.HostEnvKey(constants.HostSuffixTag)
-	if err == nil {
-		tag := os.Getenv(key)
-		if tag != "" {
-			return tag
-		}
+	if value, _ := envutil.GetCompatEnv(constants.HostSuffixTag, constants.EnvTag); value != "" {
+		return value
 	}
 	return "latest"
 }

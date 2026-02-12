@@ -18,14 +18,11 @@ func applyModeEnv(mode string) error {
 	if trimmed == "" {
 		return nil
 	}
-	existing, err := envutil.GetHostEnv(constants.HostSuffixMode)
-	if err != nil {
-		return fmt.Errorf("get host env %s: %w", constants.HostSuffixMode, err)
-	}
+	existing, _ := envutil.GetCompatEnv(constants.HostSuffixMode, "MODE")
 	if strings.TrimSpace(existing) != "" {
 		return nil
 	}
-	if err := envutil.SetHostEnv(constants.HostSuffixMode, strings.ToLower(trimmed)); err != nil {
+	if err := envutil.SetCompatEnv(constants.HostSuffixMode, "MODE", strings.ToLower(trimmed)); err != nil {
 		return fmt.Errorf("set host env %s: %w", constants.HostSuffixMode, err)
 	}
 	return nil

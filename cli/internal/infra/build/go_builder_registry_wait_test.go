@@ -6,6 +6,7 @@ package build
 import (
 	"net/http"
 	"testing"
+	"time"
 )
 
 func TestShouldBypassRegistryProxy(t *testing.T) {
@@ -95,5 +96,14 @@ func TestRegistryWaitHTTPClientUsesProxyForExternalRegistry(t *testing.T) {
 	}
 	if got, want := proxyURL.String(), "http://proxy.example:8080"; got != want {
 		t.Fatalf("proxyURL=%q, want %q", got, want)
+	}
+}
+
+func TestWaitForRegistrySkipsWhenCanonicalWaitDisabled(t *testing.T) {
+	t.Setenv("REGISTRY_WAIT", "0")
+	t.Setenv("ESB_REGISTRY_WAIT", "1")
+
+	if err := waitForRegistry("127.0.0.1:65535", 10*time.Millisecond); err != nil {
+		t.Fatalf("waitForRegistry should skip when REGISTRY_WAIT=0: %v", err)
 	}
 }

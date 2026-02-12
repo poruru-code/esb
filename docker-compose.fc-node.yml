@@ -123,7 +123,7 @@ services:
   # Provisioner (Runtime Resource Initialization)
   # ============================================
   provisioner:
-    image: ${ESB_REGISTRY:-registry:5010/}esb-provisioner:${ESB_TAG:-latest}
+    image: ${REGISTRY:-${ESB_REGISTRY:-registry:5010/}}esb-provisioner:${TAG:-${ESB_TAG:-latest}}
     build:
       context: services/provisioner
       dockerfile: Dockerfile
@@ -157,7 +157,7 @@ services:
   # Runtime Node (Containerd Host Container)
   # ============================================
   runtime-node:
-    image: ${ESB_REGISTRY:-registry:5010/}esb-runtime-node-containerd:${ESB_TAG:-latest}
+    image: ${REGISTRY:-${ESB_REGISTRY:-registry:5010/}}esb-runtime-node-containerd:${TAG:-${ESB_TAG:-latest}}
     build:
       context: services/runtime-node
       dockerfile: Dockerfile.containerd
@@ -206,7 +206,7 @@ services:
   # Agent (Containerd Runtime)
   # ============================================
   agent:
-    image: ${ESB_REGISTRY:-registry:5010/}esb-agent-containerd:${ESB_TAG:-latest}
+    image: ${REGISTRY:-${ESB_REGISTRY:-registry:5010/}}esb-agent-containerd:${TAG:-${ESB_TAG:-latest}}
     build:
       context: services/agent
       dockerfile: Dockerfile.containerd
@@ -230,7 +230,7 @@ services:
       - ${CERT_DIR:-./.${CLI_CMD:-esb}/certs}:/app/config/ssl:ro
     environment:
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - ESB_TAG=${ESB_TAG:-latest}
+      - TAG=${TAG:-${ESB_TAG:-latest}}
       - PORT=50051
       - CONTAINER_REGISTRY=${CONTAINER_REGISTRY:-registry:5010}
       - CONTAINER_REGISTRY_INSECURE=${CONTAINER_REGISTRY_INSECURE:-1}
@@ -272,7 +272,7 @@ services:
   # API Gateway (Facade)
   # ============================================
   gateway:
-    image: ${ESB_REGISTRY:-registry:5010/}esb-gateway-containerd:${ESB_TAG:-latest}
+    image: ${REGISTRY:-${ESB_REGISTRY:-registry:5010/}}esb-gateway-containerd:${TAG:-${ESB_TAG:-latest}}
     user: "0:0"
     build:
       context: services/gateway

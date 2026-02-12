@@ -32,6 +32,26 @@ func TestPickGatewayNetworkPrefersExternalAndSorts(t *testing.T) {
 	}
 }
 
+func TestSkipGatewayAlignPrefersCanonicalKey(t *testing.T) {
+	t.Setenv("ENV_PREFIX", "APP")
+	t.Setenv(constants.EnvSkipGatewayAlign, "1")
+	t.Setenv("APP_"+constants.EnvSkipGatewayAlign, "0")
+	t.Setenv("ESB_"+constants.EnvSkipGatewayAlign, "0")
+
+	if !skipGatewayAlign() {
+		t.Fatal("expected skipGatewayAlign to use canonical key")
+	}
+}
+
+func TestSkipGatewayAlignFallsBackToLegacyKey(t *testing.T) {
+	t.Setenv("ENV_PREFIX", "")
+	t.Setenv("ESB_"+constants.EnvSkipGatewayAlign, "true")
+
+	if !skipGatewayAlign() {
+		t.Fatal("expected skipGatewayAlign to read legacy key")
+	}
+}
+
 func TestPickGatewayNetworkFallsBackToSortedName(t *testing.T) {
 	networks := map[string]*network.EndpointSettings{
 		"zeta":  {},

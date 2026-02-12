@@ -30,14 +30,10 @@ func applyRegistryDefaults(mode string) error {
 		if !strings.HasSuffix(registry, "/") {
 			registry += "/"
 		}
-		if value, err := envutil.GetHostEnv(constants.HostSuffixRegistry); err == nil {
-			if strings.TrimSpace(value) == "" {
-				if err := envutil.SetHostEnv(constants.HostSuffixRegistry, registry); err != nil {
-					return fmt.Errorf("set host env %s: %w", constants.HostSuffixRegistry, err)
-				}
+		if value, _ := envutil.GetCompatEnv(constants.HostSuffixRegistry, constants.EnvRegistry); strings.TrimSpace(value) == "" {
+			if err := envutil.SetCompatEnv(constants.HostSuffixRegistry, constants.EnvRegistry, registry); err != nil {
+				return fmt.Errorf("set host env %s: %w", constants.HostSuffixRegistry, err)
 			}
-		} else {
-			return fmt.Errorf("get host env %s: %w", constants.HostSuffixRegistry, err)
 		}
 	}
 	return nil

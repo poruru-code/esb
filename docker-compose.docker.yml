@@ -127,7 +127,7 @@ services:
   # Provisioner (Runtime Resource Initialization)
   # ============================================
   provisioner:
-    image: ${ESB_REGISTRY:-registry:5010/}esb-provisioner:${ESB_TAG:-latest}
+    image: ${REGISTRY:-${ESB_REGISTRY:-registry:5010/}}esb-provisioner:${TAG:-${ESB_TAG:-latest}}
     pull_policy: never
     build:
       context: services/provisioner
@@ -169,7 +169,7 @@ services:
   # API Gateway (Facade)
   # ============================================
   gateway:
-    image: ${ESB_REGISTRY:-registry:5010/}esb-gateway-docker:${ESB_TAG:-latest}
+    image: ${REGISTRY:-${ESB_REGISTRY:-registry:5010/}}esb-gateway-docker:${TAG:-${ESB_TAG:-latest}}
     pull_policy: never
     build:
       context: services/gateway
@@ -257,7 +257,7 @@ services:
   # Agent (Docker Runtime)
   # ============================================
   agent:
-    image: ${ESB_REGISTRY:-registry:5010/}esb-agent-docker:${ESB_TAG:-latest}
+    image: ${REGISTRY:-${ESB_REGISTRY:-registry:5010/}}esb-agent-docker:${TAG:-${ESB_TAG:-latest}}
     pull_policy: never
     build:
       context: services/agent
@@ -275,7 +275,7 @@ services:
     cap_add: [NET_ADMIN, SYS_ADMIN]
     environment:
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - ESB_TAG=${ESB_TAG:-latest}
+      - TAG=${TAG:-${ESB_TAG:-latest}}
       - PORT=50051
       - CONTAINER_REGISTRY=${CONTAINER_REGISTRY:-127.0.0.1:5010}
       - CNI_SUBNET=${CNI_SUBNET:-}

@@ -16,6 +16,7 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/value"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/envutil"
 )
 
 type gatewayRuntimeInfo struct {
@@ -54,7 +55,8 @@ func (w Workflow) alignGatewayRuntime(req Request) Request {
 }
 
 func skipGatewayAlign() bool {
-	value := strings.ToLower(strings.TrimSpace(os.Getenv("ESB_SKIP_GATEWAY_ALIGN")))
+	raw, _ := envutil.GetCompatEnv(constants.EnvSkipGatewayAlign, constants.EnvSkipGatewayAlign)
+	value := strings.ToLower(strings.TrimSpace(raw))
 	return value == "1" || value == "true" || value == "yes"
 }
 

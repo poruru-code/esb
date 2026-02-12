@@ -59,8 +59,14 @@ func ResolveFunctionImageName(functionName string) (string, error) {
 }
 
 func ResolveFunctionImageTag() string {
+	if value := strings.TrimSpace(os.Getenv("TAG")); value != "" {
+		return value
+	}
 	key := meta.EnvPrefix + "_TAG"
 	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+		return value
+	}
+	if value := strings.TrimSpace(os.Getenv("ESB_TAG")); value != "" {
 		return value
 	}
 	return "latest"

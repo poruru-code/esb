@@ -135,6 +135,18 @@ func TestResolveBrandTagUsesHostEnvTag(t *testing.T) {
 	}
 }
 
+func TestResolveBrandTagPrefersCanonicalTag(t *testing.T) {
+	t.Setenv("ENV_PREFIX", "APP")
+	t.Setenv(constants.EnvTag, "v2.0.0")
+	t.Setenv("APP_"+constants.HostSuffixTag, "v1.9.0")
+	t.Setenv("ESB_"+constants.HostSuffixTag, "v1.8.0")
+
+	got := resolveBrandTag()
+	if got != "v2.0.0" {
+		t.Fatalf("expected canonical tag, got %q", got)
+	}
+}
+
 func TestResolveBrandTagDefaultsToLatest(t *testing.T) {
 	t.Setenv("ENV_PREFIX", "")
 	if got := resolveBrandTag(); got != "latest" {

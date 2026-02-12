@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/envutil"
 )
 
 func isLocalRegistryHost(host string) bool {
@@ -64,7 +65,7 @@ func resolveHostRegistryAddress() (string, bool) {
 }
 
 func waitForRegistry(registry string, timeout time.Duration) error {
-	if strings.TrimSpace(os.Getenv("ESB_REGISTRY_WAIT")) == "0" {
+	if value, _ := envutil.GetCompatEnv(constants.EnvRegistryWait, constants.EnvRegistryWait); strings.TrimSpace(value) == "0" {
 		return nil
 	}
 	trimmed := strings.TrimSuffix(strings.TrimSpace(registry), "/")

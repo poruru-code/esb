@@ -21,6 +21,7 @@ import (
 	"github.com/containerd/containerd/oci"
 	"github.com/google/uuid"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
+	"github.com/poruru/edge-serverless-box/meta"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/config"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
 )
@@ -103,7 +104,7 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 
 	u := uuid.New()
 	id := hex.EncodeToString(u[:4])
-	containerID := fmt.Sprintf("esb-%s-%s-%s", r.env, req.FunctionName, id)
+	containerID := fmt.Sprintf("%s-%s-%s-%s", meta.Slug, r.env, req.FunctionName, id)
 
 	imgObj, err := r.ensureImage(ctx, image)
 	if err != nil {

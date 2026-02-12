@@ -30,10 +30,7 @@ func applyProxyDefaults() error {
 		existingNoProxy = os.Getenv("no_proxy")
 	}
 
-	extraNoProxy, err := envutil.GetHostEnv(constants.HostSuffixNoProxyExtra)
-	if err != nil {
-		return fmt.Errorf("get host env %s: %w", constants.HostSuffixNoProxyExtra, err)
-	}
+	extraNoProxy, _ := envutil.GetCompatEnv(constants.HostSuffixNoProxyExtra, "")
 
 	if !hasProxy && existingNoProxy == "" && extraNoProxy == "" {
 		return nil
@@ -113,17 +110,16 @@ func applyProxyDefaults() error {
 }
 
 func normalizeRegistryEnv() error {
-	key, err := envutil.HostEnvKey(constants.HostSuffixRegistry)
-	if err != nil {
-		return fmt.Errorf("resolve host env key for registry: %w", err)
-	}
-	value := strings.TrimSpace(os.Getenv(key))
+	value, _ := envutil.GetCompatEnv(constants.HostSuffixRegistry, constants.EnvRegistry)
+	value = strings.TrimSpace(value)
 	if value == "" {
 		return nil
 	}
 	if !strings.HasSuffix(value, "/") {
 		value += "/"
-		_ = os.Setenv(key, value)
+		if err := envutil.SetCompatEnv(constants.HostSuffixRegistry, constants.EnvRegistry, value); err != nil {
+			return fmt.Errorf("set host env %s: %w", constants.HostSuffixRegistry, err)
+		}
 	}
 	return nil
 }

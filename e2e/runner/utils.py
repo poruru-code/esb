@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
 
+from e2e.runner import constants
+
 _SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 _ENV_PREFIX_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
 
@@ -168,7 +170,11 @@ def build_esb_cmd(
     env: Optional[dict[str, str]] = None,
 ) -> List[str]:
     lookup = env or os.environ
-    override = lookup.get("ESB_CLI") or lookup.get("ESB_BIN")
+    override = (
+        lookup.get(constants.ENV_CLI_BIN)
+        or lookup.get(constants.ENV_ESB_CLI)
+        or lookup.get("ESB_BIN")
+    )
     if override and override.strip():
         base_cmd = [override.strip()]
     else:

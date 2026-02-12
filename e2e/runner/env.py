@@ -176,8 +176,10 @@ def calculate_runtime_env(
 
     # Prefer a repo-local CLI binary when available.
     local_cli = CLI_ROOT / "bin" / "esb"
-    if local_cli.exists() and constants.ENV_ESB_CLI not in env:
-        env[constants.ENV_ESB_CLI] = str(local_cli)
+    if local_cli.exists():
+        local_cli_str = str(local_cli)
+        env.setdefault(constants.ENV_CLI_BIN, local_cli_str)
+        env.setdefault(constants.ENV_ESB_CLI, local_cli_str)
 
     # 2. Port Defaults (0 for dynamic)
     for port_suffix in (
@@ -276,7 +278,8 @@ def calculate_runtime_env(
     env[constants.ENV_CONFIG_DIR] = str(config_dir)
 
     # 10. E2E safety toggles
-    env.setdefault("ESB_SKIP_GATEWAY_ALIGN", "1")
+    env.setdefault(constants.ENV_SKIP_GATEWAY_ALIGN, "1")
+    env.setdefault("ESB_SKIP_GATEWAY_ALIGN", env[constants.ENV_SKIP_GATEWAY_ALIGN])
     apply_proxy_defaults(env)
 
     return env

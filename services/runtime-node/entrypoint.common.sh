@@ -28,7 +28,7 @@ setup_cgroupv2_delegation() {
   fi
 
   root_dir="/sys/fs/cgroup"
-  parent_name="${CGROUP_PARENT:-esb}"
+  parent_name="${CGROUP_PARENT:-${CLI_CMD:-esb}}"
   leaf_name="${CGROUP_LEAF:-runtime-node}"
   controllers="${CGROUP_CONTROLLERS:-cpu io memory pids}"
 

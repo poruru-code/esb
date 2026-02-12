@@ -11,9 +11,11 @@ DOCKLE_IMAGE ?= goodwithtech/dockle:v0.4.14
 DOCKLE_TMP_DIR ?= /tmp
 DOCKLE_TMP_MODE ?= file
 BRAND_SLUG ?= esb
-IMAGE_TAG ?= latest
+TAG ?= latest
+IMAGE_TAG ?= $(TAG)
+REGISTRY ?=
 ESB_REGISTRY ?= registry:5010/
-IMAGE_REGISTRY ?= $(ESB_REGISTRY)
+IMAGE_REGISTRY ?= $(if $(strip $(REGISTRY)),$(REGISTRY),$(ESB_REGISTRY))
 DOCKLE_TMP_VOLUME ?= $(BRAND_SLUG)-dockle-tmp
 DOCKLE_IGNORES ?= $(shell if [ -f .dockleignore ]; then grep -vE '^[[:space:]]*(#|$$)' .dockleignore | paste -sd, -; fi)
 

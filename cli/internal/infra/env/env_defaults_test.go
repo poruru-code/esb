@@ -68,6 +68,18 @@ func TestNormalizeRegistryEnvAddsTrailingSlash(t *testing.T) {
 	}
 }
 
+func TestNormalizeRegistryEnvUsesCanonicalRegistry(t *testing.T) {
+	t.Setenv("ENV_PREFIX", "")
+	t.Setenv(constants.EnvRegistry, "registry:6000")
+
+	if err := normalizeRegistryEnv(); err != nil {
+		t.Fatalf("normalizeRegistryEnv: %v", err)
+	}
+	if got := os.Getenv(constants.EnvRegistry); got != "registry:6000/" {
+		t.Fatalf("registry env=%q", got)
+	}
+}
+
 func TestApplyPortDefaultsPreservesExistingAndSetsRegistryDefault(t *testing.T) {
 	for _, key := range defaultPorts {
 		t.Setenv(key, "")
@@ -118,6 +130,7 @@ func TestApplySubnetDefaultsForDefaultEnv(t *testing.T) {
 func TestApplyRegistryDefaultsByMode(t *testing.T) {
 	t.Setenv("ENV_PREFIX", "ESB")
 	t.Setenv(constants.EnvContainerRegistry, "")
+	t.Setenv(constants.EnvRegistry, "")
 	if err := envutil.SetHostEnv(constants.HostSuffixRegistry, ""); err != nil {
 		t.Fatalf("clear host registry: %v", err)
 	}

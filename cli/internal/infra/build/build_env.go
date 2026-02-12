@@ -30,10 +30,7 @@ func applyBuildEnv(env, templatePath, composeProject string) error {
 }
 
 func applyModeFromRequest(mode string) error {
-	existing, err := envutil.GetHostEnv(constants.HostSuffixMode)
-	if err != nil {
-		return err
-	}
+	existing, _ := envutil.GetCompatEnv(constants.HostSuffixMode, "MODE")
 	if strings.TrimSpace(existing) != "" {
 		return nil
 	}
@@ -41,7 +38,7 @@ func applyModeFromRequest(mode string) error {
 	if mode == "" {
 		return nil
 	}
-	return envutil.SetHostEnv(constants.HostSuffixMode, strings.ToLower(mode))
+	return envutil.SetCompatEnv(constants.HostSuffixMode, "MODE", strings.ToLower(mode))
 }
 
 // findRepoRoot locates the repository root using shared config logic.

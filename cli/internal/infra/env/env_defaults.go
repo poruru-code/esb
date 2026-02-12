@@ -51,10 +51,10 @@ func ApplyRuntimeEnv(ctx state.Context, resolver func(string) (string, error)) e
 	}
 
 	// Host-level variables (with prefix) for brand-aware logic.
-	if err := envutil.SetHostEnv(constants.HostSuffixEnv, env); err != nil {
+	if err := envutil.SetCompatEnv(constants.HostSuffixEnv, "ENV", env); err != nil {
 		return fmt.Errorf("set host env %s: %w", constants.HostSuffixEnv, err)
 	}
-	if err := envutil.SetHostEnv(constants.HostSuffixMode, ctx.Mode); err != nil {
+	if err := envutil.SetCompatEnv(constants.HostSuffixMode, "MODE", ctx.Mode); err != nil {
 		return fmt.Errorf("set host env %s: %w", constants.HostSuffixMode, err)
 	}
 

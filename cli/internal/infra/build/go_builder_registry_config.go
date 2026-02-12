@@ -6,7 +6,6 @@ package build
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -26,11 +25,7 @@ type buildRegistryInfo struct {
 }
 
 func resolveRegistryConfig() (registryConfig, error) {
-	key, err := envutil.HostEnvKey(constants.HostSuffixRegistry)
-	if err != nil {
-		return registryConfig{}, err
-	}
-	registry := strings.TrimSpace(os.Getenv(key))
+	registry, _ := envutil.GetCompatEnv(constants.HostSuffixRegistry, constants.EnvRegistry)
 	if registry == "" {
 		registry = constants.DefaultContainerRegistry
 	}

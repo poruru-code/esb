@@ -95,6 +95,7 @@ def test_prepare_context_merges_runtime_env_and_overrides(monkeypatch, tmp_path)
     assert ctx.runtime_env[env_key("HOME")].endswith("/e2e/fixtures/.esb/e2e-docker")
     assert Path(ctx.runtime_env[env_key("HOME")]).is_absolute()
     assert ctx.deploy_env["PROJECT_NAME"] == "esb-e2e-docker"
+    assert ctx.deploy_env[constants.ENV_META_REUSE] == "1"
     assert ctx.deploy_env["ESB_META_REUSE"] == "1"
     assert ctx.deploy_env["EXTRA_KEY"] == "EXTRA_VAL"
     assert ctx.pytest_env["EXTRA_KEY"] == "EXTRA_VAL"

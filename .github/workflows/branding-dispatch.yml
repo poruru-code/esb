@@ -1,6 +1,6 @@
 # Where: .github/workflows/branding-dispatch.yml
 # What: Dispatch branding check to the tool repository.
-# Why: Ensure ESB changes keep branding outputs in sync.
+# Why: Ensure base changes keep branding outputs in sync.
 
 name: branding-dispatch
 
@@ -11,8 +11,8 @@ on:
       - main
   workflow_dispatch:
     inputs:
-      esb_ref:
-        description: "ESB ref to check (commit/tag/branch)"
+      base_ref:
+        description: "Base ref to check (commit/tag/branch)"
         required: false
       brand:
         description: "Brand identifier"
@@ -41,17 +41,17 @@ jobs:
           event = json.load(open(os.environ["GITHUB_EVENT_PATH"], "r", encoding="utf-8"))
           inputs = event.get("inputs") or {}
           brand = (inputs.get("brand") or "esb").strip()
-          esb_ref = (inputs.get("esb_ref") or "").strip()
-          if not esb_ref:
+          base_ref = (inputs.get("base_ref") or inputs.get("esb_ref") or "").strip()
+          if not base_ref:
               pr = event.get("pull_request")
               if pr:
-                  esb_ref = pr["head"]["sha"]
+                  base_ref = pr["head"]["sha"]
               else:
-                  esb_ref = os.environ["GITHUB_SHA"]
+                  base_ref = os.environ["GITHUB_SHA"]
 
           with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as handle:
-              handle.write(f"ESB_REPO={os.environ['GITHUB_REPOSITORY']}\n")
-              handle.write(f"ESB_REF={esb_ref}\n")
+              handle.write(f"BASE_REPO={os.environ['GITHUB_REPOSITORY']}\n")
+              handle.write(f"BASE_REF={base_ref}\n")
               handle.write(f"BRAND={brand}\n")
           PY
 
@@ -64,7 +64,7 @@ jobs:
             -H "Authorization: Bearer ${APP_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             https://api.github.com/repos/poruru-code/esb-branding-tool/dispatches \
-            -d "{\"event_type\":\"branding-check\",\"client_payload\":{\"esb_repo\":\"${ESB_REPO}\",\"esb_ref\":\"${ESB_REF}\",\"brand\":\"${BRAND}\"}}"
+            -d "{\"event_type\":\"branding-check\",\"client_payload\":{\"base_repo\":\"${BASE_REPO}\",\"base_ref\":\"${BASE_REF}\",\"brand\":\"${BRAND}\"}}"
 
       - name: Wait for branding check
         if: ${{ github.event_name == 'pull_request' }}
