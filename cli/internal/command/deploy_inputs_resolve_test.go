@@ -63,17 +63,71 @@ func TestResolveDeployInputsWarnsWhenRuntimeDiscoveryFails(t *testing.T) {
 	}
 }
 
-func TestResolveDeployInputsRejectsTemplateRepoRootMismatch(t *testing.T) {
-	repoA := filepath.Join(t.TempDir(), "repo-a")
-	repoB := filepath.Join(t.TempDir(), "repo-b")
-	if err := os.MkdirAll(repoA, 0o755); err != nil {
-		t.Fatalf("mkdir repo a: %v", err)
+func TestResolveDeployInputsAllowsTemplateOutsideRepo(t *testing.T) {
+	repoRoot := filepath.Join(t.TempDir(), "repo")
+	if err := os.MkdirAll(repoRoot, 0o755); err != nil {
+		t.Fatalf("mkdir repo root: %v", err)
 	}
-	if err := os.MkdirAll(repoB, 0o755); err != nil {
-		t.Fatalf("mkdir repo b: %v", err)
+	templatePath := filepath.Join(t.TempDir(), "template.yaml")
+	if err := os.WriteFile(templatePath, []byte("Resources: {}\n"), 0o600); err != nil {
+		t.Fatalf("write template: %v", err)
 	}
-	templateA := filepath.Join(repoA, "template-a.yaml")
-	templateB := filepath.Join(repoB, "template-b.yaml")
+
+	cli := CLI{
+		Template: []string{templatePath},
+		EnvFlag:  "dev",
+		Deploy: DeployCmd{
+			Mode:    "docker",
+			Project: "esb-dev",
+			NoSave:  true,
+		},
+	}
+	calledPaths := make([]string, 0, 2)
+	deps := Dependencies{
+		RepoResolver: func(path string) (string, error) {
+			calledPaths = append(calledPaths, path)
+			cleaned := filepath.Clean(path)
+			if cleaned == "" || cleaned == "." {
+				return repoRoot, nil
+			}
+			return "", errors.New("unexpected path")
+		},
+		Deploy: DeployDeps{
+			Runtime: DeployRuntimeDeps{
+				DockerClient: func() (compose.DockerClient, error) {
+					return nil, errors.New("docker unavailable")
+				},
+			},
+		},
+	}
+
+	inputs, err := resolveDeployInputs(cli, deps)
+	if err != nil {
+		t.Fatalf("resolve deploy inputs: %v", err)
+	}
+	if inputs.ProjectDir != repoRoot {
+		t.Fatalf("expected project dir %q, got %q", repoRoot, inputs.ProjectDir)
+	}
+	if len(inputs.Templates) != 1 || inputs.Templates[0].TemplatePath != templatePath {
+		t.Fatalf("unexpected templates: %#v", inputs.Templates)
+	}
+	if len(calledPaths) == 0 {
+		t.Fatal("expected repo resolver to be called")
+	}
+	for _, path := range calledPaths {
+		if cleaned := filepath.Clean(path); cleaned != "" && cleaned != "." {
+			t.Fatalf("repo resolver should be called with execution context only, got %q", path)
+		}
+	}
+}
+
+func TestResolveDeployInputsAllowsMultipleTemplatesOutsideRepo(t *testing.T) {
+	repoRoot := filepath.Join(t.TempDir(), "repo")
+	if err := os.MkdirAll(repoRoot, 0o755); err != nil {
+		t.Fatalf("mkdir repo root: %v", err)
+	}
+	templateA := filepath.Join(t.TempDir(), "template-a.yaml")
+	templateB := filepath.Join(t.TempDir(), "template-b.yaml")
 	if err := os.WriteFile(templateA, []byte("Resources: {}\n"), 0o600); err != nil {
 		t.Fatalf("write template a: %v", err)
 	}
@@ -90,27 +144,41 @@ func TestResolveDeployInputsRejectsTemplateRepoRootMismatch(t *testing.T) {
 			NoSave:  true,
 		},
 	}
+	calledPaths := make([]string, 0, 4)
 	deps := Dependencies{
 		RepoResolver: func(path string) (string, error) {
+			calledPaths = append(calledPaths, path)
 			cleaned := filepath.Clean(path)
-			switch {
-			case cleaned == "" || cleaned == ".":
-				return repoA, nil
-			case strings.HasPrefix(cleaned, repoA):
-				return repoA, nil
-			case strings.HasPrefix(cleaned, repoB):
-				return repoB, nil
-			default:
-				return "", errors.New("unexpected path")
+			if cleaned == "" || cleaned == "." {
+				return repoRoot, nil
 			}
+			return "", errors.New("unexpected path")
+		},
+		Deploy: DeployDeps{
+			Runtime: DeployRuntimeDeps{
+				DockerClient: func() (compose.DockerClient, error) {
+					return nil, errors.New("docker unavailable")
+				},
+			},
 		},
 	}
 
-	_, err := resolveDeployInputs(cli, deps)
-	if err == nil {
-		t.Fatal("expected template repo root mismatch error")
+	inputs, err := resolveDeployInputs(cli, deps)
+	if err != nil {
+		t.Fatalf("resolve deploy inputs: %v", err)
 	}
-	if !strings.Contains(err.Error(), "template repo root mismatch") {
-		t.Fatalf("unexpected error: %v", err)
+	if inputs.ProjectDir != repoRoot {
+		t.Fatalf("expected project dir %q, got %q", repoRoot, inputs.ProjectDir)
+	}
+	if len(inputs.Templates) != 2 {
+		t.Fatalf("expected 2 templates, got %d", len(inputs.Templates))
+	}
+	if inputs.Templates[0].TemplatePath != templateA || inputs.Templates[1].TemplatePath != templateB {
+		t.Fatalf("unexpected template paths: %#v", inputs.Templates)
+	}
+	for _, path := range calledPaths {
+		if cleaned := filepath.Clean(path); cleaned != "" && cleaned != "." {
+			t.Fatalf("repo resolver should be called with execution context only, got %q", path)
+		}
 	}
 }

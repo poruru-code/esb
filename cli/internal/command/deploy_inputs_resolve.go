@@ -6,7 +6,6 @@ package command
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
@@ -121,22 +120,6 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 		templatePaths, err := resolveDeployTemplates(cli.Template, isTTY, prompter, previousTemplate, errOut)
 		if err != nil {
 			return deployInputs{}, err
-		}
-		templateRoot, err := repoResolver(filepath.Dir(templatePaths[0]))
-		if err != nil {
-			return deployInputs{}, fmt.Errorf("resolve repo root: %w", err)
-		}
-		if templateRoot != repoRoot {
-			return deployInputs{}, fmt.Errorf("template repo root mismatch: %s != %s", templateRoot, repoRoot)
-		}
-		for _, otherTemplate := range templatePaths[1:] {
-			otherRoot, err := repoResolver(filepath.Dir(otherTemplate))
-			if err != nil {
-				return deployInputs{}, fmt.Errorf("resolve repo root: %w", err)
-			}
-			if otherRoot != templateRoot {
-				return deployInputs{}, fmt.Errorf("template repo root mismatch: %s != %s", otherRoot, templateRoot)
-			}
 		}
 		stored := loadDeployDefaults(repoRoot, templatePaths[0])
 		if inferredMode != "" {
