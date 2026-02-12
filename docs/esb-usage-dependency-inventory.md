@@ -285,11 +285,14 @@ PR は 1 本化前提で進める。CI ガード追加は本計画スコープ�
 4. E2E 環境ファイルの `ESB_*` を中立キーへ更新（`ENV`, `TEMPLATE`, `PORT_*`）。
 5. テスト補助キー `ESB_FAKE_DOCKER_CALLS` を `FAKE_DOCKER_CALLS` に更新。
 
+追加で完了済み（2026-02-12）:
+1. `P0`: `esb-branding-tool` の未確定差分を確定し、`branding.lock` を現行 commit に更新（`66f056a`）。
+2. `P0`: `esb-branding-tool` で `generate --check` を `brand=esb,acme,app` で実行し、`--force` なしで整合を確認。
+3. `P0`: `esb` 側へ再生成を反映（差分ゼロ）し、`uv run python e2e/run_tests.py --parallel` の最終回帰を実施（PASS）。
+
 次タスク（PR 1本化）:
-1. `P0`: `esb-branding-tool` 側の未確定差分を確定し、`generate.py` / `update_lock.py` / templates / docs を一本化コミットする。
-2. `P0`: `esb-branding-tool` で `generate --check` を `brand=esb,acme,app` で実行し、命名（`base/upstream`）と生成差分ゼロを確認する。
-3. `P0`: `esb` 側へ再生成物を取り込み、`--parallel` を含む E2E 回帰で最終確認する。
-4. `P1`: baseline 文書と現行運用文書を分離し、誤参照を防ぐ（本書は baseline、運用は `docs/branding-generator.md` を正とする）。
+1. `P1`: baseline 文書と現行運用文書を分離し、誤参照を防ぐ（本書は baseline、運用は `docs/branding-generator.md` を正とする）。
+2. `P1`: PR本文に「Phase1/Phase2 実施済み」「`runtime-safe` スコープ `ESB_*` 0」「`--parallel` E2E PASS」を明記してレビュー投入する。
 
 完了条件（DoD）:
 1. PR 内の全コミットで `runtime-safe` スコープ `ESB_*` 0 を維持する。
