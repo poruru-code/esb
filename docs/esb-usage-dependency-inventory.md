@@ -3,25 +3,46 @@ Where: docs/esb-usage-dependency-inventory.md
 What: Inventory of ESB usages and dependency boundaries between esb and esb-branding-tool.
 Why: Clarify what branding tool covers and what remains outside of coverage before implementation changes.
 -->
-# ESB使用箇所・依存関係インベントリ（2026-02-12）
+# ESB使用箇所・依存関係インベントリ（Baseline: 2026-02-12）
 
-## 0. Phase1 キー方針（実装済み）
-実行系の推奨キーは以下に更新済みです。
+## 0. Phase2/3 更新サマリー（2026-02-12）
+この文書の 1 章以降は Phase2 実装前 baseline です。現状との差分は以下です。
 
-- `TAG`（fallback: `ESB_TAG`）
-- `REGISTRY`（fallback: `ESB_REGISTRY`）
-- `SKIP_GATEWAY_ALIGN`（fallback: `ESB_SKIP_GATEWAY_ALIGN`）
-- `REGISTRY_WAIT`（fallback: `ESB_REGISTRY_WAIT`）
-- `CLI_BIN`（fallback: `ESB_CLI`, `ESB_BIN`）
-- `META_REUSE`（fallback: `ESB_META_REUSE`）
-- `BUILDKITD_OVERWRITE`（fallback: `ESB_BUILDKITD_OVERWRITE`）
-- `BUILDX_NETWORK_MODE`（fallback: `ESB_BUILDX_NETWORK_MODE`）
-- `TINYPROXY_*`（fallback: `ESB_TINYPROXY_*`）
-- branding metadata: `.upstream-info`, `UPSTREAM_BASE_COMMIT`, `UPSTREAM_BASE_TAG`
-  （fallback: `.esb-info`, `ESB_BASE_*`）
-- branding lock keys: `source.base_repo`, `source.base_commit`, `source.base_ref`
-  （fallback read: `source.esb_*`）
-- branding CLI: `--base-ref`, `--base-dir`, `--base-repo`（fallback alias: `--esb-*`）
+- 実行系キーは中立名へ一本化済み:
+  - `TAG`, `REGISTRY`, `SKIP_GATEWAY_ALIGN`, `REGISTRY_WAIT`, `CLI_BIN`
+  - `META_REUSE`, `BUILDKITD_OVERWRITE`, `BUILDX_NETWORK_MODE`, `TINYPROXY_*`
+- `runtime-safe` スコープ（docs/test除外）では `ESB_*` は 0 件。
+- `e2e/environments/*.env` の `ESB_*` は中立キーへ更新済み（`ENV`, `TEMPLATE`, `PORT_*`）。
+- `ESB_*` 残存は docs と test 補助キーのみ（例: `ESB_FAKE_DOCKER_CALLS`）。
+
+現状確認コマンド:
+
+```bash
+python3 - <<'PY'
+import subprocess
+import pathlib
+import re
+
+pat = re.compile(r"\bESB_[A-Z0-9_]+\b")
+files = subprocess.check_output(["git", "ls-files"], text=True).splitlines()
+hits = []
+for rel in files:
+    if rel.startswith("docs/") or rel.endswith(".md"):
+        continue
+    if rel.endswith("_test.go") or "/tests/" in rel or rel.startswith("e2e/scenarios/"):
+        continue
+    p = pathlib.Path(rel)
+    try:
+        text = p.read_text(encoding="utf-8")
+    except Exception:
+        continue
+    c = len(pat.findall(text))
+    if c:
+        hits.append((rel, c))
+print("runtime_scope_files_with_ESB_*", len(hits))
+print("runtime_scope_total_ESB_*", sum(c for _, c in hits))
+PY
+```
 
 ## 1. 目的と判定基準
 このドキュメントは、`/home/akira/esb` と `~/esb-branding-tool` における ESB 依存の現状を、実装修正前に固定化するための棚卸しです。

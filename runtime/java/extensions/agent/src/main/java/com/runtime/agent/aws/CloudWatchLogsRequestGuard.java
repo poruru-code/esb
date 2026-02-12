@@ -13,7 +13,7 @@ import java.util.function.Consumer;
 public final class CloudWatchLogsRequestGuard {
     private static final String REQUEST_PACKAGE_PREFIX =
             "software.amazon.awssdk.services.cloudwatchlogs.model.";
-    private static final String DIAGNOSTIC_ENV = "ESB_JAVA_CLOUDWATCH_DIAGNOSTIC";
+    private static final String DIAGNOSTIC_ENV = "JAVA_CLOUDWATCH_DIAGNOSTIC";
     private static final Set<String> SUPPORTED_CONSUMER_OVERLOADS = Set.of(
             "createLogGroup",
             "createLogStream",
@@ -133,7 +133,7 @@ public final class CloudWatchLogsRequestGuard {
         appendField(sb, "request_type", requestType(request), true);
         appendField(sb, "reason", reason, true);
         appendField(sb, "diagnostic_env", DIAGNOSTIC_ENV, true);
-        appendField(sb, "hint", "set ESB_JAVA_CLOUDWATCH_DIAGNOSTIC=true for per-call decisions", true);
+        appendField(sb, "hint", "set JAVA_CLOUDWATCH_DIAGNOSTIC=true for per-call decisions", true);
         appendBooleanField(sb, "supported", supported);
         sb.append("}");
         System.out.println(sb);

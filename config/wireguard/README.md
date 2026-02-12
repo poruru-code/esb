@@ -58,7 +58,7 @@ Note:
 If TLS stalls over WireGuard (WSL/Hyper-V などで起きやすい), lower the WG MTU:
 
 ```bash
-ESB_WG_MTU=1340 esb node provision --host esb@10.1.1.220
+WG_MTU=1340 esb node provision --host esb@10.1.1.220
 ```
 
 You can also edit the configs directly and restart WireGuard on both sides.

@@ -16,7 +16,7 @@ compose 前提:
 この前提により Agent は `/proc/<pid>/ns/net` を参照し、CNI add/del を実行できます。
 
 前提:
-- `ESB_ENV` 未指定時は `default`（`config.DefaultEnv`）
+- `ENV` 未指定時は `default`（`config.DefaultEnv`）
 - namespace は `meta.RuntimeNamespace` 固定
 - CNI `.conflist` は Agent 起動時に動的生成される
 
