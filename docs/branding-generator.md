@@ -7,6 +7,11 @@ Why: Keep branding operations documented where the tool lives.
 
 ブランディング生成と下流リポジトリ向け配布手順は、`esb-branding-tool` 側を source of truth とします。
 
+## 役割分離（必読）
+- 現行運用（source of truth）: `docs/branding-generator.md`（本書）
+- baseline固定スナップショット: `docs/esb-usage-dependency-inventory.md`（参照専用）
+- PR本文ドラフト: `docs/branding-phase2-pr-body.md`
+
 - https://github.com/poruru-code/esb-branding-tool/blob/main/docs/branding-flow.md
 - baseline棚卸し（固定スナップショット）: `docs/esb-usage-dependency-inventory.md`
 - 推奨実行キー: `TAG`, `REGISTRY`, `SKIP_GATEWAY_ALIGN`, `REGISTRY_WAIT`, `CLI_BIN`, `META_REUSE`

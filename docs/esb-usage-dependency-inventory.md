@@ -5,6 +5,10 @@ Why: Clarify what branding tool covers and what remains outside of coverage befo
 -->
 # ESB使用箇所・依存関係インベントリ（Baseline: 2026-02-12）
 
+> [!WARNING]
+> 本書は `2026-02-12` 時点の baseline 固定スナップショットです。  
+> 現行運用の source of truth は `docs/branding-generator.md` を参照してください。
+
 ## 0. Phase2/3 更新サマリー（2026-02-12）
 この文書の 1 章以降は Phase2 実装前 baseline です。現状との差分は以下です。
 
@@ -291,8 +295,11 @@ PR は 1 本化前提で進める。CI ガード追加は本計画スコープ�
 3. `P0`: `esb` 側へ再生成を反映（差分ゼロ）し、`uv run python e2e/run_tests.py --parallel` の最終回帰を実施（PASS）。
 
 次タスク（PR 1本化）:
-1. `P1`: baseline 文書と現行運用文書を分離し、誤参照を防ぐ（本書は baseline、運用は `docs/branding-generator.md` を正とする）。
-2. `P1`: PR本文に「Phase1/Phase2 実施済み」「`runtime-safe` スコープ `ESB_*` 0」「`--parallel` E2E PASS」を明記してレビュー投入する。
+1. `P1`: PR本文に「Phase1/Phase2 実施済み」「`runtime-safe` スコープ `ESB_*` 0」「`--parallel` E2E PASS」を明記してレビュー投入する（テンプレート: `docs/branding-phase2-pr-body.md`）。
+
+P1 進捗（2026-02-12）:
+1. baseline/運用の参照先を明確化（本書は baseline 固定、`docs/branding-generator.md` は現行運用）。
+2. PR本文ドラフトを追加（`docs/branding-phase2-pr-body.md`）。
 
 完了条件（DoD）:
 1. PR 内の全コミットで `runtime-safe` スコープ `ESB_*` 0 を維持する。
