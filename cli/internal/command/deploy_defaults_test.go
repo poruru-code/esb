@@ -83,9 +83,11 @@ func TestSaveAndLoadDeployDefaults(t *testing.T) {
 	projectRoot := t.TempDir()
 	templatePath := writeDefaultsTemplate(t, "template.yaml")
 	templateInput := deployTemplateInput{
-		TemplatePath: templatePath,
-		OutputDir:    ".esb/out/template",
-		Parameters:   map[string]string{"Key": "Value"},
+		TemplatePath:  templatePath,
+		OutputDir:     ".esb/out/template",
+		Parameters:    map[string]string{"Key": "Value"},
+		ImageSources:  map[string]string{"lambda-image": "public.ecr.aws/example/repo:latest"},
+		ImageRuntimes: map[string]string{"lambda-image": "java21"},
 	}
 	inputs := deployInputs{
 		Env:  "dev",
@@ -104,6 +106,12 @@ func TestSaveAndLoadDeployDefaults(t *testing.T) {
 	}
 	if loaded.Params["Key"] != "Value" {
 		t.Fatalf("unexpected params: %#v", loaded.Params)
+	}
+	if loaded.ImageSources["lambda-image"] != "public.ecr.aws/example/repo:latest" {
+		t.Fatalf("unexpected image sources: %#v", loaded.ImageSources)
+	}
+	if loaded.ImageRuntimes["lambda-image"] != "java21" {
+		t.Fatalf("unexpected image runtimes: %#v", loaded.ImageRuntimes)
 	}
 
 	cfgPath, err := config.ProjectConfigPath(projectRoot)

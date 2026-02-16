@@ -231,6 +231,73 @@ func TestWriteBundleManifestContainerdIncludesRuntimeImages(t *testing.T) {
 	}
 }
 
+func TestWriteBundleManifestImageSourceUsesBuiltFunctionImage(t *testing.T) {
+	tmpDir := t.TempDir()
+	templatePath := filepath.Join(tmpDir, "template.yaml")
+	if err := os.WriteFile(templatePath, []byte("Resources: {}"), 0o600); err != nil {
+		t.Fatalf("write template: %v", err)
+	}
+
+	imageTag := "latest"
+	functionImage := meta.ImagePrefix + "-lambda-image:latest"
+	images := map[string]manifestImageMeta{
+		lambdaBaseImageTag("", imageTag):            {id: "sha256:1111111111111111111111111111111111111111111111111111111111111111", platform: "linux/amd64"},
+		meta.ImagePrefix + "-os-base:latest":        {id: "sha256:2222222222222222222222222222222222222222222222222222222222222222", platform: "linux/amd64"},
+		meta.ImagePrefix + "-python-base:latest":    {id: "sha256:3333333333333333333333333333333333333333333333333333333333333333", platform: "linux/amd64"},
+		meta.ImagePrefix + "-gateway-docker:latest": {id: "sha256:4444444444444444444444444444444444444444444444444444444444444444", platform: "linux/amd64"},
+		meta.ImagePrefix + "-agent-docker:latest":   {id: "sha256:5555555555555555555555555555555555555555555555555555555555555555", platform: "linux/amd64"},
+		meta.ImagePrefix + "-provisioner:latest":    {id: "sha256:6666666666666666666666666666666666666666666666666666666666666666", platform: "linux/amd64"},
+		functionImage:                               {id: "sha256:7777777777777777777777777777777777777777777777777777777777777777", platform: "linux/amd64"},
+		"alpine:latest":                             {id: "sha256:8888888888888888888888888888888888888888888888888888888888888888", platform: "linux/amd64"},
+		"rustfs/rustfs:latest":                      {id: "sha256:9999999999999999999999999999999999999999999999999999999999999999", platform: "linux/amd64"},
+		"scylladb/scylla:latest":                    {id: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", platform: "linux/amd64"},
+		"victoriametrics/victoria-logs:latest":      {id: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", platform: "linux/amd64"},
+	}
+	runner := &manifestRunner{images: images}
+
+	outputDir := filepath.Join(tmpDir, meta.OutputDir, "default")
+	if err := ensureDir(outputDir); err != nil {
+		t.Fatalf("ensure output dir: %v", err)
+	}
+
+	path, err := WriteBundleManifest(t.Context(), BundleManifestInput{
+		RepoRoot:     tmpDir,
+		OutputDir:    outputDir,
+		TemplatePath: templatePath,
+		Project:      "esb-default",
+		Env:          "default",
+		Mode:         "docker",
+		ImageTag:     imageTag,
+		Functions: []template.FunctionSpec{
+			{
+				Name:        "LambdaImage",
+				ImageName:   "lambda-image",
+				ImageSource: "public.ecr.aws/example/repo:latest",
+				ImageRef:    "registry:5010/public.ecr.aws/example/repo:latest",
+			},
+		},
+		Runner: runner,
+	})
+	if err != nil {
+		t.Fatalf("write bundle manifest: %v", err)
+	}
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read manifest: %v", err)
+	}
+	var manifest bundleManifest
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		t.Fatalf("unmarshal manifest: %v", err)
+	}
+	if !contains(manifestImageNames(manifest.Images), functionImage) {
+		t.Fatalf("expected built function image %q in manifest", functionImage)
+	}
+	if contains(manifestImageNames(manifest.Images), "registry:5010/public.ecr.aws/example/repo:latest") {
+		t.Fatalf("did not expect image_ref in manifest for wrapped image function")
+	}
+}
+
 func TestWriteBundleManifestFailsWhenImageMissing(t *testing.T) {
 	tmpDir := t.TempDir()
 	templatePath := filepath.Join(tmpDir, "template.yaml")
@@ -272,4 +339,12 @@ func contains(values []string, needle string) bool {
 		}
 	}
 	return false
+}
+
+func manifestImageNames(images []bundleManifestImage) []string {
+	names := make([]string, 0, len(images))
+	for _, image := range images {
+		names = append(names, image.Name)
+	}
+	return names
 }

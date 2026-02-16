@@ -20,8 +20,11 @@ COPY {{ .CodeURI }}requirements.txt ${LAMBDA_TASK_ROOT}/
 RUN pip install -r ${LAMBDA_TASK_ROOT}/requirements.txt
 {{- end }}
 
+{{- if not .ImageWrapper }}
+
 # Function code
 COPY {{ .CodeURI }} ${LAMBDA_TASK_ROOT}/
 
 # Handler
 CMD [ "{{ .Handler }}" ]
+{{- end }}

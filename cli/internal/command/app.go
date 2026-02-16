@@ -50,6 +50,8 @@ type (
 		Output       string   `short:"o" help:"Output directory for generated artifacts"`
 		Project      string   `short:"p" help:"Compose project name to target"`
 		ComposeFiles []string `name:"compose-file" sep:"," help:"Compose file(s) to use (repeatable or comma-separated)"`
+		ImageURI     []string `name:"image-uri" sep:"," help:"Image URI override for image functions (<function>=<image-uri>)"`
+		ImageRuntime []string `name:"image-runtime" sep:"," help:"Runtime override for image functions (<function>=<python|java21>)"`
 		BuildOnly    bool     `name:"build-only" help:"Build only (skip provisioner and runtime sync)"`
 		Bundle       bool     `name:"bundle-manifest" help:"Write bundle manifest (for bundling)"`
 		ImagePrewarm string   `name:"image-prewarm" default:"all" help:"Image prewarm mode (all/off)"`
@@ -202,7 +204,7 @@ func commandName(args []string) string {
 		}
 		if strings.HasPrefix(arg, "-") {
 			switch arg {
-			case "-e", "--env", "-t", "--template", "--env-file", "-m", "--mode", "-o", "--output", "-p", "--project", "--image-prewarm":
+			case "-e", "--env", "-t", "--template", "--env-file", "-m", "--mode", "-o", "--output", "-p", "--project", "--image-prewarm", "--image-uri", "--image-runtime":
 				skipNext = true
 			}
 			continue
@@ -251,6 +253,14 @@ func handleParseError(args []string, err error, deps Dependencies, out io.Writer
 		case strings.Contains(msg, "--env-file"):
 			ui.Warn("`--env-file` expects a value. Provide a file path.")
 			ui.Info(fmt.Sprintf("Example: %s deploy --env-file .env.prod", cmd))
+			return 1
+		case strings.Contains(msg, "--image-uri"):
+			ui.Warn("`--image-uri` expects a value. Use <function>=<image-uri>.")
+			ui.Info(fmt.Sprintf("Example: %s deploy --image-uri lambda-image=public.ecr.aws/example/repo:latest", cmd))
+			return 1
+		case strings.Contains(msg, "--image-runtime"):
+			ui.Warn("`--image-runtime` expects a value. Use <function>=<python|java21>.")
+			ui.Info(fmt.Sprintf("Example: %s deploy --image-runtime lambda-image=java21", cmd))
 			return 1
 		}
 	}

@@ -234,6 +234,8 @@ func (c *deployCommand) Run(inputs deployInputs, flags DeployCmd) error {
 			TemplatePath:   tpl.TemplatePath,
 			OutputDir:      tpl.OutputDir,
 			Parameters:     tpl.Parameters,
+			ImageSources:   tpl.ImageSources,
+			ImageRuntimes:  tpl.ImageRuntimes,
 			Tag:            tag,
 			NoCache:        flags.NoCache,
 			NoDeps:         noDeps,

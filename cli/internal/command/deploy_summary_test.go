@@ -65,6 +65,14 @@ func TestConfirmDeployInputsProceedAndSummaryContents(t *testing.T) {
 					"B": "2",
 					"A": "1",
 				},
+				ImageRuntimes: map[string]string{
+					"b-image": "python3.12",
+					"a-image": "java21",
+				},
+				ImageSources: map[string]string{
+					"b-image": "public.ecr.aws/example/b:latest",
+					"a-image": "public.ecr.aws/example/a:latest",
+				},
 			},
 		},
 	}
@@ -92,6 +100,16 @@ func TestConfirmDeployInputsProceedAndSummaryContents(t *testing.T) {
 	idxB := strings.Index(prompter.summary, "  B = 2")
 	if idxA < 0 || idxB < 0 || idxA > idxB {
 		t.Fatalf("expected sorted params in summary, got %q", prompter.summary)
+	}
+	idxRuntimeA := strings.Index(prompter.summary, "  a-image = java21")
+	idxRuntimeB := strings.Index(prompter.summary, "  b-image = python")
+	if idxRuntimeA < 0 || idxRuntimeB < 0 || idxRuntimeA > idxRuntimeB {
+		t.Fatalf("expected sorted image runtimes in summary, got %q", prompter.summary)
+	}
+	idxSourceA := strings.Index(prompter.summary, "  a-image = public.ecr.aws/example/a:latest")
+	idxSourceB := strings.Index(prompter.summary, "  b-image = public.ecr.aws/example/b:latest")
+	if idxSourceA < 0 || idxSourceB < 0 || idxSourceA > idxSourceB {
+		t.Fatalf("expected sorted image sources in summary, got %q", prompter.summary)
 	}
 }
 
@@ -124,12 +142,30 @@ func TestAppendTemplateSummaryLinesDeterministicParams(t *testing.T) {
 			"Z": "last",
 			"A": "first",
 		},
+		ImageRuntimes: map[string]string{
+			"z-image": "python3.12",
+			"a-image": "java21",
+		},
+		ImageSources: map[string]string{
+			"z-image": "public.ecr.aws/example/z:latest",
+			"a-image": "public.ecr.aws/example/a:latest",
+		},
 	}, "dev", "esb-dev")
 	joined := strings.Join(lines, "\n")
 	idxA := strings.Index(joined, "  A = first")
 	idxZ := strings.Index(joined, "  Z = last")
 	if idxA < 0 || idxZ < 0 || idxA > idxZ {
 		t.Fatalf("expected sorted parameter lines, got %q", joined)
+	}
+	idxRuntimeA := strings.Index(joined, "  a-image = java21")
+	idxRuntimeZ := strings.Index(joined, "  z-image = python")
+	if idxRuntimeA < 0 || idxRuntimeZ < 0 || idxRuntimeA > idxRuntimeZ {
+		t.Fatalf("expected sorted runtime lines, got %q", joined)
+	}
+	idxSourceA := strings.Index(joined, "  a-image = public.ecr.aws/example/a:latest")
+	idxSourceZ := strings.Index(joined, "  z-image = public.ecr.aws/example/z:latest")
+	if idxSourceA < 0 || idxSourceZ < 0 || idxSourceA > idxSourceZ {
+		t.Fatalf("expected sorted source lines, got %q", joined)
 	}
 }
 

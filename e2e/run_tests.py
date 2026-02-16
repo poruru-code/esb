@@ -74,12 +74,30 @@ def resolve_live_enabled(no_live: bool) -> bool:
     return True
 
 
+def ensure_local_esb_cli() -> None:
+    if os.environ.get("ESB_CLI") or os.environ.get("ESB_BIN"):
+        return
+
+    cli_bin_dir = GO_CLI_ROOT / "bin"
+    cli_bin_dir.mkdir(parents=True, exist_ok=True)
+    cli_bin = cli_bin_dir / "esb"
+    build_cmd = ["go", "build", "-o", str(cli_bin), "./cmd/esb"]
+    result = subprocess.run(build_cmd, cwd=GO_CLI_ROOT, check=False)
+    if result.returncode != 0:
+        print("[ERROR] failed to build local esb binary for E2E runner.")
+        sys.exit(result.returncode)
+    os.environ["ESB_CLI"] = str(cli_bin)
+
+
 def main():
     # Suppress warnings.
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
     warnings.filterwarnings("ignore", category=DeprecationWarning)
 
     args = parse_args()
+
+    if not args.unit_only:
+        ensure_local_esb_cli()
 
     # --- Unit Tests ---
     if args.unit or args.unit_only:

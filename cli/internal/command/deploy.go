@@ -18,9 +18,11 @@ type deployInputs struct {
 }
 
 type deployTemplateInput struct {
-	TemplatePath string
-	OutputDir    string
-	Parameters   map[string]string
+	TemplatePath  string
+	OutputDir     string
+	Parameters    map[string]string
+	ImageSources  map[string]string
+	ImageRuntimes map[string]string
 }
 
 type deployTargetStack struct {
@@ -37,10 +39,12 @@ type envChoice struct {
 
 // storedDeployDefaults mirrors storedBuildDefaults for deploy.
 type storedDeployDefaults struct {
-	Env       string
-	Mode      string
-	OutputDir string
-	Params    map[string]string
+	Env           string
+	Mode          string
+	OutputDir     string
+	Params        map[string]string
+	ImageSources  map[string]string
+	ImageRuntimes map[string]string
 }
 
 // samParameter represents a SAM template parameter definition.

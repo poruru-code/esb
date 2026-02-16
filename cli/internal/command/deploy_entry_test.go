@@ -197,7 +197,12 @@ func TestDeployCommandRunBuildsAllTemplatesAndRunsProvisionerOnlyOnLast(t *testi
 			Mode:       "docker",
 			Project:    "esb-dev",
 			Templates: []deployTemplateInput{
-				{TemplatePath: templateA, OutputDir: ".out/a"},
+				{
+					TemplatePath:  templateA,
+					OutputDir:     ".out/a",
+					ImageSources:  map[string]string{"image-a": "public.ecr.aws/example/a:latest"},
+					ImageRuntimes: map[string]string{"image-a": "java21"},
+				},
 				{TemplatePath: templateB, OutputDir: ".out/b"},
 			},
 		},
@@ -208,6 +213,12 @@ func TestDeployCommandRunBuildsAllTemplatesAndRunsProvisionerOnlyOnLast(t *testi
 	}
 	if len(builder.requests) != 2 {
 		t.Fatalf("expected 2 build requests, got %d", len(builder.requests))
+	}
+	if builder.requests[0].ImageRuntimes["image-a"] != "java21" {
+		t.Fatalf("expected image runtime to be forwarded, got %#v", builder.requests[0].ImageRuntimes)
+	}
+	if builder.requests[0].ImageSources["image-a"] != "public.ecr.aws/example/a:latest" {
+		t.Fatalf("expected image source to be forwarded, got %#v", builder.requests[0].ImageSources)
 	}
 	if provisioner.runCalls != 1 {
 		t.Fatalf("expected provisioner run once for final template, got %d", provisioner.runCalls)

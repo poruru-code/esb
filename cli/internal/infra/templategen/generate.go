@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	runtimecfg "github.com/poruru/edge-serverless-box/cli/internal/domain/runtime"
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/template"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
 	samparser "github.com/poruru/edge-serverless-box/cli/internal/infra/sam"
@@ -26,6 +27,8 @@ type GenerateOptions struct {
 	RuntimeRegistry     string
 	Tag                 string
 	Parameters          map[string]string
+	ImageSources        map[string]string
+	ImageRuntimes       map[string]string
 	SitecustomizeSource string
 	Parser              samparser.Parser
 }
@@ -81,6 +84,9 @@ func GenerateFiles(cfg config.GeneratorConfig, opts GenerateOptions) ([]template
 	if err := template.ApplyImageNames(parsed.Functions); err != nil {
 		return nil, err
 	}
+	if err := applyImageSourceOverrides(parsed.Functions, opts.ImageSources); err != nil {
+		return nil, err
+	}
 
 	resolvedTag := resolveTag(opts.Tag, "")
 	buildRegistry := opts.BuildRegistry
@@ -115,9 +121,13 @@ func GenerateFiles(cfg config.GeneratorConfig, opts GenerateOptions) ([]template
 		if opts.Verbose {
 			_, _ = fmt.Fprintf(out, "Processing function: %s\n", fn.Name)
 		}
+
 		if strings.TrimSpace(fn.ImageSource) != "" {
-			functions = append(functions, fn)
-			continue
+			resolvedRuntime, err := resolveImageFunctionRuntime(fn.Name, opts.ImageRuntimes)
+			if err != nil {
+				return nil, err
+			}
+			fn.Runtime = resolvedRuntime
 		}
 
 		staged, err := stageFunction(
@@ -198,4 +208,44 @@ func GenerateFiles(cfg config.GeneratorConfig, opts GenerateOptions) ([]template
 	}
 
 	return functions, nil
+}
+
+func resolveImageFunctionRuntime(functionName string, runtimes map[string]string) (string, error) {
+	runtimeValue := "python3.12"
+	if runtimes != nil {
+		if selected := strings.TrimSpace(runtimes[functionName]); selected != "" {
+			runtimeValue = selected
+		}
+	}
+	profile, err := runtimecfg.Resolve(runtimeValue)
+	if err != nil {
+		return "", fmt.Errorf("image function %s runtime: %w", functionName, err)
+	}
+	switch profile.Kind {
+	case runtimecfg.KindPython, runtimecfg.KindJava:
+		return profile.Name, nil
+	default:
+		return "", fmt.Errorf("image function %s uses unsupported runtime %q", functionName, runtimeValue)
+	}
+}
+
+func applyImageSourceOverrides(functions []template.FunctionSpec, imageSources map[string]string) error {
+	if len(imageSources) == 0 {
+		return nil
+	}
+	for i := range functions {
+		override, ok := imageSources[functions[i].Name]
+		if !ok {
+			continue
+		}
+		override = strings.TrimSpace(override)
+		if override == "" {
+			continue
+		}
+		if strings.TrimSpace(functions[i].ImageSource) == "" {
+			return fmt.Errorf("image source override for non-image function %s", functions[i].Name)
+		}
+		functions[i].ImageSource = override
+	}
+	return nil
 }

@@ -117,7 +117,10 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		TemplatePath: templatePath,
 		Env:          "staging",
 		Mode:         "containerd",
-		Tag:          "v1.2.3",
+		ImageRuntimes: map[string]string{
+			"lambda-image": "java21",
+		},
+		Tag: "v1.2.3",
 	}
 	if err := builder.Build(request); err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -141,6 +144,9 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	}
 	if gotOpts.Tag != "v1.2.3" {
 		t.Fatalf("unexpected tag: %s", gotOpts.Tag)
+	}
+	if gotOpts.ImageRuntimes["lambda-image"] != "java21" {
+		t.Fatalf("unexpected image runtimes: %#v", gotOpts.ImageRuntimes)
 	}
 	if gotCfg.Parameters["S3_ENDPOINT_HOST"] != "s3-storage" {
 		t.Fatalf("missing S3_ENDPOINT_HOST parameter")

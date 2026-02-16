@@ -5,16 +5,18 @@ package build
 
 // BuildRequest contains parameters for a build operation.
 type BuildRequest struct {
-	ProjectDir   string
-	ProjectName  string
-	TemplatePath string
-	Env          string
-	Mode         string
-	OutputDir    string
-	Parameters   map[string]string
-	Tag          string
-	NoCache      bool
-	Verbose      bool
-	Bundle       bool
-	Emoji        bool
+	ProjectDir    string
+	ProjectName   string
+	TemplatePath  string
+	Env           string
+	Mode          string
+	OutputDir     string
+	Parameters    map[string]string
+	ImageSources  map[string]string
+	ImageRuntimes map[string]string
+	Tag           string
+	NoCache       bool
+	Verbose       bool
+	Bundle        bool
+	Emoji         bool
 }

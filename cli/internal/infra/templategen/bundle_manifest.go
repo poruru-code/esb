@@ -133,15 +133,13 @@ func collectBundleImages(ctx context.Context, input BundleManifestInput) ([]bund
 	}
 
 	for _, fn := range input.Functions {
-		imageTag := ""
-		if strings.TrimSpace(fn.ImageSource) != "" {
-			imageTag = strings.TrimSpace(fn.ImageRef)
-			if imageTag == "" {
-				return nil, fmt.Errorf("bundle manifest: image_ref is required for function %s", fn.Name)
-			}
-		} else {
+		imageTag := strings.TrimSpace(fn.ImageRef)
+		if strings.TrimSpace(fn.ImageName) != "" {
 			imageTag = fmt.Sprintf("%s-%s:%s", meta.ImagePrefix, fn.ImageName, input.ImageTag)
 			imageTag = joinRegistry(functionRegistry, imageTag)
+		}
+		if imageTag == "" {
+			return nil, fmt.Errorf("bundle manifest: image name is required for function %s", fn.Name)
 		}
 		if err := add(imageTag, "function", "template"); err != nil {
 			return nil, err

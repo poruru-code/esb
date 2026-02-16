@@ -213,6 +213,9 @@ func TestInferEnvFromStackName(t *testing.T) {
 	if got := inferEnvFromStackName("esb-dev"); got != "dev" {
 		t.Fatalf("expected dev env, got %q", got)
 	}
+	if got := inferEnvFromStackName("esb-e2e-docker"); got != "e2e-docker" {
+		t.Fatalf("expected e2e-docker env, got %q", got)
+	}
 	if got := inferEnvFromStackName("esb"); got != "" {
 		t.Fatalf("expected empty env, got %q", got)
 	}

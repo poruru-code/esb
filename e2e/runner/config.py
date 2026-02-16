@@ -61,6 +61,8 @@ def build_env_scenarios(matrix: list, suites: dict, profile_filter: str | None =
                 "exclude": [],
                 "deploy_templates": entry.get("deploy_templates", []) or [],
                 "image_prewarm": entry.get("image_prewarm", ""),
+                "image_uri_overrides": entry.get("image_uri_overrides", {}) or {},
+                "image_runtime_overrides": entry.get("image_runtime_overrides", {}) or {},
             }
 
         for suite_name in suite_names:

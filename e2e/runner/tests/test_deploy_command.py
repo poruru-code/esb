@@ -12,9 +12,20 @@ from e2e.runner.logging import LogSink
 from e2e.runner.models import RunContext, Scenario
 
 
-def _make_context(tmp_path: Path, *, image_prewarm: str = "off") -> RunContext:
+def _make_context(
+    tmp_path: Path,
+    *,
+    image_prewarm: str = "off",
+    image_uri_overrides: dict[str, str] | None = None,
+    image_runtime_overrides: dict[str, str] | None = None,
+) -> RunContext:
     compose_file = tmp_path / "docker-compose.yml"
     compose_file.write_text("services: {}\n", encoding="utf-8")
+    extra = {"image_prewarm": image_prewarm}
+    if image_uri_overrides is not None:
+        extra["image_uri_overrides"] = image_uri_overrides
+    if image_runtime_overrides is not None:
+        extra["image_runtime_overrides"] = image_runtime_overrides
     scenario = Scenario(
         name="test",
         env_name="e2e-docker",
@@ -26,7 +37,7 @@ def _make_context(tmp_path: Path, *, image_prewarm: str = "off") -> RunContext:
         exclude=[],
         deploy_templates=[],
         project_name="esb",
-        extra={"image_prewarm": image_prewarm},
+        extra=extra,
     )
     return RunContext(
         scenario=scenario,
@@ -95,6 +106,67 @@ def test_deploy_templates_builds_expected_cli_args(monkeypatch, tmp_path):
     assert captured["env_file"] == ctx.env_file
     assert captured["env"]["EXAMPLE"] == "1"
     assert captured["cmd"][0] == "esb"
+
+
+def test_deploy_templates_appends_image_overrides(monkeypatch, tmp_path):
+    ctx = _make_context(
+        tmp_path,
+        image_prewarm="off",
+        image_uri_overrides={"lambda-image": "public.ecr.aws/example/repo:v1"},
+        image_runtime_overrides={"lambda-image": "python"},
+    )
+    template = tmp_path / "template.yaml"
+    template.write_text("Resources: {}\n", encoding="utf-8")
+    captured: dict[str, object] = {}
+
+    def fake_build_esb_cmd(args, env_file, env=None):
+        captured["args"] = list(args)
+        return ["esb", *args]
+
+    monkeypatch.setattr("e2e.runner.deploy.build_esb_cmd", fake_build_esb_cmd)
+    monkeypatch.setattr("e2e.runner.deploy.run_and_stream", lambda *args, **kwargs: 0)
+
+    log = LogSink(tmp_path / "deploy.log")
+    log.open()
+    try:
+        deploy_templates(
+            ctx,
+            [template],
+            no_cache=False,
+            verbose=False,
+            log=log,
+            printer=None,
+        )
+    finally:
+        log.close()
+
+    args = captured["args"]
+    assert "--image-uri" in args
+    assert "lambda-image=public.ecr.aws/example/repo:v1" in args
+    assert "--image-runtime" in args
+    assert "lambda-image=python" in args
+
+
+def test_deploy_templates_rejects_invalid_image_override(tmp_path):
+    ctx = _make_context(tmp_path)
+    ctx.scenario.extra["image_uri_overrides"] = "invalid-override-format"
+    template = tmp_path / "template.yaml"
+    template.write_text("Resources: {}\n", encoding="utf-8")
+
+    log = LogSink(tmp_path / "deploy.log")
+    log.open()
+    try:
+        with pytest.raises(ValueError, match="image_uri_overrides"):
+            deploy_templates(
+                ctx,
+                [template],
+                no_cache=False,
+                verbose=False,
+                log=log,
+                printer=None,
+            )
+    finally:
+        log.close()
 
 
 def test_deploy_templates_raises_on_non_zero_exit(monkeypatch, tmp_path):

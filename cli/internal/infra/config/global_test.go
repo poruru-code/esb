@@ -30,6 +30,10 @@ func TestGlobalConfigRoundTrip(t *testing.T) {
 				Env:       "staging",
 				Mode:      "docker",
 				OutputDir: meta.OutputDir,
+				ImageRuntimes: map[string]string{
+					"lambda-image-a": "python3.12",
+					"lambda-image-b": "java21",
+				},
 				Params: map[string]string{
 					"ParamA": "value-a",
 				},
