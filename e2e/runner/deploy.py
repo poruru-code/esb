@@ -31,9 +31,9 @@ def deploy_templates(
             printer(message)
 
         args = [
+            "deploy",
             "--template",
             str(tmpl),
-            "deploy",
             "--compose-file",
             str(ctx.compose_file),
             "--no-deps",

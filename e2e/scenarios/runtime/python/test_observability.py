@@ -131,15 +131,21 @@ class TestPythonObservability:
             poll_interval=2.0,
         )
         log_entries = result.get("hits", [])
-        found_logs = len(log_entries) >= 4
-
-        assert found_logs, (
+        expected_log_count = 4
+        assert len(log_entries) == expected_log_count, (
             f"CloudWatch Logs not found in VictoriaLogs for log_group={log_group}. "
-            f"Found only {len(log_entries)}/4 logs. "
-            "Check Gateway /aws/logs endpoint and Fluent Bit configuration."
+            f"Expected exactly {expected_log_count} logs but found {len(log_entries)}. "
+            "Duplicate delivery or dropped events detected."
         )
 
         print(f"Found {len(log_entries)} log entries in VictoriaLogs")
+
+        fingerprints = [(entry.get("level", ""), entry.get("_msg", "")) for entry in log_entries]
+        unique_fingerprints = set(fingerprints)
+        assert len(unique_fingerprints) == expected_log_count, (
+            "Detected duplicate CloudWatch mock entries in VictoriaLogs. "
+            f"fingerprints={fingerprints}"
+        )
 
         for entry in log_entries:
             container_name = entry.get("container_name", "")

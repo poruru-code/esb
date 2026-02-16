@@ -76,9 +76,10 @@ def test_deploy_templates_builds_expected_cli_args(monkeypatch, tmp_path):
         log.close()
 
     args = captured["args"]
+    assert args[0] == "deploy"
     assert "--template" in args
     assert str(template) in args
-    assert "deploy" in args
+    assert args.index("deploy") < args.index("--template")
     assert "--verbose" in args
     assert "--compose-file" in args
     assert str(ctx.compose_file) in args

@@ -103,34 +103,38 @@ func (w Workflow) resolveRuntimeConfigTarget(composeProject string) (runtimeConf
 	if err != nil {
 		return runtimeConfigTarget{}, fmt.Errorf("list containers: %w", err)
 	}
-	selected := selectRuntimeConfigContainer(containers)
-	if selected == nil {
-		return runtimeConfigTarget{}, nil
-	}
-	target := runtimeConfigTarget{ContainerID: selected.ID}
-	for _, mount := range selected.Mounts {
-		if mount.Destination != runtimeConfigMountPath {
-			continue
-		}
-		if strings.EqualFold(string(mount.Type), "bind") {
-			target.BindPath = mount.Source
-			return target, nil
-		}
-		if strings.EqualFold(string(mount.Type), "volume") {
-			if mount.Name != "" {
-				target.VolumeName = mount.Name
-				return target, nil
+	for _, selected := range orderedRuntimeConfigContainers(containers) {
+		target := runtimeConfigTarget{ContainerID: selected.ID}
+		mountFound := false
+		for _, mount := range selected.Mounts {
+			if mount.Destination != runtimeConfigMountPath {
+				continue
 			}
-			if mount.Source != "" {
+			mountFound = true
+			if strings.EqualFold(string(mount.Type), "bind") {
 				target.BindPath = mount.Source
 				return target, nil
 			}
+			if strings.EqualFold(string(mount.Type), "volume") {
+				if mount.Name != "" {
+					target.VolumeName = mount.Name
+					return target, nil
+				}
+				if mount.Source != "" {
+					target.BindPath = mount.Source
+					return target, nil
+				}
+			}
+		}
+		if mountFound {
+			// Destination exists but metadata is incomplete; fall back to container copy.
+			return target, nil
 		}
 	}
-	return target, nil
+	return runtimeConfigTarget{}, nil
 }
 
-func selectRuntimeConfigContainer(containers []container.Summary) *container.Summary {
+func orderedRuntimeConfigContainers(containers []container.Summary) []container.Summary {
 	if len(containers) == 0 {
 		return nil
 	}
@@ -148,7 +152,15 @@ func selectRuntimeConfigContainer(containers []container.Summary) *container.Sum
 		}
 		return gatewayContainerName(copied[i]) < gatewayContainerName(copied[j])
 	})
-	return &copied[0]
+	return copied
+}
+
+func selectRuntimeConfigContainer(containers []container.Summary) *container.Summary {
+	ordered := orderedRuntimeConfigContainers(containers)
+	if len(ordered) == 0 {
+		return nil
+	}
+	return &ordered[0]
 }
 
 func runtimeConfigServicePriority(summary container.Summary) int {
