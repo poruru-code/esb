@@ -791,13 +791,13 @@ Why: Make docker/containerd support status explicit per test case.
 - <a id="desc-runtime-python-cloudwatch-logs-passthrough"></a>`RTP-003`
 
   保証:
-  Python CloudWatch擬似ログがVictoriaLogsへ正しく転送・属性付与されることを保証する。
+  Python CloudWatch擬似ログがVictoriaLogsへ重複なく転送され、属性付与されることを保証する。
 
   入力:
-  Python connectivity の CloudWatch 模擬呼び出し後、`logger:boto3.mock` かつ `log_group/log_stream` 条件で VictoriaLogs を検索し、4件以上のログを確認する。全件 `container_name=lambda-connectivity`、`DEBUG/INFO/ERROR` レベルを含み、`CloudWatch Logs E2E verification successful!` を含むことを検証する。
+  Python connectivity の CloudWatch 模擬呼び出し後、`logger:boto3.mock` かつ `log_group/log_stream` 条件で VictoriaLogs を検索し、該当ログがちょうど4件であることを確認する。さらに、`(level, _msg)` の組が4件すべて一意であること（重複なし）を検証する。全件 `container_name=lambda-connectivity`、`DEBUG/INFO/ERROR` レベルを含み、`CloudWatch Logs E2E verification successful!` を含むことを確認する。
 
   合格条件:
-  CloudWatch模擬呼び出しが `200` かつ `success=true`。VictoriaLogs検索で4件以上の該当ログを取得し、全件 `container_name=lambda-connectivity`。レベルに `DEBUG/INFO/ERROR` を含み、`CloudWatch Logs E2E verification successful!` を含むこと。
+  CloudWatch模擬呼び出しが `200` かつ `success=true`。VictoriaLogs検索で該当ログがちょうど4件であること。`(level, _msg)` の組が4件すべて一意であること。全件 `container_name=lambda-connectivity`。レベルに `DEBUG/INFO/ERROR` を含み、`CloudWatch Logs E2E verification successful!` を含むこと。
 
   失敗時の示唆:
   Python側CloudWatchモック処理、ログ転送先、container_name付与を確認する。

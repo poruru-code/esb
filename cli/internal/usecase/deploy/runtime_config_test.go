@@ -198,6 +198,75 @@ func TestResolveRuntimeConfigTargetUsesDeterministicContainerSelection(t *testin
 	}
 }
 
+func TestResolveRuntimeConfigTargetSkipsContainersWithoutRuntimeConfigMount(t *testing.T) {
+	workflow := Workflow{
+		DockerClient: func() (compose.DockerClient, error) {
+			return runtimeConfigDockerClient{
+				containers: []container.Summary{
+					{
+						ID:    "gateway-no-mount",
+						State: "running",
+						Labels: map[string]string{
+							compose.ComposeServiceLabel: "gateway",
+						},
+					},
+					{
+						ID:    "agent-with-volume",
+						State: "running",
+						Labels: map[string]string{
+							compose.ComposeServiceLabel: "agent",
+						},
+						Mounts: []container.MountPoint{
+							{
+								Destination: runtimeConfigMountPath,
+								Type:        "volume",
+								Name:        "esb-runtime-config",
+							},
+						},
+					},
+				},
+			}, nil
+		},
+	}
+
+	target, err := workflow.resolveRuntimeConfigTarget("esb-dev")
+	if err != nil {
+		t.Fatalf("resolve runtime config target: %v", err)
+	}
+	if target.ContainerID != "agent-with-volume" {
+		t.Fatalf("expected agent-with-volume container, got %q", target.ContainerID)
+	}
+	if target.VolumeName != "esb-runtime-config" {
+		t.Fatalf("expected volume esb-runtime-config, got %q", target.VolumeName)
+	}
+}
+
+func TestResolveRuntimeConfigTargetReturnsEmptyWhenNoRuntimeConfigMountExists(t *testing.T) {
+	workflow := Workflow{
+		DockerClient: func() (compose.DockerClient, error) {
+			return runtimeConfigDockerClient{
+				containers: []container.Summary{
+					{
+						ID:    "gateway-no-mount",
+						State: "running",
+						Labels: map[string]string{
+							compose.ComposeServiceLabel: "gateway",
+						},
+					},
+				},
+			}, nil
+		},
+	}
+
+	target, err := workflow.resolveRuntimeConfigTarget("esb-dev")
+	if err != nil {
+		t.Fatalf("resolve runtime config target: %v", err)
+	}
+	if target != (runtimeConfigTarget{}) {
+		t.Fatalf("expected empty target, got %+v", target)
+	}
+}
+
 func TestSyncRuntimeConfigToTargetBindPathCopiesConfigFiles(t *testing.T) {
 	srcDir := t.TempDir()
 	destDir := filepath.Join(t.TempDir(), "runtime-config")

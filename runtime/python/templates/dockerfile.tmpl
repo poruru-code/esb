@@ -7,6 +7,7 @@ FROM {{ .BaseImage }}
 
 # ESB Runtime
 COPY {{ .SitecustomizeSource }} /opt/python/sitecustomize.py
+ENV PYTHONPATH=/opt/python${PYTHONPATH:+:$PYTHONPATH}
 
 {{- range .Layers }}
 # Layer: {{ .Name }}
