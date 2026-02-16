@@ -14,12 +14,23 @@ from xml.sax.saxutils import escape as xml_escape
 
 import yaml
 
+from e2e.runner import constants
+from e2e.runner.buildx import ensure_buildx_builder
+from e2e.runner.env import apply_proxy_defaults, calculate_runtime_env
 from e2e.runner.models import Scenario
-from e2e.runner.utils import BRAND_HOME_DIR, PROJECT_ROOT, default_e2e_deploy_templates
+from e2e.runner.utils import BRAND_HOME_DIR, BRAND_SLUG, PROJECT_ROOT, default_e2e_deploy_templates
 
 M2_SETTINGS_PATH = "/tmp/m2/settings.xml"
 M2_REPOSITORY_PATH = "/tmp/m2/repository"
 JAVA_BUILD_IMAGE = "public.ecr.aws/sam/build-java21@sha256:5f78d6d9124e54e5a7a9941ef179d74d88b7a5b117526ea8574137e5403b51b7"
+_PROXY_ENV_KEYS = (
+    "HTTP_PROXY",
+    "http_proxy",
+    "HTTPS_PROXY",
+    "https_proxy",
+    "NO_PROXY",
+    "no_proxy",
+)
 
 
 @dataclass(frozen=True)
@@ -205,6 +216,7 @@ def _warmup(
     if missing_templates:
         missing = ", ".join(str(template) for template in missing_templates)
         raise FileNotFoundError(f"Missing E2E template(s): {missing}")
+    _ensure_buildx_builders(scenarios)
     if _uses_java_templates(scenarios):
         _emit_warmup(printer, "Java fixture warmup ... start")
         _build_java_fixtures(printer=printer, verbose=verbose)
@@ -232,6 +244,50 @@ def _resolve_templates(scenario: Scenario) -> list[Path]:
     if scenario.deploy_templates:
         return [_resolve_template_path(Path(template)) for template in scenario.deploy_templates]
     return default_e2e_deploy_templates()
+
+
+def _resolve_env_file(env_file: str | None) -> str | None:
+    if not env_file:
+        return None
+    path = Path(env_file)
+    if not path.is_absolute():
+        path = PROJECT_ROOT / path
+    return str(path.absolute())
+
+
+def _scenario_runtime_env_for_buildx(scenario: Scenario) -> dict[str, str]:
+    templates = _resolve_templates(scenario)
+    template_path = str(templates[0]) if templates else None
+    runtime_env = calculate_runtime_env(
+        scenario.project_name or BRAND_SLUG,
+        scenario.env_name,
+        scenario.mode,
+        _resolve_env_file(scenario.env_file),
+        template_path=template_path,
+    )
+    runtime_env.update(scenario.env_vars)
+    apply_proxy_defaults(runtime_env)
+    return runtime_env
+
+
+def _ensure_buildx_builders(scenarios: dict[str, Scenario]) -> None:
+    seen: set[tuple[str, str, tuple[tuple[str, str], ...]]] = set()
+    for scenario in scenarios.values():
+        runtime_env = _scenario_runtime_env_for_buildx(scenario)
+        builder_name = runtime_env.get("BUILDX_BUILDER", "").strip()
+        if not builder_name:
+            continue
+        config_path = runtime_env.get(constants.ENV_BUILDKITD_CONFIG, "").strip()
+        proxy_signature = tuple((key, runtime_env.get(key, "").strip()) for key in _PROXY_ENV_KEYS)
+        signature = (builder_name, config_path, proxy_signature)
+        if signature in seen:
+            continue
+        seen.add(signature)
+        ensure_buildx_builder(
+            builder_name,
+            config_path=config_path,
+            proxy_source=runtime_env,
+        )
 
 
 def _resolve_template_path(path: Path) -> Path:

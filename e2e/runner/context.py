@@ -7,7 +7,6 @@ import os
 from pathlib import Path
 
 from e2e.runner import constants, infra
-from e2e.runner.buildx import ensure_buildx_builder
 from e2e.runner.env import (
     apply_gateway_env_from_container,
     apply_proxy_defaults,
@@ -103,12 +102,6 @@ def _prepare_context(
     pytest_env = os.environ.copy()
     pytest_env.update(runtime_env)
     pytest_env.update(scenario.env_vars)
-
-    ensure_buildx_builder(
-        runtime_env.get("BUILDX_BUILDER", ""),
-        config_path=runtime_env.get(constants.ENV_BUILDKITD_CONFIG, ""),
-        proxy_source=runtime_env,
-    )
 
     return RunContext(
         scenario=scenario,

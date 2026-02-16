@@ -34,6 +34,9 @@ func TestRenderDockerfileSimple(t *testing.T) {
 	if !strings.Contains(content, "COPY runtime/python/extensions/sitecustomize/site-packages/sitecustomize.py") {
 		t.Fatalf("expected sitecustomize copy")
 	}
+	if !strings.Contains(content, "ENV PYTHONPATH=/opt/python${PYTHONPATH:+:${PYTHONPATH}}") {
+		t.Fatalf("expected PYTHONPATH env for /opt/python")
+	}
 	if !strings.Contains(content, "COPY functions/hello/") {
 		t.Fatalf("expected code copy in dockerfile")
 	}
@@ -137,6 +140,9 @@ func TestRenderDockerfileImageWrapperPython(t *testing.T) {
 	}
 	if !strings.Contains(content, "COPY functions/lambda-image/sitecustomize.py /opt/python/sitecustomize.py") {
 		t.Fatalf("expected sitecustomize copy")
+	}
+	if !strings.Contains(content, "ENV PYTHONPATH=/opt/python${PYTHONPATH:+:${PYTHONPATH}}") {
+		t.Fatalf("expected PYTHONPATH env for image wrapper")
 	}
 	if strings.Contains(content, "COPY functions/") && strings.Contains(content, "${LAMBDA_TASK_ROOT}/") {
 		t.Fatalf("did not expect function code copy for image wrapper")

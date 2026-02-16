@@ -33,8 +33,6 @@ matrix:
   - e2e/fixtures/template.core.yaml
   - e2e/fixtures/template.stateful.yaml
   - e2e/fixtures/template.image.yaml
-  image_uri_overrides:
-    lambda-image: public.ecr.aws/r9p4t4p0/poruru-code:latest
   image_runtime_overrides:
     lambda-image: python
   suites:
@@ -49,8 +47,6 @@ matrix:
   - e2e/fixtures/template.core.yaml
   - e2e/fixtures/template.stateful.yaml
   - e2e/fixtures/template.image.yaml
-  image_uri_overrides:
-    lambda-image: public.ecr.aws/r9p4t4p0/poruru-code:latest
   image_runtime_overrides:
     lambda-image: python
   suites:

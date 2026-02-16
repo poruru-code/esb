@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from typing import Callable
 
@@ -14,6 +15,10 @@ def _emit(message: str, log: Callable[[str], None], printer: Callable[[str], Non
     log(message)
     if printer:
         printer(message)
+
+
+def _shared_registry_container_name() -> str:
+    return os.environ.get("REGISTRY_CONTAINER_NAME", f"{BRAND_SLUG}-infra-registry")
 
 
 def thorough_cleanup(
@@ -119,6 +124,7 @@ def isolate_external_network(
 ) -> None:
     """Detach non-project containers from the external network to avoid DNS conflicts."""
     network_name = f"{project_label}-external"
+    shared_registry = _shared_registry_container_name()
     result = subprocess.run(
         ["docker", "network", "inspect", network_name],
         capture_output=True,
@@ -135,7 +141,7 @@ def isolate_external_network(
     containers = data[0].get("Containers") or {}
     for entry in containers.values():
         name = entry.get("Name", "")
-        if not name or name.startswith(project_label):
+        if not name or name.startswith(project_label) or name == shared_registry:
             continue
         _emit(f"  - Detaching {name} from {network_name}...", log, printer)
         subprocess.run(

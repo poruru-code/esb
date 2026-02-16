@@ -3,6 +3,7 @@
 # Why: Prevent proxy-related regressions in infra registry startup checks.
 from __future__ import annotations
 
+import subprocess
 from http.client import HTTPException
 
 from e2e.runner import infra
@@ -78,3 +79,55 @@ def test_registry_v2_ready_returns_false_on_http_exception(monkeypatch):
 
     monkeypatch.setattr(infra, "HTTPConnection", _BrokenConnection)
     assert infra._registry_v2_ready("127.0.0.1:5010", timeout=2) is False
+
+
+def test_ensure_existing_registry_container_running_when_running(monkeypatch):
+    monkeypatch.setattr(infra.subprocess, "check_output", lambda *args, **kwargs: "true\n")
+    assert infra._ensure_existing_registry_container_running("esb-infra-registry") is True
+
+
+def test_ensure_existing_registry_container_running_starts_stopped(monkeypatch):
+    calls: list[list[str]] = []
+
+    monkeypatch.setattr(infra.subprocess, "check_output", lambda *args, **kwargs: "false\n")
+
+    def fake_check_call(cmd, **kwargs):
+        calls.append(list(cmd))
+        return 0
+
+    monkeypatch.setattr(infra.subprocess, "check_call", fake_check_call)
+
+    assert infra._ensure_existing_registry_container_running("esb-infra-registry") is True
+    assert calls == [["docker", "start", "esb-infra-registry"]]
+
+
+def test_ensure_existing_registry_container_running_missing_container(monkeypatch):
+    def fake_check_output(*args, **kwargs):
+        raise subprocess.CalledProcessError(returncode=1, cmd=args[0])
+
+    monkeypatch.setattr(infra.subprocess, "check_output", fake_check_output)
+    assert infra._ensure_existing_registry_container_running("esb-infra-registry") is False
+
+
+def test_ensure_infra_up_reuses_existing_container(monkeypatch):
+    monkeypatch.setattr(infra.os.path, "exists", lambda path: True)
+    monkeypatch.setattr(
+        infra, "_ensure_existing_registry_container_running", lambda container_name: True
+    )
+    monkeypatch.setattr(infra, "get_registry_config", lambda: ("127.0.0.1:5010", "registry:5010"))
+
+    waits: list[str] = []
+    monkeypatch.setattr(infra, "wait_for_registry_ready", lambda host_addr: waits.append(host_addr))
+
+    compose_calls: list[list[str]] = []
+
+    def fake_check_call(cmd, **kwargs):
+        compose_calls.append(list(cmd))
+        return 0
+
+    monkeypatch.setattr(infra.subprocess, "check_call", fake_check_call)
+
+    infra.ensure_infra_up("/tmp/project")
+
+    assert waits == ["127.0.0.1:5010"]
+    assert compose_calls == []
