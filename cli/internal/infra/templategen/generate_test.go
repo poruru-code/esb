@@ -363,12 +363,12 @@ func TestGenerateFilesStagesJavaJarAndWrapper(t *testing.T) {
 	jarPath := filepath.Join(root, "converter_jsoncrb.jar")
 	writeTestFile(t, jarPath, "jar")
 
-	mustMkdirAll(t, filepath.Join(root, "runtime", "java", "build"))
+	mustMkdirAll(t, filepath.Join(root, "runtime-hooks", "java", "build"))
 
-	wrapperPath := filepath.Join(root, "runtime", "java", "extensions", "wrapper", "lambda-java-wrapper.jar")
+	wrapperPath := filepath.Join(root, "runtime-hooks", "java", "wrapper", "lambda-java-wrapper.jar")
 	mustMkdirAll(t, filepath.Dir(wrapperPath))
 	writeTestFile(t, wrapperPath, "stale-wrapper")
-	agentPath := filepath.Join(root, "runtime", "java", "extensions", "agent", "lambda-java-agent.jar")
+	agentPath := filepath.Join(root, "runtime-hooks", "java", "agent", "lambda-java-agent.jar")
 	mustMkdirAll(t, filepath.Dir(agentPath))
 	writeTestFile(t, agentPath, "stale-agent")
 
@@ -466,11 +466,11 @@ func TestGenerateFilesBuildsJavaRuntimeOncePerRunAndUsesProjectM2Cache(t *testin
 	jarBPath := filepath.Join(root, "converter_b.jar")
 	writeTestFile(t, jarBPath, "jar-b")
 
-	mustMkdirAll(t, filepath.Join(root, "runtime", "java", "build"))
-	wrapperPath := filepath.Join(root, "runtime", "java", "extensions", "wrapper", "lambda-java-wrapper.jar")
+	mustMkdirAll(t, filepath.Join(root, "runtime-hooks", "java", "build"))
+	wrapperPath := filepath.Join(root, "runtime-hooks", "java", "wrapper", "lambda-java-wrapper.jar")
 	mustMkdirAll(t, filepath.Dir(wrapperPath))
 	writeTestFile(t, wrapperPath, "stale-wrapper")
-	agentPath := filepath.Join(root, "runtime", "java", "extensions", "agent", "lambda-java-agent.jar")
+	agentPath := filepath.Join(root, "runtime-hooks", "java", "agent", "lambda-java-agent.jar")
 	mustMkdirAll(t, filepath.Dir(agentPath))
 	writeTestFile(t, agentPath, "stale-agent")
 
@@ -942,7 +942,7 @@ repo=""
 while [ "$#" -gt 0 ]; do
   if [ "$1" = "-v" ] && [ "$#" -ge 2 ]; then
     case "$2" in
-      *:/out) out="${2%:/out}" ;;
+      *:/out-hooks) out="${2%:/out-hooks}" ;;
       *:/tmp/m2/repository) repo="${2%:/tmp/m2/repository}" ;;
     esac
     shift 2
@@ -963,9 +963,9 @@ if [ -n "${ESB_FAKE_DOCKER_CALLS:-}" ]; then
   printf '%s\n' "$repo" >> "${ESB_FAKE_DOCKER_CALLS}"
 fi
 
-mkdir -p "$out/extensions/wrapper" "$out/extensions/agent"
-printf 'fresh-wrapper' > "$out/extensions/wrapper/lambda-java-wrapper.jar"
-printf 'fresh-agent' > "$out/extensions/agent/lambda-java-agent.jar"
+mkdir -p "$out/wrapper" "$out/agent"
+printf 'fresh-wrapper' > "$out/wrapper/lambda-java-wrapper.jar"
+printf 'fresh-agent' > "$out/agent/lambda-java-agent.jar"
 `
 	if err := os.WriteFile(scriptPath, []byte(script), 0o700); err != nil {
 		t.Fatalf("write fake docker script: %v", err)

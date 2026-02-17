@@ -5,9 +5,14 @@ from pathlib import Path
 
 # Windows path handling might require specific check
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-PROTO_DIR = PROJECT_ROOT / "proto"
+PROTO_DIR = PROJECT_ROOT / "services" / "contracts" / "proto"
 GO_OUT_DIR = PROJECT_ROOT / "services/agent/pkg/api/v1"
 PYTHON_OUT_DIR = PROJECT_ROOT / "services/gateway/pb"
+PROTO_FILE = PROTO_DIR / "agent.proto"
+
+
+def _rel_posix(path: Path, base: Path = PROJECT_ROOT) -> str:
+    return path.relative_to(base).as_posix()
 
 
 def run_command(cmd):
@@ -38,10 +43,10 @@ def gen_python():
         sys.executable,
         "-m",
         "grpc_tools.protoc",
-        "-Iproto",
+        f"-I{_rel_posix(PROTO_DIR)}",
         f"--python_out={PYTHON_OUT_DIR}",
         f"--grpc_python_out={PYTHON_OUT_DIR}",
-        "agent.proto",
+        PROTO_FILE.relative_to(PROTO_DIR).as_posix(),
     ]
     run_command(cmd)
 
@@ -73,12 +78,12 @@ def gen_go_docker():
         "-w",
         "/workspace",
         "rvolosatovs/protoc:latest",
-        "--proto_path=proto",
+        f"--proto_path={_rel_posix(PROTO_DIR)}",
         "--go_out=services/agent/pkg/api/v1",
         "--go_opt=paths=source_relative",
         "--go-grpc_out=services/agent/pkg/api/v1",
         "--go-grpc_opt=paths=source_relative",
-        "agent.proto",
+        PROTO_FILE.relative_to(PROTO_DIR).as_posix(),
     ]
     run_command(cmd)
 

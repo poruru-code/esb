@@ -72,12 +72,12 @@ sequenceDiagram
 - `X-Amz-Client-Context` に `custom.trace_id` を埋め込み
 
 ### 3. Runtime 側の復元と再注入
-- Python: `runtime/python/extensions/sitecustomize/site-packages/sitecustomize.py`
+- Python: `runtime-hooks/python/sitecustomize/site-packages/sitecustomize.py`
   - `ClientContext` から `_X_AMZN_TRACE_ID` を復元
   - `boto3 Lambda.invoke` に `custom.trace_id` を自動注入
 - Java:
-  - wrapper: `runtime/java/extensions/wrapper/src/com/runtime/lambda/HandlerWrapper.java`
-  - agent: `runtime/java/extensions/agent/src/main/java/com/runtime/agent/aws/LambdaClientContextInjector.java`
+  - wrapper: `runtime-hooks/java/wrapper/src/com/runtime/lambda/HandlerWrapper.java`
+  - agent: `runtime-hooks/java/agent/src/main/java/com/runtime/agent/aws/LambdaClientContextInjector.java`
   - いずれも `ClientContext` 連鎖を維持する
 
 ### 4. ログ出力
@@ -98,6 +98,6 @@ sequenceDiagram
 - `services/gateway/middleware.py`
 - `services/gateway/services/lambda_invoker.py`
 - `services/common/core/logging_config.py`
-- `runtime/python/extensions/sitecustomize/site-packages/sitecustomize.py`
-- `runtime/java/extensions/wrapper/src/com/runtime/lambda/HandlerWrapper.java`
-- `runtime/java/extensions/agent/src/main/java/com/runtime/agent/aws/LambdaClientContextInjector.java`
+- `runtime-hooks/python/sitecustomize/site-packages/sitecustomize.py`
+- `runtime-hooks/java/wrapper/src/com/runtime/lambda/HandlerWrapper.java`
+- `runtime-hooks/java/agent/src/main/java/com/runtime/agent/aws/LambdaClientContextInjector.java`

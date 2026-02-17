@@ -61,7 +61,7 @@ Agent は起動時に brand slug を次の順で 1 回だけ解決し、runtime 
 | `<BRAND_ENV_PREFIX>_TAG` | `latest` | 既定タグ（例: `ESB_TAG`, `ACME_TAG`）。brand 専用キー未設定時は `ESB_TAG` を fallback |
 
 ## 運用上の前提
-- `EnsureContainer` は `image` の指定を必須とします（`proto/agent.proto`）。
+- `EnsureContainer` は `image` の指定を必須とします（`services/contracts/proto/agent.proto`）。
 - Image 関数の外部レジストリ解決は `esb deploy --image-prewarm=all` 側の責務です。
 - Agent 実行時は内部レジストリ参照のみを pull します。
 

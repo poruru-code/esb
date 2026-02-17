@@ -134,7 +134,7 @@ services:
       dockerfile: Dockerfile
       additional_contexts:
         config: ${CONFIG_DIR:-services/gateway/seed-config}
-        generator_assets: ${GENERATOR_ASSETS_CONTEXT:-runtime/python/extensions/sitecustomize/site-packages}
+        generator_assets: ${GENERATOR_ASSETS_CONTEXT:-runtime-hooks/python/sitecustomize/site-packages}
         python-base: service:python-base
       args:
         PYTHON_BASE_IMAGE: python-base
@@ -210,7 +210,7 @@ services:
     container_name: ${PROJECT_NAME:-esb-${ENV:-default}}-coredns
     network_mode: "service:runtime-node"
     volumes:
-      - ./config/Corefile:/Corefile:ro
+      - ./services/runtime-node/config/Corefile:/Corefile:ro
     command: -conf /Corefile
     depends_on:
       runtime-node: { condition: service_started }
@@ -294,7 +294,7 @@ services:
         condition: service_healthy
     volumes:
       - ${WG_GATEWAY_CONF:-./.esb/wireguard/gateway/wg0.conf}:/app/config/wireguard/wg0.conf:ro
-      - ./config/haproxy.gateway.cfg:/app/config/haproxy.gateway.cfg:ro
+      - ./services/gateway/config/haproxy.gateway.cfg:/app/config/haproxy.gateway.cfg:ro
       - ${CERT_DIR:-./.esb/certs}:/app/config/ssl:ro
       - ${CONFIG_DIR:-esb-runtime-config}:/app/runtime-config
     cap_add:

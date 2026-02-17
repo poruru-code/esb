@@ -26,6 +26,8 @@
 - [x] (2026-02-17 19:56Z) Phase 4 を完了し、`docs/runtime-identity-contract.md` と `services/agent/docs/*` を StackIdentity 契約へ更新した。`meta.*` 前提記述を除去し、CLI/Agent の全テスト pass を再確認した。
 - [x] (2026-02-17 20:00Z) Phase 5 の先行着手として `docs/deploy-artifact-contract.md` を追加し、`cli/internal/usecase/deploy` に descriptor の型/検証/atomic write/read の基盤を導入した。
 - [x] (2026-02-17 22:20Z) Phase 5.5-A として `runtime/*/templates` を `cli/assets/runtime-templates` へ移設し、CLI からの参照を runtime module 依存なしで解決する経路へ切り替えた。
+- [x] (2026-02-17 23:40Z) Phase 5.5-B として runtime hooks/proto/bootstrap の配置を再編し、`runtime-hooks/**`、`services/contracts/proto/**`、`tools/bootstrap/**` へ統一した。`runtime` 共有モジュールは削除した。
+- [x] (2026-02-17 23:50Z) Phase 5.5-C として `docs/repo-layout-contract.md` と `tools/ci/check_repo_layout.sh` を追加し、旧パス再混入を CI で検知できるようにした。
 - [ ] Milestone 1: 成果物契約（Artifact Contract）をコードとドキュメントで定義し、`deploy` 出力に descriptor を追加する。
 - [ ] Milestone 2: `deploy` を Generate フェーズと Apply フェーズに内部分離し、`esb deploy` 互換を維持する。
 - [ ] Milestone 3: CLI の明示 UX（`artifact generate` / `artifact apply`）と手動運用 UX を整備する。
@@ -68,6 +70,10 @@
 
 - Decision: 将来の repo 分離は 2-way split（`esb-core` と `esb-cli`）を前提にし、runtime templates は `esb-cli` 側または runtime-pack 配布物へ移す。
   Rationale: 現在 `runtime/templates_embed.go` が CLI バイナリにテンプレートを embed しており、依存方向を CLI -> runtime-templates に保つのが自然である。
+  Date/Author: 2026-02-17 / Codex
+
+- Decision: ディレクトリ責務分離の canonical path は `cli/assets/runtime-templates`、`runtime-hooks`、`services/contracts/proto`、`tools/bootstrap` に固定し、旧 `runtime`/`proto`/`bootstrap` ルートは再導入禁止とする。
+  Rationale: repo 分離前に path 契約を固定しないと、後続実装で旧経路が混入して責務境界が曖昧になるため。静的ガード（`check_repo_layout.sh`）で fail-fast する。
   Date/Author: 2026-02-17 / Codex
 
 - Decision: 互換判定の主軸は version（major/minor）にし、digest は既定では監査・再現性用途に限定する。digest 一致必須は strict モード時のみ有効化する。

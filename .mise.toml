@@ -16,7 +16,6 @@ step = "0.28.7"
 
 [env]
 _.path = ["~/.local/bin"]
-# CLI_CMD is read from config/defaults.env at runtime
  
 [tasks.setup]
 description = "Install dependencies and enable git hooks"
@@ -40,7 +39,7 @@ run = "uv run python tools/buildkit/setup_buildx.py"
 description = "Build CLI to ~/.local/bin"
 dir = "cli"
 run = [
-  "bash -lc 'source ../config/defaults.env && go build -o ~/.local/bin/${CLI_CMD} ./cmd/esb'",
+  "go build -o ~/.local/bin/esb ./cmd/esb",
 ]
 
 [tasks.dev-cli]

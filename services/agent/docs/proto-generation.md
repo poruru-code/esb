@@ -6,7 +6,7 @@ Why: Keep proto contract and generated artifact paths consistent.
 # Proto Generation
 
 ## Source of Truth
-- Proto schema: `proto/agent.proto`
+- Proto schema: `services/contracts/proto/agent.proto`
 
 Agent の API 契約は proto を正本とし、Go/Python の generated code は派生物です。
 
@@ -35,7 +35,7 @@ uv run python tools/gen_proto.py
 3. Go gRPC code を `services/agent/pkg/api/v1/` に生成（Docker 経由）
 
 ## Verification Checklist
-- `proto/agent.proto` 変更後に `python tools/gen_proto.py` を実行
+- `services/contracts/proto/agent.proto` 変更後に `python tools/gen_proto.py` を実行
 - `services/agent/pkg/api/v1/agent*.go` が更新されること
 - `services/gateway/pb/agent_pb2*.py` が更新されること
 - 旧パス `services/agent/pkg/api/v1/proto` に差分が発生しないこと
@@ -43,12 +43,12 @@ uv run python tools/gen_proto.py
 ## Operational Notes
 - `tools/gen_proto.py` は Go 生成で Docker イメージ（`rvolosatovs/protoc:latest`）を使用します。
 - 生成は deterministic ではない差分（toolchain 由来）を含み得るため、
-  PR では `proto/agent.proto` と generated files をセットでレビューします。
+  PR では `services/contracts/proto/agent.proto` と generated files をセットでレビューします。
 
 ---
 
 ## Implementation references
-- `proto/agent.proto`
+- `services/contracts/proto/agent.proto`
 - `tools/gen_proto.py`
 - `services/agent/pkg/api/v1/agent.pb.go`
 - `services/agent/pkg/api/v1/agent_grpc.pb.go`

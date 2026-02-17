@@ -22,7 +22,7 @@ import (
 )
 
 // DefaultSitecustomizeSource is the default sitecustomize.py path used by the build pipeline.
-const DefaultSitecustomizeSource = "runtime/python/extensions/sitecustomize/site-packages/sitecustomize.py"
+const DefaultSitecustomizeSource = "runtime-hooks/python/sitecustomize/site-packages/sitecustomize.py"
 
 //go:embed templates/*.tmpl
 var templateFS embed.FS

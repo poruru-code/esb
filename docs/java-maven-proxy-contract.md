@@ -46,7 +46,7 @@ This contract applies to both paths:
 6. Join using `|`.
 
 ## Drift Guardrails
-- Shared test vectors: `runtime/java/testdata/maven_proxy_cases.json`
+- Shared test vectors: `runtime-hooks/java/testdata/maven_proxy_cases.json`
 - Static contract check: `tools/ci/check_java_proxy_contract.sh`
 - Proxy proof runner: `tools/e2e_proxy/run_with_tinyproxy.py`
 
@@ -64,4 +64,4 @@ uv run pytest -q e2e/runner/tests
 - `cli/internal/infra/templategen/stage_java_maven.go`
 - `cli/internal/infra/templategen/stage_java_env_test.go`
 - `e2e/runner/warmup.py`
-- `runtime/java/README.md`
+- `runtime-hooks/java/README.md`

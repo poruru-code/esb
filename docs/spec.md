@@ -97,5 +97,5 @@ Agent が Docker Engine 上の worker を直接管理します。
 - `README.md`
 - `docker-compose.containerd.yml`
 - `docker-compose.docker.yml`
-- `proto/agent.proto`
+- `services/contracts/proto/agent.proto`
 - `cli/internal/usecase/deploy/deploy.go`

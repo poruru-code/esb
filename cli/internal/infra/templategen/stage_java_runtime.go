@@ -34,12 +34,12 @@ func ensureJavaWrapperSource(ctx stageContext) (string, error) {
 }
 
 func resolveJavaWrapperSource(ctx stageContext) string {
-	runtimeDir, err := resolveJavaRuntimeDir(ctx)
+	hooksDir, err := resolveJavaHooksDir(ctx)
 	if err != nil {
 		return ""
 	}
 	candidates := []string{
-		filepath.Join(runtimeDir, "extensions", "wrapper", javaWrapperFileName),
+		filepath.Join(hooksDir, "wrapper", javaWrapperFileName),
 	}
 	for _, candidate := range candidates {
 		if fileExists(candidate) {
@@ -57,12 +57,12 @@ func ensureJavaAgentSource(ctx stageContext) (string, error) {
 }
 
 func resolveJavaAgentSource(ctx stageContext) string {
-	runtimeDir, err := resolveJavaRuntimeDir(ctx)
+	hooksDir, err := resolveJavaHooksDir(ctx)
 	if err != nil {
 		return ""
 	}
 	candidates := []string{
-		filepath.Join(runtimeDir, "extensions", "agent", javaAgentFileName),
+		filepath.Join(hooksDir, "agent", javaAgentFileName),
 	}
 	for _, candidate := range candidates {
 		if fileExists(candidate) {
@@ -72,8 +72,8 @@ func resolveJavaAgentSource(ctx stageContext) string {
 	return ""
 }
 
-func resolveJavaRuntimeDir(ctx stageContext) (string, error) {
-	rel := filepath.Join("runtime", "java")
+func resolveJavaHooksDir(ctx stageContext) (string, error) {
+	rel := filepath.Join("runtime-hooks", "java")
 	candidates := []string{
 		filepath.Clean(filepath.Join(ctx.ProjectRoot, rel)),
 		filepath.Clean(filepath.Join(ctx.BaseDir, rel)),
@@ -83,7 +83,7 @@ func resolveJavaRuntimeDir(ctx stageContext) (string, error) {
 			return candidate, nil
 		}
 	}
-	return "", fmt.Errorf("java runtime directory not found")
+	return "", fmt.Errorf("java runtime hooks directory not found")
 }
 
 func ensureJavaM2RepositoryCacheDir(ctx stageContext) (string, error) {
@@ -100,22 +100,22 @@ func ensureJavaM2RepositoryCacheDir(ctx stageContext) (string, error) {
 func javaRuntimeMavenBuildLine() string {
 	return fmt.Sprintf(
 		"mvn -s %s -q -Dmaven.repo.local=%s -Dmaven.artifact.threads=1 -DskipTests "+
-			"-pl ../extensions/wrapper,../extensions/agent -am package",
+			"-pl ../wrapper,../agent -am package",
 		containerM2SettingsPath,
 		containerM2RepoPath,
 	)
 }
 
 func buildJavaRuntimeJars(ctx stageContext) error {
-	runtimeDir, err := resolveJavaRuntimeDir(ctx)
+	hooksDir, err := resolveJavaHooksDir(ctx)
 	if err != nil {
 		return err
 	}
-	ctx.verbosef("  Building Java runtime jars in %s\n", runtimeDir)
+	ctx.verbosef("  Building Java runtime jars in %s\n", hooksDir)
 
-	buildDir := filepath.Join(runtimeDir, "build")
+	buildDir := filepath.Join(hooksDir, "build")
 	if !dirExists(buildDir) {
-		return fmt.Errorf("java runtime build directory not found: %s", buildDir)
+		return fmt.Errorf("java runtime hooks build directory not found: %s", buildDir)
 	}
 	m2RepoCacheDir, err := ensureJavaM2RepositoryCacheDir(ctx)
 	if err != nil {
@@ -137,8 +137,8 @@ func buildJavaRuntimeJars(ctx stageContext) error {
 		_ = os.Remove(settingsPath)
 	}()
 	args = append(args,
-		"-v", fmt.Sprintf("%s:/src:ro", runtimeDir),
-		"-v", fmt.Sprintf("%s:/out", runtimeDir),
+		"-v", fmt.Sprintf("%s:/src/runtime-hooks/java:ro", hooksDir),
+		"-v", fmt.Sprintf("%s:/out-hooks", hooksDir),
 		"-v", fmt.Sprintf("%s:%s:ro", settingsPath, containerM2SettingsPath),
 		"-v", fmt.Sprintf("%s:%s", m2RepoCacheDir, containerM2RepoPath),
 	)
@@ -146,12 +146,12 @@ func buildJavaRuntimeJars(ctx stageContext) error {
 	args = appendJavaBuildEnvArgs(args)
 	script := strings.Join([]string{
 		"set -euo pipefail",
-		"mkdir -p /tmp/work /out/extensions/wrapper /out/extensions/agent",
-		"cp -a /src/. /tmp/work",
-		"cd /tmp/work/build",
+		"mkdir -p /tmp/work/runtime-hooks/java /out-hooks/wrapper /out-hooks/agent",
+		"cp -a /src/runtime-hooks/java/. /tmp/work/runtime-hooks/java/",
+		"cd /tmp/work/runtime-hooks/java/build",
 		javaRuntimeMavenBuildLine(),
-		"cp ../extensions/wrapper/target/lambda-java-wrapper.jar /out/extensions/wrapper/lambda-java-wrapper.jar",
-		"cp ../extensions/agent/target/lambda-java-agent.jar /out/extensions/agent/lambda-java-agent.jar",
+		"cp ../wrapper/target/lambda-java-wrapper.jar /out-hooks/wrapper/lambda-java-wrapper.jar",
+		"cp ../agent/target/lambda-java-agent.jar /out-hooks/agent/lambda-java-agent.jar",
 	}, "\n")
 	args = append(args,
 		javaRuntimeBuildImage,

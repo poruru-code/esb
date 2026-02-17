@@ -17,7 +17,7 @@ IMAGE_REGISTRY ?= $(ESB_REGISTRY)
 DOCKLE_TMP_VOLUME ?= $(BRAND_SLUG)-dockle-tmp
 DOCKLE_IGNORES ?= $(shell if [ -f .dockleignore ]; then grep -vE '^[[:space:]]*(#|$$)' .dockleignore | paste -sd, -; fi)
 
-CST_CONFIG_DIR := config/container-structure-test
+CST_CONFIG_DIR := tools/container-structure-test
 
 OS_BASE_IMAGE ?= $(BRAND_SLUG)-os-base:latest
 PYTHON_BASE_IMAGE ?= $(BRAND_SLUG)-python-base:latest
