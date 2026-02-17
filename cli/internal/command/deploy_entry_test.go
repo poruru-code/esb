@@ -181,6 +181,10 @@ func TestDeployCommandRunRejectsConflictingDepsFlags(t *testing.T) {
 
 func TestDeployCommandRunBuildsAllTemplatesAndRunsProvisionerOnlyOnLast(t *testing.T) {
 	tmp := t.TempDir()
+	setWorkingDir(t, tmp)
+	if err := os.WriteFile(filepath.Join(tmp, "docker-compose.docker.yml"), []byte("services: {}\n"), 0o600); err != nil {
+		t.Fatalf("write compose marker: %v", err)
+	}
 	templateA := filepath.Join(tmp, "a.template.yaml")
 	templateB := filepath.Join(tmp, "b.template.yaml")
 	if err := os.WriteFile(templateA, []byte("Resources: {}"), 0o600); err != nil {
@@ -344,4 +348,20 @@ func TestNewDeployCommandCopiesConfig(t *testing.T) {
 	if !cmd.emojiEnabled {
 		t.Fatal("expected emojiEnabled=true")
 	}
+}
+
+func setWorkingDir(t *testing.T, dir string) {
+	t.Helper()
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get cwd: %v", err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("chdir %s: %v", dir, err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(wd); err != nil {
+			t.Fatalf("restore cwd %s: %v", wd, err)
+		}
+	})
 }

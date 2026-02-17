@@ -20,17 +20,7 @@ func TestDeployWorkflowRunSuccess(t *testing.T) {
 	t.Setenv("ENV_PREFIX", "ESB")
 	t.Setenv("ESB_SKIP_GATEWAY_ALIGN", "1")
 
-	// Use the actual repo root for testing
-	repoRoot, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	// Go up to the repo root (we're in cli/internal/usecase/deploy)
-	repoRoot = filepath.Join(repoRoot, "..", "..", "..")
-	repoRoot, err = filepath.Abs(repoRoot)
-	if err != nil {
-		t.Fatalf("failed to get absolute path: %v", err)
-	}
+	repoRoot := newTestRepoRoot(t)
 
 	ctx := state.Context{
 		ProjectDir:     repoRoot,
@@ -120,15 +110,7 @@ func TestDeployWorkflowRequiresPrewarmForImageFunctions(t *testing.T) {
 	t.Setenv("ENV_PREFIX", "ESB")
 	t.Setenv("ESB_SKIP_GATEWAY_ALIGN", "1")
 
-	repoRoot, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	repoRoot = filepath.Join(repoRoot, "..", "..", "..")
-	repoRoot, err = filepath.Abs(repoRoot)
-	if err != nil {
-		t.Fatalf("failed to get absolute path: %v", err)
-	}
+	repoRoot := newTestRepoRoot(t)
 
 	templatePath := filepath.Join(repoRoot, "template.yaml")
 	artifactPath := writeTestArtifactManifest(t, true)
@@ -149,7 +131,7 @@ func TestDeployWorkflowRequiresPrewarmForImageFunctions(t *testing.T) {
 
 	workflow := NewDeployWorkflow(builder.Build, envApplier.Apply, ui, runner)
 	workflow.RegistryWaiter = noopRegistryWaiter
-	err = workflow.Run(req)
+	err := workflow.Run(req)
 	if err == nil || !strings.Contains(err.Error(), "image prewarm is required") {
 		t.Fatalf("expected prewarm required error, got %v", err)
 	}
@@ -164,15 +146,7 @@ func TestDeployWorkflowRunWithExternalTemplate(t *testing.T) {
 	t.Setenv("ENV_PREFIX", "ESB")
 	t.Setenv("ESB_SKIP_GATEWAY_ALIGN", "1")
 
-	repoRoot, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	repoRoot = filepath.Join(repoRoot, "..", "..", "..")
-	repoRoot, err = filepath.Abs(repoRoot)
-	if err != nil {
-		t.Fatalf("failed to get absolute path: %v", err)
-	}
+	repoRoot := newTestRepoRoot(t)
 
 	externalDir := t.TempDir()
 	externalTemplate := filepath.Join(externalDir, "template.yaml")
@@ -221,14 +195,16 @@ func TestDeployWorkflowApplyRequiresArtifactPath(t *testing.T) {
 	runner := &fakeComposeRunner{}
 	workflow := NewDeployWorkflow(nil, nil, ui, runner)
 	workflow.RegistryWaiter = noopRegistryWaiter
+	repoRoot := newTestRepoRoot(t)
 
 	err := workflow.Apply(Request{
 		Context: state.Context{
+			ProjectDir:     repoRoot,
 			ComposeProject: "esb-dev",
 		},
 		Env:          "dev",
 		Mode:         "docker",
-		TemplatePath: "/tmp/template.yaml",
+		TemplatePath: filepath.Join(repoRoot, "template.yaml"),
 		ImagePrewarm: "all",
 	})
 	if err == nil || !strings.Contains(err.Error(), errArtifactPathRequired.Error()) {
@@ -241,16 +217,17 @@ func TestDeployWorkflowApplySuccess(t *testing.T) {
 	runner := &fakeComposeRunner{}
 	workflow := NewDeployWorkflow(nil, nil, ui, runner)
 	workflow.RegistryWaiter = noopRegistryWaiter
+	repoRoot := newTestRepoRoot(t)
 
 	artifactPath := writeTestArtifactManifest(t, false)
 	err := workflow.Apply(Request{
 		Context: state.Context{
 			ComposeProject: "esb-dev",
-			ProjectDir:     t.TempDir(),
+			ProjectDir:     repoRoot,
 		},
 		Env:          "dev",
 		Mode:         "docker",
-		TemplatePath: "/tmp/template.yaml",
+		TemplatePath: filepath.Join(repoRoot, "template.yaml"),
 		ArtifactPath: artifactPath,
 		ImagePrewarm: "all",
 	})
@@ -272,15 +249,7 @@ func TestRunProvisionerUsesComposeOverride(t *testing.T) {
 	}
 	t.Setenv("ENV_PREFIX", "ESB")
 
-	repoRoot, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	repoRoot = filepath.Join(repoRoot, "..", "..", "..")
-	repoRoot, err = filepath.Abs(repoRoot)
-	if err != nil {
-		t.Fatalf("failed to get absolute path: %v", err)
-	}
+	repoRoot := newTestRepoRoot(t)
 
 	tempDir := t.TempDir()
 	composePath := filepath.Join(tempDir, "compose.yml")
@@ -327,22 +296,14 @@ func TestRunProvisionerFailsOnOverrideMissingServices(t *testing.T) {
 	}
 	t.Setenv("ENV_PREFIX", "ESB")
 
-	repoRoot, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	repoRoot = filepath.Join(repoRoot, "..", "..", "..")
-	repoRoot, err = filepath.Abs(repoRoot)
-	if err != nil {
-		t.Fatalf("failed to get absolute path: %v", err)
-	}
+	repoRoot := newTestRepoRoot(t)
 
 	tempDir := t.TempDir()
 	composePath := filepath.Join(tempDir, "compose.yml")
 	if err := os.WriteFile(composePath, []byte("services:\n  provisioner: {}\n"), 0o644); err != nil {
 		t.Fatalf("write compose file: %v", err)
 	}
-	err = workflow.runProvisioner(
+	err := workflow.runProvisioner(
 		"esb-test",
 		"docker",
 		false,
@@ -365,15 +326,7 @@ func TestRunProvisionerWithNoDepsAddsFlag(t *testing.T) {
 	}
 	t.Setenv("ENV_PREFIX", "ESB")
 
-	repoRoot, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	repoRoot = filepath.Join(repoRoot, "..", "..", "..")
-	repoRoot, err = filepath.Abs(repoRoot)
-	if err != nil {
-		t.Fatalf("failed to get absolute path: %v", err)
-	}
+	repoRoot := newTestRepoRoot(t)
 
 	tempDir := t.TempDir()
 	composePath := filepath.Join(tempDir, "compose.yml")
@@ -465,4 +418,33 @@ func writeTestArtifactManifest(t *testing.T, includeImageImport bool) string {
 		t.Fatalf("write artifact manifest: %v", err)
 	}
 	return manifestPath
+}
+
+func newTestRepoRoot(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	setWorkingDir(t, root)
+	if err := os.WriteFile(filepath.Join(root, "docker-compose.docker.yml"), []byte("services: {}\n"), 0o600); err != nil {
+		t.Fatalf("write docker compose marker: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "template.yaml"), []byte("Resources: {}\n"), 0o600); err != nil {
+		t.Fatalf("write template marker: %v", err)
+	}
+	return root
+}
+
+func setWorkingDir(t *testing.T, dir string) {
+	t.Helper()
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get cwd: %v", err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("chdir %s: %v", dir, err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(wd); err != nil {
+			t.Fatalf("restore cwd %s: %v", wd, err)
+		}
+	})
 }

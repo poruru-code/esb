@@ -14,6 +14,7 @@ import (
 
 func TestInferEnvFromConfigPath(t *testing.T) {
 	tmp := t.TempDir()
+	setWorkingDirRuntimeEnvTest(t, tmp)
 
 	if err := os.WriteFile(filepath.Join(tmp, "docker-compose.docker.yml"), []byte{}, 0o600); err != nil {
 		t.Fatalf("write repo marker: %v", err)
@@ -58,4 +59,20 @@ func TestDiscoverStagingEnvs(t *testing.T) {
 	if len(envs) != 2 || envs[0] != "dev" || envs[1] != "prod" {
 		t.Fatalf("unexpected envs: %v", envs)
 	}
+}
+
+func setWorkingDirRuntimeEnvTest(t *testing.T, dir string) {
+	t.Helper()
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get cwd: %v", err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("chdir %s: %v", dir, err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(wd); err != nil {
+			t.Fatalf("restore cwd %s: %v", wd, err)
+		}
+	})
 }
