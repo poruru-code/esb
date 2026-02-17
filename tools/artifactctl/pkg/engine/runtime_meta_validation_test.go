@@ -145,6 +145,80 @@ func TestApply_RuntimeDigestVerificationWithoutRepoRoot(t *testing.T) {
 	}
 }
 
+func TestApply_RuntimeDigestVerificationAllowsMissingJavaHooksWhenUndeclared(t *testing.T) {
+	root := t.TempDir()
+	repoRoot := filepath.Join(root, "repo")
+
+	pythonPath := filepath.Join(
+		repoRoot,
+		"runtime-hooks",
+		"python",
+		"sitecustomize",
+		"site-packages",
+		"sitecustomize.py",
+	)
+	if err := os.MkdirAll(filepath.Dir(pythonPath), 0o755); err != nil {
+		t.Fatalf("mkdir python hook dir: %v", err)
+	}
+	if err := os.WriteFile(pythonPath, []byte("print('ok')\n"), 0o644); err != nil {
+		t.Fatalf("write python hook: %v", err)
+	}
+
+	templatePath := filepath.Join(
+		repoRoot,
+		"cli",
+		"assets",
+		"runtime-templates",
+		"python",
+		"templates",
+		"dockerfile.tmpl",
+	)
+	if err := os.MkdirAll(filepath.Dir(templatePath), 0o755); err != nil {
+		t.Fatalf("mkdir template dir: %v", err)
+	}
+	if err := os.WriteFile(templatePath, []byte("FROM python:3.12\n"), 0o644); err != nil {
+		t.Fatalf("write template file: %v", err)
+	}
+
+	pythonDigest, err := fileSHA256(pythonPath)
+	if err != nil {
+		t.Fatalf("hash python hook: %v", err)
+	}
+	templateDigest, err := directoryDigest(filepath.Join(repoRoot, "cli", "assets", "runtime-templates"))
+	if err != nil {
+		t.Fatalf("hash template dir: %v", err)
+	}
+
+	manifestPath := writeArtifactFixtureManifest(t, repoRoot, ArtifactRuntimeMeta{
+		Hooks: RuntimeHooksMeta{
+			PythonSitecustomizeDigest: pythonDigest,
+		},
+		Renderer: RendererMeta{
+			TemplateDigest: templateDigest,
+		},
+	})
+
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(repoRoot); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(origWD)
+	})
+
+	err = Apply(ApplyRequest{
+		ArtifactPath: manifestPath,
+		OutputDir:    filepath.Join(repoRoot, "out-strict"),
+		Strict:       true,
+	})
+	if err != nil {
+		t.Fatalf("strict apply should pass when java digests are undeclared: %v", err)
+	}
+}
+
 func writeArtifactFixtureManifest(t *testing.T, root string, meta ArtifactRuntimeMeta) string {
 	t.Helper()
 

@@ -273,11 +273,11 @@ func loadRuntimeAssetDigests(repoRoot string) (runtimeAssetDigests, error) {
 	if err != nil {
 		return runtimeAssetDigests{}, fmt.Errorf("calculate runtime-hooks python digest: %w", err)
 	}
-	javaAgent, err := fileSHA256(filepath.Join(repoRoot, "runtime-hooks", "java", "agent", "lambda-java-agent.jar"))
+	javaAgent, err := optionalFileSHA256(filepath.Join(repoRoot, "runtime-hooks", "java", "agent", "lambda-java-agent.jar"))
 	if err != nil {
 		return runtimeAssetDigests{}, fmt.Errorf("calculate runtime-hooks java agent digest: %w", err)
 	}
-	javaWrapper, err := fileSHA256(filepath.Join(repoRoot, "runtime-hooks", "java", "wrapper", "lambda-java-wrapper.jar"))
+	javaWrapper, err := optionalFileSHA256(filepath.Join(repoRoot, "runtime-hooks", "java", "wrapper", "lambda-java-wrapper.jar"))
 	if err != nil {
 		return runtimeAssetDigests{}, fmt.Errorf("calculate runtime-hooks java wrapper digest: %w", err)
 	}
@@ -292,6 +292,17 @@ func loadRuntimeAssetDigests(repoRoot string) (runtimeAssetDigests, error) {
 		javaWrapper:         javaWrapper,
 		templateRenderer:    templateRenderer,
 	}, nil
+}
+
+func optionalFileSHA256(path string) (string, error) {
+	digest, err := fileSHA256(path)
+	if err == nil {
+		return digest, nil
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return "", nil
+	}
+	return "", err
 }
 
 func fileSHA256(path string) (string, error) {

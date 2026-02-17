@@ -6,6 +6,7 @@ package command
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -97,11 +98,11 @@ func resolveRuntimeMeta(projectDir string) (deploy.ArtifactRuntimeMeta, error) {
 	if err != nil {
 		return deploy.ArtifactRuntimeMeta{}, fmt.Errorf("hash runtime hook python sitecustomize: %w", err)
 	}
-	javaAgentDigest, err := fileSHA256(filepath.Join(projectDir, "runtime-hooks", "java", "agent", "lambda-java-agent.jar"))
+	javaAgentDigest, err := fileSHA256IfExists(filepath.Join(projectDir, "runtime-hooks", "java", "agent", "lambda-java-agent.jar"))
 	if err != nil {
 		return deploy.ArtifactRuntimeMeta{}, fmt.Errorf("hash runtime hook java agent: %w", err)
 	}
-	javaWrapperDigest, err := fileSHA256(filepath.Join(projectDir, "runtime-hooks", "java", "wrapper", "lambda-java-wrapper.jar"))
+	javaWrapperDigest, err := fileSHA256IfExists(filepath.Join(projectDir, "runtime-hooks", "java", "wrapper", "lambda-java-wrapper.jar"))
 	if err != nil {
 		return deploy.ArtifactRuntimeMeta{}, fmt.Errorf("hash runtime hook java wrapper: %w", err)
 	}
@@ -193,6 +194,17 @@ func fileSHA256(path string) (string, error) {
 	}
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:]), nil
+}
+
+func fileSHA256IfExists(path string) (string, error) {
+	digest, err := fileSHA256(path)
+	if err == nil {
+		return digest, nil
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return "", nil
+	}
+	return "", err
 }
 
 func directoryDigest(root string) (string, error) {
