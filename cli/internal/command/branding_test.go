@@ -1,6 +1,6 @@
 // Where: cli/internal/command/branding_test.go
-// What: Tests for brand-aware CLI output.
-// Why: Ensure usage output reflects the configured CLI name.
+// What: Tests for fixed CLI naming in user-facing output.
+// Why: Ensure usage/help always render the canonical command name.
 package command
 
 import (
@@ -9,19 +9,14 @@ import (
 	"testing"
 )
 
-func TestRunNoArgsUsesBrandName(t *testing.T) {
-	t.Setenv("CLI_CMD", "acme")
-
+func TestRunNoArgsUsesFixedCLIName(t *testing.T) {
 	var buf bytes.Buffer
 	code := runNoArgs(&buf)
 	if code != 0 {
 		t.Fatalf("expected exit code 0, got %d", code)
 	}
 	output := buf.String()
-	if !strings.Contains(output, "acme deploy --template") {
-		t.Fatalf("expected brand name in usage output, got: %q", output)
-	}
-	if strings.Contains(output, "esb deploy --template") {
-		t.Fatalf("unexpected default brand in output: %q", output)
+	if !strings.Contains(output, "esb deploy --template") {
+		t.Fatalf("expected fixed cli name in usage output, got: %q", output)
 	}
 }

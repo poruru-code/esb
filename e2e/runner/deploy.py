@@ -66,7 +66,7 @@ def deploy_templates(
                 args.insert(idx + 1, "--verbose")
             except ValueError:
                 pass
-        cmd = build_esb_cmd(args, ctx.env_file, env=ctx.deploy_env)
+        cmd = build_esb_cmd(args, ctx.env_file)
         rc = run_and_stream(
             cmd,
             cwd=PROJECT_ROOT,

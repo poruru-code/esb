@@ -140,7 +140,7 @@ sequenceDiagram
 - 証明書（サーバ側）:
   - `AGENT_GRPC_CERT_PATH`（既定: `/app/config/ssl/server.crt`）
   - `AGENT_GRPC_KEY_PATH`（既定: `/app/config/ssl/server.key`）
-  - `AGENT_GRPC_CA_CERT_PATH`（既定: `meta.RootCACertPath`）
+  - `AGENT_GRPC_CA_CERT_PATH`（既定: `/usr/local/share/ca-certificates/rootCA.crt`）
 
 ### Reflection（デバッグ用）
 - 有効化: `AGENT_GRPC_REFLECTION=1`

@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/poruru/edge-serverless-box/meta"
+	"github.com/poruru/edge-serverless-box/cli/internal/meta"
 )
 
 type bakeTarget struct {

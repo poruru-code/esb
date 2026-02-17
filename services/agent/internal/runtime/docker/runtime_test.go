@@ -10,7 +10,6 @@ import (
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/poruru/edge-serverless-box/meta"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -61,7 +60,7 @@ func (m *MockDockerClient) ImagePull(ctx context.Context, ref string, options im
 func TestRuntime_Ensure(t *testing.T) {
 	mockClient := new(MockDockerClient)
 	// Phase 7: Pass environment name "test-env"
-	rt := NewRuntime(mockClient, "esb-net", "test-env")
+	rt := NewRuntime(mockClient, "esb-net", "test-env", "esb")
 
 	ctx := context.Background()
 	req := runtime.EnsureRequest{
@@ -79,7 +78,7 @@ func TestRuntime_Ensure(t *testing.T) {
 		mock.MatchedBy(func(name string) bool {
 			// Needs to start with {brand}-test-env-
 			// We trust uuid part
-			return strings.HasPrefix(name, meta.Slug+"-test-env-")
+			return strings.HasPrefix(name, "esb-test-env-")
 		})).
 		Return(container.CreateResponse{ID: "new-id"}, nil).Once()
 
@@ -107,7 +106,7 @@ func TestRuntime_Ensure(t *testing.T) {
 
 func TestRuntime_Ensure_AlwaysCreatesNew(t *testing.T) {
 	mockClient := new(MockDockerClient)
-	rt := NewRuntime(mockClient, "esb-net", "test-env")
+	rt := NewRuntime(mockClient, "esb-net", "test-env", "esb")
 
 	ctx := context.Background()
 	req := runtime.EnsureRequest{
@@ -161,7 +160,7 @@ func TestRuntime_Ensure_AlwaysCreatesNew(t *testing.T) {
 
 func TestRuntime_List(t *testing.T) {
 	mockClient := new(MockDockerClient)
-	rt := NewRuntime(mockClient, "esb-net", "test-env")
+	rt := NewRuntime(mockClient, "esb-net", "test-env", "esb")
 
 	ctx := context.Background()
 

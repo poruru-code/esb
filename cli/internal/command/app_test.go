@@ -147,3 +147,64 @@ func TestRunVersionCommand(t *testing.T) {
 		t.Fatalf("expected version output, got %q", out.String())
 	}
 }
+
+func TestRunRepoScopedCommandFailsOutsideRepo(t *testing.T) {
+	var out bytes.Buffer
+	exitCode := Run([]string{"deploy"}, Dependencies{
+		Out:    &out,
+		ErrOut: &out,
+		RepoResolver: func(string) (string, error) {
+			return "", errors.New("repo not found")
+		},
+	})
+	if exitCode != repoRequiredExitCode {
+		t.Fatalf("expected exit code %d, got %d", repoRequiredExitCode, exitCode)
+	}
+	if !strings.Contains(out.String(), repoRequiredErrorMessage) {
+		t.Fatalf("expected repo-scope warning, got %q", out.String())
+	}
+}
+
+func TestRunVersionAllowedOutsideRepo(t *testing.T) {
+	var out bytes.Buffer
+	exitCode := Run([]string{"version"}, Dependencies{
+		Out:    &out,
+		ErrOut: &out,
+		RepoResolver: func(string) (string, error) {
+			return "", errors.New("repo not found")
+		},
+	})
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d", exitCode)
+	}
+	if !strings.Contains(out.String(), version.GetVersion()) {
+		t.Fatalf("expected version output, got %q", out.String())
+	}
+}
+
+func TestRequiresRepoScope(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want bool
+	}{
+		{name: "no args", args: nil, want: true},
+		{name: "version", args: []string{"version"}, want: false},
+		{name: "root help flag", args: []string{"--help"}, want: false},
+		{name: "root short help flag", args: []string{"-h"}, want: false},
+		{name: "help command", args: []string{"help"}, want: false},
+		{name: "subcommand help", args: []string{"deploy", "--help"}, want: false},
+		{name: "subcommand short help", args: []string{"deploy", "-h"}, want: false},
+		{name: "deploy", args: []string{"deploy"}, want: true},
+		{name: "deploy with global flags", args: []string{"--env", "dev", "deploy"}, want: true},
+		{name: "help token in flag value is ignored", args: []string{"--env", "help", "deploy"}, want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := requiresRepoScope(tt.args)
+			if got != tt.want {
+				t.Fatalf("requiresRepoScope(%v) = %v, want %v", tt.args, got, tt.want)
+			}
+		})
+	}
+}

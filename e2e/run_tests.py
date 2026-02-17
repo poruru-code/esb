@@ -75,9 +75,6 @@ def resolve_live_enabled(no_live: bool) -> bool:
 
 
 def ensure_local_esb_cli() -> None:
-    if os.environ.get("ESB_CLI") or os.environ.get("ESB_BIN"):
-        return
-
     cli_bin_dir = GO_CLI_ROOT / "bin"
     cli_bin_dir.mkdir(parents=True, exist_ok=True)
     cli_bin = cli_bin_dir / "esb"
@@ -86,7 +83,11 @@ def ensure_local_esb_cli() -> None:
     if result.returncode != 0:
         print("[ERROR] failed to build local esb binary for E2E runner.")
         sys.exit(result.returncode)
-    os.environ["ESB_CLI"] = str(cli_bin)
+    current_path = os.environ.get("PATH", "")
+    path_entries = [entry for entry in current_path.split(os.pathsep) if entry]
+    cli_path = str(cli_bin_dir)
+    if cli_path not in path_entries:
+        os.environ["PATH"] = os.pathsep.join([cli_path, *path_entries])
 
 
 def main():

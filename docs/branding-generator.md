@@ -9,7 +9,7 @@ Why: Keep branding operations documented where the tool lives.
 
 - https://github.com/poruru-code/esb-branding-tool/blob/main/docs/branding-flow.md
 
-本リポジトリでは `config/defaults.env` の `CLI_CMD=esb` を基準値として維持します。
+本リポジトリでは CLI コマンド名は `esb` 固定です。
 ブランド変更は本体で直接行わず、外部ツールで生成・適用してください。
 
 ---

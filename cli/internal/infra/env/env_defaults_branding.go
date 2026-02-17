@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
-	"github.com/poruru/edge-serverless-box/meta"
+	"github.com/poruru/edge-serverless-box/cli/internal/meta"
 )
 
 // ApplyBrandingEnvWithRoot synchronizes branding constants to environment variables,
@@ -31,7 +31,6 @@ func ApplyBrandingEnvWithRoot(projectRoot string) error {
 	_ = os.Setenv(constants.EnvRootCAMountID, meta.RootCAMountID)
 	setEnvIfEmpty("ROOT_CA_CERT_FILENAME", meta.RootCACertFilename)
 	_ = os.Setenv("ENV_PREFIX", meta.EnvPrefix)
-	_ = os.Setenv("CLI_CMD", meta.Slug)
 
 	brandDir := filepath.Join(root, meta.HomeDir)
 	certDir := strings.TrimSpace(os.Getenv("CERT_DIR"))

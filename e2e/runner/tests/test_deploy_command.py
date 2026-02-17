@@ -59,16 +59,12 @@ def test_deploy_templates_builds_expected_cli_args(monkeypatch, tmp_path):
     template.write_text("Resources: {}\n", encoding="utf-8")
     captured_args: list[str] = []
     captured_env_file: str | None = None
-    captured_env: dict[str, str] = {}
     captured_cmd: list[str] = []
 
-    def fake_build_esb_cmd(
-        args: list[str], env_file: str | None, env: dict[str, str] | None = None
-    ) -> list[str]:
-        nonlocal captured_args, captured_env_file, captured_env
+    def fake_build_esb_cmd(args: list[str], env_file: str | None) -> list[str]:
+        nonlocal captured_args, captured_env_file
         captured_args = list(args)
         captured_env_file = env_file
-        captured_env = dict(env or {})
         return ["esb", *args]
 
     def fake_run_and_stream(cmd: list[str], **kwargs: Any) -> int:
@@ -112,7 +108,7 @@ def test_deploy_templates_builds_expected_cli_args(monkeypatch, tmp_path):
     assert "off" in args
     assert "--no-cache" in args
     assert captured_env_file == ctx.env_file
-    assert captured_env["EXAMPLE"] == "1"
+    assert ctx.deploy_env["EXAMPLE"] == "1"
     assert captured_cmd[0] == "esb"
 
 
@@ -127,10 +123,8 @@ def test_deploy_templates_appends_image_overrides(monkeypatch, tmp_path):
     template.write_text("Resources: {}\n", encoding="utf-8")
     captured_args: list[str] = []
 
-    def fake_build_esb_cmd(
-        args: list[str], env_file: str | None, env: dict[str, str] | None = None
-    ) -> list[str]:
-        del env_file, env
+    def fake_build_esb_cmd(args: list[str], env_file: str | None) -> list[str]:
+        del env_file
         nonlocal captured_args
         captured_args = list(args)
         return ["esb", *args]
@@ -219,7 +213,7 @@ def test_deploy_templates_prepares_local_fixture_image(monkeypatch, tmp_path):
 
     monkeypatch.setattr(
         "e2e.runner.deploy.build_esb_cmd",
-        lambda args, env_file, env=None: ["esb", *args],
+        lambda args, env_file: ["esb", *args],
     )
 
     def fake_run_and_stream(cmd, **kwargs):
@@ -270,7 +264,7 @@ def test_deploy_templates_uses_java_fixture_directory(monkeypatch, tmp_path):
     commands: list[list[str]] = []
     monkeypatch.setattr(
         "e2e.runner.deploy.build_esb_cmd",
-        lambda args, env_file, env=None: ["esb", *args],
+        lambda args, env_file: ["esb", *args],
     )
 
     def fake_run_and_stream(cmd, **kwargs):
@@ -306,7 +300,7 @@ def test_deploy_templates_raises_on_non_zero_exit(monkeypatch, tmp_path):
 
     monkeypatch.setattr(
         "e2e.runner.deploy.build_esb_cmd",
-        lambda args, env_file, env=None: ["esb", *args],
+        lambda args, env_file: ["esb", *args],
     )
     monkeypatch.setattr("e2e.runner.deploy.run_and_stream", lambda *args, **kwargs: 2)
 

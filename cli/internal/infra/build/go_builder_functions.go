@@ -13,7 +13,7 @@ import (
 
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/template"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
-	"github.com/poruru/edge-serverless-box/meta"
+	"github.com/poruru/edge-serverless-box/cli/internal/meta"
 )
 
 func brandingImageLabels(project, env string) map[string]string {

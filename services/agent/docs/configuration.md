@@ -11,8 +11,18 @@ Why: Centralize tunables used by Agent and its gRPC server.
 | `AGENT_RUNTIME` | `docker` | 実行ランタイム（`docker` / `containerd`） |
 | `PORT` | `50051` | gRPC リッスンポート |
 | `AGENT_METRICS_PORT` | `9091` | Prometheus `/metrics` の公開ポート |
-| `CONTAINERS_NETWORK` | `bridge` | Docker runtime の接続先ネットワーク |
 | `ENV` | `default` | 環境名（コンテナ名・ラベルに使用） |
+| `PROJECT_NAME` | (空) | Compose プロジェクト名（例: `esb-dev`）。brand 導出に使用 |
+| `CONTAINERS_NETWORK` | `bridge` | 接続先ネットワーク。brand 導出の fallback にも使用 |
+| `ESB_BRAND_SLUG` | (空) | brand を明示指定。指定時は最優先で使用 |
+
+## StackIdentity 解決順
+Agent は起動時に brand slug を次の順で 1 回だけ解決し、runtime 名称（namespace/CNI/ラベル/イメージ接頭辞）へ反映します。
+
+1. `ESB_BRAND_SLUG`
+2. `PROJECT_NAME` と `ENV`（末尾 `-<env>` / `_<env>` を除去して導出）
+3. `CONTAINERS_NETWORK`（末尾 `-external` / `_<env>` を除去して導出）
+4. fallback `esb`
 
 ## gRPC / TLS
 | 変数 | デフォルト | 説明 |
@@ -20,7 +30,7 @@ Why: Centralize tunables used by Agent and its gRPC server.
 | `AGENT_GRPC_TLS_DISABLED` | `0` | `1` で mTLS 無効化 |
 | `AGENT_GRPC_CERT_PATH` | `/app/config/ssl/server.crt` | サーバ証明書 |
 | `AGENT_GRPC_KEY_PATH` | `/app/config/ssl/server.key` | サーバ秘密鍵 |
-| `AGENT_GRPC_CA_CERT_PATH` | `meta.RootCACertPath` | クライアント検証用 CA |
+| `AGENT_GRPC_CA_CERT_PATH` | `/usr/local/share/ca-certificates/rootCA.crt` | クライアント検証用 CA |
 | `AGENT_GRPC_REFLECTION` | `0` | `1` で Reflection 有効化 |
 
 ## Invoke 代理
@@ -36,7 +46,7 @@ Why: Centralize tunables used by Agent and its gRPC server.
 | `CONTAINERD_SNAPSHOTTER` | (空) | snapshotter 強制指定 |
 | `CNI_CONF_DIR` | `/etc/cni/net.d` | CNI conf dir |
 | `CNI_BIN_DIR` | `/opt/cni/bin` | CNI plugin dir |
-| `CNI_CONF_FILE` | `<CNI_CONF_DIR>/10-<cni>.conflist` | CNI conf ファイル |
+| `CNI_CONF_FILE` | `<CNI_CONF_DIR>/10-<brand>-net.conflist` | CNI conf ファイル（brand は StackIdentity 由来） |
 | `CNI_SUBNET` | `10.88.0.0/16` | CNI サブネット |
 | `CNI_GW_IP` | (空) | CNI GW（`CNI_DNS_SERVER` 未指定時の参照先） |
 | `CNI_DNS_SERVER` | `10.88.0.1` | nameserver（解決順: `CNI_DNS_SERVER` -> `CNI_GW_IP` -> `10.88.0.1`） |
@@ -48,7 +58,7 @@ Why: Centralize tunables used by Agent and its gRPC server.
 | `CONTAINER_REGISTRY` | `registry:5010` | 既定の内部レジストリ |
 | `CONTAINER_REGISTRY_INSECURE` | `0` | `1` の場合、内部レジストリ通信を insecure として扱う |
 | `IMAGE_PULL_POLICY` | `if-not-present` | `always` / `if-not-present`（不正値は `if-not-present` 扱い） |
-| `<ENV_PREFIX>_TAG` | `latest` | 既定タグ（互換経路用。通常は Gateway から `image` を明示指定） |
+| `<BRAND_ENV_PREFIX>_TAG` | `latest` | 既定タグ（例: `ESB_TAG`, `ACME_TAG`）。brand 専用キー未設定時は `ESB_TAG` を fallback |
 
 ## 運用上の前提
 - `EnsureContainer` は `image` の指定を必須とします（`proto/agent.proto`）。
@@ -60,5 +70,6 @@ Why: Centralize tunables used by Agent and its gRPC server.
 ## Implementation references
 - `services/agent/cmd/agent/main.go`
 - `services/agent/internal/config/constants.go`
+- `services/agent/internal/identity/stack_identity.go`
 - `services/agent/internal/runtime/containerd/runtime.go`
 - `services/agent/internal/runtime/containerd/image.go`

@@ -17,16 +17,9 @@ Examples:
 USAGE
 }
 
-DEFAULTS_FILE="${DEFAULTS_FILE:-config/defaults.env}"
-CLI_CMD=""
-ENV_PREFIX=""
-if [ -f "$DEFAULTS_FILE" ]; then
-  CLI_CMD="$(awk -F= '/^CLI_CMD=/{print $2; exit}' "$DEFAULTS_FILE")"
-  ENV_PREFIX="$(awk -F= '/^ENV_PREFIX=/{print $2; exit}' "$DEFAULTS_FILE")"
-fi
-CLI_CMD="${CLI_CMD:-esb}"
-ENV_PREFIX="${ENV_PREFIX:-ESB}"
-BRAND_SLUG="$(echo "$CLI_CMD" | tr '[:upper:]' '[:lower:]')"
+ESB_CMD="esb"
+ENV_PREFIX="ESB"
+BRAND_SLUG="esb"
 
 TEMPLATES=()
 OUTPUT_TAG=""
@@ -96,12 +89,10 @@ fi
 
 OUTPUT_TAG=${OUTPUT_TAG:-"${BRAND_SLUG}-dind-bundle:latest"}
 BUILD_DIR="tools/dind-bundler/build-context"
-ENV_VAR="${ENV_PREFIX}_ENV"
-ENV_NAME="${!ENV_VAR:-${ESB_ENV:-}}"
-OUTPUT_VAR="${ENV_PREFIX}_OUTPUT_DIR"
+ENV_NAME="${ESB_ENV:-}"
 OUTPUT_ROOTS=()
 MANIFEST_PATHS=()
-EXPLICIT_OUTPUT_ROOT="${!OUTPUT_VAR:-${ESB_OUTPUT_DIR:-}}"
+EXPLICIT_OUTPUT_ROOT="${ESB_OUTPUT_DIR:-}"
 declare -A OUTPUT_SUFFIX_COUNTS
 
 expand_home() {
@@ -191,11 +182,11 @@ fi
 echo "Building DinD bundle from templates: ${TEMPLATES[*]}"
 echo "Output tag: $OUTPUT_TAG"
 echo "Env: $ENV_NAME"
-echo "Brand: $CLI_CMD"
+echo "Brand: $BRAND_SLUG"
 
 if [ "${DIND_BUNDLER_DRYRUN:-}" = "true" ]; then
   join_by() { local IFS="$1"; shift; echo "$*"; }
-  echo "CLI_CMD=$CLI_CMD"
+  echo "ESB_CMD=$ESB_CMD"
   echo "ENV_PREFIX=$ENV_PREFIX"
   echo "BRAND_SLUG=$BRAND_SLUG"
   echo "TEMPLATES=$(join_by "," "${TEMPLATES[@]}")"
@@ -230,7 +221,7 @@ for index in "${!TEMPLATES[@]}"; do
   if [ -n "$EXPLICIT_OUTPUT_ROOT" ] || [ "${#TEMPLATES[@]}" -gt 1 ]; then
     deploy_output_args=(--output "$output_root")
   fi
-  uv run "$CLI_CMD" deploy --template "$template" --env "$ENV_NAME" --mode docker --verbose --no-save-defaults --build-only --bundle-manifest "${deploy_output_args[@]}"
+  uv run "$ESB_CMD" deploy --template "$template" --env "$ENV_NAME" --mode docker --verbose --no-save-defaults --build-only --bundle-manifest "${deploy_output_args[@]}"
   # Verify manifest exists
   if [ ! -f "$manifest_path" ]; then
     echo "Error: Bundle manifest not found at $manifest_path"

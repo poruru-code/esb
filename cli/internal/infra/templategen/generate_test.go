@@ -15,7 +15,7 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/manifest"
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/template"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
-	"github.com/poruru/edge-serverless-box/meta"
+	"github.com/poruru/edge-serverless-box/cli/internal/meta"
 	"gopkg.in/yaml.v3"
 )
 

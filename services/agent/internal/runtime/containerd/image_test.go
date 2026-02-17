@@ -15,7 +15,7 @@ import (
 
 func TestRuntime_EnsureImage(t *testing.T) {
 	mockCli := new(MockClient)
-	rt := NewRuntime(mockCli, nil, "esb", "test-env")
+	rt := NewRuntime(mockCli, nil, "esb", "test-env", "esb")
 	ctx := context.Background()
 	imageName := "alpine:latest"
 	t.Setenv("CONTAINERD_SNAPSHOTTER", "devmapper")
@@ -47,7 +47,7 @@ func TestRuntime_EnsureImage(t *testing.T) {
 
 func TestRuntime_EnsureImage_UnpackWhenMissing(t *testing.T) {
 	mockCli := new(MockClient)
-	rt := NewRuntime(mockCli, nil, "esb", "test-env")
+	rt := NewRuntime(mockCli, nil, "esb", "test-env", "esb")
 	ctx := context.Background()
 	imageName := "alpine:latest"
 	t.Setenv("CONTAINERD_SNAPSHOTTER", "devmapper")
@@ -66,7 +66,7 @@ func TestRuntime_EnsureImage_UnpackWhenMissing(t *testing.T) {
 
 func TestRuntime_EnsureImage_GetImageError(t *testing.T) {
 	mockCli := new(MockClient)
-	rt := NewRuntime(mockCli, nil, "esb", "test-env")
+	rt := NewRuntime(mockCli, nil, "esb", "test-env", "esb")
 	ctx := context.Background()
 	imageName := "alpine:latest"
 

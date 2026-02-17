@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
-	"github.com/poruru/edge-serverless-box/meta"
+	"github.com/poruru/edge-serverless-box/cli/internal/meta"
 )
 
 func resolveComposeProjectName(projectName, appName, env string) string {
@@ -18,9 +18,6 @@ func resolveComposeProjectName(projectName, appName, env string) string {
 		return composeProject
 	}
 	brandName := strings.ToLower(strings.TrimSpace(appName))
-	if brandName == "" {
-		brandName = strings.ToLower(strings.TrimSpace(os.Getenv("CLI_CMD")))
-	}
 	if brandName == "" {
 		brandName = meta.Slug
 	}

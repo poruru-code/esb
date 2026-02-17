@@ -7,14 +7,11 @@ from pathlib import Path
 
 def test_dind_bundler_uses_brand_defaults(tmp_path: Path) -> None:
     repo_root = Path(__file__).resolve().parents[2]
-    defaults = tmp_path / "defaults.env"
-    defaults.write_text("CLI_CMD=acme\nENV_PREFIX=ACME\n", encoding="utf-8")
 
     env = os.environ.copy()
-    env["DEFAULTS_FILE"] = str(defaults)
     env["DIND_BUNDLER_DRYRUN"] = "true"
-    env["ACME_ENV"] = "dev"
-    env["ACME_OUTPUT_DIR"] = ".acme"
+    env["ESB_ENV"] = "dev"
+    env["ESB_OUTPUT_DIR"] = ".acme"
     env["CERT_DIR"] = "/tmp/acme/certs"
 
     result = subprocess.run(
@@ -27,11 +24,11 @@ def test_dind_bundler_uses_brand_defaults(tmp_path: Path) -> None:
     )
 
     output = result.stdout
-    assert "CLI_CMD=acme" in output
-    assert "ENV_PREFIX=ACME" in output
-    assert "BRAND_SLUG=acme" in output
+    assert "ESB_CMD=esb" in output
+    assert "ENV_PREFIX=ESB" in output
+    assert "BRAND_SLUG=esb" in output
     assert "TEMPLATES=template.yaml" in output
-    assert "OUTPUT_TAG=acme-dind-bundle:latest" in output
+    assert "OUTPUT_TAG=esb-dind-bundle:latest" in output
     assert "ENV_NAME=dev" in output
     assert "OUTPUT_ROOTS=.acme" in output
     assert "MANIFEST_PATHS=.acme/dev/bundle/manifest.json" in output

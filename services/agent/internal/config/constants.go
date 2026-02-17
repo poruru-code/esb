@@ -25,8 +25,9 @@ const (
 	DefaultContainerRegistry = "registry:5010"
 
 	// gRPC Security
-	DefaultCertPath = "/app/config/ssl/server.crt"
-	DefaultKeyPath  = "/app/config/ssl/server.key"
+	DefaultCertPath   = "/app/config/ssl/server.crt"
+	DefaultKeyPath    = "/app/config/ssl/server.key"
+	DefaultCACertPath = "/usr/local/share/ca-certificates/rootCA.crt"
 
 	// CNI / Networking
 	DefaultCNIConfDir   = "/etc/cni/net.d"

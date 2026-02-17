@@ -80,7 +80,6 @@ def test_calculate_runtime_env_defaults():
 
         # Check Branding & Repo Path
         assert env["ENV_PREFIX"] == ENV_PREFIX
-        assert env[constants.ENV_CLI_CMD] == BRAND_SLUG
 
 
 def test_calculate_runtime_env_override():

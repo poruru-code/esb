@@ -13,7 +13,7 @@ import (
 	"text/template"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/runtime"
-	"github.com/poruru/edge-serverless-box/meta"
+	"github.com/poruru/edge-serverless-box/cli/internal/meta"
 	runtimeassets "github.com/poruru/edge-serverless-box/runtime"
 
 	"github.com/Masterminds/sprig/v3"

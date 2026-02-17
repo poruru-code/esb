@@ -16,7 +16,7 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/envutil"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
 	templategen "github.com/poruru/edge-serverless-box/cli/internal/infra/templategen"
-	"github.com/poruru/edge-serverless-box/meta"
+	"github.com/poruru/edge-serverless-box/cli/internal/meta"
 )
 
 func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {

@@ -9,13 +9,16 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+)
 
-	"github.com/poruru/edge-serverless-box/meta"
+const (
+	testCNIName   = "esb-net"
+	testCNIBridge = "esb0"
 )
 
 func readConfig(t *testing.T, dir string) Config {
 	t.Helper()
-	path := filepath.Join(dir, fmt.Sprintf("10-%s.conflist", meta.RuntimeCNIName))
+	path := filepath.Join(dir, fmt.Sprintf("10-%s.conflist", testCNIName))
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read config: %v", err)
@@ -31,7 +34,7 @@ func TestGenerateConfig_CustomSubnetAndDNS(t *testing.T) {
 	t.Setenv("CNI_DNS_SERVER", "10.99.0.53")
 	dir := t.TempDir()
 
-	if err := GenerateConfig(dir, "10.20.0.0/24"); err != nil {
+	if err := GenerateConfig(dir, "10.20.0.0/24", testCNIName, testCNIBridge); err != nil {
 		t.Fatalf("GenerateConfig: %v", err)
 	}
 
@@ -65,7 +68,7 @@ func TestGenerateConfig_DNSServerFallbacks(t *testing.T) {
 
 	t.Setenv("CNI_DNS_SERVER", "")
 	t.Setenv("CNI_GW_IP", "10.88.0.2")
-	if err := GenerateConfig(dir, ""); err != nil {
+	if err := GenerateConfig(dir, "", testCNIName, testCNIBridge); err != nil {
 		t.Fatalf("GenerateConfig: %v", err)
 	}
 	cfg := readConfig(t, dir)
@@ -78,7 +81,7 @@ func TestGenerateConfig_DNSServerFallbacks(t *testing.T) {
 	}
 
 	t.Setenv("CNI_GW_IP", "")
-	if err := GenerateConfig(dir, ""); err != nil {
+	if err := GenerateConfig(dir, "", testCNIName, testCNIBridge); err != nil {
 		t.Fatalf("GenerateConfig (default): %v", err)
 	}
 	cfg = readConfig(t, dir)

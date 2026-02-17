@@ -52,7 +52,7 @@ compose project + env で決まり、ハッシュはパスに使用しません�
 ```
 
 注記:
-- `compose_project` は docker compose のプロジェクト名（`PROJECT_NAME`）。未指定時は `CLI_CMD-<env>` を使用。
+- `compose_project` は docker compose のプロジェクト名（`PROJECT_NAME`）。未指定時は `esb-<env>` を使用。
 - `env` はデプロイ環境（例: dev, staging）。空の場合は `default`。
 - `env` は小文字に正規化されます。
 - `services/` と `pyproject.toml` はビルド用 staging アーティファクトとして同一パスに配置されます。
@@ -82,7 +82,7 @@ compose project + env で決まり、ハッシュはパスに使用しません�
 - リポジトリルート配下の `.<brand>` が書き込み不可の場合はエラーとする。
 - `compose_project` の決定順:
   1. `PROJECT_NAME` があればその値
-  2. `PROJECT_NAME` が空なら `<CLI_CMD>-<env>`（`env` が空なら `<CLI_CMD>`）
+  2. `PROJECT_NAME` が空なら `esb-<env>`（`env` が空なら `esb`）
 
 ## クリーンアップ
 - 1つの env を削除:

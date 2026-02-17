@@ -8,11 +8,16 @@ import (
 	"os"
 	"strings"
 
-	"github.com/poruru/edge-serverless-box/meta"
+	"github.com/poruru/edge-serverless-box/services/agent/internal/identity"
 )
 
 func resolveImagePrefix() string {
-	return meta.ImagePrefix
+	return identity.ResolveStackIdentityFrom(
+		strings.TrimSpace(os.Getenv(identity.EnvBrandSlug)),
+		strings.TrimSpace(os.Getenv(identity.EnvProjectName)),
+		strings.TrimSpace(os.Getenv(identity.EnvName)),
+		strings.TrimSpace(os.Getenv(identity.EnvContainersNetwork)),
+	).ImagePrefix()
 }
 
 func imageSafeName(name string) (string, error) {
@@ -59,9 +64,20 @@ func ResolveFunctionImageName(functionName string) (string, error) {
 }
 
 func ResolveFunctionImageTag() string {
-	key := meta.EnvPrefix + "_TAG"
+	id := identity.ResolveStackIdentityFrom(
+		strings.TrimSpace(os.Getenv(identity.EnvBrandSlug)),
+		strings.TrimSpace(os.Getenv(identity.EnvProjectName)),
+		strings.TrimSpace(os.Getenv(identity.EnvName)),
+		strings.TrimSpace(os.Getenv(identity.EnvContainersNetwork)),
+	)
+	key := id.EnvPrefix() + "_TAG"
 	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
 		return value
+	}
+	if key != "ESB_TAG" {
+		if value := strings.TrimSpace(os.Getenv("ESB_TAG")); value != "" {
+			return value
+		}
 	}
 	return "latest"
 }

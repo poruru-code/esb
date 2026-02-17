@@ -2,7 +2,6 @@
 import argparse
 import getpass
 import os
-import re
 import shutil
 import socket
 import subprocess
@@ -21,6 +20,7 @@ else:
 
 ROOT_CA_CERT_FILENAME = "rootCA.crt"
 ROOT_CA_KEY_FILENAME = "rootCA.key"
+BRAND_SLUG = "esb"
 
 
 def get_local_ip():
@@ -45,11 +45,6 @@ def resolve_sudo_path() -> str:
     if not sudo_path:
         return ""
     return sudo_path
-
-
-def normalize_slug(value: str) -> str:
-    cleaned = re.sub(r"[^a-z0-9]+", "-", value.strip().lower()).strip("-")
-    return cleaned or "esb"
 
 
 def check_step(step_path: str):
@@ -329,21 +324,6 @@ def ensure_user_ownership(output_dir: str) -> None:
         )
 
 
-def load_env_defaults(root: Path) -> dict[str, str]:
-    """Read branding defaults from config/defaults.env"""
-    path = root / "config" / "defaults.env"
-    if not path.exists():
-        return {}
-    defaults = {}
-    for line in path.read_text().splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        defaults[key.strip()] = value.strip()
-    return defaults
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate development certificates using step-cli")
     parser.add_argument(
@@ -357,10 +337,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     repo_root = resolve_repo_root()
-    defaults = load_env_defaults(repo_root)
-    cli_cmd = defaults.get("CLI_CMD", "esb")
-    brand_slug = normalize_slug(cli_cmd)
-    brand_dir = repo_root / f".{brand_slug}"
+    brand_dir = repo_root / f".{BRAND_SLUG}"
 
     config_path = Path(args.config)
     if not config_path.is_absolute():
@@ -415,7 +392,7 @@ if __name__ == "__main__":
     client_validity = require_validity(
         normalize_validity(cert_cfg.get("client_validity")), "client_validity"
     )
-    root_ca_subject = f"{cli_cmd.upper()} Local CA"
+    root_ca_subject = "ESB Local CA"
 
     if args.force or not (os.path.exists(root_ca_cert) and os.path.exists(root_ca_key)):
         generate_root_ca(root_ca_cert, root_ca_key, step_path, root_ca_subject, ca_validity)

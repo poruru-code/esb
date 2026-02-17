@@ -175,11 +175,6 @@ def calculate_runtime_env(
     if constants.ENV_CLI_SRC_ROOT not in env:
         env[constants.ENV_CLI_SRC_ROOT] = str(CLI_ROOT)
 
-    # Prefer a repo-local CLI binary when available.
-    local_cli = CLI_ROOT / "bin" / "esb"
-    if local_cli.exists() and constants.ENV_ESB_CLI not in env:
-        env[constants.ENV_ESB_CLI] = str(local_cli)
-
     # 2. Port Defaults (0 for dynamic)
     for port_suffix in (
         constants.PORT_GATEWAY_HTTPS,
@@ -240,7 +235,6 @@ def calculate_runtime_env(
 
     # 6. Branding & Certificates (Replicating applyBrandingEnv in Go)
     env["ENV_PREFIX"] = ENV_PREFIX
-    env[constants.ENV_CLI_CMD] = BRAND_SLUG
     env[constants.ENV_ROOT_CA_MOUNT_ID] = f"{BRAND_SLUG}_root_ca"
     env.setdefault(constants.ENV_ROOT_CA_CERT_FILENAME, constants.DEFAULT_ROOT_CA_FILENAME)
 

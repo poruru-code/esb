@@ -26,11 +26,11 @@ CLI の実装詳細は `cli/docs/container-management.md` を参照してくだ�
 
 ## 日常運用コマンド（最小セット）
 
-`<project>` は compose project 名（通常は `CLI_CMD` ベース）、`<brand>` は runtime namespace 名です。
+`<project>` は compose project 名（通常は `esb-<env>`）、`<brand>` は runtime namespace 名です。
 
 確認方法:
 - `docker ps --format '{{.Names}}' | grep -E '(gateway|agent)$'`
-- `grep '^CLI_CMD=' config/defaults.env`
+- `grep '^ENV_PREFIX=' config/defaults.env`
 
 ### スタック起動
 

@@ -78,8 +78,7 @@ target "agent-docker" {
   context    = "services/agent"
   dockerfile = "Dockerfile.docker"
   contexts = {
-    meta_module = "meta"
-    os-base     = "target:os-base"
+    os-base = "target:os-base"
   }
   args = {
     OS_BASE_IMAGE = "os-base"
@@ -122,8 +121,7 @@ target "agent-containerd" {
   context    = "services/agent"
   dockerfile = "Dockerfile.containerd"
   contexts = {
-    meta_module = "meta"
-    os-base     = "target:os-base"
+    os-base = "target:os-base"
   }
   args = {
     OS_BASE_IMAGE = "os-base"
