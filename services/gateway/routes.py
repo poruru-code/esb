@@ -24,6 +24,7 @@ from .api.deps import (
 )
 from .config import GatewayConfig, config
 from .core.exceptions import ContainerStartError, LambdaExecutionError
+from .core.function_name import normalize_invoke_function_name
 from .core.security import create_access_token
 from .core.utils import parse_lambda_response
 from .models import AuthenticationResult, AuthRequest, AuthResponse
@@ -173,10 +174,26 @@ async def invoke_lambda_api(
       - RequestResponse (default): synchronous, return result
       - Event: asynchronous, return 202 immediately
     """
-    if registry.get_function_config(function_name) is None:
+    try:
+        normalized = normalize_invoke_function_name(function_name)
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
+
+    resolved_function_name = normalized.name
+    if normalized.original != resolved_function_name:
+        logger.info(
+            "Normalized invoke FunctionName",
+            extra={
+                "function_name_original": normalized.original,
+                "function_name_resolved": resolved_function_name,
+                "function_qualifier": normalized.qualifier,
+            },
+        )
+
+    if registry.get_function_config(resolved_function_name) is None:
         return JSONResponse(
             status_code=404,
-            content={"message": f"Function not found: {function_name}"},
+            content={"message": f"Function not found: {resolved_function_name}"},
         )
 
     invocation_type = request.headers.get("X-Amz-Invocation-Type", "RequestResponse")
@@ -186,14 +203,14 @@ async def invoke_lambda_api(
         if invocation_type == "Event":
             background_tasks.add_task(  # ty: ignore[invalid-argument-type]  # FastAPI BackgroundTasks type stubs
                 invoker.invoke_function,
-                function_name,
+                resolved_function_name,
                 body,
                 timeout=config.LAMBDA_INVOKE_TIMEOUT,
             )
             return Response(status_code=202, content=b"", media_type="application/json")
 
         result = await invoker.invoke_function(
-            function_name, body, timeout=config.LAMBDA_INVOKE_TIMEOUT
+            resolved_function_name, body, timeout=config.LAMBDA_INVOKE_TIMEOUT
         )
 
         if not result.success:
