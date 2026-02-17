@@ -275,7 +275,7 @@ def _deploy(ctx: RunContext, log: LogSink, printer, args) -> None:
 
 def _test(ctx: RunContext, reporter: Reporter, log: LogSink, printer) -> None:
     if not ctx.ports:
-        ctx.ports = discover_ports(ctx.compose_project, ctx.compose_file)
+        ctx.ports = discover_ports(ctx.compose_project, ctx.compose_file, env_file=ctx.env_file)
         if ctx.ports:
             _apply_ports_to_env_dict(ctx.ports, ctx.pytest_env)
         wait_for_gateway(ctx.scenario.env_name, ports=ctx.ports)

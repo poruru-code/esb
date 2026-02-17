@@ -13,6 +13,7 @@ from e2e.runner.utils import (
     ENV_PREFIX,
     PROJECT_ROOT,
     env_key,
+    resolve_env_file_path,
 )
 
 _DEFAULT_NO_PROXY_TARGETS = (
@@ -451,8 +452,13 @@ def _resolve_compose_files_from_project(project_name: str) -> list[Path]:
     return existing
 
 
-def build_compose_base_cmd(project_name: str, compose_file: Path) -> list[str]:
+def build_compose_base_cmd(
+    project_name: str, compose_file: Path, env_file: str | None = None
+) -> list[str]:
     cmd = ["docker", "compose", "-p", project_name]
+    env_file_path = resolve_env_file_path(env_file)
+    if env_file_path:
+        cmd.extend(["--env-file", env_file_path])
     compose_files = _resolve_compose_files_from_project(project_name)
     if compose_files:
         for file in compose_files:
@@ -462,7 +468,11 @@ def build_compose_base_cmd(project_name: str, compose_file: Path) -> list[str]:
     return cmd
 
 
-def discover_ports(project_name: str, compose_file: Path) -> dict[str, int]:
+def discover_ports(
+    project_name: str,
+    compose_file: Path,
+    env_file: str | None = None,
+) -> dict[str, int]:
     """Discover host ports for mapped services using docker compose port."""
     services = {
         "gateway": [("8443", constants.PORT_GATEWAY_HTTPS), ("8080", constants.PORT_GATEWAY_HTTP)],
@@ -479,7 +489,7 @@ def discover_ports(project_name: str, compose_file: Path) -> dict[str, int]:
     }
 
     ports = {}
-    base_cmd = build_compose_base_cmd(project_name, compose_file)
+    base_cmd = build_compose_base_cmd(project_name, compose_file, env_file=env_file)
     for service, port_mappings in services.items():
         for internal, env_key_suffix in port_mappings:
             try:
