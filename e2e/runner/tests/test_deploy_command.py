@@ -20,6 +20,10 @@ def _make_context(
     image_prewarm: str = "off",
     image_uri_overrides: dict[str, str] | None = None,
     image_runtime_overrides: dict[str, str] | None = None,
+    deploy_driver: str = "cli",
+    artifact_generate: str | None = None,
+    artifact_manifest: str | None = None,
+    config_dir: str | None = None,
 ) -> RunContext:
     compose_file = tmp_path / "docker-compose.yml"
     compose_file.write_text("services: {}\n", encoding="utf-8")
@@ -28,6 +32,10 @@ def _make_context(
         extra["image_uri_overrides"] = image_uri_overrides
     if image_runtime_overrides is not None:
         extra["image_runtime_overrides"] = image_runtime_overrides
+    if artifact_manifest is not None:
+        extra["artifact_manifest"] = artifact_manifest
+    if artifact_generate is None:
+        artifact_generate = "cli" if deploy_driver == "artifact" else "none"
     scenario = Scenario(
         name="test",
         env_name="e2e-docker",
@@ -39,15 +47,21 @@ def _make_context(
         exclude=[],
         deploy_templates=[],
         project_name="esb",
+        deploy_driver=deploy_driver,
+        artifact_generate=artifact_generate,
         extra=extra,
     )
+    runtime_env: dict[str, str] = {}
+    if config_dir is not None:
+        runtime_env["CONFIG_DIR"] = config_dir
+
     return RunContext(
         scenario=scenario,
         project_name="esb",
         compose_project="esb-e2e-docker",
         compose_file=compose_file,
         env_file=scenario.env_file,
-        runtime_env={},
+        runtime_env=runtime_env,
         deploy_env={"EXAMPLE": "1"},
         pytest_env={},
     )
@@ -308,6 +322,149 @@ def test_deploy_templates_raises_on_non_zero_exit(monkeypatch, tmp_path):
     log.open()
     try:
         with pytest.raises(RuntimeError, match="deploy failed with exit code 2"):
+            deploy_templates(
+                ctx,
+                [template],
+                no_cache=False,
+                verbose=False,
+                log=log,
+                printer=None,
+            )
+    finally:
+        log.close()
+
+
+def test_deploy_templates_artifact_driver_runs_apply_and_provision(monkeypatch, tmp_path):
+    config_dir = tmp_path / "merged-config"
+    manifest = tmp_path / "artifact.yml"
+    manifest.write_text("schema_version: '1'\n", encoding="utf-8")
+    ctx = _make_context(
+        tmp_path,
+        deploy_driver="artifact",
+        artifact_manifest=str(manifest),
+        config_dir=str(config_dir),
+    )
+    template = tmp_path / "template.yaml"
+    template.write_text("Resources: {}\n", encoding="utf-8")
+    commands: list[list[str]] = []
+    generated_args: list[str] = []
+
+    def fake_run_and_stream(cmd: list[str], **kwargs: Any) -> int:
+        del kwargs
+        commands.append(list(cmd))
+        return 0
+
+    def fake_build_esb_cmd(args: list[str], env_file: str | None) -> list[str]:
+        del env_file
+        nonlocal generated_args
+        generated_args = list(args)
+        return ["esb", *args]
+
+    monkeypatch.setattr("e2e.runner.deploy.build_esb_cmd", fake_build_esb_cmd)
+    monkeypatch.setattr("e2e.runner.deploy.run_and_stream", fake_run_and_stream)
+
+    log = LogSink(tmp_path / "deploy.log")
+    log.open()
+    try:
+        deploy_templates(
+            ctx,
+            [template],
+            no_cache=False,
+            verbose=False,
+            log=log,
+            printer=None,
+        )
+    finally:
+        log.close()
+
+    assert generated_args[0:2] == ["artifact", "generate"]
+    assert "--template" in generated_args
+    assert generated_args.count("--template") == 1
+    assert commands[0][0] == "esb"
+    assert commands[1] == [
+        "artifactctl",
+        "apply",
+        "--artifact",
+        str(manifest.resolve()),
+        "--out",
+        str(config_dir),
+    ]
+    assert commands[2][0:8] == [
+        "docker",
+        "compose",
+        "--project-name",
+        ctx.compose_project,
+        "--file",
+        str(ctx.compose_file),
+        "--env-file",
+        ctx.env_file,
+    ]
+    assert commands[2][-4:] == ["run", "--rm", "--no-deps", "provisioner"]
+
+
+def test_deploy_templates_artifact_driver_requires_manifest(tmp_path):
+    ctx = _make_context(
+        tmp_path,
+        deploy_driver="artifact",
+        artifact_generate="none",
+        artifact_manifest=str(tmp_path / "missing-artifact.yml"),
+        config_dir=str(tmp_path / "merged-config"),
+    )
+    template = tmp_path / "template.yaml"
+    template.write_text("Resources: {}\n", encoding="utf-8")
+
+    log = LogSink(tmp_path / "deploy.log")
+    log.open()
+    try:
+        with pytest.raises(FileNotFoundError, match="artifact manifest not found"):
+            deploy_templates(
+                ctx,
+                [template],
+                no_cache=False,
+                verbose=False,
+                log=log,
+                printer=None,
+            )
+    finally:
+        log.close()
+
+
+def test_deploy_templates_rejects_unknown_driver(tmp_path):
+    ctx = _make_context(tmp_path, deploy_driver="unknown")
+    template = tmp_path / "template.yaml"
+    template.write_text("Resources: {}\n", encoding="utf-8")
+
+    log = LogSink(tmp_path / "deploy.log")
+    log.open()
+    try:
+        with pytest.raises(RuntimeError, match="deploy_driver 'unknown'"):
+            deploy_templates(
+                ctx,
+                [template],
+                no_cache=False,
+                verbose=False,
+                log=log,
+                printer=None,
+            )
+    finally:
+        log.close()
+
+
+def test_deploy_templates_rejects_unknown_artifact_generate_mode(tmp_path):
+    ctx = _make_context(
+        tmp_path,
+        deploy_driver="artifact",
+        artifact_generate="invalid",
+        artifact_manifest=str(tmp_path / "artifact.yml"),
+        config_dir=str(tmp_path / "merged-config"),
+    )
+    template = tmp_path / "template.yaml"
+    template.write_text("Resources: {}\n", encoding="utf-8")
+
+    log = LogSink(tmp_path / "deploy.log")
+    log.open()
+    try:
+        with pytest.raises(RuntimeError, match="artifact_generate 'invalid'"):
             deploy_templates(
                 ctx,
                 [template],

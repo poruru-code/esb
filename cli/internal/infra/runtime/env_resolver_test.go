@@ -58,6 +58,7 @@ func TestInferEnvFromContainerLabels(t *testing.T) {
 
 func TestInferEnvFromConfigPath(t *testing.T) {
 	tmp := t.TempDir()
+	setWorkingDir(t, tmp)
 
 	if err := os.WriteFile(filepath.Join(tmp, "docker-compose.docker.yml"), []byte{}, 0o600); err != nil {
 		t.Fatalf("write repo marker: %v", err)
@@ -232,4 +233,20 @@ func (c envResolverDockerClient) NetworksPrune(_ context.Context, _ filters.Args
 
 func (c envResolverDockerClient) VolumesPrune(_ context.Context, _ filters.Args) (volume.PruneReport, error) {
 	return volume.PruneReport{}, nil
+}
+
+func setWorkingDir(t *testing.T, dir string) {
+	t.Helper()
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get cwd: %v", err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("chdir %s: %v", dir, err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(wd); err != nil {
+			t.Fatalf("restore cwd %s: %v", wd, err)
+		}
+	})
 }

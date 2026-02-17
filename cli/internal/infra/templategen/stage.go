@@ -141,12 +141,11 @@ func stageFunction(fn template.FunctionSpec, ctx stageContext) (stagedFunction, 
 		if err != nil {
 			return stagedFunction{}, err
 		}
-		if info, err := os.Stat(wrapperSrc); err == nil {
-			target := filepath.Join(functionDir, javaWrapperFileName)
-			if err := linkOrCopyFile(wrapperSrc, target, info.Mode()); err != nil {
-				return stagedFunction{}, err
-			}
-		} else {
+		if _, err := os.Stat(wrapperSrc); err != nil {
+			return stagedFunction{}, err
+		}
+		target := filepath.Join(functionDir, javaWrapperFileName)
+		if err := copyFile(wrapperSrc, target); err != nil {
 			return stagedFunction{}, err
 		}
 
@@ -154,12 +153,11 @@ func stageFunction(fn template.FunctionSpec, ctx stageContext) (stagedFunction, 
 		if err != nil {
 			return stagedFunction{}, err
 		}
-		if info, err := os.Stat(agentSrc); err == nil {
-			target := filepath.Join(functionDir, javaAgentFileName)
-			if err := linkOrCopyFile(agentSrc, target, info.Mode()); err != nil {
-				return stagedFunction{}, err
-			}
-		} else {
+		if _, err := os.Stat(agentSrc); err != nil {
+			return stagedFunction{}, err
+		}
+		target = filepath.Join(functionDir, javaAgentFileName)
+		if err := copyFile(agentSrc, target); err != nil {
 			return stagedFunction{}, err
 		}
 	}

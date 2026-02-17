@@ -29,6 +29,7 @@ suites:
 matrix:
 # docker runtime
 - esb_env: e2e-docker
+  deploy_driver: cli
   deploy_templates:
   - e2e/fixtures/template.core.yaml
   - e2e/fixtures/template.stateful.yaml
@@ -45,8 +46,28 @@ matrix:
   - runtime
   - restart
 
+# docker runtime (artifact apply path)
+- esb_env: e2e-docker-artifact
+  env_dir: e2e-docker
+  deploy_driver: artifact
+  artifact_generate: cli
+  deploy_templates:
+  - e2e/fixtures/template.core.yaml
+  - e2e/fixtures/template.stateful.yaml
+  - e2e/fixtures/template.image.yaml
+  env_vars:
+    E2E_IMAGE_EXPECTED_LOGGER: cloudwatch.logs.python
+  image_uri_overrides:
+    lambda-image: 127.0.0.1:5010/esb-e2e-lambda-python:latest
+  image_runtime_overrides:
+    lambda-image: python
+  suites:
+  - smoke
+  - standard
+
 # containerd runtime
 - esb_env: e2e-containerd
+  deploy_driver: cli
   deploy_templates:
   - e2e/fixtures/template.core.yaml
   - e2e/fixtures/template.stateful.yaml

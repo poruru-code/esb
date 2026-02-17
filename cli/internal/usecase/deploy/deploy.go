@@ -25,6 +25,7 @@ type Request struct {
 	Context        state.Context
 	Env            string
 	TemplatePath   string
+	ArtifactPath   string
 	Mode           string
 	OutputDir      string
 	Parameters     map[string]string

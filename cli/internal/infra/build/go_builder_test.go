@@ -36,6 +36,7 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 	writeComposeFiles(t, repoRoot,
 		"docker-compose.containerd.yml",
 	)
+	setWorkingDir(t, repoRoot)
 	// Create mock service directories and root files required by staging logic
 	if err := os.MkdirAll(filepath.Join(repoRoot, "services", "common"), 0o755); err != nil {
 		t.Fatal(err)
@@ -215,6 +216,22 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 
 	// Registry is now started separately via `esb up` or docker compose
 	// and is no longer part of the deploy workflow
+}
+
+func setWorkingDir(t *testing.T, dir string) {
+	t.Helper()
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get cwd: %v", err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("chdir %s: %v", dir, err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(wd); err != nil {
+			t.Fatalf("restore cwd %s: %v", wd, err)
+		}
+	})
 }
 
 func TestSortedAnyKeys(t *testing.T) {

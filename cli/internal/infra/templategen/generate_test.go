@@ -546,6 +546,80 @@ func TestGenerateFilesBuildsJavaRuntimeOncePerRunAndUsesProjectM2Cache(t *testin
 	}
 }
 
+func TestGenerateFilesStagesJavaRuntimeAsIndependentCopies(t *testing.T) {
+	root := t.TempDir()
+	templatePath := filepath.Join(root, "template.yaml")
+	writeTestFile(t, templatePath, "Resources: {}")
+
+	jarPath := filepath.Join(root, "converter.jar")
+	writeTestFile(t, jarPath, "jar")
+
+	mustMkdirAll(t, filepath.Join(root, "runtime-hooks", "java", "build"))
+	wrapperPath := filepath.Join(root, "runtime-hooks", "java", "wrapper", "lambda-java-wrapper.jar")
+	mustMkdirAll(t, filepath.Dir(wrapperPath))
+	writeTestFile(t, wrapperPath, "stale-wrapper")
+	agentPath := filepath.Join(root, "runtime-hooks", "java", "agent", "lambda-java-agent.jar")
+	mustMkdirAll(t, filepath.Dir(agentPath))
+	writeTestFile(t, agentPath, "stale-agent")
+
+	_ = installFakeDockerForJavaBuild(t)
+	for _, key := range []string{
+		"HTTP_PROXY",
+		"http_proxy",
+		"HTTPS_PROXY",
+		"https_proxy",
+		"NO_PROXY",
+		"no_proxy",
+		"MAVEN_OPTS",
+		"JAVA_TOOL_OPTIONS",
+	} {
+		t.Setenv(key, "")
+	}
+
+	parser := &stubParser{
+		result: template.ParseResult{
+			Functions: []template.FunctionSpec{
+				{
+					Name:    "lambda-java",
+					CodeURI: "converter.jar",
+					Handler: "com.example.Handler::handleRequest",
+					Runtime: "java21",
+				},
+			},
+		},
+	}
+
+	cfg := config.GeneratorConfig{
+		Paths: config.PathsConfig{
+			SamTemplate: "template.yaml",
+			OutputDir:   "out/",
+		},
+	}
+	opts := GenerateOptions{ProjectRoot: root, Parser: parser}
+	if _, err := GenerateFiles(cfg, opts); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	stagedWrapper := filepath.Join(root, "out", "functions", "lambda-java", "lambda-java-wrapper.jar")
+	stagedAgent := filepath.Join(root, "out", "functions", "lambda-java", "lambda-java-agent.jar")
+	if got := readFile(t, stagedWrapper); got != "fresh-wrapper" {
+		t.Fatalf("expected staged wrapper content, got %q", got)
+	}
+	if got := readFile(t, stagedAgent); got != "fresh-agent" {
+		t.Fatalf("expected staged agent content, got %q", got)
+	}
+
+	writeTestFile(t, wrapperPath, "mutated-wrapper")
+	writeTestFile(t, agentPath, "mutated-agent")
+
+	if got := readFile(t, stagedWrapper); got != "fresh-wrapper" {
+		t.Fatalf("staged wrapper should not be affected by source mutation, got %q", got)
+	}
+	if got := readFile(t, stagedAgent); got != "fresh-agent" {
+		t.Fatalf("staged agent should not be affected by source mutation, got %q", got)
+	}
+}
+
 func TestGenerateFilesImageFunctionWritesImportManifest(t *testing.T) {
 	root := t.TempDir()
 	templatePath := filepath.Join(root, "template.yaml")
