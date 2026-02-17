@@ -71,7 +71,7 @@ class TestJavaObservability:
 
         result = query_victorialogs_by_filter(
             filters={
-                "logger": "aws.logs",
+                "logger": "cloudwatch.logs.java",
                 "log_group": log_group,
                 "log_stream": log_stream,
             },

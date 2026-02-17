@@ -191,7 +191,7 @@ def query_victorialogs_by_filter(
 
         # Multiple filters + time filter.
         query_victorialogs_by_filter(
-            filters={"logger": "boto3.mock", "log_group": "/aws/lambda/test"},
+            filters={"logger": "cloudwatch.logs.python", "log_group": "/aws/lambda/test"},
             start="2025-12-24T00:00:00Z",
             min_hits=4,
         )

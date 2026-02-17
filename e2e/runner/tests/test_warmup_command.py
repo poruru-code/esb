@@ -110,6 +110,21 @@ def test_java_build_image_is_digest_pinned() -> None:
     assert "@sha256:" in warmup.JAVA_BUILD_IMAGE
 
 
+def test_discover_java_fixture_projects_includes_tools_fixture(monkeypatch, tmp_path):
+    java_root = tmp_path / "e2e" / "fixtures" / "functions" / "java"
+    tool_root = tmp_path / "tools" / "e2e-lambda-fixtures" / "java"
+    (java_root / "echo").mkdir(parents=True)
+    (java_root / "echo" / "pom.xml").write_text("<project/>", encoding="utf-8")
+    tool_root.mkdir(parents=True)
+    (tool_root / "pom.xml").write_text("<project/>", encoding="utf-8")
+
+    monkeypatch.setattr(warmup, "JAVA_FIXTURE_ROOTS", (java_root, tool_root))
+
+    projects = warmup._discover_java_fixture_projects()
+
+    assert projects == [(java_root / "echo").resolve(), tool_root.resolve()]
+
+
 def _scenario(name: str, env_name: str) -> Scenario:
     return Scenario(
         name=name,

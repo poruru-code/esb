@@ -184,12 +184,23 @@ def test_deploy_templates_rejects_invalid_image_override(tmp_path):
 def test_collect_local_fixture_image_sources_filters_non_fixture():
     extra = {
         "image_uri_overrides": {
-            "lambda-image": "127.0.0.1:5010/e2e-minimal-lambda:latest",
+            "lambda-image": "127.0.0.1:5010/esb-e2e-lambda-python:latest",
             "other": "public.ecr.aws/example/repo:v1",
         }
     }
     assert _collect_local_fixture_image_sources(extra) == [
-        "127.0.0.1:5010/e2e-minimal-lambda:latest"
+        "127.0.0.1:5010/esb-e2e-lambda-python:latest"
+    ]
+
+
+def test_collect_local_fixture_image_sources_includes_java_fixture():
+    extra = {
+        "image_uri_overrides": {
+            "lambda-image": "127.0.0.1:5010/esb-e2e-lambda-java:latest",
+        }
+    }
+    assert _collect_local_fixture_image_sources(extra) == [
+        "127.0.0.1:5010/esb-e2e-lambda-java:latest"
     ]
 
 
@@ -198,7 +209,7 @@ def test_deploy_templates_prepares_local_fixture_image(monkeypatch, tmp_path):
     ctx = _make_context(
         tmp_path,
         image_prewarm="off",
-        image_uri_overrides={"lambda-image": "127.0.0.1:5010/e2e-minimal-lambda:latest"},
+        image_uri_overrides={"lambda-image": "127.0.0.1:5010/esb-e2e-lambda-python:latest"},
         image_runtime_overrides={"lambda-image": "python"},
     )
     template = tmp_path / "template.yaml"
@@ -232,7 +243,59 @@ def test_deploy_templates_prepares_local_fixture_image(monkeypatch, tmp_path):
         log.close()
 
     assert commands[0][0:3] == ["docker", "buildx", "build"]
-    assert commands[1] == ["docker", "push", "127.0.0.1:5010/e2e-minimal-lambda:latest"]
+    assert commands[1] == ["docker", "push", "127.0.0.1:5010/esb-e2e-lambda-python:latest"]
+    assert commands[2][0] == "esb"
+
+
+def test_deploy_templates_uses_java_fixture_directory(monkeypatch, tmp_path):
+    deploy_module._prepared_local_fixture_images.clear()
+    fixture_dir = tmp_path / "java-fixture"
+    fixture_dir.mkdir()
+
+    monkeypatch.setattr(
+        deploy_module,
+        "LOCAL_IMAGE_FIXTURES",
+        {"esb-e2e-lambda-java": fixture_dir},
+    )
+
+    ctx = _make_context(
+        tmp_path,
+        image_prewarm="off",
+        image_uri_overrides={"lambda-image": "127.0.0.1:5010/esb-e2e-lambda-java:latest"},
+        image_runtime_overrides={"lambda-image": "java21"},
+    )
+    template = tmp_path / "template.yaml"
+    template.write_text("Resources: {}\n", encoding="utf-8")
+
+    commands: list[list[str]] = []
+    monkeypatch.setattr(
+        "e2e.runner.deploy.build_esb_cmd",
+        lambda args, env_file, env=None: ["esb", *args],
+    )
+
+    def fake_run_and_stream(cmd, **kwargs):
+        commands.append(list(cmd))
+        return 0
+
+    monkeypatch.setattr("e2e.runner.deploy.run_and_stream", fake_run_and_stream)
+
+    log = LogSink(tmp_path / "deploy.log")
+    log.open()
+    try:
+        deploy_templates(
+            ctx,
+            [template],
+            no_cache=False,
+            verbose=False,
+            log=log,
+            printer=None,
+        )
+    finally:
+        log.close()
+
+    assert commands[0][0:3] == ["docker", "buildx", "build"]
+    assert commands[0][-1] == str(fixture_dir)
+    assert commands[1] == ["docker", "push", "127.0.0.1:5010/esb-e2e-lambda-java:latest"]
     assert commands[2][0] == "esb"
 
 

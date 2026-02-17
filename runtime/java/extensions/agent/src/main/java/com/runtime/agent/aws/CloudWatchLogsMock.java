@@ -101,7 +101,7 @@ public final class CloudWatchLogsMock {
         entry.put("message", cleanMessage);
         entry.put("log_group", logGroup == null ? "unknown" : logGroup);
         entry.put("log_stream", logStream == null ? "unknown" : logStream);
-        entry.put("logger", "aws.logs");
+        entry.put("logger", "cloudwatch.logs.java");
         entry.put("container_name", containerName);
         entry.put("job", "lambda");
 

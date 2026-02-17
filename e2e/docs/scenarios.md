@@ -528,7 +528,7 @@ Why: Make docker/containerd support status explicit per test case.
   `/api/image` に `{"action":"test_cloudwatch","marker":"image-cloudwatch-<uuid>"}` を送信し、`200`、`success=true` を確認する。返却された `cloudwatch.log_group` と `cloudwatch.log_stream` をキーに VictoriaLogs を検索し、marker を含むログを1件以上検出する。
 
   合格条件:
-  レスポンスが `200` かつ `success=true`。`cloudwatch` が object で `log_group`/`log_stream` が非空文字列。VictoriaLogs検索（`container_name=lambda-image`, `logger=boto3.mock`, 該当 log_group/log_stream）で marker を含むヒットを1件以上得られること。
+  レスポンスが `200` かつ `success=true`。`cloudwatch` が object で `log_group`/`log_stream` が非空文字列。VictoriaLogs検索（`container_name=lambda-image`, `logger=cloudwatch.logs.python`, 該当 log_group/log_stream）で marker を含むヒットを1件以上得られること。
 
   失敗時の示唆:
   CloudWatch passthrough 実装、VictoriaLogs 取り込みパイプライン、ログフィルタ条件を確認する。
@@ -839,7 +839,7 @@ Why: Make docker/containerd support status explicit per test case.
   Python CloudWatch擬似ログがVictoriaLogsへ重複なく転送され、属性付与されることを保証する。
 
   入力:
-  Python connectivity の CloudWatch 模擬呼び出し後、`logger:boto3.mock` かつ `log_group/log_stream` 条件で VictoriaLogs を検索し、該当ログがちょうど4件であることを確認する。さらに、`(level, _msg)` の組が4件すべて一意であること（重複なし）を検証する。全件 `container_name=lambda-connectivity`、`DEBUG/INFO/ERROR` レベルを含み、`CloudWatch Logs E2E verification successful!` を含むことを確認する。
+  Python connectivity の CloudWatch 模擬呼び出し後、`logger:cloudwatch.logs.python` かつ `log_group/log_stream` 条件で VictoriaLogs を検索し、該当ログがちょうど4件であることを確認する。さらに、`(level, _msg)` の組が4件すべて一意であること（重複なし）を検証する。全件 `container_name=lambda-connectivity`、`DEBUG/INFO/ERROR` レベルを含み、`CloudWatch Logs E2E verification successful!` を含むことを確認する。
 
   合格条件:
   CloudWatch模擬呼び出しが `200` かつ `success=true`。VictoriaLogs検索で該当ログがちょうど4件であること。`(level, _msg)` の組が4件すべて一意であること。全件 `container_name=lambda-connectivity`。レベルに `DEBUG/INFO/ERROR` を含み、`CloudWatch Logs E2E verification successful!` を含むこと。

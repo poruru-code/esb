@@ -25,6 +25,13 @@ def _expect_success() -> bool:
     }
 
 
+def _expected_cloudwatch_logger() -> str:
+    return (
+        os.getenv("E2E_IMAGE_EXPECTED_LOGGER", "cloudwatch.logs.python").strip()
+        or "cloudwatch.logs.python"
+    )
+
+
 def _invoke_image(auth_token: str, payload: dict) -> Response:
     max_retries = 20
     response: Response | None = None
@@ -158,7 +165,7 @@ class TestImageFunction:
         hits, found = wait_for_victorialogs_hits(
             filters={
                 "container_name": "lambda-image",
-                "logger": "boto3.mock",
+                "logger": _expected_cloudwatch_logger(),
                 "log_group": log_group,
                 "log_stream": log_stream,
             },

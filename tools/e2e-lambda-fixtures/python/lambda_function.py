@@ -1,4 +1,4 @@
-# Where: tools/e2e-minimal-lambda/lambda_function.py
+# Where: tools/e2e-lambda-fixtures/python/lambda_function.py
 # What: Lambda handler for image-based E2E invocation tests.
 # Why: Validate sitecustomize behaviors with PackageType=Image functions.
 from __future__ import annotations
@@ -148,7 +148,7 @@ def lambda_handler(event: Any, _context: Any) -> dict[str, Any]:
     response: dict[str, Any] = {
         "success": True,
         "action": action,
-        "handler": "e2e-minimal-lambda",
+        "handler": "esb-e2e-lambda-python",
     }
     try:
         if action == "chain_invoke":
@@ -175,7 +175,7 @@ def lambda_handler(event: Any, _context: Any) -> dict[str, Any]:
         return {
             "success": False,
             "action": action,
-            "handler": "e2e-minimal-lambda",
+            "handler": "esb-e2e-lambda-python",
             "error": str(exc),
         }
 

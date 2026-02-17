@@ -12,8 +12,10 @@ from e2e.runner.logging import LogSink, run_and_stream
 from e2e.runner.models import RunContext
 from e2e.runner.utils import PROJECT_ROOT, build_esb_cmd
 
-LOCAL_IMAGE_FIXTURE_NAME = "e2e-minimal-lambda"
-LOCAL_IMAGE_FIXTURE_DIR = PROJECT_ROOT / "tools" / "e2e-minimal-lambda"
+LOCAL_IMAGE_FIXTURES: dict[str, Path] = {
+    "esb-e2e-lambda-python": PROJECT_ROOT / "tools" / "e2e-lambda-fixtures" / "python",
+    "esb-e2e-lambda-java": PROJECT_ROOT / "tools" / "e2e-lambda-fixtures" / "java",
+}
 
 _prepared_local_fixture_images: set[str] = set()
 _prepared_local_fixture_lock = threading.Lock()
@@ -89,13 +91,17 @@ def _prepare_local_fixture_images(
     sources = _collect_local_fixture_image_sources(ctx.scenario.extra)
     if not sources:
         return
-    if not LOCAL_IMAGE_FIXTURE_DIR.exists():
-        raise FileNotFoundError(f"Local fixture image source not found: {LOCAL_IMAGE_FIXTURE_DIR}")
 
     for source in sources:
         with _prepared_local_fixture_lock:
             if source in _prepared_local_fixture_images:
                 continue
+            fixture_name = _fixture_repo_name(source)
+            fixture_dir = LOCAL_IMAGE_FIXTURES.get(fixture_name)
+            if fixture_dir is None:
+                raise RuntimeError(f"Unknown local fixture image source: {source}")
+            if not fixture_dir.exists():
+                raise FileNotFoundError(f"Local fixture image source not found: {fixture_dir}")
             message = f"Preparing local image fixture: {source}"
             log.write_line(message)
             if printer:
@@ -110,7 +116,7 @@ def _prepare_local_fixture_images(
                 "--load",
                 "--tag",
                 source,
-                str(LOCAL_IMAGE_FIXTURE_DIR),
+                str(fixture_dir),
             ]
             rc = run_and_stream(
                 build_cmd,
@@ -150,10 +156,13 @@ def _collect_local_fixture_image_sources(extra: dict[str, Any]) -> list[str]:
 def _is_local_fixture_image_source(source: str) -> bool:
     if not source:
         return False
+    return _fixture_repo_name(source) in LOCAL_IMAGE_FIXTURES
+
+
+def _fixture_repo_name(source: str) -> str:
     without_digest = source.split("@", 1)[0]
     last_segment = without_digest.rsplit("/", 1)[-1]
-    repo = last_segment.split(":", 1)[0]
-    return repo == LOCAL_IMAGE_FIXTURE_NAME
+    return last_segment.split(":", 1)[0]
 
 
 def _build_image_override_args(extra: dict[str, Any]) -> list[str]:

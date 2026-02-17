@@ -1,0 +1,9 @@
+# Where: tools/e2e-lambda-fixtures/java/Dockerfile
+# What: Minimal AWS Lambda Java 21 container image for E2E image-function tests.
+# Why: Validate ImageUri + Java agent injection flow with a deterministic fixture image.
+FROM public.ecr.aws/lambda/java:21
+
+RUN mkdir -p ${LAMBDA_TASK_ROOT}/lib
+COPY app.jar ${LAMBDA_TASK_ROOT}/lib/app.jar
+
+CMD ["com.fixtures.imageminimal.Handler::handleRequest"]

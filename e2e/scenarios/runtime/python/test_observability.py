@@ -122,7 +122,10 @@ class TestPythonObservability:
         time.sleep(5)
 
         # 3. Search logs in VictoriaLogs (using shared helper).
-        raw_query = f'logger:boto3.mock AND log_group:"{log_group}" AND log_stream:"{log_stream}"'
+        raw_query = (
+            f'logger:cloudwatch.logs.python AND log_group:"{log_group}" AND '
+            f'log_stream:"{log_stream}"'
+        )
         result = query_victorialogs_by_filter(
             raw_query=raw_query,
             timeout=30,
