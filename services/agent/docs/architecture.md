@@ -90,7 +90,7 @@ sequenceDiagram
 
 ### 2) 生成されるコンテナ名 / ラベル
 - docker / containerd とも `{brand}-{env}-{function}-{id}` を使います。
-- brand は起動時に `StackIdentity` で解決されます（`ESB_BRAND_SLUG` -> `PROJECT_NAME/ENV` -> `CONTAINERS_NETWORK` -> `esb`）。
+- brand は起動時に `StackIdentity` で解決されます（`ESB_BRAND_SLUG` -> `PROJECT_NAME/ENV` -> `CONTAINERS_NETWORK`）。未解決時は起動を継続しません。
 - `owner_id`/`env`/`function` はラベルとして付与され、`List`/Janitor でフィルタに利用されます。
 - ラベルキーは brand で名前空間化されます（例: `esb_function`, `esb_env`, `com.esb.kind`, `com.esb.owner`）。
 - 契約の詳細は `docs/runtime-identity-contract.md` を参照してください。

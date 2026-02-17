@@ -51,26 +51,31 @@ func main() {
 	}
 
 	// Network Configuration
-	networkID := os.Getenv("CONTAINERS_NETWORK")
+	networkID := strings.TrimSpace(os.Getenv(identity.EnvContainersNetwork))
 	if networkID == "" {
-		networkID = config.DefaultNetwork
-		slog.Warn("CONTAINERS_NETWORK not specified, defaulting", "network", networkID)
+		slog.Error("Missing required environment variable", "key", identity.EnvContainersNetwork)
+		os.Exit(1)
 	}
 	slog.Info("Target Network", "network", networkID)
 
-	// Phase 7: Environment Isolation
-	esbEnv := os.Getenv(identity.EnvName)
+	// Environment isolation
+	esbEnv := strings.TrimSpace(os.Getenv(identity.EnvName))
 	if esbEnv == "" {
-		esbEnv = config.DefaultEnv
+		slog.Error("Missing required environment variable", "key", identity.EnvName)
+		os.Exit(1)
 	}
 	slog.Info("ESB Environment", "env", esbEnv)
 
-	resolvedIdentity := identity.ResolveStackIdentityFrom(
+	resolvedIdentity, err := identity.ResolveStackIdentityFrom(
 		strings.TrimSpace(os.Getenv(identity.EnvBrandSlug)),
 		strings.TrimSpace(os.Getenv(identity.EnvProjectName)),
 		esbEnv,
 		networkID,
 	)
+	if err != nil {
+		slog.Error("Failed to resolve stack identity", "error", err)
+		os.Exit(1)
+	}
 	runtime.ApplyIdentity(resolvedIdentity)
 	slog.Info(
 		"Resolved stack identity",
@@ -83,7 +88,6 @@ func main() {
 	// Initialize Runtime
 	var rt runtime.ContainerRuntime
 	var dockerCli *client.Client
-	var err error
 	namespace := resolvedIdentity.RuntimeNamespace()
 
 	runtimeType := os.Getenv("AGENT_RUNTIME")

@@ -15,14 +15,15 @@ brand slug は次の順序で 1 つに解決します。
 1. `ESB_BRAND_SLUG`（明示指定）
 2. `PROJECT_NAME` + `ENV`（末尾 `-<env>` / `_<env>` を除去）
 3. `CONTAINERS_NETWORK`（末尾 `-external` / `_<env>` を除去）
-4. fallback `esb`
+
+上記のいずれでも解決できない場合は hard fail します（fallback しません）。
 
 ## Normalization
 - 小文字化
 - 英数字以外は `-` に変換
 - 連続した区切りは 1 つに圧縮
 - 先頭/末尾の `-` は除去
-- 空になった場合は `esb`
+- 空になった場合は未解決扱い（hard fail）
 
 ## Derived Values
 | 項目 | ルール |
@@ -52,6 +53,8 @@ stack から安定して brand を導出するため、Agent には最低限以�
 - `PROJECT_NAME`
 - `ENV`
 - `CONTAINERS_NETWORK`
+
+上記の入力欠落時は Agent 起動時に失敗します。
 
 ## Source of Truth
 - `services/agent/internal/identity/stack_identity.go`

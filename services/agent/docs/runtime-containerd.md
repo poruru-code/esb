@@ -16,10 +16,10 @@ compose 前提:
 この前提により Agent は `/proc/<pid>/ns/net` を参照し、CNI add/del を実行できます。
 
 前提:
-- `ENV` 未指定時は `default`（`config.DefaultEnv`）
+- `ENV` と `CONTAINERS_NETWORK` は必須（欠落時は起動時 hard fail）
 - namespace は `StackIdentity.RuntimeNamespace()`（brand slug）を使用
 - CNI `.conflist` は Agent 起動時に動的生成される
-- brand は `StackIdentity` で解決（`ESB_BRAND_SLUG` -> `PROJECT_NAME/ENV` -> `CONTAINERS_NETWORK` -> `esb`）
+- brand は `StackIdentity` で解決（`ESB_BRAND_SLUG` -> `PROJECT_NAME/ENV` -> `CONTAINERS_NETWORK`）
 
 ## runtime 分割
 | ファイル | 責務 |

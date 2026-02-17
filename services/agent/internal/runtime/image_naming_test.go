@@ -7,7 +7,9 @@ import (
 	"testing"
 )
 
-func TestResolveFunctionImageNameUsesDefaultPrefix(t *testing.T) {
+func TestResolveFunctionImageNameUsesDerivedPrefix(t *testing.T) {
+	t.Setenv("PROJECT_NAME", "esb-dev")
+	t.Setenv("ENV", "dev")
 	name, err := ResolveFunctionImageName("Lambda_One")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -24,9 +26,25 @@ func TestResolveFunctionImageNameRejectsEmpty(t *testing.T) {
 	}
 }
 
+func TestResolveFunctionImageNameFailsWhenIdentityMissing(t *testing.T) {
+	t.Setenv("ESB_BRAND_SLUG", "")
+	t.Setenv("PROJECT_NAME", "")
+	t.Setenv("ENV", "")
+	t.Setenv("CONTAINERS_NETWORK", "")
+	if _, err := ResolveFunctionImageName("lambda"); err == nil {
+		t.Fatalf("expected error for missing identity")
+	}
+}
+
 func TestResolveFunctionImageTagUsesEnv(t *testing.T) {
+	t.Setenv("PROJECT_NAME", "esb-dev")
+	t.Setenv("ENV", "dev")
 	t.Setenv("ESB_TAG", "v1.2.3")
-	if got := ResolveFunctionImageTag(); got != "v1.2.3" {
+	got, err := ResolveFunctionImageTag()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != "v1.2.3" {
 		t.Fatalf("unexpected tag: %s", got)
 	}
 }
@@ -35,7 +53,11 @@ func TestResolveFunctionImageTagUsesDerivedPrefix(t *testing.T) {
 	t.Setenv("PROJECT_NAME", "acme-dev")
 	t.Setenv("ENV", "dev")
 	t.Setenv("ACME_TAG", "v2.0.0")
-	if got := ResolveFunctionImageTag(); got != "v2.0.0" {
+	got, err := ResolveFunctionImageTag()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != "v2.0.0" {
 		t.Fatalf("unexpected tag: %s", got)
 	}
 }
@@ -45,14 +67,34 @@ func TestResolveFunctionImageTagFallsBackToESBTag(t *testing.T) {
 	t.Setenv("ENV", "dev")
 	t.Setenv("ACME_TAG", "")
 	t.Setenv("ESB_TAG", "legacy")
-	if got := ResolveFunctionImageTag(); got != "legacy" {
+	got, err := ResolveFunctionImageTag()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != "legacy" {
 		t.Fatalf("unexpected tag: %s", got)
 	}
 }
 
 func TestResolveFunctionImageTagDefaultsLatest(t *testing.T) {
+	t.Setenv("PROJECT_NAME", "esb-dev")
+	t.Setenv("ENV", "dev")
 	t.Setenv("ESB_TAG", "")
-	if got := ResolveFunctionImageTag(); got != "latest" {
+	got, err := ResolveFunctionImageTag()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != "latest" {
 		t.Fatalf("unexpected tag: %s", got)
+	}
+}
+
+func TestResolveFunctionImageTagFailsWhenIdentityMissing(t *testing.T) {
+	t.Setenv("ESB_BRAND_SLUG", "")
+	t.Setenv("PROJECT_NAME", "")
+	t.Setenv("ENV", "")
+	t.Setenv("CONTAINERS_NETWORK", "")
+	if _, err := ResolveFunctionImageTag(); err == nil {
+		t.Fatalf("expected error for missing identity")
 	}
 }

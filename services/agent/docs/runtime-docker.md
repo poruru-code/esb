@@ -11,9 +11,8 @@ containerd と違い CNI は使わず、`CONTAINERS_NETWORK` 上の IP を Docke
 
 前提:
 - `services/agent/cmd/agent/main.go` で `client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())` を使用
-- `CONTAINERS_NETWORK` 未指定時は `bridge`（`config.DefaultNetwork`）
-- `ENV` 未指定時は `default`（`config.DefaultEnv`）
-- brand は `StackIdentity` で解決（`ESB_BRAND_SLUG` -> `PROJECT_NAME/ENV` -> `CONTAINERS_NETWORK` -> `esb`）
+- `CONTAINERS_NETWORK` と `ENV` は必須（欠落時は起動時 hard fail）
+- brand は `StackIdentity` で解決（`ESB_BRAND_SLUG` -> `PROJECT_NAME/ENV` -> `CONTAINERS_NETWORK`）
 
 ## runtime 分割
 Docker runtime は単一ファイル実装です（`runtime.go`）。
