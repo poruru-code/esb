@@ -120,8 +120,6 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	if err := applyBuildEnv(request.Env, templatePath, composeProject); err != nil {
 		return err
 	}
-	_ = os.Setenv("META_MODULE_CONTEXT", filepath.Join(repoRoot, "meta"))
-
 	imageLabels := brandingImageLabels(composeProject, request.Env)
 	rootFingerprint, err := resolveRootCAFingerprint()
 	if err != nil {

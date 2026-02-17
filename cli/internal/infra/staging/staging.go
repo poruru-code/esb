@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
-	"github.com/poruru/edge-serverless-box/meta"
+	"github.com/poruru/edge-serverless-box/cli/internal/meta"
 )
 
 // ComposeProjectKey returns a filesystem-safe staging key for the provided

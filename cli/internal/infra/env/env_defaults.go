@@ -13,7 +13,7 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/state"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/envutil"
-	"github.com/poruru/edge-serverless-box/meta"
+	"github.com/poruru/edge-serverless-box/cli/internal/meta"
 )
 
 var errEnvPrefixRequired = errors.New("ENV_PREFIX is required")

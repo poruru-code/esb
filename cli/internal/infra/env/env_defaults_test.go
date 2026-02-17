@@ -13,7 +13,7 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/state"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/envutil"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
-	"github.com/poruru/edge-serverless-box/meta"
+	"github.com/poruru/edge-serverless-box/cli/internal/meta"
 )
 
 func TestApplyProxyDefaultsMergesNoProxyAndSyncsCase(t *testing.T) {

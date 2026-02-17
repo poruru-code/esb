@@ -22,6 +22,11 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/version"
 )
 
+const (
+	repoRequiredExitCode     = 2
+	repoRequiredErrorMessage = "EBS repository root not found from current directory. Run this command inside the EBS repository."
+)
+
 // Dependencies holds all injected dependencies required for CLI command execution.
 // This structure enables dependency injection for testing and allows swapping
 // implementations of various subsystems.
@@ -132,6 +137,10 @@ func Run(args []string, deps Dependencies) int {
 		deps.RepoResolver = config.ResolveRepoRoot
 	}
 
+	if exitCode, blocked := enforceRepoScope(args, deps, out); blocked {
+		return exitCode
+	}
+
 	// Handle no arguments: show current location and help
 	if len(args) == 0 {
 		return runNoArgs(out)
@@ -203,8 +212,7 @@ func commandName(args []string) string {
 			continue
 		}
 		if strings.HasPrefix(arg, "-") {
-			switch arg {
-			case "-e", "--env", "-t", "--template", "--env-file", "-m", "--mode", "-o", "--output", "-p", "--project", "--image-prewarm", "--image-uri", "--image-runtime":
+			if commandFlagExpectsValue(arg) {
 				skipNext = true
 			}
 			continue
@@ -212,6 +220,58 @@ func commandName(args []string) string {
 		return arg
 	}
 	return ""
+}
+
+func commandFlagExpectsValue(arg string) bool {
+	switch arg {
+	case "-e", "--env", "-t", "--template", "--env-file", "-m", "--mode", "-o", "--output", "-p", "--project", "--image-prewarm", "--image-uri", "--image-runtime":
+		return true
+	default:
+		return false
+	}
+}
+
+func enforceRepoScope(args []string, deps Dependencies, out io.Writer) (int, bool) {
+	if !requiresRepoScope(args) {
+		return 0, false
+	}
+	if _, err := deps.RepoResolver(""); err != nil {
+		legacyUI(out).Warn(repoRequiredErrorMessage)
+		return repoRequiredExitCode, true
+	}
+	return 0, false
+}
+
+func requiresRepoScope(args []string) bool {
+	if commandName(args) == "version" {
+		return false
+	}
+	return !isHelpCommand(args)
+}
+
+func isHelpCommand(args []string) bool {
+	skipNext := false
+	for _, arg := range args {
+		if skipNext {
+			skipNext = false
+			continue
+		}
+		if strings.HasPrefix(arg, "-") {
+			switch arg {
+			case "-h", "--help":
+				return true
+			default:
+				if commandFlagExpectsValue(arg) {
+					skipNext = true
+				}
+			}
+			continue
+		}
+		if arg == "help" {
+			return true
+		}
+	}
+	return false
 }
 
 // runNoArgs handles the case when the CLI is invoked without arguments.

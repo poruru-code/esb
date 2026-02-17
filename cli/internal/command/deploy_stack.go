@@ -6,7 +6,6 @@ package command
 import (
 	"context"
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 
@@ -15,7 +14,7 @@ import (
 	runtimecfg "github.com/poruru/edge-serverless-box/cli/internal/domain/runtime"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/interaction"
-	"github.com/poruru/edge-serverless-box/meta"
+	"github.com/poruru/edge-serverless-box/cli/internal/meta"
 )
 
 var deployStackDiscoveryServicePriority = map[string]int{
@@ -78,11 +77,7 @@ func defaultDeployProject(env string) string {
 }
 
 func deployBrandSlug() string {
-	brandName := strings.ToLower(strings.TrimSpace(os.Getenv("CLI_CMD")))
-	if brandName == "" {
-		brandName = meta.Slug
-	}
-	return brandName
+	return meta.Slug
 }
 
 func discoverRunningDeployTargetStacks(factory DockerClientFactory) ([]deployTargetStack, error) {

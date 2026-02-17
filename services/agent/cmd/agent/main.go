@@ -18,10 +18,10 @@ import (
 	"github.com/containerd/go-cni"
 	"github.com/docker/docker/client"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
-	"github.com/poruru/edge-serverless-box/meta"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/api"
 	cni_gen "github.com/poruru/edge-serverless-box/services/agent/internal/cni"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/config"
+	"github.com/poruru/edge-serverless-box/services/agent/internal/identity"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/interceptor"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/logger"
 	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
@@ -59,17 +59,32 @@ func main() {
 	slog.Info("Target Network", "network", networkID)
 
 	// Phase 7: Environment Isolation
-	esbEnv := os.Getenv(meta.EnvVarEnv)
+	esbEnv := os.Getenv(identity.EnvName)
 	if esbEnv == "" {
 		esbEnv = config.DefaultEnv
 	}
 	slog.Info("ESB Environment", "env", esbEnv)
 
+	resolvedIdentity := identity.ResolveStackIdentityFrom(
+		strings.TrimSpace(os.Getenv(identity.EnvBrandSlug)),
+		strings.TrimSpace(os.Getenv(identity.EnvProjectName)),
+		esbEnv,
+		networkID,
+	)
+	runtime.ApplyIdentity(resolvedIdentity)
+	slog.Info(
+		"Resolved stack identity",
+		"brand", resolvedIdentity.BrandSlug,
+		"source", resolvedIdentity.Source,
+		"project", strings.TrimSpace(os.Getenv(identity.EnvProjectName)),
+		"network", networkID,
+	)
+
 	// Initialize Runtime
 	var rt runtime.ContainerRuntime
 	var dockerCli *client.Client
 	var err error
-	namespace := meta.RuntimeNamespace
+	namespace := resolvedIdentity.RuntimeNamespace()
 
 	runtimeType := os.Getenv("AGENT_RUNTIME")
 	if runtimeType == "" {
@@ -100,14 +115,19 @@ func main() {
 
 		cniSubnet := strings.TrimSpace(os.Getenv("CNI_SUBNET"))
 
-		// Dynamically generate CNI configuration based on branding constants
-		if err := cni_gen.GenerateConfig(cniConfDir, cniSubnet); err != nil {
+		// Dynamically generate CNI configuration based on resolved stack identity.
+		if err := cni_gen.GenerateConfig(
+			cniConfDir,
+			cniSubnet,
+			resolvedIdentity.RuntimeCNIName(),
+			resolvedIdentity.RuntimeCNIBridge(),
+		); err != nil {
 			slog.Warn("Failed to generate dynamic CNI config", "error", err)
 		}
 
 		cniConfFile := os.Getenv("CNI_CONF_FILE")
 		if cniConfFile == "" {
-			cniConfFile = fmt.Sprintf("%s/10-%s.conflist", cniConfDir, meta.RuntimeCNIName)
+			cniConfFile = fmt.Sprintf("%s/10-%s.conflist", cniConfDir, resolvedIdentity.RuntimeCNIName())
 		}
 
 		cniBinDir := os.Getenv("CNI_BIN_DIR")
@@ -132,7 +152,13 @@ func main() {
 		}
 
 		// 2. Create Runtime with CNI networking
-		rt = agentContainerd.NewRuntime(wrappedClient, cniPlugin, namespace, esbEnv)
+		rt = agentContainerd.NewRuntime(
+			wrappedClient,
+			cniPlugin,
+			namespace,
+			esbEnv,
+			resolvedIdentity.RuntimeContainerPrefix(),
+		)
 		slog.Info("Runtime initialized", "runtime", "containerd", "namespace", namespace)
 
 	} else {
@@ -145,7 +171,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		rt = docker.NewRuntime(dockerCli, networkID, esbEnv)
+		rt = docker.NewRuntime(dockerCli, networkID, esbEnv, resolvedIdentity.RuntimeContainerPrefix())
 		slog.Info("Runtime initialized", "runtime", "docker")
 
 		ctx := context.Background()
@@ -286,7 +312,7 @@ func grpcServerOptions() ([]grpc.ServerOption, error) {
 	}
 	caPath := strings.TrimSpace(os.Getenv("AGENT_GRPC_CA_CERT_PATH"))
 	if caPath == "" {
-		caPath = meta.RootCACertPath
+		caPath = config.DefaultCACertPath
 	}
 
 	certificate, err := tls.LoadX509KeyPair(certPath, keyPath)

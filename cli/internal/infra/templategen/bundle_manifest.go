@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
-	"github.com/poruru/edge-serverless-box/meta"
+	"github.com/poruru/edge-serverless-box/cli/internal/meta"
 )
 
 // WriteBundleManifest writes bundle/manifest.json for deterministic image bundling.

@@ -29,9 +29,9 @@
 
 ### ビルドオプション (環境変数)
 
-*   `ESB_ENV=<env>` / `${ENV_PREFIX}_ENV`: `esb deploy --env` に渡す環境名を指定します。
-*   `CERT_DIR=<path>`: 証明書の保存先を指定します（デフォルト: `./.<cli_cmd>/certs`）。存在しない場合はエラーになります。
-*   `ESB_OUTPUT_DIR=<path>` / `${ENV_PREFIX}_OUTPUT_DIR`: `esb deploy` の出力ディレクトリ（デフォルト: `.<cli_cmd>`）。
+*   `ESB_ENV=<env>`: `esb deploy --env` に渡す環境名を指定します。
+*   `CERT_DIR=<path>`: 証明書の保存先を指定します（デフォルト: `./.esb/certs`）。存在しない場合はエラーになります。
+*   `ESB_OUTPUT_DIR=<path>`: `esb deploy` の出力ディレクトリ（デフォルト: `.esb`）。
 *   `BUNDLE_MANIFEST_PATH=<path>`: バンドル用マニフェストのパスを明示指定します（複数テンプレートでは使用不可）。
 
 `.env` が存在する場合は DinD イメージに同梱されます。`.env` がない場合は、
@@ -44,9 +44,9 @@
 バンドラーは **マニフェストを唯一の入力** としてイメージを収集します。
 `esb deploy --bundle-manifest` は `bundle/manifest.json` を生成し、
 ビルドスクリプトはこのファイルを読み取って `images.tar` を作成します。
-既定パスは `.<cli_cmd>/<env>/bundle/manifest.json` です。
+既定パスは `.esb/<env>/bundle/manifest.json` です。
 複数テンプレートを指定した場合は、各テンプレートのマニフェストを統合して 1 つにまとめます。
-同一ディレクトリ内の複数テンプレートは `.<cli_cmd>/<template-base>/...` に出力して衝突を避けます。
+同一ディレクトリ内の複数テンプレートは `.esb/<template-base>/...` に出力して衝突を避けます。
 
 ## 実行方法
 

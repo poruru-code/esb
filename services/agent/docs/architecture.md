@@ -89,9 +89,11 @@ sequenceDiagram
 - `container_id` に対する `owner_id` 不一致は `PermissionDenied` として扱われます。
 
 ### 2) 生成されるコンテナ名 / ラベル
-- containerd runtime は `esb-{env}-{function}-{id}` 形式の短い ID を使います。
-- docker runtime は `{brand}-{env}-{function}-{id}`（brand は `meta.Slug`）です。
+- docker / containerd とも `{brand}-{env}-{function}-{id}` を使います。
+- brand は起動時に `StackIdentity` で解決されます（`ESB_BRAND_SLUG` -> `PROJECT_NAME/ENV` -> `CONTAINERS_NETWORK` -> `esb`）。
 - `owner_id`/`env`/`function` はラベルとして付与され、`List`/Janitor でフィルタに利用されます。
+- ラベルキーは brand で名前空間化されます（例: `esb_function`, `esb_env`, `com.esb.kind`, `com.esb.owner`）。
+- 契約の詳細は `docs/runtime-identity-contract.md` を参照してください。
 
 ### 3) DNS 注入（containerd）
 - `resolv.conf` を Agent 側で生成し、ワーカーの `/etc/resolv.conf` に bind-mount します。
@@ -130,6 +132,7 @@ containerd runtime 実装は 1 ファイル集中ではなく、以下に分割�
 - `services/agent/cmd/agent/main.go`
 - `services/agent/internal/api/server.go`
 - `services/agent/internal/runtime/interface.go`
+- `services/agent/internal/identity/stack_identity.go`
 - `services/agent/internal/runtime/containerd/runtime.go`
 - `services/agent/internal/runtime/containerd/ensure.go`
 - `services/agent/internal/runtime/containerd/cni.go`

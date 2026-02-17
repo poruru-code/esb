@@ -14,7 +14,7 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/envutil"
-	"github.com/poruru/edge-serverless-box/meta"
+	"github.com/poruru/edge-serverless-box/cli/internal/meta"
 )
 
 func resolveRootCAPath() (string, error) {

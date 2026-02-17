@@ -10,7 +10,7 @@ import (
 	"sort"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
-	"github.com/poruru/edge-serverless-box/meta"
+	"github.com/poruru/edge-serverless-box/cli/internal/meta"
 )
 
 func normalizeTemplatePath(path string) (string, error) {
