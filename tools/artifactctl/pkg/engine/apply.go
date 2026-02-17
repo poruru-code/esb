@@ -3,6 +3,7 @@ package engine
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"sort"
 	"strings"
@@ -12,6 +13,8 @@ type ApplyRequest struct {
 	ArtifactPath  string
 	OutputDir     string
 	SecretEnvPath string
+	Strict        bool
+	WarningWriter io.Writer
 }
 
 func Apply(req ApplyRequest) error {
@@ -19,10 +22,24 @@ func Apply(req ApplyRequest) error {
 	if err != nil {
 		return err
 	}
+	warnings, err := validateRuntimeMetadata(manifest, req.ArtifactPath, req.Strict)
+	if err != nil {
+		return err
+	}
+	writeWarnings(req.WarningWriter, warnings)
 	if err := validateRequiredSecrets(manifest, req.SecretEnvPath); err != nil {
 		return err
 	}
 	return mergeWithManifest(req.ArtifactPath, req.OutputDir, manifest)
+}
+
+func writeWarnings(w io.Writer, warnings []string) {
+	if w == nil || len(warnings) == 0 {
+		return
+	}
+	for _, warning := range warnings {
+		_, _ = fmt.Fprintf(w, "Warning: %s\n", warning)
+	}
 }
 
 func validateRequiredSecrets(manifest ArtifactManifest, secretEnvPath string) error {

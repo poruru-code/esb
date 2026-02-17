@@ -36,7 +36,8 @@ esb artifact generate \
 esb artifact apply \
   --artifact .esb/artifacts/<project>/<env>/artifact.yml \
   --out /path/to/config-dir \
-  --secret-env /path/to/secrets.env
+  --secret-env /path/to/secrets.env \
+  --strict
 ```
 
 ### Composite flow
@@ -53,7 +54,8 @@ tools/artifactctl validate-id --artifact /path/to/artifact.yml
 tools/artifactctl apply \
   --artifact /path/to/artifact.yml \
   --out /path/to/config-dir \
-  --secret-env /path/to/secrets.env
+  --secret-env /path/to/secrets.env \
+  --strict
 
 docker compose --profile deploy run --rm --no-deps provisioner
 ```

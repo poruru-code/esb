@@ -51,6 +51,8 @@ func runArtifactApply(cli CLI, _ Dependencies, out io.Writer) int {
 		ArtifactPath:  artifactPath,
 		OutputDir:     outputDir,
 		SecretEnvPath: strings.TrimSpace(args.SecretEnv),
+		Strict:        args.Strict,
+		WarningWriter: out,
 	}
 	if err := engine.Apply(req); err != nil {
 		return exitWithError(out, err)

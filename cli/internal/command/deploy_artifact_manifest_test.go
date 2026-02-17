@@ -1,6 +1,7 @@
 package command
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -35,5 +36,65 @@ func TestResolveDeployArtifactManifestPathPreventsTraversalByDotSegments(t *test
 	want := filepath.Join(projectDir, meta.HomeDir, "artifacts", "default", "default", artifactManifestFileName)
 	if got != want {
 		t.Fatalf("resolveDeployArtifactManifestPath() = %q, want %q", got, want)
+	}
+}
+
+func TestResolveRuntimeMetaIncludesDigestsAndVersions(t *testing.T) {
+	projectDir := t.TempDir()
+	writeTestRuntimeAssets(t, projectDir)
+
+	meta, err := resolveRuntimeMeta(projectDir)
+	if err != nil {
+		t.Fatalf("resolveRuntimeMeta() error = %v", err)
+	}
+	if meta.Hooks.APIVersion != runtimeHooksAPIVersion {
+		t.Fatalf("hooks api_version = %q, want %q", meta.Hooks.APIVersion, runtimeHooksAPIVersion)
+	}
+	if meta.Renderer.Name != templateRendererName {
+		t.Fatalf("renderer name = %q, want %q", meta.Renderer.Name, templateRendererName)
+	}
+	if meta.Renderer.APIVersion != templateRendererAPIVersion {
+		t.Fatalf("renderer api_version = %q, want %q", meta.Renderer.APIVersion, templateRendererAPIVersion)
+	}
+	if meta.Hooks.PythonSitecustomizeDigest == "" {
+		t.Fatal("python sitecustomize digest must not be empty")
+	}
+	if meta.Hooks.JavaAgentDigest == "" {
+		t.Fatal("java agent digest must not be empty")
+	}
+	if meta.Hooks.JavaWrapperDigest == "" {
+		t.Fatal("java wrapper digest must not be empty")
+	}
+	if meta.Renderer.TemplateDigest == "" {
+		t.Fatal("template digest must not be empty")
+	}
+}
+
+func TestResolveRuntimeMetaAllowsMissingJavaJars(t *testing.T) {
+	projectDir := t.TempDir()
+	writeTestRuntimeAssets(t, projectDir)
+
+	if err := os.Remove(filepath.Join(projectDir, "runtime-hooks", "java", "agent", "lambda-java-agent.jar")); err != nil {
+		t.Fatalf("remove java agent jar: %v", err)
+	}
+	if err := os.Remove(filepath.Join(projectDir, "runtime-hooks", "java", "wrapper", "lambda-java-wrapper.jar")); err != nil {
+		t.Fatalf("remove java wrapper jar: %v", err)
+	}
+
+	meta, err := resolveRuntimeMeta(projectDir)
+	if err != nil {
+		t.Fatalf("resolveRuntimeMeta() error = %v", err)
+	}
+	if meta.Hooks.PythonSitecustomizeDigest == "" {
+		t.Fatal("python sitecustomize digest must not be empty")
+	}
+	if meta.Renderer.TemplateDigest == "" {
+		t.Fatal("template digest must not be empty")
+	}
+	if meta.Hooks.JavaAgentDigest != "" {
+		t.Fatalf("java agent digest must be empty when jar is missing: %q", meta.Hooks.JavaAgentDigest)
+	}
+	if meta.Hooks.JavaWrapperDigest != "" {
+		t.Fatalf("java wrapper digest must be empty when jar is missing: %q", meta.Hooks.JavaWrapperDigest)
 	}
 }

@@ -193,6 +193,7 @@ func TestDeployCommandRunBuildsAllTemplatesAndRunsProvisionerOnlyOnLast(t *testi
 	if err := os.WriteFile(templateB, []byte("Resources: {}"), 0o600); err != nil {
 		t.Fatalf("write template B: %v", err)
 	}
+	writeTestRuntimeAssets(t, tmp)
 
 	builder := &deployEntryBuilder{}
 	provisioner := &deployEntryProvisioner{}
@@ -260,6 +261,26 @@ func TestDeployCommandRunBuildsAllTemplatesAndRunsProvisionerOnlyOnLast(t *testi
 	}
 	if manifest.Artifacts[0].ArtifactRoot == "" || manifest.Artifacts[1].ArtifactRoot == "" {
 		t.Fatalf("artifact_root must not be empty: %#v", manifest.Artifacts)
+	}
+}
+
+func writeTestRuntimeAssets(t *testing.T, root string) {
+	t.Helper()
+	files := map[string]string{
+		filepath.Join("runtime-hooks", "python", "sitecustomize", "site-packages", "sitecustomize.py"): "print('ok')\n",
+		filepath.Join("runtime-hooks", "java", "agent", "lambda-java-agent.jar"):                       "jar-agent",
+		filepath.Join("runtime-hooks", "java", "wrapper", "lambda-java-wrapper.jar"):                   "jar-wrapper",
+		filepath.Join("cli", "assets", "runtime-templates", "java", "templates", "dockerfile.tmpl"):    "FROM eclipse-temurin:21\n",
+		filepath.Join("cli", "assets", "runtime-templates", "python", "templates", "dockerfile.tmpl"):  "FROM python:3.12\n",
+	}
+	for rel, content := range files {
+		path := filepath.Join(root, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("mkdir %s: %v", path, err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatalf("write %s: %v", path, err)
+		}
 	}
 }
 

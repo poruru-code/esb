@@ -43,6 +43,7 @@
 - [x] (2026-02-18 07:05Z) `uv run e2e/run_tests.py --parallel --verbose` を実行し、`e2e-docker` / `e2e-docker-artifact` / `e2e-containerd` の全 matrix entry が PASS することを確認した。Milestone 4 を完了とした。
 - [x] (2026-02-18 08:10Z) Phase F の cleanup を実施した。`artifact_descriptor` 系を削除し、`artifact.yml` 経路へ一本化した。併せて `cli/internal/command/branding.go` と専用テストを削除し、CLI 名称固定ロジックを `app.go` へ集約した。
 - [x] (2026-02-18 08:40Z) 並列 E2E 時の Java runtime jar 競合を解消した。staging への jar 配置を hard link から copy に変更し、`runtime-hooks/java/*` 更新は一時ディレクトリ経由の atomic `mv` に変更した。`uv run e2e/run_tests.py --parallel --verbose` の再実行で全 matrix PASS を確認した。
+- [x] (2026-02-18 09:30Z) Phase E 向けに `artifact apply --strict` を実装した。`tools/artifactctl`/`esb artifact apply` 両方で strict フラグを受け付け、`runtime_meta` の `api_version` 互換判定（major hard-fail、minor strict時 hard-fail）と digest 検証（strict時 hard-fail）を追加した。併せて `esb deploy` 生成 manifest に runtime hooks/template digest を出力するよう更新した。
 - [x] Milestone 4: CLI 非依存 E2E を追加し、回帰を防止する。
 
 ## Surprises & Discoveries
@@ -526,3 +527,4 @@ CLI 名称固定化のため `command` 層から `CLI_CMD` 依存を撤去しま
 2026-02-17: Phase 4 完了として `meta.*` 記述を agent ドキュメントから除去し、`docs/runtime-identity-contract.md` を追加。実装済み StackIdentity 契約に文書を一致させた。
 2026-02-17: Phase 5 の初手として `docs/deploy-artifact-contract.md` と manifest I/O 基盤（validate/read/write/resolve）を追加し、artifact contract 実装の足場を作成した。
 2026-02-18: あるべき論レビューを反映し、実装順序を `contract freeze -> engine -> adapters -> hardening -> e2e gate -> cleanup` に再編。Go 実装単一正本、フォールバック最小化、full E2E 必須化を受け入れ条件へ昇格した。
+2026-02-18: `artifact apply --strict` を実装し、`runtime_meta.api_version` と digest の検証を engine 正本へ追加。`esb deploy` 生成 manifest は runtime hooks/template digest を保持するよう更新した。

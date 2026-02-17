@@ -98,6 +98,7 @@ type (
 		Artifact  string `name:"artifact" help:"Path to artifact manifest (artifact.yml)"`
 		OutputDir string `name:"out" help:"Output config directory"`
 		SecretEnv string `name:"secret-env" help:"Path to secret env file"`
+		Strict    bool   `name:"strict" help:"Enable strict runtime metadata validation"`
 	}
 
 	VersionCmd struct{}
