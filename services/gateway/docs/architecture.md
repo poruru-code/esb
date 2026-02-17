@@ -147,6 +147,7 @@ sequenceDiagram
 - `PoolManager` は idle worker を優先再利用し、容量不足時のみ Agent 経由で新規作成します。
 - 起動時に `cleanup_all_containers()` を呼び、旧状態を明示的に掃除します。
 - shutdown では `shutdown_all()` で pool を drain し、残存コンテナを削除します。
+- Invoke API 経路では `FunctionName`（関数名/ARN/修飾子付き）を Gateway 境界で正規化してから処理します。
 - trace middleware が `X-Amzn-Trace-Id` と `x-amzn-RequestId` を付与します。
 - `AGENT_INVOKE_PROXY` により direct invoke と agent proxy invoke を切り替えます。
 
