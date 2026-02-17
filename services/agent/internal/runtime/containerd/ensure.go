@@ -93,7 +93,10 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 		if err != nil {
 			return nil, err
 		}
-		tag := runtime.ResolveFunctionImageTag()
+		tag, err := runtime.ResolveFunctionImageTag()
+		if err != nil {
+			return nil, err
+		}
 		if registry != "" {
 			image = fmt.Sprintf("%s/%s:%s", registry, baseImage, tag)
 		} else {

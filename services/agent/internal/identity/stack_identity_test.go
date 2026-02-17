@@ -11,6 +11,7 @@ func TestResolveStackIdentityFrom(t *testing.T) {
 		containersNetwork string
 		wantBrand         string
 		wantSource        string
+		wantErr           bool
 	}{
 		{
 			name:       "explicit brand slug wins",
@@ -33,21 +34,28 @@ func TestResolveStackIdentityFrom(t *testing.T) {
 			wantSource:        EnvContainersNetwork,
 		},
 		{
-			name:       "fallback default",
-			wantBrand:  "esb",
-			wantSource: "fallback",
+			name:    "missing identity inputs fails",
+			wantErr: true,
 		},
 		{
-			name:              "default bridge network is ignored",
+			name:              "default bridge network is ignored and fails",
 			containersNetwork: "bridge",
-			wantBrand:         "esb",
-			wantSource:        "fallback",
+			wantErr:           true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ResolveStackIdentityFrom(tt.brandSlug, tt.projectName, tt.envName, tt.containersNetwork)
+			got, err := ResolveStackIdentityFrom(tt.brandSlug, tt.projectName, tt.envName, tt.containersNetwork)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error but got none")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
 			if got.BrandSlug != tt.wantBrand {
 				t.Fatalf("brand = %q, want %q", got.BrandSlug, tt.wantBrand)
 			}

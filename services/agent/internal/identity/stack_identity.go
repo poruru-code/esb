@@ -4,6 +4,7 @@
 package identity
 
 import (
+	"fmt"
 	"strings"
 )
 
@@ -13,8 +14,7 @@ const (
 	EnvName              = "ENV"
 	EnvContainersNetwork = "CONTAINERS_NETWORK"
 
-	defaultBrandSlug = "esb"
-	fixedCNIBridge   = "esb0"
+	fixedCNIBridge = "esb0"
 )
 
 type StackIdentity struct {
@@ -22,17 +22,23 @@ type StackIdentity struct {
 	Source    string
 }
 
-func ResolveStackIdentityFrom(brandSlug, projectName, envName, containersNetwork string) StackIdentity {
+func ResolveStackIdentityFrom(brandSlug, projectName, envName, containersNetwork string) (StackIdentity, error) {
 	if slug := normalizeSlug(brandSlug); slug != "" {
-		return StackIdentity{BrandSlug: slug, Source: EnvBrandSlug}
+		return StackIdentity{BrandSlug: slug, Source: EnvBrandSlug}, nil
 	}
 	if slug := deriveBrandFromProject(projectName, envName); slug != "" {
-		return StackIdentity{BrandSlug: slug, Source: EnvProjectName}
+		return StackIdentity{BrandSlug: slug, Source: EnvProjectName}, nil
 	}
 	if slug := deriveBrandFromNetwork(containersNetwork, envName); slug != "" {
-		return StackIdentity{BrandSlug: slug, Source: EnvContainersNetwork}
+		return StackIdentity{BrandSlug: slug, Source: EnvContainersNetwork}, nil
 	}
-	return StackIdentity{BrandSlug: defaultBrandSlug, Source: "fallback"}
+	return StackIdentity{}, fmt.Errorf(
+		"stack identity is not resolvable: set %s, or provide %s/%s, or provide %s",
+		EnvBrandSlug,
+		EnvProjectName,
+		EnvName,
+		EnvContainersNetwork,
+	)
 }
 
 func (id StackIdentity) RuntimeNamespace() string {

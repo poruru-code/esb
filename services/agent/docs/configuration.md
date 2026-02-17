@@ -11,9 +11,9 @@ Why: Centralize tunables used by Agent and its gRPC server.
 | `AGENT_RUNTIME` | `docker` | 実行ランタイム（`docker` / `containerd`） |
 | `PORT` | `50051` | gRPC リッスンポート |
 | `AGENT_METRICS_PORT` | `9091` | Prometheus `/metrics` の公開ポート |
-| `ENV` | `default` | 環境名（コンテナ名・ラベルに使用） |
+| `ENV` | (必須) | 環境名（コンテナ名・ラベルに使用） |
 | `PROJECT_NAME` | (空) | Compose プロジェクト名（例: `esb-dev`）。brand 導出に使用 |
-| `CONTAINERS_NETWORK` | `bridge` | 接続先ネットワーク。brand 導出の fallback にも使用 |
+| `CONTAINERS_NETWORK` | (必須) | 接続先ネットワーク。brand 導出にも使用 |
 | `ESB_BRAND_SLUG` | (空) | brand を明示指定。指定時は最優先で使用 |
 
 ## StackIdentity 解決順
@@ -22,7 +22,8 @@ Agent は起動時に brand slug を次の順で 1 回だけ解決し、runtime 
 1. `ESB_BRAND_SLUG`
 2. `PROJECT_NAME` と `ENV`（末尾 `-<env>` / `_<env>` を除去して導出）
 3. `CONTAINERS_NETWORK`（末尾 `-external` / `_<env>` を除去して導出）
-4. fallback `esb`
+
+上記いずれでも解決できない場合は Agent 起動を hard fail します。
 
 ## gRPC / TLS
 | 変数 | デフォルト | 説明 |

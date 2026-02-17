@@ -11,13 +11,21 @@ import (
 	"github.com/poruru/edge-serverless-box/services/agent/internal/identity"
 )
 
-func resolveImagePrefix() string {
+func resolveImageIdentity() (identity.StackIdentity, error) {
 	return identity.ResolveStackIdentityFrom(
 		strings.TrimSpace(os.Getenv(identity.EnvBrandSlug)),
 		strings.TrimSpace(os.Getenv(identity.EnvProjectName)),
 		strings.TrimSpace(os.Getenv(identity.EnvName)),
 		strings.TrimSpace(os.Getenv(identity.EnvContainersNetwork)),
-	).ImagePrefix()
+	)
+}
+
+func resolveImagePrefix() (string, error) {
+	id, err := resolveImageIdentity()
+	if err != nil {
+		return "", err
+	}
+	return id.ImagePrefix(), nil
 }
 
 func imageSafeName(name string) (string, error) {
@@ -60,24 +68,26 @@ func ResolveFunctionImageName(functionName string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("%s-%s", resolveImagePrefix(), safeName), nil
+	prefix, err := resolveImagePrefix()
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s-%s", prefix, safeName), nil
 }
 
-func ResolveFunctionImageTag() string {
-	id := identity.ResolveStackIdentityFrom(
-		strings.TrimSpace(os.Getenv(identity.EnvBrandSlug)),
-		strings.TrimSpace(os.Getenv(identity.EnvProjectName)),
-		strings.TrimSpace(os.Getenv(identity.EnvName)),
-		strings.TrimSpace(os.Getenv(identity.EnvContainersNetwork)),
-	)
+func ResolveFunctionImageTag() (string, error) {
+	id, err := resolveImageIdentity()
+	if err != nil {
+		return "", err
+	}
 	key := id.EnvPrefix() + "_TAG"
 	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
-		return value
+		return value, nil
 	}
 	if key != "ESB_TAG" {
 		if value := strings.TrimSpace(os.Getenv("ESB_TAG")); value != "" {
-			return value
+			return value, nil
 		}
 	}
-	return "latest"
+	return "latest", nil
 }

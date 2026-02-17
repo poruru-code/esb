@@ -105,6 +105,8 @@ func TestRuntime_Ensure(t *testing.T) {
 }
 
 func TestRuntime_Ensure_AlwaysCreatesNew(t *testing.T) {
+	t.Setenv("PROJECT_NAME", "esb-test-env")
+	t.Setenv("ENV", "test-env")
 	mockClient := new(MockDockerClient)
 	rt := NewRuntime(mockClient, "esb-net", "test-env", "esb")
 
