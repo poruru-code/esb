@@ -104,7 +104,7 @@ func sanitizePathSegment(value string) string {
 	trimmed = strings.ReplaceAll(trimmed, "/", "-")
 	trimmed = strings.ReplaceAll(trimmed, "\\", "-")
 	trimmed = strings.Trim(trimmed, " ")
-	if trimmed == "" {
+	if trimmed == "" || trimmed == "." || trimmed == ".." {
 		return "default"
 	}
 	return trimmed

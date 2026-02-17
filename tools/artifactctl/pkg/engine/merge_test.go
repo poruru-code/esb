@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -161,6 +162,79 @@ func TestApply_ValidatesRequiredSecretEnv(t *testing.T) {
 	}
 	if err := Apply(ApplyRequest{ArtifactPath: manifestPath, OutputDir: outDir, SecretEnvPath: secretEnv}); err != nil {
 		t.Fatalf("Apply() error = %v", err)
+	}
+}
+
+func TestWithOutputDirLockSerializesConcurrentCalls(t *testing.T) {
+	outputDir := t.TempDir()
+	origWait := mergeLockWaitTimeout
+	origPoll := mergeLockPollInterval
+	mergeLockWaitTimeout = 3 * time.Second
+	mergeLockPollInterval = 10 * time.Millisecond
+	t.Cleanup(func() {
+		mergeLockWaitTimeout = origWait
+		mergeLockPollInterval = origPoll
+	})
+
+	firstStarted := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	firstErrCh := make(chan error, 1)
+	go func() {
+		firstErrCh <- withOutputDirLock(outputDir, func() error {
+			close(firstStarted)
+			<-releaseFirst
+			return nil
+		})
+	}()
+	<-firstStarted
+
+	secondErrCh := make(chan error, 1)
+	secondDone := make(chan struct{})
+	start := time.Now()
+	go func() {
+		secondErrCh <- withOutputDirLock(outputDir, func() error { return nil })
+		close(secondDone)
+	}()
+
+	time.Sleep(80 * time.Millisecond)
+	select {
+	case <-secondDone:
+		t.Fatal("second lock call finished before first released")
+	default:
+	}
+
+	close(releaseFirst)
+
+	if err := <-firstErrCh; err != nil {
+		t.Fatalf("first lock call error: %v", err)
+	}
+	if err := <-secondErrCh; err != nil {
+		t.Fatalf("second lock call error: %v", err)
+	}
+	if elapsed := time.Since(start); elapsed < 70*time.Millisecond {
+		t.Fatalf("expected second call to wait for lock, elapsed=%s", elapsed)
+	}
+}
+
+func TestWithOutputDirLockTimesOutWhenLockIsHeld(t *testing.T) {
+	outputDir := t.TempDir()
+	lockPath := filepath.Join(outputDir, mergeLockFileName)
+	if err := os.WriteFile(lockPath, []byte("held\n"), 0o600); err != nil {
+		t.Fatalf("create lock file: %v", err)
+	}
+
+	origWait := mergeLockWaitTimeout
+	origPoll := mergeLockPollInterval
+	mergeLockWaitTimeout = 40 * time.Millisecond
+	mergeLockPollInterval = 10 * time.Millisecond
+	t.Cleanup(func() {
+		mergeLockWaitTimeout = origWait
+		mergeLockPollInterval = origPoll
+	})
+
+	err := withOutputDirLock(outputDir, func() error { return nil })
+	if err == nil {
+		t.Fatal("expected timeout error when lock is held")
 	}
 }
 

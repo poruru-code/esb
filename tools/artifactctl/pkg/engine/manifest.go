@@ -75,8 +75,12 @@ func ValidateIDs(path string) error {
 }
 
 func (d ArtifactManifest) Validate() error {
-	if strings.TrimSpace(d.SchemaVersion) == "" {
+	schemaVersion := strings.TrimSpace(d.SchemaVersion)
+	if schemaVersion == "" {
 		return fmt.Errorf("schema_version is required")
+	}
+	if schemaVersion != ArtifactSchemaVersionV1 {
+		return fmt.Errorf("unsupported schema_version: %q (supported: %q)", schemaVersion, ArtifactSchemaVersionV1)
 	}
 	if strings.TrimSpace(d.Project) == "" {
 		return fmt.Errorf("project is required")
@@ -177,7 +181,6 @@ func ReadArtifactManifest(path string) (ArtifactManifest, error) {
 		return ArtifactManifest{}, err
 	}
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
-	decoder.KnownFields(true)
 
 	var manifest ArtifactManifest
 	if err := decoder.Decode(&manifest); err != nil {
