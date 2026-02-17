@@ -83,3 +83,19 @@ def test_parse_lambda_response_logs_warning_on_invalid_base64_body():
     mock_logger.warning.assert_called_once()
     assert result["status_code"] == 200
     assert result["content"] == "%%%not-base64%%%"
+
+
+def test_parse_lambda_response_does_not_decode_when_flag_is_string_false():
+    response_data = {
+        "statusCode": 200,
+        "headers": {"Content-Type": "application/json"},
+        "body": '{"ok": true}',
+        "isBase64Encoded": "false",
+    }
+    mock_response = httpx.Response(200, json=response_data)
+
+    result = parse_lambda_response(mock_response)
+
+    assert result["status_code"] == 200
+    assert result["content"] == {"ok": True}
+    assert "raw_content" not in result

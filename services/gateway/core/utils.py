@@ -76,7 +76,9 @@ def parse_lambda_response(
             if not isinstance(response_multi_headers, dict):
                 response_multi_headers = {}
             response_body = response_data.get("body", "")
-            is_base64_encoded = bool(response_data.get("isBase64Encoded"))
+            # Decode only when the contract value is explicitly boolean true.
+            # Avoid truthy coercion (e.g. "false" -> True) from loosely typed runtimes.
+            is_base64_encoded = response_data.get("isBase64Encoded") is True
 
             normalized_multi_headers: Dict[str, list[str]] = {}
             for key, values in response_multi_headers.items():
