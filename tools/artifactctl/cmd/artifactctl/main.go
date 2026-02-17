@@ -58,6 +58,7 @@ func runApply(args []string) {
 	artifact := fs.String("artifact", "", "Path to artifact.yml")
 	out := fs.String("out", "", "Output CONFIG_DIR")
 	secretEnv := fs.String("secret-env", "", "Path to secret env file")
+	strict := fs.Bool("strict", false, "Enable strict runtime metadata validation")
 	_ = fs.Parse(args)
 	if *artifact == "" {
 		exitf("--artifact is required")
@@ -69,6 +70,8 @@ func runApply(args []string) {
 		ArtifactPath:  *artifact,
 		OutputDir:     *out,
 		SecretEnvPath: *secretEnv,
+		Strict:        *strict,
+		WarningWriter: os.Stderr,
 	}
 	if err := engine.Apply(req); err != nil {
 		exitf("apply failed: %v", err)

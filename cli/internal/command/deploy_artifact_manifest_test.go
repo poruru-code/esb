@@ -37,3 +37,36 @@ func TestResolveDeployArtifactManifestPathPreventsTraversalByDotSegments(t *test
 		t.Fatalf("resolveDeployArtifactManifestPath() = %q, want %q", got, want)
 	}
 }
+
+func TestResolveRuntimeMetaIncludesDigestsAndVersions(t *testing.T) {
+	projectDir, err := filepath.Abs(filepath.Join("..", "..", ".."))
+	if err != nil {
+		t.Fatalf("resolve project dir: %v", err)
+	}
+
+	meta, err := resolveRuntimeMeta(projectDir)
+	if err != nil {
+		t.Fatalf("resolveRuntimeMeta() error = %v", err)
+	}
+	if meta.Hooks.APIVersion != runtimeHooksAPIVersion {
+		t.Fatalf("hooks api_version = %q, want %q", meta.Hooks.APIVersion, runtimeHooksAPIVersion)
+	}
+	if meta.Renderer.Name != templateRendererName {
+		t.Fatalf("renderer name = %q, want %q", meta.Renderer.Name, templateRendererName)
+	}
+	if meta.Renderer.APIVersion != templateRendererAPIVersion {
+		t.Fatalf("renderer api_version = %q, want %q", meta.Renderer.APIVersion, templateRendererAPIVersion)
+	}
+	if meta.Hooks.PythonSitecustomizeDigest == "" {
+		t.Fatal("python sitecustomize digest must not be empty")
+	}
+	if meta.Hooks.JavaAgentDigest == "" {
+		t.Fatal("java agent digest must not be empty")
+	}
+	if meta.Hooks.JavaWrapperDigest == "" {
+		t.Fatal("java wrapper digest must not be empty")
+	}
+	if meta.Renderer.TemplateDigest == "" {
+		t.Fatal("template digest must not be empty")
+	}
+}

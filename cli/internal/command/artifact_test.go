@@ -113,6 +113,54 @@ func TestRunArtifactApplySuccess(t *testing.T) {
 	}
 }
 
+func TestRunArtifactApplyStrictFailsOnRuntimeMetaMismatch(t *testing.T) {
+	root := t.TempDir()
+	artifactRoot := filepath.Join(root, "a")
+	writeYAML(t, filepath.Join(artifactRoot, "config", "functions.yml"), "functions: {}\n")
+	writeYAML(t, filepath.Join(artifactRoot, "config", "routing.yml"), "routes: []\n")
+
+	manifest := engine.ArtifactManifest{
+		SchemaVersion: engine.ArtifactSchemaVersionV1,
+		Project:       "esb-dev",
+		Env:           "dev",
+		Mode:          "docker",
+		Artifacts: []engine.ArtifactEntry{
+			{
+				ArtifactRoot:     "../a",
+				RuntimeConfigDir: "config",
+				SourceTemplate: engine.ArtifactSourceTemplate{
+					Path:   "/tmp/template.yaml",
+					SHA256: "sha",
+				},
+				RuntimeMeta: engine.ArtifactRuntimeMeta{
+					Hooks: engine.RuntimeHooksMeta{
+						APIVersion: "1.1",
+					},
+				},
+			},
+		},
+	}
+	manifest.Artifacts[0].ID = engine.ComputeArtifactID("/tmp/template.yaml", nil, "sha")
+	manifestPath := filepath.Join(root, "manifest", "artifact.yml")
+	if err := engine.WriteArtifactManifest(manifestPath, manifest); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	outDir := filepath.Join(root, "out")
+	var out bytes.Buffer
+	exitCode := runArtifactApply(
+		CLI{Artifact: ArtifactCmd{Apply: ArtifactApplyCmd{Artifact: manifestPath, OutputDir: outDir, Strict: true}}},
+		Dependencies{},
+		&out,
+	)
+	if exitCode == 0 {
+		t.Fatalf("expected non-zero exit code for strict mismatch, output=%q", out.String())
+	}
+	if !strings.Contains(out.String(), "minor mismatch") {
+		t.Fatalf("expected minor mismatch error, got %q", out.String())
+	}
+}
+
 func writeYAML(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

@@ -7,8 +7,10 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -20,10 +22,20 @@ import (
 
 const artifactManifestFileName = "artifact.yml"
 
+const (
+	runtimeHooksAPIVersion     = "1.0"
+	templateRendererName       = "esb-cli-embedded-templates"
+	templateRendererAPIVersion = "1.0"
+)
+
 func writeDeployArtifactManifest(inputs deployInputs, imagePrewarm string, bundleEnabled bool) (string, error) {
 	manifestPath := resolveDeployArtifactManifestPath(inputs.ProjectDir, inputs.Project, inputs.Env)
 	manifestDir := filepath.Dir(manifestPath)
 	entries := make([]deploy.ArtifactEntry, 0, len(inputs.Templates))
+	runtimeMeta, err := resolveRuntimeMeta(inputs.ProjectDir)
+	if err != nil {
+		return "", err
+	}
 
 	for _, tpl := range inputs.Templates {
 		artifactRootAbs, err := resolveTemplateArtifactRoot(tpl.TemplatePath, tpl.OutputDir, inputs.Env)
@@ -57,12 +69,7 @@ func writeDeployArtifactManifest(inputs deployInputs, imagePrewarm string, bundl
 			BundleManifest:   bundleManifest,
 			ImagePrewarm:     imagePrewarm,
 			SourceTemplate:   source,
-			RuntimeMeta: deploy.ArtifactRuntimeMeta{
-				Renderer: deploy.RendererMeta{
-					Name:       "esb-cli-embedded-templates",
-					APIVersion: "1.0",
-				},
-			},
+			RuntimeMeta:      runtimeMeta,
 		}
 		entries = append(entries, entry)
 	}
@@ -83,6 +90,38 @@ func writeDeployArtifactManifest(inputs deployInputs, imagePrewarm string, bundl
 		return "", err
 	}
 	return manifestPath, nil
+}
+
+func resolveRuntimeMeta(projectDir string) (deploy.ArtifactRuntimeMeta, error) {
+	pythonSitecustomizeDigest, err := fileSHA256(filepath.Join(projectDir, "runtime-hooks", "python", "sitecustomize", "site-packages", "sitecustomize.py"))
+	if err != nil {
+		return deploy.ArtifactRuntimeMeta{}, fmt.Errorf("hash runtime hook python sitecustomize: %w", err)
+	}
+	javaAgentDigest, err := fileSHA256(filepath.Join(projectDir, "runtime-hooks", "java", "agent", "lambda-java-agent.jar"))
+	if err != nil {
+		return deploy.ArtifactRuntimeMeta{}, fmt.Errorf("hash runtime hook java agent: %w", err)
+	}
+	javaWrapperDigest, err := fileSHA256(filepath.Join(projectDir, "runtime-hooks", "java", "wrapper", "lambda-java-wrapper.jar"))
+	if err != nil {
+		return deploy.ArtifactRuntimeMeta{}, fmt.Errorf("hash runtime hook java wrapper: %w", err)
+	}
+	templateDigest, err := directoryDigest(filepath.Join(projectDir, "cli", "assets", "runtime-templates"))
+	if err != nil {
+		return deploy.ArtifactRuntimeMeta{}, fmt.Errorf("hash runtime templates: %w", err)
+	}
+	return deploy.ArtifactRuntimeMeta{
+		Hooks: deploy.RuntimeHooksMeta{
+			APIVersion:                runtimeHooksAPIVersion,
+			PythonSitecustomizeDigest: pythonSitecustomizeDigest,
+			JavaAgentDigest:           javaAgentDigest,
+			JavaWrapperDigest:         javaWrapperDigest,
+		},
+		Renderer: deploy.RendererMeta{
+			Name:           templateRendererName,
+			APIVersion:     templateRendererAPIVersion,
+			TemplateDigest: templateDigest,
+		},
+	}, nil
 }
 
 func resolveDeployArtifactManifestPath(projectDir, project, env string) string {
@@ -154,4 +193,47 @@ func fileSHA256(path string) (string, error) {
 	}
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:]), nil
+}
+
+func directoryDigest(root string) (string, error) {
+	entries := make([]string, 0)
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if d.IsDir() {
+			return nil
+		}
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		if !info.Mode().IsRegular() {
+			return nil
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		digest, err := fileSHA256(path)
+		if err != nil {
+			return err
+		}
+		entries = append(entries, filepath.ToSlash(rel)+":"+digest)
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	if len(entries) == 0 {
+		return "", fmt.Errorf("no files found under %s", root)
+	}
+	sort.Strings(entries)
+
+	h := sha256.New()
+	for _, entry := range entries {
+		_, _ = h.Write([]byte(entry))
+		_, _ = h.Write([]byte{'\n'})
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
