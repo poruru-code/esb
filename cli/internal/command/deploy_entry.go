@@ -194,13 +194,15 @@ func (c *deployCommand) Run(inputs deployInputs, flags DeployCmd) error {
 	if c.workflow.dockerClient != nil {
 		workflow.DockerClient = c.workflow.dockerClient
 	}
+
+	// Generate phase: build all templates and stage merged runtime-config.
 	templateCount := len(inputs.Templates)
 	for idx, tpl := range inputs.Templates {
-		buildOnly := flags.BuildOnly || (templateCount > 1 && idx < templateCount-1)
+		buildOnly := true
 		if c.ui != nil {
-			title := "Deploy plan"
+			title := "Generate plan"
 			if templateCount > 1 {
-				title = fmt.Sprintf("Deploy plan (%d/%d)", idx+1, templateCount)
+				title = fmt.Sprintf("Generate plan (%d/%d)", idx+1, templateCount)
 			}
 			outputSummary := domaincfg.ResolveOutputSummary(tpl.TemplatePath, tpl.OutputDir, inputs.Env)
 			composeFiles := "auto"
@@ -249,6 +251,49 @@ func (c *deployCommand) Run(inputs deployInputs, flags DeployCmd) error {
 		if err := workflow.Run(request); err != nil {
 			return fmt.Errorf("deploy workflow (%s): %w", tpl.TemplatePath, err)
 		}
+	}
+
+	// Materialize strict artifact manifest after all generate steps.
+	manifestPath, err := writeDeployArtifactManifest(
+		inputs,
+		imagePrewarm,
+		flags.Bundle,
+	)
+	if err != nil {
+		return fmt.Errorf("write artifact manifest: %w", err)
+	}
+	if c.ui != nil {
+		c.ui.Info(fmt.Sprintf("Artifact manifest: %s", manifestPath))
+	}
+	if flags.BuildOnly {
+		return nil
+	}
+
+	// Apply phase: no build, only artifact-driven apply + provisioner.
+	applyTemplate := inputs.Templates[0]
+	applyCtx := state.Context{
+		ProjectDir:     inputs.ProjectDir,
+		TemplatePath:   applyTemplate.TemplatePath,
+		OutputDir:      applyTemplate.OutputDir,
+		Env:            inputs.Env,
+		Mode:           inputs.Mode,
+		ComposeProject: inputs.Project,
+	}
+	applyReq := deploy.Request{
+		Context:      applyCtx,
+		Env:          inputs.Env,
+		Mode:         inputs.Mode,
+		TemplatePath: applyTemplate.TemplatePath,
+		ArtifactPath: manifestPath,
+		OutputDir:    applyTemplate.OutputDir,
+		NoDeps:       noDeps,
+		Verbose:      flags.Verbose,
+		ComposeFiles: inputs.ComposeFiles,
+		BuildOnly:    false,
+		ImagePrewarm: imagePrewarm,
+	}
+	if err := workflow.Apply(applyReq); err != nil {
+		return fmt.Errorf("deploy apply (%s): %w", applyTemplate.TemplatePath, err)
 	}
 	return nil
 }

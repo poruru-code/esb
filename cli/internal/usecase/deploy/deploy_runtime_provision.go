@@ -5,11 +5,18 @@ package deploy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 )
 
+var errArtifactPathRequired = errors.New("artifact path is required for apply phase")
+
 func (w Workflow) runRuntimeProvisionPhase(req Request, stagingDir, imagePrewarm string) error {
+	if err := w.applyArtifactRuntimeConfig(req, stagingDir); err != nil {
+		return err
+	}
 	manifestPath := filepath.Join(stagingDir, "image-import.json")
 	manifest, exists, err := loadImageImportManifest(manifestPath)
 	if err != nil {
@@ -31,7 +38,7 @@ func (w Workflow) runRuntimeProvisionPhase(req Request, stagingDir, imagePrewarm
 			return err
 		}
 	}
-	if err := w.syncRuntimeConfig(req); err != nil {
+	if err := w.syncRuntimeConfigFromDir(req.Context.ComposeProject, stagingDir); err != nil {
 		return err
 	}
 	return w.wrapProvisionerError(w.runProvisioner(
@@ -42,4 +49,15 @@ func (w Workflow) runRuntimeProvisionPhase(req Request, stagingDir, imagePrewarm
 		req.Context.ProjectDir,
 		req.ComposeFiles,
 	))
+}
+
+func (w Workflow) applyArtifactRuntimeConfig(req Request, stagingDir string) error {
+	artifactPath := strings.TrimSpace(req.ArtifactPath)
+	if artifactPath == "" {
+		return errArtifactPathRequired
+	}
+	return ApplyArtifact(ArtifactApplyRequest{
+		ArtifactPath: artifactPath,
+		OutputDir:    stagingDir,
+	})
 }

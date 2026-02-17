@@ -25,6 +25,7 @@ import (
 const (
 	repoRequiredExitCode     = 2
 	repoRequiredErrorMessage = "EBS repository root not found from current directory. Run this command inside the EBS repository."
+	cliCommandName           = "esb"
 )
 
 // Dependencies holds all injected dependencies required for CLI command execution.
@@ -41,11 +42,12 @@ type Dependencies struct {
 // CLI defines the command-line interface structure parsed by Kong.
 // It contains global flags and all subcommand definitions.
 type CLI struct {
-	Template []string   `short:"t" help:"Path to SAM template (repeatable)"`
-	EnvFlag  string     `short:"e" name:"env" help:"Environment name"`
-	EnvFile  string     `name:"env-file" help:"Path to .env file"`
-	Deploy   DeployCmd  `cmd:"" help:"Deploy functions"`
-	Version  VersionCmd `cmd:"" help:"Show version information"`
+	Template []string    `short:"t" help:"Path to SAM template (repeatable)"`
+	EnvFlag  string      `short:"e" name:"env" help:"Environment name"`
+	EnvFile  string      `name:"env-file" help:"Path to .env file"`
+	Deploy   DeployCmd   `cmd:"" help:"Deploy functions"`
+	Artifact ArtifactCmd `cmd:"" help:"Artifact operations"`
+	Version  VersionCmd  `cmd:"" help:"Show version information"`
 }
 
 type (
@@ -68,6 +70,34 @@ type (
 		NoEmoji      bool     `name:"no-emoji" help:"Disable emoji output"`
 		Force        bool     `help:"Allow environment mismatch with running gateway (skip auto-alignment)"`
 		NoSave       bool     `name:"no-save-defaults" help:"Do not persist deploy defaults"`
+	}
+
+	ArtifactCmd struct {
+		Generate ArtifactGenerateCmd `cmd:"" help:"Generate artifacts and manifest (without apply)"`
+		Apply    ArtifactApplyCmd    `cmd:"" help:"Apply artifact manifest"`
+	}
+
+	ArtifactGenerateCmd struct {
+		Mode         string   `short:"m" help:"Runtime mode (docker/containerd)"`
+		Output       string   `short:"o" help:"Output directory for generated artifacts"`
+		Project      string   `short:"p" help:"Compose project name to target"`
+		ComposeFiles []string `name:"compose-file" sep:"," help:"Compose file(s) to use (repeatable or comma-separated)"`
+		ImageURI     []string `name:"image-uri" sep:"," help:"Image URI override for image functions (<function>=<image-uri>)"`
+		ImageRuntime []string `name:"image-runtime" sep:"," help:"Runtime override for image functions (<function>=<python|java21>)"`
+		Bundle       bool     `name:"bundle-manifest" help:"Write bundle manifest (for bundling)"`
+		ImagePrewarm string   `name:"image-prewarm" default:"all" help:"Image prewarm mode metadata (all/off)"`
+		NoCache      bool     `name:"no-cache" help:"Do not use cache when building images"`
+		Verbose      bool     `short:"v" help:"Verbose output"`
+		Emoji        bool     `name:"emoji" help:"Enable emoji output (default: auto)"`
+		NoEmoji      bool     `name:"no-emoji" help:"Disable emoji output"`
+		Force        bool     `help:"Allow environment mismatch with running gateway (skip auto-alignment)"`
+		NoSave       bool     `name:"no-save-defaults" help:"Do not persist deploy defaults"`
+	}
+
+	ArtifactApplyCmd struct {
+		Artifact  string `name:"artifact" help:"Path to artifact manifest (artifact.yml)"`
+		OutputDir string `name:"out" help:"Output config directory"`
+		SecretEnv string `name:"secret-env" help:"Path to secret env file"`
 	}
 
 	VersionCmd struct{}
@@ -184,8 +214,10 @@ type commandHandler func(CLI, Dependencies, io.Writer) int
 
 func dispatchCommand(command string, cli CLI, deps Dependencies, out io.Writer) (int, bool) {
 	exactHandlers := map[string]commandHandler{
-		"deploy":  runDeploy,
-		"version": func(_ CLI, _ Dependencies, out io.Writer) int { return runVersion(cli, out) },
+		"deploy":            runDeploy,
+		"artifact generate": runArtifactGenerate,
+		"artifact apply":    runArtifactApply,
+		"version":           func(_ CLI, _ Dependencies, out io.Writer) int { return runVersion(cli, out) },
 	}
 
 	if handler, ok := exactHandlers[command]; ok {
@@ -224,7 +256,7 @@ func commandName(args []string) string {
 
 func commandFlagExpectsValue(arg string) bool {
 	switch arg {
-	case "-e", "--env", "-t", "--template", "--env-file", "-m", "--mode", "-o", "--output", "-p", "--project", "--image-prewarm", "--image-uri", "--image-runtime":
+	case "-e", "--env", "-t", "--template", "--env-file", "-m", "--mode", "-o", "--output", "-p", "--project", "--image-prewarm", "--image-uri", "--image-runtime", "--artifact", "--out", "--secret-env":
 		return true
 	default:
 		return false
@@ -278,11 +310,10 @@ func isHelpCommand(args []string) bool {
 // It displays full configuration and state information (equivalent to the old 'info' command).
 func runNoArgs(out io.Writer) int {
 	ui := legacyUI(out)
-	cmd := cliName()
 	ui.Info("Usage:")
-	ui.Info(fmt.Sprintf("  %s deploy --template <path> --env <name> --mode <docker|containerd> [flags]", cmd))
+	ui.Info(fmt.Sprintf("  %s deploy --template <path> --env <name> --mode <docker|containerd> [flags]", cliCommandName))
 	ui.Info("")
-	ui.Info(fmt.Sprintf("Try: %s deploy --help", cmd))
+	ui.Info(fmt.Sprintf("Try: %s deploy --help", cliCommandName))
 	return 0
 }
 
@@ -293,34 +324,33 @@ func handleParseError(args []string, err error, deps Dependencies, out io.Writer
 	msg := err.Error()
 	if strings.Contains(msg, "expected string value") {
 		ui := legacyUI(out)
-		cmd := cliName()
 		switch {
 		case strings.Contains(msg, "--template"):
 			ui.Warn("`-t/--template` expects a value. Provide a path (repeatable) or omit for interactive input.")
-			ui.Info(fmt.Sprintf("Example: %s deploy -t ./template.yaml -t ./extra.yaml", cmd))
-			ui.Info(fmt.Sprintf("Interactive: %s deploy", cmd))
+			ui.Info(fmt.Sprintf("Example: %s deploy -t ./template.yaml -t ./extra.yaml", cliCommandName))
+			ui.Info(fmt.Sprintf("Interactive: %s deploy", cliCommandName))
 			return 1
 		case strings.Contains(msg, "--env"):
 			ui.Warn("`-e/--env` expects a value. Provide a name or omit the flag for interactive input.")
-			ui.Info(fmt.Sprintf("Example: %s deploy -e prod", cmd))
-			ui.Info(fmt.Sprintf("Interactive: %s deploy", cmd))
+			ui.Info(fmt.Sprintf("Example: %s deploy -e prod", cliCommandName))
+			ui.Info(fmt.Sprintf("Interactive: %s deploy", cliCommandName))
 			return 1
 		case strings.Contains(msg, "--mode"):
 			ui.Warn("`-m/--mode` expects a value. Use docker/containerd or omit the flag for interactive input.")
-			ui.Info(fmt.Sprintf("Example: %s deploy -m docker", cmd))
-			ui.Info(fmt.Sprintf("Interactive: %s deploy", cmd))
+			ui.Info(fmt.Sprintf("Example: %s deploy -m docker", cliCommandName))
+			ui.Info(fmt.Sprintf("Interactive: %s deploy", cliCommandName))
 			return 1
 		case strings.Contains(msg, "--env-file"):
 			ui.Warn("`--env-file` expects a value. Provide a file path.")
-			ui.Info(fmt.Sprintf("Example: %s deploy --env-file .env.prod", cmd))
+			ui.Info(fmt.Sprintf("Example: %s deploy --env-file .env.prod", cliCommandName))
 			return 1
 		case strings.Contains(msg, "--image-uri"):
 			ui.Warn("`--image-uri` expects a value. Use <function>=<image-uri>.")
-			ui.Info(fmt.Sprintf("Example: %s deploy --image-uri lambda-image=public.ecr.aws/example/repo:latest", cmd))
+			ui.Info(fmt.Sprintf("Example: %s deploy --image-uri lambda-image=public.ecr.aws/example/repo:latest", cliCommandName))
 			return 1
 		case strings.Contains(msg, "--image-runtime"):
 			ui.Warn("`--image-runtime` expects a value. Use <function>=<python|java21>.")
-			ui.Info(fmt.Sprintf("Example: %s deploy --image-runtime lambda-image=java21", cmd))
+			ui.Info(fmt.Sprintf("Example: %s deploy --image-runtime lambda-image=java21", cliCommandName))
 			return 1
 		}
 	}

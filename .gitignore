@@ -100,6 +100,7 @@ services/gateway/.esb-staging/
 cli/bin/
 cli/esb
 cli/cli/bin/
+tools/artifactctl/bin/
 
 # DinD bundler build artifacts
 /tools/dind-bundler/build-context/

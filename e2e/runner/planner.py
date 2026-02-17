@@ -40,6 +40,8 @@ def apply_test_target(
         exclude=[],
         deploy_templates=scenario.deploy_templates,
         project_name=scenario.project_name,
+        deploy_driver=scenario.deploy_driver,
+        artifact_generate=scenario.artifact_generate,
         extra=scenario.extra,
     )
     return {env_name: updated}
@@ -53,11 +55,13 @@ def _to_scenario(data: dict[str, Any]) -> Scenario:
         "mode",
         "env_file",
         "env_dir",
+        "deploy_driver",
         "env_vars",
         "targets",
         "exclude",
         "deploy_templates",
         "esb_project",
+        "artifact_generate",
     }
     return Scenario(
         name=data.get("name", ""),
@@ -70,5 +74,7 @@ def _to_scenario(data: dict[str, Any]) -> Scenario:
         exclude=data.get("exclude", []) or [],
         deploy_templates=data.get("deploy_templates", []) or [],
         project_name=data.get("esb_project", BRAND_SLUG),
+        deploy_driver=str(data.get("deploy_driver", "cli")),
+        artifact_generate=str(data.get("artifact_generate", "none")),
         extra={k: v for k, v in data.items() if k not in known_keys},
     )

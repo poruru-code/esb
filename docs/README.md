@@ -25,6 +25,7 @@ Why: Help new contributors find the source-of-truth document without guessing.
 | 全体構成を把握したい | [spec.md](./spec.md) |
 | Docker/containerd の差分を知りたい | [architecture-containerd.md](./architecture-containerd.md) |
 | ランタイム障害の運用手順を確認したい | [container-runtime-operations.md](./container-runtime-operations.md) |
+| artifact-first の運用手順を確認したい | [artifact-operations.md](./artifact-operations.md) |
 | イメージ設計・ビルド方針を確認したい | [docker-image-architecture.md](./docker-image-architecture.md) |
 | Trace/ログ連携の仕様を確認したい | [trace-propagation.md](./trace-propagation.md), [local-logging-adapter.md](./local-logging-adapter.md) |
 | Java の Maven Proxy 契約を確認したい | [java-maven-proxy-contract.md](./java-maven-proxy-contract.md) |
@@ -35,6 +36,7 @@ Why: Help new contributors find the source-of-truth document without guessing.
 - [spec.md](./spec.md)
 - [architecture-containerd.md](./architecture-containerd.md)
 - [container-runtime-operations.md](./container-runtime-operations.md)
+- [artifact-operations.md](./artifact-operations.md)
 - [docker-image-architecture.md](./docker-image-architecture.md)
 - [environment-variables.md](./environment-variables.md)
 - [e2e-runtime-smoke.md](./e2e-runtime-smoke.md)
@@ -68,4 +70,5 @@ Why: Help new contributors find the source-of-truth document without guessing.
 - `docs/spec.md`
 - `docs/architecture-containerd.md`
 - `docs/container-runtime-operations.md`
+- `docs/artifact-operations.md`
 - `cli/docs/architecture.md`

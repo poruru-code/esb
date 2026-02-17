@@ -77,6 +77,17 @@ func TestDispatchCommandVersion(t *testing.T) {
 	}
 }
 
+func TestDispatchCommandArtifactGenerate(t *testing.T) {
+	var out bytes.Buffer
+	exitCode, handled := dispatchCommand("artifact generate", CLI{}, Dependencies{}, &out)
+	if !handled {
+		t.Fatal("expected artifact generate command to be handled")
+	}
+	if exitCode == 0 {
+		t.Fatalf("expected non-zero exit code when dependencies are missing, got %d", exitCode)
+	}
+}
+
 func TestDispatchCommandUnknown(t *testing.T) {
 	exitCode, handled := dispatchCommand("unknown", CLI{}, Dependencies{}, &bytes.Buffer{})
 	if handled {
@@ -134,6 +145,9 @@ func TestRunNoArgsShowsUsage(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "Usage:") {
 		t.Fatalf("expected usage output, got %q", out.String())
+	}
+	if !strings.Contains(out.String(), "esb deploy --template") {
+		t.Fatalf("expected fixed cli name in usage output, got %q", out.String())
 	}
 }
 

@@ -1,6 +1,7 @@
 package deploy
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -8,7 +9,6 @@ import (
 
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/state"
 	infradeploy "github.com/poruru/edge-serverless-box/cli/internal/infra/deploy"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
 )
 
 func TestDeployWorkflowRunSuccess(t *testing.T) {
@@ -36,11 +36,13 @@ func TestDeployWorkflowRunSuccess(t *testing.T) {
 		ProjectDir:     repoRoot,
 		ComposeProject: "esb-dev",
 	}
+	artifactPath := writeTestArtifactManifest(t, false)
 	req := Request{
 		Context:      ctx,
 		Env:          "dev",
 		Mode:         "docker",
 		TemplatePath: filepath.Join(repoRoot, "template.yaml"),
+		ArtifactPath: artifactPath,
 		OutputDir:    ".out",
 		Parameters:   map[string]string{"ParamA": "value"},
 		ImageSources: map[string]string{
@@ -129,18 +131,7 @@ func TestDeployWorkflowRequiresPrewarmForImageFunctions(t *testing.T) {
 	}
 
 	templatePath := filepath.Join(repoRoot, "template.yaml")
-	configDir, err := staging.ConfigDir(templatePath, "esb-dev", "dev")
-	if err != nil {
-		t.Fatalf("failed to resolve staging config dir: %v", err)
-	}
-	if err := os.MkdirAll(configDir, 0o755); err != nil {
-		t.Fatalf("failed to create staging dir: %v", err)
-	}
-	manifestPath := filepath.Join(configDir, "image-import.json")
-	manifest := `{"version":"1","images":[{"function_name":"lambda-image","image_source":"public.ecr.aws/example/repo:latest","image_ref":"registry:5010/public.ecr.aws/example/repo:latest"}]}`
-	if err := os.WriteFile(manifestPath, []byte(manifest), 0o600); err != nil {
-		t.Fatalf("write image-import.json: %v", err)
-	}
+	artifactPath := writeTestArtifactManifest(t, true)
 
 	ctx := state.Context{
 		ProjectDir:     repoRoot,
@@ -151,6 +142,7 @@ func TestDeployWorkflowRequiresPrewarmForImageFunctions(t *testing.T) {
 		Env:          "dev",
 		Mode:         "docker",
 		TemplatePath: templatePath,
+		ArtifactPath: artifactPath,
 		OutputDir:    ".out",
 		ImagePrewarm: "off",
 	}
@@ -221,6 +213,52 @@ func TestDeployWorkflowRunMissingBuilder(t *testing.T) {
 	err := workflow.Run(Request{Context: state.Context{}})
 	if err == nil || !strings.Contains(err.Error(), "builder is not configured") {
 		t.Fatalf("expected builder missing error, got %v", err)
+	}
+}
+
+func TestDeployWorkflowApplyRequiresArtifactPath(t *testing.T) {
+	ui := &testUI{}
+	runner := &fakeComposeRunner{}
+	workflow := NewDeployWorkflow(nil, nil, ui, runner)
+	workflow.RegistryWaiter = noopRegistryWaiter
+
+	err := workflow.Apply(Request{
+		Context: state.Context{
+			ComposeProject: "esb-dev",
+		},
+		Env:          "dev",
+		Mode:         "docker",
+		TemplatePath: "/tmp/template.yaml",
+		ImagePrewarm: "all",
+	})
+	if err == nil || !strings.Contains(err.Error(), errArtifactPathRequired.Error()) {
+		t.Fatalf("expected artifact-path-required error, got %v", err)
+	}
+}
+
+func TestDeployWorkflowApplySuccess(t *testing.T) {
+	ui := &testUI{}
+	runner := &fakeComposeRunner{}
+	workflow := NewDeployWorkflow(nil, nil, ui, runner)
+	workflow.RegistryWaiter = noopRegistryWaiter
+
+	artifactPath := writeTestArtifactManifest(t, false)
+	err := workflow.Apply(Request{
+		Context: state.Context{
+			ComposeProject: "esb-dev",
+			ProjectDir:     t.TempDir(),
+		},
+		Env:          "dev",
+		Mode:         "docker",
+		TemplatePath: "/tmp/template.yaml",
+		ArtifactPath: artifactPath,
+		ImagePrewarm: "all",
+	})
+	if err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	if len(ui.success) != 1 || !strings.Contains(ui.success[0], "Deploy complete") {
+		t.Fatalf("expected deploy success message, got %#v", ui.success)
 	}
 }
 
@@ -364,4 +402,67 @@ func TestRunProvisionerWithNoDepsAddsFlag(t *testing.T) {
 	if !foundRun {
 		t.Fatalf("expected compose run to include --no-deps")
 	}
+}
+
+func writeTestArtifactManifest(t *testing.T, includeImageImport bool) string {
+	t.Helper()
+	root := t.TempDir()
+	artifactRoot := filepath.Join(root, "artifact")
+	configDir := filepath.Join(artifactRoot, "config")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatalf("create artifact config dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "functions.yml"), []byte("functions: {}\n"), 0o600); err != nil {
+		t.Fatalf("write functions.yml: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "routing.yml"), []byte("routes: []\n"), 0o600); err != nil {
+		t.Fatalf("write routing.yml: %v", err)
+	}
+	if includeImageImport {
+		payload := map[string]any{
+			"version": "1",
+			"images": []map[string]string{
+				{
+					"function_name": "lambda-image",
+					"image_source":  "public.ecr.aws/example/repo:latest",
+					"image_ref":     "registry:5010/public.ecr.aws/example/repo:latest",
+				},
+			},
+		}
+		data, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatalf("marshal image-import.json: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(configDir, "image-import.json"), data, 0o600); err != nil {
+			t.Fatalf("write image-import.json: %v", err)
+		}
+	}
+
+	manifest := ArtifactManifest{
+		SchemaVersion: ArtifactSchemaVersionV1,
+		Project:       "esb-dev",
+		Env:           "dev",
+		Mode:          "docker",
+		Artifacts: []ArtifactEntry{
+			{
+				ArtifactRoot:     "../artifact",
+				RuntimeConfigDir: "config",
+				SourceTemplate: ArtifactSourceTemplate{
+					Path:   "/tmp/template.yaml",
+					SHA256: "sha-template",
+				},
+			},
+		},
+	}
+	manifest.Artifacts[0].ID = ComputeArtifactID(
+		manifest.Artifacts[0].SourceTemplate.Path,
+		manifest.Artifacts[0].SourceTemplate.Parameters,
+		manifest.Artifacts[0].SourceTemplate.SHA256,
+	)
+
+	manifestPath := filepath.Join(root, "manifest", "artifact.yml")
+	if err := WriteArtifactManifest(manifestPath, manifest); err != nil {
+		t.Fatalf("write artifact manifest: %v", err)
+	}
+	return manifestPath
 }

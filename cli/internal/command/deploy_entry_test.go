@@ -15,9 +15,11 @@ import (
 	"testing"
 	"time"
 
+	domaincfg "github.com/poruru/edge-serverless-box/cli/internal/domain/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/state"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/build"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/ui"
+	usecasedeploy "github.com/poruru/edge-serverless-box/cli/internal/usecase/deploy"
 )
 
 type deployEntryUI struct{}
@@ -64,6 +66,17 @@ type deployEntryBuilder struct {
 
 func (b *deployEntryBuilder) Build(req build.BuildRequest) error {
 	b.requests = append(b.requests, req)
+	outputRoot := domaincfg.ResolveOutputSummary(req.TemplatePath, req.OutputDir, req.Env)
+	configDir := filepath.Join(outputRoot, "config")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "functions.yml"), []byte("functions: {}\n"), 0o600); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "routing.yml"), []byte("routes: []\n"), 0o600); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -222,6 +235,27 @@ func TestDeployCommandRunBuildsAllTemplatesAndRunsProvisionerOnlyOnLast(t *testi
 	}
 	if provisioner.runCalls != 1 {
 		t.Fatalf("expected provisioner run once for final template, got %d", provisioner.runCalls)
+	}
+
+	manifestPath := resolveDeployArtifactManifestPath(tmp, "esb-dev", "dev")
+	manifest, err := usecasedeploy.ReadArtifactManifest(manifestPath)
+	if err != nil {
+		t.Fatalf("read artifact manifest: %v", err)
+	}
+	if len(manifest.Artifacts) != 2 {
+		t.Fatalf("expected 2 artifacts, got %d", len(manifest.Artifacts))
+	}
+	if manifest.Artifacts[0].SourceTemplate.Path != templateA {
+		t.Fatalf("unexpected first artifact template path: %s", manifest.Artifacts[0].SourceTemplate.Path)
+	}
+	if manifest.Artifacts[1].SourceTemplate.Path != templateB {
+		t.Fatalf("unexpected second artifact template path: %s", manifest.Artifacts[1].SourceTemplate.Path)
+	}
+	if manifest.Artifacts[0].RuntimeConfigDir != "config" {
+		t.Fatalf("unexpected runtime_config_dir: %s", manifest.Artifacts[0].RuntimeConfigDir)
+	}
+	if manifest.Artifacts[0].ArtifactRoot == "" || manifest.Artifacts[1].ArtifactRoot == "" {
+		t.Fatalf("artifact_root must not be empty: %#v", manifest.Artifacts)
 	}
 }
 

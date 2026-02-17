@@ -17,7 +17,6 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
 )
 
 type runtimeConfigTarget struct {
@@ -35,14 +34,12 @@ var runtimeConfigFiles = []string{
 	"image-import.json",
 }
 
-func (w Workflow) syncRuntimeConfig(req Request) error {
-	composeProject := strings.TrimSpace(req.Context.ComposeProject)
-	if composeProject == "" {
+func (w Workflow) syncRuntimeConfigFromDir(composeProject, stagingDir string) error {
+	if strings.TrimSpace(composeProject) == "" {
 		return nil
 	}
-	stagingDir, err := staging.ConfigDir(req.TemplatePath, composeProject, req.Env)
-	if err != nil {
-		return err
+	if strings.TrimSpace(stagingDir) == "" {
+		return fmt.Errorf("staging dir is required")
 	}
 	if _, err := os.Stat(stagingDir); err != nil {
 		if os.IsNotExist(err) {

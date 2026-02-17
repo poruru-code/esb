@@ -21,6 +21,49 @@ _prepared_local_fixture_images: set[str] = set()
 _prepared_local_fixture_lock = threading.Lock()
 
 
+def _resolve_deploy_driver(ctx: RunContext) -> str:
+    raw = ctx.scenario.deploy_driver
+    driver = str(raw).strip().lower()
+    if driver not in {"cli", "artifact"}:
+        raise RuntimeError(f"deploy_driver '{driver}' is not supported by E2E deploy runner")
+    return driver
+
+
+def _build_cli_deploy_command(
+    ctx: RunContext,
+    tmpl: Path,
+    *,
+    no_cache: bool,
+    verbose: bool,
+) -> list[str]:
+    args = [
+        "deploy",
+        "--template",
+        str(tmpl),
+        "--compose-file",
+        str(ctx.compose_file),
+        "--no-deps",
+        "--no-save-defaults",
+        "--env",
+        ctx.scenario.env_name,
+        "--mode",
+        ctx.scenario.mode,
+    ]
+    image_prewarm = str(ctx.scenario.extra.get("image_prewarm", "")).strip().lower()
+    if image_prewarm:
+        args.extend(["--image-prewarm", image_prewarm])
+    args.extend(_build_image_override_args(ctx.scenario.extra))
+    if no_cache:
+        args.append("--no-cache")
+    if verbose and "--verbose" not in args and "-v" not in args:
+        try:
+            idx = args.index("deploy")
+            args.insert(idx + 1, "--verbose")
+        except ValueError:
+            pass
+    return build_esb_cmd(args, ctx.env_file)
+
+
 def deploy_templates(
     ctx: RunContext,
     templates: list[Path],
@@ -31,7 +74,17 @@ def deploy_templates(
     printer: Callable[[str], None] | None = None,
 ) -> None:
     _prepare_local_fixture_images(ctx, log=log, printer=printer)
-
+    deploy_driver = _resolve_deploy_driver(ctx)
+    if deploy_driver == "artifact":
+        _deploy_via_artifact_driver(
+            ctx,
+            templates=templates,
+            no_cache=no_cache,
+            verbose=verbose,
+            log=log,
+            printer=printer,
+        )
+        return
     for idx, tmpl in enumerate(templates, start=1):
         label = f"{ctx.scenario.env_name}"
         if len(templates) > 1:
@@ -41,32 +94,12 @@ def deploy_templates(
         if printer:
             printer(message)
 
-        args = [
-            "deploy",
-            "--template",
-            str(tmpl),
-            "--compose-file",
-            str(ctx.compose_file),
-            "--no-deps",
-            "--no-save-defaults",
-            "--env",
-            ctx.scenario.env_name,
-            "--mode",
-            ctx.scenario.mode,
-        ]
-        image_prewarm = str(ctx.scenario.extra.get("image_prewarm", "")).strip().lower()
-        if image_prewarm:
-            args.extend(["--image-prewarm", image_prewarm])
-        args.extend(_build_image_override_args(ctx.scenario.extra))
-        if no_cache:
-            args.append("--no-cache")
-        if verbose and "--verbose" not in args and "-v" not in args:
-            try:
-                idx = args.index("deploy")
-                args.insert(idx + 1, "--verbose")
-            except ValueError:
-                pass
-        cmd = build_esb_cmd(args, ctx.env_file)
+        cmd = _build_cli_deploy_command(
+            ctx,
+            tmpl,
+            no_cache=no_cache,
+            verbose=verbose,
+        )
         rc = run_and_stream(
             cmd,
             cwd=PROJECT_ROOT,
@@ -80,6 +113,168 @@ def deploy_templates(
         log.write_line("Done")
         if printer:
             printer("Done")
+
+
+def _deploy_via_artifact_driver(
+    ctx: RunContext,
+    *,
+    templates: list[Path],
+    no_cache: bool,
+    verbose: bool,
+    log: LogSink,
+    printer: Callable[[str], None] | None = None,
+) -> None:
+    if _artifact_generate_mode(ctx) == "cli":
+        message = f"Generating artifacts for {ctx.scenario.env_name}..."
+        log.write_line(message)
+        if printer:
+            printer(message)
+        generate_cmd = _build_cli_artifact_generate_command(
+            ctx,
+            templates,
+            no_cache=no_cache,
+            verbose=verbose,
+        )
+        rc = run_and_stream(
+            generate_cmd,
+            cwd=PROJECT_ROOT,
+            env=ctx.deploy_env,
+            log=log,
+            printer=printer,
+        )
+        if rc != 0:
+            raise RuntimeError(f"artifact generate failed with exit code {rc}")
+
+    manifest_path = _resolve_artifact_manifest_path(ctx)
+    if not manifest_path.exists():
+        raise FileNotFoundError(f"artifact manifest not found: {manifest_path}")
+
+    config_dir = str(ctx.runtime_env.get("CONFIG_DIR", "")).strip()
+    if config_dir == "":
+        raise RuntimeError("CONFIG_DIR is required for deploy_driver=artifact")
+
+    message = f"Applying artifact manifest for {ctx.scenario.env_name}..."
+    log.write_line(message)
+    if printer:
+        printer(message)
+
+    apply_cmd = [
+        "artifactctl",
+        "apply",
+        "--artifact",
+        str(manifest_path),
+        "--out",
+        config_dir,
+    ]
+    secret_env = str(ctx.scenario.extra.get("secret_env_file", "")).strip()
+    if secret_env:
+        apply_cmd.extend(["--secret-env", secret_env])
+    rc = run_and_stream(
+        apply_cmd,
+        cwd=PROJECT_ROOT,
+        env=ctx.deploy_env,
+        log=log,
+        printer=printer,
+    )
+    if rc != 0:
+        raise RuntimeError(f"artifact apply failed with exit code {rc}")
+
+    provision_cmd = _build_provision_command(ctx)
+    rc = run_and_stream(
+        provision_cmd,
+        cwd=PROJECT_ROOT,
+        env=ctx.deploy_env,
+        log=log,
+        printer=printer,
+    )
+    if rc != 0:
+        raise RuntimeError(f"provisioner failed with exit code {rc}")
+
+    log.write_line("Done")
+    if printer:
+        printer("Done")
+
+
+def _artifact_generate_mode(ctx: RunContext) -> str:
+    raw = str(ctx.scenario.artifact_generate).strip().lower()
+    if raw == "cli":
+        return "cli"
+    if raw == "none":
+        return "none"
+    raise RuntimeError(f"artifact_generate '{raw}' is not supported")
+
+
+def _build_cli_artifact_generate_command(
+    ctx: RunContext,
+    templates: list[Path],
+    *,
+    no_cache: bool,
+    verbose: bool,
+) -> list[str]:
+    args = ["artifact", "generate"]
+    for tmpl in templates:
+        args.extend(["--template", str(tmpl)])
+    args.extend(
+        [
+            "--compose-file",
+            str(ctx.compose_file),
+            "--no-save-defaults",
+            "--env",
+            ctx.scenario.env_name,
+            "--mode",
+            ctx.scenario.mode,
+        ]
+    )
+    image_prewarm = str(ctx.scenario.extra.get("image_prewarm", "")).strip().lower()
+    if image_prewarm:
+        args.extend(["--image-prewarm", image_prewarm])
+    args.extend(_build_image_override_args(ctx.scenario.extra))
+    if no_cache:
+        args.append("--no-cache")
+    if verbose and "--verbose" not in args and "-v" not in args:
+        args.append("--verbose")
+    return build_esb_cmd(args, ctx.env_file)
+
+
+def _resolve_artifact_manifest_path(ctx: RunContext) -> Path:
+    raw = str(ctx.scenario.extra.get("artifact_manifest", "")).strip()
+    if raw:
+        path = Path(raw)
+        if not path.is_absolute():
+            path = PROJECT_ROOT / path
+        return path.resolve()
+    return (
+        PROJECT_ROOT
+        / ".esb"
+        / "artifacts"
+        / ctx.compose_project
+        / ctx.scenario.env_name
+        / "artifact.yml"
+    )
+
+
+def _build_provision_command(ctx: RunContext) -> list[str]:
+    cmd = [
+        "docker",
+        "compose",
+        "--project-name",
+        ctx.compose_project,
+        "--file",
+        str(ctx.compose_file),
+    ]
+    if ctx.env_file:
+        cmd.extend(["--env-file", ctx.env_file])
+    cmd.extend(
+        [
+            "--profile",
+            "deploy",
+            "run",
+            "--rm",
+            "--no-deps",
+            "provisioner",
+        ]
+    )
+    return cmd
 
 
 def _prepare_local_fixture_images(

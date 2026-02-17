@@ -17,9 +17,7 @@ import (
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/volume"
-	"github.com/poruru/edge-serverless-box/cli/internal/domain/state"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
 )
 
 func TestSyncRuntimeConfigToTarget_ContainerCopyFailureIsReturned(t *testing.T) {
@@ -356,50 +354,6 @@ func TestCopyFileCreatesParentDirAndOverwrites(t *testing.T) {
 	}
 	if string(got) != "new: value\n" {
 		t.Fatalf("unexpected dest content: %q", string(got))
-	}
-}
-
-func TestSyncRuntimeConfigSkipsWhenComposeProjectEmpty(t *testing.T) {
-	workflow := Workflow{
-		DockerClient: func() (compose.DockerClient, error) {
-			t.Fatal("docker client should not be called")
-			return nil, nil
-		},
-	}
-	err := workflow.syncRuntimeConfig(Request{
-		Context: state.Context{ComposeProject: ""},
-	})
-	if err != nil {
-		t.Fatalf("sync runtime config: %v", err)
-	}
-}
-
-func TestSyncRuntimeConfigSkipsWhenStagingDirMissing(t *testing.T) {
-	composeProject := "esb-missing-sync"
-	envName := "missing-sync-env"
-	templatePath := "template.yaml"
-
-	stagingDir, err := staging.ConfigDir(templatePath, composeProject, envName)
-	if err != nil {
-		t.Fatalf("resolve staging dir: %v", err)
-	}
-	if err := os.RemoveAll(stagingDir); err != nil {
-		t.Fatalf("remove staging dir: %v", err)
-	}
-
-	workflow := Workflow{
-		DockerClient: func() (compose.DockerClient, error) {
-			t.Fatal("docker client should not be called when staging dir is missing")
-			return nil, nil
-		},
-	}
-	err = workflow.syncRuntimeConfig(Request{
-		Context:      state.Context{ComposeProject: composeProject},
-		TemplatePath: templatePath,
-		Env:          envName,
-	})
-	if err != nil {
-		t.Fatalf("sync runtime config: %v", err)
 	}
 }
 
