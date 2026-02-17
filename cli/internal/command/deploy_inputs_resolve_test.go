@@ -456,6 +456,7 @@ func (p *editFlowPrompter) SelectValue(_ string, _ []interaction.SelectOption) (
 
 func TestResolveDeployInputsKeepsImageRuntimeAcrossEditLoop(t *testing.T) {
 	repoRoot := t.TempDir()
+	setWorkingDirForIsolation(t, repoRoot)
 	if err := os.WriteFile(filepath.Join(repoRoot, "docker-compose.docker.yml"), []byte("version: '3'\n"), 0o600); err != nil {
 		t.Fatalf("write compose marker: %v", err)
 	}
