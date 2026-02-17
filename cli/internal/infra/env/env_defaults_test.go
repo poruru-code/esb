@@ -140,6 +140,10 @@ func TestApplyConfigDirEnvSetsHostAndComposeVarWhenStagingExists(t *testing.T) {
 	t.Setenv(constants.EnvConfigDir, "")
 
 	projectDir := t.TempDir()
+	setWorkingDir(t, projectDir)
+	if err := os.WriteFile(filepath.Join(projectDir, "docker-compose.docker.yml"), []byte("services: {}\n"), 0o600); err != nil {
+		t.Fatalf("write compose marker: %v", err)
+	}
 	templatePath := filepath.Join(projectDir, "template.yaml")
 	if err := os.WriteFile(templatePath, []byte("Resources: {}"), 0o600); err != nil {
 		t.Fatalf("write template: %v", err)
@@ -170,4 +174,20 @@ func TestApplyConfigDirEnvSetsHostAndComposeVarWhenStagingExists(t *testing.T) {
 	} else if got != want {
 		t.Fatalf("host config dir=%q, want %q", got, want)
 	}
+}
+
+func setWorkingDir(t *testing.T, dir string) {
+	t.Helper()
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get cwd: %v", err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("chdir %s: %v", dir, err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(wd); err != nil {
+			t.Fatalf("restore cwd %s: %v", wd, err)
+		}
+	})
 }
