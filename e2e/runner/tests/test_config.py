@@ -30,3 +30,43 @@ def test_build_env_scenarios_includes_image_overrides() -> None:
     assert scenario["image_prewarm"] == "off"
     assert scenario["image_uri_overrides"] == {"lambda-image": "public.ecr.aws/example/repo:v1"}
     assert scenario["image_runtime_overrides"] == {"lambda-image": "python"}
+
+
+def test_build_env_scenarios_defaults_env_file_to_env_dir_dotenv() -> None:
+    matrix = [
+        {
+            "esb_env": "e2e-docker",
+            "suites": ["smoke"],
+        }
+    ]
+    suites = {
+        "smoke": {
+            "targets": ["../scenarios/smoke/test_smoke.py"],
+            "exclude": [],
+        }
+    }
+
+    scenarios = build_env_scenarios(matrix, suites)
+
+    assert scenarios["e2e-docker"]["env_file"] == "e2e/environments/e2e-docker/.env"
+
+
+def test_build_env_scenarios_preserves_explicit_env_file() -> None:
+    matrix = [
+        {
+            "esb_env": "e2e-docker",
+            "env_dir": "e2e-docker",
+            "env_file": "e2e/environments/e2e-docker/custom.env",
+            "suites": ["smoke"],
+        }
+    ]
+    suites = {
+        "smoke": {
+            "targets": ["../scenarios/smoke/test_smoke.py"],
+            "exclude": [],
+        }
+    }
+
+    scenarios = build_env_scenarios(matrix, suites)
+
+    assert scenarios["e2e-docker"]["env_file"] == "e2e/environments/e2e-docker/custom.env"

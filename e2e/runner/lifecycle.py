@@ -17,7 +17,13 @@ from e2e.runner.cleanup import cleanup_managed_images, isolate_external_network,
 from e2e.runner.env import discover_ports
 from e2e.runner.logging import LogSink, run_and_stream
 from e2e.runner.models import RunContext, Scenario
-from e2e.runner.utils import BRAND_SLUG, E2E_STATE_ROOT, PROJECT_ROOT, env_key
+from e2e.runner.utils import (
+    BRAND_SLUG,
+    E2E_STATE_ROOT,
+    PROJECT_ROOT,
+    env_key,
+    resolve_env_file_path,
+)
 
 
 def resolve_compose_file(scenario: Scenario) -> Path:
@@ -43,17 +49,12 @@ def reset_environment(
         printer(f"Resetting environment: {env_name}")
 
     if ctx.compose_file.exists():
-        down_cmd = [
-            "docker",
-            "compose",
-            "--project-name",
-            project_label,
-            "--file",
-            str(ctx.compose_file),
-            "down",
-            "--volumes",
-            "--remove-orphans",
-        ]
+        down_cmd = _compose_base_cmd(
+            project_name=project_label,
+            compose_file=ctx.compose_file,
+            env_file=ctx.env_file,
+        )
+        down_cmd.extend(["down", "--volumes", "--remove-orphans"])
         run_and_stream(
             down_cmd,
             cwd=PROJECT_ROOT,
@@ -99,16 +100,12 @@ def compose_up(
     if not ctx.compose_file.exists():
         raise FileNotFoundError(f"Compose file not found: {ctx.compose_file}")
 
-    compose_cmd = [
-        "docker",
-        "compose",
-        "--project-name",
-        ctx.compose_project,
-        "--file",
-        str(ctx.compose_file),
-        "up",
-        "--detach",
-    ]
+    compose_cmd = _compose_base_cmd(
+        project_name=ctx.compose_project,
+        compose_file=ctx.compose_file,
+        env_file=ctx.env_file,
+    )
+    compose_cmd.extend(["up", "--detach"])
     if build:
         compose_cmd.append("--build")
 
@@ -121,7 +118,7 @@ def compose_up(
     )
 
     infra.connect_registry_to_network(ctx.runtime_env.get(constants.ENV_NETWORK_EXTERNAL, ""))
-    return discover_ports(ctx.compose_project, ctx.compose_file)
+    return discover_ports(ctx.compose_project, ctx.compose_file, env_file=ctx.env_file)
 
 
 def compose_down(
@@ -130,15 +127,12 @@ def compose_down(
     log: LogSink,
     printer: Callable[[str], None] | None = None,
 ) -> None:
-    down_cmd = [
-        "docker",
-        "compose",
-        "--project-name",
-        ctx.compose_project,
-        "--file",
-        str(ctx.compose_file),
-        "down",
-    ]
+    down_cmd = _compose_base_cmd(
+        project_name=ctx.compose_project,
+        compose_file=ctx.compose_file,
+        env_file=ctx.env_file,
+    )
+    down_cmd.append("down")
     run_and_stream(
         down_cmd,
         cwd=PROJECT_ROOT,
@@ -186,3 +180,23 @@ def _compose_env(ctx: RunContext) -> dict[str, str]:
     compose_env.update(ctx.scenario.env_vars)
     compose_env.setdefault(constants.ENV_PROJECT_NAME, ctx.compose_project)
     return {**compose_env}
+
+
+def _compose_base_cmd(
+    *,
+    project_name: str,
+    compose_file: Path,
+    env_file: str | None,
+) -> list[str]:
+    cmd = [
+        "docker",
+        "compose",
+        "--project-name",
+        project_name,
+        "--file",
+        str(compose_file),
+    ]
+    env_file_path = resolve_env_file_path(env_file)
+    if env_file_path:
+        cmd.extend(["--env-file", env_file_path])
+    return cmd

@@ -42,7 +42,7 @@ def build_env_scenarios(matrix: list, suites: dict, profile_filter: str | None =
             else:
                 mode = "docker"
 
-            if env_dir:
+            if env_dir and not env_file:
                 env_file = f"e2e/environments/{env_dir}/.env"
 
             env_vars = dict(entry.get("env_vars", {}))
