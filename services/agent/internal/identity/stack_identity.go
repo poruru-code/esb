@@ -14,6 +14,7 @@ const (
 	EnvContainersNetwork = "CONTAINERS_NETWORK"
 
 	defaultBrandSlug = "esb"
+	fixedCNIBridge   = "esb0"
 )
 
 type StackIdentity struct {
@@ -43,7 +44,8 @@ func (id StackIdentity) RuntimeCNIName() string {
 }
 
 func (id StackIdentity) RuntimeCNIBridge() string {
-	return id.BrandSlug + "0"
+	// Keep bridge name fixed for compatibility with runtime-node iptables forwarding rules.
+	return fixedCNIBridge
 }
 
 func (id StackIdentity) RuntimeResolvConfPath() string {

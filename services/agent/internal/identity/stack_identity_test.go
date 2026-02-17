@@ -66,7 +66,7 @@ func TestStackIdentityDerivedValues(t *testing.T) {
 	if got := id.RuntimeCNIName(); got != "acme-core-net" {
 		t.Fatalf("cni name = %q", got)
 	}
-	if got := id.RuntimeCNIBridge(); got != "acme-core0" {
+	if got := id.RuntimeCNIBridge(); got != "esb0" {
 		t.Fatalf("bridge = %q", got)
 	}
 	if got := id.RuntimeResolvConfPath(); got != "/run/containerd/acme-core/resolv.conf" {

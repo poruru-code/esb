@@ -30,7 +30,7 @@ brand slug は次の順序で 1 つに解決します。
 | `BrandSlug` | 解決済み brand |
 | `RuntimeNamespace` | `<brand>` |
 | `RuntimeCNIName` | `<brand>-net` |
-| `RuntimeCNIBridge` | `<brand>0` |
+| `RuntimeCNIBridge` | `esb0`（runtime-node forwarding 互換のため固定） |
 | `RuntimeContainerPrefix` | `<brand>` |
 | `ImagePrefix` | `<brand>` |
 | `EnvPrefix` | `<brand>` を大文字化し `-` を `_` へ変換 |
