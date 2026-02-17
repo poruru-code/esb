@@ -216,12 +216,27 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	}
 
 	baseImageID := dockerImageID(context.Background(), b.Runner, repoRoot, lambdaBaseTag)
+	imageSourceDigests := map[string]string{}
+	if !request.NoCache {
+		imageSourceDigests, err = resolveImageSourceDigests(
+			context.Background(),
+			b.Runner,
+			repoRoot,
+			functions,
+			request.Verbose,
+			out,
+		)
+		if err != nil {
+			return err
+		}
+	}
 	imageFingerprint, err := buildImageFingerprint(
 		cfg.Paths.OutputDir,
 		composeProject,
 		request.Env,
 		baseImageID,
 		functions,
+		imageSourceDigests,
 	)
 	if err != nil {
 		return err
