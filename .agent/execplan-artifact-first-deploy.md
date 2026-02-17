@@ -25,6 +25,7 @@
 - [x] (2026-02-17 18:30Z) Phase 4 着手として `cli` の `meta` 依存を `cli/internal/meta` へ移設し、`cli/go.mod` の `meta` require/replace を削除した。あわせて agent build の `meta_module` context と共有 `meta/` モジュールを撤去した。
 - [x] (2026-02-17 19:56Z) Phase 4 を完了し、`docs/runtime-identity-contract.md` と `services/agent/docs/*` を StackIdentity 契約へ更新した。`meta.*` 前提記述を除去し、CLI/Agent の全テスト pass を再確認した。
 - [x] (2026-02-17 20:00Z) Phase 5 の先行着手として `docs/deploy-artifact-contract.md` を追加し、`cli/internal/usecase/deploy` に descriptor の型/検証/atomic write/read の基盤を導入した。
+- [x] (2026-02-17 22:20Z) Phase 5.5-A として `runtime/*/templates` を `cli/assets/runtime-templates` へ移設し、CLI からの参照を runtime module 依存なしで解決する経路へ切り替えた。
 - [ ] Milestone 1: 成果物契約（Artifact Contract）をコードとドキュメントで定義し、`deploy` 出力に descriptor を追加する。
 - [ ] Milestone 2: `deploy` を Generate フェーズと Apply フェーズに内部分離し、`esb deploy` 互換を維持する。
 - [ ] Milestone 3: CLI の明示 UX（`artifact generate` / `artifact apply`）と手動運用 UX を整備する。
@@ -192,6 +193,22 @@ runtime 分離の観点では、`runtime/*` を次の2系統に分けて扱い�
 目的は本来の artifact-first 実装（descriptor、generate/apply 分離、artifact UX、CLI 非依存 E2E）です。ここから既存 Milestone 1-4 を順次実装します。
 
 前提条件は Phase 1-4 が完了していることです。これにより CLI 契約・実行境界・サービス identity が固定された状態で artifact-first に集中できます。
+
+### Phase 5.5: Runtime / Service ディレクトリ責務分離
+
+目的は repo 分離に備えた資産配置の明確化です。`runtime` 配下を「CLI が生成時に使う template 資産」と「サービスが実行時に使う hook 資産」に分離します。
+
+#### Phase 5.5-A: templates を CLI 側へ移設
+- `runtime/{java,python}/templates` を `cli/assets/runtime-templates/{java,python}/templates` へ移設
+- CLI renderer は `cli/assets` の embed FS を参照し、`runtime` Go module 依存を除去
+
+#### Phase 5.5-B: hooks を runtime-hooks へ移設
+- `runtime/{java,python}/extensions` を `runtime-hooks/{java,python}` へ移設
+- Dockerfile/build/runtime 参照を新パスへ更新（フォールバックなし）
+
+#### Phase 5.5-C: 検証
+- `docker compose up` で service 起動成功
+- `uv run e2e/run_tests.py --parallel --verbose` がフル完走
 
 ### Phase 6: CLI Legacy クリーンアップ（最終）
 
