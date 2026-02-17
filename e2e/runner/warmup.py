@@ -228,8 +228,8 @@ def _warmup(
 
 
 def _uses_java_templates(scenarios: dict[str, Scenario]) -> bool:
-    runtime_extensions = PROJECT_ROOT / "runtime" / "java" / "extensions"
-    if not runtime_extensions.exists():
+    java_hooks_dir = PROJECT_ROOT / "runtime-hooks" / "java"
+    if not java_hooks_dir.exists():
         return False
     for template in _collect_templates(scenarios):
         if _template_has_java_runtime(template):

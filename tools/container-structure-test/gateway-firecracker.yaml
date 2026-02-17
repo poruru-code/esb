@@ -1,0 +1,37 @@
+# Where: tools/container-structure-test/gateway-firecracker.yaml
+# What: Container Structure Tests for the gateway containerd image.
+# Why: Validate WireGuard and HAProxy tooling presence.
+
+schemaVersion: "2.0.0"
+
+metadataTest:
+  exposedPorts: ["8443"]
+  entrypoint: ["/app/entrypoint.sh"]
+  cmd:
+    - "uvicorn"
+    - "services.gateway.main:app"
+    - "--host"
+    - "0.0.0.0"
+    - "--port"
+    - "8443"
+    - "--ssl-keyfile"
+    - "/app/config/ssl/server.key"
+    - "--ssl-certfile"
+    - "/app/config/ssl/server.crt"
+
+fileExistenceTests:
+  - name: "entrypoint"
+    path: "/app/entrypoint.sh"
+    shouldExist: true
+  - name: "haproxy-binary"
+    path: "/usr/sbin/haproxy"
+    shouldExist: true
+  - name: "wireguard-binary"
+    path: "/usr/bin/wg"
+    shouldExist: true
+  - name: "gateway-package"
+    path: "/app/services/gateway"
+    shouldExist: true
+  - name: "common-package"
+    path: "/app/services/common"
+    shouldExist: true

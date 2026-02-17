@@ -37,9 +37,9 @@ flowchart LR
 ## 実装対応表
 | runtime | 主実装 |
 | --- | --- |
-| Python | `runtime/python/extensions/sitecustomize/site-packages/sitecustomize.py` |
-| Java | `runtime/java/extensions/agent/src/main/java/com/runtime/agent/logging/VictoriaLogsHook.java` |
-| Java sink | `runtime/java/extensions/agent/src/main/java/com/runtime/agent/logging/VictoriaLogsSink.java` |
+| Python | `runtime-hooks/python/sitecustomize/site-packages/sitecustomize.py` |
+| Java | `runtime-hooks/java/agent/src/main/java/com/runtime/agent/logging/VictoriaLogsHook.java` |
+| Java sink | `runtime-hooks/java/agent/src/main/java/com/runtime/agent/logging/VictoriaLogsSink.java` |
 
 ## 確認手順
 ```bash
@@ -62,6 +62,6 @@ docker logs <project>-agent
 ---
 
 ## Implementation references
-- `runtime/python/extensions/sitecustomize/site-packages/sitecustomize.py`
-- `runtime/java/extensions/agent/src/main/java/com/runtime/agent/logging/VictoriaLogsHook.java`
-- `runtime/java/extensions/agent/src/main/java/com/runtime/agent/logging/VictoriaLogsSink.java`
+- `runtime-hooks/python/sitecustomize/site-packages/sitecustomize.py`
+- `runtime-hooks/java/agent/src/main/java/com/runtime/agent/logging/VictoriaLogsHook.java`
+- `runtime-hooks/java/agent/src/main/java/com/runtime/agent/logging/VictoriaLogsSink.java`

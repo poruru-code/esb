@@ -6,7 +6,7 @@
 FROM esb-lambda-base:latest
 
 # ESB Runtime
-COPY runtime/python/extensions/sitecustomize/site-packages/sitecustomize.py /opt/python/sitecustomize.py
+COPY runtime-hooks/python/sitecustomize/site-packages/sitecustomize.py /opt/python/sitecustomize.py
 ENV PYTHONPATH=/opt/python${PYTHONPATH:+:${PYTHONPATH}}
 
 # Function code

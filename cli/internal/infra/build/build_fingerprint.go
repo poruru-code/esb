@@ -17,15 +17,48 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
 )
 
-func buildImageFingerprint(outputDir, composeProject, env, baseImageID string, functions []template.FunctionSpec) (string, error) {
+func buildImageFingerprint(
+	outputDir,
+	composeProject,
+	env,
+	baseImageID string,
+	functions []template.FunctionSpec,
+	imageSourceDigests map[string]string,
+) (string, error) {
 	outputHash, err := outputFingerprint(outputDir, functions)
 	if err != nil {
 		return "", err
 	}
 	stageKey := staging.CacheKey(composeProject, env)
-	seed := fmt.Sprintf("%s:%s:%s", stageKey, strings.TrimSpace(baseImageID), outputHash)
+	imageSourceHash := imageSourceFingerprint(functions, imageSourceDigests)
+	seed := fmt.Sprintf("%s:%s:%s:%s", stageKey, strings.TrimSpace(baseImageID), outputHash, imageSourceHash)
 	sum := sha256.Sum256([]byte(seed))
 	return hex.EncodeToString(sum[:4]), nil
+}
+
+func imageSourceFingerprint(functions []template.FunctionSpec, imageSourceDigests map[string]string) string {
+	if len(functions) == 0 {
+		return ""
+	}
+	entries := make([]string, 0, len(functions))
+	for _, fn := range functions {
+		source := strings.TrimSpace(fn.ImageSource)
+		if source == "" {
+			continue
+		}
+		entries = append(entries, fmt.Sprintf(
+			"%s:%s:%s",
+			strings.TrimSpace(fn.Name),
+			source,
+			strings.TrimSpace(imageSourceDigests[source]),
+		))
+	}
+	if len(entries) == 0 {
+		return ""
+	}
+	sort.Strings(entries)
+	sum := sha256.Sum256([]byte(strings.Join(entries, "\n")))
+	return hex.EncodeToString(sum[:4])
 }
 
 func outputFingerprint(outputDir string, functions []template.FunctionSpec) (string, error) {

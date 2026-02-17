@@ -52,6 +52,9 @@ func TestJavaRuntimeMavenBuildLineAlwaysUsesSettingsFile(t *testing.T) {
 	) {
 		t.Fatalf("expected settings-enabled mvn command in %q", line)
 	}
+	if !strings.Contains(line, "-pl ../wrapper,../agent -am package") {
+		t.Fatalf("expected runtime-hooks module list in %q", line)
+	}
 	if strings.Contains(line, "if [ -f") {
 		t.Fatalf("unexpected fallback condition in %q", line)
 	}
@@ -137,7 +140,7 @@ func TestJavaRuntimeBuildImageUsesAWSBuildImage(t *testing.T) {
 
 func loadMavenProxyCases(t *testing.T) []mavenProxyCase {
 	t.Helper()
-	path := filepath.Join("..", "..", "..", "..", "runtime", "java", "testdata", "maven_proxy_cases.json")
+	path := filepath.Join("..", "..", "..", "..", "runtime-hooks", "java", "testdata", "maven_proxy_cases.json")
 	payload, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read shared proxy cases: %v", err)

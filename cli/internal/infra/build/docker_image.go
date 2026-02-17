@@ -6,6 +6,7 @@ package build
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
@@ -50,6 +51,46 @@ func dockerImageID(
 		return ""
 	}
 	return strings.TrimSpace(string(out))
+}
+
+func dockerImageRepoDigests(
+	ctx context.Context,
+	runner compose.CommandRunner,
+	contextDir string,
+	imageTag string,
+) []string {
+	if runner == nil || imageTag == "" {
+		return nil
+	}
+	out, err := runner.RunOutput(
+		ctx,
+		contextDir,
+		"docker",
+		"image",
+		"inspect",
+		"--format",
+		"{{range .RepoDigests}}{{println .}}{{end}}",
+		imageTag,
+	)
+	if err != nil {
+		return nil
+	}
+	lines := strings.Split(string(out), "\n")
+	digests := make([]string, 0, len(lines))
+	seen := make(map[string]struct{}, len(lines))
+	for _, line := range lines {
+		digest := strings.TrimSpace(line)
+		if digest == "" {
+			continue
+		}
+		if _, ok := seen[digest]; ok {
+			continue
+		}
+		seen[digest] = struct{}{}
+		digests = append(digests, digest)
+	}
+	sort.Strings(digests)
+	return digests
 }
 
 func dockerImageExists(

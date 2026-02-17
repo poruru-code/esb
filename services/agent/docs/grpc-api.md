@@ -6,7 +6,7 @@ Why: Keep runtime control surface and error semantics explicit.
 # Agent gRPC API
 
 ## 参照（Source of Truth）
-- Proto 定義: `proto/agent.proto`
+- Proto 定義: `services/contracts/proto/agent.proto`
 - 実装: `services/agent/internal/api/server.go`
 
 > Generated artifact の配置と生成手順は `proto-generation.md` を参照してください。
@@ -152,7 +152,7 @@ sequenceDiagram
 ---
 
 ## Implementation references
-- `proto/agent.proto`
+- `services/contracts/proto/agent.proto`
 - `tools/gen_proto.py`
 - `services/agent/internal/api/server.go`
 - `services/agent/internal/runtime/interface.go`

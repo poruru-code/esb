@@ -30,7 +30,7 @@ CLI の実装詳細は `cli/docs/container-management.md` を参照してくだ�
 
 確認方法:
 - `docker ps --format '{{.Names}}' | grep -E '(gateway|agent)$'`
-- `grep '^ENV_PREFIX=' config/defaults.env`
+- `echo "${ENV_PREFIX:-ESB}"`
 
 ### スタック起動
 

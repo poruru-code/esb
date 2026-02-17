@@ -12,9 +12,9 @@ import (
 	"sync"
 	"text/template"
 
+	runtimeassets "github.com/poruru/edge-serverless-box/cli/assets"
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/runtime"
 	"github.com/poruru/edge-serverless-box/cli/internal/meta"
-	runtimeassets "github.com/poruru/edge-serverless-box/runtime"
 
 	"github.com/Masterminds/sprig/v3"
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/manifest"
@@ -22,7 +22,7 @@ import (
 )
 
 // DefaultSitecustomizeSource is the default sitecustomize.py path used by the build pipeline.
-const DefaultSitecustomizeSource = "runtime/python/extensions/sitecustomize/site-packages/sitecustomize.py"
+const DefaultSitecustomizeSource = "runtime-hooks/python/sitecustomize/site-packages/sitecustomize.py"
 
 //go:embed templates/*.tmpl
 var templateFS embed.FS
@@ -219,9 +219,9 @@ func loadTemplate(name string) (*template.Template, error) {
 func resolveTemplateSource(name string) (embed.FS, string) {
 	switch name {
 	case "python/dockerfile.tmpl":
-		return runtimeassets.TemplatesFS, "python/templates/dockerfile.tmpl"
+		return runtimeassets.RuntimeTemplatesFS, "runtime-templates/python/templates/dockerfile.tmpl"
 	case "java/dockerfile.tmpl":
-		return runtimeassets.TemplatesFS, "java/templates/dockerfile.tmpl"
+		return runtimeassets.RuntimeTemplatesFS, "runtime-templates/java/templates/dockerfile.tmpl"
 	default:
 		return templateFS, "templates/" + name
 	}

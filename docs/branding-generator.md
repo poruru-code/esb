@@ -15,4 +15,4 @@ Why: Keep branding operations documented where the tool lives.
 ---
 
 ## Implementation references
-- `config/defaults.env`
+- `tools/bootstrap/README.md`

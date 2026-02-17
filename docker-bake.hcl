@@ -23,8 +23,8 @@ variable "CERT_DIR" {
 }
 
 target "lambda-base" {
-  context    = "runtime/python"
-  dockerfile = "docker/Dockerfile"
+  context    = "."
+  dockerfile = "runtime-hooks/python/docker/Dockerfile"
   tags       = ["${REGISTRY}esb-lambda-base:latest"]
   output     = ["type=image,push=true"]
 }
@@ -93,7 +93,7 @@ target "provisioner" {
   dockerfile = "Dockerfile"
   contexts = {
     config           = "services/gateway/config"
-    generator_assets = "runtime/python/extensions/sitecustomize/site-packages"
+    generator_assets = "runtime-hooks/python/sitecustomize/site-packages"
     python-base      = "target:python-base"
   }
   args = {

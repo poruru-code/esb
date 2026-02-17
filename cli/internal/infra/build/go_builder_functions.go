@@ -9,12 +9,92 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/template"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/meta"
 )
+
+func resolveImageSourceDigests(
+	ctx context.Context,
+	runner compose.CommandRunner,
+	contextDir string,
+	functions []template.FunctionSpec,
+	verbose bool,
+	out io.Writer,
+) (map[string]string, error) {
+	uniqueSources := make(map[string]struct{})
+	for _, fn := range functions {
+		source := strings.TrimSpace(fn.ImageSource)
+		if source == "" {
+			continue
+		}
+		uniqueSources[source] = struct{}{}
+	}
+	if len(uniqueSources) == 0 {
+		return map[string]string{}, nil
+	}
+	sources := make([]string, 0, len(uniqueSources))
+	for source := range uniqueSources {
+		sources = append(sources, source)
+	}
+	sort.Strings(sources)
+
+	resolved := make(map[string]string, len(sources))
+	for _, source := range sources {
+		digest, err := resolveImageSourceDigest(ctx, runner, contextDir, source, verbose, out)
+		if err != nil {
+			return nil, err
+		}
+		resolved[source] = digest
+	}
+	return resolved, nil
+}
+
+func resolveImageSourceDigest(
+	ctx context.Context,
+	runner compose.CommandRunner,
+	contextDir string,
+	source string,
+	verbose bool,
+	out io.Writer,
+) (string, error) {
+	if runner == nil {
+		return "", fmt.Errorf("runner is required")
+	}
+	source = strings.TrimSpace(source)
+	if source == "" {
+		return "", fmt.Errorf("image source is required")
+	}
+	if digest := digestFromImageRef(source); digest != "" {
+		return digest, nil
+	}
+	if verbose {
+		_, _ = fmt.Fprintf(resolveBuildOutput(out), "  Refreshing image source for fingerprint: %s\n", source)
+	}
+	if err := runner.RunQuiet(ctx, contextDir, "docker", "pull", source); err != nil {
+		return "", fmt.Errorf("pull image source %s: %w", source, err)
+	}
+	repoDigests := dockerImageRepoDigests(ctx, runner, contextDir, source)
+	if len(repoDigests) > 0 {
+		return strings.Join(repoDigests, ","), nil
+	}
+	if imageID := dockerImageID(ctx, runner, contextDir, source); imageID != "" {
+		return imageID, nil
+	}
+	return "", fmt.Errorf("resolve image source digest for %s", source)
+}
+
+func digestFromImageRef(source string) string {
+	source = strings.TrimSpace(source)
+	at := strings.LastIndex(source, "@")
+	if at == -1 || at == len(source)-1 {
+		return ""
+	}
+	return strings.TrimSpace(source[at+1:])
+}
 
 func brandingImageLabels(project, env string) map[string]string {
 	labels := map[string]string{

@@ -128,7 +128,7 @@ containerd runtime 実装は 1 ファイル集中ではなく、以下に分割�
 ---
 
 ## Implementation references
-- `proto/agent.proto`
+- `services/contracts/proto/agent.proto`
 - `services/agent/cmd/agent/main.go`
 - `services/agent/internal/api/server.go`
 - `services/agent/internal/runtime/interface.go`

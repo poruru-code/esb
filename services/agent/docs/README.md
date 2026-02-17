@@ -39,7 +39,7 @@ Image 関数は deploy 時 prewarm を前提とし、実行時 Agent は内部�
 ---
 
 ## Implementation references
-- `proto/agent.proto`
+- `services/contracts/proto/agent.proto`
 - `tools/gen_proto.py`
 - `services/agent/cmd/agent/main.go`
 - `services/agent/internal/api/server.go`

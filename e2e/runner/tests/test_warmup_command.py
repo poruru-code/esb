@@ -10,7 +10,9 @@ from e2e.runner import constants, warmup
 from e2e.runner.models import Scenario
 
 _EXPECTED_JAVA_BUILD_IMAGE = "public.ecr.aws/sam/build-java21@sha256:5f78d6d9124e54e5a7a9941ef179d74d88b7a5b117526ea8574137e5403b51b7"
-_CASES_PATH = Path(__file__).resolve().parents[3] / "runtime/java/testdata/maven_proxy_cases.json"
+_CASES_PATH = (
+    Path(__file__).resolve().parents[3] / "runtime-hooks/java/testdata/maven_proxy_cases.json"
+)
 _PROXY_ENV_KEYS = (
     "HTTP_PROXY",
     "http_proxy",
