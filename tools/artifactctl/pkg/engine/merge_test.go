@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -219,7 +220,7 @@ func TestWithOutputDirLockSerializesConcurrentCalls(t *testing.T) {
 func TestWithOutputDirLockTimesOutWhenLockIsHeld(t *testing.T) {
 	outputDir := t.TempDir()
 	lockPath := filepath.Join(outputDir, mergeLockFileName)
-	if err := os.WriteFile(lockPath, []byte("held\n"), 0o600); err != nil {
+	if err := os.WriteFile(lockPath, []byte(strconv.Itoa(os.Getpid())+"\n"), 0o600); err != nil {
 		t.Fatalf("create lock file: %v", err)
 	}
 
@@ -235,6 +236,40 @@ func TestWithOutputDirLockTimesOutWhenLockIsHeld(t *testing.T) {
 	err := withOutputDirLock(outputDir, func() error { return nil })
 	if err == nil {
 		t.Fatal("expected timeout error when lock is held")
+	}
+}
+
+func TestWithOutputDirLockRecoversStaleLockFile(t *testing.T) {
+	outputDir := t.TempDir()
+	lockPath := filepath.Join(outputDir, mergeLockFileName)
+	if err := os.WriteFile(lockPath, []byte("999999\n"), 0o600); err != nil {
+		t.Fatalf("create stale lock file: %v", err)
+	}
+
+	if err := withOutputDirLock(outputDir, func() error { return nil }); err != nil {
+		t.Fatalf("withOutputDirLock should recover stale lock: %v", err)
+	}
+}
+
+func TestWithOutputDirLockIgnoresUnparseableLockOwner(t *testing.T) {
+	outputDir := t.TempDir()
+	lockPath := filepath.Join(outputDir, mergeLockFileName)
+	if err := os.WriteFile(lockPath, []byte("not-a-pid\n"), 0o600); err != nil {
+		t.Fatalf("create lock file: %v", err)
+	}
+
+	origWait := mergeLockWaitTimeout
+	origPoll := mergeLockPollInterval
+	mergeLockWaitTimeout = 40 * time.Millisecond
+	mergeLockPollInterval = 10 * time.Millisecond
+	t.Cleanup(func() {
+		mergeLockWaitTimeout = origWait
+		mergeLockPollInterval = origPoll
+	})
+
+	err := withOutputDirLock(outputDir, func() error { return nil })
+	if err == nil {
+		t.Fatal("expected timeout error for unparseable lock owner")
 	}
 }
 
