@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/runtime"
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/template"
@@ -63,34 +64,39 @@ func stageFunction(fn template.FunctionSpec, ctx stageContext) (stagedFunction, 
 		}
 	}
 
-	sourcePath := resolveResourcePath(ctx.BaseDir, fn.CodeURI)
 	stagingSrc := filepath.Join(functionDir, "src")
-	if !ctx.DryRun {
-		switch {
-		case dirExists(sourcePath):
-			if err := copyDir(sourcePath, stagingSrc); err != nil {
-				return stagedFunction{}, err
-			}
-		case fileExists(sourcePath):
-			if err := ensureDir(stagingSrc); err != nil {
-				return stagedFunction{}, err
-			}
-			targetDir := stagingSrc
-			if subDir := profile.CodeUriTargetDir(sourcePath); subDir != "" {
-				targetDir = filepath.Join(stagingSrc, subDir)
-				if err := ensureDir(targetDir); err != nil {
+	if strings.TrimSpace(fn.CodeURI) != "" {
+		sourcePath := resolveResourcePath(ctx.BaseDir, fn.CodeURI)
+		if !ctx.DryRun {
+			switch {
+			case dirExists(sourcePath):
+				if err := copyDir(sourcePath, stagingSrc); err != nil {
+					return stagedFunction{}, err
+				}
+			case fileExists(sourcePath):
+				if err := ensureDir(stagingSrc); err != nil {
+					return stagedFunction{}, err
+				}
+				targetDir := stagingSrc
+				if subDir := profile.CodeUriTargetDir(sourcePath); subDir != "" {
+					targetDir = filepath.Join(stagingSrc, subDir)
+					if err := ensureDir(targetDir); err != nil {
+						return stagedFunction{}, err
+					}
+				}
+				target := filepath.Join(targetDir, filepath.Base(sourcePath))
+				if err := copyFile(sourcePath, target); err != nil {
 					return stagedFunction{}, err
 				}
 			}
-			target := filepath.Join(targetDir, filepath.Base(sourcePath))
-			if err := copyFile(sourcePath, target); err != nil {
-				return stagedFunction{}, err
-			}
 		}
-	}
 
-	fn.CodeURI = ensureSlash(path.Join("functions", fn.Name, "src"))
-	fn.HasRequirements = fileExists(filepath.Join(stagingSrc, "requirements.txt"))
+		fn.CodeURI = ensureSlash(path.Join("functions", fn.Name, "src"))
+		fn.HasRequirements = fileExists(filepath.Join(stagingSrc, "requirements.txt"))
+	} else {
+		fn.CodeURI = ""
+		fn.HasRequirements = false
+	}
 
 	stagedLayers, err := stageLayers(fn.Layers, ctx, fn.Name, functionDir, profile)
 	if err != nil {

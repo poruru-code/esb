@@ -18,11 +18,11 @@ Why: Make docker/containerd support status explicit per test case.
 | --- | --- | ---: | :---: | :---: | --- |
 | smoke | `smoke` | 10 | ✅ | ✅ | `test_connectivity` 2件 + `test_smoke` 8件 |
 | autoscaling | `standard` | 6 | ✅ | ✅ | `../scenarios/autoscaling/` 経由で実行 |
-| standard | `standard` | 26 | ✅ | ✅ | `../scenarios/standard/` 経由で実行 |
+| standard | `standard` | 29 | ✅ | ✅ | `../scenarios/standard/` 経由で実行 |
 | runtime/java | `runtime` | 3 | ✅ | ❌ | 現在の matrix では `e2e-docker` のみ |
 | runtime/python | `runtime` | 3 | ✅ | ❌ | 現在の matrix では `e2e-docker` のみ |
 | restart | `restart` | 2 | ✅ | ❌ | 現在の matrix では `e2e-docker` のみ |
-| **合計** |  | **50** |  |  |  |
+| **合計** |  | **53** |  |  |  |
 
 ## テスト一覧
 
@@ -73,6 +73,9 @@ Why: Make docker/containerd support status explicit per test case.
 | `e2e/scenarios/standard/test_gateway_basics.py` | `test_routing_404` | [STD-008](#desc-standard-gateway-basics-routing-404) | 制御系 | ✅ | ✅ |  |
 | `e2e/scenarios/standard/test_id_specs.py` | `test_id_propagation_with_chain` | [STD-009](#desc-standard-id-specs-id-propagation-with-chain) | 観測性 | ✅ | ✅ |  |
 | `e2e/scenarios/standard/test_image_function.py` | `test_image_function_basic` | [STD-010](#desc-standard-image-function-basic) | 機能系 | ✅ | ✅ |  |
+| `e2e/scenarios/standard/test_image_function.py` | `test_image_function_chain_invoke` | [STD-027](#desc-standard-image-function-chain-invoke) | 機能系 | ✅ | ✅ |  |
+| `e2e/scenarios/standard/test_image_function.py` | `test_image_function_s3_access` | [STD-028](#desc-standard-image-function-s3-access) | 機能系 | ✅ | ✅ |  |
+| `e2e/scenarios/standard/test_image_function.py` | `test_image_function_victorialogs` | [STD-029](#desc-standard-image-function-victorialogs) | 観測性 | ✅ | ✅ |  |
 | `e2e/scenarios/standard/test_lambda.py` | `test_sync_chain_invoke` | [STD-011](#desc-standard-lambda-sync-chain-invoke) | 機能系 | ✅ | ✅ |  |
 | `e2e/scenarios/standard/test_lambda.py` | `test_async_chain_invoke` | [STD-012](#desc-standard-lambda-async-chain-invoke) | 機能系 | ✅ | ✅ |  |
 | `e2e/scenarios/standard/test_metrics_api.py` | `test_metrics_api` | [STD-013](#desc-standard-metrics-api) | 観測性 | ✅ | ✅ |  |
@@ -488,6 +491,48 @@ Why: Make docker/containerd support status explicit per test case.
   失敗時の示唆:
   image pull/auth/push設定、レジストリ資格情報、エラーコード返却処理を確認する。
 
+- <a id="desc-standard-image-function-chain-invoke"></a>`STD-027`
+
+  保証:
+  ImageUri指定の Lambda から他関数（`lambda-echo`）へのチェーン呼び出しが成立することを保証する。
+
+  入力:
+  `/api/image` に `{"action":"chain_invoke","target":"lambda-echo","message":"from-image-chain"}` を送信し、`200`、`success=true` を確認する。さらに `chain.status_code==200`、`child.statusCode==200`、`child.body` 展開後に `success=true` と `message="Echo: from-image-chain"` を検証する。
+
+  合格条件:
+  親レスポンスが `200` かつ `success=true`。`chain` が object で `status_code==200`。`child` が object で `statusCode==200`。`child.body` 展開後に `success=true` と `message="Echo: from-image-chain"` が成立すること。
+
+  失敗時の示唆:
+  Image Lambda 内の invoke 経路、`lambda-echo` 連携、親子レスポンス整形を確認する。
+
+- <a id="desc-standard-image-function-s3-access"></a>`STD-028`
+
+  保証:
+  ImageUri指定の Lambda から S3 へ書き込み・読み戻し（roundtrip）できることを保証する。
+
+  入力:
+  `/api/image` に `{"action":"s3_roundtrip","bucket":"e2e-test-bucket","key":"image-<random>.txt","content":"from-image-s3"}` を送信し、`200`、`success=true` を確認する。返却 `s3` オブジェクトの `bucket`、`key`、`content` が入力と一致することを検証する。
+
+  合格条件:
+  レスポンスが `200` かつ `success=true`。`s3` が object で `bucket=="e2e-test-bucket"`、`key` が送信値一致、`content=="from-image-s3"` を満たすこと。
+
+  失敗時の示唆:
+  Image Lambda 内の S3 クライアント設定、バケット名解決、sitecustomize 経由のエンドポイント誘導を確認する。
+
+- <a id="desc-standard-image-function-victorialogs"></a>`STD-029`
+
+  保証:
+  ImageUri指定の Lambda から CloudWatch 互換ログ出力が VictoriaLogs に取り込まれることを保証する。
+
+  入力:
+  `/api/image` に `{"action":"test_cloudwatch","marker":"image-cloudwatch-<uuid>"}` を送信し、`200`、`success=true` を確認する。返却された `cloudwatch.log_group` と `cloudwatch.log_stream` をキーに VictoriaLogs を検索し、marker を含むログを1件以上検出する。
+
+  合格条件:
+  レスポンスが `200` かつ `success=true`。`cloudwatch` が object で `log_group`/`log_stream` が非空文字列。VictoriaLogs検索（`container_name=lambda-image`, `logger=cloudwatch.logs.python`, 該当 log_group/log_stream）で marker を含むヒットを1件以上得られること。
+
+  失敗時の示唆:
+  CloudWatch passthrough 実装、VictoriaLogs 取り込みパイプライン、ログフィルタ条件を確認する。
+
 - <a id="desc-standard-lambda-sync-chain-invoke"></a>`STD-011`
 
   保証:
@@ -794,7 +839,7 @@ Why: Make docker/containerd support status explicit per test case.
   Python CloudWatch擬似ログがVictoriaLogsへ重複なく転送され、属性付与されることを保証する。
 
   入力:
-  Python connectivity の CloudWatch 模擬呼び出し後、`logger:boto3.mock` かつ `log_group/log_stream` 条件で VictoriaLogs を検索し、該当ログがちょうど4件であることを確認する。さらに、`(level, _msg)` の組が4件すべて一意であること（重複なし）を検証する。全件 `container_name=lambda-connectivity`、`DEBUG/INFO/ERROR` レベルを含み、`CloudWatch Logs E2E verification successful!` を含むことを確認する。
+  Python connectivity の CloudWatch 模擬呼び出し後、`logger:cloudwatch.logs.python` かつ `log_group/log_stream` 条件で VictoriaLogs を検索し、該当ログがちょうど4件であることを確認する。さらに、`(level, _msg)` の組が4件すべて一意であること（重複なし）を検証する。全件 `container_name=lambda-connectivity`、`DEBUG/INFO/ERROR` レベルを含み、`CloudWatch Logs E2E verification successful!` を含むことを確認する。
 
   合格条件:
   CloudWatch模擬呼び出しが `200` かつ `success=true`。VictoriaLogs検索で該当ログがちょうど4件であること。`(level, _msg)` の組が4件すべて一意であること。全件 `container_name=lambda-connectivity`。レベルに `DEBUG/INFO/ERROR` を含み、`CloudWatch Logs E2E verification successful!` を含むこと。

@@ -71,11 +71,8 @@ flowchart LR
     D --> E[Runtime pull]
 ```
 
-手動同期が必要な場合:
-
-```bash
-python tools/image-import/import_images.py .<brand>/<env>/config/image-import.json
-```
+手動同期用の補助スクリプトは廃止済みです。  
+Image 関数の同期は `esb deploy --image-prewarm=all` を使用してください。
 
 ## 拡張プレイブック
 

@@ -31,6 +31,64 @@ func (s *stubParser) Parse(_ string, params map[string]string) (template.ParseRe
 	return s.result, nil
 }
 
+func TestResolveImageFunctionRuntime(t *testing.T) {
+	got, err := resolveImageFunctionRuntime("lambda-image", nil)
+	if err != nil {
+		t.Fatalf("resolve default runtime: %v", err)
+	}
+	if got != "python3.12" {
+		t.Fatalf("expected default runtime python3.12, got %q", got)
+	}
+
+	got, err = resolveImageFunctionRuntime("lambda-image", map[string]string{"lambda-image": "java21"})
+	if err != nil {
+		t.Fatalf("resolve java runtime: %v", err)
+	}
+	if got != "java21" {
+		t.Fatalf("expected java21 runtime, got %q", got)
+	}
+
+	if _, err := resolveImageFunctionRuntime("lambda-image", map[string]string{"lambda-image": "nodejs20.x"}); err == nil {
+		t.Fatalf("expected unsupported runtime error")
+	}
+}
+
+func TestApplyImageSourceOverrides(t *testing.T) {
+	functions := []template.FunctionSpec{
+		{
+			Name:        "lambda-image",
+			ImageSource: "public.ecr.aws/example/original:latest",
+		},
+	}
+
+	err := applyImageSourceOverrides(functions, map[string]string{
+		"lambda-image": "public.ecr.aws/example/override:v1",
+	})
+	if err != nil {
+		t.Fatalf("apply image source overrides: %v", err)
+	}
+	if got := functions[0].ImageSource; got != "public.ecr.aws/example/override:v1" {
+		t.Fatalf("unexpected image source override: %q", got)
+	}
+}
+
+func TestApplyImageSourceOverridesRejectsNonImageFunction(t *testing.T) {
+	functions := []template.FunctionSpec{
+		{
+			Name:    "lambda-code",
+			Runtime: "python3.12",
+			CodeURI: "functions/code/",
+		},
+	}
+
+	err := applyImageSourceOverrides(functions, map[string]string{
+		"lambda-code": "public.ecr.aws/example/override:v1",
+	})
+	if err == nil {
+		t.Fatalf("expected error for non-image function override")
+	}
+}
+
 func TestGenerateFilesUsesParserOverride(t *testing.T) {
 	root := t.TempDir()
 	templatePath := filepath.Join(root, "template.yaml")
@@ -523,10 +581,24 @@ func TestGenerateFilesImageFunctionWritesImportManifest(t *testing.T) {
 	if functions[0].ImageRef == "" {
 		t.Fatalf("expected image_ref to be populated")
 	}
+	if functions[0].Runtime != "python3.12" {
+		t.Fatalf("expected default image runtime python3.12, got %q", functions[0].Runtime)
+	}
 
 	functionDir := filepath.Join(root, "out", "functions", "lambda-image")
-	if _, err := os.Stat(functionDir); !os.IsNotExist(err) {
-		t.Fatalf("did not expect staged function directory for image function")
+	if _, err := os.Stat(functionDir); err != nil {
+		t.Fatalf("expected staged function directory for image function: %v", err)
+	}
+	dockerfilePath := filepath.Join(functionDir, "Dockerfile")
+	if _, err := os.Stat(dockerfilePath); err != nil {
+		t.Fatalf("expected dockerfile for image function: %v", err)
+	}
+	dockerfile := readFile(t, dockerfilePath)
+	if !strings.Contains(dockerfile, "FROM public.ecr.aws/example/repo:latest") {
+		t.Fatalf("expected dockerfile to use image source as base, got: %s", dockerfile)
+	}
+	if strings.Contains(dockerfile, "CMD [") {
+		t.Fatalf("did not expect CMD override for image wrapper dockerfile")
 	}
 
 	manifestPath := filepath.Join(root, "out", "config", "image-import.json")
@@ -535,8 +607,53 @@ func TestGenerateFilesImageFunctionWritesImportManifest(t *testing.T) {
 	}
 
 	content := readFile(t, filepath.Join(root, "out", "config", "functions.yml"))
-	if !strings.Contains(content, "image: \"registry:5010/public.ecr.aws/example/repo:latest\"") {
+	if !strings.Contains(content, "image: \""+meta.ImagePrefix+"-lambda-image:latest\"") {
 		t.Fatalf("expected image entry in functions.yml, got: %s", content)
+	}
+}
+
+func TestGenerateFilesImageFunctionUsesImageSourceOverride(t *testing.T) {
+	root := t.TempDir()
+	templatePath := filepath.Join(root, "template.yaml")
+	writeTestFile(t, templatePath, "Resources: {}")
+
+	parser := &stubParser{
+		result: template.ParseResult{
+			Functions: []template.FunctionSpec{
+				{
+					Name:        "lambda-image",
+					ImageSource: "public.ecr.aws/example/repo:latest",
+				},
+			},
+		},
+	}
+
+	cfg := config.GeneratorConfig{
+		Paths: config.PathsConfig{
+			SamTemplate: "template.yaml",
+			OutputDir:   "out/",
+		},
+	}
+	opts := GenerateOptions{
+		ProjectRoot: root,
+		Parser:      parser,
+		ImageSources: map[string]string{
+			"lambda-image": "public.ecr.aws/example/override:v1",
+		},
+	}
+
+	functions, err := GenerateFiles(cfg, opts)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(functions) != 1 {
+		t.Fatalf("expected 1 function, got %d", len(functions))
+	}
+
+	dockerfilePath := filepath.Join(root, "out", "functions", "lambda-image", "Dockerfile")
+	dockerfile := readFile(t, dockerfilePath)
+	if !strings.Contains(dockerfile, "FROM public.ecr.aws/example/override:v1") {
+		t.Fatalf("expected dockerfile to use image override, got: %s", dockerfile)
 	}
 }
 

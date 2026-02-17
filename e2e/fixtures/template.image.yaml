@@ -11,7 +11,7 @@ Resources:
     Properties:
       FunctionName: lambda-image
       PackageType: Image
-      ImageUri: public.ecr.aws/r9p4t4p0/poruru-code:latest
+      ImageUri: public.ecr.aws/r9p4t4p0/esb-e2e-lambda-python:latest
       Events:
         ImageApi:
           Type: Api

@@ -69,15 +69,20 @@ func resolveDeployTargetStack(
 }
 
 func defaultDeployProject(env string) string {
-	brandName := strings.ToLower(strings.TrimSpace(os.Getenv("CLI_CMD")))
-	if brandName == "" {
-		brandName = meta.Slug
-	}
+	brandName := deployBrandSlug()
 	envName := strings.ToLower(strings.TrimSpace(env))
 	if envName == "" {
 		envName = "default"
 	}
 	return fmt.Sprintf("%s-%s", brandName, envName)
+}
+
+func deployBrandSlug() string {
+	brandName := strings.ToLower(strings.TrimSpace(os.Getenv("CLI_CMD")))
+	if brandName == "" {
+		brandName = meta.Slug
+	}
+	return brandName
 }
 
 func discoverRunningDeployTargetStacks(factory DockerClientFactory) ([]deployTargetStack, error) {
@@ -177,6 +182,15 @@ func inferEnvFromStackName(stack string) string {
 	trimmed := strings.TrimSpace(stack)
 	if trimmed == "" {
 		return ""
+	}
+	// Preferred path: "<brand>-<env>" where env itself may contain dashes
+	// (e.g. "esb-e2e-docker" -> "e2e-docker").
+	brandPrefix := deployBrandSlug() + "-"
+	if strings.HasPrefix(trimmed, brandPrefix) {
+		env := strings.TrimSpace(strings.TrimPrefix(trimmed, brandPrefix))
+		if env != "" {
+			return env
+		}
 	}
 	parts := strings.Split(trimmed, "-")
 	if len(parts) < 2 {

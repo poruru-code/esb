@@ -43,6 +43,7 @@ func RenderDockerfile(
 	if err != nil {
 		return "", err
 	}
+	isImageWrapper := strings.TrimSpace(fn.ImageSource) != ""
 
 	sitecustomize := dockerConfig.SitecustomizeSource
 	if sitecustomize == "" {
@@ -51,37 +52,40 @@ func RenderDockerfile(
 
 	lambdaBase := meta.ImagePrefix + "-lambda-base"
 	baseImage := lambdaBase + ":" + tag
-	if profile.Kind == runtime.KindJava {
-		if profile.JavaBaseImage == "" {
-			return "", fmt.Errorf("java base image is required for runtime %s", profile.Name)
+	if isImageWrapper {
+		baseImage = strings.TrimSpace(fn.ImageSource)
+	} else {
+		if profile.Kind == runtime.KindJava {
+			if profile.JavaBaseImage == "" {
+				return "", fmt.Errorf("java base image is required for runtime %s", profile.Name)
+			}
+			baseImage = profile.JavaBaseImage
+		} else if registry != "" {
+			baseImage = fmt.Sprintf("%s%s:%s", registry, lambdaBase, tag)
 		}
-		baseImage = profile.JavaBaseImage
-	} else if registry != "" {
-		baseImage = fmt.Sprintf("%s%s:%s", registry, lambdaBase, tag)
 	}
 
 	handler := fn.Handler
 	originalHandler := ""
-	useJavaWrapper := false
 	javaWrapperSource := ""
 	useJavaAgent := false
 	javaAgentSource := ""
 	if profile.Kind == runtime.KindJava {
-		originalHandler = handler
-		handler = "com.runtime.lambda.HandlerWrapper::handleRequest"
-		useJavaWrapper = true
-		javaWrapperSource = path.Join("functions", fn.Name, "lambda-java-wrapper.jar")
 		useJavaAgent = true
 		javaAgentSource = path.Join("functions", fn.Name, "lambda-java-agent.jar")
+		if !isImageWrapper {
+			originalHandler = handler
+			handler = "com.runtime.lambda.HandlerWrapper::handleRequest"
+			javaWrapperSource = path.Join("functions", fn.Name, "lambda-java-wrapper.jar")
+		}
 	}
 
 	data := dockerfileTemplateData{
 		Name:                fn.Name,
+		ImageWrapper:        isImageWrapper,
 		BaseImage:           baseImage,
 		SitecustomizeSource: sitecustomize,
-		UseSitecustomize:    profile.UsesSitecustomize,
-		UsePip:              profile.UsesPip && fn.HasRequirements,
-		UseJavaWrapper:      useJavaWrapper,
+		UsePip:              !isImageWrapper && profile.UsesPip && fn.HasRequirements,
 		JavaWrapperSource:   javaWrapperSource,
 		UseJavaAgent:        useJavaAgent,
 		JavaAgentSource:     javaAgentSource,
@@ -106,16 +110,13 @@ func RenderFunctionsYml(functions []FunctionSpec, registry, tag string) (string,
 	registry = normalizeRegistry(registry)
 	data := functionsTemplateData{}
 	for _, fn := range functions {
-		isImageSource := strings.TrimSpace(fn.ImageSource) != ""
-		if !isImageSource && strings.TrimSpace(fn.ImageName) == "" {
-			return "", fmt.Errorf("image name is required for function %s", fn.Name)
-		}
+		imageName := strings.TrimSpace(fn.ImageName)
 		imageRef := strings.TrimSpace(fn.ImageRef)
+		if imageName != "" {
+			imageRef = fmt.Sprintf("%s%s-%s:%s", registry, meta.ImagePrefix, imageName, tag)
+		}
 		if imageRef == "" {
-			if isImageSource {
-				return "", fmt.Errorf("image_ref is required for image function %s", fn.Name)
-			}
-			imageRef = fmt.Sprintf("%s%s-%s:%s", registry, meta.ImagePrefix, fn.ImageName, tag)
+			return "", fmt.Errorf("image name is required for function %s", fn.Name)
 		}
 
 		hasSchedules := false
@@ -228,11 +229,10 @@ func resolveTemplateSource(name string) (embed.FS, string) {
 
 type dockerfileTemplateData struct {
 	Name                string
+	ImageWrapper        bool
 	BaseImage           string
 	SitecustomizeSource string
-	UseSitecustomize    bool
 	UsePip              bool
-	UseJavaWrapper      bool
 	JavaWrapperSource   string
 	UseJavaAgent        bool
 	JavaAgentSource     string

@@ -43,8 +43,14 @@ func TestDeployWorkflowRunSuccess(t *testing.T) {
 		TemplatePath: filepath.Join(repoRoot, "template.yaml"),
 		OutputDir:    ".out",
 		Parameters:   map[string]string{"ParamA": "value"},
-		Tag:          "v1.2.3",
-		NoCache:      true,
+		ImageSources: map[string]string{
+			"lambda-image": "public.ecr.aws/example/repo:latest",
+		},
+		ImageRuntimes: map[string]string{
+			"lambda-image": "java21",
+		},
+		Tag:     "v1.2.3",
+		NoCache: true,
 	}
 
 	workflow := NewDeployWorkflow(builder.Build, envApplier.Apply, ui, runner)
@@ -87,6 +93,12 @@ func TestDeployWorkflowRunSuccess(t *testing.T) {
 	}
 	if got.Parameters["ParamA"] != "value" {
 		t.Fatalf("parameters mismatch")
+	}
+	if got.ImageRuntimes["lambda-image"] != "java21" {
+		t.Fatalf("image runtime mismatch: %#v", got.ImageRuntimes)
+	}
+	if got.ImageSources["lambda-image"] != "public.ecr.aws/example/repo:latest" {
+		t.Fatalf("image source mismatch: %#v", got.ImageSources)
 	}
 	if !got.NoCache {
 		t.Fatalf("expected no-cache to be true")

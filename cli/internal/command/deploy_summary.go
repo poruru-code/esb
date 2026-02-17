@@ -83,16 +83,44 @@ func appendTemplateSummaryLines(
 		fmt.Sprintf("Staging config: %s", stagingDir),
 	)
 	if len(tpl.Parameters) == 0 {
-		return lines
+		if len(tpl.ImageRuntimes) == 0 {
+			return lines
+		}
+	} else {
+		keys := make([]string, 0, len(tpl.Parameters))
+		for key := range tpl.Parameters {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		lines = append(lines, "Parameters:")
+		for _, key := range keys {
+			lines = append(lines, fmt.Sprintf("  %s = %s", key, tpl.Parameters[key]))
+		}
 	}
-	keys := make([]string, 0, len(tpl.Parameters))
-	for key := range tpl.Parameters {
-		keys = append(keys, key)
+	if len(tpl.ImageRuntimes) == 0 {
+		if len(tpl.ImageSources) == 0 {
+			return lines
+		}
 	}
-	sort.Strings(keys)
-	lines = append(lines, "Parameters:")
-	for _, key := range keys {
-		lines = append(lines, fmt.Sprintf("  %s = %s", key, tpl.Parameters[key]))
+	if len(tpl.ImageSources) > 0 {
+		sourceKeys := make([]string, 0, len(tpl.ImageSources))
+		for key := range tpl.ImageSources {
+			sourceKeys = append(sourceKeys, key)
+		}
+		sort.Strings(sourceKeys)
+		lines = append(lines, "Image sources:")
+		for _, key := range sourceKeys {
+			lines = append(lines, fmt.Sprintf("  %s = %s", key, tpl.ImageSources[key]))
+		}
+	}
+	runtimeKeys := make([]string, 0, len(tpl.ImageRuntimes))
+	for key := range tpl.ImageRuntimes {
+		runtimeKeys = append(runtimeKeys, key)
+	}
+	sort.Strings(runtimeKeys)
+	lines = append(lines, "Image runtimes:")
+	for _, key := range runtimeKeys {
+		lines = append(lines, fmt.Sprintf("  %s = %s", key, imageRuntimeChoice(tpl.ImageRuntimes[key])))
 	}
 	return lines
 }

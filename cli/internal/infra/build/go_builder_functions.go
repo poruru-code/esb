@@ -67,12 +67,6 @@ func buildFunctionImages(
 	expectedFingerprint := strings.TrimSpace(labels[compose.ESBImageFingerprintLabel])
 	bakeTargets := make([]bakeTarget, 0, len(functions))
 	for _, fn := range functions {
-		if strings.TrimSpace(fn.ImageSource) != "" {
-			if verbose {
-				_, _ = fmt.Fprintf(out, "  Skipping build for image function %s (uses image_ref)\n", fn.Name)
-			}
-			continue
-		}
 		if verbose {
 			_, _ = fmt.Fprintf(out, "  Building image for %s...\n", fn.Name)
 		}

@@ -7,7 +7,7 @@ FROM esb-lambda-base:latest
 
 # ESB Runtime
 COPY runtime/python/extensions/sitecustomize/site-packages/sitecustomize.py /opt/python/sitecustomize.py
-ENV PYTHONPATH=/opt/python${PYTHONPATH:+:$PYTHONPATH}
+ENV PYTHONPATH=/opt/python${PYTHONPATH:+:${PYTHONPATH}}
 
 # Function code
 COPY functions/hello/ ${LAMBDA_TASK_ROOT}/

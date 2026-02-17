@@ -34,6 +34,21 @@ func TestRunNodeDisabledWithGlobalFlags(t *testing.T) {
 	}
 }
 
+func TestRunNodeDisabledWithImageOverrideFlags(t *testing.T) {
+	var out bytes.Buffer
+	exitCode := Run([]string{
+		"--image-uri", "lambda-image=public.ecr.aws/example/repo:latest",
+		"--image-runtime", "lambda-image=python",
+		"node", "up",
+	}, Dependencies{Out: &out})
+	if exitCode == 0 {
+		t.Fatalf("expected non-zero exit code for disabled node command")
+	}
+	if !strings.Contains(out.String(), "node command is disabled") {
+		t.Fatalf("unexpected output: %q", out.String())
+	}
+}
+
 func TestCompletionCommandRemoved(t *testing.T) {
 	var out bytes.Buffer
 	exitCode := Run([]string{"completion", "bash"}, Dependencies{Out: &out})
@@ -96,7 +111,7 @@ func TestHandleParseErrorFallback(t *testing.T) {
 }
 
 func TestHandleParseErrorKnownFlags(t *testing.T) {
-	tests := []string{"--env", "--mode", "--env-file"}
+	tests := []string{"--env", "--mode", "--env-file", "--image-uri", "--image-runtime"}
 	for _, flag := range tests {
 		t.Run(flag, func(t *testing.T) {
 			var out bytes.Buffer

@@ -6,7 +6,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from e2e.runner import warmup
+from e2e.runner import constants, warmup
+from e2e.runner.models import Scenario
 
 _EXPECTED_JAVA_BUILD_IMAGE = "public.ecr.aws/sam/build-java21@sha256:5f78d6d9124e54e5a7a9941ef179d74d88b7a5b117526ea8574137e5403b51b7"
 _CASES_PATH = Path(__file__).resolve().parents[3] / "runtime/java/testdata/maven_proxy_cases.json"
@@ -107,3 +108,105 @@ def test_java_build_image_is_digest_pinned() -> None:
     assert warmup.JAVA_BUILD_IMAGE == _EXPECTED_JAVA_BUILD_IMAGE
     assert ":latest" not in warmup.JAVA_BUILD_IMAGE
     assert "@sha256:" in warmup.JAVA_BUILD_IMAGE
+
+
+def test_discover_java_fixture_projects_includes_tools_fixture(monkeypatch, tmp_path):
+    java_root = tmp_path / "e2e" / "fixtures" / "functions" / "java"
+    tool_root = tmp_path / "tools" / "e2e-lambda-fixtures" / "java"
+    (java_root / "echo").mkdir(parents=True)
+    (java_root / "echo" / "pom.xml").write_text("<project/>", encoding="utf-8")
+    tool_root.mkdir(parents=True)
+    (tool_root / "pom.xml").write_text("<project/>", encoding="utf-8")
+
+    monkeypatch.setattr(warmup, "JAVA_FIXTURE_ROOTS", (java_root, tool_root))
+
+    projects = warmup._discover_java_fixture_projects()
+
+    assert projects == [(java_root / "echo").resolve(), tool_root.resolve()]
+
+
+def _scenario(name: str, env_name: str) -> Scenario:
+    return Scenario(
+        name=name,
+        env_name=env_name,
+        mode="docker",
+        env_file=None,
+        env_dir=None,
+        env_vars={},
+        targets=[],
+        exclude=[],
+        deploy_templates=[],
+        project_name="esb",
+    )
+
+
+def test_ensure_buildx_builders_dedupes_same_signature(monkeypatch) -> None:
+    scenarios = {
+        "a": _scenario("a", "e2e-a"),
+        "b": _scenario("b", "e2e-b"),
+    }
+    runtime_env = {
+        "BUILDX_BUILDER": "esb-buildx",
+        constants.ENV_BUILDKITD_CONFIG: "/tmp/buildkitd.toml",
+        "HTTP_PROXY": "http://proxy.example:8080",
+        "http_proxy": "http://proxy.example:8080",
+    }
+    calls: list[tuple[str, str | None, str | None]] = []
+
+    monkeypatch.setattr(
+        warmup,
+        "_scenario_runtime_env_for_buildx",
+        lambda *_args, **_kwargs: dict(runtime_env),
+    )
+    monkeypatch.setattr(
+        warmup,
+        "ensure_buildx_builder",
+        lambda builder_name, network_mode="host", config_path=None, proxy_source=None: calls.append(
+            (
+                builder_name,
+                config_path,
+                (proxy_source or {}).get("HTTP_PROXY"),
+            )
+        ),
+    )
+
+    warmup._ensure_buildx_builders(scenarios)
+
+    assert calls == [("esb-buildx", "/tmp/buildkitd.toml", "http://proxy.example:8080")]
+
+
+def test_ensure_buildx_builders_calls_when_signature_differs(monkeypatch) -> None:
+    scenarios = {
+        "a": _scenario("a", "e2e-a"),
+        "b": _scenario("b", "e2e-b"),
+    }
+    envs = {
+        "a": {
+            "BUILDX_BUILDER": "esb-buildx",
+            constants.ENV_BUILDKITD_CONFIG: "/tmp/buildkitd.toml",
+            "HTTP_PROXY": "http://proxy-a.example:8080",
+        },
+        "b": {
+            "BUILDX_BUILDER": "esb-buildx",
+            constants.ENV_BUILDKITD_CONFIG: "/tmp/buildkitd.toml",
+            "HTTP_PROXY": "http://proxy-b.example:8080",
+        },
+    }
+    calls: list[str] = []
+
+    monkeypatch.setattr(
+        warmup,
+        "_scenario_runtime_env_for_buildx",
+        lambda scenario: dict(envs[scenario.name]),
+    )
+    monkeypatch.setattr(
+        warmup,
+        "ensure_buildx_builder",
+        lambda builder_name, network_mode="host", config_path=None, proxy_source=None: calls.append(
+            builder_name
+        ),
+    )
+
+    warmup._ensure_buildx_builders(scenarios)
+
+    assert calls == ["esb-buildx", "esb-buildx"]

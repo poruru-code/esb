@@ -82,10 +82,12 @@ func loadDeployDefaults(projectRoot, templatePath string) storedDeployDefaults {
 		return storedDeployDefaults{}
 	}
 	return storedDeployDefaults{
-		Env:       entry.Env,
-		Mode:      entry.Mode,
-		OutputDir: entry.OutputDir,
-		Params:    cloneParams(entry.Params),
+		Env:           entry.Env,
+		Mode:          entry.Mode,
+		OutputDir:     entry.OutputDir,
+		Params:        cloneParams(entry.Params),
+		ImageSources:  cloneStringMap(entry.ImageSources),
+		ImageRuntimes: cloneStringMap(entry.ImageRuntimes),
 	}
 }
 
@@ -105,10 +107,12 @@ func saveDeployDefaults(projectRoot string, template deployTemplateInput, inputs
 		cfg.BuildDefaults = map[string]config.BuildDefaults{}
 	}
 	cfg.BuildDefaults[template.TemplatePath] = config.BuildDefaults{
-		Env:       inputs.Env,
-		Mode:      inputs.Mode,
-		OutputDir: template.OutputDir,
-		Params:    cloneParams(template.Parameters),
+		Env:           inputs.Env,
+		Mode:          inputs.Mode,
+		OutputDir:     template.OutputDir,
+		Params:        cloneParams(template.Parameters),
+		ImageSources:  cloneStringMap(template.ImageSources),
+		ImageRuntimes: cloneStringMap(template.ImageRuntimes),
 	}
 	cfg.RecentTemplates = domaintpl.UpdateHistory(cfg.RecentTemplates, template.TemplatePath, templateHistoryLimit)
 	if err := config.SaveGlobalConfig(cfgPath, cfg); err != nil {
@@ -130,6 +134,10 @@ func resolveBrandTag() string {
 }
 
 func cloneParams(src map[string]string) map[string]string {
+	return cloneStringMap(src)
+}
+
+func cloneStringMap(src map[string]string) map[string]string {
 	if src == nil {
 		return nil
 	}

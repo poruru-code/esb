@@ -7,7 +7,7 @@ FROM {{ .BaseImage }}
 
 # ESB Runtime
 COPY {{ .SitecustomizeSource }} /opt/python/sitecustomize.py
-ENV PYTHONPATH=/opt/python${PYTHONPATH:+:$PYTHONPATH}
+ENV PYTHONPATH=/opt/python${PYTHONPATH:+:${PYTHONPATH}}
 
 {{- range .Layers }}
 # Layer: {{ .Name }}
@@ -20,8 +20,11 @@ COPY {{ .CodeURI }}requirements.txt ${LAMBDA_TASK_ROOT}/
 RUN pip install -r ${LAMBDA_TASK_ROOT}/requirements.txt
 {{- end }}
 
+{{- if not .ImageWrapper }}
+
 # Function code
 COPY {{ .CodeURI }} ${LAMBDA_TASK_ROOT}/
 
 # Handler
 CMD [ "{{ .Handler }}" ]
+{{- end }}

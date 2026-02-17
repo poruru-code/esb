@@ -47,9 +47,6 @@ func imageSafeName(name string) (string, error) {
 func ApplyImageNames(functions []FunctionSpec) error {
 	seen := map[string]string{}
 	for i := range functions {
-		if strings.TrimSpace(functions[i].ImageSource) != "" {
-			continue
-		}
 		imageName, err := imageSafeName(functions[i].Name)
 		if err != nil {
 			return err

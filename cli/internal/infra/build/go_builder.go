@@ -180,6 +180,8 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 				RuntimeRegistry: registryInfo.RuntimeRegistry,
 				Tag:             imageTag,
 				Parameters:      request.Parameters,
+				ImageSources:    request.ImageSources,
+				ImageRuntimes:   request.ImageRuntimes,
 				Verbose:         request.Verbose,
 			},
 			repoRoot,
@@ -236,10 +238,8 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	functionLabels[compose.ESBKindLabel] = "function"
 
 	buildCount := 0
-	for _, fn := range functions {
-		if strings.TrimSpace(fn.ImageSource) == "" {
-			buildCount++
-		}
+	for range functions {
+		buildCount++
 	}
 	label := fmt.Sprintf("Build function images (%d)", buildCount)
 	if err := phase.Run(label, func() error {

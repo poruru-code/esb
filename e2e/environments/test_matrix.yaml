@@ -33,6 +33,12 @@ matrix:
   - e2e/fixtures/template.core.yaml
   - e2e/fixtures/template.stateful.yaml
   - e2e/fixtures/template.image.yaml
+  env_vars:
+    E2E_IMAGE_EXPECTED_LOGGER: cloudwatch.logs.python
+  image_uri_overrides:
+    lambda-image: 127.0.0.1:5010/esb-e2e-lambda-python:latest
+  image_runtime_overrides:
+    lambda-image: python
   suites:
   - smoke
   - standard
@@ -45,6 +51,12 @@ matrix:
   - e2e/fixtures/template.core.yaml
   - e2e/fixtures/template.stateful.yaml
   - e2e/fixtures/template.image.yaml
+  env_vars:
+    E2E_IMAGE_EXPECTED_LOGGER: cloudwatch.logs.java
+  image_uri_overrides:
+    lambda-image: 127.0.0.1:5010/esb-e2e-lambda-java:latest
+  image_runtime_overrides:
+    lambda-image: java21
   suites:
   - smoke
   - standard

@@ -26,6 +26,16 @@ def ensure_infra_up(project_root: str, *, printer: Callable[[str], None] | None 
         )
         return
 
+    container_name = _registry_container_name()
+    host_addr, _ = get_registry_config()
+    if _ensure_existing_registry_container_running(container_name):
+        if printer:
+            printer("Using existing shared registry container.")
+        else:
+            logger.info("Using existing shared registry container.")
+        wait_for_registry_ready(host_addr)
+        return
+
     logger.info("Ensuring shared infrastructure (Registry) is ready...")
     try:
         # Check if registry is already running to save time
@@ -53,13 +63,36 @@ def ensure_infra_up(project_root: str, *, printer: Callable[[str], None] | None 
     else:
         logger.info("Ensuring shared infrastructure (Registry) is ready...")
     env = os.environ.copy()
-    env.setdefault("REGISTRY_CONTAINER_NAME", _registry_container_name())
+    env.setdefault("REGISTRY_CONTAINER_NAME", container_name)
     subprocess.check_call(
         ["docker", "compose", "-f", compose_file, "up", "-d", "registry"],
         env=env,
     )
-    host_addr, _ = get_registry_config()
     wait_for_registry_ready(host_addr)
+
+
+def _ensure_existing_registry_container_running(container_name: str) -> bool:
+    try:
+        out = subprocess.check_output(
+            ["docker", "inspect", "--format", "{{.State.Running}}", container_name],
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+    except subprocess.CalledProcessError:
+        return False
+
+    running = out.strip().lower() == "true"
+    if running:
+        return True
+    try:
+        subprocess.check_call(
+            ["docker", "start", container_name],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except subprocess.CalledProcessError:
+        return False
+    return True
 
 
 def get_registry_config() -> Tuple[str, str]:

@@ -28,6 +28,8 @@ type Request struct {
 	Mode           string
 	OutputDir      string
 	Parameters     map[string]string
+	ImageSources   map[string]string
+	ImageRuntimes  map[string]string
 	Tag            string
 	NoCache        bool
 	NoDeps         bool
@@ -84,18 +86,20 @@ func NewDeployWorkflow(
 
 func (w Workflow) buildRequest(req Request) build.BuildRequest {
 	return build.BuildRequest{
-		ProjectDir:   req.Context.ProjectDir,
-		ProjectName:  req.Context.ComposeProject,
-		TemplatePath: req.TemplatePath,
-		Env:          req.Env,
-		Mode:         req.Mode,
-		OutputDir:    req.OutputDir,
-		Parameters:   req.Parameters,
-		Tag:          req.Tag,
-		NoCache:      req.NoCache,
-		Verbose:      req.Verbose,
-		Bundle:       req.BundleManifest,
-		Emoji:        req.Emoji,
+		ProjectDir:    req.Context.ProjectDir,
+		ProjectName:   req.Context.ComposeProject,
+		TemplatePath:  req.TemplatePath,
+		Env:           req.Env,
+		Mode:          req.Mode,
+		OutputDir:     req.OutputDir,
+		Parameters:    req.Parameters,
+		ImageSources:  req.ImageSources,
+		ImageRuntimes: req.ImageRuntimes,
+		Tag:           req.Tag,
+		NoCache:       req.NoCache,
+		Verbose:       req.Verbose,
+		Bundle:        req.BundleManifest,
+		Emoji:         req.Emoji,
 	}
 }
 

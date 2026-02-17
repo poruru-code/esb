@@ -34,6 +34,9 @@ func TestRenderDockerfileSimple(t *testing.T) {
 	if !strings.Contains(content, "COPY runtime/python/extensions/sitecustomize/site-packages/sitecustomize.py") {
 		t.Fatalf("expected sitecustomize copy")
 	}
+	if !strings.Contains(content, "ENV PYTHONPATH=/opt/python${PYTHONPATH:+:${PYTHONPATH}}") {
+		t.Fatalf("expected PYTHONPATH env for /opt/python")
+	}
 	if !strings.Contains(content, "COPY functions/hello/") {
 		t.Fatalf("expected code copy in dockerfile")
 	}
@@ -115,6 +118,65 @@ func TestRenderDockerfileJavaRuntime(t *testing.T) {
 				t.Fatalf("did not expect pip install for java runtime")
 			}
 		})
+	}
+}
+
+func TestRenderDockerfileImageWrapperPython(t *testing.T) {
+	fn := FunctionSpec{
+		Name:        "lambda-image",
+		ImageSource: "public.ecr.aws/example/repo:latest",
+		Runtime:     "python3.12",
+	}
+	dockerConfig := DockerConfig{
+		SitecustomizeSource: "functions/lambda-image/sitecustomize.py",
+	}
+
+	content, err := RenderDockerfile(fn, dockerConfig, "", "latest")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if !strings.Contains(content, "FROM public.ecr.aws/example/repo:latest") {
+		t.Fatalf("expected image source base")
+	}
+	if !strings.Contains(content, "COPY functions/lambda-image/sitecustomize.py /opt/python/sitecustomize.py") {
+		t.Fatalf("expected sitecustomize copy")
+	}
+	if !strings.Contains(content, "ENV PYTHONPATH=/opt/python${PYTHONPATH:+:${PYTHONPATH}}") {
+		t.Fatalf("expected PYTHONPATH env for image wrapper")
+	}
+	if strings.Contains(content, "COPY functions/") && strings.Contains(content, "${LAMBDA_TASK_ROOT}/") {
+		t.Fatalf("did not expect function code copy for image wrapper")
+	}
+	if strings.Contains(content, "CMD [") {
+		t.Fatalf("did not expect CMD override for image wrapper")
+	}
+}
+
+func TestRenderDockerfileImageWrapperJava(t *testing.T) {
+	fn := FunctionSpec{
+		Name:        "lambda-image-java",
+		ImageSource: "123456789012.dkr.ecr.ap-northeast-1.amazonaws.com/repo:v1",
+		Runtime:     "java21",
+	}
+
+	content, err := RenderDockerfile(fn, DockerConfig{}, "", "latest")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if !strings.Contains(content, "FROM 123456789012.dkr.ecr.ap-northeast-1.amazonaws.com/repo:v1") {
+		t.Fatalf("expected image source base")
+	}
+	if !strings.Contains(content, "COPY functions/lambda-image-java/lambda-java-agent.jar /var/task/lib/lambda-java-agent.jar") {
+		t.Fatalf("expected java agent copy")
+	}
+	if strings.Contains(content, "lambda-java-wrapper.jar") {
+		t.Fatalf("did not expect wrapper jar for image wrapper")
+	}
+	if strings.Contains(content, "LAMBDA_ORIGINAL_HANDLER") {
+		t.Fatalf("did not expect original handler override")
+	}
+	if strings.Contains(content, `CMD [ "com.runtime.lambda.HandlerWrapper::handleRequest" ]`) {
+		t.Fatalf("did not expect wrapper handler command for image wrapper")
 	}
 }
 
@@ -207,6 +269,7 @@ func TestRenderFunctionsYmlForImageSource(t *testing.T) {
 		{
 			Name:        "lambda-image",
 			ImageSource: "public.ecr.aws/example/repo:latest",
+			ImageName:   "lambda-image",
 			ImageRef:    "registry:5010/public.ecr.aws/example/repo:latest",
 		},
 	}
@@ -228,7 +291,7 @@ func TestRenderFunctionsYmlForImageSource(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected lambda-image map")
 	}
-	if entry["image"] != "registry:5010/public.ecr.aws/example/repo:latest" {
+	if entry["image"] != meta.ImagePrefix+"-lambda-image:latest" {
 		t.Fatalf("unexpected image: %v", entry["image"])
 	}
 	if _, ok := entry["image_source"]; ok {

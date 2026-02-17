@@ -31,10 +31,12 @@ type ProjectEntry struct {
 
 // BuildDefaults stores last-used build inputs for a template.
 type BuildDefaults struct {
-	Env       string            `yaml:"env,omitempty"`
-	Mode      string            `yaml:"mode,omitempty"`
-	OutputDir string            `yaml:"output_dir,omitempty"`
-	Params    map[string]string `yaml:"params,omitempty"`
+	Env           string            `yaml:"env,omitempty"`
+	Mode          string            `yaml:"mode,omitempty"`
+	OutputDir     string            `yaml:"output_dir,omitempty"`
+	Params        map[string]string `yaml:"params,omitempty"`
+	ImageSources  map[string]string `yaml:"image_sources,omitempty"`
+	ImageRuntimes map[string]string `yaml:"image_runtimes,omitempty"`
 }
 
 // DefaultGlobalConfig returns an initialized GlobalConfig with version set.

@@ -83,7 +83,7 @@ docker image prune -f
 
 対応:
 1. `esb deploy --image-prewarm=all`
-2. または `tools/image-import/import_images.py` で手動同期
+2. 必要なら `--image-prewarm=all` で再実行して内部レジストリへの同期をリトライ
 
 ### 4. `<untagged>` イメージが増える
 - `docker image prune -f` で中間レイヤーを整理

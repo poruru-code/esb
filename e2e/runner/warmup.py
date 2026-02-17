@@ -14,12 +14,27 @@ from xml.sax.saxutils import escape as xml_escape
 
 import yaml
 
+from e2e.runner import constants
+from e2e.runner.buildx import ensure_buildx_builder
+from e2e.runner.env import apply_proxy_defaults, calculate_runtime_env
 from e2e.runner.models import Scenario
-from e2e.runner.utils import BRAND_HOME_DIR, PROJECT_ROOT, default_e2e_deploy_templates
+from e2e.runner.utils import BRAND_HOME_DIR, BRAND_SLUG, PROJECT_ROOT, default_e2e_deploy_templates
 
 M2_SETTINGS_PATH = "/tmp/m2/settings.xml"
 M2_REPOSITORY_PATH = "/tmp/m2/repository"
 JAVA_BUILD_IMAGE = "public.ecr.aws/sam/build-java21@sha256:5f78d6d9124e54e5a7a9941ef179d74d88b7a5b117526ea8574137e5403b51b7"
+JAVA_FIXTURE_ROOTS = (
+    PROJECT_ROOT / "e2e" / "fixtures" / "functions" / "java",
+    PROJECT_ROOT / "tools" / "e2e-lambda-fixtures" / "java",
+)
+_PROXY_ENV_KEYS = (
+    "HTTP_PROXY",
+    "http_proxy",
+    "HTTPS_PROXY",
+    "https_proxy",
+    "NO_PROXY",
+    "no_proxy",
+)
 
 
 @dataclass(frozen=True)
@@ -205,6 +220,7 @@ def _warmup(
     if missing_templates:
         missing = ", ".join(str(template) for template in missing_templates)
         raise FileNotFoundError(f"Missing E2E template(s): {missing}")
+    _ensure_buildx_builders(scenarios)
     if _uses_java_templates(scenarios):
         _emit_warmup(printer, "Java fixture warmup ... start")
         _build_java_fixtures(printer=printer, verbose=verbose)
@@ -232,6 +248,50 @@ def _resolve_templates(scenario: Scenario) -> list[Path]:
     if scenario.deploy_templates:
         return [_resolve_template_path(Path(template)) for template in scenario.deploy_templates]
     return default_e2e_deploy_templates()
+
+
+def _resolve_env_file(env_file: str | None) -> str | None:
+    if not env_file:
+        return None
+    path = Path(env_file)
+    if not path.is_absolute():
+        path = PROJECT_ROOT / path
+    return str(path.absolute())
+
+
+def _scenario_runtime_env_for_buildx(scenario: Scenario) -> dict[str, str]:
+    templates = _resolve_templates(scenario)
+    template_path = str(templates[0]) if templates else None
+    runtime_env = calculate_runtime_env(
+        scenario.project_name or BRAND_SLUG,
+        scenario.env_name,
+        scenario.mode,
+        _resolve_env_file(scenario.env_file),
+        template_path=template_path,
+    )
+    runtime_env.update(scenario.env_vars)
+    apply_proxy_defaults(runtime_env)
+    return runtime_env
+
+
+def _ensure_buildx_builders(scenarios: dict[str, Scenario]) -> None:
+    seen: set[tuple[str, str, tuple[tuple[str, str], ...]]] = set()
+    for scenario in scenarios.values():
+        runtime_env = _scenario_runtime_env_for_buildx(scenario)
+        builder_name = runtime_env.get("BUILDX_BUILDER", "").strip()
+        if not builder_name:
+            continue
+        config_path = runtime_env.get(constants.ENV_BUILDKITD_CONFIG, "").strip()
+        proxy_signature = tuple((key, runtime_env.get(key, "").strip()) for key in _PROXY_ENV_KEYS)
+        signature = (builder_name, config_path, proxy_signature)
+        if signature in seen:
+            continue
+        seen.add(signature)
+        ensure_buildx_builder(
+            builder_name,
+            config_path=config_path,
+            proxy_source=runtime_env,
+        )
 
 
 def _resolve_template_path(path: Path) -> Path:
@@ -303,17 +363,33 @@ def _build_java_fixtures(
     printer: Callable[[str], None] | None = None,
     verbose: bool = False,
 ) -> None:
-    fixtures_dir = PROJECT_ROOT / "e2e" / "fixtures" / "functions" / "java"
-    if not fixtures_dir.exists():
-        return
-
-    for project_dir in sorted(p for p in fixtures_dir.iterdir() if p.is_dir()):
-        pom = project_dir / "pom.xml"
-        if not pom.exists():
-            continue
+    for project_dir in _discover_java_fixture_projects():
         if printer and verbose:
             printer(f"Building Java fixture: {project_dir.name}")
         _build_java_project(project_dir, verbose=verbose)
+
+
+def _discover_java_fixture_projects() -> list[Path]:
+    projects: list[Path] = []
+    seen: set[Path] = set()
+    for root in JAVA_FIXTURE_ROOTS:
+        if not root.exists():
+            continue
+        if (root / "pom.xml").exists():
+            resolved = root.resolve()
+            if resolved not in seen:
+                seen.add(resolved)
+                projects.append(resolved)
+            continue
+        for project_dir in sorted(p for p in root.iterdir() if p.is_dir()):
+            if not (project_dir / "pom.xml").exists():
+                continue
+            resolved = project_dir.resolve()
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            projects.append(resolved)
+    return projects
 
 
 def _build_java_project(project_dir: Path, *, verbose: bool = False) -> None:

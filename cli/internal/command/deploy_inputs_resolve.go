@@ -188,6 +188,14 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 		if len(templatePaths) > 1 && strings.TrimSpace(cli.Deploy.Output) != "" {
 			return deployInputs{}, errMultipleTemplateOutput
 		}
+		cliImageSources, err := parseFunctionOverrideFlag(cli.Deploy.ImageURI, "--image-uri")
+		if err != nil {
+			return deployInputs{}, err
+		}
+		cliImageRuntimes, err := parseFunctionOverrideFlag(cli.Deploy.ImageRuntime, "--image-runtime")
+		if err != nil {
+			return deployInputs{}, err
+		}
 		prevTemplates := map[string]deployTemplateInput{}
 		for _, tpl := range last.Templates {
 			prevTemplates[tpl.TemplatePath] = tpl
@@ -230,11 +238,36 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 			if err != nil {
 				return deployInputs{}, err
 			}
+			imageFunctionNames, err := discoverImageFunctionNames(templatePath, params)
+			if err != nil {
+				return deployInputs{}, err
+			}
+			templateImageSources := filterFunctionOverrides(cliImageSources, imageFunctionNames)
+			templateImageRuntimeOverrides := filterFunctionOverrides(cliImageRuntimes, imageFunctionNames)
+
+			prevImageRuntimes := storedTemplate.ImageRuntimes
+			if prev, ok := prevTemplates[templatePath]; ok && len(prev.ImageRuntimes) > 0 {
+				prevImageRuntimes = prev.ImageRuntimes
+			}
+			imageRuntimes, err := promptTemplateImageRuntimes(
+				templatePath,
+				params,
+				isTTY,
+				prompter,
+				prevImageRuntimes,
+				templateImageRuntimeOverrides,
+				errOut,
+			)
+			if err != nil {
+				return deployInputs{}, err
+			}
 
 			templateInputs = append(templateInputs, deployTemplateInput{
-				TemplatePath: templatePath,
-				OutputDir:    outputDir,
-				Parameters:   params,
+				TemplatePath:  templatePath,
+				OutputDir:     outputDir,
+				Parameters:    params,
+				ImageSources:  templateImageSources,
+				ImageRuntimes: imageRuntimes,
 			})
 		}
 
