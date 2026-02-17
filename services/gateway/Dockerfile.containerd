@@ -17,6 +17,9 @@ COPY --from=ghcr.io/astral-sh/uv:0.8.13@sha256:4de5495181a281bc744845b9579acf7b2
 
 WORKDIR /app
 
+# Use OS trust store for uv to support corporate SSL interception environments.
+ENV UV_NATIVE_TLS=true
+
 # Install build dependencies
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
@@ -45,6 +48,7 @@ ARG SERVICE_UID
 ARG SERVICE_GID
 
 ENV IMAGE_RUNTIME="containerd"
+ENV UV_NATIVE_TLS=true
 
 
 WORKDIR /app

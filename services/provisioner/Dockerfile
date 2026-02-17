@@ -8,6 +8,7 @@ ARG PYTHON_BASE_IMAGE
 FROM ${PYTHON_BASE_IMAGE}
 
 ENV IMAGE_RUNTIME="shared"
+ENV UV_NATIVE_TLS=true
 
 # Install uv (standardized via official image)
 COPY --from=ghcr.io/astral-sh/uv:0.8.13@sha256:4de5495181a281bc744845b9579acf7b221d6791f99bcc211b9ec13f417c2853 /uv /uvx /usr/local/bin/
