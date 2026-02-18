@@ -51,6 +51,13 @@ generate_fixture() {
     echo "artifact mode mismatch for ${env_name}: expected=${mode} actual=${actual_mode}" >&2
     exit 1
   fi
+
+  local runtime_base_dockerfile
+  runtime_base_dockerfile="${output_dir}/${env_name}/runtime-base/runtime-hooks/python/docker/Dockerfile"
+  if [[ ! -f "${runtime_base_dockerfile}" ]]; then
+    echo "runtime-base dockerfile not found for ${env_name}: ${runtime_base_dockerfile}" >&2
+    exit 1
+  fi
 }
 
 cd "${REPO_ROOT}"

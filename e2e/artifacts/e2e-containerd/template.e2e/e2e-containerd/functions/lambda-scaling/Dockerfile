@@ -3,7 +3,7 @@
 # DO NOT EDIT MANUALLY - Regenerate with: esb build
 # Source: template.yaml
 # FunctionName: lambda-scaling
-FROM 127.0.0.1:5010/esb-lambda-base:e2e-containerd-latest
+FROM registry:5010/esb-lambda-base:e2e-containerd-latest
 
 # ESB Runtime
 COPY functions/lambda-scaling/sitecustomize.py /opt/python/sitecustomize.py

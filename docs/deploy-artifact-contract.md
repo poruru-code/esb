@@ -34,6 +34,17 @@ Why: Define a stable boundary between artifact producer (CLI/manual) and runtime
     routing.yml
     resources.yml              # 条件付き
     image-import.json          # 条件付き
+  runtime-base/               # 条件付き（python base build を行う場合）
+    runtime-hooks/
+      python/
+        docker/
+          Dockerfile
+        sitecustomize/
+          site-packages/
+            sitecustomize.py
+        trace-bridge/
+          layer/
+            trace_bridge.py
   bundle/
     manifest.json              # 条件付き
 
@@ -68,6 +79,7 @@ Why: Define a stable boundary between artifact producer (CLI/manual) and runtime
 - `<artifact_root>/<runtime_config_dir>/resources.yml`: resource 定義を使う場合
 - `<artifact_root>/<runtime_config_dir>/image-import.json`: image import を使う場合
 - `<artifact_root>/<bundle_manifest>`: bundle/import ワークフローを使う場合
+- `<artifact_root>/runtime-base/runtime-hooks/python/docker/Dockerfile`: `prepare-images` で `esb-lambda-base:*` を build/push する場合
 
 ## パス規約
 ### 実行パス（厳格）
@@ -168,6 +180,7 @@ artifacts:
   - strict 時の digest/checksum 不一致
   - strict 時に runtime digest 検証の前提（repository root: `runtime-hooks` と `cli/assets/runtime-templates`）が解決できない
   - `artifact_root` または entry 内パス解決失敗
+  - `prepare-images` 実行時に必要な `runtime-base` コンテキストが不足
   - `id` 欠落、重複、または再計算値不一致
   - 複数テンプレート時に merge 規約どおりの `CONFIG_DIR` を生成できない
 - Warning:
@@ -223,7 +236,7 @@ CLI なし運用でも、生成済み成果物を入力に **Phase 3 以降は�
 | 7. Runtime 起動 | `docker compose up` | `docker compose up` |
 
 補足:
-- `prepare-images` は現実装で `runtime-hooks/python/docker/Dockerfile` を参照して base image を build するため、ESB repository root からの実行を前提とします。
+- `prepare-images` は `artifact_root/runtime-base/**` を唯一入力として base image を build します（repo root の `runtime-hooks/**` は参照しません）。
 
 ## CLI コマンド責務（明示）
 - `esb artifact generate`
@@ -299,7 +312,7 @@ tools/artifactctl prepare-images --artifact "${ARTIFACT}"
 ```
 
 注記:
-- 現実装では base image build に `runtime-hooks/python/docker/Dockerfile` を使うため、`prepare-images` は ESB repository root で実行してください。
+- `prepare-images` は `artifact_root/runtime-base/runtime-hooks/python/docker/Dockerfile` を使用します。対象 entry が `esb-lambda-base:*` を参照する場合、このファイルが欠けていると hard fail します。
 
 ### 5) runtime-config を配列順でマージし `CONFIG_DIR` を作る
 `artifact.yml` の `artifacts[]` 配列順がマージ順です。
