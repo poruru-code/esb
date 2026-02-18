@@ -25,6 +25,30 @@ type buildRegistryInfo struct {
 	BuilderNetworkMode string
 }
 
+func resolveGenerateRegistryInfo() (buildRegistryInfo, error) {
+	registry, err := resolveRegistryConfig()
+	if err != nil {
+		return buildRegistryInfo{}, err
+	}
+
+	runtimeRegistry := resolveRuntimeRegistry(registry.Registry)
+	registryForPush := registry.Registry
+	if registryForPush != "" {
+		registryHost := resolveRegistryHost(registryForPush)
+		if strings.EqualFold(registryHost, "registry") {
+			hostRegistryAddr, _ := resolveHostRegistryAddress()
+			registryForPush = fmt.Sprintf("%s/", hostRegistryAddr)
+		}
+	}
+
+	return buildRegistryInfo{
+		ServiceRegistry:    registry.Registry,
+		RuntimeRegistry:    runtimeRegistry,
+		PushRegistry:       registryForPush,
+		BuilderNetworkMode: "",
+	}, nil
+}
+
 func resolveRegistryConfig() (registryConfig, error) {
 	key, err := envutil.HostEnvKey(constants.HostSuffixRegistry)
 	if err != nil {

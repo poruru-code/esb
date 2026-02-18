@@ -250,7 +250,9 @@ func TestGoBuilderBuildRenderOnlySkipsImageBuilds(t *testing.T) {
 	writeTestFile(t, filepath.Join(repoRoot, "services", "gateway", "Dockerfile.containerd"), "FROM scratch\n")
 	writeTestFile(t, filepath.Join(repoRoot, "docker-bake.hcl"), "# bake stub\n")
 
-	generate := func(cfg config.GeneratorConfig, _ templategen.GenerateOptions) ([]template.FunctionSpec, error) {
+	var gotOpts templategen.GenerateOptions
+	generate := func(cfg config.GeneratorConfig, opts templategen.GenerateOptions) ([]template.FunctionSpec, error) {
+		gotOpts = opts
 		outputDir := cfg.Paths.OutputDir
 		writeTestFile(t, filepath.Join(outputDir, "config", "functions.yml"), "functions: {}")
 		writeTestFile(t, filepath.Join(outputDir, "config", "routing.yml"), "routes: []")
@@ -259,21 +261,16 @@ func TestGoBuilderBuildRenderOnlySkipsImageBuilds(t *testing.T) {
 		return []template.FunctionSpec{{Name: "hello", ImageName: "hello"}}, nil
 	}
 
-	builderName := meta.Slug + "-buildx"
 	dockerRunner := &recordRunner{
 		outputs: map[string][]byte{
-			"git rev-parse --show-toplevel":                  []byte(repoRoot),
-			"git rev-parse --git-dir":                        []byte(".git"),
-			"git rev-parse --git-common-dir":                 []byte(".git"),
-			"docker buildx inspect --builder " + builderName: []byte("Driver: docker-container\n"),
-			"docker inspect -f {{.HostConfig.NetworkMode}} buildx_buildkit_" + builderName + "0": []byte("host"),
+			"git rev-parse --show-toplevel":  []byte(repoRoot),
+			"git rev-parse --git-dir":        []byte(".git"),
+			"git rev-parse --git-common-dir": []byte(".git"),
 		},
 	}
 	composeRunner := &recordRunner{}
 	portDiscoverer := &mockPortDiscoverer{
-		ports: map[string]int{
-			constants.EnvPortRegistry: 5010,
-		},
+		err: context.Canceled,
 	}
 
 	builder := &GoBuilder{
@@ -310,6 +307,15 @@ func TestGoBuilderBuildRenderOnlySkipsImageBuilds(t *testing.T) {
 	}
 	if hasDockerBakeGroup(dockerRunner.calls, "esb-functions") {
 		t.Fatalf("render-only build must not run function image bake")
+	}
+	if hasDockerCommand(dockerRunner.calls, "buildx", "inspect") {
+		t.Fatalf("render-only build must not run buildx inspect")
+	}
+	if gotOpts.BuildRegistry != "127.0.0.1:5010/" {
+		t.Fatalf("unexpected render-only build registry: %s", gotOpts.BuildRegistry)
+	}
+	if gotOpts.RuntimeRegistry != "registry:5010/" {
+		t.Fatalf("unexpected render-only runtime registry: %s", gotOpts.RuntimeRegistry)
 	}
 }
 
@@ -448,6 +454,28 @@ func hasDockerBakeGroup(calls []commandCall, group string) bool {
 			if arg == group {
 				return true
 			}
+		}
+	}
+	return false
+}
+
+func hasDockerCommand(calls []commandCall, argsPrefix ...string) bool {
+	for _, call := range calls {
+		if call.name != "docker" {
+			continue
+		}
+		if len(call.args) < len(argsPrefix) {
+			continue
+		}
+		matched := true
+		for i := range argsPrefix {
+			if call.args[i] != argsPrefix[i] {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			return true
 		}
 	}
 	return false

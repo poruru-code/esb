@@ -4,15 +4,8 @@
 package templategen
 
 import (
-	"bytes"
-	"errors"
 	"fmt"
-	"os"
-	"os/exec"
 	"path/filepath"
-	"strings"
-
-	"github.com/poruru/edge-serverless-box/cli/internal/meta"
 )
 
 const (
@@ -30,7 +23,7 @@ func ensureJavaWrapperSource(ctx stageContext) (string, error) {
 	if src := resolveJavaWrapperSource(ctx); src != "" {
 		return src, nil
 	}
-	return "", fmt.Errorf("java wrapper jar not found after build")
+	return "", fmt.Errorf("java wrapper jar not found in runtime-hooks/java/wrapper")
 }
 
 func resolveJavaWrapperSource(ctx stageContext) string {
@@ -53,7 +46,7 @@ func ensureJavaAgentSource(ctx stageContext) (string, error) {
 	if src := resolveJavaAgentSource(ctx); src != "" {
 		return src, nil
 	}
-	return "", fmt.Errorf("java agent jar not found after build")
+	return "", fmt.Errorf("java agent jar not found in runtime-hooks/java/agent")
 }
 
 func resolveJavaAgentSource(ctx stageContext) string {
@@ -86,17 +79,6 @@ func resolveJavaHooksDir(ctx stageContext) (string, error) {
 	return "", fmt.Errorf("java runtime hooks directory not found")
 }
 
-func ensureJavaM2RepositoryCacheDir(ctx stageContext) (string, error) {
-	if strings.TrimSpace(ctx.ProjectRoot) == "" {
-		return "", fmt.Errorf("project root is required for java m2 cache")
-	}
-	cacheDir := filepath.Join(ctx.ProjectRoot, meta.HomeDir, "cache", "m2", "repository")
-	if err := ensureDir(cacheDir); err != nil {
-		return "", fmt.Errorf("prepare java m2 cache dir: %w", err)
-	}
-	return cacheDir, nil
-}
-
 func javaRuntimeMavenBuildLine() string {
 	return fmt.Sprintf(
 		"mvn -s %s -q -Dmaven.repo.local=%s -Dmaven.artifact.threads=1 -DskipTests "+
@@ -104,79 +86,4 @@ func javaRuntimeMavenBuildLine() string {
 		containerM2SettingsPath,
 		containerM2RepoPath,
 	)
-}
-
-func buildJavaRuntimeJars(ctx stageContext) error {
-	hooksDir, err := resolveJavaHooksDir(ctx)
-	if err != nil {
-		return err
-	}
-	ctx.verbosef("  Building Java runtime jars in %s\n", hooksDir)
-
-	buildDir := filepath.Join(hooksDir, "build")
-	if !dirExists(buildDir) {
-		return fmt.Errorf("java runtime hooks build directory not found: %s", buildDir)
-	}
-	m2RepoCacheDir, err := ensureJavaM2RepositoryCacheDir(ctx)
-	if err != nil {
-		return err
-	}
-
-	args := []string{
-		"run",
-		"--rm",
-	}
-	if uid, gid := os.Getuid(), os.Getgid(); uid >= 0 && gid >= 0 {
-		args = append(args, "--user", fmt.Sprintf("%d:%d", uid, gid))
-	}
-	settingsPath, err := writeTempMavenSettingsFile()
-	if err != nil {
-		return fmt.Errorf("invalid proxy configuration for java runtime build: %w", err)
-	}
-	defer func() {
-		_ = os.Remove(settingsPath)
-	}()
-	args = append(args,
-		"-v", fmt.Sprintf("%s:/src/runtime-hooks/java:ro", hooksDir),
-		"-v", fmt.Sprintf("%s:/out-hooks", hooksDir),
-		"-v", fmt.Sprintf("%s:%s:ro", settingsPath, containerM2SettingsPath),
-		"-v", fmt.Sprintf("%s:%s", m2RepoCacheDir, containerM2RepoPath),
-	)
-	args = append(args, "-e", "MAVEN_CONFIG=/tmp/m2", "-e", "HOME=/tmp")
-	args = appendJavaBuildEnvArgs(args)
-	script := strings.Join([]string{
-		"set -euo pipefail",
-		"mkdir -p /tmp/work/runtime-hooks/java /out-hooks/wrapper /out-hooks/agent",
-		"cp -a /src/runtime-hooks/java/. /tmp/work/runtime-hooks/java/",
-		"cd /tmp/work/runtime-hooks/java/build",
-		javaRuntimeMavenBuildLine(),
-		"tmpdir=$(mktemp -d /out-hooks/.tmp-java-build.XXXXXX)",
-		"cp ../wrapper/target/lambda-java-wrapper.jar ${tmpdir}/lambda-java-wrapper.jar",
-		"cp ../agent/target/lambda-java-agent.jar ${tmpdir}/lambda-java-agent.jar",
-		"mv -f ${tmpdir}/lambda-java-wrapper.jar /out-hooks/wrapper/lambda-java-wrapper.jar",
-		"mv -f ${tmpdir}/lambda-java-agent.jar /out-hooks/agent/lambda-java-agent.jar",
-		"rmdir ${tmpdir}",
-	}, "\n")
-	args = append(args,
-		javaRuntimeBuildImage,
-		"bash", "-c", script,
-	)
-
-	cmd := exec.Command("docker", args...)
-	if ctx.Verbose {
-		cmd.Stdout = resolveGenerateOutput(ctx.Out)
-		cmd.Stderr = resolveGenerateErrOutput(ctx.Out)
-		return cmd.Run()
-	}
-
-	var output bytes.Buffer
-	cmd.Stdout = &output
-	cmd.Stderr = &output
-	if err := cmd.Run(); err != nil {
-		if errors.Is(err, exec.ErrNotFound) {
-			return fmt.Errorf("docker not found; install docker to build the Java runtime jars")
-		}
-		return fmt.Errorf("java runtime build failed: %w\n%s", err, output.String())
-	}
-	return nil
 }

@@ -78,7 +78,6 @@ cli/internal/infra/build/assets/java/lambda-java-wrapper.jar
 cli/internal/infra/build/assets/java/*.jar
 runtime/java/**/target/
 runtime/java/**/*.jar
-runtime-hooks/java/**/*.jar
 
 # ESB artifacts
 .esb/
