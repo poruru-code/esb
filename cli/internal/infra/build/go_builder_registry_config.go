@@ -25,6 +25,24 @@ type buildRegistryInfo struct {
 	BuilderNetworkMode string
 }
 
+func resolveGenerateRegistryInfo() (buildRegistryInfo, error) {
+	registry, err := resolveRegistryConfig()
+	if err != nil {
+		return buildRegistryInfo{}, err
+	}
+
+	runtimeRegistry := resolveRuntimeRegistry(registry.Registry)
+
+	return buildRegistryInfo{
+		ServiceRegistry: registry.Registry,
+		RuntimeRegistry: runtimeRegistry,
+		// Render-only generate must stay host-agnostic.
+		// Keep Dockerfile registry references aligned with runtime registry.
+		PushRegistry:       runtimeRegistry,
+		BuilderNetworkMode: "",
+	}, nil
+}
+
 func resolveRegistryConfig() (registryConfig, error) {
 	key, err := envutil.HostEnvKey(constants.HostSuffixRegistry)
 	if err != nil {

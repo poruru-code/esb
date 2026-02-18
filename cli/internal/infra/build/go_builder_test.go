@@ -118,6 +118,7 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		TemplatePath: templatePath,
 		Env:          "staging",
 		Mode:         "containerd",
+		BuildImages:  true,
 		ImageRuntimes: map[string]string{
 			"lambda-image": "java21",
 		},
@@ -216,6 +217,200 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 
 	// Registry is now started separately via `esb up` or docker compose
 	// and is no longer part of the deploy workflow
+}
+
+func TestGoBuilderBuildRenderOnlySkipsImageBuilds(t *testing.T) {
+	t.Setenv("ENV_PREFIX", meta.EnvPrefix)
+	t.Setenv("ESB_REGISTRY_WAIT", "0")
+	registryKey, err := envutil.HostEnvKey(constants.HostSuffixRegistry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(registryKey, "registry:5010")
+	t.Setenv(constants.EnvNetworkExternal, "demo-external")
+
+	projectDir := t.TempDir()
+	templatePath := filepath.Join(projectDir, "template.yaml")
+	writeTestFile(t, templatePath, "Resources: {}")
+
+	repoRoot := projectDir
+	writeComposeFiles(t, repoRoot, "docker-compose.containerd.yml")
+	setWorkingDir(t, repoRoot)
+	if err := os.MkdirAll(filepath.Join(repoRoot, "services", "common"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(repoRoot, "services", "gateway"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, filepath.Join(repoRoot, "pyproject.toml"), "[project]\n")
+	if err := os.MkdirAll(filepath.Join(repoRoot, "runtime", "python", "docker"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, filepath.Join(repoRoot, "runtime", "python", "docker", "Dockerfile"), "FROM scratch\n")
+	writeTestFile(t, filepath.Join(repoRoot, "services", "gateway", "Dockerfile.containerd"), "FROM scratch\n")
+	writeTestFile(t, filepath.Join(repoRoot, "docker-bake.hcl"), "# bake stub\n")
+
+	var gotOpts templategen.GenerateOptions
+	generate := func(cfg config.GeneratorConfig, opts templategen.GenerateOptions) ([]template.FunctionSpec, error) {
+		gotOpts = opts
+		outputDir := cfg.Paths.OutputDir
+		writeTestFile(t, filepath.Join(outputDir, "config", "functions.yml"), "functions: {}")
+		writeTestFile(t, filepath.Join(outputDir, "config", "routing.yml"), "routes: []")
+		writeTestFile(t, filepath.Join(outputDir, "config", "resources.yml"), "resources: {}")
+		writeTestFile(t, filepath.Join(outputDir, "functions", "hello", "Dockerfile"), "FROM scratch\n")
+		return []template.FunctionSpec{{Name: "hello", ImageName: "hello"}}, nil
+	}
+
+	dockerRunner := &recordRunner{
+		outputs: map[string][]byte{
+			"git rev-parse --show-toplevel":  []byte(repoRoot),
+			"git rev-parse --git-dir":        []byte(".git"),
+			"git rev-parse --git-common-dir": []byte(".git"),
+		},
+	}
+	composeRunner := &recordRunner{}
+	portDiscoverer := &mockPortDiscoverer{
+		err: context.Canceled,
+	}
+
+	builder := &GoBuilder{
+		Runner:         dockerRunner,
+		ComposeRunner:  composeRunner,
+		PortDiscoverer: portDiscoverer,
+		Generate:       generate,
+		FindRepoRoot:   func(string) (string, error) { return repoRoot, nil },
+	}
+
+	modeKey, err := envutil.HostEnvKey(constants.HostSuffixMode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(modeKey, "")
+	t.Setenv(constants.EnvConfigDir, "")
+	t.Setenv(constants.EnvProjectName, "")
+
+	request := BuildRequest{
+		ProjectDir:   projectDir,
+		ProjectName:  "demo-staging",
+		TemplatePath: templatePath,
+		Env:          "staging",
+		Mode:         "containerd",
+		BuildImages:  false,
+		Tag:          "v1.2.3",
+	}
+	if err := builder.Build(request); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if hasDockerBakeGroup(dockerRunner.calls, "esb-base") {
+		t.Fatalf("render-only build must not run base image bake")
+	}
+	if hasDockerBakeGroup(dockerRunner.calls, "esb-functions") {
+		t.Fatalf("render-only build must not run function image bake")
+	}
+	if hasDockerCommand(dockerRunner.calls, "buildx", "inspect") {
+		t.Fatalf("render-only build must not run buildx inspect")
+	}
+	if gotOpts.BuildRegistry != "registry:5010/" {
+		t.Fatalf("unexpected render-only build registry: %s", gotOpts.BuildRegistry)
+	}
+	if gotOpts.RuntimeRegistry != "registry:5010/" {
+		t.Fatalf("unexpected render-only runtime registry: %s", gotOpts.RuntimeRegistry)
+	}
+}
+
+func TestGoBuilderBuildRenderOnlyUsesContainerRegistryOverride(t *testing.T) {
+	t.Setenv("ENV_PREFIX", meta.EnvPrefix)
+	t.Setenv("ESB_REGISTRY_WAIT", "0")
+	registryKey, err := envutil.HostEnvKey(constants.HostSuffixRegistry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(registryKey, "registry:5010")
+	t.Setenv(constants.EnvContainerRegistry, "container-registry:6000")
+	t.Setenv("HOST_REGISTRY_ADDR", "127.0.0.1:5999")
+	t.Setenv(constants.EnvNetworkExternal, "demo-external")
+
+	projectDir := t.TempDir()
+	templatePath := filepath.Join(projectDir, "template.yaml")
+	writeTestFile(t, templatePath, "Resources: {}")
+
+	repoRoot := projectDir
+	writeComposeFiles(t, repoRoot, "docker-compose.containerd.yml")
+	setWorkingDir(t, repoRoot)
+	if err := os.MkdirAll(filepath.Join(repoRoot, "services", "common"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(repoRoot, "services", "gateway"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, filepath.Join(repoRoot, "pyproject.toml"), "[project]\n")
+	if err := os.MkdirAll(filepath.Join(repoRoot, "runtime", "python", "docker"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, filepath.Join(repoRoot, "runtime", "python", "docker", "Dockerfile"), "FROM scratch\n")
+	writeTestFile(t, filepath.Join(repoRoot, "services", "gateway", "Dockerfile.containerd"), "FROM scratch\n")
+	writeTestFile(t, filepath.Join(repoRoot, "docker-bake.hcl"), "# bake stub\n")
+
+	var gotOpts templategen.GenerateOptions
+	generate := func(cfg config.GeneratorConfig, opts templategen.GenerateOptions) ([]template.FunctionSpec, error) {
+		gotOpts = opts
+		outputDir := cfg.Paths.OutputDir
+		writeTestFile(t, filepath.Join(outputDir, "config", "functions.yml"), "functions: {}")
+		writeTestFile(t, filepath.Join(outputDir, "config", "routing.yml"), "routes: []")
+		writeTestFile(t, filepath.Join(outputDir, "config", "resources.yml"), "resources: {}")
+		writeTestFile(t, filepath.Join(outputDir, "functions", "hello", "Dockerfile"), "FROM scratch\n")
+		return []template.FunctionSpec{{Name: "hello", ImageName: "hello"}}, nil
+	}
+
+	dockerRunner := &recordRunner{
+		outputs: map[string][]byte{
+			"git rev-parse --show-toplevel":  []byte(repoRoot),
+			"git rev-parse --git-dir":        []byte(".git"),
+			"git rev-parse --git-common-dir": []byte(".git"),
+		},
+	}
+	composeRunner := &recordRunner{}
+	portDiscoverer := &mockPortDiscoverer{
+		err: context.Canceled,
+	}
+
+	builder := &GoBuilder{
+		Runner:         dockerRunner,
+		ComposeRunner:  composeRunner,
+		PortDiscoverer: portDiscoverer,
+		Generate:       generate,
+		FindRepoRoot:   func(string) (string, error) { return repoRoot, nil },
+	}
+
+	modeKey, err := envutil.HostEnvKey(constants.HostSuffixMode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(modeKey, "")
+	t.Setenv(constants.EnvConfigDir, "")
+	t.Setenv(constants.EnvProjectName, "")
+
+	request := BuildRequest{
+		ProjectDir:   projectDir,
+		ProjectName:  "demo-staging",
+		TemplatePath: templatePath,
+		Env:          "staging",
+		Mode:         "containerd",
+		BuildImages:  false,
+		Tag:          "v1.2.3",
+	}
+	if err := builder.Build(request); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if hasDockerCommand(dockerRunner.calls, "buildx", "inspect") {
+		t.Fatalf("render-only build must not run buildx inspect")
+	}
+	if gotOpts.BuildRegistry != "container-registry:6000/" {
+		t.Fatalf("unexpected render-only build registry override: %s", gotOpts.BuildRegistry)
+	}
+	if gotOpts.RuntimeRegistry != "container-registry:6000/" {
+		t.Fatalf("unexpected render-only runtime registry override: %s", gotOpts.RuntimeRegistry)
+	}
 }
 
 func setWorkingDir(t *testing.T, dir string) {
@@ -353,6 +548,28 @@ func hasDockerBakeGroup(calls []commandCall, group string) bool {
 			if arg == group {
 				return true
 			}
+		}
+	}
+	return false
+}
+
+func hasDockerCommand(calls []commandCall, argsPrefix ...string) bool {
+	for _, call := range calls {
+		if call.name != "docker" {
+			continue
+		}
+		if len(call.args) < len(argsPrefix) {
+			continue
+		}
+		matched := true
+		for i := range argsPrefix {
+			if call.args[i] != argsPrefix[i] {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			return true
 		}
 	}
 	return false

@@ -25,11 +25,6 @@ type stageContext struct {
 	DryRun            bool
 	Verbose           bool
 	Out               io.Writer
-	JavaRuntimeBuild  *javaRuntimeBuildState
-}
-
-type javaRuntimeBuildState struct {
-	Built bool
 }
 
 type stagedFunction struct {
@@ -67,6 +62,9 @@ func stageFunction(fn template.FunctionSpec, ctx stageContext) (stagedFunction, 
 	stagingSrc := filepath.Join(functionDir, "src")
 	if strings.TrimSpace(fn.CodeURI) != "" {
 		sourcePath := resolveResourcePath(ctx.BaseDir, fn.CodeURI)
+		if !dirExists(sourcePath) && !fileExists(sourcePath) {
+			return stagedFunction{}, fmt.Errorf("code uri not found for function %s: %s", fn.Name, sourcePath)
+		}
 		if !ctx.DryRun {
 			switch {
 			case dirExists(sourcePath):
@@ -127,16 +125,6 @@ func stageFunction(fn template.FunctionSpec, ctx stageContext) (stagedFunction, 
 	}
 
 	if !ctx.DryRun && profile.Kind == runtime.KindJava {
-		needsBuild := ctx.JavaRuntimeBuild == nil || !ctx.JavaRuntimeBuild.Built
-		if needsBuild {
-			if err := buildJavaRuntimeJars(ctx); err != nil {
-				return stagedFunction{}, err
-			}
-			if ctx.JavaRuntimeBuild != nil {
-				ctx.JavaRuntimeBuild.Built = true
-			}
-		}
-
 		wrapperSrc, err := ensureJavaWrapperSource(ctx)
 		if err != nil {
 			return stagedFunction{}, err

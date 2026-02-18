@@ -10,7 +10,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		exitf("usage: artifactctl <validate-id|merge|apply> [flags]")
+		exitf("usage: artifactctl <validate-id|merge|prepare-images|apply> [flags]")
 	}
 	cmd := os.Args[1]
 	switch cmd {
@@ -18,6 +18,8 @@ func main() {
 		runValidateID(os.Args[2:])
 	case "merge":
 		runMerge(os.Args[2:])
+	case "prepare-images":
+		runPrepareImages(os.Args[2:])
 	case "apply":
 		runApply(os.Args[2:])
 	default:
@@ -75,6 +77,23 @@ func runApply(args []string) {
 	}
 	if err := engine.Apply(req); err != nil {
 		exitf("apply failed: %v", err)
+	}
+}
+
+func runPrepareImages(args []string) {
+	fs := flag.NewFlagSet("prepare-images", flag.ExitOnError)
+	artifact := fs.String("artifact", "", "Path to artifact.yml")
+	noCache := fs.Bool("no-cache", false, "Do not use cache when building images")
+	_ = fs.Parse(args)
+	if *artifact == "" {
+		exitf("--artifact is required")
+	}
+	req := engine.PrepareImagesRequest{
+		ArtifactPath: *artifact,
+		NoCache:      *noCache,
+	}
+	if err := engine.PrepareImages(req); err != nil {
+		exitf("prepare-images failed: %v", err)
 	}
 }
 

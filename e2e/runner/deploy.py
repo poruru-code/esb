@@ -4,11 +4,8 @@
 from __future__ import annotations
 
 import threading
-from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable
-
-import yaml
 
 from e2e.runner.logging import LogSink, run_and_stream
 from e2e.runner.models import RunContext
@@ -67,13 +64,27 @@ def _deploy_via_artifact_driver(
     if config_dir == "":
         raise RuntimeError("CONFIG_DIR is required for deploy_driver=artifact")
 
-    _prepare_function_images_from_artifact(
-        ctx,
-        manifest_path,
-        no_cache=no_cache,
+    message = f"Preparing artifact images for {ctx.scenario.env_name}..."
+    log.write_line(message)
+    if printer:
+        printer(message)
+    prepare_cmd = [
+        "artifactctl",
+        "prepare-images",
+        "--artifact",
+        str(manifest_path),
+    ]
+    if no_cache:
+        prepare_cmd.append("--no-cache")
+    rc = run_and_stream(
+        prepare_cmd,
+        cwd=PROJECT_ROOT,
+        env=ctx.deploy_env,
         log=log,
         printer=printer,
     )
+    if rc != 0:
+        raise RuntimeError(f"artifact prepare-images failed with exit code {rc}")
 
     message = f"Applying artifact manifest for {ctx.scenario.env_name}..."
     log.write_line(message)
@@ -115,321 +126,6 @@ def _deploy_via_artifact_driver(
     log.write_line("Done")
     if printer:
         printer("Done")
-
-
-def _prepare_function_images_from_artifact(
-    ctx: RunContext,
-    manifest_path: Path,
-    *,
-    no_cache: bool,
-    log: LogSink,
-    printer: Callable[[str], None] | None = None,
-) -> None:
-    manifest = _load_yaml_map(manifest_path)
-    artifacts = manifest.get("artifacts", [])
-    if not isinstance(artifacts, list) or len(artifacts) == 0:
-        raise RuntimeError(f"artifact manifest has no artifacts: {manifest_path}")
-
-    built_base_runtime_refs: set[str] = set()
-    built_function_images: set[str] = set()
-    for idx, raw_entry in enumerate(artifacts):
-        if not isinstance(raw_entry, dict):
-            raise RuntimeError(f"artifact entry must be map: artifacts[{idx}]")
-
-        artifact_root_raw = str(raw_entry.get("artifact_root", "")).strip()
-        if artifact_root_raw == "":
-            raise RuntimeError(f"artifact_root is required: artifacts[{idx}]")
-        artifact_root = _resolve_artifact_root(manifest_path, artifact_root_raw)
-
-        runtime_config_dir_raw = str(raw_entry.get("runtime_config_dir", "")).strip()
-        if runtime_config_dir_raw == "":
-            raise RuntimeError(f"runtime_config_dir is required: artifacts[{idx}]")
-        runtime_config_dir = (artifact_root / runtime_config_dir_raw).resolve()
-        functions_path = runtime_config_dir / "functions.yml"
-        functions_payload = _load_yaml_map(functions_path)
-        functions = functions_payload.get("functions", {})
-        if not isinstance(functions, dict):
-            raise RuntimeError(f"functions must be map in {functions_path}")
-
-        build_targets: list[tuple[str, str, Path]] = []
-        for function_name in sorted(functions):
-            function_payload = functions.get(function_name)
-            if not isinstance(function_payload, dict):
-                continue
-            image_ref = str(function_payload.get("image", "")).strip()
-            if image_ref == "" or image_ref in built_function_images:
-                continue
-
-            function_dir = artifact_root / "functions" / str(function_name)
-            dockerfile = function_dir / "Dockerfile"
-            if not dockerfile.exists():
-                continue
-            build_targets.append((function_name, image_ref, dockerfile))
-
-        if len(build_targets) == 0:
-            continue
-
-        function_names = [function_name for function_name, _, _ in build_targets]
-        with _temporary_function_context_dockerignore(artifact_root, function_names):
-            for _, image_ref, dockerfile in build_targets:
-                for base_runtime_ref in _collect_dockerfile_base_images(dockerfile):
-                    if "esb-lambda-base:" not in base_runtime_ref:
-                        continue
-                    if base_runtime_ref in built_base_runtime_refs:
-                        continue
-                    _build_and_push_lambda_base_image(
-                        ctx,
-                        base_runtime_ref,
-                        no_cache=no_cache,
-                        log=log,
-                        printer=printer,
-                    )
-                    built_base_runtime_refs.add(base_runtime_ref)
-
-                _build_and_push_function_image(
-                    ctx,
-                    image_ref,
-                    dockerfile,
-                    artifact_root,
-                    no_cache=no_cache,
-                    log=log,
-                    printer=printer,
-                )
-                built_function_images.add(image_ref)
-
-
-def _collect_dockerfile_base_images(dockerfile: Path) -> list[str]:
-    refs: list[str] = []
-    for line in dockerfile.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if not stripped.lower().startswith("from "):
-            continue
-        parts = stripped.split()
-        if len(parts) < 2:
-            continue
-        image_ref = _extract_from_image_ref(parts)
-        if image_ref:
-            refs.append(image_ref)
-    return refs
-
-
-def _extract_from_image_ref(parts: list[str]) -> str:
-    # Dockerfile FROM syntax allows options before the image:
-    #   FROM --platform=linux/amd64 <image> [AS <name>]
-    # We must skip option tokens to reliably find the base image reference.
-    for token in parts[1:]:
-        value = token.strip()
-        if value == "":
-            continue
-        if value.startswith("--"):
-            continue
-        return value
-    return ""
-
-
-def _build_and_push_lambda_base_image(
-    ctx: RunContext,
-    runtime_ref: str,
-    *,
-    no_cache: bool,
-    log: LogSink,
-    printer: Callable[[str], None] | None,
-) -> None:
-    push_ref = _resolve_push_reference(ctx, runtime_ref)
-    message = f"Preparing lambda base image: {runtime_ref}"
-    log.write_line(message)
-    if printer:
-        printer(message)
-
-    build_cmd = [
-        "docker",
-        "buildx",
-        "build",
-        "--platform",
-        "linux/amd64",
-        "--load",
-        "--tag",
-        push_ref,
-        "--file",
-        "runtime-hooks/python/docker/Dockerfile",
-        ".",
-    ]
-    if no_cache:
-        build_cmd.insert(3, "--no-cache")
-    _run_or_raise(
-        build_cmd,
-        error_prefix=f"failed to build lambda base image {push_ref}",
-        env=ctx.deploy_env,
-        log=log,
-        printer=printer,
-    )
-
-    if runtime_ref != push_ref:
-        _run_or_raise(
-            ["docker", "tag", push_ref, runtime_ref],
-            error_prefix=f"failed to tag lambda base image {push_ref} -> {runtime_ref}",
-            env=ctx.deploy_env,
-            log=log,
-            printer=printer,
-        )
-
-    _run_or_raise(
-        ["docker", "push", push_ref],
-        error_prefix=f"failed to push lambda base image {push_ref}",
-        env=ctx.deploy_env,
-        log=log,
-        printer=printer,
-    )
-
-
-def _build_and_push_function_image(
-    ctx: RunContext,
-    image_ref: str,
-    dockerfile: Path,
-    artifact_root: Path,
-    *,
-    no_cache: bool,
-    log: LogSink,
-    printer: Callable[[str], None] | None,
-) -> None:
-    push_ref = _resolve_push_reference(ctx, image_ref)
-    message = f"Building function image: {image_ref}"
-    log.write_line(message)
-    if printer:
-        printer(message)
-
-    build_cmd = [
-        "docker",
-        "buildx",
-        "build",
-        "--platform",
-        "linux/amd64",
-        "--load",
-        "--tag",
-        image_ref,
-        "--file",
-        str(dockerfile),
-        str(artifact_root),
-    ]
-    if no_cache:
-        build_cmd.insert(3, "--no-cache")
-
-    _run_or_raise(
-        build_cmd,
-        error_prefix=f"failed to build function image {image_ref}",
-        env=ctx.deploy_env,
-        log=log,
-        printer=printer,
-    )
-
-    if push_ref != image_ref:
-        _run_or_raise(
-            ["docker", "tag", image_ref, push_ref],
-            error_prefix=f"failed to tag function image {image_ref} -> {push_ref}",
-            env=ctx.deploy_env,
-            log=log,
-            printer=printer,
-        )
-
-    _run_or_raise(
-        ["docker", "push", push_ref],
-        error_prefix=f"failed to push function image {push_ref}",
-        env=ctx.deploy_env,
-        log=log,
-        printer=printer,
-    )
-
-
-@contextmanager
-def _temporary_function_context_dockerignore(
-    artifact_root: Path,
-    function_names: list[str],
-):
-    dockerignore = artifact_root / ".dockerignore"
-    original = _read_bytes_if_exists(dockerignore)
-    _write_function_context_dockerignore(dockerignore, function_names)
-    try:
-        yield
-    finally:
-        if original is None:
-            dockerignore.unlink(missing_ok=True)
-        else:
-            dockerignore.write_bytes(original)
-
-
-def _write_function_context_dockerignore(dockerignore: Path, function_names: list[str]) -> None:
-    normalized_names: list[str] = []
-    seen: set[str] = set()
-    for raw in function_names:
-        name = str(raw).strip()
-        if name == "" or name in seen:
-            continue
-        seen.add(name)
-        normalized_names.append(name)
-    normalized_names.sort()
-
-    lines = [
-        "# Auto-generated by E2E artifact runner.",
-        "# What: Permit function build context for all functions in this artifact root.",
-        "*",
-        "!.dockerignore",
-        "!functions/",
-    ]
-    for name in normalized_names:
-        lines.append(f"!functions/{name}/")
-        lines.append(f"!functions/{name}/**")
-    dockerignore.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
-def _read_bytes_if_exists(path: Path) -> bytes | None:
-    if not path.exists():
-        return None
-    return path.read_bytes()
-
-
-def _resolve_push_reference(ctx: RunContext, image_ref: str) -> str:
-    runtime_registry = str(ctx.runtime_env.get("CONTAINER_REGISTRY", "")).strip().rstrip("/")
-    host_registry = str(ctx.runtime_env.get("HOST_REGISTRY_ADDR", "")).strip().rstrip("/")
-    if runtime_registry and host_registry and image_ref.startswith(runtime_registry + "/"):
-        suffix = image_ref[len(runtime_registry) + 1 :]
-        return f"{host_registry}/{suffix}"
-    return image_ref
-
-
-def _run_or_raise(
-    cmd: list[str],
-    *,
-    error_prefix: str,
-    env: dict[str, str],
-    log: LogSink,
-    printer: Callable[[str], None] | None,
-) -> None:
-    rc = run_and_stream(
-        cmd,
-        cwd=PROJECT_ROOT,
-        env=env,
-        log=log,
-        printer=printer,
-    )
-    if rc != 0:
-        raise RuntimeError(f"{error_prefix} (exit code {rc})")
-
-
-def _load_yaml_map(path: Path) -> dict[str, Any]:
-    if not path.exists():
-        raise FileNotFoundError(path)
-    raw = path.read_text(encoding="utf-8")
-    value = yaml.safe_load(raw) or {}
-    if not isinstance(value, dict):
-        raise RuntimeError(f"yaml payload must be a map: {path}")
-    return value
-
-
-def _resolve_artifact_root(manifest_path: Path, artifact_root_raw: str) -> Path:
-    root = Path(artifact_root_raw)
-    if not root.is_absolute():
-        root = manifest_path.parent / root
-    return root.resolve()
 
 
 def _resolve_artifact_manifest_path(ctx: RunContext) -> Path:

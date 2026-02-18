@@ -181,6 +181,10 @@ func (c *deployCommand) Run(inputs deployInputs, flags DeployCmd) error {
 	if flags.WithDeps {
 		noDeps = false
 	}
+	buildImages := true
+	if flags.generateBuildImages != nil {
+		buildImages = *flags.generateBuildImages
+	}
 	if len(inputs.Templates) == 0 {
 		return errTemplatePathRequired
 	}
@@ -216,6 +220,7 @@ func (c *deployCommand) Run(inputs deployInputs, flags DeployCmd) error {
 				{Key: "Project", Value: inputs.Project},
 				{Key: "Output", Value: outputSummary},
 				{Key: "BuildOnly", Value: buildOnly},
+				{Key: "BuildImages", Value: buildImages},
 				{Key: "ImagePrewarm", Value: imagePrewarm},
 				{Key: "ComposeFiles", Value: composeFiles},
 			}
@@ -244,6 +249,7 @@ func (c *deployCommand) Run(inputs deployInputs, flags DeployCmd) error {
 			Verbose:        flags.Verbose,
 			ComposeFiles:   inputs.ComposeFiles,
 			BuildOnly:      buildOnly,
+			BuildImages:    boolPtr(buildImages),
 			BundleManifest: flags.Bundle,
 			ImagePrewarm:   imagePrewarm,
 			Emoji:          c.emojiEnabled,

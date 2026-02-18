@@ -32,12 +32,12 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
-        <version>3.12.1</version>
+        <version>${maven.compiler.plugin.version}</version>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-shade-plugin</artifactId>
-        <version>3.5.0</version>
+        <version>${maven.shade.plugin.version}</version>
         <executions>
           <execution>
             <phase>package</phase>
@@ -47,6 +47,7 @@
             <configuration>
               <createDependencyReducedPom>false</createDependencyReducedPom>
               <finalName>lambda-java-wrapper</finalName>
+              <outputTimestamp>${project.build.outputTimestamp}</outputTimestamp>
             </configuration>
           </execution>
         </executions>

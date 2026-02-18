@@ -71,6 +71,9 @@ type (
 		NoEmoji      bool     `name:"no-emoji" help:"Disable emoji output"`
 		Force        bool     `help:"Allow environment mismatch with running gateway (skip auto-alignment)"`
 		NoSave       bool     `name:"no-save-defaults" help:"Do not persist deploy defaults"`
+		// Internal-only adapter knob for artifact generate.
+		// Nil means deploy default behavior (build images).
+		generateBuildImages *bool
 	}
 
 	ArtifactCmd struct {
@@ -88,6 +91,7 @@ type (
 		ImageRuntime []string `name:"image-runtime" sep:"," help:"Runtime override for image functions (<function>=<python|java21>)"`
 		Bundle       bool     `name:"bundle-manifest" help:"Write bundle manifest (for bundling)"`
 		ImagePrewarm string   `name:"image-prewarm" default:"all" help:"Image prewarm mode metadata (all/off)"`
+		BuildImages  bool     `name:"build-images" help:"Build base/function images during generate"`
 		NoCache      bool     `name:"no-cache" help:"Do not use cache when building images"`
 		Verbose      bool     `short:"v" help:"Verbose output"`
 		Emoji        bool     `name:"emoji" help:"Enable emoji output (default: auto)"`

@@ -232,6 +232,9 @@ func TestDeployCommandRunBuildsAllTemplatesAndRunsProvisionerOnlyOnLast(t *testi
 	if len(builder.requests) != 2 {
 		t.Fatalf("expected 2 build requests, got %d", len(builder.requests))
 	}
+	if !builder.requests[0].BuildImages || !builder.requests[1].BuildImages {
+		t.Fatalf("deploy command must build images by default: %#v", builder.requests)
+	}
 	if builder.requests[0].ImageRuntimes["image-a"] != "java21" {
 		t.Fatalf("expected image runtime to be forwarded, got %#v", builder.requests[0].ImageRuntimes)
 	}
@@ -261,6 +264,58 @@ func TestDeployCommandRunBuildsAllTemplatesAndRunsProvisionerOnlyOnLast(t *testi
 	}
 	if manifest.Artifacts[0].ArtifactRoot == "" || manifest.Artifacts[1].ArtifactRoot == "" {
 		t.Fatalf("artifact_root must not be empty: %#v", manifest.Artifacts)
+	}
+}
+
+func TestDeployCommandRunAllowsRenderOnlyGenerate(t *testing.T) {
+	tmp := t.TempDir()
+	setWorkingDir(t, tmp)
+	if err := os.WriteFile(filepath.Join(tmp, "docker-compose.docker.yml"), []byte("services: {}\n"), 0o600); err != nil {
+		t.Fatalf("write compose marker: %v", err)
+	}
+	templatePath := filepath.Join(tmp, "template.yaml")
+	if err := os.WriteFile(templatePath, []byte("Resources: {}"), 0o600); err != nil {
+		t.Fatalf("write template: %v", err)
+	}
+	writeTestRuntimeAssets(t, tmp)
+
+	builder := &deployEntryBuilder{}
+	provisioner := &deployEntryProvisioner{}
+	cmd := &deployCommand{
+		build:         builder.Build,
+		applyRuntime:  func(state.Context) error { return nil },
+		ui:            deployEntryUI{},
+		composeRunner: deployEntryRunner{},
+		workflow: deployWorkflowDeps{
+			composeProvisioner: provisioner,
+			registryWaiter:     func(string, time.Duration) error { return nil },
+		},
+	}
+
+	err := cmd.Run(
+		deployInputs{
+			ProjectDir: tmp,
+			Env:        "dev",
+			Mode:       "docker",
+			Project:    "esb-dev",
+			Templates:  []deployTemplateInput{{TemplatePath: templatePath}},
+		},
+		DeployCmd{
+			BuildOnly:           true,
+			generateBuildImages: boolPtr(false),
+		},
+	)
+	if err != nil {
+		t.Fatalf("run deploy command: %v", err)
+	}
+	if len(builder.requests) != 1 {
+		t.Fatalf("expected 1 build request, got %d", len(builder.requests))
+	}
+	if builder.requests[0].BuildImages {
+		t.Fatalf("expected render-only generate request, got %#v", builder.requests[0])
+	}
+	if provisioner.runCalls != 0 {
+		t.Fatalf("provisioner must not run when BuildOnly=true, got %d", provisioner.runCalls)
 	}
 }
 

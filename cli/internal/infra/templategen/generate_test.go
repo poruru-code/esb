@@ -363,28 +363,12 @@ func TestGenerateFilesStagesJavaJarAndWrapper(t *testing.T) {
 	jarPath := filepath.Join(root, "converter_jsoncrb.jar")
 	writeTestFile(t, jarPath, "jar")
 
-	mustMkdirAll(t, filepath.Join(root, "runtime-hooks", "java", "build"))
-
 	wrapperPath := filepath.Join(root, "runtime-hooks", "java", "wrapper", "lambda-java-wrapper.jar")
 	mustMkdirAll(t, filepath.Dir(wrapperPath))
-	writeTestFile(t, wrapperPath, "stale-wrapper")
+	writeTestFile(t, wrapperPath, "runtime-wrapper")
 	agentPath := filepath.Join(root, "runtime-hooks", "java", "agent", "lambda-java-agent.jar")
 	mustMkdirAll(t, filepath.Dir(agentPath))
-	writeTestFile(t, agentPath, "stale-agent")
-
-	_ = installFakeDockerForJavaBuild(t)
-	for _, key := range []string{
-		"HTTP_PROXY",
-		"http_proxy",
-		"HTTPS_PROXY",
-		"https_proxy",
-		"NO_PROXY",
-		"no_proxy",
-		"MAVEN_OPTS",
-		"JAVA_TOOL_OPTIONS",
-	} {
-		t.Setenv(key, "")
-	}
+	writeTestFile(t, agentPath, "runtime-agent")
 
 	parser := &stubParser{
 		result: template.ParseResult{
@@ -420,15 +404,15 @@ func TestGenerateFilesStagesJavaJarAndWrapper(t *testing.T) {
 	if _, err := os.Stat(wrapperDest); err != nil {
 		t.Fatalf("expected wrapper jar to be staged: %v", err)
 	}
-	if got := readFile(t, wrapperDest); got != "fresh-wrapper" {
-		t.Fatalf("expected rebuilt wrapper jar content, got %q", got)
+	if got := readFile(t, wrapperDest); got != "runtime-wrapper" {
+		t.Fatalf("expected runtime wrapper jar content, got %q", got)
 	}
 	agentDest := filepath.Join(root, "out", "functions", "lambda-java", "lambda-java-agent.jar")
 	if _, err := os.Stat(agentDest); err != nil {
 		t.Fatalf("expected agent jar to be staged: %v", err)
 	}
-	if got := readFile(t, agentDest); got != "fresh-agent" {
-		t.Fatalf("expected rebuilt agent jar content, got %q", got)
+	if got := readFile(t, agentDest); got != "runtime-agent" {
+		t.Fatalf("expected runtime agent jar content, got %q", got)
 	}
 
 	dockerfilePath := filepath.Join(root, "out", "functions", "lambda-java", "Dockerfile")
@@ -456,7 +440,7 @@ func TestGenerateFilesStagesJavaJarAndWrapper(t *testing.T) {
 	}
 }
 
-func TestGenerateFilesBuildsJavaRuntimeOncePerRunAndUsesProjectM2Cache(t *testing.T) {
+func TestGenerateFilesStagesJavaRuntimeJarsForMultipleFunctions(t *testing.T) {
 	root := t.TempDir()
 	templatePath := filepath.Join(root, "template.yaml")
 	writeTestFile(t, templatePath, "Resources: {}")
@@ -466,27 +450,12 @@ func TestGenerateFilesBuildsJavaRuntimeOncePerRunAndUsesProjectM2Cache(t *testin
 	jarBPath := filepath.Join(root, "converter_b.jar")
 	writeTestFile(t, jarBPath, "jar-b")
 
-	mustMkdirAll(t, filepath.Join(root, "runtime-hooks", "java", "build"))
 	wrapperPath := filepath.Join(root, "runtime-hooks", "java", "wrapper", "lambda-java-wrapper.jar")
 	mustMkdirAll(t, filepath.Dir(wrapperPath))
-	writeTestFile(t, wrapperPath, "stale-wrapper")
+	writeTestFile(t, wrapperPath, "runtime-wrapper")
 	agentPath := filepath.Join(root, "runtime-hooks", "java", "agent", "lambda-java-agent.jar")
 	mustMkdirAll(t, filepath.Dir(agentPath))
-	writeTestFile(t, agentPath, "stale-agent")
-
-	callsLogPath := installFakeDockerForJavaBuild(t)
-	for _, key := range []string{
-		"HTTP_PROXY",
-		"http_proxy",
-		"HTTPS_PROXY",
-		"https_proxy",
-		"NO_PROXY",
-		"no_proxy",
-		"MAVEN_OPTS",
-		"JAVA_TOOL_OPTIONS",
-	} {
-		t.Setenv(key, "")
-	}
+	writeTestFile(t, agentPath, "runtime-agent")
 
 	parser := &stubParser{
 		result: template.ParseResult{
@@ -518,30 +487,14 @@ func TestGenerateFilesBuildsJavaRuntimeOncePerRunAndUsesProjectM2Cache(t *testin
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	payload, err := os.ReadFile(callsLogPath)
-	if err != nil {
-		t.Fatalf("failed to read fake docker call log: %v", err)
-	}
-	lines := strings.Split(strings.TrimSpace(string(payload)), "\n")
-	if len(lines) != 1 {
-		t.Fatalf("expected one java runtime build call, got %d (%q)", len(lines), strings.TrimSpace(string(payload)))
-	}
-	expectedCacheDir := filepath.Join(root, meta.HomeDir, "cache", "m2", "repository")
-	if lines[0] != expectedCacheDir {
-		t.Fatalf("expected m2 cache mount %q, got %q", expectedCacheDir, lines[0])
-	}
-	if _, err := os.Stat(expectedCacheDir); err != nil {
-		t.Fatalf("expected m2 cache directory to exist: %v", err)
-	}
-
 	for _, fn := range []string{"lambda-java-a", "lambda-java-b"} {
 		wrapperDest := filepath.Join(root, "out", "functions", fn, "lambda-java-wrapper.jar")
-		if got := readFile(t, wrapperDest); got != "fresh-wrapper" {
-			t.Fatalf("expected rebuilt wrapper jar for %s, got %q", fn, got)
+		if got := readFile(t, wrapperDest); got != "runtime-wrapper" {
+			t.Fatalf("expected staged wrapper jar for %s, got %q", fn, got)
 		}
 		agentDest := filepath.Join(root, "out", "functions", fn, "lambda-java-agent.jar")
-		if got := readFile(t, agentDest); got != "fresh-agent" {
-			t.Fatalf("expected rebuilt agent jar for %s, got %q", fn, got)
+		if got := readFile(t, agentDest); got != "runtime-agent" {
+			t.Fatalf("expected staged agent jar for %s, got %q", fn, got)
 		}
 	}
 }
@@ -554,27 +507,12 @@ func TestGenerateFilesStagesJavaRuntimeAsIndependentCopies(t *testing.T) {
 	jarPath := filepath.Join(root, "converter.jar")
 	writeTestFile(t, jarPath, "jar")
 
-	mustMkdirAll(t, filepath.Join(root, "runtime-hooks", "java", "build"))
 	wrapperPath := filepath.Join(root, "runtime-hooks", "java", "wrapper", "lambda-java-wrapper.jar")
 	mustMkdirAll(t, filepath.Dir(wrapperPath))
-	writeTestFile(t, wrapperPath, "stale-wrapper")
+	writeTestFile(t, wrapperPath, "runtime-wrapper")
 	agentPath := filepath.Join(root, "runtime-hooks", "java", "agent", "lambda-java-agent.jar")
 	mustMkdirAll(t, filepath.Dir(agentPath))
-	writeTestFile(t, agentPath, "stale-agent")
-
-	_ = installFakeDockerForJavaBuild(t)
-	for _, key := range []string{
-		"HTTP_PROXY",
-		"http_proxy",
-		"HTTPS_PROXY",
-		"https_proxy",
-		"NO_PROXY",
-		"no_proxy",
-		"MAVEN_OPTS",
-		"JAVA_TOOL_OPTIONS",
-	} {
-		t.Setenv(key, "")
-	}
+	writeTestFile(t, agentPath, "runtime-agent")
 
 	parser := &stubParser{
 		result: template.ParseResult{
@@ -602,21 +540,93 @@ func TestGenerateFilesStagesJavaRuntimeAsIndependentCopies(t *testing.T) {
 
 	stagedWrapper := filepath.Join(root, "out", "functions", "lambda-java", "lambda-java-wrapper.jar")
 	stagedAgent := filepath.Join(root, "out", "functions", "lambda-java", "lambda-java-agent.jar")
-	if got := readFile(t, stagedWrapper); got != "fresh-wrapper" {
+	if got := readFile(t, stagedWrapper); got != "runtime-wrapper" {
 		t.Fatalf("expected staged wrapper content, got %q", got)
 	}
-	if got := readFile(t, stagedAgent); got != "fresh-agent" {
+	if got := readFile(t, stagedAgent); got != "runtime-agent" {
 		t.Fatalf("expected staged agent content, got %q", got)
 	}
 
 	writeTestFile(t, wrapperPath, "mutated-wrapper")
 	writeTestFile(t, agentPath, "mutated-agent")
 
-	if got := readFile(t, stagedWrapper); got != "fresh-wrapper" {
+	if got := readFile(t, stagedWrapper); got != "runtime-wrapper" {
 		t.Fatalf("staged wrapper should not be affected by source mutation, got %q", got)
 	}
-	if got := readFile(t, stagedAgent); got != "fresh-agent" {
+	if got := readFile(t, stagedAgent); got != "runtime-agent" {
 		t.Fatalf("staged agent should not be affected by source mutation, got %q", got)
+	}
+}
+
+func TestGenerateFilesFailsWhenCodeURIDoesNotExist(t *testing.T) {
+	root := t.TempDir()
+	templatePath := filepath.Join(root, "template.yaml")
+	writeTestFile(t, templatePath, "Resources: {}")
+
+	parser := &stubParser{
+		result: template.ParseResult{
+			Functions: []template.FunctionSpec{
+				{
+					Name:    "lambda-missing",
+					CodeURI: "functions/missing/",
+					Handler: "handler.main",
+					Runtime: "python3.12",
+				},
+			},
+		},
+	}
+
+	cfg := config.GeneratorConfig{
+		Paths: config.PathsConfig{
+			SamTemplate: "template.yaml",
+			OutputDir:   "out/",
+		},
+	}
+	_, err := GenerateFiles(cfg, GenerateOptions{ProjectRoot: root, Parser: parser})
+	if err == nil {
+		t.Fatalf("expected error for missing code uri")
+	}
+	if !strings.Contains(err.Error(), "code uri not found") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestGenerateFilesFailsWhenJavaRuntimeJarsMissing(t *testing.T) {
+	root := t.TempDir()
+	templatePath := filepath.Join(root, "template.yaml")
+	writeTestFile(t, templatePath, "Resources: {}")
+
+	jarPath := filepath.Join(root, "converter.jar")
+	writeTestFile(t, jarPath, "jar")
+	mustMkdirAll(t, filepath.Join(root, "runtime-hooks", "java", "wrapper"))
+	mustMkdirAll(t, filepath.Join(root, "runtime-hooks", "java", "agent"))
+
+	parser := &stubParser{
+		result: template.ParseResult{
+			Functions: []template.FunctionSpec{
+				{
+					Name:    "lambda-java",
+					CodeURI: "converter.jar",
+					Handler: "com.example.Handler::handleRequest",
+					Runtime: "java21",
+				},
+			},
+		},
+	}
+
+	cfg := config.GeneratorConfig{
+		Paths: config.PathsConfig{
+			SamTemplate: "template.yaml",
+			OutputDir:   "out/",
+		},
+	}
+	_, err := GenerateFiles(cfg, GenerateOptions{ProjectRoot: root, Parser: parser})
+	if err == nil {
+		t.Fatalf("expected error for missing java runtime jars")
+	}
+	if !strings.Contains(err.Error(), "java wrapper jar not found") &&
+		!strings.Contains(err.Error(), "java agent jar not found") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
@@ -1001,52 +1011,4 @@ func writeZip(t *testing.T, path string, files map[string]string) {
 	if err := writer.Close(); err != nil {
 		t.Fatalf("zip close: %v", err)
 	}
-}
-
-func installFakeDockerForJavaBuild(t *testing.T) string {
-	t.Helper()
-
-	binDir := t.TempDir()
-	scriptPath := filepath.Join(binDir, "docker")
-	callsLogPath := filepath.Join(t.TempDir(), "fake-docker-calls.log")
-	script := `#!/usr/bin/env bash
-set -euo pipefail
-out=""
-repo=""
-while [ "$#" -gt 0 ]; do
-  if [ "$1" = "-v" ] && [ "$#" -ge 2 ]; then
-    case "$2" in
-      *:/out-hooks) out="${2%:/out-hooks}" ;;
-      *:/tmp/m2/repository) repo="${2%:/tmp/m2/repository}" ;;
-    esac
-    shift 2
-    continue
-  fi
-  shift
-done
-
-if [ -z "$out" ]; then
-  echo "missing /out volume mount" >&2
-  exit 1
-fi
-if [ -z "$repo" ]; then
-  echo "missing /tmp/m2/repository volume mount" >&2
-  exit 1
-fi
-if [ -n "${ESB_FAKE_DOCKER_CALLS:-}" ]; then
-  printf '%s\n' "$repo" >> "${ESB_FAKE_DOCKER_CALLS}"
-fi
-
-mkdir -p "$out/wrapper" "$out/agent"
-printf 'fresh-wrapper' > "$out/wrapper/lambda-java-wrapper.jar"
-printf 'fresh-agent' > "$out/agent/lambda-java-agent.jar"
-`
-	if err := os.WriteFile(scriptPath, []byte(script), 0o700); err != nil {
-		t.Fatalf("write fake docker script: %v", err)
-	}
-
-	origPath := os.Getenv("PATH")
-	t.Setenv("PATH", binDir+string(os.PathListSeparator)+origPath)
-	t.Setenv("ESB_FAKE_DOCKER_CALLS", callsLogPath)
-	return callsLogPath
 }

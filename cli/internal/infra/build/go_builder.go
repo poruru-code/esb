@@ -121,13 +121,6 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		return err
 	}
 	imageLabels := brandingImageLabels(composeProject, request.Env)
-	rootFingerprint, err := resolveRootCAFingerprint()
-	if err != nil {
-		return err
-	}
-	if os.Getenv(constants.BuildArgCAFingerprint) == "" {
-		_ = os.Setenv(constants.BuildArgCAFingerprint, rootFingerprint)
-	}
 
 	cfg.Parameters = toAnyMap(defaultGeneratorParameters())
 	for key, value := range request.Parameters {
@@ -144,26 +137,32 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		}
 	}
 
-	registryInfo, err := b.resolveBuildRegistryInfo(
-		context.Background(),
-		repoRoot,
-		composeProject,
-		request,
-	)
+	registryInfo, err := resolveGenerateRegistryInfo()
 	if err != nil {
 		return err
 	}
-	if err := ensureBuildxBuilder(
-		context.Background(),
-		b.Runner,
-		repoRoot,
-		lockRoot,
-		buildxBuilderOptions{
-			NetworkMode: registryInfo.BuilderNetworkMode,
-			ConfigPath:  strings.TrimSpace(os.Getenv(constants.EnvBuildkitdConfig)),
-		},
-	); err != nil {
-		return err
+	if request.BuildImages {
+		registryInfo, err = b.resolveBuildRegistryInfo(
+			context.Background(),
+			repoRoot,
+			composeProject,
+			request,
+		)
+		if err != nil {
+			return err
+		}
+		if err := ensureBuildxBuilder(
+			context.Background(),
+			b.Runner,
+			repoRoot,
+			lockRoot,
+			buildxBuilderOptions{
+				NetworkMode: registryInfo.BuilderNetworkMode,
+				ConfigPath:  strings.TrimSpace(os.Getenv(constants.EnvBuildkitdConfig)),
+			},
+		); err != nil {
+			return err
+		}
 	}
 
 	var functions []template.FunctionSpec
@@ -194,6 +193,24 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		return nil
 	}); err != nil {
 		return err
+	}
+
+	if !request.BuildImages {
+		if request.Bundle {
+			return fmt.Errorf("bundle manifest requires image builds")
+		}
+		if request.Verbose {
+			_, _ = fmt.Fprintln(out, "Skipping image build phase (render-only)")
+		}
+		return nil
+	}
+
+	rootFingerprint, err := resolveRootCAFingerprint()
+	if err != nil {
+		return err
+	}
+	if os.Getenv(constants.BuildArgCAFingerprint) == "" {
+		_ = os.Setenv(constants.BuildArgCAFingerprint, rootFingerprint)
 	}
 
 	lambdaBaseTag := lambdaBaseImageTag(registryInfo.PushRegistry, imageTag)
