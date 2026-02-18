@@ -89,3 +89,28 @@ func (r *fakeComposeRunner) RunQuiet(ctx context.Context, dir, name string, args
 func noopRegistryWaiter(_ string, _ time.Duration) error {
 	return nil
 }
+
+type spyProvisioner struct {
+	checkCalls int
+	runCalls   int
+	runFn      func(composeProject, mode string, noDeps, verbose bool, projectDir string, composeFiles []string) error
+}
+
+func (p *spyProvisioner) CheckServicesStatus(_ string, _ string) {
+	p.checkCalls++
+}
+
+func (p *spyProvisioner) RunProvisioner(
+	composeProject string,
+	mode string,
+	noDeps bool,
+	verbose bool,
+	projectDir string,
+	composeFiles []string,
+) error {
+	p.runCalls++
+	if p.runFn == nil {
+		return nil
+	}
+	return p.runFn(composeProject, mode, noDeps, verbose, projectDir, composeFiles)
+}
