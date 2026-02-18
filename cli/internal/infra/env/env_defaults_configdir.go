@@ -4,7 +4,6 @@
 package env
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -25,17 +24,13 @@ func applyConfigDirEnv(ctx state.Context, resolver func(string) (string, error))
 	if err != nil {
 		return fmt.Errorf("resolve config dir: %w", err)
 	}
-	if _, err := os.Stat(stagingAbs); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil
-		}
-		return fmt.Errorf("stat config dir: %w", err)
-	}
 	val := filepath.ToSlash(stagingAbs)
 	if err := envutil.SetHostEnv(constants.HostSuffixConfigDir, val); err != nil {
 		return fmt.Errorf("set host env %s: %w", constants.HostSuffixConfigDir, err)
 	}
-	setEnvIfEmpty(constants.EnvConfigDir, val)
+	if err := os.Setenv(constants.EnvConfigDir, val); err != nil {
+		return fmt.Errorf("set %s: %w", constants.EnvConfigDir, err)
+	}
 	return nil
 }
 
