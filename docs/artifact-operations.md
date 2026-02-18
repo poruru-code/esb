@@ -97,4 +97,4 @@ Fixture refresh is a separate developer operation (outside E2E runtime):
 - Unknown `deploy_driver` or unsupported `artifact_generate` mode: hard fail
 - Missing runtime-base context for required base-image build in `prepare-images`: hard fail
 - Apply phase must not silently fall back to template-based sync paths
-- In `--strict`, runtime digest verification fails if repository root (`runtime-hooks` + `cli/assets/runtime-templates`) cannot be resolved
+- In `--strict`, runtime digest verification fails if artifact runtime metadata sources under `<artifact_root>/runtime-base/**` are missing or unreadable
