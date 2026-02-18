@@ -85,13 +85,10 @@
 
 ## Remaining Gaps / Risks（厳格評価）
 
-1. `prepare-images` は base image build に repo 相対パス (`runtime-hooks/python/docker/Dockerfile`) を使う。
-   - 完全な「artifact directory だけで build」を満たしていない。
-   - `tools/artifactctl/pkg/engine/prepare_images.go`
-2. runtime metadata digest 検証は repo root 推定に依存する。
+1. runtime metadata digest 検証は repo root 推定に依存する。
    - repo root を検出できない環境では non-strict は warning、strict は fail。
    - `tools/artifactctl/pkg/engine/runtime_meta_validation.go`
-3. E2E gate は firecracker を含む full matrix まで到達していない。
+2. E2E gate は firecracker を含む full matrix まで到達していない。
    - `e2e/environments/test_matrix.yaml`
 
 ## Completion Criteria 再判定（今回）
@@ -102,7 +99,7 @@
 | `esb deploy` が Generate/Apply 分離で動く | Pass | `cli/internal/command/deploy_entry.go` |
 | E2E artifact-only で docker/containerd が成立 | Pass | `e2e/runner/config.py`, `e2e/runner/deploy.py` |
 | `uv run e2e/run_tests.py --parallel --verbose` を含む full gate（docker/containerd/firecracker） | Fail | firecracker 無効化中 |
-| 非 CLI 実行が成果物だけに依存（build 時も repo 非依存） | Fail | `prepare-images` が repo assets 参照 |
+| 非 CLI 実行が成果物だけに依存（build 時も repo 非依存） | Pass | `tools/artifactctl/pkg/engine/prepare_images.go`（`artifact_root/runtime-base/**` のみ参照） |
 
 現時点の総合判定: **未完了（Partial Complete）**
 
@@ -110,40 +107,21 @@
 
 以下は **PR分割可能な最小単位** での実行順です。各ステップは独立レビュー可能な粒度に固定します。
 
-### Track A: `prepare-images` の artifact-only 化
+### Track A: `prepare-images` の artifact-only 化（完了）
 
-#### A-1: 契約の決定（Decision PR）
-- 目的:
-  - `prepare-images` の base image 入力を「repo 依存のまま契約化」するか「artifact 側へ移管」するかを確定する。
-- 変更対象:
-  - `docs/deploy-artifact-contract.md`
-  - `docs/artifact-operations.md`
-  - `.agent/execplan-artifact-first-deploy.md`
-- 受け入れ条件:
-  - どの入力が必須か（Dockerfile path / image ref / digest source）が文書で一意に読める。
-  - 実装と docs の齟齬がない。
-
-#### A-2: `prepare-images` 実装の契約準拠（Implementation PR）
-- 目的:
-  - A-1 の決定内容に合わせて `prepare-images` の入力解決を一本化する。
-- 変更対象:
+- 実施内容:
+  - 契約を `artifact_root/runtime-base/**` 入力へ固定した（docs 更新）。
+  - `artifact generate` で runtime-base build context を成果物へステージするよう変更した。
+  - `prepare-images` が repo 直参照を使わず、artifact 内の runtime-base だけで base image build するよう変更した。
+  - E2E fixture を再生成し、runtime-base を含む raw output に同期した。
+- 主な変更対象:
+  - `cli/internal/infra/templategen/generate.go`
+  - `cli/internal/infra/templategen/stage_runtime_base.go`
   - `tools/artifactctl/pkg/engine/prepare_images.go`
-  - 必要に応じて manifest 拡張（`tools/artifactctl/pkg/engine/manifest.go`）
-  - 関連 UT
-- 受け入れ条件:
-  - `prepare-images` 実行時に暗黙 repo 依存が残らない（または契約化された依存のみになる）。
-  - 既存 docker/containerd E2E を壊さない。
-
-#### A-3: E2E fixture 更新と運用手順同期（Fixture PR）
-- 目的:
-  - A-2 で変更した contract に合わせて `e2e/artifacts/*` と再生成手順を同期する。
-- 変更対象:
   - `e2e/artifacts/*`
   - `e2e/scripts/regenerate_artifacts.sh`
-  - 関連 docs
-- 受け入れ条件:
-  - E2E 実行時は生成なしで fixture 消費のみ成立する。
-  - fixture 再生成手順が 1 コマンドで再現できる。
+  - `docs/deploy-artifact-contract.md`
+  - `docs/artifact-operations.md`
 
 ### Track B: runtime metadata strict 検証の前提固定
 
@@ -188,21 +166,18 @@
 
 ### 実行順（依存関係）
 
-1. A-1  
-2. B-1（A-1 と並行可）  
-3. A-2  
-4. B-2  
-5. A-3  
-6. C-1  
-7. C-2
+1. B-1
+2. B-2
+3. C-1
+4. C-2
 
 ### 完了条件（更新）
 
-- Track A/B/C の全ステップが完了し、以下を満たすこと:
-  - `artifact apply` / `prepare-images` の入力契約が docs と実装で一致
+- Track B/C の全ステップが完了し、以下を満たすこと:
   - strict 検証の前提が明文化され、挙動が UT で固定
   - `uv run e2e/run_tests.py --parallel --verbose` が docker/containerd/firecracker で完走
 
 ## Change Log
 
 - 2026-02-18: 実装同期版へ全面更新。旧フェーズ記述（`deploy_driver=cli` 併存、`ensure_local_esb_cli` 前提、古い Current Gaps）を削除し、現行コード基準の完了判定へ切り替え。
+- 2026-02-18: Track A を完了。`prepare-images` の入力契約を `artifact_root/runtime-base/**` に固定し、repo 直参照を撤去。generator/fixture/docs を同時同期した。

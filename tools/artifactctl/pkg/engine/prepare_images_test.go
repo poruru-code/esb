@@ -49,10 +49,12 @@ func TestPrepareImagesBuildsAndPushesDockerRefs(t *testing.T) {
 	if runner.commands[0][0:3][0] != "docker" || runner.commands[0][1] != "buildx" || runner.commands[0][2] != "build" {
 		t.Fatalf("unexpected base build command: %v", runner.commands[0])
 	}
+	wantBaseDockerfile := filepath.Join(root, "fixture", "runtime-base", "runtime-hooks", "python", "docker", "Dockerfile")
+	wantBaseContext := filepath.Join(root, "fixture", "runtime-base")
 	assertCommandContains(t, runner.commands[0], "--tag", "127.0.0.1:5010/esb-lambda-base:e2e-test")
-	assertCommandContains(t, runner.commands[0], "--file", "runtime-hooks/python/docker/Dockerfile")
-	if got := runner.commands[0][len(runner.commands[0])-1]; got != "." {
-		t.Fatalf("base build context = %q, want '.'", got)
+	assertCommandContains(t, runner.commands[0], "--file", wantBaseDockerfile)
+	if got := runner.commands[0][len(runner.commands[0])-1]; got != wantBaseContext {
+		t.Fatalf("base build context = %q, want %q", got, wantBaseContext)
 	}
 	if !slices.Equal(runner.commands[1], []string{"docker", "push", "127.0.0.1:5010/esb-lambda-base:e2e-test"}) {
 		t.Fatalf("unexpected base push command: %v", runner.commands[1])
@@ -215,13 +217,50 @@ func TestPrepareImagesReturnsRunnerError(t *testing.T) {
 	}
 }
 
+func TestPrepareImagesFailsWhenRuntimeBaseContextMissing(t *testing.T) {
+	root := t.TempDir()
+	manifestPath := writePrepareImageFixture(
+		t,
+		root,
+		"127.0.0.1:5010/esb-lambda-echo:e2e-test",
+		"127.0.0.1:5010/esb-lambda-base:e2e-test",
+	)
+	missingDockerfile := filepath.Join(root, "fixture", "runtime-base", "runtime-hooks", "python", "docker", "Dockerfile")
+	if err := os.Remove(missingDockerfile); err != nil {
+		t.Fatalf("remove runtime base dockerfile: %v", err)
+	}
+
+	runner := &recordCommandRunner{}
+	err := PrepareImages(PrepareImagesRequest{
+		ArtifactPath: manifestPath,
+		Runner:       runner,
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "runtime base dockerfile not found") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func writePrepareImageFixture(t *testing.T, root, imageRef, baseRef string) string {
 	t.Helper()
 	artifactRoot := filepath.Join(root, "fixture")
 	functionDir := filepath.Join(artifactRoot, "functions", "lambda-echo")
 	configDir := filepath.Join(artifactRoot, "config")
+	runtimeBaseDir := filepath.Join(artifactRoot, "runtime-base", "runtime-hooks", "python")
 	mustMkdirAll(t, functionDir)
 	mustMkdirAll(t, configDir)
+	mustMkdirAll(t, filepath.Join(runtimeBaseDir, "docker"))
+	mustMkdirAll(t, filepath.Join(runtimeBaseDir, "sitecustomize", "site-packages"))
+	mustMkdirAll(t, filepath.Join(runtimeBaseDir, "trace-bridge", "layer"))
+	mustWriteFile(
+		t,
+		filepath.Join(runtimeBaseDir, "docker", "Dockerfile"),
+		"FROM public.ecr.aws/lambda/python:3.12\nCOPY runtime-hooks/python/sitecustomize/site-packages/sitecustomize.py /opt/python/sitecustomize.py\nCOPY runtime-hooks/python/trace-bridge/layer/ /opt/python/\n",
+	)
+	mustWriteFile(t, filepath.Join(runtimeBaseDir, "sitecustomize", "site-packages", "sitecustomize.py"), "# stub")
+	mustWriteFile(t, filepath.Join(runtimeBaseDir, "trace-bridge", "layer", "trace_bridge.py"), "# stub")
 	mustWriteFile(
 		t,
 		filepath.Join(functionDir, "Dockerfile"),

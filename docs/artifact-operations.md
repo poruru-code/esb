@@ -78,7 +78,7 @@ docker compose --profile deploy run --rm --no-deps provisioner
 Notes:
 - Shell wrappers must not implement merge/apply business logic.
 - `tools/artifact/merge_runtime_config.sh` is a thin wrapper to `tools/artifactctl merge`.
-- `tools/artifactctl prepare-images` currently builds lambda base image from `runtime-hooks/python/docker/Dockerfile`, so run it from the ESB repository root (or provide prebuilt base images out of band).
+- `tools/artifactctl prepare-images` uses `<artifact_root>/runtime-base/**` as the only base-image build context. It does not read repository-local `runtime-hooks/**`.
 
 ## E2E Contract (Current)
 `e2e/environments/test_matrix.yaml` is artifact-only:
@@ -95,5 +95,6 @@ Fixture refresh is a separate developer operation (outside E2E runtime):
 ## Failure Policy
 - Missing `artifact.yml`, required runtime config files, invalid ID, missing required secrets: hard fail
 - Unknown `deploy_driver` or unsupported `artifact_generate` mode: hard fail
+- Missing runtime-base context for required base-image build in `prepare-images`: hard fail
 - Apply phase must not silently fall back to template-based sync paths
 - In `--strict`, runtime digest verification fails if repository root (`runtime-hooks` + `cli/assets/runtime-templates`) cannot be resolved

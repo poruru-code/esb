@@ -37,6 +37,11 @@ type imageBuildTarget struct {
 	dockerfile   string
 }
 
+const (
+	runtimeBaseContextDirName      = "runtime-base"
+	runtimeBasePythonDockerfileRel = "runtime-hooks/python/docker/Dockerfile"
+)
+
 func PrepareImages(req PrepareImagesRequest) error {
 	manifestPath := strings.TrimSpace(req.ArtifactPath)
 	if manifestPath == "" {
@@ -96,7 +101,7 @@ func PrepareImages(req PrepareImagesRequest) error {
 					if _, ok := builtBaseRuntimeRefs[baseRef]; ok {
 						continue
 					}
-					if err := buildAndPushLambdaBaseImage(baseRef, req.NoCache, runner); err != nil {
+					if err := buildAndPushLambdaBaseImage(baseRef, artifactRoot, req.NoCache, runner); err != nil {
 						return err
 					}
 					builtBaseRuntimeRefs[baseRef] = struct{}{}
@@ -192,9 +197,13 @@ func extractFromImageRef(parts []string) string {
 	return ""
 }
 
-func buildAndPushLambdaBaseImage(runtimeRef string, noCache bool, runner CommandRunner) error {
+func buildAndPushLambdaBaseImage(runtimeRef, artifactRoot string, noCache bool, runner CommandRunner) error {
+	dockerfile, contextDir, err := resolveRuntimeBaseBuildContext(artifactRoot)
+	if err != nil {
+		return err
+	}
 	pushRef := resolvePushReference(runtimeRef)
-	buildCmd := buildxBuildCommand(pushRef, "runtime-hooks/python/docker/Dockerfile", ".", noCache)
+	buildCmd := buildxBuildCommand(pushRef, dockerfile, contextDir, noCache)
 	if err := runner.Run(buildCmd); err != nil {
 		return fmt.Errorf("build lambda base image %s: %w", pushRef, err)
 	}
@@ -207,6 +216,18 @@ func buildAndPushLambdaBaseImage(runtimeRef string, noCache bool, runner Command
 		return fmt.Errorf("push lambda base image %s: %w", pushRef, err)
 	}
 	return nil
+}
+
+func resolveRuntimeBaseBuildContext(artifactRoot string) (string, string, error) {
+	contextDir := filepath.Join(artifactRoot, runtimeBaseContextDirName)
+	dockerfile := filepath.Join(contextDir, runtimeBasePythonDockerfileRel)
+	if _, err := os.Stat(dockerfile); err != nil {
+		return "", "", fmt.Errorf(
+			"runtime base dockerfile not found: %s (run artifact generate to stage runtime-base)",
+			dockerfile,
+		)
+	}
+	return dockerfile, contextDir, nil
 }
 
 func buildAndPushFunctionImage(imageRef, dockerfile, artifactRoot string, noCache bool, runner CommandRunner) error {

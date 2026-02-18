@@ -91,6 +91,7 @@ func TestApplyImageSourceOverridesRejectsNonImageFunction(t *testing.T) {
 
 func TestGenerateFilesUsesParserOverride(t *testing.T) {
 	root := t.TempDir()
+	writeRuntimeBaseFixture(t, root)
 	templatePath := filepath.Join(root, "template.yaml")
 	writeTestFile(t, templatePath, "Resources: {}")
 
@@ -148,6 +149,10 @@ func TestGenerateFilesUsesParserOverride(t *testing.T) {
 	}
 
 	outputDir := filepath.Join(root, meta.OutputDir)
+	runtimeBaseDockerfile := filepath.Join(outputDir, runtimeBaseContextDirName, runtimeBasePythonDockerfileRel)
+	if _, err := os.Stat(runtimeBaseDockerfile); err != nil {
+		t.Fatalf("expected runtime base dockerfile to be staged: %v", err)
+	}
 	dockerfilePath := filepath.Join(outputDir, "functions", "lambda-hello", "Dockerfile")
 	if _, err := os.Stat(dockerfilePath); err != nil {
 		t.Fatalf("expected dockerfile to exist: %v", err)
@@ -174,6 +179,7 @@ func TestGenerateFilesUsesParserOverride(t *testing.T) {
 
 func TestGenerateFilesWritesWarningsToInjectedOutput(t *testing.T) {
 	root := t.TempDir()
+	writeRuntimeBaseFixture(t, root)
 	templatePath := filepath.Join(root, "template.yaml")
 	writeTestFile(t, templatePath, "Resources: {}")
 
@@ -206,6 +212,7 @@ func TestGenerateFilesWritesWarningsToInjectedOutput(t *testing.T) {
 
 func TestGenerateFilesVerboseWritesToInjectedOutput(t *testing.T) {
 	root := t.TempDir()
+	writeRuntimeBaseFixture(t, root)
 	templatePath := filepath.Join(root, "template.yaml")
 	writeTestFile(t, templatePath, "Resources: {}")
 
@@ -249,6 +256,7 @@ func TestGenerateFilesVerboseWritesToInjectedOutput(t *testing.T) {
 
 func TestGenerateFilesStagesLayersAndZip(t *testing.T) {
 	root := t.TempDir()
+	writeRuntimeBaseFixture(t, root)
 	templatePath := filepath.Join(root, "template.yaml")
 	writeTestFile(t, templatePath, "Resources: {}")
 
@@ -357,6 +365,7 @@ func TestGenerateFilesStagesLayersAndZip(t *testing.T) {
 
 func TestGenerateFilesStagesJavaJarAndWrapper(t *testing.T) {
 	root := t.TempDir()
+	writeRuntimeBaseFixture(t, root)
 	templatePath := filepath.Join(root, "template.yaml")
 	writeTestFile(t, templatePath, "Resources: {}")
 
@@ -442,6 +451,7 @@ func TestGenerateFilesStagesJavaJarAndWrapper(t *testing.T) {
 
 func TestGenerateFilesStagesJavaRuntimeJarsForMultipleFunctions(t *testing.T) {
 	root := t.TempDir()
+	writeRuntimeBaseFixture(t, root)
 	templatePath := filepath.Join(root, "template.yaml")
 	writeTestFile(t, templatePath, "Resources: {}")
 
@@ -501,6 +511,7 @@ func TestGenerateFilesStagesJavaRuntimeJarsForMultipleFunctions(t *testing.T) {
 
 func TestGenerateFilesStagesJavaRuntimeAsIndependentCopies(t *testing.T) {
 	root := t.TempDir()
+	writeRuntimeBaseFixture(t, root)
 	templatePath := filepath.Join(root, "template.yaml")
 	writeTestFile(t, templatePath, "Resources: {}")
 
@@ -560,6 +571,7 @@ func TestGenerateFilesStagesJavaRuntimeAsIndependentCopies(t *testing.T) {
 
 func TestGenerateFilesFailsWhenCodeURIDoesNotExist(t *testing.T) {
 	root := t.TempDir()
+	writeRuntimeBaseFixture(t, root)
 	templatePath := filepath.Join(root, "template.yaml")
 	writeTestFile(t, templatePath, "Resources: {}")
 
@@ -593,6 +605,7 @@ func TestGenerateFilesFailsWhenCodeURIDoesNotExist(t *testing.T) {
 
 func TestGenerateFilesFailsWhenJavaRuntimeJarsMissing(t *testing.T) {
 	root := t.TempDir()
+	writeRuntimeBaseFixture(t, root)
 	templatePath := filepath.Join(root, "template.yaml")
 	writeTestFile(t, templatePath, "Resources: {}")
 
@@ -632,6 +645,7 @@ func TestGenerateFilesFailsWhenJavaRuntimeJarsMissing(t *testing.T) {
 
 func TestGenerateFilesImageFunctionWritesImportManifest(t *testing.T) {
 	root := t.TempDir()
+	writeRuntimeBaseFixture(t, root)
 	templatePath := filepath.Join(root, "template.yaml")
 	writeTestFile(t, templatePath, "Resources: {}")
 
@@ -698,6 +712,7 @@ func TestGenerateFilesImageFunctionWritesImportManifest(t *testing.T) {
 
 func TestGenerateFilesImageFunctionUsesImageSourceOverride(t *testing.T) {
 	root := t.TempDir()
+	writeRuntimeBaseFixture(t, root)
 	templatePath := filepath.Join(root, "template.yaml")
 	writeTestFile(t, templatePath, "Resources: {}")
 
@@ -743,6 +758,7 @@ func TestGenerateFilesImageFunctionUsesImageSourceOverride(t *testing.T) {
 
 func TestGenerateFilesLayerNesting(t *testing.T) {
 	root := t.TempDir()
+	writeRuntimeBaseFixture(t, root)
 	templatePath := filepath.Join(root, "template.yaml")
 	writeTestFile(t, templatePath, "Resources: {}")
 
@@ -820,6 +836,7 @@ func TestGenerateFilesLayerNesting(t *testing.T) {
 
 func TestGenerateFilesIntegrationOutputs(t *testing.T) {
 	root := t.TempDir()
+	writeRuntimeBaseFixture(t, root)
 	templatePath := filepath.Join(root, "template.yaml")
 	writeTestFile(t, templatePath, `
 AWSTemplateFormatVersion: '2010-09-09'
@@ -888,6 +905,7 @@ Resources:
 
 func TestGenerateFilesRendersRoutingEvents(t *testing.T) {
 	root := t.TempDir()
+	writeRuntimeBaseFixture(t, root)
 	templatePath := filepath.Join(root, "template.yaml")
 	writeTestFile(t, templatePath, "Resources: {}")
 
@@ -964,6 +982,26 @@ func TestResolveTemplatePathExpandsHome(t *testing.T) {
 	if got != templatePath {
 		t.Fatalf("expected %s, got %s", templatePath, got)
 	}
+}
+
+func writeRuntimeBaseFixture(t *testing.T, root string) {
+	t.Helper()
+	pythonDir := filepath.Join(root, "runtime-hooks", "python")
+	writeTestFile(
+		t,
+		filepath.Join(pythonDir, "docker", "Dockerfile"),
+		"FROM public.ecr.aws/lambda/python:3.12\nCOPY runtime-hooks/python/sitecustomize/site-packages/sitecustomize.py /opt/python/sitecustomize.py\nCOPY runtime-hooks/python/trace-bridge/layer/ /opt/python/\n",
+	)
+	writeTestFile(
+		t,
+		filepath.Join(pythonDir, "sitecustomize", "site-packages", "sitecustomize.py"),
+		"# test sitecustomize\n",
+	)
+	writeTestFile(
+		t,
+		filepath.Join(pythonDir, "trace-bridge", "layer", "trace_bridge.py"),
+		"# test trace bridge\n",
+	)
 }
 
 func writeTestFile(t *testing.T, path, content string) {

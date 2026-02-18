@@ -104,14 +104,29 @@ func GenerateFiles(cfg config.GeneratorConfig, opts GenerateOptions) ([]template
 
 	functionsDir := filepath.Join(outputDir, "functions")
 	layerCacheDir := filepath.Join(outputDir, ".layers_cache")
+	runtimeBaseDir := filepath.Join(outputDir, runtimeBaseContextDirName)
 
 	if !opts.DryRun {
 		if err := removeDir(functionsDir); err != nil {
 			return nil, err
 		}
+		if err := removeDir(runtimeBaseDir); err != nil {
+			return nil, err
+		}
 		if err := ensureDir(layerCacheDir); err != nil {
 			return nil, err
 		}
+	}
+	if err := stageRuntimeBaseContext(
+		stageContext{
+			OutputDir:   outputDir,
+			ProjectRoot: projectRoot,
+			DryRun:      opts.DryRun,
+			Verbose:     opts.Verbose,
+			Out:         out,
+		},
+	); err != nil {
+		return nil, err
 	}
 
 	functions := make([]template.FunctionSpec, 0, len(parsed.Functions))
