@@ -59,14 +59,11 @@ type ArtifactRuntimeMeta struct {
 type RuntimeHooksMeta struct {
 	APIVersion                string `yaml:"api_version,omitempty"`
 	PythonSitecustomizeDigest string `yaml:"python_sitecustomize_digest,omitempty"`
-	JavaAgentDigest           string `yaml:"java_agent_digest,omitempty"`
-	JavaWrapperDigest         string `yaml:"java_wrapper_digest,omitempty"`
 }
 
 type RendererMeta struct {
-	Name           string `yaml:"name,omitempty"`
-	APIVersion     string `yaml:"api_version,omitempty"`
-	TemplateDigest string `yaml:"template_digest,omitempty"`
+	Name       string `yaml:"name,omitempty"`
+	APIVersion string `yaml:"api_version,omitempty"`
 }
 
 func ValidateIDs(path string) error {

@@ -96,18 +96,9 @@ func TestResolveRuntimeMetaIncludesDigestsAndVersions(t *testing.T) {
 	if meta.Hooks.PythonSitecustomizeDigest == "" {
 		t.Fatal("python sitecustomize digest must not be empty")
 	}
-	if meta.Hooks.JavaAgentDigest == "" {
-		t.Fatal("java agent digest must not be empty")
-	}
-	if meta.Hooks.JavaWrapperDigest == "" {
-		t.Fatal("java wrapper digest must not be empty")
-	}
-	if meta.Renderer.TemplateDigest == "" {
-		t.Fatal("template digest must not be empty")
-	}
 }
 
-func TestResolveRuntimeMetaAllowsMissingJavaJars(t *testing.T) {
+func TestResolveRuntimeMetaDoesNotRequireJavaJars(t *testing.T) {
 	projectDir := t.TempDir()
 	writeTestRuntimeAssets(t, projectDir)
 
@@ -124,14 +115,5 @@ func TestResolveRuntimeMetaAllowsMissingJavaJars(t *testing.T) {
 	}
 	if meta.Hooks.PythonSitecustomizeDigest == "" {
 		t.Fatal("python sitecustomize digest must not be empty")
-	}
-	if meta.Renderer.TemplateDigest == "" {
-		t.Fatal("template digest must not be empty")
-	}
-	if meta.Hooks.JavaAgentDigest != "" {
-		t.Fatalf("java agent digest must be empty when jar is missing: %q", meta.Hooks.JavaAgentDigest)
-	}
-	if meta.Hooks.JavaWrapperDigest != "" {
-		t.Fatalf("java wrapper digest must be empty when jar is missing: %q", meta.Hooks.JavaWrapperDigest)
 	}
 }

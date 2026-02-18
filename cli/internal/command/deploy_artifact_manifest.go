@@ -6,12 +6,9 @@ package command
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -108,29 +105,14 @@ func resolveRuntimeMeta(projectDir string) (deploy.ArtifactRuntimeMeta, error) {
 	if err != nil {
 		return deploy.ArtifactRuntimeMeta{}, fmt.Errorf("hash runtime hook python sitecustomize: %w", err)
 	}
-	javaAgentDigest, err := fileSHA256IfExists(filepath.Join(projectDir, "runtime-hooks", "java", "agent", "lambda-java-agent.jar"))
-	if err != nil {
-		return deploy.ArtifactRuntimeMeta{}, fmt.Errorf("hash runtime hook java agent: %w", err)
-	}
-	javaWrapperDigest, err := fileSHA256IfExists(filepath.Join(projectDir, "runtime-hooks", "java", "wrapper", "lambda-java-wrapper.jar"))
-	if err != nil {
-		return deploy.ArtifactRuntimeMeta{}, fmt.Errorf("hash runtime hook java wrapper: %w", err)
-	}
-	templateDigest, err := directoryDigest(filepath.Join(projectDir, "cli", "assets", "runtime-templates"))
-	if err != nil {
-		return deploy.ArtifactRuntimeMeta{}, fmt.Errorf("hash runtime templates: %w", err)
-	}
 	return deploy.ArtifactRuntimeMeta{
 		Hooks: deploy.RuntimeHooksMeta{
 			APIVersion:                runtimeHooksAPIVersion,
 			PythonSitecustomizeDigest: pythonSitecustomizeDigest,
-			JavaAgentDigest:           javaAgentDigest,
-			JavaWrapperDigest:         javaWrapperDigest,
 		},
 		Renderer: deploy.RendererMeta{
-			Name:           templateRendererName,
-			APIVersion:     templateRendererAPIVersion,
-			TemplateDigest: templateDigest,
+			Name:       templateRendererName,
+			APIVersion: templateRendererAPIVersion,
 		},
 	}, nil
 }
@@ -249,58 +231,4 @@ func fileSHA256(path string) (string, error) {
 	}
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:]), nil
-}
-
-func fileSHA256IfExists(path string) (string, error) {
-	digest, err := fileSHA256(path)
-	if err == nil {
-		return digest, nil
-	}
-	if errors.Is(err, os.ErrNotExist) {
-		return "", nil
-	}
-	return "", err
-}
-
-func directoryDigest(root string) (string, error) {
-	entries := make([]string, 0)
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if d.IsDir() {
-			return nil
-		}
-		info, err := d.Info()
-		if err != nil {
-			return err
-		}
-		if !info.Mode().IsRegular() {
-			return nil
-		}
-		rel, err := filepath.Rel(root, path)
-		if err != nil {
-			return err
-		}
-		digest, err := fileSHA256(path)
-		if err != nil {
-			return err
-		}
-		entries = append(entries, filepath.ToSlash(rel)+":"+digest)
-		return nil
-	})
-	if err != nil {
-		return "", err
-	}
-	if len(entries) == 0 {
-		return "", fmt.Errorf("no files found under %s", root)
-	}
-	sort.Strings(entries)
-
-	h := sha256.New()
-	for _, entry := range entries {
-		_, _ = h.Write([]byte(entry))
-		_, _ = h.Write([]byte{'\n'})
-	}
-	return hex.EncodeToString(h.Sum(nil)), nil
 }

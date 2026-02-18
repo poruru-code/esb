@@ -61,42 +61,6 @@ generate_fixture() {
 
   local runtime_base_root
   runtime_base_root="${output_dir}/${env_name}/runtime-base"
-
-  local runtime_templates_py
-  runtime_templates_py="${runtime_base_root}/runtime-templates/python/templates/dockerfile.tmpl"
-  if [[ ! -f "${runtime_templates_py}" ]]; then
-    echo "runtime templates (python) not found for ${env_name}: ${runtime_templates_py}" >&2
-    exit 1
-  fi
-
-  local runtime_templates_java
-  runtime_templates_java="${runtime_base_root}/runtime-templates/java/templates/dockerfile.tmpl"
-  if [[ ! -f "${runtime_templates_java}" ]]; then
-    echo "runtime templates (java) not found for ${env_name}: ${runtime_templates_java}" >&2
-    exit 1
-  fi
-
-  local java_agent_source
-  java_agent_source="${REPO_ROOT}/runtime-hooks/java/agent/lambda-java-agent.jar"
-  if [[ -f "${java_agent_source}" ]]; then
-    local staged_java_agent
-    staged_java_agent="${runtime_base_root}/runtime-hooks/java/agent/lambda-java-agent.jar"
-    if [[ ! -f "${staged_java_agent}" ]]; then
-      echo "runtime-base java agent jar not found for ${env_name}: ${staged_java_agent}" >&2
-      exit 1
-    fi
-  fi
-
-  local java_wrapper_source
-  java_wrapper_source="${REPO_ROOT}/runtime-hooks/java/wrapper/lambda-java-wrapper.jar"
-  if [[ -f "${java_wrapper_source}" ]]; then
-    local staged_java_wrapper
-    staged_java_wrapper="${runtime_base_root}/runtime-hooks/java/wrapper/lambda-java-wrapper.jar"
-    if [[ ! -f "${staged_java_wrapper}" ]]; then
-      echo "runtime-base java wrapper jar not found for ${env_name}: ${staged_java_wrapper}" >&2
-      exit 1
-    fi
-  fi
 }
 
 cd "${REPO_ROOT}"

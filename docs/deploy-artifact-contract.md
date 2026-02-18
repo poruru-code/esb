@@ -36,11 +36,6 @@ Why: Define a stable boundary between artifact producer (CLI/manual) and runtime
     image-import.json          # 条件付き
   runtime-base/               # 条件付き（python base build を行う場合）
     runtime-hooks/
-      java/
-        agent/
-          lambda-java-agent.jar
-        wrapper/
-          lambda-java-wrapper.jar
       python/
         docker/
           Dockerfile
@@ -50,13 +45,6 @@ Why: Define a stable boundary between artifact producer (CLI/manual) and runtime
         trace-bridge/
           layer/
             trace_bridge.py
-    runtime-templates/        # 条件付き（runtime_meta.template_digest を検証する場合）
-      java/
-        templates/
-          dockerfile.tmpl
-      python/
-        templates/
-          dockerfile.tmpl
   bundle/
     manifest.json              # 条件付き
 
@@ -93,9 +81,6 @@ Why: Define a stable boundary between artifact producer (CLI/manual) and runtime
 - `<artifact_root>/<bundle_manifest>`: bundle/import ワークフローを使う場合
 - `<artifact_root>/runtime-base/runtime-hooks/python/docker/Dockerfile`: `prepare-images` で `esb-lambda-base:*` を build/push する場合
 - `<artifact_root>/runtime-base/runtime-hooks/python/sitecustomize/site-packages/sitecustomize.py`: `runtime_meta.runtime_hooks.python_sitecustomize_digest` を検証する場合
-- `<artifact_root>/runtime-base/runtime-hooks/java/agent/lambda-java-agent.jar`: `runtime_meta.runtime_hooks.java_agent_digest` を検証する場合
-- `<artifact_root>/runtime-base/runtime-hooks/java/wrapper/lambda-java-wrapper.jar`: `runtime_meta.runtime_hooks.java_wrapper_digest` を検証する場合
-- `<artifact_root>/runtime-base/runtime-templates/**`: `runtime_meta.template_renderer.template_digest` を検証する場合
 
 ## パス規約
 ### 実行パス（厳格）
@@ -164,8 +149,8 @@ artifacts:
 
 ## 推奨フィールド
 - Entry:
-  - `runtime_meta.runtime_hooks`（`api_version` + 任意 digest）
-  - `runtime_meta.template_renderer`（`name`, `api_version`, 任意 digest）
+  - `runtime_meta.runtime_hooks`（`api_version` + `python_sitecustomize_digest`）
+  - `runtime_meta.template_renderer`（`name`, `api_version`）
 - Manifest:
   - `generated_at`
   - `generator`（name/version）
@@ -175,8 +160,10 @@ artifacts:
 - 互換判定の主軸は `api_version`（`major.minor`）です。
 - `major` 不一致は hard fail。
 - `minor` 不一致は warning（strict モードでは hard fail）。
+- runtime digest 検証対象は `runtime_meta.runtime_hooks.python_sitecustomize_digest` のみです。
+- `runtime_meta.runtime_hooks.java_agent_digest` / `java_wrapper_digest` / `runtime_meta.template_renderer.template_digest` は削除済みです（契約外）。
 - digest/checksum は既定で監査用途（warning）。strict で hard fail 化します。
-- runtime digest/checksum の検証元は `artifact_root/runtime-base/**` に固定します（repo root 推定は禁止）。
+- runtime digest/checksum の検証元は `artifact_root/runtime-base/runtime-hooks/python/**` に固定します（repo root 推定は禁止）。
 
 ## 移行互換ポリシー
 - 本契約の正本は `artifact.yml` 単一です。
@@ -194,15 +181,15 @@ artifacts:
   - 必須ファイル欠落
   - schema major 非互換
   - required secret 未設定
-  - strict 時の digest/checksum 不一致
-  - strict 時に runtime digest 検証元（`artifact_root/runtime-base/runtime-hooks/**` または `artifact_root/runtime-base/runtime-templates/**`）が不足・読取不能
+  - strict 時の `python_sitecustomize_digest` 不一致
+  - strict 時に runtime digest 検証元（`artifact_root/runtime-base/runtime-hooks/python/**`）が不足・読取不能
   - `artifact_root` または entry 内パス解決失敗
   - `prepare-images` 実行時に必要な `runtime-base` コンテキストが不足
   - `id` 欠落、重複、または再計算値不一致
   - 複数テンプレート時に merge 規約どおりの `CONFIG_DIR` を生成できない
 - Warning:
-  - strict でない時の digest/checksum 不一致
-  - strict でない時に runtime digest 検証元（`artifact_root/runtime-base/**`）が不足・読取不能
+  - strict でない時の `python_sitecustomize_digest` 不一致
+  - strict でない時に runtime digest 検証元（`artifact_root/runtime-base/runtime-hooks/python/**`）が不足・読取不能
   - minor 非互換（strict でない時）
 
 ## 実装責務
@@ -254,7 +241,7 @@ CLI なし運用でも、生成済み成果物を入力に **Phase 3 以降は�
 
 補足:
 - `prepare-images` は `artifact_root/runtime-base/**` を唯一入力として base image を build します（repo root の `runtime-hooks/**` は参照しません）。
-- `apply --strict` の runtime digest 検証も `artifact_root/runtime-base/**` を唯一入力とします（repo root の `runtime-hooks/**`, `cli/assets/runtime-templates/**` は参照しません）。
+- `apply --strict` の runtime digest 検証は `artifact_root/runtime-base/runtime-hooks/python/**` を唯一入力とします（repo root の `runtime-hooks/**` は参照しません）。
 
 ## CLI コマンド責務（明示）
 - `esb artifact generate`
@@ -332,7 +319,7 @@ tools/artifactctl prepare-images --artifact "${ARTIFACT}"
 
 注記:
 - `prepare-images` は `artifact_root/runtime-base/runtime-hooks/python/docker/Dockerfile` を使用します。対象 entry が `esb-lambda-base:*` を参照する場合、このファイルが欠けていると hard fail します。
-- `apply --strict` の runtime digest 検証は `artifact_root/runtime-base/runtime-hooks/**` および `artifact_root/runtime-base/runtime-templates/**` を使用します。対象 digest に対応するファイル/ディレクトリが欠けると hard fail します。
+- `apply --strict` の runtime digest 検証は `artifact_root/runtime-base/runtime-hooks/python/**` を使用します。対象 digest に対応するファイルが欠けると hard fail します。
 
 ### 5) runtime-config を配列順でマージし `CONFIG_DIR` を作る
 `artifact.yml` の `artifacts[]` 配列順がマージ順です。

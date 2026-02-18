@@ -14,13 +14,10 @@ artifacts:
       runtime_hooks:
         api_version: "1.0"
         python_sitecustomize_digest: a867884eca03420a44b4e398279e0569fe5209dc3d470ae39d6430944dc08564
-        java_agent_digest: 2f097ea927d5c887b12359c1606b48eb68f3a69fb4ffa6a580c6c5edadc19e24
-        java_wrapper_digest: 2b78200afd8d1725bbff2550f0ecd1ca7e324f66aae5e30ed43061bb5f1d136e
       template_renderer:
         name: esb-cli-embedded-templates
         api_version: "1.0"
-        template_digest: f53f58040541cecf3e4bcc8bfd1006126e6543280f3a2031ffadfbdaa32b67bb
-generated_at: "2026-02-18T10:53:53Z"
+generated_at: "2026-02-18T11:24:07Z"
 generator:
   name: esb
   version: dev
