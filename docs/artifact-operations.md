@@ -80,15 +80,16 @@ docker compose --profile deploy run --rm --no-deps provisioner
 ```
 
 Notes:
-- Shell wrappers must not implement merge/apply business logic.
-- `tools/artifact/merge_runtime_config.sh` is a thin wrapper to `tools/artifactctl merge`.
+- Call `tools/artifactctl` directly for merge/apply operations.
 - `tools/artifactctl prepare-images` uses `<artifact_root>/runtime-base/**` as the only base-image build context. It does not read repository-local `runtime-hooks/**`.
 
 ## E2E Contract (Current)
 `e2e/environments/test_matrix.yaml` is artifact-only:
 - legacy driver switches (`deploy_driver`, `artifact_generate`) are no longer allowed
+- `config_dir` is mandatory per environment; runner does not calculate staging paths implicitly
 - test execution consumes committed fixtures under `e2e/artifacts/*`
 - firecracker profile is currently disabled in matrix (docker/containerd are active gates)
+- deploy phases require `artifactctl` on PATH (or `ARTIFACTCTL_BIN` override)
 
 Fixture refresh is a separate developer operation (outside E2E runtime):
 - regenerate fixtures with `e2e/scripts/regenerate_artifacts.sh`
