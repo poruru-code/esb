@@ -68,7 +68,7 @@ func TestApply_RuntimeDigestMismatchWarnsUnlessStrict(t *testing.T) {
 	root := t.TempDir()
 	manifestPath := writeArtifactFixtureManifest(t, root, ArtifactRuntimeMeta{
 		Hooks: RuntimeHooksMeta{
-			JavaAgentDigest: "deadbeef",
+			PythonSitecustomizeDigest: "deadbeef",
 		},
 	})
 
@@ -82,7 +82,7 @@ func TestApply_RuntimeDigestMismatchWarnsUnlessStrict(t *testing.T) {
 	if err != nil {
 		t.Fatalf("non-strict apply should pass on digest mismatch: %v", err)
 	}
-	if !strings.Contains(warnings.String(), "java_agent_digest mismatch") {
+	if !strings.Contains(warnings.String(), "python_sitecustomize_digest mismatch") {
 		t.Fatalf("expected digest mismatch warning, got %q", warnings.String())
 	}
 
@@ -94,7 +94,7 @@ func TestApply_RuntimeDigestMismatchWarnsUnlessStrict(t *testing.T) {
 	if err == nil {
 		t.Fatal("strict apply should fail on digest mismatch")
 	}
-	if !strings.Contains(err.Error(), "java_agent_digest mismatch") {
+	if !strings.Contains(err.Error(), "python_sitecustomize_digest mismatch") {
 		t.Fatalf("unexpected strict error: %v", err)
 	}
 }
@@ -102,12 +102,12 @@ func TestApply_RuntimeDigestMismatchWarnsUnlessStrict(t *testing.T) {
 func TestApply_RuntimeDigestVerificationMissingArtifactSourceWarnsUnlessStrict(t *testing.T) {
 	root := t.TempDir()
 	manifestPath := writeArtifactFixtureManifest(t, root, ArtifactRuntimeMeta{
-		Renderer: RendererMeta{
-			TemplateDigest: "cafebabe",
+		Hooks: RuntimeHooksMeta{
+			PythonSitecustomizeDigest: "cafebabe",
 		},
 	})
-	if err := os.RemoveAll(filepath.Join(root, "fixture", artifactRuntimeTemplatesRel)); err != nil {
-		t.Fatalf("remove fixture runtime templates: %v", err)
+	if err := os.Remove(filepath.Join(root, "fixture", artifactPythonSitecustomizeRel)); err != nil {
+		t.Fatalf("remove fixture sitecustomize: %v", err)
 	}
 
 	origWD, err := os.Getwd()
@@ -131,7 +131,7 @@ func TestApply_RuntimeDigestVerificationMissingArtifactSourceWarnsUnlessStrict(t
 	if err != nil {
 		t.Fatalf("non-strict apply should pass when digest source is unavailable: %v", err)
 	}
-	if !strings.Contains(warnings.String(), "template_digest source unreadable") {
+	if !strings.Contains(warnings.String(), "python_sitecustomize_digest source unreadable") {
 		t.Fatalf("expected source warning, got %q", warnings.String())
 	}
 
@@ -143,7 +143,7 @@ func TestApply_RuntimeDigestVerificationMissingArtifactSourceWarnsUnlessStrict(t
 	if err == nil {
 		t.Fatal("strict apply should fail when digest source is unavailable")
 	}
-	if !strings.Contains(err.Error(), "template_digest source unreadable") {
+	if !strings.Contains(err.Error(), "python_sitecustomize_digest source unreadable") {
 		t.Fatalf("unexpected strict error: %v", err)
 	}
 }
@@ -154,9 +154,6 @@ func TestApply_RuntimeDigestVerificationUsesArtifactSourcesOutsideRepoRoot(t *te
 	manifestPath := writeArtifactFixtureManifest(t, root, ArtifactRuntimeMeta{
 		Hooks: RuntimeHooksMeta{
 			PythonSitecustomizeDigest: fixtureDigests.pythonSitecustomize,
-		},
-		Renderer: RendererMeta{
-			TemplateDigest: fixtureDigests.templateRenderer,
 		},
 	})
 
@@ -218,39 +215,16 @@ func writeArtifactFixtureManifest(t *testing.T, root string, meta ArtifactRuntim
 func writeFixtureRuntimeMetaSources(t *testing.T, artifactRoot string) runtimeAssetDigests {
 	t.Helper()
 	pythonPath := filepath.Join(artifactRoot, artifactPythonSitecustomizeRel)
-	javaAgentPath := filepath.Join(artifactRoot, artifactJavaAgentRel)
-	javaWrapperPath := filepath.Join(artifactRoot, artifactJavaWrapperRel)
-	templatePythonPath := filepath.Join(artifactRoot, artifactRuntimeTemplatesRel, "python", "templates", "dockerfile.tmpl")
-	templateJavaPath := filepath.Join(artifactRoot, artifactRuntimeTemplatesRel, "java", "templates", "dockerfile.tmpl")
 
 	writeFixtureFile(t, pythonPath, "print('fixture sitecustomize')\n")
-	writeFixtureFile(t, javaAgentPath, "fixture-java-agent\n")
-	writeFixtureFile(t, javaWrapperPath, "fixture-java-wrapper\n")
-	writeFixtureFile(t, templatePythonPath, "FROM public.ecr.aws/lambda/python:3.12\n")
-	writeFixtureFile(t, templateJavaPath, "FROM public.ecr.aws/lambda/java:21\n")
 
 	pythonDigest, err := fileSHA256(pythonPath)
 	if err != nil {
 		t.Fatalf("hash fixture python sitecustomize: %v", err)
 	}
-	javaAgentDigest, err := fileSHA256(javaAgentPath)
-	if err != nil {
-		t.Fatalf("hash fixture java agent: %v", err)
-	}
-	javaWrapperDigest, err := fileSHA256(javaWrapperPath)
-	if err != nil {
-		t.Fatalf("hash fixture java wrapper: %v", err)
-	}
-	templateDigest, err := directoryDigest(filepath.Join(artifactRoot, artifactRuntimeTemplatesRel))
-	if err != nil {
-		t.Fatalf("hash fixture runtime templates: %v", err)
-	}
 
 	return runtimeAssetDigests{
 		pythonSitecustomize: pythonDigest,
-		javaAgent:           javaAgentDigest,
-		javaWrapper:         javaWrapperDigest,
-		templateRenderer:    templateDigest,
 	}
 }
 

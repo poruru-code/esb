@@ -153,10 +153,6 @@ func TestGenerateFilesUsesParserOverride(t *testing.T) {
 	if _, err := os.Stat(runtimeBaseDockerfile); err != nil {
 		t.Fatalf("expected runtime base dockerfile to be staged: %v", err)
 	}
-	runtimeBaseTemplate := filepath.Join(outputDir, runtimeBaseContextDirName, runtimeBaseTemplatesRelDir, "python", "templates", "dockerfile.tmpl")
-	if _, err := os.Stat(runtimeBaseTemplate); err != nil {
-		t.Fatalf("expected runtime templates to be staged: %v", err)
-	}
 	dockerfilePath := filepath.Join(outputDir, "functions", "lambda-hello", "Dockerfile")
 	if _, err := os.Stat(dockerfilePath); err != nil {
 		t.Fatalf("expected dockerfile to exist: %v", err)
@@ -451,15 +447,6 @@ func TestGenerateFilesStagesJavaJarAndWrapper(t *testing.T) {
 	if !strings.Contains(content, `CMD [ "com.runtime.lambda.HandlerWrapper::handleRequest" ]`) {
 		t.Fatalf("expected wrapper handler cmd in dockerfile")
 	}
-
-	runtimeBaseAgent := filepath.Join(root, "out", runtimeBaseContextDirName, runtimeBaseJavaAgentSourceRel)
-	if got := readFile(t, runtimeBaseAgent); got != "runtime-agent" {
-		t.Fatalf("expected runtime-base java agent jar content, got %q", got)
-	}
-	runtimeBaseWrapper := filepath.Join(root, "out", runtimeBaseContextDirName, runtimeBaseJavaWrapperSourceRel)
-	if got := readFile(t, runtimeBaseWrapper); got != "runtime-wrapper" {
-		t.Fatalf("expected runtime-base java wrapper jar content, got %q", got)
-	}
 }
 
 func TestGenerateFilesStagesJavaRuntimeJarsForMultipleFunctions(t *testing.T) {
@@ -664,15 +651,9 @@ func TestGenerateFilesFailsWhenJavaRuntimeJarsMissing(t *testing.T) {
 	}
 }
 
-func TestGenerateFilesAllowsMissingRuntimeBaseJavaJarsForPythonOnly(t *testing.T) {
+func TestGenerateFilesDoesNotStageRuntimeBaseJavaJars(t *testing.T) {
 	root := t.TempDir()
 	writeRuntimeBaseFixture(t, root)
-	if err := os.Remove(filepath.Join(root, "runtime-hooks", "java", "wrapper", "lambda-java-wrapper.jar")); err != nil {
-		t.Fatalf("remove runtime java wrapper: %v", err)
-	}
-	if err := os.Remove(filepath.Join(root, "runtime-hooks", "java", "agent", "lambda-java-agent.jar")); err != nil {
-		t.Fatalf("remove runtime java agent: %v", err)
-	}
 	templatePath := filepath.Join(root, "template.yaml")
 	writeTestFile(t, templatePath, "Resources: {}")
 
@@ -702,19 +683,19 @@ func TestGenerateFilesAllowsMissingRuntimeBaseJavaJarsForPythonOnly(t *testing.T
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	runtimeBaseJavaAgent := filepath.Join(root, "out", runtimeBaseContextDirName, runtimeBaseJavaAgentSourceRel)
+	runtimeBaseJavaAgent := filepath.Join(root, "out", runtimeBaseContextDirName, "runtime-hooks", "java", "agent", "lambda-java-agent.jar")
 	if _, err := os.Stat(runtimeBaseJavaAgent); !os.IsNotExist(err) {
 		if err != nil {
 			t.Fatalf("stat runtime base java agent: %v", err)
 		}
-		t.Fatalf("did not expect runtime base java agent when source is missing")
+		t.Fatalf("did not expect runtime base java agent to be staged")
 	}
-	runtimeBaseJavaWrapper := filepath.Join(root, "out", runtimeBaseContextDirName, runtimeBaseJavaWrapperSourceRel)
+	runtimeBaseJavaWrapper := filepath.Join(root, "out", runtimeBaseContextDirName, "runtime-hooks", "java", "wrapper", "lambda-java-wrapper.jar")
 	if _, err := os.Stat(runtimeBaseJavaWrapper); !os.IsNotExist(err) {
 		if err != nil {
 			t.Fatalf("stat runtime base java wrapper: %v", err)
 		}
-		t.Fatalf("did not expect runtime base java wrapper when source is missing")
+		t.Fatalf("did not expect runtime base java wrapper to be staged")
 	}
 }
 

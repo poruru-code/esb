@@ -5,10 +5,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 )
@@ -18,16 +16,10 @@ const (
 	supportedTemplateRendererName   = "esb-cli-embedded-templates"
 	supportedTemplateRendererAPI    = "1.0"
 	artifactPythonSitecustomizeRel  = "runtime-base/runtime-hooks/python/sitecustomize/site-packages/sitecustomize.py"
-	artifactJavaAgentRel            = "runtime-base/runtime-hooks/java/agent/lambda-java-agent.jar"
-	artifactJavaWrapperRel          = "runtime-base/runtime-hooks/java/wrapper/lambda-java-wrapper.jar"
-	artifactRuntimeTemplatesRel     = "runtime-base/runtime-templates"
 )
 
 type runtimeAssetDigests struct {
 	pythonSitecustomize string
-	javaAgent           string
-	javaWrapper         string
-	templateRenderer    string
 }
 
 func validateRuntimeMetadata(manifest ArtifactManifest, manifestPath string, strict bool) ([]string, error) {
@@ -77,47 +69,11 @@ func validateRuntimeMetadata(manifest ArtifactManifest, manifestPath string, str
 
 		digests := runtimeAssetDigests{}
 		verifyPython := false
-		verifyJavaAgent := false
-		verifyJavaWrapper := false
-		verifyTemplateRenderer := false
 		digests.pythonSitecustomize, verifyPython, err = resolveArtifactFileDigest(
 			prefix+".runtime_hooks.python_sitecustomize_digest",
 			entry.RuntimeMeta.Hooks.PythonSitecustomizeDigest,
 			artifactRoot,
 			artifactPythonSitecustomizeRel,
-			strict,
-			&warnings,
-		)
-		if err != nil {
-			return nil, err
-		}
-		digests.javaAgent, verifyJavaAgent, err = resolveArtifactFileDigest(
-			prefix+".runtime_hooks.java_agent_digest",
-			entry.RuntimeMeta.Hooks.JavaAgentDigest,
-			artifactRoot,
-			artifactJavaAgentRel,
-			strict,
-			&warnings,
-		)
-		if err != nil {
-			return nil, err
-		}
-		digests.javaWrapper, verifyJavaWrapper, err = resolveArtifactFileDigest(
-			prefix+".runtime_hooks.java_wrapper_digest",
-			entry.RuntimeMeta.Hooks.JavaWrapperDigest,
-			artifactRoot,
-			artifactJavaWrapperRel,
-			strict,
-			&warnings,
-		)
-		if err != nil {
-			return nil, err
-		}
-		digests.templateRenderer, verifyTemplateRenderer, err = resolveArtifactDirectoryDigest(
-			prefix+".template_renderer.template_digest",
-			entry.RuntimeMeta.Renderer.TemplateDigest,
-			artifactRoot,
-			artifactRuntimeTemplatesRel,
 			strict,
 			&warnings,
 		)
@@ -136,49 +92,13 @@ func validateRuntimeMetadata(manifest ArtifactManifest, manifestPath string, str
 				return nil, err
 			}
 		}
-		if verifyJavaAgent {
-			if err := validateDigest(
-				prefix+".runtime_hooks.java_agent_digest",
-				entry.RuntimeMeta.Hooks.JavaAgentDigest,
-				digests.javaAgent,
-				strict,
-				&warnings,
-			); err != nil {
-				return nil, err
-			}
-		}
-		if verifyJavaWrapper {
-			if err := validateDigest(
-				prefix+".runtime_hooks.java_wrapper_digest",
-				entry.RuntimeMeta.Hooks.JavaWrapperDigest,
-				digests.javaWrapper,
-				strict,
-				&warnings,
-			); err != nil {
-				return nil, err
-			}
-		}
-		if verifyTemplateRenderer {
-			if err := validateDigest(
-				prefix+".template_renderer.template_digest",
-				entry.RuntimeMeta.Renderer.TemplateDigest,
-				digests.templateRenderer,
-				strict,
-				&warnings,
-			); err != nil {
-				return nil, err
-			}
-		}
 	}
 
 	return warnings, nil
 }
 
 func hasRuntimeDigest(meta ArtifactRuntimeMeta) bool {
-	return strings.TrimSpace(meta.Hooks.PythonSitecustomizeDigest) != "" ||
-		strings.TrimSpace(meta.Hooks.JavaAgentDigest) != "" ||
-		strings.TrimSpace(meta.Hooks.JavaWrapperDigest) != "" ||
-		strings.TrimSpace(meta.Renderer.TemplateDigest) != ""
+	return strings.TrimSpace(meta.Hooks.PythonSitecustomizeDigest) != ""
 }
 
 func resolveArtifactFileDigest(
@@ -194,30 +114,6 @@ func resolveArtifactFileDigest(
 	}
 	sourcePath := filepath.Join(artifactRoot, relPath)
 	digest, err := fileSHA256(sourcePath)
-	if err != nil {
-		message := fmt.Sprintf("%s source unreadable at %s: %v", field, sourcePath, err)
-		if strict {
-			return "", false, errors.New(message)
-		}
-		*warnings = append(*warnings, message)
-		return "", false, nil
-	}
-	return digest, true, nil
-}
-
-func resolveArtifactDirectoryDigest(
-	field string,
-	actual string,
-	artifactRoot string,
-	relPath string,
-	strict bool,
-	warnings *[]string,
-) (string, bool, error) {
-	if strings.TrimSpace(actual) == "" {
-		return "", false, nil
-	}
-	sourcePath := filepath.Join(artifactRoot, relPath)
-	digest, err := directoryDigest(sourcePath)
 	if err != nil {
 		message := fmt.Sprintf("%s source unreadable at %s: %v", field, sourcePath, err)
 		if strict {
@@ -320,47 +216,4 @@ func fileSHA256(path string) (string, error) {
 	}
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:]), nil
-}
-
-func directoryDigest(root string) (string, error) {
-	entries := make([]string, 0)
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if d.IsDir() {
-			return nil
-		}
-		info, err := d.Info()
-		if err != nil {
-			return err
-		}
-		if !info.Mode().IsRegular() {
-			return nil
-		}
-		rel, err := filepath.Rel(root, path)
-		if err != nil {
-			return err
-		}
-		digest, err := fileSHA256(path)
-		if err != nil {
-			return err
-		}
-		entries = append(entries, filepath.ToSlash(rel)+":"+digest)
-		return nil
-	})
-	if err != nil {
-		return "", err
-	}
-	if len(entries) == 0 {
-		return "", fmt.Errorf("no files found under %s", root)
-	}
-	sort.Strings(entries)
-
-	h := sha256.New()
-	for _, entry := range entries {
-		_, _ = h.Write([]byte(entry))
-		_, _ = h.Write([]byte{'\n'})
-	}
-	return hex.EncodeToString(h.Sum(nil)), nil
 }

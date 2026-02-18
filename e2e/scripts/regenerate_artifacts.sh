@@ -58,6 +58,9 @@ generate_fixture() {
     echo "runtime-base dockerfile not found for ${env_name}: ${runtime_base_dockerfile}" >&2
     exit 1
   fi
+
+  local runtime_base_root
+  runtime_base_root="${output_dir}/${env_name}/runtime-base"
 }
 
 cd "${REPO_ROOT}"

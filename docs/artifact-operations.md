@@ -101,4 +101,5 @@ Fixture refresh is a separate developer operation (outside E2E runtime):
 - Unknown `deploy_driver` or unsupported `artifact_generate` mode: hard fail
 - Missing runtime-base context for required base-image build in `prepare-images`: hard fail
 - Apply phase must not silently fall back to template-based sync paths
-- In `--strict`, runtime digest verification fails if artifact runtime metadata sources under `<artifact_root>/runtime-base/**` are missing or unreadable
+- In `--strict`, runtime digest verification fails if `<artifact_root>/runtime-base/runtime-hooks/python/sitecustomize/site-packages/sitecustomize.py` is missing or unreadable
+- Removed runtime digests: `java_agent_digest`, `java_wrapper_digest`, `template_digest`
