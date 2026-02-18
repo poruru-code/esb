@@ -76,8 +76,9 @@ build/lambda-images/*.tar
 cli/internal/infra/build/assets/java/target/
 cli/internal/infra/build/assets/java/lambda-java-wrapper.jar
 cli/internal/infra/build/assets/java/*.jar
-runtime/java/**/target/
-runtime/java/**/*.jar
+runtime-hooks/java/**/target/
+runtime-hooks/java/**/*.class
+runtime-hooks/java/**/dependency-reduced-pom.xml
 
 # ESB artifacts
 .esb/

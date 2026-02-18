@@ -1,0 +1,30 @@
+# Where: .github/workflows/java-reproducible-jars.yml
+# What: Validate runtime-hooks Java reproducible-build configuration.
+# Why: Keep deterministic Java runtime-hook settings from drifting.
+
+name: java-runtime-hooks-repro-config
+
+on:
+  pull_request:
+    paths:
+      - "runtime-hooks/java/**"
+      - "tools/ci/check_java_reproducible_jars.sh"
+      - ".github/workflows/java-reproducible-jars.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "runtime-hooks/java/**"
+      - "tools/ci/check_java_reproducible_jars.sh"
+      - ".github/workflows/java-reproducible-jars.yml"
+  workflow_dispatch:
+
+jobs:
+  java-runtime-hooks-repro-config:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify reproducible build settings
+        run: bash tools/ci/check_java_reproducible_jars.sh
