@@ -119,6 +119,67 @@ func TestPrepareImagesRewritesPushTargetsForContainerdRefs(t *testing.T) {
 	}
 }
 
+func TestPrepareImagesRewritesFunctionDockerfileRegistryForBuild(t *testing.T) {
+	root := t.TempDir()
+	manifestPath := writePrepareImageFixture(
+		t,
+		root,
+		"registry:5010/esb-lambda-echo:e2e-test",
+		"registry:5010/esb-lambda-base:e2e-test",
+	)
+	t.Setenv("CONTAINER_REGISTRY", "registry:5010")
+	t.Setenv("HOST_REGISTRY_ADDR", "127.0.0.1:5010")
+
+	var (
+		functionBuildFile string
+		functionBuildText string
+	)
+	runner := &recordCommandRunner{
+		hook: func(cmd []string) error {
+			if len(cmd) < 4 || cmd[0] != "docker" || cmd[1] != "buildx" || cmd[2] != "build" {
+				return nil
+			}
+			for i := 0; i+1 < len(cmd); i++ {
+				if cmd[i] != "--file" {
+					continue
+				}
+				file := cmd[i+1]
+				if !strings.Contains(file, "functions/lambda-echo/Dockerfile") {
+					continue
+				}
+				functionBuildFile = file
+				data, err := os.ReadFile(file)
+				if err != nil {
+					return err
+				}
+				functionBuildText = string(data)
+				break
+			}
+			return nil
+		},
+	}
+
+	if err := PrepareImages(PrepareImagesRequest{
+		ArtifactPath: manifestPath,
+		Runner:       runner,
+	}); err != nil {
+		t.Fatalf("PrepareImages() error = %v", err)
+	}
+
+	if functionBuildFile == "" {
+		t.Fatal("expected function build dockerfile capture")
+	}
+	if !strings.HasSuffix(functionBuildFile, ".artifactctl.build") {
+		t.Fatalf("expected temporary dockerfile suffix, got: %s", functionBuildFile)
+	}
+	if !strings.Contains(functionBuildText, "FROM 127.0.0.1:5010/esb-lambda-base:e2e-test") {
+		t.Fatalf("expected rewritten build dockerfile, got:\n%s", functionBuildText)
+	}
+	if _, err := os.Stat(functionBuildFile); !os.IsNotExist(err) {
+		t.Fatalf("expected temporary dockerfile cleanup, stat err = %v", err)
+	}
+}
+
 func TestPrepareImagesTemporarilyRewritesDockerignore(t *testing.T) {
 	root := t.TempDir()
 	manifestPath := writePrepareImageFixture(

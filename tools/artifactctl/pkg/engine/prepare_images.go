@@ -232,7 +232,13 @@ func resolveRuntimeBaseBuildContext(artifactRoot string) (string, string, error)
 
 func buildAndPushFunctionImage(imageRef, dockerfile, artifactRoot string, noCache bool, runner CommandRunner) error {
 	pushRef := resolvePushReference(imageRef)
-	buildCmd := buildxBuildCommand(imageRef, dockerfile, artifactRoot, noCache)
+	resolvedDockerfile, cleanup, err := resolveFunctionBuildDockerfile(dockerfile)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	buildCmd := buildxBuildCommand(imageRef, resolvedDockerfile, artifactRoot, noCache)
 	if err := runner.Run(buildCmd); err != nil {
 		return fmt.Errorf("build function image %s: %w", imageRef, err)
 	}
@@ -245,6 +251,80 @@ func buildAndPushFunctionImage(imageRef, dockerfile, artifactRoot string, noCach
 		return fmt.Errorf("push function image %s: %w", pushRef, err)
 	}
 	return nil
+}
+
+func resolveFunctionBuildDockerfile(dockerfile string) (string, func(), error) {
+	runtimeRegistry := strings.TrimSuffix(strings.TrimSpace(os.Getenv("CONTAINER_REGISTRY")), "/")
+	hostRegistry := strings.TrimSuffix(strings.TrimSpace(os.Getenv("HOST_REGISTRY_ADDR")), "/")
+	if runtimeRegistry == "" || hostRegistry == "" || runtimeRegistry == hostRegistry {
+		return dockerfile, func() {}, nil
+	}
+
+	data, err := os.ReadFile(dockerfile)
+	if err != nil {
+		return "", nil, fmt.Errorf("read dockerfile %s: %w", dockerfile, err)
+	}
+	rewritten, changed := rewriteDockerfileFromRegistry(string(data), runtimeRegistry, hostRegistry)
+	if !changed {
+		return dockerfile, func() {}, nil
+	}
+
+	tmpPath := dockerfile + ".artifactctl.build"
+	if err := os.WriteFile(tmpPath, []byte(rewritten), 0o644); err != nil {
+		return "", nil, fmt.Errorf("write temporary dockerfile %s: %w", tmpPath, err)
+	}
+	cleanup := func() {
+		_ = os.Remove(tmpPath)
+	}
+	return tmpPath, cleanup, nil
+}
+
+func rewriteDockerfileFromRegistry(content, runtimeRegistry, hostRegistry string) (string, bool) {
+	runtimePrefix := runtimeRegistry + "/"
+	hostPrefix := hostRegistry + "/"
+	lines := strings.Split(content, "\n")
+	changed := false
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(strings.ToLower(trimmed), "from ") {
+			continue
+		}
+		parts := strings.Fields(trimmed)
+		if len(parts) < 2 {
+			continue
+		}
+		refIndex := fromImageTokenIndex(parts)
+		if refIndex < 0 {
+			continue
+		}
+		ref := parts[refIndex]
+		if !strings.HasPrefix(ref, runtimePrefix) {
+			continue
+		}
+		parts[refIndex] = hostPrefix + strings.TrimPrefix(ref, runtimePrefix)
+		indentLen := len(line) - len(strings.TrimLeft(line, " \t"))
+		indent := line[:indentLen]
+		lines[i] = indent + strings.Join(parts, " ")
+		changed = true
+	}
+	if !changed {
+		return content, false
+	}
+	return strings.Join(lines, "\n"), true
+}
+
+func fromImageTokenIndex(parts []string) int {
+	for i := 1; i < len(parts); i++ {
+		token := strings.TrimSpace(parts[i])
+		if token == "" {
+			continue
+		}
+		if strings.HasPrefix(token, "--") {
+			continue
+		}
+		return i
+	}
+	return -1
 }
 
 func buildxBuildCommand(tag, dockerfile, contextDir string, noCache bool) []string {
