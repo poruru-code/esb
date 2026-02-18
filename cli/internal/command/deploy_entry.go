@@ -21,6 +21,21 @@ import (
 
 // runDeploy executes the 'deploy' command.
 func runDeploy(cli CLI, deps Dependencies, out io.Writer) int {
+	return runDeployWithOverrides(cli, deps, out, deployRunOverrides{})
+}
+
+type deployRunOverrides struct {
+	buildImages      *bool
+	skipStagingMerge bool
+	forceBuildOnly   bool
+}
+
+func runDeployWithOverrides(
+	cli CLI,
+	deps Dependencies,
+	out io.Writer,
+	overrides deployRunOverrides,
+) int {
 	emojiEnabled, err := resolveDeployEmojiEnabled(out, cli.Deploy)
 	if err != nil {
 		return exitWithError(out, err)
@@ -37,7 +52,7 @@ func runDeploy(cli CLI, deps Dependencies, out io.Writer) int {
 		return exitWithError(out, err)
 	}
 
-	if err := cmd.Run(inputs, cli.Deploy); err != nil {
+	if err := cmd.runWithOverrides(inputs, cli.Deploy, overrides); err != nil {
 		return exitWithError(out, err)
 	}
 	return 0
@@ -169,6 +184,14 @@ func newDeployCommand(config deployCommandConfig) *deployCommand {
 }
 
 func (c *deployCommand) Run(inputs deployInputs, flags DeployCmd) error {
+	return c.runWithOverrides(inputs, flags, deployRunOverrides{})
+}
+
+func (c *deployCommand) runWithOverrides(
+	inputs deployInputs,
+	flags DeployCmd,
+	overrides deployRunOverrides,
+) error {
 	tag := resolveBrandTag()
 	imagePrewarm, err := normalizeImagePrewarm(flags.ImagePrewarm)
 	if err != nil {
@@ -182,12 +205,13 @@ func (c *deployCommand) Run(inputs deployInputs, flags DeployCmd) error {
 		noDeps = false
 	}
 	buildImages := true
-	if flags.generateBuildImages != nil {
-		buildImages = *flags.generateBuildImages
+	if overrides.buildImages != nil {
+		buildImages = *overrides.buildImages
 	}
 	if len(inputs.Templates) == 0 {
 		return errTemplatePathRequired
 	}
+	buildOnly := flags.BuildOnly || overrides.forceBuildOnly
 	workflow := deploy.NewDeployWorkflow(c.build, c.applyRuntime, c.ui, c.composeRunner)
 	if c.workflow.composeProvisioner != nil {
 		workflow.ComposeProvisioner = c.workflow.composeProvisioner
@@ -248,9 +272,9 @@ func (c *deployCommand) Run(inputs deployInputs, flags DeployCmd) error {
 			NoDeps:         noDeps,
 			Verbose:        flags.Verbose,
 			ComposeFiles:   inputs.ComposeFiles,
-			BuildOnly:      buildOnly,
+			BuildOnly:      true,
 			BuildImages:    boolPtr(buildImages),
-			SkipStaging:    flags.skipStagingMerge,
+			SkipStaging:    overrides.skipStagingMerge,
 			BundleManifest: flags.Bundle,
 			ImagePrewarm:   imagePrewarm,
 			Emoji:          c.emojiEnabled,
@@ -273,7 +297,7 @@ func (c *deployCommand) Run(inputs deployInputs, flags DeployCmd) error {
 	if c.ui != nil {
 		c.ui.Info(fmt.Sprintf("Artifact manifest: %s", manifestPath))
 	}
-	if flags.BuildOnly {
+	if buildOnly {
 		return nil
 	}
 

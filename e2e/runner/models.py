@@ -18,7 +18,6 @@ class Scenario:
     env_vars: dict[str, str]
     targets: list[str]
     exclude: list[str]
-    deploy_templates: list[str] = field(default_factory=list)
     project_name: str | None = None
     extra: dict[str, Any] = field(default_factory=dict)
 

@@ -92,7 +92,7 @@ def ensure_local_artifactctl() -> None:
 
 
 def requires_local_artifactctl(args, env_scenarios: dict[str, object]) -> bool:
-    if args.unit_only or args.test_only:
+    if args.test_only:
         return False
     return bool(env_scenarios)
 
@@ -103,26 +103,6 @@ def main():
     warnings.filterwarnings("ignore", category=DeprecationWarning)
 
     args = parse_args()
-
-    # --- Unit Tests ---
-    if args.unit or args.unit_only:
-        print("\n=== Running Python Unit Tests ===\n")
-        python_cmd = [
-            sys.executable,
-            "-m",
-            "pytest",
-            "services/gateway/tests",
-            "-v",
-        ]
-        res = subprocess.run(python_cmd, cwd=PROJECT_ROOT, check=False)
-        if res.returncode != 0:
-            print("\n[FAILED] Python unit tests failed.")
-            sys.exit(res.returncode)
-
-        print("\n[PASSED] Unit Tests passed!")
-
-        if args.unit_only:
-            sys.exit(0)
 
     # --- Load Test Matrix ---
     config_matrix = load_test_matrix()

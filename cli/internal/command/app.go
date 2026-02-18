@@ -71,12 +71,6 @@ type (
 		NoEmoji      bool     `name:"no-emoji" help:"Disable emoji output"`
 		Force        bool     `help:"Allow environment mismatch with running gateway (skip auto-alignment)"`
 		NoSave       bool     `name:"no-save-defaults" help:"Do not persist deploy defaults"`
-		// Internal-only adapter knob for artifact generate.
-		// Nil means deploy default behavior (build images).
-		generateBuildImages *bool
-		// Internal-only adapter knob for artifact generate.
-		// True means skip merge/stage into .esb staging config.
-		skipStagingMerge bool
 	}
 
 	ArtifactCmd struct {

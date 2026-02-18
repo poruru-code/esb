@@ -13,10 +13,9 @@ from e2e.runner import infra
 from e2e.runner.context import (
     _apply_ports_to_env_dict,
     _prepare_context,
-    _resolve_templates,
     _sync_gateway_env,
 )
-from e2e.runner.deploy import deploy_templates
+from e2e.runner.deploy import deploy_artifacts
 from e2e.runner.env import discover_ports
 from e2e.runner.events import (
     EVENT_ENV_END,
@@ -262,12 +261,9 @@ def _compose_and_wait(ctx: RunContext, log: LogSink, printer, args) -> None:
 
 
 def _deploy(ctx: RunContext, log: LogSink, printer, args) -> None:
-    templates = _resolve_templates(ctx.scenario)
-    deploy_templates(
+    deploy_artifacts(
         ctx,
-        templates,
         no_cache=args.no_cache,
-        verbose=args.verbose,
         log=log,
         printer=printer,
     )

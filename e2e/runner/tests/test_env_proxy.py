@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from e2e.runner import env as runner_env
-from e2e.runner.utils import PROJECT_ROOT, env_key
+from e2e.runner.utils import env_key
 
 
 def test_calculate_runtime_env_applies_proxy_defaults(monkeypatch):
@@ -20,7 +20,6 @@ def test_calculate_runtime_env_applies_proxy_defaults(monkeypatch):
         "esb",
         "e2e-proxy",
         "docker",
-        template_path=str(PROJECT_ROOT / "template.yaml"),
     )
 
     assert env["HTTP_PROXY"] == "http://proxy.example:8080"
@@ -46,7 +45,6 @@ def test_calculate_runtime_env_skips_proxy_defaults_without_proxy_inputs(monkeyp
         "esb",
         "e2e-proxy",
         "docker",
-        template_path=str(PROJECT_ROOT / "template.yaml"),
     )
 
     assert env.get("NO_PROXY", "") == ""

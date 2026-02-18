@@ -12,8 +12,6 @@ from e2e.runner.utils import env_key
 
 
 def test_prepare_context_merges_runtime_env_and_overrides(monkeypatch, tmp_path):
-    template = tmp_path / "template.yaml"
-    template.write_text("Resources: {}\n", encoding="utf-8")
     compose_file = tmp_path / "docker-compose.docker.yml"
     compose_file.write_text("services: {}\n", encoding="utf-8")
     staging_dir = tmp_path / "staging" / "config"
@@ -34,9 +32,6 @@ def test_prepare_context_merges_runtime_env_and_overrides(monkeypatch, tmp_path)
         "e2e.runner.context.resolve_compose_file", lambda *_args, **_kwargs: compose_file
     )
     monkeypatch.setattr(
-        "e2e.runner.context._resolve_templates", lambda *_args, **_kwargs: [template]
-    )
-    monkeypatch.setattr(
         "e2e.runner.context._load_state_env",
         lambda *_args, **_kwargs: {constants.ENV_AUTH_USER: "state-user"},
     )
@@ -55,7 +50,6 @@ def test_prepare_context_merges_runtime_env_and_overrides(monkeypatch, tmp_path)
         env_vars={constants.ENV_AUTH_USER: "scenario-user", "EXTRA_KEY": "EXTRA_VAL"},
         targets=["e2e/scenarios/smoke/test_smoke.py"],
         exclude=[],
-        deploy_templates=[str(template)],
         project_name="esb",
     )
 
@@ -90,8 +84,6 @@ def test_prepare_context_merges_runtime_env_and_overrides(monkeypatch, tmp_path)
 
 
 def test_prepare_context_reapplies_proxy_defaults_after_scenario_override(monkeypatch, tmp_path):
-    template = tmp_path / "template.yaml"
-    template.write_text("Resources: {}\n", encoding="utf-8")
     compose_file = tmp_path / "docker-compose.docker.yml"
     compose_file.write_text("services: {}\n", encoding="utf-8")
     staging_dir = tmp_path / "staging" / "config"
@@ -112,9 +104,6 @@ def test_prepare_context_reapplies_proxy_defaults_after_scenario_override(monkey
     monkeypatch.setattr(
         "e2e.runner.context.resolve_compose_file", lambda *_args, **_kwargs: compose_file
     )
-    monkeypatch.setattr(
-        "e2e.runner.context._resolve_templates", lambda *_args, **_kwargs: [template]
-    )
     monkeypatch.setattr("e2e.runner.context._load_state_env", lambda *_args, **_kwargs: {})
     monkeypatch.setattr(
         "e2e.runner.context.build_unique_tag", lambda *_args, **_kwargs: "generated-tag"
@@ -131,7 +120,6 @@ def test_prepare_context_reapplies_proxy_defaults_after_scenario_override(monkey
         env_vars={"HTTP_PROXY": "http://proxy.example:8080"},
         targets=["e2e/scenarios/smoke/test_smoke.py"],
         exclude=[],
-        deploy_templates=[str(template)],
         project_name="esb",
     )
 

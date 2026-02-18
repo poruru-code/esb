@@ -13,7 +13,6 @@ def test_build_env_scenarios_includes_image_overrides() -> None:
     matrix = [
         {
             "esb_env": "e2e-docker",
-            "deploy_templates": ["e2e/fixtures/template.e2e.yaml"],
             "image_prewarm": "off",
             "image_uri_overrides": {"lambda-image": "public.ecr.aws/example/repo:v1"},
             "image_runtime_overrides": {"lambda-image": "python"},

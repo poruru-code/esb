@@ -14,29 +14,32 @@ import (
 func runArtifactGenerate(cli CLI, deps Dependencies, out io.Writer) int {
 	generatedCLI := cli
 	generatedCLI.Deploy = artifactGenerateToDeployFlags(cli.Artifact.Generate)
-	return runDeploy(generatedCLI, deps, out)
+	overrides := deployRunOverrides{
+		buildImages:      boolPtr(cli.Artifact.Generate.BuildImages),
+		skipStagingMerge: true,
+		forceBuildOnly:   true,
+	}
+	return runDeployWithOverrides(generatedCLI, deps, out, overrides)
 }
 
 func artifactGenerateToDeployFlags(cmd ArtifactGenerateCmd) DeployCmd {
 	return DeployCmd{
-		Mode:                cmd.Mode,
-		Output:              cmd.Output,
-		Manifest:            cmd.Manifest,
-		Project:             cmd.Project,
-		ComposeFiles:        append([]string(nil), cmd.ComposeFiles...),
-		ImageURI:            append([]string(nil), cmd.ImageURI...),
-		ImageRuntime:        append([]string(nil), cmd.ImageRuntime...),
-		BuildOnly:           true,
-		Bundle:              cmd.Bundle,
-		ImagePrewarm:        cmd.ImagePrewarm,
-		NoCache:             cmd.NoCache,
-		Verbose:             cmd.Verbose,
-		Emoji:               cmd.Emoji,
-		NoEmoji:             cmd.NoEmoji,
-		Force:               cmd.Force,
-		NoSave:              cmd.NoSave,
-		generateBuildImages: boolPtr(cmd.BuildImages),
-		skipStagingMerge:    true,
+		Mode:         cmd.Mode,
+		Output:       cmd.Output,
+		Manifest:     cmd.Manifest,
+		Project:      cmd.Project,
+		ComposeFiles: append([]string(nil), cmd.ComposeFiles...),
+		ImageURI:     append([]string(nil), cmd.ImageURI...),
+		ImageRuntime: append([]string(nil), cmd.ImageRuntime...),
+		BuildOnly:    true,
+		Bundle:       cmd.Bundle,
+		ImagePrewarm: cmd.ImagePrewarm,
+		NoCache:      cmd.NoCache,
+		Verbose:      cmd.Verbose,
+		Emoji:        cmd.Emoji,
+		NoEmoji:      cmd.NoEmoji,
+		Force:        cmd.Force,
+		NoSave:       cmd.NoSave,
 	}
 }
 

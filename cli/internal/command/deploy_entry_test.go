@@ -292,7 +292,7 @@ func TestDeployCommandRunAllowsRenderOnlyGenerate(t *testing.T) {
 		},
 	}
 
-	err := cmd.Run(
+	err := cmd.runWithOverrides(
 		deployInputs{
 			ProjectDir: tmp,
 			Env:        "dev",
@@ -300,10 +300,11 @@ func TestDeployCommandRunAllowsRenderOnlyGenerate(t *testing.T) {
 			Project:    "esb-dev",
 			Templates:  []deployTemplateInput{{TemplatePath: templatePath}},
 		},
-		DeployCmd{
-			BuildOnly:           true,
-			generateBuildImages: boolPtr(false),
-			skipStagingMerge:    true,
+		DeployCmd{BuildOnly: true},
+		deployRunOverrides{
+			buildImages:      boolPtr(false),
+			skipStagingMerge: true,
+			forceBuildOnly:   true,
 		},
 	)
 	if err != nil {

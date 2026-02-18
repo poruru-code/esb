@@ -52,5 +52,5 @@ uv run ruff format .
 ### テスト
 ```bash
 # Python unit tests (gateway)
-python e2e/run_tests.py --unit-only
+uv run pytest services/gateway/tests -v
 ```

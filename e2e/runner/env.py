@@ -124,7 +124,6 @@ def calculate_runtime_env(
     env_name: str,
     mode: str,
     env_file: str | None = None,
-    template_path: str | None = None,
 ) -> dict[str, str]:
     """Replicates Go CLI's applyRuntimeEnv logic for the E2E runner."""
     env = os.environ.copy()
@@ -261,7 +260,7 @@ def calculate_runtime_env(
 
     # 9. Staging Config Dir
     # Replicates staging.ConfigDir logic (fixed under repo root)
-    config_dir = calculate_staging_dir(project_name, env_name, template_path=template_path)
+    config_dir = calculate_staging_dir(project_name, env_name)
     env[constants.ENV_CONFIG_DIR] = str(config_dir)
 
     # 10. E2E safety toggles
@@ -274,9 +273,8 @@ def calculate_runtime_env(
 def calculate_staging_dir(
     project_name: str,
     env_name: str,
-    template_path: str | None = None,
 ) -> Path:
-    """Replicates staging.ConfigDir logic from Go."""
+    """Replicates staging.ConfigDir logic from Go (repo-root scoped)."""
     # ComposeProjectKey logic
     proj_key = project_name.strip()
     if not proj_key:
@@ -284,29 +282,8 @@ def calculate_staging_dir(
 
     env_label = (env_name or "default").lower()
 
-    template_dir = (
-        Path(template_path).expanduser().resolve().parent
-        if template_path
-        else (PROJECT_ROOT / "e2e" / "fixtures")
-    )
-    repo_root = resolve_repo_root(template_dir)
-
-    root = repo_root / BRAND_HOME_DIR / "staging"
+    root = PROJECT_ROOT / BRAND_HOME_DIR / "staging"
     return root / proj_key / env_label / "config"
-
-
-def resolve_repo_root(start: Path) -> Path:
-    """Resolve the ESB repository root by searching upward for marker files."""
-    markers = ("docker-compose.docker.yml", "docker-compose.containerd.yml")
-    current = start
-    while True:
-        for marker in markers:
-            if (current / marker).exists():
-                return current
-        if current.parent == current:
-            break
-        current = current.parent
-    raise RuntimeError(f"ESB repository root not found from: {start}")
 
 
 def read_service_env(project_name: str, service: str) -> dict[str, str]:

@@ -41,7 +41,7 @@ e2e/run_tests.py
 | `e2e/runner/runner.py` | スイートのオーケストレーション、並列スケジューリング、フェーズ進行、結果集計 |
 | `e2e/runner/context.py` | 環境ごとの runtime/deploy/pytest コンテキスト組み立てと env マージ |
 | `e2e/runner/ports.py` | 並列実行時の環境別ホストポートブロックの安定割り当て |
-| `e2e/runner/warmup.py` | テンプレート走査と Java フィクスチャのウォームアップ（Docker 上の `maven`） |
+| `e2e/runner/warmup.py` | deploy 前に必要な Buildx builder の事前準備 |
 | `e2e/runner/lifecycle.py` | `compose up/down`、reset、gateway ヘルス待機 |
 | `e2e/runner/cleanup.py` | コンテナ/ネットワーク/ボリューム/イメージの強制クリーンアップ |
 | `e2e/runner/buildx.py` | deploy/build フロー向け Buildx builder の選択・作成 |
@@ -74,10 +74,9 @@ e2e/run_tests.py
 - Plain reporter はフォールバックおよびサマリーイベントで常に使用します。
 
 ## 主要な回帰テスト
-- `e2e/runner/test_runner_java_warmup.py`
 - `e2e/runner/tests/test_context.py`
 - `e2e/runner/tests/test_ports.py`
-- `e2e/runner/tests/test_warmup_templates.py`
+- `e2e/runner/tests/test_warmup_command.py`
 
 ## よく使うコマンド
 ```bash
@@ -94,53 +93,6 @@ uv run e2e/run_tests.py --profile e2e-containerd
 uv run e2e/run_tests.py --profile e2e-containerd --build-only --verbose
 ```
 
-## Java ビルドイメージ
-Java warmup/deploy で使う Java ビルドイメージは次の固定 digest のみを使用します。
-
-`public.ecr.aws/sam/build-java21@sha256:5f78d6d9124e54e5a7a9941ef179d74d88b7a5b117526ea8574137e5403b51b7`
-
-上書き用の環境変数は提供しません。
-
-## Proxy 検証
-実proxy環境での挙動を検証する場合は tinyproxy ハーネスを使用します。
-
-Java warmup と deploy の Java build は次の契約を常に満たします。
-
-- 毎回一時 `settings.xml` を生成して Docker に read-only マウントする
-- Maven は常に `mvn -s /tmp/m2/settings.xml ...` で実行する
-- `HTTP_PROXY`/`HTTPS_PROXY`（大小文字）から `settings.xml` 内に `<proxy>` を生成する
-- Java build コンテナ内の proxy env は空値に固定し、proxy ソースを `settings.xml` に一本化する
-- Maven 依存取得は `-Dmaven.artifact.threads=1` で直列化し、認証付き proxy の再現性を優先する
-- Maven local repository は `./.esb/cache/m2/repository` を共有キャッシュとして使用する
-- `~/.m2/settings.xml` 依存、`-s` なし実行、`latest` タグを禁止する
-- 契約仕様の正本は `docs/java-maven-proxy-contract.md`
-
-契約の静的チェック:
-
-```bash
-bash tools/ci/check_java_proxy_contract.sh
-```
-
-Maven キャッシュをクリアする場合:
-
-```bash
-rm -rf .esb/cache/m2/repository
-```
-
-```bash
-uv run python tools/e2e_proxy/run_with_tinyproxy.py --check-only
-uv run python tools/e2e_proxy/run_with_tinyproxy.py -- \
-  uv run e2e/run_tests.py --profile e2e-docker --verbose
-uv run python tools/e2e_proxy/run_with_tinyproxy.py \
-  --proxy-user proxyuser \
-  --proxy-password proxypass \
-  --check-only
-```
-
-`--proxy-user/--proxy-password` を指定した場合、tinyproxy BasicAuth も有効化されます。
-
----
-
 ## 実装参照
 - `e2e/run_tests.py`
 - `e2e/runner/runner.py`
@@ -152,8 +104,7 @@ uv run python tools/e2e_proxy/run_with_tinyproxy.py \
 - `e2e/runner/buildx.py`
 - `e2e/runner/config.py`
 - `e2e/runner/planner.py`
-- `e2e/runner/test_runner_java_warmup.py`
 - `e2e/runner/tests/test_context.py`
 - `e2e/runner/tests/test_ports.py`
-- `e2e/runner/tests/test_warmup_templates.py`
+- `e2e/runner/tests/test_warmup_command.py`
 - `e2e/environments/test_matrix.yaml`

@@ -40,12 +40,8 @@ Notes:
 - Runtime hook JARs are configured for deterministic packaging via
   `project.build.outputTimestamp` in `build/pom.xml`.
 
-Contract reference:
-- `docs/java-maven-proxy-contract.md`
-
 Static contract check:
 
 ```bash
-bash tools/ci/check_java_proxy_contract.sh
 bash tools/ci/check_java_reproducible_jars.sh
 ```

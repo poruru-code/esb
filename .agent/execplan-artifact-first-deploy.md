@@ -58,7 +58,7 @@
 | C Adapter 分離 | CLI adapter と non-CLI adapter 分離 | 実装済み | Done |
 | D Runtime Hardening | フォールバック抑制と hard-fail 化 | 概ね実装済み | Done (要監視) |
 | E E2E Gate | artifact-only 回帰ゲートの常設 | docker/containerd は実装済み、firecracker は開発中のため保留 | Done (Scope-limited) |
-| F Cleanup | 旧 descriptor/冗長経路/未使用コード整理 | 実装済み（継続監視） | Done |
+| F Cleanup | 旧 descriptor/冗長経路/未使用コード整理 | 追加是正が必要 | In Progress |
 
 ## UX Specification（現行）
 
@@ -85,8 +85,7 @@
 
 ## Remaining Gaps / Risks（厳格評価）
 
-1. 現フェーズの主目的（CLI依存排除 / artifact-only適用）は達成済み。
-2. firecracker は開発中のため gate 対象から除外中（再開時に別トラックで復帰）。
+1. firecracker は開発中のため gate 対象から除外中（再開時に Track C で復帰）。
    - `e2e/environments/test_matrix.yaml`
 
 ## Completion Criteria 再判定（今回）
@@ -95,13 +94,13 @@
 |---|---|---|
 | `artifact.yml` 単一正本で apply できる | Pass | `tools/artifactctl/pkg/engine/manifest.go` |
 | `esb deploy` が Generate/Apply 分離で動く | Pass | `cli/internal/command/deploy_entry.go` |
-| E2E artifact-only で docker/containerd が成立 | Pass | `e2e/runner/config.py`, `e2e/runner/deploy.py` |
+| E2E artifact-only で docker/containerd が成立 | Pass | `e2e/runner/config.py`, `e2e/runner/deploy.py`, `e2e/runner/warmup.py` |
 | `uv run e2e/run_tests.py --parallel --verbose` で docker/containerd が完走する | Pass | 現行 gate 条件 |
 | firecracker を含む full gate（docker/containerd/firecracker） | Deferred | firecracker 開発中のため対象外 |
 | 非 CLI 実行が成果物だけに依存（build 時も repo 非依存） | Pass | `tools/artifactctl/pkg/engine/prepare_images.go`（`artifact_root/runtime-base/**` のみ参照） |
 | strict runtime metadata 検証が artifact ローカル前提で固定 | Pass | `tools/artifactctl/pkg/engine/runtime_meta_validation.go` |
 
-現時点の総合判定: **主目的は完了（firecracker gate は Deferred）**
+現時点の総合判定: **主目的は達成。未完了は firecracker 復帰トラックのみ**
 
 ## Next Work (未完了対応の分割計画)
 
@@ -160,11 +159,51 @@
 1. C-1（firecracker 開発再開後）
 2. C-2（C-1 完了後）
 
+### Track D: E2E runtime cleanup（完了）
+
+#### D-1: Template 非依存化（Runner）
+- 目的:
+  - E2E runtime 実行を `artifact.yml` のみで成立させる。
+- 変更対象:
+  - `e2e/environments/test_matrix.yaml`
+  - `e2e/runner/config.py`
+  - `e2e/runner/models.py`
+  - `e2e/runner/planner.py`
+  - `e2e/runner/context.py`
+  - `e2e/runner/tests/*`
+- 受け入れ条件:
+  - runner が template path を要求せず、artifact manifest のみで deploy phase に到達する。
+
+#### D-2: Java warmup 経路撤去（Runner 実行時）
+- 目的:
+  - E2E 実行中の Java fixture ビルドを廃止し、fixture 更新時専用フローへ限定する。
+- 変更対象:
+  - `e2e/runner/warmup.py`
+  - `e2e/runner/tests/test_warmup_*`
+  - `docs/artifact-operations.md`
+- 受け入れ条件:
+  - `uv run e2e/run_tests.py ...` 実行中に `docker run ... mvn` が呼ばれない。
+
+#### D-3: Deploy API 残骸除去 + null manifest 統一
+- 目的:
+  - artifact-only API に合わせて runner/deploy の引数と null 取り扱いを整理する。
+- 変更対象:
+  - `e2e/runner/deploy.py`
+  - `e2e/runner/runner.py`
+  - `e2e/runner/tests/test_deploy_command.py`
+- 受け入れ条件:
+  - `deploy_artifacts` API が未使用引数を持たない。
+  - `artifact_manifest: null` / blank は default fallback に統一される。
+
 ### 完了条件（更新）
 
 - 現フェーズ完了条件:
   - `uv run e2e/run_tests.py --parallel --verbose` が docker/containerd で完走
   - CLI なし apply 経路が artifact のみで成立
+- 追加残余リスク管理:
+  - PR ごとに `e2e/runner/tests` を必須実行
+  - Track D 最終PRで full E2E (`uv run e2e/run_tests.py --parallel --verbose`) を必須実行
+  - テンプレート非依存性を runner UT で検証（template fixture を直接参照しない）
 - firecracker 再開時の追加完了条件（Deferred）:
   - Track C の全ステップが完了
   - `uv run e2e/run_tests.py --parallel --verbose` が docker/containerd/firecracker で完走
@@ -176,3 +215,5 @@
 - 2026-02-18: Track B を完了。strict runtime metadata 検証の入力源を `artifact_root/runtime-base/**` に固定し、repo root 推定依存を撤去した。
 - 2026-02-18: Track C（firecracker gate）を Deferred に変更。現フェーズ完了条件を docker/containerd gate に固定した。
 - 2026-02-18: `artifact generate` 軽量化として、artifact adapter 経路では `.esb/staging/**` への merge/stage をスキップする実装へ更新した。
+- 2026-02-18: Residual risk を Track D として追加。F Cleanup 判定を In Progress へ戻した。
+- 2026-02-18: Track D を完了。runner の template 依存と Java warmup 経路を撤去し、artifact-only 実行契約へ統一した。

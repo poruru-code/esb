@@ -15,11 +15,6 @@ BRAND_HOME_DIR = ".esb"
 BRAND_OUTPUT_DIR = ".esb"
 E2E_STATE_ROOT = PROJECT_ROOT / BRAND_OUTPUT_DIR / "e2e" / "state"
 E2E_ARTIFACT_ROOT = PROJECT_ROOT / "e2e" / "artifacts"
-DEFAULT_E2E_DEPLOY_TEMPLATES = (PROJECT_ROOT / "e2e" / "fixtures" / "template.e2e.yaml",)
-
-
-def default_e2e_deploy_templates() -> list[Path]:
-    return [template.resolve() for template in DEFAULT_E2E_DEPLOY_TEMPLATES]
 
 
 def env_key(suffix: str) -> str:

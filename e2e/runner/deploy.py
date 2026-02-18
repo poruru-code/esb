@@ -20,17 +20,13 @@ _prepared_local_fixture_images: set[str] = set()
 _prepared_local_fixture_lock = threading.Lock()
 
 
-def deploy_templates(
+def deploy_artifacts(
     ctx: RunContext,
-    templates: list[Path],
     *,
     no_cache: bool,
-    verbose: bool,
     log: LogSink,
     printer: Callable[[str], None] | None = None,
 ) -> None:
-    del templates
-    del verbose
     _prepare_local_fixture_images(ctx, log=log, printer=printer)
     _deploy_via_artifact_driver(
         ctx,
@@ -120,12 +116,14 @@ def _deploy_via_artifact_driver(
 
 
 def _resolve_artifact_manifest_path(ctx: RunContext) -> Path:
-    raw = str(ctx.scenario.extra.get("artifact_manifest", "")).strip()
-    if raw:
-        path = Path(raw)
-        if not path.is_absolute():
-            path = PROJECT_ROOT / path
-        return path.resolve()
+    manifest_value = ctx.scenario.extra.get("artifact_manifest")
+    if manifest_value is not None:
+        raw = str(manifest_value).strip()
+        if raw:
+            path = Path(raw)
+            if not path.is_absolute():
+                path = PROJECT_ROOT / path
+            return path.resolve()
     return (E2E_ARTIFACT_ROOT / ctx.scenario.env_name / "artifact.yml").resolve()
 
 
