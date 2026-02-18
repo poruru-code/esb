@@ -74,22 +74,6 @@ def resolve_live_enabled(no_live: bool) -> bool:
     return True
 
 
-def ensure_local_esb_cli() -> None:
-    cli_bin_dir = GO_CLI_ROOT / "bin"
-    cli_bin_dir.mkdir(parents=True, exist_ok=True)
-    cli_bin = cli_bin_dir / "esb"
-    build_cmd = ["go", "build", "-o", str(cli_bin), "./cmd/esb"]
-    result = subprocess.run(build_cmd, cwd=GO_CLI_ROOT, check=False)
-    if result.returncode != 0:
-        print("[ERROR] failed to build local esb binary for E2E runner.")
-        sys.exit(result.returncode)
-    current_path = os.environ.get("PATH", "")
-    path_entries = [entry for entry in current_path.split(os.pathsep) if entry]
-    cli_path = str(cli_bin_dir)
-    if cli_path not in path_entries:
-        os.environ["PATH"] = os.pathsep.join([cli_path, *path_entries])
-
-
 def ensure_local_artifactctl() -> None:
     artifactctl_root = PROJECT_ROOT / "tools" / "artifactctl"
     bin_dir = artifactctl_root / "bin"
@@ -107,25 +91,6 @@ def ensure_local_artifactctl() -> None:
         os.environ["PATH"] = os.pathsep.join([bin_path, *path_entries])
 
 
-def requires_local_esb_cli(args, env_scenarios: dict[str, object]) -> bool:
-    if args.unit_only or args.test_only:
-        return False
-    if not env_scenarios:
-        return False
-    for scenario in env_scenarios.values():
-        deploy_driver = str(scenario.deploy_driver).strip().lower()
-        artifact_generate = str(scenario.artifact_generate).strip().lower()
-        if deploy_driver == "cli":
-            return True
-        if deploy_driver == "artifact" and artifact_generate == "cli":
-            return True
-        if deploy_driver not in {"cli", "artifact"}:
-            raise ValueError(f"unsupported deploy_driver in scenario: {deploy_driver!r}")
-        if artifact_generate not in {"cli", "none"}:
-            raise ValueError(f"unsupported artifact_generate in scenario: {artifact_generate!r}")
-    return False
-
-
 def requires_local_artifactctl(args, env_scenarios: dict[str, object]) -> bool:
     if args.unit_only or args.test_only:
         return False
@@ -135,8 +100,7 @@ def requires_local_artifactctl(args, env_scenarios: dict[str, object]) -> bool:
         deploy_driver = str(scenario.deploy_driver).strip().lower()
         if deploy_driver == "artifact":
             return True
-        if deploy_driver != "cli":
-            raise ValueError(f"unsupported deploy_driver in scenario: {deploy_driver!r}")
+        raise ValueError(f"unsupported deploy_driver in scenario: {deploy_driver!r}")
     return False
 
 
@@ -219,8 +183,6 @@ def main():
             emoji=args.emoji,
             show_progress=True,
         )
-        if requires_local_esb_cli(args, env_scenarios):
-            ensure_local_esb_cli()
         if requires_local_artifactctl(args, env_scenarios):
             ensure_local_artifactctl()
         results = run_parallel(
@@ -255,8 +217,6 @@ def main():
             emoji=args.emoji,
             show_progress=True,
         )
-        if requires_local_esb_cli(args, env_scenarios):
-            ensure_local_esb_cli()
         if requires_local_artifactctl(args, env_scenarios):
             ensure_local_artifactctl()
         results = run_parallel(
@@ -289,8 +249,6 @@ def main():
         live_display=live_display,
         show_progress=not (live_display and not args.verbose),
     )
-    if requires_local_esb_cli(args, env_scenarios):
-        ensure_local_esb_cli()
     if requires_local_artifactctl(args, env_scenarios):
         ensure_local_artifactctl()
     results = run_parallel(

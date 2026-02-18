@@ -19,7 +19,7 @@ func TestNormalizeTemplatePathResolvesFromRepoRoot(t *testing.T) {
 	if err := os.MkdirAll(tmplDir, 0o755); err != nil {
 		t.Fatalf("mkdir template dir: %v", err)
 	}
-	tmplPath := filepath.Join(tmplDir, "template.core.yaml")
+	tmplPath := filepath.Join(tmplDir, "template.e2e.yaml")
 	if err := os.WriteFile(tmplPath, []byte("Resources: {}"), 0o600); err != nil {
 		t.Fatalf("write template: %v", err)
 	}
@@ -39,7 +39,7 @@ func TestNormalizeTemplatePathResolvesFromRepoRoot(t *testing.T) {
 		_ = os.Chdir(cwd)
 	})
 
-	got, err := normalizeTemplatePath("e2e/fixtures/template.core.yaml")
+	got, err := normalizeTemplatePath("e2e/fixtures/template.e2e.yaml")
 	if err != nil {
 		t.Fatalf("normalize template path: %v", err)
 	}

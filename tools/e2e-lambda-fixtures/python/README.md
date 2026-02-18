@@ -5,7 +5,7 @@ Java counterpart: `tools/e2e-lambda-fixtures/java`.
 
 ## Repository usage
 
-The E2E flow uses the image URI declared in `e2e/fixtures/template.image.yaml`:
+The E2E flow uses the image URI declared in `e2e/fixtures/template.e2e.yaml`:
 
 - `public.ecr.aws/r9p4t4p0/esb-e2e-lambda-python:latest`
 

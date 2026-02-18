@@ -258,6 +258,7 @@ func (c *deployCommand) Run(inputs deployInputs, flags DeployCmd) error {
 		inputs,
 		imagePrewarm,
 		flags.Bundle,
+		flags.Manifest,
 	)
 	if err != nil {
 		return fmt.Errorf("write artifact manifest: %w", err)

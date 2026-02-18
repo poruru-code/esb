@@ -11,7 +11,7 @@ def test_build_env_scenarios_includes_image_overrides() -> None:
     matrix = [
         {
             "esb_env": "e2e-docker",
-            "deploy_templates": ["e2e/fixtures/template.image.yaml"],
+            "deploy_templates": ["e2e/fixtures/template.e2e.yaml"],
             "image_prewarm": "off",
             "image_uri_overrides": {"lambda-image": "public.ecr.aws/example/repo:v1"},
             "image_runtime_overrides": {"lambda-image": "python"},
@@ -73,7 +73,7 @@ def test_build_env_scenarios_preserves_explicit_env_file() -> None:
     assert scenarios["e2e-docker"]["env_file"] == "e2e/environments/e2e-docker/custom.env"
 
 
-def test_build_env_scenarios_defaults_deploy_driver_to_cli() -> None:
+def test_build_env_scenarios_defaults_deploy_driver_to_artifact() -> None:
     matrix = [
         {
             "esb_env": "e2e-docker",
@@ -89,7 +89,7 @@ def test_build_env_scenarios_defaults_deploy_driver_to_cli() -> None:
 
     scenarios = build_env_scenarios(matrix, suites)
 
-    assert scenarios["e2e-docker"]["deploy_driver"] == "cli"
+    assert scenarios["e2e-docker"]["deploy_driver"] == "artifact"
 
 
 def test_build_env_scenarios_accepts_artifact_deploy_driver() -> None:
@@ -153,10 +153,10 @@ def test_build_plan_propagates_deploy_driver() -> None:
     scenarios = build_plan(matrix, suites)
 
     assert scenarios["e2e-docker"].deploy_driver == "artifact"
-    assert scenarios["e2e-docker"].artifact_generate == "cli"
+    assert scenarios["e2e-docker"].artifact_generate == "none"
 
 
-def test_build_env_scenarios_defaults_artifact_generate_for_artifact_driver() -> None:
+def test_build_env_scenarios_defaults_artifact_generate_to_none() -> None:
     matrix = [
         {
             "esb_env": "e2e-docker",
@@ -173,15 +173,14 @@ def test_build_env_scenarios_defaults_artifact_generate_for_artifact_driver() ->
 
     scenarios = build_env_scenarios(matrix, suites)
 
-    assert scenarios["e2e-docker"]["artifact_generate"] == "cli"
+    assert scenarios["e2e-docker"]["artifact_generate"] == "none"
 
 
-def test_build_env_scenarios_artifact_generate_none_for_non_artifact_driver() -> None:
+def test_build_env_scenarios_rejects_non_artifact_deploy_driver() -> None:
     matrix = [
         {
             "esb_env": "e2e-docker",
             "deploy_driver": "cli",
-            "artifact_generate": "cli",
             "suites": ["smoke"],
         }
     ]
@@ -192,9 +191,12 @@ def test_build_env_scenarios_artifact_generate_none_for_non_artifact_driver() ->
         }
     }
 
-    scenarios = build_env_scenarios(matrix, suites)
-
-    assert scenarios["e2e-docker"]["artifact_generate"] == "none"
+    try:
+        build_env_scenarios(matrix, suites)
+    except ValueError as exc:
+        assert "deploy_driver" in str(exc)
+    else:
+        raise AssertionError("expected ValueError for non-artifact deploy_driver")
 
 
 def test_build_env_scenarios_rejects_invalid_artifact_generate() -> None:

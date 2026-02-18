@@ -250,10 +250,10 @@ func TestDeployCommandRunBuildsAllTemplatesAndRunsProvisionerOnlyOnLast(t *testi
 	if len(manifest.Artifacts) != 2 {
 		t.Fatalf("expected 2 artifacts, got %d", len(manifest.Artifacts))
 	}
-	if manifest.Artifacts[0].SourceTemplate.Path != templateA {
+	if manifest.Artifacts[0].SourceTemplate.Path != filepath.Base(templateA) {
 		t.Fatalf("unexpected first artifact template path: %s", manifest.Artifacts[0].SourceTemplate.Path)
 	}
-	if manifest.Artifacts[1].SourceTemplate.Path != templateB {
+	if manifest.Artifacts[1].SourceTemplate.Path != filepath.Base(templateB) {
 		t.Fatalf("unexpected second artifact template path: %s", manifest.Artifacts[1].SourceTemplate.Path)
 	}
 	if manifest.Artifacts[0].RuntimeConfigDir != "config" {

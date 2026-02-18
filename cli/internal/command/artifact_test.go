@@ -15,6 +15,7 @@ func TestArtifactGenerateToDeployFlags(t *testing.T) {
 	cmd := ArtifactGenerateCmd{
 		Mode:         "docker",
 		Output:       ".out",
+		Manifest:     ".out/artifact.yml",
 		Project:      "esb-dev",
 		ComposeFiles: []string{"docker-compose.yml"},
 		ImageURI:     []string{"fn=image:latest"},
@@ -31,7 +32,7 @@ func TestArtifactGenerateToDeployFlags(t *testing.T) {
 	if !got.BuildOnly {
 		t.Fatal("BuildOnly must be true for artifact generate")
 	}
-	if got.Mode != cmd.Mode || got.Output != cmd.Output || got.Project != cmd.Project {
+	if got.Mode != cmd.Mode || got.Output != cmd.Output || got.Manifest != cmd.Manifest || got.Project != cmd.Project {
 		t.Fatalf("basic flag mapping mismatch: %#v", got)
 	}
 	if !reflect.DeepEqual(got.ComposeFiles, cmd.ComposeFiles) {

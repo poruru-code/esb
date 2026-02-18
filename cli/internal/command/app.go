@@ -55,6 +55,7 @@ type (
 	DeployCmd struct {
 		Mode         string   `short:"m" help:"Runtime mode (docker/containerd)"`
 		Output       string   `short:"o" help:"Output directory for generated artifacts"`
+		Manifest     string   `name:"manifest" help:"Output path for artifact manifest (artifact.yml)"`
 		Project      string   `short:"p" help:"Compose project name to target"`
 		ComposeFiles []string `name:"compose-file" sep:"," help:"Compose file(s) to use (repeatable or comma-separated)"`
 		ImageURI     []string `name:"image-uri" sep:"," help:"Image URI override for image functions (<function>=<image-uri>)"`
@@ -80,6 +81,7 @@ type (
 	ArtifactGenerateCmd struct {
 		Mode         string   `short:"m" help:"Runtime mode (docker/containerd)"`
 		Output       string   `short:"o" help:"Output directory for generated artifacts"`
+		Manifest     string   `name:"manifest" help:"Output path for artifact manifest (artifact.yml)"`
 		Project      string   `short:"p" help:"Compose project name to target"`
 		ComposeFiles []string `name:"compose-file" sep:"," help:"Compose file(s) to use (repeatable or comma-separated)"`
 		ImageURI     []string `name:"image-uri" sep:"," help:"Image URI override for image functions (<function>=<image-uri>)"`
@@ -257,7 +259,7 @@ func commandName(args []string) string {
 
 func commandFlagExpectsValue(arg string) bool {
 	switch arg {
-	case "-e", "--env", "-t", "--template", "--env-file", "-m", "--mode", "-o", "--output", "-p", "--project", "--image-prewarm", "--image-uri", "--image-runtime", "--artifact", "--out", "--secret-env":
+	case "-e", "--env", "-t", "--template", "--env-file", "-m", "--mode", "-o", "--output", "--manifest", "-p", "--project", "--image-prewarm", "--image-uri", "--image-runtime", "--artifact", "--out", "--secret-env":
 		return true
 	default:
 		return false
@@ -352,6 +354,10 @@ func handleParseError(args []string, err error, deps Dependencies, out io.Writer
 		case strings.Contains(msg, "--image-runtime"):
 			ui.Warn("`--image-runtime` expects a value. Use <function>=<python|java21>.")
 			ui.Info(fmt.Sprintf("Example: %s deploy --image-runtime lambda-image=java21", cliCommandName))
+			return 1
+		case strings.Contains(msg, "--manifest"):
+			ui.Warn("`--manifest` expects a value. Provide an output artifact manifest path.")
+			ui.Info(fmt.Sprintf("Example: %s artifact generate --manifest e2e/artifacts/e2e-docker/artifact.yml", cliCommandName))
 			return 1
 		}
 	}

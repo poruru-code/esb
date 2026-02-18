@@ -122,7 +122,7 @@ func TestHandleParseErrorFallback(t *testing.T) {
 }
 
 func TestHandleParseErrorKnownFlags(t *testing.T) {
-	tests := []string{"--env", "--mode", "--env-file", "--image-uri", "--image-runtime"}
+	tests := []string{"--env", "--mode", "--env-file", "--manifest", "--image-uri", "--image-runtime"}
 	for _, flag := range tests {
 		t.Run(flag, func(t *testing.T) {
 			var out bytes.Buffer

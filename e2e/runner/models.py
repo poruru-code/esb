@@ -20,7 +20,7 @@ class Scenario:
     exclude: list[str]
     deploy_templates: list[str] = field(default_factory=list)
     project_name: str | None = None
-    deploy_driver: str = "cli"
+    deploy_driver: str = "artifact"
     artifact_generate: str = "none"
     extra: dict[str, Any] = field(default_factory=dict)
 

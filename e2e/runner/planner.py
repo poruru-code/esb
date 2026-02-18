@@ -74,7 +74,7 @@ def _to_scenario(data: dict[str, Any]) -> Scenario:
         exclude=data.get("exclude", []) or [],
         deploy_templates=data.get("deploy_templates", []) or [],
         project_name=data.get("esb_project", BRAND_SLUG),
-        deploy_driver=str(data.get("deploy_driver", "cli")),
+        deploy_driver=str(data.get("deploy_driver", "artifact")),
         artifact_generate=str(data.get("artifact_generate", "none")),
         extra={k: v for k, v in data.items() if k not in known_keys},
     )
