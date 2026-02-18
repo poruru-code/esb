@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, cast
 
 import boto3
+from boto3.session import Session as Boto3Session
 from botocore.config import Config
 
 # --- Globals & Originals ---
@@ -20,8 +21,16 @@ _original_boto3_client = cast(
     Callable[..., Any],
     getattr(boto3, _ORIGINAL_CLIENT_ATTR, boto3.client),
 )
+_ORIGINAL_SESSION_CLIENT_ATTR = "_sitecustomize_original_session_client"
+if getattr(Boto3Session, _ORIGINAL_SESSION_CLIENT_ATTR, None) is None:
+    setattr(Boto3Session, _ORIGINAL_SESSION_CLIENT_ATTR, Boto3Session.client)
+_original_boto3_session_client = cast(
+    Callable[..., Any],
+    getattr(Boto3Session, _ORIGINAL_SESSION_CLIENT_ATTR, Boto3Session.client),
+)
 _trace_context = threading.local()
 _BOTO3_CLIENT_PATCH_FLAG = "_sitecustomize_boto3_patch"
+_BOTO3_SESSION_CLIENT_PATCH_FLAG = "_sitecustomize_boto3_session_patch"
 _AWSLAMBDA_PATCH_FLAG = "_sitecustomize_awslambdaric_patch"
 _LOGGING_PATCH_FLAG = "_sitecustomize_logging_patch"
 _STREAM_HOOK_FLAG = "_victorialogs_hook"
@@ -500,12 +509,12 @@ def _inject_client_context_hook(params, **kwargs):
 # --- Separated Patch Logic ---
 
 
-def _create_mock_logs_client(args, kwargs):
+def _create_mock_logs_client(create_client, args, kwargs):
     """Create a local mock client for CloudWatch Logs."""
     print(
         "[sitecustomize] Creating original boto3 client for logs (local mock mode)...", flush=True
     )
-    client = _original_boto3_client("logs", *args, **kwargs)
+    client = create_client("logs", *args, **kwargs)
     _original_make_api_call = client._make_api_call
 
     def _patched_make_api_call(operation_name, api_params):
@@ -567,26 +576,54 @@ def _register_lambda_hooks(client):
     print("[sitecustomize] Registered ClientContext hook for lambda.Invoke", flush=True)
 
 
+def _build_patched_client(create_client, service_name, args, kwargs):
+    # 1. Logs (mock) case.
+    if service_name == "logs":
+        return _create_mock_logs_client(create_client, args, kwargs)
+
+    # 2. Other services (endpoint redirection).
+    _configure_service_endpoint(service_name, kwargs)
+
+    # Create client.
+    client = create_client(service_name, *args, **kwargs)
+
+    # 3. Lambda case (hook registration).
+    if service_name == "lambda":
+        _register_lambda_hooks(client)
+
+    return client
+
+
 def _patched_boto3_client(service_name, *args, **kwargs):
     try:
-        # 1. Logs (mock) case.
-        if service_name == "logs":
-            return _create_mock_logs_client(args, kwargs)
+        default_session = boto3._get_default_session()  # type: ignore[attr-defined]
 
-        # 2. Other services (endpoint redirection).
-        _configure_service_endpoint(service_name, kwargs)
+        def _create_client(svc, *a, **kw):
+            return _original_boto3_session_client(default_session, svc, *a, **kw)
 
-        # Create client.
-        client = _original_boto3_client(service_name, *args, **kwargs)
-
-        # 3. Lambda case (hook registration).
-        if service_name == "lambda":
-            _register_lambda_hooks(client)
-
-        return client
+        return _build_patched_client(_create_client, service_name, args, kwargs)
 
     except Exception as e:
         print(f"[sitecustomize] Error in _patched_boto3_client for {service_name}: {e}", flush=True)
+        import traceback
+
+        traceback.print_exc()
+        raise e
+
+
+def _patched_boto3_session_client(self, service_name, *args, **kwargs):
+    try:
+
+        def _create_client(svc, *a, **kw):
+            return _original_boto3_session_client(self, svc, *a, **kw)
+
+        return _build_patched_client(_create_client, service_name, args, kwargs)
+
+    except Exception as e:
+        print(
+            f"[sitecustomize] Error in _patched_boto3_session_client for {service_name}: {e}",
+            flush=True,
+        )
         import traceback
 
         traceback.print_exc()
@@ -621,6 +658,12 @@ if not getattr(boto3.client, _BOTO3_CLIENT_PATCH_FLAG, False):
     boto3.client = _patched_boto3_client  # ty: ignore[invalid-assignment]
 else:
     _log_json("boto3.client patch already applied.", level="DEBUG")
+
+if not getattr(Boto3Session.client, _BOTO3_SESSION_CLIENT_PATCH_FLAG, False):
+    setattr(_patched_boto3_session_client, _BOTO3_SESSION_CLIENT_PATCH_FLAG, True)
+    Boto3Session.client = _patched_boto3_session_client  # ty: ignore[invalid-assignment]
+else:
+    _log_json("boto3.session.Session.client patch already applied.", level="DEBUG")
 
 # Patch awslambdaric
 _patch_awslambdaric()

@@ -13,6 +13,14 @@ ENV JAVA_AGENT_PRESENT=1
 ENV JAVA_TOOL_OPTIONS="-javaagent:/var/task/lib/lambda-java-agent.jar ${JAVA_TOOL_OPTIONS}"
 # Function code
 COPY functions/lambda-echo-java/src/ ${LAMBDA_TASK_ROOT}/
+# For single-jar CodeUri, treat the staged JAR as the deployment package.
+# Extract the app artifact itself instead of hard-coding specific subpaths.
+RUN set -eu; \
+    cd ${LAMBDA_TASK_ROOT}; \
+    app_jar="lib/app.jar"; \
+    if [ -f "${app_jar}" ]; then \
+      jar xf "${app_jar}"; \
+    fi
 
 # Handler
 CMD [ "com.runtime.lambda.HandlerWrapper::handleRequest" ]

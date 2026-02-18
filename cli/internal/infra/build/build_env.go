@@ -5,7 +5,6 @@ package build
 
 import (
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/constants"
@@ -14,14 +13,7 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
 )
 
-func applyBuildEnv(env, templatePath, composeProject string, skipStaging bool) error {
-	if !skipStaging {
-		configDir, err := staging.ConfigDir(templatePath, composeProject, env)
-		if err != nil {
-			return err
-		}
-		_ = os.Setenv(constants.EnvConfigDir, filepath.ToSlash(configDir))
-	}
+func applyBuildEnv(env, composeProject string) error {
 	if os.Getenv(constants.EnvProjectName) == "" {
 		_ = os.Setenv(constants.EnvProjectName, staging.ComposeProjectKey(composeProject, env))
 	}

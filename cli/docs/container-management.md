@@ -41,7 +41,7 @@ flowchart LR
     B --> C[config generation]
     C --> D[base image build]
     D --> E[function image build]
-    E --> F[staging config merge]
+    E --> F[artifact manifest export]
 ```
 
 実装:

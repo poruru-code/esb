@@ -25,9 +25,8 @@ func runDeploy(cli CLI, deps Dependencies, out io.Writer) int {
 }
 
 type deployRunOverrides struct {
-	buildImages      *bool
-	skipStagingMerge bool
-	forceBuildOnly   bool
+	buildImages    *bool
+	forceBuildOnly bool
 }
 
 func runDeployWithOverrides(
@@ -223,7 +222,7 @@ func (c *deployCommand) runWithOverrides(
 		workflow.DockerClient = c.workflow.dockerClient
 	}
 
-	// Generate phase: build all templates and stage merged runtime-config.
+	// Generate phase: build all templates and produce artifacts only.
 	templateCount := len(inputs.Templates)
 	for idx, tpl := range inputs.Templates {
 		buildOnly := true
@@ -274,7 +273,6 @@ func (c *deployCommand) runWithOverrides(
 			ComposeFiles:   inputs.ComposeFiles,
 			BuildOnly:      true,
 			BuildImages:    boolPtr(buildImages),
-			SkipStaging:    overrides.skipStagingMerge,
 			BundleManifest: flags.Bundle,
 			ImagePrewarm:   imagePrewarm,
 			Emoji:          c.emojiEnabled,

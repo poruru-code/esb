@@ -76,7 +76,7 @@ graph TD
 - `infra/build`:
   - フェーズ実行のオーケストレーション
   - base image / function image build
-  - staging config merge
+  - artifact 生成（runtime-config merge は行わない）
 - `infra/templategen`:
   - 関数 staging、Dockerfile 生成、`functions.yml`/`routing.yml`/`resources.yml` 生成
   - `image-import.json` と bundle manifest 出力

@@ -126,9 +126,6 @@ func TestRunArtifactGenerateUsesRenderOnlyOverrides(t *testing.T) {
 	if builder.requests[0].BuildImages {
 		t.Fatalf("artifact generate default must be render-only, got %#v", builder.requests[0])
 	}
-	if !builder.requests[0].SkipStaging {
-		t.Fatalf("artifact generate must skip staging merge, got %#v", builder.requests[0])
-	}
 	if provisioner.runCalls != 0 {
 		t.Fatalf("provisioner must not run for artifact generate, got %d", provisioner.runCalls)
 	}

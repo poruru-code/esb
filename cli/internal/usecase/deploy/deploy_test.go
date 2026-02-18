@@ -2,13 +2,17 @@ package deploy
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/poruru/edge-serverless-box/cli/internal/constants"
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/state"
 	infradeploy "github.com/poruru/edge-serverless-box/cli/internal/infra/deploy"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/envutil"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
 )
 
 func TestDeployWorkflowRunSuccess(t *testing.T) {
@@ -257,6 +261,50 @@ func TestDeployWorkflowApplySuccess(t *testing.T) {
 	runner := &fakeComposeRunner{}
 	workflow := NewDeployWorkflow(nil, nil, ui, runner)
 	workflow.RegistryWaiter = noopRegistryWaiter
+	t.Setenv("ENV_PREFIX", "ESB")
+	repoRoot := newTestRepoRoot(t)
+	templatePath := filepath.Join(repoRoot, "template.yaml")
+
+	artifactPath := writeTestArtifactManifest(t, false)
+	err := workflow.Apply(Request{
+		Context: state.Context{
+			ComposeProject: "esb-dev",
+			ProjectDir:     repoRoot,
+		},
+		Env:          "dev",
+		Mode:         "docker",
+		TemplatePath: templatePath,
+		ArtifactPath: artifactPath,
+		ImagePrewarm: "all",
+	})
+	if err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	configDir, err := staging.ConfigDir(templatePath, "esb-dev", "dev")
+	if err != nil {
+		t.Fatalf("resolve config dir: %v", err)
+	}
+	if got := os.Getenv(constants.EnvConfigDir); got != filepath.ToSlash(configDir) {
+		t.Fatalf("CONFIG_DIR=%q, want %q", got, filepath.ToSlash(configDir))
+	}
+	if got, err := envutil.GetHostEnv(constants.HostSuffixConfigDir); err != nil {
+		t.Fatalf("read host config dir: %v", err)
+	} else if got != filepath.ToSlash(configDir) {
+		t.Fatalf("host CONFIG_DIR=%q, want %q", got, filepath.ToSlash(configDir))
+	}
+	if _, err := os.Stat(filepath.Join(configDir, "functions.yml")); err != nil {
+		t.Fatalf("expected functions.yml in apply config dir: %v", err)
+	}
+	if len(ui.success) != 1 || !strings.Contains(ui.success[0], "Deploy complete") {
+		t.Fatalf("expected deploy success message, got %#v", ui.success)
+	}
+}
+
+func TestDeployWorkflowApplyRequiresTemplatePath(t *testing.T) {
+	ui := &testUI{}
+	runner := &fakeComposeRunner{}
+	workflow := NewDeployWorkflow(nil, nil, ui, runner)
+	workflow.RegistryWaiter = noopRegistryWaiter
 	repoRoot := newTestRepoRoot(t)
 
 	artifactPath := writeTestArtifactManifest(t, false)
@@ -267,15 +315,214 @@ func TestDeployWorkflowApplySuccess(t *testing.T) {
 		},
 		Env:          "dev",
 		Mode:         "docker",
+		ArtifactPath: artifactPath,
+		ImagePrewarm: "all",
+	})
+	if !errors.Is(err, errApplyTemplatePathRequired) {
+		t.Fatalf("expected errApplyTemplatePathRequired, got %v", err)
+	}
+}
+
+func TestDeployWorkflowApplyRequiresComposeProject(t *testing.T) {
+	ui := &testUI{}
+	runner := &fakeComposeRunner{}
+	workflow := NewDeployWorkflow(nil, nil, ui, runner)
+	workflow.RegistryWaiter = noopRegistryWaiter
+	repoRoot := newTestRepoRoot(t)
+
+	artifactPath := writeTestArtifactManifest(t, false)
+	err := workflow.Apply(Request{
+		Context: state.Context{
+			ProjectDir: repoRoot,
+		},
+		Env:          "dev",
+		Mode:         "docker",
 		TemplatePath: filepath.Join(repoRoot, "template.yaml"),
 		ArtifactPath: artifactPath,
 		ImagePrewarm: "all",
 	})
+	if !errors.Is(err, errApplyComposeProjectMissing) {
+		t.Fatalf("expected errApplyComposeProjectMissing, got %v", err)
+	}
+}
+
+func TestDeployWorkflowApplyRequiresEnv(t *testing.T) {
+	ui := &testUI{}
+	runner := &fakeComposeRunner{}
+	workflow := NewDeployWorkflow(nil, nil, ui, runner)
+	workflow.RegistryWaiter = noopRegistryWaiter
+	repoRoot := newTestRepoRoot(t)
+
+	artifactPath := writeTestArtifactManifest(t, false)
+	err := workflow.Apply(Request{
+		Context: state.Context{
+			ComposeProject: "esb-dev",
+			ProjectDir:     repoRoot,
+		},
+		Mode:         "docker",
+		TemplatePath: filepath.Join(repoRoot, "template.yaml"),
+		ArtifactPath: artifactPath,
+		ImagePrewarm: "all",
+	})
+	if !errors.Is(err, errApplyEnvRequired) {
+		t.Fatalf("expected errApplyEnvRequired, got %v", err)
+	}
+}
+
+func TestDeployWorkflowApplyRequiresMode(t *testing.T) {
+	ui := &testUI{}
+	runner := &fakeComposeRunner{}
+	workflow := NewDeployWorkflow(nil, nil, ui, runner)
+	workflow.RegistryWaiter = noopRegistryWaiter
+	repoRoot := newTestRepoRoot(t)
+
+	artifactPath := writeTestArtifactManifest(t, false)
+	err := workflow.Apply(Request{
+		Context: state.Context{
+			ComposeProject: "esb-dev",
+			ProjectDir:     repoRoot,
+		},
+		Env:          "dev",
+		TemplatePath: filepath.Join(repoRoot, "template.yaml"),
+		ArtifactPath: artifactPath,
+		ImagePrewarm: "all",
+	})
+	if !errors.Is(err, errApplyModeRequired) {
+		t.Fatalf("expected errApplyModeRequired, got %v", err)
+	}
+}
+
+func TestDeployWorkflowApplyRejectsTemplatePathConflict(t *testing.T) {
+	ui := &testUI{}
+	runner := &fakeComposeRunner{}
+	workflow := NewDeployWorkflow(nil, nil, ui, runner)
+	workflow.RegistryWaiter = noopRegistryWaiter
+	repoRoot := newTestRepoRoot(t)
+
+	artifactPath := writeTestArtifactManifest(t, false)
+	err := workflow.Apply(Request{
+		Context: state.Context{
+			ComposeProject: "esb-dev",
+			ProjectDir:     repoRoot,
+			TemplatePath:   filepath.Join(repoRoot, "context-template.yaml"),
+			Env:            "dev",
+		},
+		Env:          "dev",
+		Mode:         "docker",
+		TemplatePath: filepath.Join(repoRoot, "request-template.yaml"),
+		ArtifactPath: artifactPath,
+		ImagePrewarm: "all",
+	})
+	if !errors.Is(err, errApplyTemplatePathConflict) {
+		t.Fatalf("expected errApplyTemplatePathConflict, got %v", err)
+	}
+}
+
+func TestDeployWorkflowApplyRejectsEnvConflict(t *testing.T) {
+	ui := &testUI{}
+	runner := &fakeComposeRunner{}
+	workflow := NewDeployWorkflow(nil, nil, ui, runner)
+	workflow.RegistryWaiter = noopRegistryWaiter
+	repoRoot := newTestRepoRoot(t)
+
+	artifactPath := writeTestArtifactManifest(t, false)
+	err := workflow.Apply(Request{
+		Context: state.Context{
+			ComposeProject: "esb-dev",
+			ProjectDir:     repoRoot,
+			TemplatePath:   filepath.Join(repoRoot, "template.yaml"),
+			Env:            "staging",
+		},
+		Env:          "dev",
+		Mode:         "docker",
+		TemplatePath: filepath.Join(repoRoot, "template.yaml"),
+		ArtifactPath: artifactPath,
+		ImagePrewarm: "all",
+	})
+	if !errors.Is(err, errApplyEnvConflict) {
+		t.Fatalf("expected errApplyEnvConflict, got %v", err)
+	}
+}
+
+func TestDeployWorkflowApplyRejectsModeConflict(t *testing.T) {
+	ui := &testUI{}
+	runner := &fakeComposeRunner{}
+	workflow := NewDeployWorkflow(nil, nil, ui, runner)
+	workflow.RegistryWaiter = noopRegistryWaiter
+	repoRoot := newTestRepoRoot(t)
+
+	artifactPath := writeTestArtifactManifest(t, false)
+	err := workflow.Apply(Request{
+		Context: state.Context{
+			ComposeProject: "esb-dev",
+			ProjectDir:     repoRoot,
+			TemplatePath:   filepath.Join(repoRoot, "template.yaml"),
+			Env:            "dev",
+			Mode:           "containerd",
+		},
+		Env:          "dev",
+		Mode:         "docker",
+		TemplatePath: filepath.Join(repoRoot, "template.yaml"),
+		ArtifactPath: artifactPath,
+		ImagePrewarm: "all",
+	})
+	if !errors.Is(err, errApplyModeConflict) {
+		t.Fatalf("expected errApplyModeConflict, got %v", err)
+	}
+}
+
+func TestDeployWorkflowApplyKeepsProvisionerConfigInCanonicalPathWhenRuntimeSyncNoop(t *testing.T) {
+	ui := &testUI{}
+	runner := &fakeComposeRunner{}
+	provisioner := &spyProvisioner{}
+	workflow := NewDeployWorkflow(nil, nil, ui, runner)
+	workflow.RegistryWaiter = noopRegistryWaiter
+	workflow.ComposeProvisioner = provisioner
+	repoRoot := newTestRepoRoot(t)
+	templatePath := filepath.Join(repoRoot, "template.yaml")
+
+	configDir, err := staging.ConfigDir(templatePath, "esb-dev", "dev")
 	if err != nil {
+		t.Fatalf("resolve config dir: %v", err)
+	}
+	provisioner.runFn = func(
+		_ string,
+		_ string,
+		_ bool,
+		_ bool,
+		_ string,
+		_ []string,
+	) error {
+		got := os.Getenv(constants.EnvConfigDir)
+		if got != filepath.ToSlash(configDir) {
+			t.Fatalf("CONFIG_DIR=%q, want %q", got, filepath.ToSlash(configDir))
+		}
+		content, err := os.ReadFile(filepath.Join(configDir, "functions.yml"))
+		if err != nil {
+			t.Fatalf("read functions.yml from canonical config dir: %v", err)
+		}
+		if !strings.Contains(string(content), "functions:") {
+			t.Fatalf("unexpected functions.yml content: %s", string(content))
+		}
+		return nil
+	}
+
+	artifactPath := writeTestArtifactManifest(t, false)
+	if err := workflow.Apply(Request{
+		Context: state.Context{
+			ComposeProject: "esb-dev",
+			ProjectDir:     repoRoot,
+		},
+		Env:          "dev",
+		Mode:         "docker",
+		TemplatePath: templatePath,
+		ArtifactPath: artifactPath,
+		ImagePrewarm: "all",
+	}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
-	if len(ui.success) != 1 || !strings.Contains(ui.success[0], "Deploy complete") {
-		t.Fatalf("expected deploy success message, got %#v", ui.success)
+	if provisioner.runCalls != 1 {
+		t.Fatalf("expected provisioner to run once, got %d", provisioner.runCalls)
 	}
 }
 

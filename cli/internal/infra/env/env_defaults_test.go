@@ -176,6 +176,44 @@ func TestApplyConfigDirEnvSetsHostAndComposeVarWhenStagingExists(t *testing.T) {
 	}
 }
 
+func TestApplyConfigDirEnvSetsHostAndComposeVarWithoutExistingDir(t *testing.T) {
+	t.Setenv("ENV_PREFIX", "ESB")
+	t.Setenv(constants.EnvConfigDir, "")
+
+	projectDir := t.TempDir()
+	setWorkingDir(t, projectDir)
+	if err := os.WriteFile(filepath.Join(projectDir, "docker-compose.docker.yml"), []byte("services: {}\n"), 0o600); err != nil {
+		t.Fatalf("write compose marker: %v", err)
+	}
+	templatePath := filepath.Join(projectDir, "template.yaml")
+	if err := os.WriteFile(templatePath, []byte("Resources: {}"), 0o600); err != nil {
+		t.Fatalf("write template: %v", err)
+	}
+	ctx := state.Context{
+		TemplatePath:   templatePath,
+		ComposeProject: "demo-dev",
+		Env:            "dev",
+	}
+	configDir, err := staging.ConfigDir(templatePath, "demo-dev", "dev")
+	if err != nil {
+		t.Fatalf("resolve config dir: %v", err)
+	}
+
+	if err := applyConfigDirEnv(ctx, nil); err != nil {
+		t.Fatalf("applyConfigDirEnv: %v", err)
+	}
+
+	want := filepath.ToSlash(configDir)
+	if got := os.Getenv(constants.EnvConfigDir); got != want {
+		t.Fatalf("CONFIG_DIR=%q, want %q", got, want)
+	}
+	if got, err := envutil.GetHostEnv(constants.HostSuffixConfigDir); err != nil {
+		t.Fatalf("get host config dir: %v", err)
+	} else if got != want {
+		t.Fatalf("host config dir=%q, want %q", got, want)
+	}
+}
+
 func setWorkingDir(t *testing.T, dir string) {
 	t.Helper()
 	wd, err := os.Getwd()

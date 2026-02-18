@@ -11,8 +11,7 @@ Why: Keep build-phase implementation and developer changes aligned.
 1. 生成（templategen）
 2. base image build
 3. function image build
-4. staging config merge
-5. （任意）bundle manifest 出力
+4. （任意）bundle manifest 出力
 
 `control-plane` イメージ（gateway/agent/provisioner/runtime-node）は deploy では直接ビルドしません（`docker compose` 側で管理）。
 
@@ -21,7 +20,7 @@ Why: Keep build-phase implementation and developer changes aligned.
 - フェーズ進捗表示: `cli/internal/infra/build/go_builder_phase.go`
 - テンプレート生成: `cli/internal/infra/templategen/generate.go`
 - buildx 実行: `cli/internal/infra/build/bake_exec.go`
-- staging merge: `cli/internal/infra/build/merge_config_entry.go`
+- runtime-config apply（apply phase）: `tools/artifactctl/pkg/engine/apply.go`
 
 ## 実行フロー
 
@@ -39,7 +38,6 @@ sequenceDiagram
     S-->>G: ParseResult
     B->>DX: bake base-images
     B->>DX: bake function images
-    B->>B: merge staging config
     B-->>UC: success/error
 ```
 
@@ -54,7 +52,7 @@ sequenceDiagram
 
 ## 失敗契約
 - 必須入力不足（`TemplatePath`, `Env`, `Mode`, `Tag`）は即時エラー
-- generator/buildx/merge の失敗は deploy 全体を失敗として返却
+- generator/buildx の失敗は deploy 全体を失敗として返却
 - `Bundle=true` かつ writer 未注入はエラー
 
 ## 拡張ポイント
@@ -70,10 +68,10 @@ sequenceDiagram
 2. `template.FunctionSpec` の解釈（`ImageSource` など）を確認
 3. テスト: `cli/internal/infra/build/go_builder_test.go`
 
-### 3. merge 対象ファイルを追加
-1. `cli/internal/infra/build/merge_config_yaml.go` または `merge_config_image_import.go` を更新
-2. `runtime_config.go` 側の同期対象も必要なら更新
-3. テスト: `cli/internal/infra/build/merge_config_test.go`
+### 3. runtime-config 出力ファイルを追加
+1. `cli/internal/infra/templategen/generate.go` の出力対象を更新
+2. `tools/artifactctl/pkg/engine/merge.go` 側のマージ対象も更新
+3. テスト: `cli/internal/infra/templategen/generate_test.go`
 
 ## 変更時の最小テスト
 

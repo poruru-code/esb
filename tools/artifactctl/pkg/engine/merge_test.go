@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -325,4 +326,31 @@ func readJSONFile(t *testing.T, path string) map[string]any {
 		t.Fatal(err)
 	}
 	return out
+}
+
+func TestAtomicWriteYAMLUsesTwoSpaceIndent(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "resources.yml")
+	payload := map[string]any{
+		"resources": map[string]any{
+			"s3": []any{
+				map[string]any{"BucketName": "bucket-a"},
+			},
+		},
+	}
+
+	if err := atomicWriteYAML(path, payload); err != nil {
+		t.Fatalf("atomicWriteYAML: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read output yaml: %v", err)
+	}
+	content := string(data)
+	if strings.Contains(content, "\n    s3:") {
+		t.Fatalf("expected 2-space indentation for map entries, got: %s", content)
+	}
+	if !strings.Contains(content, "\n  s3:") {
+		t.Fatalf("expected s3 entry with 2-space indentation, got: %s", content)
+	}
 }

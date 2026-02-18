@@ -159,6 +159,20 @@
 1. C-1（firecracker 開発再開後）
 2. C-2（C-1 完了後）
 
+### Track G: artifactctl UX 見直し（Deferred）
+
+- 背景:
+  - 現行の非CLI経路は `prepare-images -> apply -> provisioner -> compose up` の手順理解コストが高い。
+- 目的:
+  - 運用者が `artifact-first` 契約を維持しつつ、最小コマンドで安全に適用できるUXへ整理する。
+- 検討観点:
+  - `tools/artifactctl` サブコマンドの統合/ラッパー導入可否（ロジック重複は禁止）。
+  - 失敗時メッセージと実行順ガイドの改善。
+  - `docker compose up` 単体との差分を明確化するドキュメント導線。
+- 受け入れ条件:
+  - 初見運用者が docs を見て迷わず apply 完了まで到達できる。
+  - `artifactctl` の判定ロジック正本化（Go実装）を崩さない。
+
 ### Track D: E2E runtime cleanup（完了）
 
 #### D-1: Template 非依存化（Runner）
@@ -195,6 +209,27 @@
   - `deploy_artifacts` API が未使用引数を持たない。
   - `artifact_manifest: null` / blank は default fallback に統一される。
 
+### Track E: 責務境界補正（generate 時 merge 副作用除去）（完了）
+
+- 背景:
+  - `artifact-first` 契約では runtime-config の merge/apply は `artifactctl`（Apply phase）の責務。
+  - しかし GoBuilder の generate/build 経路に `.esb/staging/**` への merge 副作用が残っていた。
+- 実施内容:
+  - `esb deploy` / `esb artifact generate` の generate フェーズを常時 artifact-only に固定。
+  - `skipStagingMerge` 拡張ポイント自体を撤去し、bypass 設定経路を削除。
+  - `generate/build` 実装から runtime-config merge 呼び出しを除去し、Apply phase（`artifactctl apply`）に一本化。
+  - `Workflow.Apply` の staging path 解決から `TemplatePath` 依存を外し、一時 workspace で apply 可能にした。
+  - generate フェーズの no-op 残骸（`prepareGenerate`/`prepareBuildPhase` の staging 前提）を整理し、build→summary→apply の実フローに一致させた。
+  - 旧 `cli/internal/infra/build/merge_config_*` 実装を撤去し、merge 判定ロジックの重複正本を解消。
+  - 期待動作を UT へ反映（generate/build で staging config を生成しないことを検証）。
+- 主な変更対象:
+  - `cli/internal/command/deploy_entry.go`
+  - `cli/internal/infra/build/go_builder_generate_stage.go`
+  - `cli/internal/infra/build/go_builder_test.go`
+- 受け入れ条件:
+  - generate/build フェーズで `.esb/staging/**` へ runtime-config merge が発生しない。
+  - apply フェーズは従来どおり `tools/artifactctl` 経由で runtime-config を反映する。
+
 ### 完了条件（更新）
 
 - 現フェーズ完了条件:
@@ -217,3 +252,7 @@
 - 2026-02-18: `artifact generate` 軽量化として、artifact adapter 経路では `.esb/staging/**` への merge/stage をスキップする実装へ更新した。
 - 2026-02-18: Residual risk を Track D として追加。F Cleanup 判定を In Progress へ戻した。
 - 2026-02-18: Track D を完了。runner の template 依存と Java warmup 経路を撤去し、artifact-only 実行契約へ統一した。
+- 2026-02-18: Track E を完了。`esb deploy` generate 既定で staging merge を無効化し、GoBuilder generate/build 経路から runtime-config merge 呼び出しを除去。merge/apply 責務を `artifactctl` Apply phase へ再集約した。
+- 2026-02-18: Track E を補強。`skipStagingMerge` 拡張ポイントを削除し、generate フェーズを常時 artifact-only へ固定。未使用化した `cli/internal/infra/build/merge_config_*` を撤去して責務境界を明確化した。
+- 2026-02-18: Track E を追補。`Workflow.Apply` の template 結合を解除して apply workspace を内部生成へ変更。併せて generate フェーズの no-op 補助層を整理し、実行フローを単純化した。
+- 2026-02-18: Track G（Deferred）を追加。`artifactctl` 運用UX（手順複雑性・ガイド導線）の見直しタスクを後続計画へ登録した。

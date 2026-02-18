@@ -9,7 +9,7 @@ import (
 	domaincfg "github.com/poruru/edge-serverless-box/cli/internal/domain/config"
 )
 
-func (w Workflow) emitPostBuildSummary(req Request, stagingDir string, preSnapshot domaincfg.Snapshot) {
+func (w Workflow) emitPostBuildSummary(req Request) {
 	if w.UserInterface == nil {
 		return
 	}
@@ -22,21 +22,10 @@ func (w Workflow) emitPostBuildSummary(req Request, stagingDir string, preSnapsh
 		if err != nil {
 			w.UserInterface.Warn(fmt.Sprintf("Warning: failed to read template config: %v", err))
 		} else {
-			diff := diffConfigSnapshots(preSnapshot, templateSnapshot)
+			diff := diffConfigSnapshots(domaincfg.Snapshot{}, templateSnapshot)
 			emitTemplateDeltaSummary(w.UserInterface, templateConfigDir, diff)
 		}
 	}
 
-	if req.SkipStaging {
-		w.UserInterface.Info("Skipping config merge summary (artifact generate mode)")
-		return
-	}
-
-	snapshot, err := loadConfigSnapshot(stagingDir)
-	if err != nil {
-		w.UserInterface.Warn(fmt.Sprintf("Warning: failed to read merged config: %v", err))
-		return
-	}
-	diff := diffConfigSnapshots(preSnapshot, snapshot)
-	emitConfigMergeSummary(w.UserInterface, stagingDir, diff)
+	w.UserInterface.Info("Runtime-config apply summary is handled in apply phase")
 }

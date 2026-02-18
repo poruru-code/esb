@@ -15,9 +15,8 @@ func runArtifactGenerate(cli CLI, deps Dependencies, out io.Writer) int {
 	generatedCLI := cli
 	generatedCLI.Deploy = artifactGenerateToDeployFlags(cli.Artifact.Generate)
 	overrides := deployRunOverrides{
-		buildImages:      boolPtr(cli.Artifact.Generate.BuildImages),
-		skipStagingMerge: true,
-		forceBuildOnly:   true,
+		buildImages:    boolPtr(cli.Artifact.Generate.BuildImages),
+		forceBuildOnly: true,
 	}
 	return runDeployWithOverrides(generatedCLI, deps, out, overrides)
 }
