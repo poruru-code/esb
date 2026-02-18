@@ -22,6 +22,7 @@ func TestArtifactGenerateToDeployFlags(t *testing.T) {
 		ImageRuntime: []string{"fn=python"},
 		Bundle:       true,
 		ImagePrewarm: "off",
+		BuildImages:  true,
 		NoCache:      true,
 		Verbose:      true,
 		Emoji:        true,
@@ -31,6 +32,9 @@ func TestArtifactGenerateToDeployFlags(t *testing.T) {
 	got := artifactGenerateToDeployFlags(cmd)
 	if !got.BuildOnly {
 		t.Fatal("BuildOnly must be true for artifact generate")
+	}
+	if got.generateBuildImages == nil || !*got.generateBuildImages {
+		t.Fatalf("generateBuildImages must be true when build-images is enabled: %#v", got.generateBuildImages)
 	}
 	if got.Mode != cmd.Mode || got.Output != cmd.Output || got.Manifest != cmd.Manifest || got.Project != cmd.Project {
 		t.Fatalf("basic flag mapping mismatch: %#v", got)
@@ -46,6 +50,16 @@ func TestArtifactGenerateToDeployFlags(t *testing.T) {
 	}
 	if got.ImagePrewarm != cmd.ImagePrewarm || !got.Bundle || !got.NoCache || !got.Verbose || !got.Emoji || !got.Force || !got.NoSave {
 		t.Fatalf("boolean/metadata mapping mismatch: %#v", got)
+	}
+}
+
+func TestArtifactGenerateToDeployFlagsDefaultsToRenderOnly(t *testing.T) {
+	got := artifactGenerateToDeployFlags(ArtifactGenerateCmd{})
+	if got.generateBuildImages == nil {
+		t.Fatal("generateBuildImages must always be set by artifact adapter")
+	}
+	if *got.generateBuildImages {
+		t.Fatalf("artifact generate default must be render-only, got %#v", got.generateBuildImages)
 	}
 }
 

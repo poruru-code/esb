@@ -196,6 +196,16 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		return err
 	}
 
+	if !request.BuildImages {
+		if request.Bundle {
+			return fmt.Errorf("bundle manifest requires image builds")
+		}
+		if request.Verbose {
+			_, _ = fmt.Fprintln(out, "Skipping image build phase (render-only)")
+		}
+		return nil
+	}
+
 	lambdaBaseTag := lambdaBaseImageTag(registryInfo.PushRegistry, imageTag)
 	if err := phase.Run("Build base images", func() error {
 		return b.buildBaseImages(baseImageBuildInput{

@@ -118,6 +118,7 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		TemplatePath: templatePath,
 		Env:          "staging",
 		Mode:         "containerd",
+		BuildImages:  true,
 		ImageRuntimes: map[string]string{
 			"lambda-image": "java21",
 		},
@@ -216,6 +217,100 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 
 	// Registry is now started separately via `esb up` or docker compose
 	// and is no longer part of the deploy workflow
+}
+
+func TestGoBuilderBuildRenderOnlySkipsImageBuilds(t *testing.T) {
+	t.Setenv("ENV_PREFIX", meta.EnvPrefix)
+	t.Setenv("ESB_REGISTRY_WAIT", "0")
+	registryKey, err := envutil.HostEnvKey(constants.HostSuffixRegistry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(registryKey, "registry:5010")
+	t.Setenv(constants.EnvNetworkExternal, "demo-external")
+
+	projectDir := t.TempDir()
+	templatePath := filepath.Join(projectDir, "template.yaml")
+	writeTestFile(t, templatePath, "Resources: {}")
+
+	repoRoot := projectDir
+	writeComposeFiles(t, repoRoot, "docker-compose.containerd.yml")
+	setWorkingDir(t, repoRoot)
+	if err := os.MkdirAll(filepath.Join(repoRoot, "services", "common"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(repoRoot, "services", "gateway"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, filepath.Join(repoRoot, "pyproject.toml"), "[project]\n")
+	if err := os.MkdirAll(filepath.Join(repoRoot, "runtime", "python", "docker"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, filepath.Join(repoRoot, "runtime", "python", "docker", "Dockerfile"), "FROM scratch\n")
+	writeTestFile(t, filepath.Join(repoRoot, "services", "gateway", "Dockerfile.containerd"), "FROM scratch\n")
+	writeTestFile(t, filepath.Join(repoRoot, "docker-bake.hcl"), "# bake stub\n")
+
+	generate := func(cfg config.GeneratorConfig, _ templategen.GenerateOptions) ([]template.FunctionSpec, error) {
+		outputDir := cfg.Paths.OutputDir
+		writeTestFile(t, filepath.Join(outputDir, "config", "functions.yml"), "functions: {}")
+		writeTestFile(t, filepath.Join(outputDir, "config", "routing.yml"), "routes: []")
+		writeTestFile(t, filepath.Join(outputDir, "config", "resources.yml"), "resources: {}")
+		writeTestFile(t, filepath.Join(outputDir, "functions", "hello", "Dockerfile"), "FROM scratch\n")
+		return []template.FunctionSpec{{Name: "hello", ImageName: "hello"}}, nil
+	}
+
+	builderName := meta.Slug + "-buildx"
+	dockerRunner := &recordRunner{
+		outputs: map[string][]byte{
+			"git rev-parse --show-toplevel":                  []byte(repoRoot),
+			"git rev-parse --git-dir":                        []byte(".git"),
+			"git rev-parse --git-common-dir":                 []byte(".git"),
+			"docker buildx inspect --builder " + builderName: []byte("Driver: docker-container\n"),
+			"docker inspect -f {{.HostConfig.NetworkMode}} buildx_buildkit_" + builderName + "0": []byte("host"),
+		},
+	}
+	composeRunner := &recordRunner{}
+	portDiscoverer := &mockPortDiscoverer{
+		ports: map[string]int{
+			constants.EnvPortRegistry: 5010,
+		},
+	}
+
+	builder := &GoBuilder{
+		Runner:         dockerRunner,
+		ComposeRunner:  composeRunner,
+		PortDiscoverer: portDiscoverer,
+		Generate:       generate,
+		FindRepoRoot:   func(string) (string, error) { return repoRoot, nil },
+	}
+
+	modeKey, err := envutil.HostEnvKey(constants.HostSuffixMode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(modeKey, "")
+	t.Setenv(constants.EnvConfigDir, "")
+	t.Setenv(constants.EnvProjectName, "")
+	setupRootCA(t)
+
+	request := BuildRequest{
+		ProjectDir:   projectDir,
+		ProjectName:  "demo-staging",
+		TemplatePath: templatePath,
+		Env:          "staging",
+		Mode:         "containerd",
+		BuildImages:  false,
+		Tag:          "v1.2.3",
+	}
+	if err := builder.Build(request); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if hasDockerBakeGroup(dockerRunner.calls, "esb-base") {
+		t.Fatalf("render-only build must not run base image bake")
+	}
+	if hasDockerBakeGroup(dockerRunner.calls, "esb-functions") {
+		t.Fatalf("render-only build must not run function image bake")
+	}
 }
 
 func setWorkingDir(t *testing.T, dir string) {

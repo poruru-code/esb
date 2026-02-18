@@ -37,6 +37,7 @@ type Request struct {
 	Verbose        bool
 	ComposeFiles   []string
 	BuildOnly      bool
+	BuildImages    *bool
 	BundleManifest bool
 	ImagePrewarm   string
 	Emoji          bool
@@ -86,6 +87,10 @@ func NewDeployWorkflow(
 }
 
 func (w Workflow) buildRequest(req Request) build.BuildRequest {
+	buildImages := true
+	if req.BuildImages != nil {
+		buildImages = *req.BuildImages
+	}
 	return build.BuildRequest{
 		ProjectDir:    req.Context.ProjectDir,
 		ProjectName:   req.Context.ComposeProject,
@@ -99,6 +104,7 @@ func (w Workflow) buildRequest(req Request) build.BuildRequest {
 		Tag:           req.Tag,
 		NoCache:       req.NoCache,
 		Verbose:       req.Verbose,
+		BuildImages:   buildImages,
 		Bundle:        req.BundleManifest,
 		Emoji:         req.Emoji,
 	}

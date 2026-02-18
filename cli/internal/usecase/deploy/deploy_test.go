@@ -95,9 +95,49 @@ func TestDeployWorkflowRunSuccess(t *testing.T) {
 	if !got.NoCache {
 		t.Fatalf("expected no-cache to be true")
 	}
+	if !got.BuildImages {
+		t.Fatalf("expected build images to default true")
+	}
 
 	if len(ui.success) != 1 || !strings.Contains(ui.success[0], "Deploy complete") {
 		t.Fatalf("expected deploy success message")
+	}
+}
+
+func TestDeployWorkflowRunRespectsRenderOnlyBuildFlag(t *testing.T) {
+	builder := &recordBuilder{}
+	envApplier := &recordEnvApplier{}
+	ui := &testUI{}
+	runner := &fakeComposeRunner{}
+
+	t.Setenv("ENV_PREFIX", "ESB")
+	t.Setenv("ESB_SKIP_GATEWAY_ALIGN", "1")
+
+	repoRoot := newTestRepoRoot(t)
+	buildImages := false
+	req := Request{
+		Context: state.Context{
+			ProjectDir:     repoRoot,
+			ComposeProject: "esb-dev",
+		},
+		Env:          "dev",
+		Mode:         "docker",
+		TemplatePath: filepath.Join(repoRoot, "template.yaml"),
+		OutputDir:    ".out",
+		BuildOnly:    true,
+		BuildImages:  &buildImages,
+	}
+
+	workflow := NewDeployWorkflow(builder.Build, envApplier.Apply, ui, runner)
+	workflow.RegistryWaiter = noopRegistryWaiter
+	if err := workflow.Run(req); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if len(builder.requests) != 1 {
+		t.Fatalf("expected builder to be called once, got %d", len(builder.requests))
+	}
+	if builder.requests[0].BuildImages {
+		t.Fatalf("expected BuildImages=false to be forwarded")
 	}
 }
 
