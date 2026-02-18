@@ -74,6 +74,9 @@ type (
 		// Internal-only adapter knob for artifact generate.
 		// Nil means deploy default behavior (build images).
 		generateBuildImages *bool
+		// Internal-only adapter knob for artifact generate.
+		// True means skip merge/stage into .esb staging config.
+		skipStagingMerge bool
 	}
 
 	ArtifactCmd struct {

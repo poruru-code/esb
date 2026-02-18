@@ -296,6 +296,7 @@ func TestGoBuilderBuildRenderOnlySkipsImageBuilds(t *testing.T) {
 		Env:          "staging",
 		Mode:         "containerd",
 		BuildImages:  false,
+		SkipStaging:  true,
 		Tag:          "v1.2.3",
 	}
 	if err := builder.Build(request); err != nil {
@@ -309,6 +310,16 @@ func TestGoBuilderBuildRenderOnlySkipsImageBuilds(t *testing.T) {
 	}
 	if hasDockerCommand(dockerRunner.calls, "buildx", "inspect") {
 		t.Fatalf("render-only build must not run buildx inspect")
+	}
+	stagingDir, err := staging.ConfigDir(templatePath, "demo-staging", "staging")
+	if err != nil {
+		t.Fatalf("resolve staging config dir: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(stagingDir, "functions.yml")); !os.IsNotExist(err) {
+		if err != nil {
+			t.Fatalf("stat staging functions.yml: %v", err)
+		}
+		t.Fatalf("render-only build with SkipStaging must not write staging config")
 	}
 	if gotOpts.BuildRegistry != "registry:5010/" {
 		t.Fatalf("unexpected render-only build registry: %s", gotOpts.BuildRegistry)

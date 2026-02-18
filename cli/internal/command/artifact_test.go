@@ -36,6 +36,9 @@ func TestArtifactGenerateToDeployFlags(t *testing.T) {
 	if got.generateBuildImages == nil || !*got.generateBuildImages {
 		t.Fatalf("generateBuildImages must be true when build-images is enabled: %#v", got.generateBuildImages)
 	}
+	if !got.skipStagingMerge {
+		t.Fatalf("artifact generate must skip staging merge, got %#v", got.skipStagingMerge)
+	}
 	if got.Mode != cmd.Mode || got.Output != cmd.Output || got.Manifest != cmd.Manifest || got.Project != cmd.Project {
 		t.Fatalf("basic flag mapping mismatch: %#v", got)
 	}
@@ -60,6 +63,9 @@ func TestArtifactGenerateToDeployFlagsDefaultsToRenderOnly(t *testing.T) {
 	}
 	if *got.generateBuildImages {
 		t.Fatalf("artifact generate default must be render-only, got %#v", got.generateBuildImages)
+	}
+	if !got.skipStagingMerge {
+		t.Fatalf("artifact generate must skip staging merge, got %#v", got.skipStagingMerge)
 	}
 }
 

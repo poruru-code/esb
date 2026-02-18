@@ -185,6 +185,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 			templatePath,
 			composeProject,
 			request.Env,
+			request.SkipStaging,
 		)
 		if err != nil {
 			return err

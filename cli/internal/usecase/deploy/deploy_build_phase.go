@@ -11,6 +11,10 @@ import (
 )
 
 func (w Workflow) prepareBuildPhase(req Request) (string, domaincfg.Snapshot, error) {
+	if req.SkipStaging {
+		return "", domaincfg.Snapshot{}, nil
+	}
+
 	stagingDir, err := staging.ConfigDir(req.TemplatePath, req.Context.ComposeProject, req.Env)
 	if err != nil {
 		return "", domaincfg.Snapshot{}, err

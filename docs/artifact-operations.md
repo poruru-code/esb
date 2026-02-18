@@ -32,6 +32,10 @@ esb artifact generate \
   --no-save-defaults
 ```
 
+Notes:
+- `esb artifact generate` does not merge outputs into `.esb/staging/**`.
+- Generate writes template outputs + `artifact.yml`; merge/apply is `artifact apply` (or `tools/artifactctl apply`) responsibility.
+
 ### Generate with image build
 ```bash
 esb artifact generate \

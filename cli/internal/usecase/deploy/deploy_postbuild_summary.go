@@ -27,6 +27,11 @@ func (w Workflow) emitPostBuildSummary(req Request, stagingDir string, preSnapsh
 		}
 	}
 
+	if req.SkipStaging {
+		w.UserInterface.Info("Skipping config merge summary (artifact generate mode)")
+		return
+	}
+
 	snapshot, err := loadConfigSnapshot(stagingDir)
 	if err != nil {
 		w.UserInterface.Warn(fmt.Sprintf("Warning: failed to read merged config: %v", err))

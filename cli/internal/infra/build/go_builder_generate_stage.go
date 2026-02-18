@@ -37,10 +37,14 @@ func (b *GoBuilder) generateAndStageConfig(
 	templatePath string,
 	composeProject string,
 	env string,
+	skipStaging bool,
 ) ([]template.FunctionSpec, error) {
 	functions, err := b.Generate(cfg, opts)
 	if err != nil {
 		return nil, err
+	}
+	if skipStaging {
+		return functions, nil
 	}
 	if err := stageConfigFiles(cfg.Paths.OutputDir, repoRoot, templatePath, composeProject, env); err != nil {
 		return nil, err
