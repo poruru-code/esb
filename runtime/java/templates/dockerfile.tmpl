@@ -25,6 +25,23 @@ COPY {{ .ContentURI }}/ /opt/
 # Function code
 COPY {{ .CodeURI }} ${LAMBDA_TASK_ROOT}/
 
+# Keep compatibility for apps that read ./configuration/* as real files.
+# When CodeUri is a single jar, stage.go places it under /var/task/lib/*.jar.
+# Extract only configuration/ from app jars (skip ESB wrapper/agent jars).
+RUN set -eu; \
+    cd ${LAMBDA_TASK_ROOT}; \
+    [ -d configuration ] && exit 0; \
+    for app_jar in lib/*.jar; do \
+      [ -f "${app_jar}" ] || continue; \
+      case "$(basename "${app_jar}")" in \
+        lambda-java-wrapper.jar|lambda-java-agent.jar) continue ;; \
+      esac; \
+      if jar tf "${app_jar}" | grep -q '^configuration/'; then \
+        jar xf "${app_jar}" configuration; \
+        break; \
+      fi; \
+    done
+
 # Handler
 CMD [ "{{ .Handler }}" ]
 {{- end }}

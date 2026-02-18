@@ -451,6 +451,9 @@ func TestGenerateFilesStagesJavaJarAndWrapper(t *testing.T) {
 	if !strings.Contains(content, "ENV JAVA_TOOL_OPTIONS=\"-javaagent:/var/task/lib/lambda-java-agent.jar") {
 		t.Fatalf("expected java tool options with agent")
 	}
+	if !strings.Contains(content, "jar xf \"${app_jar}\" configuration") {
+		t.Fatalf("expected configuration extraction from app jar in dockerfile")
+	}
 	if !strings.Contains(content, `CMD [ "com.runtime.lambda.HandlerWrapper::handleRequest" ]`) {
 		t.Fatalf("expected wrapper handler cmd in dockerfile")
 	}

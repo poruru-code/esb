@@ -108,6 +108,9 @@ func TestRenderDockerfileJavaRuntime(t *testing.T) {
 			if !strings.Contains(content, "ENV JAVA_TOOL_OPTIONS=\"-javaagent:/var/task/lib/lambda-java-agent.jar") {
 				t.Fatalf("expected java tool options with agent")
 			}
+			if !strings.Contains(content, "jar xf \"${app_jar}\" configuration") {
+				t.Fatalf("expected configuration extraction from app jar")
+			}
 			if !strings.Contains(content, `CMD [ "com.runtime.lambda.HandlerWrapper::handleRequest" ]`) {
 				t.Fatalf("expected wrapper handler command")
 			}
@@ -174,6 +177,9 @@ func TestRenderDockerfileImageWrapperJava(t *testing.T) {
 	}
 	if strings.Contains(content, "LAMBDA_ORIGINAL_HANDLER") {
 		t.Fatalf("did not expect original handler override")
+	}
+	if strings.Contains(content, "jar xf \"${app_jar}\" configuration") {
+		t.Fatalf("did not expect configuration extraction for image wrapper")
 	}
 	if strings.Contains(content, `CMD [ "com.runtime.lambda.HandlerWrapper::handleRequest" ]`) {
 		t.Fatalf("did not expect wrapper handler command for image wrapper")
