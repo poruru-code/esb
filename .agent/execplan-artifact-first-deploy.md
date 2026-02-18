@@ -106,11 +106,102 @@
 
 現時点の総合判定: **未完了（Partial Complete）**
 
-## Next Work (設計上の残作業)
+## Next Work (未完了対応の分割計画)
 
-1. `prepare-images` の base image 依存を artifact contract 側へ明示移管するか、artifact root 内へ閉じる設計に改訂する。
-2. firecracker matrix を再有効化する前提条件（環境安定性、時間、CI コスト）を定義し、E2E gate に戻す。
-3. runtime metadata strict 検証の前提（repo root 必須か、digest source を artifact 側へ持つか）を契約として固定する。
+以下は **PR分割可能な最小単位** での実行順です。各ステップは独立レビュー可能な粒度に固定します。
+
+### Track A: `prepare-images` の artifact-only 化
+
+#### A-1: 契約の決定（Decision PR）
+- 目的:
+  - `prepare-images` の base image 入力を「repo 依存のまま契約化」するか「artifact 側へ移管」するかを確定する。
+- 変更対象:
+  - `docs/deploy-artifact-contract.md`
+  - `docs/artifact-operations.md`
+  - `.agent/execplan-artifact-first-deploy.md`
+- 受け入れ条件:
+  - どの入力が必須か（Dockerfile path / image ref / digest source）が文書で一意に読める。
+  - 実装と docs の齟齬がない。
+
+#### A-2: `prepare-images` 実装の契約準拠（Implementation PR）
+- 目的:
+  - A-1 の決定内容に合わせて `prepare-images` の入力解決を一本化する。
+- 変更対象:
+  - `tools/artifactctl/pkg/engine/prepare_images.go`
+  - 必要に応じて manifest 拡張（`tools/artifactctl/pkg/engine/manifest.go`）
+  - 関連 UT
+- 受け入れ条件:
+  - `prepare-images` 実行時に暗黙 repo 依存が残らない（または契約化された依存のみになる）。
+  - 既存 docker/containerd E2E を壊さない。
+
+#### A-3: E2E fixture 更新と運用手順同期（Fixture PR）
+- 目的:
+  - A-2 で変更した contract に合わせて `e2e/artifacts/*` と再生成手順を同期する。
+- 変更対象:
+  - `e2e/artifacts/*`
+  - `e2e/scripts/regenerate_artifacts.sh`
+  - 関連 docs
+- 受け入れ条件:
+  - E2E 実行時は生成なしで fixture 消費のみ成立する。
+  - fixture 再生成手順が 1 コマンドで再現できる。
+
+### Track B: runtime metadata strict 検証の前提固定
+
+#### B-1: strict 検証の入力源を契約化（Contract PR）
+- 目的:
+  - strict 時の digest 検証で「repo root 推定」を許容するか、manifest 側へ検証情報を持つかを固定する。
+- 変更対象:
+  - `docs/deploy-artifact-contract.md`
+  - `.agent/execplan-artifact-first-deploy.md`
+- 受け入れ条件:
+  - strict/non-strict の失敗条件が明確で、曖昧な fallback がない。
+
+#### B-2: strict 検証ロジックの確定（Implementation PR）
+- 目的:
+  - B-1 の契約に合わせて `runtime_meta` 検証を実装更新する。
+- 変更対象:
+  - `tools/artifactctl/pkg/engine/runtime_meta_validation.go`
+  - 関連 UT
+- 受け入れ条件:
+  - strict で期待どおり hard fail、non-strict で期待どおり warning になる。
+  - repo 外実行時の挙動が契約どおりに固定される。
+
+### Track C: firecracker を含む E2E gate 復帰
+
+#### C-1: firecracker 再有効化の前提整備（Prep PR）
+- 目的:
+  - firecracker profile を matrix に戻す前に、環境前提・所要時間・失敗時の切り分けを定義する。
+- 変更対象:
+  - `docs/e2e-runtime-smoke.md`（または運用 docs）
+  - `e2e/environments/test_matrix.yaml`（必要ならコメント整備）
+- 受け入れ条件:
+  - CI/ローカルで firecracker 実行可否の判定条件が明文化されている。
+
+#### C-2: firecracker matrix 復帰（Gate PR）
+- 目的:
+  - `e2e-firecracker` を artifact-only gate に戻す。
+- 変更対象:
+  - `e2e/environments/test_matrix.yaml`
+  - 必要な runner 調整
+- 受け入れ条件:
+  - `uv run e2e/run_tests.py --parallel --verbose` が docker/containerd/firecracker を完走する。
+
+### 実行順（依存関係）
+
+1. A-1  
+2. B-1（A-1 と並行可）  
+3. A-2  
+4. B-2  
+5. A-3  
+6. C-1  
+7. C-2
+
+### 完了条件（更新）
+
+- Track A/B/C の全ステップが完了し、以下を満たすこと:
+  - `artifact apply` / `prepare-images` の入力契約が docs と実装で一致
+  - strict 検証の前提が明文化され、挙動が UT で固定
+  - `uv run e2e/run_tests.py --parallel --verbose` が docker/containerd/firecracker で完走
 
 ## Change Log
 
