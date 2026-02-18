@@ -750,7 +750,7 @@ func TestGenerateFilesDoesNotStageRuntimeBaseJavaJars(t *testing.T) {
 	}
 }
 
-func TestGenerateFilesImageFunctionWritesImportManifest(t *testing.T) {
+func TestGenerateFilesImageFunctionOmitsImportManifest(t *testing.T) {
 	root := t.TempDir()
 	writeRuntimeBaseFixture(t, root)
 	templatePath := filepath.Join(root, "template.yaml")
@@ -783,9 +783,6 @@ func TestGenerateFilesImageFunctionWritesImportManifest(t *testing.T) {
 	if len(functions) != 1 {
 		t.Fatalf("expected 1 function, got %d", len(functions))
 	}
-	if functions[0].ImageRef == "" {
-		t.Fatalf("expected image_ref to be populated")
-	}
 	if functions[0].Runtime != "python3.12" {
 		t.Fatalf("expected default image runtime python3.12, got %q", functions[0].Runtime)
 	}
@@ -807,8 +804,8 @@ func TestGenerateFilesImageFunctionWritesImportManifest(t *testing.T) {
 	}
 
 	manifestPath := filepath.Join(root, "out", "config", "image-import.json")
-	if _, err := os.Stat(manifestPath); err != nil {
-		t.Fatalf("expected image-import.json to exist: %v", err)
+	if _, err := os.Stat(manifestPath); !os.IsNotExist(err) {
+		t.Fatalf("did not expect image-import.json, got err=%v", err)
 	}
 
 	content := readFile(t, filepath.Join(root, "out", "config", "functions.yml"))

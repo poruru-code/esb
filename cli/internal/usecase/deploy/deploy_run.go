@@ -35,13 +35,9 @@ func (w Workflow) Run(req Request) error {
 		return errComposeRunnerNotConfigured
 	}
 
-	imagePrewarm, err := NormalizeImagePrewarmMode(req.ImagePrewarm)
-	if err != nil {
-		return err
-	}
-
 	req = w.alignGatewayRuntime(req)
 	if !req.BuildOnly {
+		var err error
 		req, err = normalizeApplyRequest(req)
 		if err != nil {
 			return err
@@ -57,7 +53,7 @@ func (w Workflow) Run(req Request) error {
 		return err
 	}
 	if !req.BuildOnly {
-		if err := w.runApplyPhase(req, imagePrewarm); err != nil {
+		if err := w.runApplyPhase(req); err != nil {
 			return err
 		}
 	}
@@ -78,12 +74,8 @@ func (w Workflow) Apply(req Request) error {
 		return errComposeRunnerNotConfigured
 	}
 
-	imagePrewarm, err := NormalizeImagePrewarmMode(req.ImagePrewarm)
-	if err != nil {
-		return err
-	}
-
 	req = w.alignGatewayRuntime(req)
+	var err error
 	req, err = normalizeApplyRequest(req)
 	if err != nil {
 		return err
@@ -94,7 +86,7 @@ func (w Workflow) Apply(req Request) error {
 		}
 	}
 
-	if err := w.runApplyPhase(req, imagePrewarm); err != nil {
+	if err := w.runApplyPhase(req); err != nil {
 		return err
 	}
 
@@ -114,7 +106,7 @@ func (w Workflow) runGeneratePhase(req Request) error {
 }
 
 // runApplyPhase executes runtime/provision-side deploy steps.
-func (w Workflow) runApplyPhase(req Request, imagePrewarm string) error {
+func (w Workflow) runApplyPhase(req Request) error {
 	stagingDir, err := resolveApplyConfigDir(req.Context)
 	if err != nil {
 		return err
@@ -125,7 +117,7 @@ func (w Workflow) runApplyPhase(req Request, imagePrewarm string) error {
 	if err := w.waitRegistryAndServices(req); err != nil {
 		return err
 	}
-	return w.runRuntimeProvisionPhase(req, stagingDir, imagePrewarm)
+	return w.runRuntimeProvisionPhase(req, stagingDir)
 }
 
 func normalizeApplyRequest(req Request) (Request, error) {

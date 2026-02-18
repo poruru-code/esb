@@ -39,7 +39,6 @@ type Request struct {
 	BuildOnly      bool
 	BuildImages    *bool
 	BundleManifest bool
-	ImagePrewarm   string
 	Emoji          bool
 }
 

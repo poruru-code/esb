@@ -135,7 +135,6 @@ func TestArtifactManifestReadWriteRoundTrip(t *testing.T) {
 				ArtifactRoot:      "../service-a/.esb/template-a/dev",
 				RuntimeConfigDir:  "config",
 				BundleManifest:    "bundle/manifest.json",
-				ImagePrewarm:      "all",
 				RequiredSecretEnv: []string{"X_API_KEY", "AUTH_PASS", "X_API_KEY"},
 				SourceTemplate: ArtifactSourceTemplate{
 					Path:       "/tmp/template-a.yaml",

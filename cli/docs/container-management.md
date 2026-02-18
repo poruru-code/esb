@@ -8,7 +8,7 @@ Why: Keep deploy/build behavior clear for CLI feature extension.
 本ドキュメントは `esb deploy` / `esb build` で CLI が扱う範囲に限定して説明します。
 
 - deploy 時の関数イメージ生成
-- image 関数の prewarm 契約
+- image 関数の再ビルド契約
 - CLI 変更時の拡張ポイント
 
 ランタイム運用（Agent/Gateway のライフサイクル、障害対応、ログ確認）は `docs/container-runtime-operations.md` を参照してください。
@@ -56,39 +56,34 @@ flowchart LR
 
 ## Image 関数（外部イメージ参照）
 
-`PackageType: Image` の関数では `image-import.json` が生成されます。
+`PackageType: Image` の関数は `FROM <ImageUri>` の Dockerfile で常に再ビルドされます。
+この再ビルドで runtime hooks（Python `sitecustomize` / Java `javaagent`）が注入されるため、
+外部イメージを `pull/tag/push` でそのまま同期する経路はサポートしません。
 
-- `--image-prewarm=all`:
-  `pull -> tag -> push` を deploy 内で実行
-- `--image-prewarm=off`:
-  image 関数が存在するテンプレートではエラー（fail-fast）
+イメージ準備の標準経路:
+- CLI deploy 時: `esb deploy` が build phase で関数イメージを build/push
+- artifact-only 時: `tools/artifactctl prepare-images --artifact ...`
 
 ```mermaid
 flowchart LR
-    A[Source Registry] -->|pull| B[Deploy prewarm]
-    B -->|push| C[Internal Registry]
+    A[Source Registry] -->|FROM| B[Function Dockerfile build]
+    B -->|hook injected image| C[Internal Registry push]
     C --> D[functions.yml image]
     D --> E[Runtime pull]
 ```
 
-手動同期用の補助スクリプトは廃止済みです。  
-Image 関数の同期は `esb deploy --image-prewarm=all` を使用してください。
+手動同期用の補助スクリプトは廃止済みです。
 
 ## 拡張プレイブック
 
-### 1. prewarm ルールを変更する
-1. `cli/internal/usecase/deploy/image_prewarm.go`
-2. `cli/internal/usecase/deploy/deploy_runtime_provision.go`
-3. テスト: `cli/internal/usecase/deploy/image_prewarm_test.go`
-
-### 2. 関数イメージ生成を変更する
+### 1. 関数イメージ生成を変更する
 1. `cli/internal/infra/templategen/generate.go`
 2. `cli/internal/infra/build/go_builder_functions.go`
 3. テスト:
    - `cli/internal/infra/templategen/generate_test.go`
    - `cli/internal/infra/build/go_builder_test.go`
 
-### 3. ベースイメージビルド条件を変更する
+### 2. ベースイメージビルド条件を変更する
 1. `cli/internal/infra/build/go_builder_base_images.go`
 2. `docker-bake.hcl`
 3. テスト: `cli/internal/infra/build/go_builder_test.go`
@@ -98,5 +93,4 @@ Image 関数の同期は `esb deploy --image-prewarm=all` を使用してくだ�
 ## Implementation references
 - `cli/internal/infra/build`
 - `cli/internal/infra/templategen`
-- `cli/internal/usecase/deploy/image_prewarm.go`
 - `cli/internal/usecase/deploy/deploy_runtime_provision.go`

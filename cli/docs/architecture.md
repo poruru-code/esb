@@ -79,7 +79,7 @@ graph TD
   - artifact 生成（runtime-config merge は行わない）
 - `infra/templategen`:
   - 関数 staging、Dockerfile 生成、`functions.yml`/`routing.yml`/`resources.yml` 生成
-  - `image-import.json` と bundle manifest 出力
+  - bundle manifest 出力
 - `infra/sam`:
   - SAM デコードと intrinsic 解決
   - Function/Resource の内部 spec 化
@@ -102,7 +102,7 @@ graph TD
 ## 7. エラー契約と決定性
 
 - `runtime-config` 同期失敗は deploy 失敗（warning にしない）
-- image 関数がある場合、`--image-prewarm=off` はエラー
+- image 関数は常に Dockerfile 経由で再ビルドし、hooks 注入済みイメージを使う
 - gateway/runtime の候補選択は安定順序（sort + 優先度）
 - stack 検出/モード推論失敗は warning を出し、可能な限り継続
 

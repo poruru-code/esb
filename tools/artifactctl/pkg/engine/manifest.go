@@ -34,7 +34,6 @@ type ArtifactEntry struct {
 	ArtifactRoot      string                 `yaml:"artifact_root"`
 	RuntimeConfigDir  string                 `yaml:"runtime_config_dir"`
 	BundleManifest    string                 `yaml:"bundle_manifest,omitempty"`
-	ImagePrewarm      string                 `yaml:"image_prewarm,omitempty"`
 	RequiredSecretEnv []string               `yaml:"required_secret_env,omitempty"`
 	SourceTemplate    ArtifactSourceTemplate `yaml:"source_template"`
 	RuntimeMeta       ArtifactRuntimeMeta    `yaml:"runtime_meta,omitempty"`

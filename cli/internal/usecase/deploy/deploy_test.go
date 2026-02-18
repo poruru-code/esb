@@ -1,7 +1,6 @@
 package deploy
 
 import (
-	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -30,7 +29,7 @@ func TestDeployWorkflowRunSuccess(t *testing.T) {
 		ProjectDir:     repoRoot,
 		ComposeProject: "esb-dev",
 	}
-	artifactPath := writeTestArtifactManifest(t, false)
+	artifactPath := writeTestArtifactManifest(t)
 	req := Request{
 		Context:      ctx,
 		Env:          "dev",
@@ -145,42 +144,6 @@ func TestDeployWorkflowRunRespectsRenderOnlyBuildFlag(t *testing.T) {
 	}
 }
 
-func TestDeployWorkflowRequiresPrewarmForImageFunctions(t *testing.T) {
-	builder := &recordBuilder{}
-	envApplier := &recordEnvApplier{}
-	ui := &testUI{}
-	runner := &fakeComposeRunner{}
-
-	t.Setenv("ENV_PREFIX", "ESB")
-	t.Setenv("ESB_SKIP_GATEWAY_ALIGN", "1")
-
-	repoRoot := newTestRepoRoot(t)
-
-	templatePath := filepath.Join(repoRoot, "template.yaml")
-	artifactPath := writeTestArtifactManifest(t, true)
-
-	ctx := state.Context{
-		ProjectDir:     repoRoot,
-		ComposeProject: "esb-dev",
-	}
-	req := Request{
-		Context:      ctx,
-		Env:          "dev",
-		Mode:         "docker",
-		TemplatePath: templatePath,
-		ArtifactPath: artifactPath,
-		OutputDir:    ".out",
-		ImagePrewarm: "off",
-	}
-
-	workflow := NewDeployWorkflow(builder.Build, envApplier.Apply, ui, runner)
-	workflow.RegistryWaiter = noopRegistryWaiter
-	err := workflow.Run(req)
-	if err == nil || !strings.Contains(err.Error(), "image prewarm is required") {
-		t.Fatalf("expected prewarm required error, got %v", err)
-	}
-}
-
 func TestDeployWorkflowRunWithExternalTemplate(t *testing.T) {
 	builder := &recordBuilder{}
 	envApplier := &recordEnvApplier{}
@@ -249,7 +212,6 @@ func TestDeployWorkflowApplyRequiresArtifactPath(t *testing.T) {
 		Env:          "dev",
 		Mode:         "docker",
 		TemplatePath: filepath.Join(repoRoot, "template.yaml"),
-		ImagePrewarm: "all",
 	})
 	if err == nil || !strings.Contains(err.Error(), errArtifactPathRequired.Error()) {
 		t.Fatalf("expected artifact-path-required error, got %v", err)
@@ -265,7 +227,7 @@ func TestDeployWorkflowApplySuccess(t *testing.T) {
 	repoRoot := newTestRepoRoot(t)
 	templatePath := filepath.Join(repoRoot, "template.yaml")
 
-	artifactPath := writeTestArtifactManifest(t, false)
+	artifactPath := writeTestArtifactManifest(t)
 	err := workflow.Apply(Request{
 		Context: state.Context{
 			ComposeProject: "esb-dev",
@@ -275,7 +237,6 @@ func TestDeployWorkflowApplySuccess(t *testing.T) {
 		Mode:         "docker",
 		TemplatePath: templatePath,
 		ArtifactPath: artifactPath,
-		ImagePrewarm: "all",
 	})
 	if err != nil {
 		t.Fatalf("Apply: %v", err)
@@ -307,7 +268,7 @@ func TestDeployWorkflowApplyRequiresTemplatePath(t *testing.T) {
 	workflow.RegistryWaiter = noopRegistryWaiter
 	repoRoot := newTestRepoRoot(t)
 
-	artifactPath := writeTestArtifactManifest(t, false)
+	artifactPath := writeTestArtifactManifest(t)
 	err := workflow.Apply(Request{
 		Context: state.Context{
 			ComposeProject: "esb-dev",
@@ -316,7 +277,6 @@ func TestDeployWorkflowApplyRequiresTemplatePath(t *testing.T) {
 		Env:          "dev",
 		Mode:         "docker",
 		ArtifactPath: artifactPath,
-		ImagePrewarm: "all",
 	})
 	if !errors.Is(err, errApplyTemplatePathRequired) {
 		t.Fatalf("expected errApplyTemplatePathRequired, got %v", err)
@@ -330,7 +290,7 @@ func TestDeployWorkflowApplyRequiresComposeProject(t *testing.T) {
 	workflow.RegistryWaiter = noopRegistryWaiter
 	repoRoot := newTestRepoRoot(t)
 
-	artifactPath := writeTestArtifactManifest(t, false)
+	artifactPath := writeTestArtifactManifest(t)
 	err := workflow.Apply(Request{
 		Context: state.Context{
 			ProjectDir: repoRoot,
@@ -339,7 +299,6 @@ func TestDeployWorkflowApplyRequiresComposeProject(t *testing.T) {
 		Mode:         "docker",
 		TemplatePath: filepath.Join(repoRoot, "template.yaml"),
 		ArtifactPath: artifactPath,
-		ImagePrewarm: "all",
 	})
 	if !errors.Is(err, errApplyComposeProjectMissing) {
 		t.Fatalf("expected errApplyComposeProjectMissing, got %v", err)
@@ -353,7 +312,7 @@ func TestDeployWorkflowApplyRequiresEnv(t *testing.T) {
 	workflow.RegistryWaiter = noopRegistryWaiter
 	repoRoot := newTestRepoRoot(t)
 
-	artifactPath := writeTestArtifactManifest(t, false)
+	artifactPath := writeTestArtifactManifest(t)
 	err := workflow.Apply(Request{
 		Context: state.Context{
 			ComposeProject: "esb-dev",
@@ -362,7 +321,6 @@ func TestDeployWorkflowApplyRequiresEnv(t *testing.T) {
 		Mode:         "docker",
 		TemplatePath: filepath.Join(repoRoot, "template.yaml"),
 		ArtifactPath: artifactPath,
-		ImagePrewarm: "all",
 	})
 	if !errors.Is(err, errApplyEnvRequired) {
 		t.Fatalf("expected errApplyEnvRequired, got %v", err)
@@ -376,7 +334,7 @@ func TestDeployWorkflowApplyRequiresMode(t *testing.T) {
 	workflow.RegistryWaiter = noopRegistryWaiter
 	repoRoot := newTestRepoRoot(t)
 
-	artifactPath := writeTestArtifactManifest(t, false)
+	artifactPath := writeTestArtifactManifest(t)
 	err := workflow.Apply(Request{
 		Context: state.Context{
 			ComposeProject: "esb-dev",
@@ -385,7 +343,6 @@ func TestDeployWorkflowApplyRequiresMode(t *testing.T) {
 		Env:          "dev",
 		TemplatePath: filepath.Join(repoRoot, "template.yaml"),
 		ArtifactPath: artifactPath,
-		ImagePrewarm: "all",
 	})
 	if !errors.Is(err, errApplyModeRequired) {
 		t.Fatalf("expected errApplyModeRequired, got %v", err)
@@ -399,7 +356,7 @@ func TestDeployWorkflowApplyRejectsTemplatePathConflict(t *testing.T) {
 	workflow.RegistryWaiter = noopRegistryWaiter
 	repoRoot := newTestRepoRoot(t)
 
-	artifactPath := writeTestArtifactManifest(t, false)
+	artifactPath := writeTestArtifactManifest(t)
 	err := workflow.Apply(Request{
 		Context: state.Context{
 			ComposeProject: "esb-dev",
@@ -411,7 +368,6 @@ func TestDeployWorkflowApplyRejectsTemplatePathConflict(t *testing.T) {
 		Mode:         "docker",
 		TemplatePath: filepath.Join(repoRoot, "request-template.yaml"),
 		ArtifactPath: artifactPath,
-		ImagePrewarm: "all",
 	})
 	if !errors.Is(err, errApplyTemplatePathConflict) {
 		t.Fatalf("expected errApplyTemplatePathConflict, got %v", err)
@@ -425,7 +381,7 @@ func TestDeployWorkflowApplyRejectsEnvConflict(t *testing.T) {
 	workflow.RegistryWaiter = noopRegistryWaiter
 	repoRoot := newTestRepoRoot(t)
 
-	artifactPath := writeTestArtifactManifest(t, false)
+	artifactPath := writeTestArtifactManifest(t)
 	err := workflow.Apply(Request{
 		Context: state.Context{
 			ComposeProject: "esb-dev",
@@ -437,7 +393,6 @@ func TestDeployWorkflowApplyRejectsEnvConflict(t *testing.T) {
 		Mode:         "docker",
 		TemplatePath: filepath.Join(repoRoot, "template.yaml"),
 		ArtifactPath: artifactPath,
-		ImagePrewarm: "all",
 	})
 	if !errors.Is(err, errApplyEnvConflict) {
 		t.Fatalf("expected errApplyEnvConflict, got %v", err)
@@ -451,7 +406,7 @@ func TestDeployWorkflowApplyRejectsModeConflict(t *testing.T) {
 	workflow.RegistryWaiter = noopRegistryWaiter
 	repoRoot := newTestRepoRoot(t)
 
-	artifactPath := writeTestArtifactManifest(t, false)
+	artifactPath := writeTestArtifactManifest(t)
 	err := workflow.Apply(Request{
 		Context: state.Context{
 			ComposeProject: "esb-dev",
@@ -464,7 +419,6 @@ func TestDeployWorkflowApplyRejectsModeConflict(t *testing.T) {
 		Mode:         "docker",
 		TemplatePath: filepath.Join(repoRoot, "template.yaml"),
 		ArtifactPath: artifactPath,
-		ImagePrewarm: "all",
 	})
 	if !errors.Is(err, errApplyModeConflict) {
 		t.Fatalf("expected errApplyModeConflict, got %v", err)
@@ -507,7 +461,7 @@ func TestDeployWorkflowApplyKeepsProvisionerConfigInCanonicalPathWhenRuntimeSync
 		return nil
 	}
 
-	artifactPath := writeTestArtifactManifest(t, false)
+	artifactPath := writeTestArtifactManifest(t)
 	if err := workflow.Apply(Request{
 		Context: state.Context{
 			ComposeProject: "esb-dev",
@@ -517,7 +471,6 @@ func TestDeployWorkflowApplyKeepsProvisionerConfigInCanonicalPathWhenRuntimeSync
 		Mode:         "docker",
 		TemplatePath: templatePath,
 		ArtifactPath: artifactPath,
-		ImagePrewarm: "all",
 	}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
@@ -644,7 +597,7 @@ func TestRunProvisionerWithNoDepsAddsFlag(t *testing.T) {
 	}
 }
 
-func writeTestArtifactManifest(t *testing.T, includeImageImport bool) string {
+func writeTestArtifactManifest(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
 	artifactRoot := filepath.Join(root, "artifact")
@@ -657,25 +610,6 @@ func writeTestArtifactManifest(t *testing.T, includeImageImport bool) string {
 	}
 	if err := os.WriteFile(filepath.Join(configDir, "routing.yml"), []byte("routes: []\n"), 0o600); err != nil {
 		t.Fatalf("write routing.yml: %v", err)
-	}
-	if includeImageImport {
-		payload := map[string]any{
-			"version": "1",
-			"images": []map[string]string{
-				{
-					"function_name": "lambda-image",
-					"image_source":  "public.ecr.aws/example/repo:latest",
-					"image_ref":     "registry:5010/public.ecr.aws/example/repo:latest",
-				},
-			},
-		}
-		data, err := json.Marshal(payload)
-		if err != nil {
-			t.Fatalf("marshal image-import.json: %v", err)
-		}
-		if err := os.WriteFile(filepath.Join(configDir, "image-import.json"), data, 0o600); err != nil {
-			t.Fatalf("write image-import.json: %v", err)
-		}
 	}
 
 	manifest := ArtifactManifest{

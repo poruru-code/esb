@@ -2,7 +2,6 @@ package engine
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -10,18 +9,6 @@ import (
 
 	"gopkg.in/yaml.v3"
 )
-
-type imageImportManifest struct {
-	Version    string             `json:"version"`
-	PushTarget string             `json:"push_target,omitempty"`
-	Images     []imageImportEntry `json:"images"`
-}
-
-type imageImportEntry struct {
-	FunctionName string `json:"function_name,omitempty"`
-	ImageSource  string `json:"image_source,omitempty"`
-	ImageRef     string `json:"image_ref"`
-}
 
 func loadYAML(path string) (map[string]any, bool, error) {
 	data, err := os.ReadFile(path)
@@ -34,24 +21,6 @@ func loadYAML(path string) (map[string]any, bool, error) {
 	result := map[string]any{}
 	if err := yaml.Unmarshal(data, &result); err != nil {
 		return nil, false, err
-	}
-	return result, true, nil
-}
-
-func loadImageImportManifest(path string) (imageImportManifest, bool, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return imageImportManifest{}, false, nil
-		}
-		return imageImportManifest{}, false, err
-	}
-	var result imageImportManifest
-	if err := json.Unmarshal(data, &result); err != nil {
-		return imageImportManifest{}, false, err
-	}
-	if result.Images == nil {
-		result.Images = []imageImportEntry{}
 	}
 	return result, true, nil
 }
@@ -76,15 +45,6 @@ func marshalYAML(value any, indent int) ([]byte, error) {
 		return nil, err
 	}
 	return buf.Bytes(), nil
-}
-
-func atomicWriteJSON(path string, value any) error {
-	content, err := json.MarshalIndent(value, "", "  ")
-	if err != nil {
-		return err
-	}
-	content = append(content, '\n')
-	return atomicWriteFile(path, content)
 }
 
 func atomicWriteFile(path string, content []byte) error {

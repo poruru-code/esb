@@ -82,8 +82,8 @@ docker image prune -f
 - 内部レジストリに対象イメージが投入されていない
 
 対応:
-1. `esb deploy --image-prewarm=all`
-2. 必要なら `--image-prewarm=all` で再実行して内部レジストリへの同期をリトライ
+1. `tools/artifactctl prepare-images --artifact <artifact.yml>`
+2. その後 `tools/artifactctl apply --artifact <artifact.yml> --out <CONFIG_DIR>` を再実行
 
 ### 4. `<untagged>` イメージが増える
 - `docker image prune -f` で中間レイヤーを整理
@@ -97,4 +97,4 @@ docker image prune -f
 - `services/gateway/services/janitor.py`
 - `services/agent/internal/runtime`
 - `services/runtime-node/docs/README.md`
-- `cli/internal/usecase/deploy/image_prewarm.go`
+- `tools/artifactctl/pkg/engine/prepare_images.go`

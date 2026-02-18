@@ -41,7 +41,6 @@ generate_fixture() {
     --manifest "${manifest_path}" \
     --image-uri "lambda-image=${image_uri}" \
     --image-runtime "lambda-image=${image_runtime}" \
-    --image-prewarm all \
     --force \
     --no-save-defaults
 

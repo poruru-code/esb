@@ -230,6 +230,29 @@
   - generate/build フェーズで `.esb/staging/**` へ runtime-config merge が発生しない。
   - apply フェーズは従来どおり `tools/artifactctl` 経由で runtime-config を反映する。
 
+### Track H: image prewarm 分岐撤去と `image-import.json` 廃止（In Progress）
+
+- 背景:
+  - `PackageType: Image` 関数は runtime hooks 注入のため Dockerfile 再ビルドが必須であり、`pull/tag/push` prewarm は正本経路ではない。
+  - `image-import.json` は prewarm 分岐入力としてのみ残存しており、artifact-first 契約の複雑性要因となっている。
+- 実施内容:
+  - CLI から `--image-prewarm` を撤去し、deploy/apply から prewarm 分岐と関連コードを削除する。
+  - `artifact.yml` の `image_prewarm` を廃止し、manifest 契約を単純化する。
+  - `templategen`/`artifactctl merge`/runtime sync から `image-import.json` を撤去する。
+  - e2e fixture と docs を新契約に同期する。
+- 主な変更対象:
+  - `cli/internal/command/app.go`
+  - `cli/internal/usecase/deploy/*`
+  - `cli/internal/infra/templategen/*`
+  - `tools/artifactctl/pkg/engine/*`
+  - `e2e/artifacts/*`
+  - `docs/deploy-artifact-contract.md`
+  - `cli/docs/*`
+- 受け入れ条件:
+  - `--image-prewarm` が CLI help/実装/UT から消えている。
+  - `image-import.json` が生成・merge・runtime sync の経路から消えている。
+  - image 関数の配備は `prepare-images` / function Dockerfile build に一本化されている。
+
 ### 完了条件（更新）
 
 - 現フェーズ完了条件:
@@ -256,3 +279,4 @@
 - 2026-02-18: Track E を補強。`skipStagingMerge` 拡張ポイントを削除し、generate フェーズを常時 artifact-only へ固定。未使用化した `cli/internal/infra/build/merge_config_*` を撤去して責務境界を明確化した。
 - 2026-02-18: Track E を追補。`Workflow.Apply` の template 結合を解除して apply workspace を内部生成へ変更。併せて generate フェーズの no-op 補助層を整理し、実行フローを単純化した。
 - 2026-02-18: Track G（Deferred）を追加。`artifactctl` 運用UX（手順複雑性・ガイド導線）の見直しタスクを後続計画へ登録した。
+- 2026-02-18: Track H（In Progress）を追加。`--image-prewarm` と `image-import.json` を廃止し、image 関数配備経路を Dockerfile 再ビルドへ一本化する方針を確定した。

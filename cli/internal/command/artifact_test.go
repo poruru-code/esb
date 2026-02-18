@@ -24,7 +24,6 @@ func TestArtifactGenerateToDeployFlags(t *testing.T) {
 		ImageURI:     []string{"fn=image:latest"},
 		ImageRuntime: []string{"fn=python"},
 		Bundle:       true,
-		ImagePrewarm: "off",
 		BuildImages:  true,
 		NoCache:      true,
 		Verbose:      true,
@@ -48,7 +47,7 @@ func TestArtifactGenerateToDeployFlags(t *testing.T) {
 	if !reflect.DeepEqual(got.ImageRuntime, cmd.ImageRuntime) {
 		t.Fatalf("image runtime mismatch: got=%v want=%v", got.ImageRuntime, cmd.ImageRuntime)
 	}
-	if got.ImagePrewarm != cmd.ImagePrewarm || !got.Bundle || !got.NoCache || !got.Verbose || !got.Emoji || !got.Force || !got.NoSave {
+	if !got.Bundle || !got.NoCache || !got.Verbose || !got.Emoji || !got.Force || !got.NoSave {
 		t.Fatalf("boolean/metadata mapping mismatch: %#v", got)
 	}
 }
