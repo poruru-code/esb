@@ -99,13 +99,16 @@ func TestApply_RuntimeDigestMismatchWarnsUnlessStrict(t *testing.T) {
 	}
 }
 
-func TestApply_RuntimeDigestVerificationWithoutRepoRoot(t *testing.T) {
+func TestApply_RuntimeDigestVerificationMissingArtifactSourceWarnsUnlessStrict(t *testing.T) {
 	root := t.TempDir()
 	manifestPath := writeArtifactFixtureManifest(t, root, ArtifactRuntimeMeta{
 		Renderer: RendererMeta{
 			TemplateDigest: "cafebabe",
 		},
 	})
+	if err := os.RemoveAll(filepath.Join(root, "fixture", artifactRuntimeTemplatesRel)); err != nil {
+		t.Fatalf("remove fixture runtime templates: %v", err)
+	}
 
 	origWD, err := os.Getwd()
 	if err != nil {
@@ -126,10 +129,10 @@ func TestApply_RuntimeDigestVerificationWithoutRepoRoot(t *testing.T) {
 		WarningWriter: &warnings,
 	})
 	if err != nil {
-		t.Fatalf("non-strict apply should pass when repo root is unavailable: %v", err)
+		t.Fatalf("non-strict apply should pass when digest source is unavailable: %v", err)
 	}
-	if !strings.Contains(warnings.String(), "requires repository root") {
-		t.Fatalf("expected repository root warning, got %q", warnings.String())
+	if !strings.Contains(warnings.String(), "template_digest source unreadable") {
+		t.Fatalf("expected source warning, got %q", warnings.String())
 	}
 
 	err = Apply(ApplyRequest{
@@ -138,63 +141,22 @@ func TestApply_RuntimeDigestVerificationWithoutRepoRoot(t *testing.T) {
 		Strict:       true,
 	})
 	if err == nil {
-		t.Fatal("strict apply should fail when digest cannot be verified")
+		t.Fatal("strict apply should fail when digest source is unavailable")
 	}
-	if !strings.Contains(err.Error(), "requires repository root") {
+	if !strings.Contains(err.Error(), "template_digest source unreadable") {
 		t.Fatalf("unexpected strict error: %v", err)
 	}
 }
 
-func TestApply_RuntimeDigestVerificationAllowsMissingJavaHooksWhenUndeclared(t *testing.T) {
+func TestApply_RuntimeDigestVerificationUsesArtifactSourcesOutsideRepoRoot(t *testing.T) {
 	root := t.TempDir()
-	repoRoot := filepath.Join(root, "repo")
-
-	pythonPath := filepath.Join(
-		repoRoot,
-		"runtime-hooks",
-		"python",
-		"sitecustomize",
-		"site-packages",
-		"sitecustomize.py",
-	)
-	if err := os.MkdirAll(filepath.Dir(pythonPath), 0o755); err != nil {
-		t.Fatalf("mkdir python hook dir: %v", err)
-	}
-	if err := os.WriteFile(pythonPath, []byte("print('ok')\n"), 0o644); err != nil {
-		t.Fatalf("write python hook: %v", err)
-	}
-
-	templatePath := filepath.Join(
-		repoRoot,
-		"cli",
-		"assets",
-		"runtime-templates",
-		"python",
-		"templates",
-		"dockerfile.tmpl",
-	)
-	if err := os.MkdirAll(filepath.Dir(templatePath), 0o755); err != nil {
-		t.Fatalf("mkdir template dir: %v", err)
-	}
-	if err := os.WriteFile(templatePath, []byte("FROM python:3.12\n"), 0o644); err != nil {
-		t.Fatalf("write template file: %v", err)
-	}
-
-	pythonDigest, err := fileSHA256(pythonPath)
-	if err != nil {
-		t.Fatalf("hash python hook: %v", err)
-	}
-	templateDigest, err := directoryDigest(filepath.Join(repoRoot, "cli", "assets", "runtime-templates"))
-	if err != nil {
-		t.Fatalf("hash template dir: %v", err)
-	}
-
-	manifestPath := writeArtifactFixtureManifest(t, repoRoot, ArtifactRuntimeMeta{
+	fixtureDigests := writeFixtureRuntimeMetaSources(t, filepath.Join(root, "fixture"))
+	manifestPath := writeArtifactFixtureManifest(t, root, ArtifactRuntimeMeta{
 		Hooks: RuntimeHooksMeta{
-			PythonSitecustomizeDigest: pythonDigest,
+			PythonSitecustomizeDigest: fixtureDigests.pythonSitecustomize,
 		},
 		Renderer: RendererMeta{
-			TemplateDigest: templateDigest,
+			TemplateDigest: fixtureDigests.templateRenderer,
 		},
 	})
 
@@ -202,7 +164,8 @@ func TestApply_RuntimeDigestVerificationAllowsMissingJavaHooksWhenUndeclared(t *
 	if err != nil {
 		t.Fatalf("getwd: %v", err)
 	}
-	if err := os.Chdir(repoRoot); err != nil {
+	outside := t.TempDir()
+	if err := os.Chdir(outside); err != nil {
 		t.Fatalf("chdir: %v", err)
 	}
 	t.Cleanup(func() {
@@ -211,11 +174,11 @@ func TestApply_RuntimeDigestVerificationAllowsMissingJavaHooksWhenUndeclared(t *
 
 	err = Apply(ApplyRequest{
 		ArtifactPath: manifestPath,
-		OutputDir:    filepath.Join(repoRoot, "out-strict"),
+		OutputDir:    filepath.Join(root, "out-strict"),
 		Strict:       true,
 	})
 	if err != nil {
-		t.Fatalf("strict apply should pass when java digests are undeclared: %v", err)
+		t.Fatalf("strict apply should pass with artifact-local digest verification: %v", err)
 	}
 }
 
@@ -223,6 +186,7 @@ func writeArtifactFixtureManifest(t *testing.T, root string, meta ArtifactRuntim
 	t.Helper()
 
 	artifactRoot := filepath.Join(root, "fixture")
+	writeFixtureRuntimeMetaSources(t, artifactRoot)
 	writeYAMLFile(t, filepath.Join(artifactRoot, "config", "functions.yml"), map[string]any{"functions": map[string]any{}})
 	writeYAMLFile(t, filepath.Join(artifactRoot, "config", "routing.yml"), map[string]any{"routes": []any{}})
 
@@ -249,4 +213,53 @@ func writeArtifactFixtureManifest(t *testing.T, root string, meta ArtifactRuntim
 		t.Fatalf("write manifest: %v", err)
 	}
 	return manifestPath
+}
+
+func writeFixtureRuntimeMetaSources(t *testing.T, artifactRoot string) runtimeAssetDigests {
+	t.Helper()
+	pythonPath := filepath.Join(artifactRoot, artifactPythonSitecustomizeRel)
+	javaAgentPath := filepath.Join(artifactRoot, artifactJavaAgentRel)
+	javaWrapperPath := filepath.Join(artifactRoot, artifactJavaWrapperRel)
+	templatePythonPath := filepath.Join(artifactRoot, artifactRuntimeTemplatesRel, "python", "templates", "dockerfile.tmpl")
+	templateJavaPath := filepath.Join(artifactRoot, artifactRuntimeTemplatesRel, "java", "templates", "dockerfile.tmpl")
+
+	writeFixtureFile(t, pythonPath, "print('fixture sitecustomize')\n")
+	writeFixtureFile(t, javaAgentPath, "fixture-java-agent\n")
+	writeFixtureFile(t, javaWrapperPath, "fixture-java-wrapper\n")
+	writeFixtureFile(t, templatePythonPath, "FROM public.ecr.aws/lambda/python:3.12\n")
+	writeFixtureFile(t, templateJavaPath, "FROM public.ecr.aws/lambda/java:21\n")
+
+	pythonDigest, err := fileSHA256(pythonPath)
+	if err != nil {
+		t.Fatalf("hash fixture python sitecustomize: %v", err)
+	}
+	javaAgentDigest, err := fileSHA256(javaAgentPath)
+	if err != nil {
+		t.Fatalf("hash fixture java agent: %v", err)
+	}
+	javaWrapperDigest, err := fileSHA256(javaWrapperPath)
+	if err != nil {
+		t.Fatalf("hash fixture java wrapper: %v", err)
+	}
+	templateDigest, err := directoryDigest(filepath.Join(artifactRoot, artifactRuntimeTemplatesRel))
+	if err != nil {
+		t.Fatalf("hash fixture runtime templates: %v", err)
+	}
+
+	return runtimeAssetDigests{
+		pythonSitecustomize: pythonDigest,
+		javaAgent:           javaAgentDigest,
+		javaWrapper:         javaWrapperDigest,
+		templateRenderer:    templateDigest,
+	}
+}
+
+func writeFixtureFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir fixture dir %s: %v", filepath.Dir(path), err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write fixture file %s: %v", path, err)
+	}
 }

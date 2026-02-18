@@ -9,9 +9,13 @@ import (
 )
 
 const (
-	runtimeBaseContextDirName      = "runtime-base"
-	runtimeBasePythonSourceRelDir  = "runtime-hooks/python"
-	runtimeBasePythonDockerfileRel = "runtime-hooks/python/docker/Dockerfile"
+	runtimeBaseContextDirName       = "runtime-base"
+	runtimeBasePythonSourceRelDir   = "runtime-hooks/python"
+	runtimeBasePythonDockerfileRel  = "runtime-hooks/python/docker/Dockerfile"
+	runtimeBaseJavaAgentSourceRel   = "runtime-hooks/java/agent/lambda-java-agent.jar"
+	runtimeBaseJavaWrapperSourceRel = "runtime-hooks/java/wrapper/lambda-java-wrapper.jar"
+	runtimeBaseTemplatesSourceRel   = "cli/assets/runtime-templates"
+	runtimeBaseTemplatesRelDir      = "runtime-templates"
 )
 
 func stageRuntimeBaseContext(ctx stageContext) error {
@@ -26,10 +30,55 @@ func stageRuntimeBaseContext(ctx stageContext) error {
 	if err := copyDir(sourceDir, destDir); err != nil {
 		return fmt.Errorf("stage python runtime base context: %w", err)
 	}
+	if err := stageRuntimeBaseFile(
+		ctx,
+		runtimeBaseJavaAgentSourceRel,
+		runtimeBaseJavaAgentSourceRel,
+		"java runtime agent",
+	); err != nil {
+		return err
+	}
+	if err := stageRuntimeBaseFile(
+		ctx,
+		runtimeBaseJavaWrapperSourceRel,
+		runtimeBaseJavaWrapperSourceRel,
+		"java runtime wrapper",
+	); err != nil {
+		return err
+	}
+	templateSource := filepath.Join(ctx.ProjectRoot, runtimeBaseTemplatesSourceRel)
+	if !dirExists(templateSource) {
+		return fmt.Errorf("runtime templates source not found: %s", templateSource)
+	}
+	templateDest := filepath.Join(ctx.OutputDir, runtimeBaseContextDirName, runtimeBaseTemplatesRelDir)
+	if err := copyDir(templateSource, templateDest); err != nil {
+		return fmt.Errorf("stage runtime templates: %w", err)
+	}
 	dockerfilePath := filepath.Join(ctx.OutputDir, runtimeBaseContextDirName, runtimeBasePythonDockerfileRel)
 	if !fileExists(dockerfilePath) {
 		return fmt.Errorf("python runtime base dockerfile not found after staging: %s", dockerfilePath)
 	}
+	if !fileExists(filepath.Join(ctx.OutputDir, runtimeBaseContextDirName, runtimeBaseJavaAgentSourceRel)) {
+		return fmt.Errorf("java runtime agent not found after staging: %s", filepath.Join(ctx.OutputDir, runtimeBaseContextDirName, runtimeBaseJavaAgentSourceRel))
+	}
+	if !fileExists(filepath.Join(ctx.OutputDir, runtimeBaseContextDirName, runtimeBaseJavaWrapperSourceRel)) {
+		return fmt.Errorf("java runtime wrapper not found after staging: %s", filepath.Join(ctx.OutputDir, runtimeBaseContextDirName, runtimeBaseJavaWrapperSourceRel))
+	}
+	if !dirExists(filepath.Join(ctx.OutputDir, runtimeBaseContextDirName, runtimeBaseTemplatesRelDir)) {
+		return fmt.Errorf("runtime templates directory not found after staging: %s", filepath.Join(ctx.OutputDir, runtimeBaseContextDirName, runtimeBaseTemplatesRelDir))
+	}
 	ctx.verbosef("Staged runtime base context: %s\n", filepath.Join(ctx.OutputDir, runtimeBaseContextDirName))
+	return nil
+}
+
+func stageRuntimeBaseFile(ctx stageContext, sourceRel, destRel, label string) error {
+	source := filepath.Join(ctx.ProjectRoot, sourceRel)
+	if !fileExists(source) {
+		return fmt.Errorf("%s source not found: %s", label, source)
+	}
+	dest := filepath.Join(ctx.OutputDir, runtimeBaseContextDirName, destRel)
+	if err := copyFile(source, dest); err != nil {
+		return fmt.Errorf("stage %s: %w", label, err)
+	}
 	return nil
 }

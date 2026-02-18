@@ -153,6 +153,18 @@ func TestGenerateFilesUsesParserOverride(t *testing.T) {
 	if _, err := os.Stat(runtimeBaseDockerfile); err != nil {
 		t.Fatalf("expected runtime base dockerfile to be staged: %v", err)
 	}
+	runtimeBaseJavaAgent := filepath.Join(outputDir, runtimeBaseContextDirName, runtimeBaseJavaAgentSourceRel)
+	if _, err := os.Stat(runtimeBaseJavaAgent); err != nil {
+		t.Fatalf("expected runtime base java agent to be staged: %v", err)
+	}
+	runtimeBaseJavaWrapper := filepath.Join(outputDir, runtimeBaseContextDirName, runtimeBaseJavaWrapperSourceRel)
+	if _, err := os.Stat(runtimeBaseJavaWrapper); err != nil {
+		t.Fatalf("expected runtime base java wrapper to be staged: %v", err)
+	}
+	runtimeBaseTemplate := filepath.Join(outputDir, runtimeBaseContextDirName, runtimeBaseTemplatesRelDir, "python", "templates", "dockerfile.tmpl")
+	if _, err := os.Stat(runtimeBaseTemplate); err != nil {
+		t.Fatalf("expected runtime templates to be staged: %v", err)
+	}
 	dockerfilePath := filepath.Join(outputDir, "functions", "lambda-hello", "Dockerfile")
 	if _, err := os.Stat(dockerfilePath); err != nil {
 		t.Fatalf("expected dockerfile to exist: %v", err)
@@ -606,6 +618,12 @@ func TestGenerateFilesFailsWhenCodeURIDoesNotExist(t *testing.T) {
 func TestGenerateFilesFailsWhenJavaRuntimeJarsMissing(t *testing.T) {
 	root := t.TempDir()
 	writeRuntimeBaseFixture(t, root)
+	if err := os.Remove(filepath.Join(root, "runtime-hooks", "java", "wrapper", "lambda-java-wrapper.jar")); err != nil {
+		t.Fatalf("remove runtime java wrapper: %v", err)
+	}
+	if err := os.Remove(filepath.Join(root, "runtime-hooks", "java", "agent", "lambda-java-agent.jar")); err != nil {
+		t.Fatalf("remove runtime java agent: %v", err)
+	}
 	templatePath := filepath.Join(root, "template.yaml")
 	writeTestFile(t, templatePath, "Resources: {}")
 
@@ -638,7 +656,9 @@ func TestGenerateFilesFailsWhenJavaRuntimeJarsMissing(t *testing.T) {
 		t.Fatalf("expected error for missing java runtime jars")
 	}
 	if !strings.Contains(err.Error(), "java wrapper jar not found") &&
-		!strings.Contains(err.Error(), "java agent jar not found") {
+		!strings.Contains(err.Error(), "java agent jar not found") &&
+		!strings.Contains(err.Error(), "java runtime agent source not found") &&
+		!strings.Contains(err.Error(), "java runtime wrapper source not found") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -987,6 +1007,8 @@ func TestResolveTemplatePathExpandsHome(t *testing.T) {
 func writeRuntimeBaseFixture(t *testing.T, root string) {
 	t.Helper()
 	pythonDir := filepath.Join(root, "runtime-hooks", "python")
+	javaDir := filepath.Join(root, "runtime-hooks", "java")
+	templatesDir := filepath.Join(root, "cli", "assets", "runtime-templates")
 	writeTestFile(
 		t,
 		filepath.Join(pythonDir, "docker", "Dockerfile"),
@@ -1001,6 +1023,26 @@ func writeRuntimeBaseFixture(t *testing.T, root string) {
 		t,
 		filepath.Join(pythonDir, "trace-bridge", "layer", "trace_bridge.py"),
 		"# test trace bridge\n",
+	)
+	writeTestFile(
+		t,
+		filepath.Join(javaDir, "agent", "lambda-java-agent.jar"),
+		"test java agent\n",
+	)
+	writeTestFile(
+		t,
+		filepath.Join(javaDir, "wrapper", "lambda-java-wrapper.jar"),
+		"test java wrapper\n",
+	)
+	writeTestFile(
+		t,
+		filepath.Join(templatesDir, "python", "templates", "dockerfile.tmpl"),
+		"FROM public.ecr.aws/lambda/python:3.12\n",
+	)
+	writeTestFile(
+		t,
+		filepath.Join(templatesDir, "java", "templates", "dockerfile.tmpl"),
+		"FROM public.ecr.aws/lambda/java:21\n",
 	)
 }
 

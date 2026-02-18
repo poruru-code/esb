@@ -85,10 +85,7 @@
 
 ## Remaining Gaps / Risks（厳格評価）
 
-1. runtime metadata digest 検証は repo root 推定に依存する。
-   - repo root を検出できない環境では non-strict は warning、strict は fail。
-   - `tools/artifactctl/pkg/engine/runtime_meta_validation.go`
-2. E2E gate は firecracker を含む full matrix まで到達していない。
+1. E2E gate は firecracker を含む full matrix まで到達していない。
    - `e2e/environments/test_matrix.yaml`
 
 ## Completion Criteria 再判定（今回）
@@ -100,6 +97,7 @@
 | E2E artifact-only で docker/containerd が成立 | Pass | `e2e/runner/config.py`, `e2e/runner/deploy.py` |
 | `uv run e2e/run_tests.py --parallel --verbose` を含む full gate（docker/containerd/firecracker） | Fail | firecracker 無効化中 |
 | 非 CLI 実行が成果物だけに依存（build 時も repo 非依存） | Pass | `tools/artifactctl/pkg/engine/prepare_images.go`（`artifact_root/runtime-base/**` のみ参照） |
+| strict runtime metadata 検証が artifact ローカル前提で固定 | Pass | `tools/artifactctl/pkg/engine/runtime_meta_validation.go` |
 
 現時点の総合判定: **未完了（Partial Complete）**
 
@@ -123,26 +121,17 @@
   - `docs/deploy-artifact-contract.md`
   - `docs/artifact-operations.md`
 
-### Track B: runtime metadata strict 検証の前提固定
+### Track B: runtime metadata strict 検証の前提固定（完了）
 
-#### B-1: strict 検証の入力源を契約化（Contract PR）
-- 目的:
-  - strict 時の digest 検証で「repo root 推定」を許容するか、manifest 側へ検証情報を持つかを固定する。
-- 変更対象:
-  - `docs/deploy-artifact-contract.md`
-  - `.agent/execplan-artifact-first-deploy.md`
-- 受け入れ条件:
-  - strict/non-strict の失敗条件が明確で、曖昧な fallback がない。
-
-#### B-2: strict 検証ロジックの確定（Implementation PR）
-- 目的:
-  - B-1 の契約に合わせて `runtime_meta` 検証を実装更新する。
-- 変更対象:
+- 実施内容:
+  - strict/non-strict の digest 検証入力源を `artifact_root/runtime-base/**` に固定した。
+  - `runtime_meta` 検証から repo root 推定依存を撤去した。
+  - strict/non-strict の失敗条件を UT と docs で同期した。
+- 主な変更対象:
   - `tools/artifactctl/pkg/engine/runtime_meta_validation.go`
-  - 関連 UT
-- 受け入れ条件:
-  - strict で期待どおり hard fail、non-strict で期待どおり warning になる。
-  - repo 外実行時の挙動が契約どおりに固定される。
+  - `tools/artifactctl/pkg/engine/runtime_meta_validation_test.go`
+  - `docs/deploy-artifact-contract.md`
+  - `docs/artifact-operations.md`
 
 ### Track C: firecracker を含む E2E gate 復帰
 
@@ -166,18 +155,16 @@
 
 ### 実行順（依存関係）
 
-1. B-1
-2. B-2
-3. C-1
-4. C-2
+1. C-1
+2. C-2
 
 ### 完了条件（更新）
 
-- Track B/C の全ステップが完了し、以下を満たすこと:
-  - strict 検証の前提が明文化され、挙動が UT で固定
+- Track C の全ステップが完了し、以下を満たすこと:
   - `uv run e2e/run_tests.py --parallel --verbose` が docker/containerd/firecracker で完走
 
 ## Change Log
 
 - 2026-02-18: 実装同期版へ全面更新。旧フェーズ記述（`deploy_driver=cli` 併存、`ensure_local_esb_cli` 前提、古い Current Gaps）を削除し、現行コード基準の完了判定へ切り替え。
 - 2026-02-18: Track A を完了。`prepare-images` の入力契約を `artifact_root/runtime-base/**` に固定し、repo 直参照を撤去。generator/fixture/docs を同時同期した。
+- 2026-02-18: Track B を完了。strict runtime metadata 検証の入力源を `artifact_root/runtime-base/**` に固定し、repo root 推定依存を撤去した。
