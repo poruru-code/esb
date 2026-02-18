@@ -32,19 +32,13 @@ func resolveGenerateRegistryInfo() (buildRegistryInfo, error) {
 	}
 
 	runtimeRegistry := resolveRuntimeRegistry(registry.Registry)
-	registryForPush := registry.Registry
-	if registryForPush != "" {
-		registryHost := resolveRegistryHost(registryForPush)
-		if strings.EqualFold(registryHost, "registry") {
-			hostRegistryAddr, _ := resolveHostRegistryAddress()
-			registryForPush = fmt.Sprintf("%s/", hostRegistryAddr)
-		}
-	}
 
 	return buildRegistryInfo{
-		ServiceRegistry:    registry.Registry,
-		RuntimeRegistry:    runtimeRegistry,
-		PushRegistry:       registryForPush,
+		ServiceRegistry: registry.Registry,
+		RuntimeRegistry: runtimeRegistry,
+		// Render-only generate must stay host-agnostic.
+		// Keep Dockerfile registry references aligned with runtime registry.
+		PushRegistry:       runtimeRegistry,
 		BuilderNetworkMode: "",
 	}, nil
 }

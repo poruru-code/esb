@@ -87,9 +87,7 @@ generator.yml
 e2e/fixtures/.*/
 e2e/fixtures/functions/java/**/target/
 e2e/fixtures/functions/java/**/build/
-e2e/fixtures/functions/java/**/*.jar
 e2e/fixtures/functions/java/**/*.class
-e2e/fixtures/functions/java/**/app.jar
 services/gateway/.staging/
 services/gateway/.*-staging/
 # WireGuard configs (local secrets)

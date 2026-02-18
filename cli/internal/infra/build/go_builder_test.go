@@ -288,7 +288,6 @@ func TestGoBuilderBuildRenderOnlySkipsImageBuilds(t *testing.T) {
 	t.Setenv(modeKey, "")
 	t.Setenv(constants.EnvConfigDir, "")
 	t.Setenv(constants.EnvProjectName, "")
-	setupRootCA(t)
 
 	request := BuildRequest{
 		ProjectDir:   projectDir,
@@ -311,7 +310,7 @@ func TestGoBuilderBuildRenderOnlySkipsImageBuilds(t *testing.T) {
 	if hasDockerCommand(dockerRunner.calls, "buildx", "inspect") {
 		t.Fatalf("render-only build must not run buildx inspect")
 	}
-	if gotOpts.BuildRegistry != "127.0.0.1:5010/" {
+	if gotOpts.BuildRegistry != "registry:5010/" {
 		t.Fatalf("unexpected render-only build registry: %s", gotOpts.BuildRegistry)
 	}
 	if gotOpts.RuntimeRegistry != "registry:5010/" {

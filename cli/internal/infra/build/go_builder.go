@@ -121,13 +121,6 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		return err
 	}
 	imageLabels := brandingImageLabels(composeProject, request.Env)
-	rootFingerprint, err := resolveRootCAFingerprint()
-	if err != nil {
-		return err
-	}
-	if os.Getenv(constants.BuildArgCAFingerprint) == "" {
-		_ = os.Setenv(constants.BuildArgCAFingerprint, rootFingerprint)
-	}
 
 	cfg.Parameters = toAnyMap(defaultGeneratorParameters())
 	for key, value := range request.Parameters {
@@ -210,6 +203,14 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 			_, _ = fmt.Fprintln(out, "Skipping image build phase (render-only)")
 		}
 		return nil
+	}
+
+	rootFingerprint, err := resolveRootCAFingerprint()
+	if err != nil {
+		return err
+	}
+	if os.Getenv(constants.BuildArgCAFingerprint) == "" {
+		_ = os.Setenv(constants.BuildArgCAFingerprint, rootFingerprint)
 	}
 
 	lambdaBaseTag := lambdaBaseImageTag(registryInfo.PushRegistry, imageTag)
