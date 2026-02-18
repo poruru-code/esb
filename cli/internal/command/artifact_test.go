@@ -11,7 +11,7 @@ import (
 
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/state"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/ui"
-	"github.com/poruru/edge-serverless-box/tools/artifactctl/pkg/engine"
+	engine "github.com/poruru/edge-serverless-box/pkg/artifactcore"
 )
 
 func TestArtifactGenerateToDeployFlags(t *testing.T) {

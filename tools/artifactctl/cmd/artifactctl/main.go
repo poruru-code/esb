@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/poruru/edge-serverless-box/tools/artifactctl/pkg/engine"
+	"github.com/poruru/edge-serverless-box/pkg/artifactcore"
 )
 
 func main() {
@@ -34,7 +34,7 @@ func runValidateID(args []string) {
 	if *artifact == "" {
 		exitf("--artifact is required")
 	}
-	if err := engine.ValidateIDs(*artifact); err != nil {
+	if err := artifactcore.ValidateIDs(*artifact); err != nil {
 		exitf("validate-id failed: %v", err)
 	}
 }
@@ -50,7 +50,7 @@ func runMerge(args []string) {
 	if *out == "" {
 		exitf("--out is required")
 	}
-	if err := engine.MergeRuntimeConfig(engine.MergeRequest{ArtifactPath: *artifact, OutputDir: *out}); err != nil {
+	if err := artifactcore.MergeRuntimeConfig(artifactcore.MergeRequest{ArtifactPath: *artifact, OutputDir: *out}); err != nil {
 		exitf("merge failed: %v", err)
 	}
 }
@@ -68,14 +68,14 @@ func runApply(args []string) {
 	if *out == "" {
 		exitf("--out is required")
 	}
-	req := engine.ApplyRequest{
+	req := artifactcore.ApplyRequest{
 		ArtifactPath:  *artifact,
 		OutputDir:     *out,
 		SecretEnvPath: *secretEnv,
 		Strict:        *strict,
 		WarningWriter: os.Stderr,
 	}
-	if err := engine.Apply(req); err != nil {
+	if err := artifactcore.Apply(req); err != nil {
 		exitf("apply failed: %v", err)
 	}
 }
@@ -88,11 +88,11 @@ func runPrepareImages(args []string) {
 	if *artifact == "" {
 		exitf("--artifact is required")
 	}
-	req := engine.PrepareImagesRequest{
+	req := artifactcore.PrepareImagesRequest{
 		ArtifactPath: *artifact,
 		NoCache:      *noCache,
 	}
-	if err := engine.PrepareImages(req); err != nil {
+	if err := artifactcore.PrepareImages(req); err != nil {
 		exitf("prepare-images failed: %v", err)
 	}
 }

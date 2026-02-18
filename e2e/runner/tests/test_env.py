@@ -4,13 +4,11 @@ from unittest import mock
 from e2e.runner import constants
 from e2e.runner.env import (
     calculate_runtime_env,
-    calculate_staging_dir,
     env_external_subnet_index,
     env_runtime_subnet_index,
     hash_mod,
 )
 from e2e.runner.utils import (
-    BRAND_HOME_DIR,
     BRAND_SLUG,
     ENV_PREFIX,
     env_key,
@@ -108,30 +106,3 @@ def test_calculate_runtime_env_mode_registry_defaults():
     env_containerd = calculate_runtime_env("p", "e", "containerd")
     assert env_containerd[registry_key] == "registry:5010/"
     assert env_containerd[constants.ENV_CONTAINER_REGISTRY] == "registry:5010"
-
-
-def test_calculate_staging_dir_logic(tmp_path):
-    with mock.patch("e2e.runner.env.PROJECT_ROOT", tmp_path):
-        path = calculate_staging_dir("myproj", "myenv")
-    assert path == tmp_path / BRAND_HOME_DIR / "staging" / "myproj" / "myenv" / "config"
-
-
-def test_calculate_runtime_env_project_config_dir(tmp_path):
-    # Test that project-specific config like CONFIG_DIR is set
-    project = "myproj"
-    env_name = "myenv"
-
-    # Mock calculate_staging_dir to return a path in tmp_path
-    staging_dir = tmp_path / "staging"
-    staging_dir.mkdir(parents=True)
-
-    with (
-        mock.patch("e2e.runner.env.calculate_staging_dir") as mock_calc,
-        mock.patch.dict(os.environ, {}, clear=True),
-    ):
-        mock_calc.return_value = staging_dir
-
-        env = calculate_runtime_env(project, env_name, "docker")
-
-        assert constants.ENV_CONFIG_DIR in env
-        assert env[constants.ENV_CONFIG_DIR] == str(staging_dir)

@@ -20,7 +20,7 @@ Why: Keep build-phase implementation and developer changes aligned.
 - フェーズ進捗表示: `cli/internal/infra/build/go_builder_phase.go`
 - テンプレート生成: `cli/internal/infra/templategen/generate.go`
 - buildx 実行: `cli/internal/infra/build/bake_exec.go`
-- runtime-config apply（apply phase）: `tools/artifactctl/pkg/engine/apply.go`
+- runtime-config apply（apply phase）: `pkg/artifactcore/apply.go`
 
 ## 実行フロー
 
@@ -70,7 +70,7 @@ sequenceDiagram
 
 ### 3. runtime-config 出力ファイルを追加
 1. `cli/internal/infra/templategen/generate.go` の出力対象を更新
-2. `tools/artifactctl/pkg/engine/merge.go` 側のマージ対象も更新
+2. `pkg/artifactcore/merge.go` 側のマージ対象も更新
 3. テスト: `cli/internal/infra/templategen/generate_test.go`
 
 ## 変更時の最小テスト

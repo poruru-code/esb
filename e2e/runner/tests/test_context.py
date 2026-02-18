@@ -5,6 +5,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from e2e.runner import constants
 from e2e.runner.context import _prepare_context
 from e2e.runner.models import Scenario
@@ -24,9 +26,6 @@ def test_prepare_context_merges_runtime_env_and_overrides(monkeypatch, tmp_path)
             constants.ENV_BUILDKITD_CONFIG: "/tmp/buildkitd.toml",
             "BUILDX_BUILDER": "esb-buildx",
         },
-    )
-    monkeypatch.setattr(
-        "e2e.runner.context.calculate_staging_dir", lambda *_args, **_kwargs: staging_dir
     )
     monkeypatch.setattr(
         "e2e.runner.context.resolve_compose_file", lambda *_args, **_kwargs: compose_file
@@ -51,6 +50,7 @@ def test_prepare_context_merges_runtime_env_and_overrides(monkeypatch, tmp_path)
         targets=["e2e/scenarios/smoke/test_smoke.py"],
         exclude=[],
         project_name="esb",
+        extra={"config_dir": str(staging_dir)},
     )
 
     ctx = _prepare_context(
@@ -99,9 +99,6 @@ def test_prepare_context_reapplies_proxy_defaults_after_scenario_override(monkey
         },
     )
     monkeypatch.setattr(
-        "e2e.runner.context.calculate_staging_dir", lambda *_args, **_kwargs: staging_dir
-    )
-    monkeypatch.setattr(
         "e2e.runner.context.resolve_compose_file", lambda *_args, **_kwargs: compose_file
     )
     monkeypatch.setattr("e2e.runner.context._load_state_env", lambda *_args, **_kwargs: {})
@@ -121,6 +118,7 @@ def test_prepare_context_reapplies_proxy_defaults_after_scenario_override(monkey
         targets=["e2e/scenarios/smoke/test_smoke.py"],
         exclude=[],
         project_name="esb",
+        extra={"config_dir": str(staging_dir)},
     )
 
     ctx = _prepare_context(scenario, None)
@@ -131,3 +129,39 @@ def test_prepare_context_reapplies_proxy_defaults_after_scenario_override(monkey
     assert "localhost" in no_proxy
     assert "127.0.0.1" in no_proxy
     assert "registry" in no_proxy
+
+
+def test_prepare_context_requires_config_dir(monkeypatch, tmp_path):
+    compose_file = tmp_path / "docker-compose.docker.yml"
+    compose_file.write_text("services: {}\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "e2e.runner.context.calculate_runtime_env",
+        lambda *_args, **_kwargs: {
+            env_key(constants.ENV_TAG): "latest",
+            constants.ENV_CONTAINER_REGISTRY: "127.0.0.1:5010",
+        },
+    )
+    monkeypatch.setattr(
+        "e2e.runner.context.resolve_compose_file", lambda *_args, **_kwargs: compose_file
+    )
+    monkeypatch.setattr("e2e.runner.context._load_state_env", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(
+        "e2e.runner.context.build_unique_tag", lambda *_args, **_kwargs: "generated-tag"
+    )
+    monkeypatch.setattr(
+        "e2e.runner.context.infra.get_registry_config", lambda: ("127.0.0.1:5010", "registry:5010")
+    )
+    scenario = Scenario(
+        name="test",
+        env_name="e2e-docker",
+        mode="docker",
+        env_file="e2e/environments/e2e-docker/.env",
+        env_dir=None,
+        env_vars={},
+        targets=[],
+        exclude=[],
+        project_name="esb",
+    )
+
+    with pytest.raises(ValueError, match="config_dir"):
+        _prepare_context(scenario, None)

@@ -1,6 +1,6 @@
 // Where: cli/internal/command/artifact.go
 // What: CLI adapter for artifact apply operations.
-// Why: Reuse tools/artifactctl Go engine from esb command.
+// Why: Reuse shared artifact core logic from esb command.
 package command
 
 import (
@@ -8,7 +8,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/poruru/edge-serverless-box/tools/artifactctl/pkg/engine"
+	"github.com/poruru/edge-serverless-box/pkg/artifactcore"
 )
 
 func runArtifactGenerate(cli CLI, deps Dependencies, out io.Writer) int {
@@ -56,14 +56,14 @@ func runArtifactApply(cli CLI, _ Dependencies, out io.Writer) int {
 	if outputDir == "" {
 		return exitWithError(out, errors.New("artifact apply: --out is required"))
 	}
-	req := engine.ApplyRequest{
+	req := artifactcore.ApplyRequest{
 		ArtifactPath:  artifactPath,
 		OutputDir:     outputDir,
 		SecretEnvPath: strings.TrimSpace(args.SecretEnv),
 		Strict:        args.Strict,
 		WarningWriter: out,
 	}
-	if err := engine.Apply(req); err != nil {
+	if err := artifactcore.Apply(req); err != nil {
 		return exitWithError(out, err)
 	}
 	legacyUI(out).Success("Artifact apply complete")

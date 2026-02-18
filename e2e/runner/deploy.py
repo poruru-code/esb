@@ -20,6 +20,17 @@ _prepared_local_fixture_images: set[str] = set()
 _prepared_local_fixture_lock = threading.Lock()
 
 
+def _artifactctl_bin(ctx: RunContext) -> str:
+    # run_tests.py resolves ARTIFACTCTL_BIN(_RESOLVED) before runner starts.
+    resolved = str(ctx.deploy_env.get("ARTIFACTCTL_BIN_RESOLVED", "")).strip()
+    if resolved:
+        return resolved
+    configured = str(ctx.deploy_env.get("ARTIFACTCTL_BIN", "")).strip()
+    if configured:
+        return configured
+    return "artifactctl"
+
+
 def deploy_artifacts(
     ctx: RunContext,
     *,
@@ -55,8 +66,9 @@ def _deploy_via_artifact_driver(
     log.write_line(message)
     if printer:
         printer(message)
+    artifactctl_bin = _artifactctl_bin(ctx)
     prepare_cmd = [
-        "artifactctl",
+        artifactctl_bin,
         "prepare-images",
         "--artifact",
         str(manifest_path),
@@ -79,7 +91,7 @@ def _deploy_via_artifact_driver(
         printer(message)
 
     apply_cmd = [
-        "artifactctl",
+        artifactctl_bin,
         "apply",
         "--artifact",
         str(manifest_path),

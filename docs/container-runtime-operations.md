@@ -97,4 +97,4 @@ docker image prune -f
 - `services/gateway/services/janitor.py`
 - `services/agent/internal/runtime`
 - `services/runtime-node/docs/README.md`
-- `tools/artifactctl/pkg/engine/prepare_images.go`
+- `pkg/artifactcore/prepare_images.go`

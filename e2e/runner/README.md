@@ -54,6 +54,7 @@ e2e/run_tests.py
 `e2e/runner/config.py` は各 matrix エントリを scenario に解決します。
 - mode 推論: `docker` / `containerd`
 - `env_dir` からの env ファイル解決
+- `config_dir` を必須入力として取り込み（runner での staging パス推測は行わない）
 - suite の target をプロジェクト相対パスへ展開
 - `env_dir` / `env_file` に `firecracker` を含む場合の推論
 
@@ -67,6 +68,7 @@ e2e/run_tests.py
 - `run_parallel` は環境名をキーにした `dict[str, bool]` を返します。
 - `--build-only` と `--test-only` は同時指定できません。
 - `--test-target` は `--profile` が必須で、指定 target のみ実行します。
+- deploy を伴う実行では `artifactctl` バイナリが PATH 上に必要です（または `ARTIFACTCTL_BIN` で明示）。
 
 ## ログと診断
 - 環境ごとのログ: `e2e/.parallel-<env>.log`

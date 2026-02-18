@@ -3,7 +3,7 @@
 # What: E2E test runner for artifact-based scenarios.
 # Why: Provide a single entry point for scenario setup, execution, and teardown.
 import os
-import subprocess
+import shutil
 import sys
 import warnings
 
@@ -74,27 +74,40 @@ def resolve_live_enabled(no_live: bool) -> bool:
     return True
 
 
-def ensure_local_artifactctl() -> None:
-    artifactctl_root = PROJECT_ROOT / "tools" / "artifactctl"
-    bin_dir = artifactctl_root / "bin"
-    bin_dir.mkdir(parents=True, exist_ok=True)
-    artifactctl_bin = bin_dir / "artifactctl"
-    build_cmd = ["go", "build", "-o", str(artifactctl_bin), "./cmd/artifactctl"]
-    result = subprocess.run(build_cmd, cwd=artifactctl_root, check=False)
-    if result.returncode != 0:
-        print("[ERROR] failed to build local artifactctl binary for E2E runner.")
-        sys.exit(result.returncode)
-    current_path = os.environ.get("PATH", "")
-    path_entries = [entry for entry in current_path.split(os.pathsep) if entry]
-    bin_path = str(bin_dir)
-    if bin_path not in path_entries:
-        os.environ["PATH"] = os.pathsep.join([bin_path, *path_entries])
-
-
-def requires_local_artifactctl(args, env_scenarios: dict[str, object]) -> bool:
+def requires_artifactctl(args, env_scenarios: dict[str, object]) -> bool:
     if args.test_only:
         return False
     return bool(env_scenarios)
+
+
+def ensure_artifactctl_available() -> str:
+    override = os.environ.get("ARTIFACTCTL_BIN", "").strip()
+    if override:
+        resolved = shutil.which(override)
+        if resolved is None:
+            print(f"[ERROR] ARTIFACTCTL_BIN is set but not executable: {override}")
+            sys.exit(1)
+        _prepend_path_entry(str(os.path.dirname(resolved)))
+        os.environ["ARTIFACTCTL_BIN_RESOLVED"] = resolved
+        return resolved
+
+    resolved = shutil.which("artifactctl")
+    if resolved is not None:
+        os.environ["ARTIFACTCTL_BIN_RESOLVED"] = resolved
+        return resolved
+
+    print("[ERROR] artifactctl binary not found in PATH.")
+    print("        Install artifactctl or set ARTIFACTCTL_BIN to an executable path.")
+    print("        Example: ARTIFACTCTL_BIN=/path/to/artifactctl uv run e2e/run_tests.py ...")
+    sys.exit(1)
+
+
+def _prepend_path_entry(entry: str) -> None:
+    current_path = os.environ.get("PATH", "")
+    path_entries = [item for item in current_path.split(os.pathsep) if item]
+    if entry in path_entries:
+        return
+    os.environ["PATH"] = os.pathsep.join([entry, *path_entries])
 
 
 def main():
@@ -149,8 +162,8 @@ def main():
             emoji=args.emoji,
             show_progress=True,
         )
-        if requires_local_artifactctl(args, env_scenarios):
-            ensure_local_artifactctl()
+        if requires_artifactctl(args, env_scenarios):
+            ensure_artifactctl_available()
         results = run_parallel(
             env_scenarios,
             reporter=reporter,
@@ -183,8 +196,8 @@ def main():
             emoji=args.emoji,
             show_progress=True,
         )
-        if requires_local_artifactctl(args, env_scenarios):
-            ensure_local_artifactctl()
+        if requires_artifactctl(args, env_scenarios):
+            ensure_artifactctl_available()
         results = run_parallel(
             env_scenarios,
             reporter=reporter,
@@ -215,8 +228,8 @@ def main():
         live_display=live_display,
         show_progress=not (live_display and not args.verbose),
     )
-    if requires_local_artifactctl(args, env_scenarios):
-        ensure_local_artifactctl()
+    if requires_artifactctl(args, env_scenarios):
+        ensure_artifactctl_available()
     results = run_parallel(
         env_scenarios,
         reporter=reporter,
