@@ -1,6 +1,6 @@
 // Where: cli/internal/infra/templategen/stage_java_runtime.go
-// What: Java runtime artifact staging and build helpers.
-// Why: Isolate Java-specific runtime preparation from generic staging logic.
+// What: Java runtime hook artifact staging helpers.
+// Why: Isolate Java-specific hook resolution from generic staging logic.
 package templategen
 
 import (
