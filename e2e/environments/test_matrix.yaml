@@ -30,8 +30,6 @@ matrix:
 # docker runtime
 - esb_env: e2e-docker
   artifact_manifest: e2e/artifacts/e2e-docker/artifact.yml
-  deploy_templates:
-  - e2e/fixtures/template.e2e.yaml
   env_vars:
     E2E_IMAGE_EXPECTED_LOGGER: cloudwatch.logs.python
   image_uri_overrides:
@@ -47,8 +45,6 @@ matrix:
 # containerd runtime
 - esb_env: e2e-containerd
   artifact_manifest: e2e/artifacts/e2e-containerd/artifact.yml
-  deploy_templates:
-  - e2e/fixtures/template.e2e.yaml
   env_vars:
     E2E_IMAGE_EXPECTED_LOGGER: cloudwatch.logs.java
   image_uri_overrides:

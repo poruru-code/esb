@@ -8,13 +8,8 @@ from types import SimpleNamespace
 from e2e.run_tests import requires_local_artifactctl
 
 
-def _args(*, unit_only: bool = False, test_only: bool = False) -> SimpleNamespace:
-    return SimpleNamespace(unit_only=unit_only, test_only=test_only)
-
-
-def test_requires_local_artifactctl_false_for_unit_only() -> None:
-    scenarios = {"docker": object()}
-    assert requires_local_artifactctl(_args(unit_only=True), scenarios) is False
+def _args(*, test_only: bool = False) -> SimpleNamespace:
+    return SimpleNamespace(test_only=test_only)
 
 
 def test_requires_local_artifactctl_false_for_test_only() -> None:

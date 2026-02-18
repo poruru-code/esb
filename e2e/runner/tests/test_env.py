@@ -111,14 +111,8 @@ def test_calculate_runtime_env_mode_registry_defaults():
 
 
 def test_calculate_staging_dir_logic(tmp_path):
-    (tmp_path / "docker-compose.docker.yml").write_text("")
-
-    template_dir = tmp_path / "nested"
-    template_dir.mkdir()
-    template_path = template_dir / "template.yaml"
-    template_path.write_text("test")
-
-    path = calculate_staging_dir("myproj", "myenv", template_path=str(template_path))
+    with mock.patch("e2e.runner.env.PROJECT_ROOT", tmp_path):
+        path = calculate_staging_dir("myproj", "myenv")
     assert path == tmp_path / BRAND_HOME_DIR / "staging" / "myproj" / "myenv" / "config"
 
 

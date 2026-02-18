@@ -10,7 +10,7 @@ import pytest
 import yaml
 
 from e2e.runner import deploy as deploy_module
-from e2e.runner.deploy import _collect_local_fixture_image_sources, deploy_templates
+from e2e.runner.deploy import _collect_local_fixture_image_sources, deploy_artifacts
 from e2e.runner.logging import LogSink
 from e2e.runner.models import RunContext, Scenario
 
@@ -41,7 +41,6 @@ def _make_context(
         env_vars={},
         targets=[],
         exclude=[],
-        deploy_templates=[],
         project_name="esb",
         extra=extra,
     )
@@ -155,7 +154,7 @@ def test_collect_local_fixture_image_sources_includes_java_fixture() -> None:
     ]
 
 
-def test_deploy_templates_rejects_invalid_image_override(monkeypatch, tmp_path):
+def test_deploy_artifacts_rejects_invalid_image_override(monkeypatch, tmp_path):
     ctx = _make_context(tmp_path)
     ctx.scenario.extra["image_uri_overrides"] = "invalid-override-format"
 
@@ -167,11 +166,9 @@ def test_deploy_templates_rejects_invalid_image_override(monkeypatch, tmp_path):
     log.open()
     try:
         with pytest.raises(ValueError, match="image_uri_overrides"):
-            deploy_templates(
+            deploy_artifacts(
                 ctx,
-                [],
                 no_cache=False,
-                verbose=False,
                 log=log,
                 printer=None,
             )
@@ -179,7 +176,7 @@ def test_deploy_templates_rejects_invalid_image_override(monkeypatch, tmp_path):
         log.close()
 
 
-def test_deploy_templates_prepares_local_fixture_image(monkeypatch, tmp_path):
+def test_deploy_artifacts_prepares_local_fixture_image(monkeypatch, tmp_path):
     deploy_module._prepared_local_fixture_images.clear()
     ctx = _make_context(
         tmp_path,
@@ -202,11 +199,9 @@ def test_deploy_templates_prepares_local_fixture_image(monkeypatch, tmp_path):
     log = LogSink(tmp_path / "deploy.log")
     log.open()
     try:
-        deploy_templates(
+        deploy_artifacts(
             ctx,
-            [],
             no_cache=False,
-            verbose=False,
             log=log,
             printer=None,
         )
@@ -217,7 +212,7 @@ def test_deploy_templates_prepares_local_fixture_image(monkeypatch, tmp_path):
     assert commands[1] == ["docker", "push", "127.0.0.1:5010/esb-e2e-lambda-python:latest"]
 
 
-def test_deploy_templates_artifact_driver_runs_prepare_apply_and_provision(monkeypatch, tmp_path):
+def test_deploy_artifacts_runs_prepare_apply_and_provision(monkeypatch, tmp_path):
     config_dir = tmp_path / "merged-config"
     image_ref = "127.0.0.1:5010/esb-lambda-echo:e2e-test"
     base_ref = "127.0.0.1:5010/esb-lambda-base:e2e-test"
@@ -244,11 +239,9 @@ def test_deploy_templates_artifact_driver_runs_prepare_apply_and_provision(monke
     log = LogSink(tmp_path / "deploy.log")
     log.open()
     try:
-        deploy_templates(
+        deploy_artifacts(
             ctx,
-            [],
             no_cache=False,
-            verbose=False,
             log=log,
             printer=None,
         )
@@ -282,7 +275,7 @@ def test_deploy_templates_artifact_driver_runs_prepare_apply_and_provision(monke
     assert commands[2][-4:] == ["run", "--rm", "--no-deps", "provisioner"]
 
 
-def test_deploy_templates_artifact_driver_prepare_images_with_no_cache(monkeypatch, tmp_path):
+def test_deploy_artifacts_prepare_images_with_no_cache(monkeypatch, tmp_path):
     config_dir = tmp_path / "merged-config"
     image_ref = "127.0.0.1:5010/esb-lambda-echo:e2e-test"
     base_ref = "127.0.0.1:5010/esb-lambda-base:e2e-test"
@@ -308,11 +301,9 @@ def test_deploy_templates_artifact_driver_prepare_images_with_no_cache(monkeypat
     log = LogSink(tmp_path / "deploy.log")
     log.open()
     try:
-        deploy_templates(
+        deploy_artifacts(
             ctx,
-            [],
             no_cache=True,
-            verbose=False,
             log=log,
             printer=None,
         )
@@ -328,7 +319,7 @@ def test_deploy_templates_artifact_driver_prepare_images_with_no_cache(monkeypat
     ]
 
 
-def test_deploy_templates_artifact_driver_requires_manifest(tmp_path):
+def test_deploy_artifacts_requires_manifest(tmp_path):
     ctx = _make_context(
         tmp_path,
         artifact_manifest=str(tmp_path / "missing-artifact.yml"),
@@ -338,13 +329,33 @@ def test_deploy_templates_artifact_driver_requires_manifest(tmp_path):
     log.open()
     try:
         with pytest.raises(FileNotFoundError, match="artifact manifest not found"):
-            deploy_templates(
+            deploy_artifacts(
                 ctx,
-                [],
                 no_cache=False,
-                verbose=False,
                 log=log,
                 printer=None,
             )
     finally:
         log.close()
+
+
+def test_resolve_artifact_manifest_path_treats_none_as_unset(monkeypatch, tmp_path):
+    ctx = _make_context(tmp_path)
+    ctx.scenario.extra["artifact_manifest"] = None
+    default_root = tmp_path / "artifacts"
+    monkeypatch.setattr(deploy_module, "E2E_ARTIFACT_ROOT", default_root)
+
+    resolved = deploy_module._resolve_artifact_manifest_path(ctx)
+
+    assert resolved == (default_root / ctx.scenario.env_name / "artifact.yml").resolve()
+
+
+def test_resolve_artifact_manifest_path_treats_blank_as_unset(monkeypatch, tmp_path):
+    ctx = _make_context(tmp_path)
+    ctx.scenario.extra["artifact_manifest"] = "   "
+    default_root = tmp_path / "artifacts"
+    monkeypatch.setattr(deploy_module, "E2E_ARTIFACT_ROOT", default_root)
+
+    resolved = deploy_module._resolve_artifact_manifest_path(ctx)
+
+    assert resolved == (default_root / ctx.scenario.env_name / "artifact.yml").resolve()

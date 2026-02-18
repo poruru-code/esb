@@ -22,7 +22,6 @@ def _make_context(tmp_path: Path, *, env_file: str | None) -> RunContext:
         env_vars={},
         targets=[],
         exclude=[],
-        deploy_templates=[],
         project_name="esb",
         extra={},
     )

@@ -28,7 +28,6 @@ Why: Help new contributors find the source-of-truth document without guessing.
 | artifact-first の運用手順を確認したい | [artifact-operations.md](./artifact-operations.md) |
 | イメージ設計・ビルド方針を確認したい | [docker-image-architecture.md](./docker-image-architecture.md) |
 | Trace/ログ連携の仕様を確認したい | [trace-propagation.md](./trace-propagation.md), [local-logging-adapter.md](./local-logging-adapter.md) |
-| Java の Maven Proxy 契約を確認したい | [java-maven-proxy-contract.md](./java-maven-proxy-contract.md) |
 | ディレクトリ責務分離を確認したい | [repo-layout-contract.md](./repo-layout-contract.md) |
 | Branding 運用を確認したい | [branding-generator.md](./branding-generator.md) |
 
@@ -42,7 +41,6 @@ Why: Help new contributors find the source-of-truth document without guessing.
 - [e2e-runtime-smoke.md](./e2e-runtime-smoke.md)
 - [local-logging-adapter.md](./local-logging-adapter.md)
 - [trace-propagation.md](./trace-propagation.md)
-- [java-maven-proxy-contract.md](./java-maven-proxy-contract.md)
 - [repo-layout-contract.md](./repo-layout-contract.md)
 - [branding-generator.md](./branding-generator.md)
 

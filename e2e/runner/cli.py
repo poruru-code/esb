@@ -11,8 +11,6 @@ def parse_args():
     parser.add_argument(
         "--cleanup", action="store_true", help="Cleanup environment after successful tests"
     )
-    parser.add_argument("--unit", action="store_true", help="Run Python unit tests")
-    parser.add_argument("--unit-only", action="store_true", help="Run Python unit tests only")
     parser.add_argument(
         "--build-only",
         action="store_true",
