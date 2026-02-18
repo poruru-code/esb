@@ -31,7 +31,6 @@ var runtimeConfigFiles = []string{
 	"functions.yml",
 	"routing.yml",
 	"resources.yml",
-	"image-import.json",
 }
 
 func (w Workflow) syncRuntimeConfigFromDir(composeProject, stagingDir string) error {

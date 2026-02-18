@@ -32,7 +32,6 @@ func artifactGenerateToDeployFlags(cmd ArtifactGenerateCmd) DeployCmd {
 		ImageRuntime: append([]string(nil), cmd.ImageRuntime...),
 		BuildOnly:    true,
 		Bundle:       cmd.Bundle,
-		ImagePrewarm: cmd.ImagePrewarm,
 		NoCache:      cmd.NoCache,
 		Verbose:      cmd.Verbose,
 		Emoji:        cmd.Emoji,

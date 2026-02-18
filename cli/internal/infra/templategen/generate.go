@@ -97,10 +97,6 @@ func GenerateFiles(cfg config.GeneratorConfig, opts GenerateOptions) ([]template
 	if strings.TrimSpace(runtimeRegistry) == "" {
 		runtimeRegistry = opts.Registry
 	}
-	imageImports, err := resolveImageImports(parsed.Functions, runtimeRegistry)
-	if err != nil {
-		return nil, err
-	}
 
 	functionsDir := filepath.Join(outputDir, "functions")
 	layerCacheDir := filepath.Join(outputDir, ".layers_cache")
@@ -209,13 +205,6 @@ func GenerateFiles(cfg config.GeneratorConfig, opts GenerateOptions) ([]template
 	}
 	if !opts.DryRun {
 		if err := writeConfigFile(resourcesYmlPath, resourcesContent); err != nil {
-			return nil, err
-		}
-	}
-
-	imageImportPath := filepath.Join(outputDir, "config", "image-import.json")
-	if !opts.DryRun {
-		if err := writeImageImportManifest(imageImportPath, imageImports); err != nil {
 			return nil, err
 		}
 	}

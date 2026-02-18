@@ -28,7 +28,6 @@ const (
 
 func writeDeployArtifactManifest(
 	inputs deployInputs,
-	imagePrewarm string,
 	bundleEnabled bool,
 	manifestOverride string,
 ) (string, error) {
@@ -75,7 +74,6 @@ func writeDeployArtifactManifest(
 			ArtifactRoot:     artifactRoot,
 			RuntimeConfigDir: filepath.ToSlash("config"),
 			BundleManifest:   bundleManifest,
-			ImagePrewarm:     imagePrewarm,
 			SourceTemplate:   source,
 			RuntimeMeta:      runtimeMeta,
 		}

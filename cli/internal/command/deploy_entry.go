@@ -192,10 +192,6 @@ func (c *deployCommand) runWithOverrides(
 	overrides deployRunOverrides,
 ) error {
 	tag := resolveBrandTag()
-	imagePrewarm, err := normalizeImagePrewarm(flags.ImagePrewarm)
-	if err != nil {
-		return err
-	}
 	if flags.NoDeps && flags.WithDeps {
 		return errors.New("deploy: --no-deps and --with-deps cannot be used together")
 	}
@@ -244,7 +240,6 @@ func (c *deployCommand) runWithOverrides(
 				{Key: "Output", Value: outputSummary},
 				{Key: "BuildOnly", Value: buildOnly},
 				{Key: "BuildImages", Value: buildImages},
-				{Key: "ImagePrewarm", Value: imagePrewarm},
 				{Key: "ComposeFiles", Value: composeFiles},
 			}
 			c.ui.Block("🧭", title, rows)
@@ -274,7 +269,6 @@ func (c *deployCommand) runWithOverrides(
 			BuildOnly:      true,
 			BuildImages:    boolPtr(buildImages),
 			BundleManifest: flags.Bundle,
-			ImagePrewarm:   imagePrewarm,
 			Emoji:          c.emojiEnabled,
 		}
 		if err := workflow.Run(request); err != nil {
@@ -285,7 +279,6 @@ func (c *deployCommand) runWithOverrides(
 	// Materialize strict artifact manifest after all generate steps.
 	manifestPath, err := writeDeployArtifactManifest(
 		inputs,
-		imagePrewarm,
 		flags.Bundle,
 		flags.Manifest,
 	)
@@ -320,16 +313,11 @@ func (c *deployCommand) runWithOverrides(
 		Verbose:      flags.Verbose,
 		ComposeFiles: inputs.ComposeFiles,
 		BuildOnly:    false,
-		ImagePrewarm: imagePrewarm,
 	}
 	if err := workflow.Apply(applyReq); err != nil {
 		return fmt.Errorf("deploy apply (%s): %w", applyTemplate.TemplatePath, err)
 	}
 	return nil
-}
-
-func normalizeImagePrewarm(value string) (string, error) {
-	return deploy.NormalizeImagePrewarmMode(value)
 }
 
 func resolveDeployEmojiEnabled(out io.Writer, flags DeployCmd) (bool, error) {

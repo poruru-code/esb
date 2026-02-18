@@ -33,7 +33,6 @@ Why: Define a stable boundary between artifact producer (CLI/manual) and runtime
     functions.yml
     routing.yml
     resources.yml              # 条件付き
-    image-import.json          # 条件付き
   runtime-base/               # 条件付き（python base build を行う場合）
     runtime-hooks/
       python/
@@ -77,7 +76,6 @@ Why: Define a stable boundary between artifact producer (CLI/manual) and runtime
 
 ### Entry 条件付き必須
 - `<artifact_root>/<runtime_config_dir>/resources.yml`: resource 定義を使う場合
-- `<artifact_root>/<runtime_config_dir>/image-import.json`: image import を使う場合
 - `<artifact_root>/<bundle_manifest>`: bundle/import ワークフローを使う場合
 - `<artifact_root>/runtime-base/runtime-hooks/python/docker/Dockerfile`: `prepare-images` で `esb-lambda-base:*` を build/push する場合
 - `<artifact_root>/runtime-base/runtime-hooks/python/sitecustomize/site-packages/sitecustomize.py`: `runtime_meta.runtime_hooks.python_sitecustomize_digest` を検証する場合
@@ -130,7 +128,6 @@ artifacts:
     artifact_root: ../service-a/.esb/template-a/dev
     runtime_config_dir: runtime-config
     bundle_manifest: bundle/manifest.json
-    image_prewarm: all
     required_secret_env: []
     source_template:
       path: /path/to/template-a.yaml
@@ -141,7 +138,6 @@ artifacts:
   - id: template-b-43ad77f0
     artifact_root: ../service-b/.esb/template-b/dev
     runtime_config_dir: runtime-config
-    image_prewarm: all
     required_secret_env: []
     source_template:
       path: /path/to/template-b.yaml
@@ -199,7 +195,7 @@ artifacts:
 - Applier（CLI / 手動適用）:
   - `artifact.yml` を検証
   - `artifacts[]` 配列順で runtime-config をマージし `CONFIG_DIR` へ反映
-  - 必要なら prewarm/provision を実行
+  - 必要なら `prepare-images` と provision を実行
 - Runtime Consumer（Gateway/Provisioner/Agent）:
   - 反映済み設定を読み込むのみ
   - CLI バイナリへの依存を持たない
@@ -327,7 +323,6 @@ tools/artifactctl prepare-images --artifact "${ARTIFACT}"
 - `functions.yml`: function 名キーで last-write-wins、defaults は不足キー補完
 - `routing.yml`: `(path, method)` キーで last-write-wins
 - `resources.yml`: resource 名キーで last-write-wins
-- `image-import.json`: function 名（なければ source/ref）で last-write-wins
 
 ```bash
 mkdir -p "${MERGED_CONFIG_DIR}"

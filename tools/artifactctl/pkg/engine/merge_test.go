@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -47,10 +46,6 @@ func TestMergeRuntimeConfig_UsesManifestOrderAndLastWriteWins(t *testing.T) {
 	})
 	writeYAMLFile(t, filepath.Join(bRoot, "config", "routing.yml"), map[string]any{
 		"routes": []any{map[string]any{"path": "/hello", "method": "GET", "function": "bye"}},
-	})
-	writeJSONFile(t, filepath.Join(bRoot, "config", "image-import.json"), map[string]any{
-		"version": "1",
-		"images":  []any{map[string]any{"function_name": "img-fn", "image_ref": "repo:tag"}},
 	})
 
 	manifest := ArtifactManifest{
@@ -109,12 +104,6 @@ func TestMergeRuntimeConfig_UsesManifestOrderAndLastWriteWins(t *testing.T) {
 	route := asMap(routes[0])
 	if route["function"] != "bye" {
 		t.Fatalf("expected route to be overwritten by b, got %#v", route["function"])
-	}
-
-	imageImport := readJSONFile(t, filepath.Join(outDir, "image-import.json"))
-	images := imageImport["images"].([]any)
-	if len(images) != 1 {
-		t.Fatalf("expected one image import entry, got %d", len(images))
 	}
 }
 
@@ -296,33 +285,6 @@ func readYAMLFile(t *testing.T, path string) map[string]any {
 	}
 	out := map[string]any{}
 	if err := yaml.Unmarshal(data, &out); err != nil {
-		t.Fatal(err)
-	}
-	return out
-}
-
-func writeJSONFile(t *testing.T, path string, value any) {
-	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	data, err := json.Marshal(value)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, data, 0o600); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func readJSONFile(t *testing.T, path string) map[string]any {
-	t.Helper()
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	out := map[string]any{}
-	if err := json.Unmarshal(data, &out); err != nil {
 		t.Fatal(err)
 	}
 	return out

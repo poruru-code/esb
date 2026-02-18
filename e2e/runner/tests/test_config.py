@@ -13,7 +13,6 @@ def test_build_env_scenarios_includes_image_overrides() -> None:
     matrix = [
         {
             "esb_env": "e2e-docker",
-            "image_prewarm": "off",
             "image_uri_overrides": {"lambda-image": "public.ecr.aws/example/repo:v1"},
             "image_runtime_overrides": {"lambda-image": "python"},
             "suites": ["smoke"],
@@ -29,7 +28,6 @@ def test_build_env_scenarios_includes_image_overrides() -> None:
     scenarios = build_env_scenarios(matrix, suites)
 
     scenario = scenarios["e2e-docker"]
-    assert scenario["image_prewarm"] == "off"
     assert scenario["image_uri_overrides"] == {"lambda-image": "public.ecr.aws/example/repo:v1"}
     assert scenario["image_runtime_overrides"] == {"lambda-image": "python"}
 
@@ -96,7 +94,6 @@ def test_build_plan_propagates_core_fields() -> None:
     assert scenario.mode == "docker"
     assert scenario.extra == {
         "artifact_manifest": "e2e/artifacts/e2e-docker/artifact.yml",
-        "image_prewarm": "",
         "image_uri_overrides": {},
         "image_runtime_overrides": {},
     }
@@ -121,7 +118,6 @@ def test_build_plan_treats_null_artifact_manifest_as_unset() -> None:
     scenario = scenarios["e2e-docker"]
 
     assert scenario.extra == {
-        "image_prewarm": "",
         "image_uri_overrides": {},
         "image_runtime_overrides": {},
     }

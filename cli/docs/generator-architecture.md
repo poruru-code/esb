@@ -11,7 +11,6 @@ Why: Explain parse/stage/render boundaries and safe extension paths.
 - `functions.yml`
 - `routing.yml`
 - `resources.yml`
-- `image-import.json`
 - 各関数の build context / Dockerfile
 
 ## 役割分担
@@ -31,11 +30,10 @@ flowchart TD
     C --> D[stageFunction]
     D --> E[RenderDockerfile]
     E --> F[write functions.yml / routing.yml / resources.yml]
-    F --> G[write image-import.json]
 ```
 
 ## 生成上のルール
-- `ImageSource` を持つ関数は Dockerfile 生成対象外（runtime pull 前提）
+- `ImageSource` を持つ関数も Dockerfile を生成し、`FROM <ImageUri>` で hooks 注入イメージを再ビルドする
 - 関数名は `template.ApplyImageNames` で正規化
 - warnings は `stderr` 系出力へ集約
 - 出力先は `<output>/<env>` 配下で完結

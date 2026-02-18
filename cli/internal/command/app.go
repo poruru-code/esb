@@ -62,7 +62,6 @@ type (
 		ImageRuntime []string `name:"image-runtime" sep:"," help:"Runtime override for image functions (<function>=<python|java21>)"`
 		BuildOnly    bool     `name:"build-only" help:"Build only (skip provisioner and runtime sync)"`
 		Bundle       bool     `name:"bundle-manifest" help:"Write bundle manifest (for bundling)"`
-		ImagePrewarm string   `name:"image-prewarm" default:"all" help:"Image prewarm mode (all/off)"`
 		NoCache      bool     `name:"no-cache" help:"Do not use cache when building images"`
 		NoDeps       bool     `name:"no-deps" help:"Do not start dependent services when running provisioner (default)"`
 		WithDeps     bool     `name:"with-deps" help:"Start dependent services when running provisioner"`
@@ -87,7 +86,6 @@ type (
 		ImageURI     []string `name:"image-uri" sep:"," help:"Image URI override for image functions (<function>=<image-uri>)"`
 		ImageRuntime []string `name:"image-runtime" sep:"," help:"Runtime override for image functions (<function>=<python|java21>)"`
 		Bundle       bool     `name:"bundle-manifest" help:"Write bundle manifest (for bundling)"`
-		ImagePrewarm string   `name:"image-prewarm" default:"all" help:"Image prewarm mode metadata (all/off)"`
 		BuildImages  bool     `name:"build-images" help:"Build base/function images during generate"`
 		NoCache      bool     `name:"no-cache" help:"Do not use cache when building images"`
 		Verbose      bool     `short:"v" help:"Verbose output"`
@@ -260,7 +258,7 @@ func commandName(args []string) string {
 
 func commandFlagExpectsValue(arg string) bool {
 	switch arg {
-	case "-e", "--env", "-t", "--template", "--env-file", "-m", "--mode", "-o", "--output", "--manifest", "-p", "--project", "--image-prewarm", "--image-uri", "--image-runtime", "--artifact", "--out", "--secret-env":
+	case "-e", "--env", "-t", "--template", "--env-file", "-m", "--mode", "-o", "--output", "--manifest", "-p", "--project", "--image-uri", "--image-runtime", "--artifact", "--out", "--secret-env":
 		return true
 	default:
 		return false

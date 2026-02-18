@@ -172,9 +172,6 @@ func mergeOneRuntimeConfig(srcDir, destDir string) error {
 	if err := mergeResourcesYML(srcDir, destDir); err != nil {
 		return err
 	}
-	if err := mergeImageImportManifest(srcDir, destDir); err != nil {
-		return err
-	}
 	return nil
 }
 

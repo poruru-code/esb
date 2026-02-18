@@ -270,10 +270,9 @@ func TestSyncRuntimeConfigToTargetBindPathCopiesConfigFiles(t *testing.T) {
 	destDir := filepath.Join(t.TempDir(), "runtime-config")
 
 	expected := map[string]string{
-		"functions.yml":     "functions",
-		"routing.yml":       "routes",
-		"resources.yml":     "resources",
-		"image-import.json": `{"images":[]}`,
+		"functions.yml": "functions",
+		"routing.yml":   "routes",
+		"resources.yml": "resources",
 	}
 	for name, content := range expected {
 		if err := os.WriteFile(filepath.Join(srcDir, name), []byte(content), 0o644); err != nil {
