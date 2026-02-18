@@ -204,16 +204,13 @@ artifacts:
 - `tools/artifactctl`（Go 実装）:
   - `validate-id` / `merge` / `prepare-images` / `apply` の正本実装を提供する
   - schema/path/id/secret/merge 規約の判定を一元化する
-  - 配置は `tools/artifactctl/`（`cmd/artifactctl` + `pkg/engine`）を正本とする
-- `tools/artifact/merge_runtime_config.sh`（shell）:
-  - 引数受け取りと `tools/artifactctl merge` 呼び出しのみを担当する
-  - merge ロジックを実装してはいけない
+  - `tools/artifactctl/cmd/artifactctl` は command adapter、実ロジック正本は `pkg/artifactcore` とする
 - `esb artifact apply`:
   - `tools/artifactctl apply` と同じ Go 実装を呼ぶ薄いアダプタとして振る舞う
 
 repo 分離後の依存方向:
-- core repo が `tools/artifactctl/pkg/engine` を保有する
-- CLI repo は core 側モジュールを参照して同一 engine をリンクする（または同一 engine バイナリを呼び出す）
+- core repo が `pkg/artifactcore` を保有する
+- CLI repo は core 側モジュールを参照して同一 core ロジックをリンクする（または同一バイナリを呼び出す）
 - core <- CLI の逆依存は作らない
 
 ## フェーズ別ユースケース整理（CLI あり / CLI なし）
@@ -330,9 +327,6 @@ mkdir -p "${MERGED_CONFIG_DIR}"
 tools/artifactctl merge \
   --artifact "${ARTIFACT}" \
   --out "${MERGED_CONFIG_DIR}"
-
-# 互換ラッパ（任意）:
-# tools/artifact/merge_runtime_config.sh --artifact "${ARTIFACT}" --out "${MERGED_CONFIG_DIR}"
 
 cat "${SECRETS_ENV}" > "${RUN_ENV}"
 {
