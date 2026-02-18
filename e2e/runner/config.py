@@ -8,22 +8,13 @@ from e2e.runner.utils import BRAND_SLUG, PROJECT_ROOT
 MATRIX_ROOT = PROJECT_ROOT / "e2e" / "environments"
 
 
-def _normalize_deploy_driver(value: object) -> str:
-    driver = str(value or "artifact").strip().lower()
-    if driver in {"", "none"}:
-        driver = "artifact"
-    if driver != "artifact":
-        raise ValueError(f"deploy_driver must be 'artifact': {value!r}")
-    return driver
+_LEGACY_DEPLOY_FIELDS = ("deploy_driver", "artifact_generate")
 
 
-def _normalize_artifact_generate(value: object, *, deploy_driver: str) -> str:
-    if deploy_driver != "artifact":
-        return "none"
-    mode = str(value or "none").strip().lower()
-    if mode in {"", "none"}:
-        return "none"
-    raise ValueError(f"artifact_generate must be 'none': {value!r}")
+def _reject_legacy_deploy_fields(entry: dict) -> None:
+    for field in _LEGACY_DEPLOY_FIELDS:
+        if field in entry:
+            raise ValueError(f"legacy field '{field}' is no longer supported in E2E matrix")
 
 
 def load_test_matrix() -> dict:
@@ -50,6 +41,7 @@ def build_env_scenarios(matrix: list, suites: dict, profile_filter: str | None =
         if profile_filter and env_name != profile_filter:
             continue
 
+        _reject_legacy_deploy_fields(entry)
         suite_names = entry.get("suites", [])
         if env_name not in env_scenarios:
             env_dir = entry.get("env_dir", env_name)
@@ -66,11 +58,6 @@ def build_env_scenarios(matrix: list, suites: dict, profile_filter: str | None =
             env_vars = dict(entry.get("env_vars", {}))
             if is_firecracker:
                 env_vars.setdefault("CONTAINERD_RUNTIME", "aws.firecracker")
-            deploy_driver = _normalize_deploy_driver(entry.get("deploy_driver", "artifact"))
-            artifact_generate = _normalize_artifact_generate(
-                entry.get("artifact_generate", "none"),
-                deploy_driver=deploy_driver,
-            )
 
             env_scenarios[env_name] = {
                 "name": f"Combined Scenarios for {env_name}",
@@ -79,8 +66,6 @@ def build_env_scenarios(matrix: list, suites: dict, profile_filter: str | None =
                 "esb_env": env_name,
                 "esb_project": BRAND_SLUG,
                 "mode": mode,
-                "deploy_driver": deploy_driver,
-                "artifact_generate": artifact_generate,
                 "env_vars": env_vars,
                 "targets": [],
                 "exclude": [],
@@ -89,6 +74,11 @@ def build_env_scenarios(matrix: list, suites: dict, profile_filter: str | None =
                 "image_uri_overrides": entry.get("image_uri_overrides", {}) or {},
                 "image_runtime_overrides": entry.get("image_runtime_overrides", {}) or {},
             }
+            artifact_manifest_value = entry.get("artifact_manifest")
+            if artifact_manifest_value is not None:
+                artifact_manifest = str(artifact_manifest_value).strip()
+                if artifact_manifest:
+                    env_scenarios[env_name]["artifact_manifest"] = artifact_manifest
 
         for suite_name in suite_names:
             suite_def = suites.get(suite_name)

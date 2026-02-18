@@ -20,7 +20,6 @@ def _make_context(
     *,
     image_uri_overrides: dict[str, str] | None = None,
     image_runtime_overrides: dict[str, str] | None = None,
-    deploy_driver: str = "artifact",
     artifact_manifest: str | None = None,
     runtime_env: dict[str, str] | None = None,
 ) -> RunContext:
@@ -44,8 +43,6 @@ def _make_context(
         exclude=[],
         deploy_templates=[],
         project_name="esb",
-        deploy_driver=deploy_driver,
-        artifact_generate="none",
         extra=extra,
     )
     resolved_runtime_env = {
@@ -341,25 +338,6 @@ def test_deploy_templates_artifact_driver_requires_manifest(tmp_path):
     log.open()
     try:
         with pytest.raises(FileNotFoundError, match="artifact manifest not found"):
-            deploy_templates(
-                ctx,
-                [],
-                no_cache=False,
-                verbose=False,
-                log=log,
-                printer=None,
-            )
-    finally:
-        log.close()
-
-
-def test_deploy_templates_rejects_unknown_driver(tmp_path):
-    ctx = _make_context(tmp_path, deploy_driver="unknown")
-
-    log = LogSink(tmp_path / "deploy.log")
-    log.open()
-    try:
-        with pytest.raises(RuntimeError, match="deploy_driver 'unknown'"):
             deploy_templates(
                 ctx,
                 [],

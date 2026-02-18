@@ -20,14 +20,6 @@ _prepared_local_fixture_images: set[str] = set()
 _prepared_local_fixture_lock = threading.Lock()
 
 
-def _resolve_deploy_driver(ctx: RunContext) -> str:
-    raw = ctx.scenario.deploy_driver
-    driver = str(raw).strip().lower()
-    if driver != "artifact":
-        raise RuntimeError(f"deploy_driver '{driver}' is not supported by E2E deploy runner")
-    return driver
-
-
 def deploy_templates(
     ctx: RunContext,
     templates: list[Path],
@@ -40,7 +32,6 @@ def deploy_templates(
     del templates
     del verbose
     _prepare_local_fixture_images(ctx, log=log, printer=printer)
-    _resolve_deploy_driver(ctx)
     _deploy_via_artifact_driver(
         ctx,
         no_cache=no_cache,
@@ -62,7 +53,7 @@ def _deploy_via_artifact_driver(
 
     config_dir = str(ctx.runtime_env.get("CONFIG_DIR", "")).strip()
     if config_dir == "":
-        raise RuntimeError("CONFIG_DIR is required for deploy_driver=artifact")
+        raise RuntimeError("CONFIG_DIR is required for artifact apply")
 
     message = f"Preparing artifact images for {ctx.scenario.env_name}..."
     log.write_line(message)

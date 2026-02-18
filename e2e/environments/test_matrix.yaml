@@ -27,9 +27,8 @@ suites:
     exclude: []
 
 matrix:
-# docker runtime (artifact-only)
+# docker runtime
 - esb_env: e2e-docker
-  deploy_driver: artifact
   artifact_manifest: e2e/artifacts/e2e-docker/artifact.yml
   deploy_templates:
   - e2e/fixtures/template.e2e.yaml
@@ -45,9 +44,8 @@ matrix:
   - runtime
   - restart
 
-# containerd runtime (artifact-only)
+# containerd runtime
 - esb_env: e2e-containerd
-  deploy_driver: artifact
   artifact_manifest: e2e/artifacts/e2e-containerd/artifact.yml
   deploy_templates:
   - e2e/fixtures/template.e2e.yaml

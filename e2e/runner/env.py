@@ -9,7 +9,6 @@ from e2e.runner import constants
 from e2e.runner.utils import (
     BRAND_HOME_DIR,
     BRAND_SLUG,
-    CLI_ROOT,
     ENV_PREFIX,
     PROJECT_ROOT,
     env_key,
@@ -169,11 +168,6 @@ def calculate_runtime_env(
     insecure_key = env_key(constants.ENV_CONTAINER_REGISTRY_INSECURE)
     if not env.get(insecure_key):
         env[insecure_key] = "1"
-
-    # If using local dev, point to the Go CLI source root for template resolution
-    # (matching logic in cli/internal/config/config.go)
-    if constants.ENV_CLI_SRC_ROOT not in env:
-        env[constants.ENV_CLI_SRC_ROOT] = str(CLI_ROOT)
 
     # 2. Port Defaults (0 for dynamic)
     for port_suffix in (

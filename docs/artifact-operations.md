@@ -86,8 +86,7 @@ Notes:
 
 ## E2E Contract (Current)
 `e2e/environments/test_matrix.yaml` is artifact-only:
-- `deploy_driver` must be `artifact`
-- `artifact_generate` must be `none`
+- legacy driver switches (`deploy_driver`, `artifact_generate`) are no longer allowed
 - test execution consumes committed fixtures under `e2e/artifacts/*`
 - firecracker profile is currently disabled in matrix (docker/containerd are active gates)
 
@@ -98,7 +97,7 @@ Fixture refresh is a separate developer operation (outside E2E runtime):
 
 ## Failure Policy
 - Missing `artifact.yml`, required runtime config files, invalid ID, missing required secrets: hard fail
-- Unknown `deploy_driver` or unsupported `artifact_generate` mode: hard fail
+- Presence of legacy matrix fields (`deploy_driver`, `artifact_generate`): hard fail
 - Missing runtime-base context for required base-image build in `prepare-images`: hard fail
 - Apply phase must not silently fall back to template-based sync paths
 - In `--strict`, runtime digest verification fails if `<artifact_root>/runtime-base/runtime-hooks/python/sitecustomize/site-packages/sitecustomize.py` is missing or unreadable

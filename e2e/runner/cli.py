@@ -2,7 +2,7 @@ import argparse
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="E2E Test Runner (ESB CLI Wrapper)")
+    parser = argparse.ArgumentParser(description="E2E Test Runner (Artifact-first)")
     parser.add_argument(
         "--build",
         action="store_true",
@@ -11,8 +11,8 @@ def parse_args():
     parser.add_argument(
         "--cleanup", action="store_true", help="Cleanup environment after successful tests"
     )
-    parser.add_argument("--unit", action="store_true", help="Run unit tests")
-    parser.add_argument("--unit-only", action="store_true", help="Run unit tests only")
+    parser.add_argument("--unit", action="store_true", help="Run Python unit tests")
+    parser.add_argument("--unit-only", action="store_true", help="Run Python unit tests only")
     parser.add_argument(
         "--build-only",
         action="store_true",
