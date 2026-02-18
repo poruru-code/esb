@@ -279,6 +279,32 @@ func TestDeployWorkflowApplySuccess(t *testing.T) {
 	}
 }
 
+func TestDeployWorkflowApplySuccessWithoutTemplatePath(t *testing.T) {
+	ui := &testUI{}
+	runner := &fakeComposeRunner{}
+	workflow := NewDeployWorkflow(nil, nil, ui, runner)
+	workflow.RegistryWaiter = noopRegistryWaiter
+	repoRoot := newTestRepoRoot(t)
+
+	artifactPath := writeTestArtifactManifest(t, false)
+	err := workflow.Apply(Request{
+		Context: state.Context{
+			ComposeProject: "esb-dev",
+			ProjectDir:     repoRoot,
+		},
+		Env:          "dev",
+		Mode:         "docker",
+		ArtifactPath: artifactPath,
+		ImagePrewarm: "all",
+	})
+	if err != nil {
+		t.Fatalf("Apply without template path: %v", err)
+	}
+	if len(ui.success) != 1 || !strings.Contains(ui.success[0], "Deploy complete") {
+		t.Fatalf("expected deploy success message, got %#v", ui.success)
+	}
+}
+
 func TestRunProvisionerUsesComposeOverride(t *testing.T) {
 	runner := &fakeComposeRunner{}
 	ui := &testUI{}

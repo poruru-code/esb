@@ -13,11 +13,11 @@ artifacts:
     runtime_meta:
       runtime_hooks:
         api_version: "1.0"
-        python_sitecustomize_digest: a867884eca03420a44b4e398279e0569fe5209dc3d470ae39d6430944dc08564
+        python_sitecustomize_digest: bdc58c98ecf9558228b38692566042114c2ac77a04e44d0bb6475787154a896e
       template_renderer:
         name: esb-cli-embedded-templates
         api_version: "1.0"
-generated_at: "2026-02-18T11:24:06Z"
+generated_at: "2026-02-18T16:38:03Z"
 generator:
   name: esb
   version: dev

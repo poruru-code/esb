@@ -4,14 +4,8 @@
 package deploy
 
 import (
-	domaincfg "github.com/poruru/edge-serverless-box/cli/internal/domain/config"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
+	"os"
 )
-
-type generateResult struct {
-	stagingDir  string
-	preSnapshot domaincfg.Snapshot
-}
 
 // Run executes the deploy workflow.
 func (w Workflow) Run(req Request) error {
@@ -34,12 +28,11 @@ func (w Workflow) Run(req Request) error {
 		}
 	}
 
-	generated, err := w.runGeneratePhase(req)
-	if err != nil {
+	if err := w.runGeneratePhase(req); err != nil {
 		return err
 	}
 	if !req.BuildOnly {
-		if err := w.runApplyPhase(req, generated.stagingDir, imagePrewarm); err != nil {
+		if err := w.runApplyPhase(req, imagePrewarm); err != nil {
 			return err
 		}
 	}
@@ -72,11 +65,7 @@ func (w Workflow) Apply(req Request) error {
 		}
 	}
 
-	stagingDir, err := staging.ConfigDir(req.TemplatePath, req.Context.ComposeProject, req.Env)
-	if err != nil {
-		return err
-	}
-	if err := w.runApplyPhase(req, stagingDir, imagePrewarm); err != nil {
+	if err := w.runApplyPhase(req, imagePrewarm); err != nil {
 		return err
 	}
 
@@ -87,34 +76,33 @@ func (w Workflow) Apply(req Request) error {
 }
 
 // runGeneratePhase executes build/generation-side deploy steps.
-func (w Workflow) runGeneratePhase(req Request) (generateResult, error) {
-	generated, err := w.prepareGenerate(req)
-	if err != nil {
-		return generateResult{}, err
-	}
+func (w Workflow) runGeneratePhase(req Request) error {
 	if err := w.runBuildPhase(req); err != nil {
-		return generateResult{}, err
+		return err
 	}
-	w.emitPostBuildSummary(req, generated.stagingDir, generated.preSnapshot)
-	return generated, nil
+	w.emitPostBuildSummary(req)
+	return nil
 }
 
 // runApplyPhase executes runtime/provision-side deploy steps.
-func (w Workflow) runApplyPhase(req Request, stagingDir, imagePrewarm string) error {
+func (w Workflow) runApplyPhase(req Request, imagePrewarm string) error {
+	stagingDir, cleanup, err := createApplyWorkspace()
+	if err != nil {
+		return err
+	}
+	defer cleanup()
 	if err := w.waitRegistryAndServices(req); err != nil {
 		return err
 	}
 	return w.runRuntimeProvisionPhase(req, stagingDir, imagePrewarm)
 }
 
-// prepareGenerate resolves and snapshots generate outputs before build.
-func (w Workflow) prepareGenerate(req Request) (generateResult, error) {
-	stagingDir, preSnapshot, err := w.prepareBuildPhase(req)
+func createApplyWorkspace() (string, func(), error) {
+	dir, err := os.MkdirTemp("", "esb-runtime-config-*")
 	if err != nil {
-		return generateResult{}, err
+		return "", nil, err
 	}
-	return generateResult{
-		stagingDir:  stagingDir,
-		preSnapshot: preSnapshot,
+	return dir, func() {
+		_ = os.RemoveAll(dir)
 	}, nil
 }

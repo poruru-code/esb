@@ -11,18 +11,6 @@ func ensureDir(path string) error {
 	return fileops.EnsureDir(path)
 }
 
-func removeDir(path string) error {
-	return fileops.RemoveDir(path)
-}
-
-func copyDir(src, dst string) error {
-	return fileops.CopyDir(src, dst)
-}
-
-func copyFile(src, dst string) error {
-	return fileops.CopyFile(src, dst)
-}
-
 func fileExists(path string) bool {
 	return fileops.FileExists(path)
 }

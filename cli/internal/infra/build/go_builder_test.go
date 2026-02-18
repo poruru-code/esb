@@ -157,13 +157,8 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		t.Fatalf("missing DYNAMODB_ENDPOINT_HOST parameter")
 	}
 
-	expectedConfigDir, err := staging.ConfigDir(templatePath, "demo-staging", "staging")
-	if err != nil {
-		t.Fatalf("resolve staging config dir: %v", err)
-	}
-	expectedConfigDir = filepath.ToSlash(expectedConfigDir)
-	if got := os.Getenv(constants.EnvConfigDir); got != expectedConfigDir {
-		t.Fatalf("unexpected %s: %s", constants.EnvConfigDir, got)
+	if got := os.Getenv(constants.EnvConfigDir); got != "" {
+		t.Fatalf("build must not set %s, got %q", constants.EnvConfigDir, got)
 	}
 	if got := os.Getenv(constants.EnvProjectName); got != "demo-staging" {
 		t.Fatalf("unexpected %s: %s", constants.EnvProjectName, got)
@@ -179,8 +174,11 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		t.Fatalf("resolve staging config dir: %v", err)
 	}
 	staged := filepath.Join(stagingDir, "functions.yml")
-	if _, err := os.Stat(staged); err != nil {
-		t.Fatalf("expected staged config: %v", err)
+	if _, err := os.Stat(staged); !os.IsNotExist(err) {
+		if err != nil {
+			t.Fatalf("stat staged config: %v", err)
+		}
+		t.Fatalf("generate/build phase must not merge runtime config into staging")
 	}
 
 	if !hasDockerBakeGroup(dockerRunner.calls, "esb-base") {
@@ -296,7 +294,6 @@ func TestGoBuilderBuildRenderOnlySkipsImageBuilds(t *testing.T) {
 		Env:          "staging",
 		Mode:         "containerd",
 		BuildImages:  false,
-		SkipStaging:  true,
 		Tag:          "v1.2.3",
 	}
 	if err := builder.Build(request); err != nil {
@@ -312,14 +309,14 @@ func TestGoBuilderBuildRenderOnlySkipsImageBuilds(t *testing.T) {
 		t.Fatalf("render-only build must not run buildx inspect")
 	}
 	if got := os.Getenv(constants.EnvConfigDir); got != "" {
-		t.Fatalf("render-only build with SkipStaging must not set %s, got %q", constants.EnvConfigDir, got)
+		t.Fatalf("render-only build must not set %s, got %q", constants.EnvConfigDir, got)
 	}
 	stagingDir := filepath.Join(repoRoot, meta.HomeDir, "staging", "demo-staging", "staging", "config")
 	if _, err := os.Stat(filepath.Join(stagingDir, "functions.yml")); !os.IsNotExist(err) {
 		if err != nil {
 			t.Fatalf("stat staging functions.yml: %v", err)
 		}
-		t.Fatalf("render-only build with SkipStaging must not write staging config")
+		t.Fatalf("render-only build must not write staging config")
 	}
 	if gotOpts.BuildRegistry != "registry:5010/" {
 		t.Fatalf("unexpected render-only build registry: %s", gotOpts.BuildRegistry)

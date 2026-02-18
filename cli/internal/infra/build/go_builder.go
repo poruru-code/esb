@@ -120,7 +120,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	}
 
 	composeProject := resolveComposeProjectName(request.ProjectName, cfg.App.Name, request.Env)
-	if err := applyBuildEnv(request.Env, templatePath, composeProject, request.SkipStaging); err != nil {
+	if err := applyBuildEnv(request.Env, composeProject); err != nil {
 		return err
 	}
 	imageLabels := brandingImageLabels(composeProject, request.Env)
@@ -184,11 +184,6 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 				ImageRuntimes:   request.ImageRuntimes,
 				Verbose:         request.Verbose,
 			},
-			repoRoot,
-			templatePath,
-			composeProject,
-			request.Env,
-			request.SkipStaging,
 		)
 		if err != nil {
 			return err
