@@ -17,7 +17,7 @@ artifacts:
       template_renderer:
         name: esb-cli-embedded-templates
         api_version: "1.0"
-generated_at: "2026-02-18T16:38:03Z"
+generated_at: "2026-02-18T17:02:29Z"
 generator:
   name: esb
   version: dev

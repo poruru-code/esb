@@ -4,8 +4,10 @@
 package config
 
 import (
+	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/meta"
@@ -113,5 +115,31 @@ func TestEnsureProjectConfigKeepsExisting(t *testing.T) {
 	}
 	if !reflect.DeepEqual(cfg, loaded) {
 		t.Fatalf("config mismatch: expected %#v, got %#v", cfg, loaded)
+	}
+}
+
+func TestSaveGlobalConfigUsesTwoSpaceIndent(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	cfg := GlobalConfig{
+		Version: 1,
+		Projects: map[string]ProjectEntry{
+			"demo": {Path: "/tmp/demo", LastUsed: "2026-02-18T00:00:00Z"},
+		},
+	}
+
+	if err := SaveGlobalConfig(path, cfg); err != nil {
+		t.Fatalf("save global config: %v", err)
+	}
+
+	payload, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read global config: %v", err)
+	}
+	content := string(payload)
+	if strings.Contains(content, "\n    demo:") {
+		t.Fatalf("expected 2-space indentation for map entries, got: %s", content)
+	}
+	if !strings.Contains(content, "\n  demo:") {
+		t.Fatalf("expected demo entry with 2-space indentation, got: %s", content)
 	}
 }

@@ -4,6 +4,7 @@
 package config
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -92,7 +93,7 @@ func LoadGlobalConfig(path string) (GlobalConfig, error) {
 
 // SaveGlobalConfig writes a GlobalConfig to the specified path.
 func SaveGlobalConfig(path string, cfg GlobalConfig) error {
-	payload, err := yaml.Marshal(&cfg)
+	payload, err := marshalYAML(cfg, 2)
 	if err != nil {
 		return fmt.Errorf("encode global config: %w", err)
 	}
@@ -105,4 +106,18 @@ func SaveGlobalConfig(path string, cfg GlobalConfig) error {
 		return fmt.Errorf("write global config: %w", err)
 	}
 	return nil
+}
+
+func marshalYAML(value any, indent int) ([]byte, error) {
+	var buf bytes.Buffer
+	encoder := yaml.NewEncoder(&buf)
+	encoder.SetIndent(indent)
+	if err := encoder.Encode(value); err != nil {
+		_ = encoder.Close()
+		return nil, err
+	}
+	if err := encoder.Close(); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }

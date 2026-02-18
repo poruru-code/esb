@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -56,11 +57,25 @@ func loadImageImportManifest(path string) (imageImportManifest, bool, error) {
 }
 
 func atomicWriteYAML(path string, data map[string]any) error {
-	content, err := yaml.Marshal(data)
+	content, err := marshalYAML(data, 2)
 	if err != nil {
 		return err
 	}
 	return atomicWriteFile(path, content)
+}
+
+func marshalYAML(value any, indent int) ([]byte, error) {
+	var buf bytes.Buffer
+	encoder := yaml.NewEncoder(&buf)
+	encoder.SetIndent(indent)
+	if err := encoder.Encode(value); err != nil {
+		_ = encoder.Close()
+		return nil, err
+	}
+	if err := encoder.Close(); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 func atomicWriteJSON(path string, value any) error {

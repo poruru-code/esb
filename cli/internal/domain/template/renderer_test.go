@@ -355,6 +355,12 @@ func TestRenderResourcesYml(t *testing.T) {
 	if !strings.Contains(content, "BucketName: test-bucket") {
 		t.Fatalf("expected test-bucket in content, got: %s", content)
 	}
+	if strings.Contains(content, "\n    dynamodb:") {
+		t.Fatalf("expected 2-space indentation for resources root entries, got: %s", content)
+	}
+	if !strings.Contains(content, "\n  dynamodb:") {
+		t.Fatalf("expected dynamodb entry with 2-space indentation, got: %s", content)
+	}
 
 	var parsed map[string]any
 	if err := yaml.Unmarshal([]byte(content), &parsed); err != nil {
