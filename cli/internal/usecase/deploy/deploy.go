@@ -38,6 +38,7 @@ type Request struct {
 	ComposeFiles   []string
 	BuildOnly      bool
 	BuildImages    *bool
+	SkipStaging    bool
 	BundleManifest bool
 	ImagePrewarm   string
 	Emoji          bool
@@ -105,6 +106,7 @@ func (w Workflow) buildRequest(req Request) build.BuildRequest {
 		NoCache:       req.NoCache,
 		Verbose:       req.Verbose,
 		BuildImages:   buildImages,
+		SkipStaging:   req.SkipStaging,
 		Bundle:        req.BundleManifest,
 		Emoji:         req.Emoji,
 	}

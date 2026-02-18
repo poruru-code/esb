@@ -303,6 +303,7 @@ func TestDeployCommandRunAllowsRenderOnlyGenerate(t *testing.T) {
 		DeployCmd{
 			BuildOnly:           true,
 			generateBuildImages: boolPtr(false),
+			skipStagingMerge:    true,
 		},
 	)
 	if err != nil {
@@ -313,6 +314,9 @@ func TestDeployCommandRunAllowsRenderOnlyGenerate(t *testing.T) {
 	}
 	if builder.requests[0].BuildImages {
 		t.Fatalf("expected render-only generate request, got %#v", builder.requests[0])
+	}
+	if !builder.requests[0].SkipStaging {
+		t.Fatalf("expected render-only artifact request to skip staging merge, got %#v", builder.requests[0])
 	}
 	if provisioner.runCalls != 0 {
 		t.Fatalf("provisioner must not run when BuildOnly=true, got %d", provisioner.runCalls)

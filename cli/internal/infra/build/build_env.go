@@ -14,12 +14,14 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
 )
 
-func applyBuildEnv(env, templatePath, composeProject string) error {
-	configDir, err := staging.ConfigDir(templatePath, composeProject, env)
-	if err != nil {
-		return err
+func applyBuildEnv(env, templatePath, composeProject string, skipStaging bool) error {
+	if !skipStaging {
+		configDir, err := staging.ConfigDir(templatePath, composeProject, env)
+		if err != nil {
+			return err
+		}
+		_ = os.Setenv(constants.EnvConfigDir, filepath.ToSlash(configDir))
 	}
-	_ = os.Setenv(constants.EnvConfigDir, filepath.ToSlash(configDir))
 	if os.Getenv(constants.EnvProjectName) == "" {
 		_ = os.Setenv(constants.EnvProjectName, staging.ComposeProjectKey(composeProject, env))
 	}

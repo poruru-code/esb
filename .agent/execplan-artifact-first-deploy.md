@@ -65,8 +65,8 @@
 - Composite:
   - `esb deploy` = Generate + Apply
 - Generate only:
-  - `esb artifact generate ...`（render-only）
-  - `esb artifact generate --build-images ...`（render + image build）
+  - `esb artifact generate ...`（render-only、`.esb/staging/**` merge は行わない）
+  - `esb artifact generate --build-images ...`（render + image build、`.esb/staging/**` merge は行わない）
 - Apply only:
   - `esb artifact apply --artifact <artifact.yml> --out <CONFIG_DIR> [--secret-env ...] [--strict]`
 - Non-CLI apply path:
@@ -175,3 +175,4 @@
 - 2026-02-18: Track A を完了。`prepare-images` の入力契約を `artifact_root/runtime-base/**` に固定し、repo 直参照を撤去。generator/fixture/docs を同時同期した。
 - 2026-02-18: Track B を完了。strict runtime metadata 検証の入力源を `artifact_root/runtime-base/**` に固定し、repo root 推定依存を撤去した。
 - 2026-02-18: Track C（firecracker gate）を Deferred に変更。現フェーズ完了条件を docker/containerd gate に固定した。
+- 2026-02-18: `artifact generate` 軽量化として、artifact adapter 経路では `.esb/staging/**` への merge/stage をスキップする実装へ更新した。

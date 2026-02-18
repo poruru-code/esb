@@ -36,6 +36,7 @@ func artifactGenerateToDeployFlags(cmd ArtifactGenerateCmd) DeployCmd {
 		Force:               cmd.Force,
 		NoSave:              cmd.NoSave,
 		generateBuildImages: boolPtr(cmd.BuildImages),
+		skipStagingMerge:    true,
 	}
 }
 

@@ -250,6 +250,7 @@ func (c *deployCommand) Run(inputs deployInputs, flags DeployCmd) error {
 			ComposeFiles:   inputs.ComposeFiles,
 			BuildOnly:      buildOnly,
 			BuildImages:    boolPtr(buildImages),
+			SkipStaging:    flags.skipStagingMerge,
 			BundleManifest: flags.Bundle,
 			ImagePrewarm:   imagePrewarm,
 			Emoji:          c.emojiEnabled,

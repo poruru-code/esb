@@ -259,6 +259,7 @@ CLI なし運用でも、生成済み成果物を入力に **Phase 3 以降は�
 ## CLI コマンド責務（明示）
 - `esb artifact generate`
   - Generate フェーズ専用（既定は render-only、`--build-images` 指定時のみ image build）
+  - `.esb/staging/**` への merge は実行しない（merge/apply は apply フェーズ責務）
   - Apply は実行しない
 - `esb artifact apply`
   - Apply フェーズ専用（manifest 入力で merge/apply + provision 前段）
