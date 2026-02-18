@@ -20,6 +20,7 @@ type FunctionSpec struct {
 	ImageSource             string
 	ImageName               string
 	CodeURI                 string
+	AppCodeJarPath          string
 	Handler                 string
 	Runtime                 string
 	Timeout                 int

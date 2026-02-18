@@ -108,8 +108,8 @@ func TestRenderDockerfileJavaRuntime(t *testing.T) {
 			if !strings.Contains(content, "ENV JAVA_TOOL_OPTIONS=\"-javaagent:/var/task/lib/lambda-java-agent.jar") {
 				t.Fatalf("expected java tool options with agent")
 			}
-			if !strings.Contains(content, "jar xf \"${app_jar}\" configuration") {
-				t.Fatalf("expected configuration extraction from app jar")
+			if strings.Contains(content, "jar xf \"${app_jar}\"") {
+				t.Fatalf("did not expect app jar extraction for directory CodeUri")
 			}
 			if !strings.Contains(content, `CMD [ "com.runtime.lambda.HandlerWrapper::handleRequest" ]`) {
 				t.Fatalf("expected wrapper handler command")
@@ -121,6 +121,27 @@ func TestRenderDockerfileJavaRuntime(t *testing.T) {
 				t.Fatalf("did not expect pip install for java runtime")
 			}
 		})
+	}
+}
+
+func TestRenderDockerfileJavaRuntimeSingleJarCodeURI(t *testing.T) {
+	fn := FunctionSpec{
+		Name:           "lambda-java",
+		CodeURI:        "functions/lambda-java/src/",
+		AppCodeJarPath: "lib/app.jar",
+		Handler:        "com.example.Handler::handleRequest",
+		Runtime:        "java21",
+	}
+
+	content, err := RenderDockerfile(fn, DockerConfig{}, "", "latest")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if !strings.Contains(content, "app_jar=\"lib/app.jar\"") {
+		t.Fatalf("expected explicit app jar path for app extraction")
+	}
+	if !strings.Contains(content, "jar xf \"${app_jar}\"") {
+		t.Fatalf("expected app extraction from explicit app jar")
 	}
 }
 

@@ -451,11 +451,81 @@ func TestGenerateFilesStagesJavaJarAndWrapper(t *testing.T) {
 	if !strings.Contains(content, "ENV JAVA_TOOL_OPTIONS=\"-javaagent:/var/task/lib/lambda-java-agent.jar") {
 		t.Fatalf("expected java tool options with agent")
 	}
-	if !strings.Contains(content, "jar xf \"${app_jar}\" configuration") {
-		t.Fatalf("expected configuration extraction from app jar in dockerfile")
+	if !strings.Contains(content, "app_jar=\"lib/converter_jsoncrb.jar\"") {
+		t.Fatalf("expected explicit app jar path in dockerfile")
+	}
+	if !strings.Contains(content, "jar xf \"${app_jar}\"") {
+		t.Fatalf("expected app extraction from app jar in dockerfile")
 	}
 	if !strings.Contains(content, `CMD [ "com.runtime.lambda.HandlerWrapper::handleRequest" ]`) {
 		t.Fatalf("expected wrapper handler cmd in dockerfile")
+	}
+}
+
+func TestGenerateFilesJavaDirectoryCodeURIDoesNotExtractAppJar(t *testing.T) {
+	root := t.TempDir()
+	templatePath := filepath.Join(root, "template.yaml")
+	writeTestFile(t, templatePath, "Resources: {}")
+
+	javaCodeDir := filepath.Join(root, "functions", "java")
+	mustMkdirAll(t, javaCodeDir)
+	writeTestFile(t, filepath.Join(javaCodeDir, "Handler.java"), "class Handler {}")
+
+	mustMkdirAll(t, filepath.Join(root, "runtime", "java", "build"))
+
+	wrapperPath := filepath.Join(root, "runtime", "java", "extensions", "wrapper", "lambda-java-wrapper.jar")
+	mustMkdirAll(t, filepath.Dir(wrapperPath))
+	writeTestFile(t, wrapperPath, "stale-wrapper")
+	agentPath := filepath.Join(root, "runtime", "java", "extensions", "agent", "lambda-java-agent.jar")
+	mustMkdirAll(t, filepath.Dir(agentPath))
+	writeTestFile(t, agentPath, "stale-agent")
+
+	_ = installFakeDockerForJavaBuild(t)
+	for _, key := range []string{
+		"HTTP_PROXY",
+		"http_proxy",
+		"HTTPS_PROXY",
+		"https_proxy",
+		"NO_PROXY",
+		"no_proxy",
+		"MAVEN_OPTS",
+		"JAVA_TOOL_OPTIONS",
+	} {
+		t.Setenv(key, "")
+	}
+
+	parser := &stubParser{
+		result: template.ParseResult{
+			Functions: []template.FunctionSpec{
+				{
+					Name:    "lambda-java-dir",
+					CodeURI: "functions/java/",
+					Handler: "com.example.Handler::handleRequest",
+					Runtime: "java21",
+				},
+			},
+		},
+	}
+
+	cfg := config.GeneratorConfig{
+		Paths: config.PathsConfig{
+			SamTemplate: "template.yaml",
+			OutputDir:   "out/",
+		},
+	}
+	opts := GenerateOptions{ProjectRoot: root, Parser: parser}
+
+	if _, err := GenerateFiles(cfg, opts); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	dockerfilePath := filepath.Join(root, "out", "functions", "lambda-java-dir", "Dockerfile")
+	content := readFile(t, dockerfilePath)
+	if strings.Contains(content, "app_jar=") {
+		t.Fatalf("did not expect explicit app jar path for directory CodeUri")
+	}
+	if strings.Contains(content, "jar xf \"${app_jar}\"") {
+		t.Fatalf("did not expect app extraction for directory CodeUri")
 	}
 }
 
