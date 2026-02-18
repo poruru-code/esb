@@ -25,6 +25,17 @@ COPY {{ .ContentURI }}/ /opt/
 # Function code
 COPY {{ .CodeURI }} ${LAMBDA_TASK_ROOT}/
 
+{{- if .AppCodeJarPath }}
+# For single-jar CodeUri, treat the staged JAR as the deployment package.
+# Extract the app artifact itself instead of hard-coding specific subpaths.
+RUN set -eu; \
+    cd ${LAMBDA_TASK_ROOT}; \
+    app_jar="{{ .AppCodeJarPath }}"; \
+    if [ -f "${app_jar}" ]; then \
+      jar xf "${app_jar}"; \
+    fi
+{{- end }}
+
 # Handler
 CMD [ "{{ .Handler }}" ]
 {{- end }}
