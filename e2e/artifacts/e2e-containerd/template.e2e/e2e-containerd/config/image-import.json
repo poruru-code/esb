@@ -1,0 +1,11 @@
+{
+  "version": "1",
+  "push_target": "127.0.0.1:5010",
+  "images": [
+    {
+      "function_name": "lambda-image",
+      "image_source": "127.0.0.1:5010/esb-e2e-lambda-java:latest",
+      "image_ref": "registry:5010/127.0.0.1_5010/esb-e2e-lambda-java:latest"
+    }
+  ]
+}

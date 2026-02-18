@@ -29,8 +29,18 @@ const (
 	templateRendererAPIVersion = "1.0"
 )
 
-func writeDeployArtifactManifest(inputs deployInputs, imagePrewarm string, bundleEnabled bool) (string, error) {
-	manifestPath := resolveDeployArtifactManifestPath(inputs.ProjectDir, inputs.Project, inputs.Env)
+func writeDeployArtifactManifest(
+	inputs deployInputs,
+	imagePrewarm string,
+	bundleEnabled bool,
+	manifestOverride string,
+) (string, error) {
+	manifestPath := resolveDeployArtifactManifestPath(
+		inputs.ProjectDir,
+		inputs.Project,
+		inputs.Env,
+		manifestOverride,
+	)
 	manifestDir := filepath.Dir(manifestPath)
 	entries := make([]deploy.ArtifactEntry, 0, len(inputs.Templates))
 	runtimeMeta, err := resolveRuntimeMeta(inputs.ProjectDir)
@@ -59,7 +69,7 @@ func writeDeployArtifactManifest(inputs deployInputs, imagePrewarm string, bundl
 		}
 
 		source := deploy.ArtifactSourceTemplate{
-			Path:       filepath.Clean(strings.TrimSpace(tpl.TemplatePath)),
+			Path:       normalizeSourceTemplatePath(inputs.ProjectDir, tpl.TemplatePath),
 			SHA256:     templateSHA,
 			Parameters: cloneStringValues(tpl.Parameters),
 		}
@@ -125,7 +135,17 @@ func resolveRuntimeMeta(projectDir string) (deploy.ArtifactRuntimeMeta, error) {
 	}, nil
 }
 
-func resolveDeployArtifactManifestPath(projectDir, project, env string) string {
+func resolveDeployArtifactManifestPath(projectDir, project, env string, overridePath ...string) string {
+	if len(overridePath) > 0 {
+		trimmed := strings.TrimSpace(overridePath[0])
+		if trimmed != "" {
+			candidate := filepath.Clean(trimmed)
+			if !filepath.IsAbs(candidate) {
+				candidate = filepath.Join(projectDir, candidate)
+			}
+			return filepath.Clean(candidate)
+		}
+	}
 	return filepath.Join(
 		projectDir,
 		meta.HomeDir,
@@ -169,6 +189,41 @@ func toManifestPath(manifestDir, targetPath string) string {
 		return filepath.ToSlash(rel)
 	}
 	return filepath.ToSlash(cleanTarget)
+}
+
+func normalizeSourceTemplatePath(projectDir, templatePath string) string {
+	trimmed := strings.TrimSpace(templatePath)
+	if trimmed == "" {
+		return ""
+	}
+	templateAbs := filepath.Clean(trimmed)
+	if !filepath.IsAbs(templateAbs) {
+		if resolved, err := filepath.Abs(templateAbs); err == nil {
+			templateAbs = resolved
+		}
+	}
+
+	root := strings.TrimSpace(projectDir)
+	if root == "" {
+		return templateAbs
+	}
+	rootAbs := filepath.Clean(root)
+	if !filepath.IsAbs(rootAbs) {
+		if resolved, err := filepath.Abs(rootAbs); err == nil {
+			rootAbs = resolved
+		}
+	}
+	rel, err := filepath.Rel(rootAbs, templateAbs)
+	if err != nil {
+		return templateAbs
+	}
+	if rel == "." || rel == "" {
+		return "."
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return templateAbs
+	}
+	return filepath.ToSlash(rel)
 }
 
 func cloneStringValues(values map[string]string) map[string]string {

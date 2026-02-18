@@ -39,6 +39,43 @@ func TestResolveDeployArtifactManifestPathPreventsTraversalByDotSegments(t *test
 	}
 }
 
+func TestResolveDeployArtifactManifestPathUsesRelativeOverride(t *testing.T) {
+	projectDir := t.TempDir()
+	got := resolveDeployArtifactManifestPath(projectDir, "esb", "dev", "e2e/artifacts/dev/artifact.yml")
+	want := filepath.Join(projectDir, "e2e", "artifacts", "dev", "artifact.yml")
+	if got != want {
+		t.Fatalf("resolveDeployArtifactManifestPath() override = %q, want %q", got, want)
+	}
+}
+
+func TestResolveDeployArtifactManifestPathUsesAbsoluteOverride(t *testing.T) {
+	projectDir := t.TempDir()
+	abs := filepath.Join(projectDir, "custom", "artifact.yml")
+	got := resolveDeployArtifactManifestPath(projectDir, "esb", "dev", abs)
+	if got != abs {
+		t.Fatalf("resolveDeployArtifactManifestPath() absolute override = %q, want %q", got, abs)
+	}
+}
+
+func TestNormalizeSourceTemplatePathUsesProjectRelativePath(t *testing.T) {
+	projectDir := t.TempDir()
+	templatePath := filepath.Join(projectDir, "e2e", "fixtures", "template.e2e.yaml")
+	got := normalizeSourceTemplatePath(projectDir, templatePath)
+	want := filepath.ToSlash(filepath.Join("e2e", "fixtures", "template.e2e.yaml"))
+	if got != want {
+		t.Fatalf("normalizeSourceTemplatePath() = %q, want %q", got, want)
+	}
+}
+
+func TestNormalizeSourceTemplatePathKeepsAbsolutePathOutsideProject(t *testing.T) {
+	projectDir := t.TempDir()
+	external := filepath.Join(t.TempDir(), "template.yaml")
+	got := normalizeSourceTemplatePath(projectDir, external)
+	if got != filepath.Clean(external) {
+		t.Fatalf("normalizeSourceTemplatePath() external = %q, want %q", got, filepath.Clean(external))
+	}
+}
+
 func TestResolveRuntimeMetaIncludesDigestsAndVersions(t *testing.T) {
 	projectDir := t.TempDir()
 	writeTestRuntimeAssets(t, projectDir)

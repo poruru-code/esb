@@ -10,6 +10,9 @@ downloads/
 eggs/
 .eggs/
 lib/
+!e2e/artifacts/**/functions/*java/src/
+!e2e/artifacts/**/functions/*java/src/lib/
+!e2e/artifacts/**/functions/*java/src/lib/*.jar
 
 lib64/
 parts/

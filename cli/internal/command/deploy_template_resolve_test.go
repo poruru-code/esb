@@ -276,11 +276,11 @@ func TestResolveDeployTemplatesNormalizesMultipleValues(t *testing.T) {
 func TestDeriveMultiTemplateOutputDirDeduplicatesByStem(t *testing.T) {
 	counts := map[string]int{}
 
-	first := deriveMultiTemplateOutputDir("/tmp/template.core.yaml", counts)
-	second := deriveMultiTemplateOutputDir("/tmp/template.core.yaml", counts)
+	first := deriveMultiTemplateOutputDir("/tmp/template.e2e.yaml", counts)
+	second := deriveMultiTemplateOutputDir("/tmp/template.e2e.yaml", counts)
 
-	wantFirst := filepath.Join(meta.OutputDir, "template.core")
-	wantSecond := filepath.Join(meta.OutputDir, "template.core-2")
+	wantFirst := filepath.Join(meta.OutputDir, "template.e2e")
+	wantSecond := filepath.Join(meta.OutputDir, "template.e2e-2")
 	if first != wantFirst {
 		t.Fatalf("unexpected first output dir: %q", first)
 	}

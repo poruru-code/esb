@@ -80,7 +80,7 @@ def test_prepare_context_merges_runtime_env_and_overrides(monkeypatch, tmp_path)
     assert ctx.runtime_env[env_key("PROJECT")] == "esb"
     assert ctx.runtime_env[env_key("ENV")] == "e2e-docker"
     assert ctx.runtime_env[env_key("INTERACTIVE")] == "0"
-    assert ctx.runtime_env[env_key("HOME")].endswith("/e2e/fixtures/.esb/e2e-docker")
+    assert ctx.runtime_env[env_key("HOME")].endswith("/.esb/e2e/state/e2e-docker")
     assert Path(ctx.runtime_env[env_key("HOME")]).is_absolute()
     assert ctx.deploy_env["PROJECT_NAME"] == "esb-e2e-docker"
     assert ctx.deploy_env["ESB_META_REUSE"] == "1"

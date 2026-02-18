@@ -9,23 +9,21 @@ MATRIX_ROOT = PROJECT_ROOT / "e2e" / "environments"
 
 
 def _normalize_deploy_driver(value: object) -> str:
-    driver = str(value or "cli").strip().lower()
+    driver = str(value or "artifact").strip().lower()
     if driver in {"", "none"}:
-        driver = "cli"
-    if driver not in {"cli", "artifact"}:
-        raise ValueError(f"deploy_driver must be 'cli' or 'artifact': {value!r}")
+        driver = "artifact"
+    if driver != "artifact":
+        raise ValueError(f"deploy_driver must be 'artifact': {value!r}")
     return driver
 
 
 def _normalize_artifact_generate(value: object, *, deploy_driver: str) -> str:
     if deploy_driver != "artifact":
         return "none"
-    mode = str(value or "cli").strip().lower()
-    if mode in {"", "cli"}:
-        return "cli"
-    if mode == "none":
+    mode = str(value or "none").strip().lower()
+    if mode in {"", "none"}:
         return "none"
-    raise ValueError(f"artifact_generate must be 'cli' or 'none': {value!r}")
+    raise ValueError(f"artifact_generate must be 'none': {value!r}")
 
 
 def load_test_matrix() -> dict:
@@ -68,9 +66,9 @@ def build_env_scenarios(matrix: list, suites: dict, profile_filter: str | None =
             env_vars = dict(entry.get("env_vars", {}))
             if is_firecracker:
                 env_vars.setdefault("CONTAINERD_RUNTIME", "aws.firecracker")
-            deploy_driver = _normalize_deploy_driver(entry.get("deploy_driver", "cli"))
+            deploy_driver = _normalize_deploy_driver(entry.get("deploy_driver", "artifact"))
             artifact_generate = _normalize_artifact_generate(
-                entry.get("artifact_generate", "cli"),
+                entry.get("artifact_generate", "none"),
                 deploy_driver=deploy_driver,
             )
 

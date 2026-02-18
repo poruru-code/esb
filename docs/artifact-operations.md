@@ -23,9 +23,7 @@ The contract details live in `docs/deploy-artifact-contract.md`.
 ### Generate only
 ```bash
 esb artifact generate \
-  --template e2e/fixtures/template.core.yaml \
-  --template e2e/fixtures/template.stateful.yaml \
-  --template e2e/fixtures/template.image.yaml \
+  --template e2e/fixtures/template.e2e.yaml \
   --env dev \
   --mode docker \
   --no-save-defaults

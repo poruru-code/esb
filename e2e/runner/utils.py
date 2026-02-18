@@ -3,7 +3,7 @@ import re
 import subprocess
 import time
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 # Project root
 # Assuming this file is in e2e/runner/utils.py, parent.parent is "e2e", parent.parent.parent is root.
@@ -15,12 +15,9 @@ ENV_PREFIX = "ESB"
 BRAND_SLUG = "esb"
 BRAND_HOME_DIR = ".esb"
 BRAND_OUTPUT_DIR = ".esb"
-E2E_STATE_ROOT = PROJECT_ROOT / "e2e" / "fixtures" / BRAND_OUTPUT_DIR
-DEFAULT_E2E_DEPLOY_TEMPLATES = (
-    PROJECT_ROOT / "e2e" / "fixtures" / "template.core.yaml",
-    PROJECT_ROOT / "e2e" / "fixtures" / "template.stateful.yaml",
-    PROJECT_ROOT / "e2e" / "fixtures" / "template.image.yaml",
-)
+E2E_STATE_ROOT = PROJECT_ROOT / BRAND_OUTPUT_DIR / "e2e" / "state"
+E2E_ARTIFACT_ROOT = PROJECT_ROOT / "e2e" / "artifacts"
+DEFAULT_E2E_DEPLOY_TEMPLATES = (PROJECT_ROOT / "e2e" / "fixtures" / "template.e2e.yaml",)
 
 
 def default_e2e_deploy_templates() -> list[Path]:
@@ -89,47 +86,3 @@ def resolve_env_file_path(env_file: Optional[str]) -> Optional[str]:
     if not env_file_path.is_absolute():
         env_file_path = PROJECT_ROOT / env_file_path
     return str(env_file_path.absolute())
-
-
-def build_esb_cmd(
-    args: List[str],
-    env_file: Optional[str],
-) -> List[str]:
-    # Use the compiled binary from PATH.
-    base_cmd = ["esb"]
-    env_file_path = resolve_env_file_path(env_file)
-    if env_file_path:
-        base_cmd.extend(["--env-file", env_file_path])
-    return base_cmd + args
-
-
-def run_esb(
-    args: List[str],
-    check: bool = True,
-    env_file: Optional[str] = None,
-    verbose: bool = False,
-    env: Optional[dict[str, str]] = None,
-) -> subprocess.CompletedProcess:
-    """Helper to run the esb CLI."""
-    if verbose and ("build" in args or "deploy" in args):
-        # Build/deploy commands have their own verbose flag
-        if "--verbose" not in args and "-v" not in args:
-            try:
-                if "build" in args:
-                    idx = args.index("build")
-                else:
-                    idx = args.index("deploy")
-                args.insert(idx + 1, "--verbose")
-            except ValueError:
-                pass
-
-    run_env = os.environ.copy()
-    if env:
-        run_env.update(env)
-
-    cmd = build_esb_cmd(args, env_file)
-    if verbose:
-        print(f"Running: {' '.join(cmd)}")
-
-    # Use shell=False and pass the command as a list to rely on PATH
-    return subprocess.run(cmd, check=check, stdin=subprocess.DEVNULL, env=run_env)
