@@ -362,6 +362,6 @@ curl -k https://127.0.0.1/health
 ```
 
 ## E2E 契約（現行）
-- E2E 実行時は `deploy_driver=artifact` / `artifact_generate=none` を強制します。
+- E2E matrix から `deploy_driver` / `artifact_generate` は撤去済みで、artifact 実行経路のみを許可します。
 - テストはコミット済み `e2e/artifacts/*` を consume し、ランタイムで generate は行いません。
 - fixture 更新時のみ `e2e/scripts/regenerate_artifacts.sh` により `esb artifact generate` を使用します。

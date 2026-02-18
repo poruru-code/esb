@@ -39,7 +39,7 @@
 4. Apply/merge/ID 検証の判定ロジック正本は Go 実装 (`tools/artifactctl`) に一本化。
    - `tools/artifactctl/cmd/artifactctl/main.go`
    - `tools/artifactctl/pkg/engine/*`
-5. E2E 実行経路は artifact-only（`deploy_driver=artifact`, `artifact_generate=none`）。
+5. E2E 実行経路は artifact-only（`deploy_driver` / `artifact_generate` は matrix から撤去済み）。
    - `e2e/runner/config.py`
    - `e2e/runner/deploy.py`
    - `e2e/environments/test_matrix.yaml`

@@ -8,8 +8,6 @@ from typing import Optional
 # Project root
 # Assuming this file is in e2e/runner/utils.py, parent.parent is "e2e", parent.parent.parent is root.
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-CLI_ROOT = PROJECT_ROOT / "cli"
-GO_CLI_ROOT = CLI_ROOT  # Alias for backward compatibility if needed
 
 ENV_PREFIX = "ESB"
 BRAND_SLUG = "esb"

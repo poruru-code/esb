@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Where: e2e/run_tests.py
-# What: E2E test runner for ESB CLI scenarios.
+# What: E2E test runner for artifact-based scenarios.
 # Why: Provide a single entry point for scenario setup, execution, and teardown.
 import os
 import subprocess
@@ -15,7 +15,7 @@ from e2e.runner.live_display import LiveDisplay
 from e2e.runner.planner import apply_test_target, build_plan
 from e2e.runner.runner import run_parallel
 from e2e.runner.ui import PlainReporter
-from e2e.runner.utils import GO_CLI_ROOT, PROJECT_ROOT
+from e2e.runner.utils import PROJECT_ROOT
 
 # Canonical E2E execution path: e2e.runner.runner (legacy executor removed).
 
@@ -94,14 +94,7 @@ def ensure_local_artifactctl() -> None:
 def requires_local_artifactctl(args, env_scenarios: dict[str, object]) -> bool:
     if args.unit_only or args.test_only:
         return False
-    if not env_scenarios:
-        return False
-    for scenario in env_scenarios.values():
-        deploy_driver = str(scenario.deploy_driver).strip().lower()
-        if deploy_driver == "artifact":
-            return True
-        raise ValueError(f"unsupported deploy_driver in scenario: {deploy_driver!r}")
-    return False
+    return bool(env_scenarios)
 
 
 def main():
@@ -125,13 +118,6 @@ def main():
         if res.returncode != 0:
             print("\n[FAILED] Python unit tests failed.")
             sys.exit(res.returncode)
-
-        print("\n=== Running Go Unit Tests ===\n")
-        go_cmd = ["go", "test", "./..."]
-        go_res = subprocess.run(go_cmd, cwd=GO_CLI_ROOT, check=False)
-        if go_res.returncode != 0:
-            print("\n[FAILED] Go unit tests failed.")
-            sys.exit(go_res.returncode)
 
         print("\n[PASSED] Unit Tests passed!")
 
