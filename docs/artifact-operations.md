@@ -15,17 +15,30 @@ This document defines operational flows for artifact-first deployment.
 The contract details live in `docs/deploy-artifact-contract.md`.
 
 ## Phase Model
-1. Generate phase: parse templates, build functions, produce artifacts
-2. Apply phase: validate and merge artifact outputs into `CONFIG_DIR`, then provision
-3. Runtime phase: run compose services and execute tests/invocations
+1. Generate phase: parse templates and render artifact outputs (`artifact.yml`, runtime-config, Dockerfiles)
+2. Image build phase: optional build/push of function images from rendered artifacts
+3. Apply phase: validate and merge artifact outputs into `CONFIG_DIR`, then provision
+4. Runtime phase: run compose services and execute tests/invocations
 
 ## CLI Flow
 ### Generate only
+Default is render-only (`--build-images` is false by default):
+
 ```bash
 esb artifact generate \
   --template e2e/fixtures/template.e2e.yaml \
   --env dev \
   --mode docker \
+  --no-save-defaults
+```
+
+### Generate with image build
+```bash
+esb artifact generate \
+  --template e2e/fixtures/template.e2e.yaml \
+  --env dev \
+  --mode docker \
+  --build-images \
   --no-save-defaults
 ```
 
@@ -40,7 +53,7 @@ esb artifact apply \
 
 ### Composite flow
 `esb deploy` is a composite command:
-- run generate for all templates
+- run generate for all templates (build-only internal phase, image build enabled by deploy semantics)
 - write strict `artifact.yml`
 - run apply once
 
@@ -49,6 +62,10 @@ Use `tools/artifactctl` as the canonical apply implementation.
 
 ```bash
 tools/artifactctl validate-id --artifact /path/to/artifact.yml
+
+tools/artifactctl prepare-images \
+  --artifact /path/to/artifact.yml
+
 tools/artifactctl apply \
   --artifact /path/to/artifact.yml \
   --out /path/to/config-dir \
@@ -61,21 +78,22 @@ docker compose --profile deploy run --rm --no-deps provisioner
 Notes:
 - Shell wrappers must not implement merge/apply business logic.
 - `tools/artifact/merge_runtime_config.sh` is a thin wrapper to `tools/artifactctl merge`.
+- `tools/artifactctl prepare-images` currently builds lambda base image from `runtime-hooks/python/docker/Dockerfile`, so run it from the ESB repository root (or provide prebuilt base images out of band).
 
-## E2E Driver Modes
-`e2e/environments/test_matrix.yaml` supports:
+## E2E Contract (Current)
+`e2e/environments/test_matrix.yaml` is artifact-only:
+- `deploy_driver` must be `artifact`
+- `artifact_generate` must be `none`
+- test execution consumes committed fixtures under `e2e/artifacts/*`
+- firecracker profile is currently disabled in matrix (docker/containerd are active gates)
 
-- `deploy_driver: cli`
-  - uses `esb deploy`
-- `deploy_driver: artifact`
-  - producer step: `esb artifact generate` when `artifact_generate: cli`
-  - consumer step: `artifactctl apply` + provisioner
-
-`artifact_generate` modes:
-- `cli`: run producer via CLI before apply
-- `none`: skip producer; requires pre-existing `artifact.yml`
+Fixture refresh is a separate developer operation (outside E2E runtime):
+- regenerate fixtures with `e2e/scripts/regenerate_artifacts.sh`
+- this script uses `esb artifact generate` and commits raw output
+- E2E runner may build/push local fixture images from `tools/e2e-lambda-fixtures/*` when `image_uri_overrides` points to local fixture repos
 
 ## Failure Policy
 - Missing `artifact.yml`, required runtime config files, invalid ID, missing required secrets: hard fail
-- Unknown `deploy_driver` or `artifact_generate` mode: hard fail
+- Unknown `deploy_driver` or unsupported `artifact_generate` mode: hard fail
 - Apply phase must not silently fall back to template-based sync paths
+- In `--strict`, runtime digest verification fails if repository root (`runtime-hooks` + `cli/assets/runtime-templates`) cannot be resolved

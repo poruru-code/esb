@@ -166,11 +166,13 @@ artifacts:
   - schema major 非互換
   - required secret 未設定
   - strict 時の digest/checksum 不一致
+  - strict 時に runtime digest 検証の前提（repository root: `runtime-hooks` と `cli/assets/runtime-templates`）が解決できない
   - `artifact_root` または entry 内パス解決失敗
   - `id` 欠落、重複、または再計算値不一致
   - 複数テンプレート時に merge 規約どおりの `CONFIG_DIR` を生成できない
 - Warning:
   - strict でない時の digest/checksum 不一致
+  - strict でない時に runtime digest 検証前提が解決できない
   - minor 非互換（strict でない時）
 
 ## 実装責務
@@ -187,7 +189,7 @@ artifacts:
 
 ## ツール責務（確定）
 - `tools/artifactctl`（Go 実装）:
-  - `validate-id` / `merge` / `apply` の正本実装を提供する
+  - `validate-id` / `merge` / `prepare-images` / `apply` の正本実装を提供する
   - schema/path/id/secret/merge 規約の判定を一元化する
   - 配置は `tools/artifactctl/`（`cmd/artifactctl` + `pkg/engine`）を正本とする
 - `tools/artifact/merge_runtime_config.sh`（shell）:
@@ -214,15 +216,18 @@ CLI なし運用でも、生成済み成果物を入力に **Phase 3 以降は�
 |---|---|---|
 | 1. テンプレート解析 | `esb deploy` / `esb artifact generate` が SAM を解析 | 実行しない（生成済み成果物を受領） |
 | 2. 生成（Dockerfile / config） | `artifact.yml` を出力（`artifacts[]` に全テンプレートを記録） | 実行しない |
-| 3. 関数イメージ build/push | `esb` が build/push を実行 | `artifact.yml` を読み手動 build/push |
+| 3. 関数イメージ build/push | `esb deploy` または `esb artifact generate --build-images` が build/push を実行 | `tools/artifactctl prepare-images --artifact ...` を実行 |
 | 4. 入力検証 | `artifact.yml` を生成・検証 | `tools/artifactctl validate-id --artifact ...` |
 | 5. Runtime Config 反映 | `artifact.yml` を基に同期 | `tools/artifactctl merge/apply` を実行 |
 | 6. Provision | provisioner を実行 | `docker compose --profile deploy run --rm provisioner` |
 | 7. Runtime 起動 | `docker compose up` | `docker compose up` |
 
+補足:
+- `prepare-images` は現実装で `runtime-hooks/python/docker/Dockerfile` を参照して base image を build するため、ESB repository root からの実行を前提とします。
+
 ## CLI コマンド責務（明示）
 - `esb artifact generate`
-  - Generate フェーズ専用（build + manifest 生成）
+  - Generate フェーズ専用（既定は render-only、`--build-images` 指定時のみ image build）
   - Apply は実行しない
 - `esb artifact apply`
   - Apply フェーズ専用（manifest 入力で merge/apply + provision 前段）
@@ -288,19 +293,13 @@ for i in $(seq 0 $((COUNT - 1))); do
 done
 ```
 
-### 4) 関数イメージを手動 build/push（必要時）
+### 4) 関数イメージを build/push（必要時）
 ```bash
-COUNT="$(yq -r '.artifacts | length' "${ARTIFACT}")"
-for i in $(seq 0 $((COUNT - 1))); do
-  ROOT_RAW="$(yq -r ".artifacts[$i].artifact_root" "${ARTIFACT}")"
-  case "${ROOT_RAW}" in
-    /*) ROOT_DIR="${ROOT_RAW}" ;;
-    *)  ROOT_DIR="${MANIFEST_DIR}/${ROOT_RAW}" ;;
-  esac
-  find "${ROOT_DIR}/functions" -name Dockerfile -print
-done
-# 出力された Dockerfile 群を対象に docker build / docker push を実行
+tools/artifactctl prepare-images --artifact "${ARTIFACT}"
 ```
+
+注記:
+- 現実装では base image build に `runtime-hooks/python/docker/Dockerfile` を使うため、`prepare-images` は ESB repository root で実行してください。
 
 ### 5) runtime-config を配列順でマージし `CONFIG_DIR` を作る
 `artifact.yml` の `artifacts[]` 配列順がマージ順です。
@@ -341,3 +340,8 @@ docker compose --env-file "${RUN_ENV}" -f "${COMPOSE_FILE}" up -d
 ```bash
 curl -k https://127.0.0.1/health
 ```
+
+## E2E 契約（現行）
+- E2E 実行時は `deploy_driver=artifact` / `artifact_generate=none` を強制します。
+- テストはコミット済み `e2e/artifacts/*` を consume し、ランタイムで generate は行いません。
+- fixture 更新時のみ `e2e/scripts/regenerate_artifacts.sh` により `esb artifact generate` を使用します。
