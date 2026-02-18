@@ -7,7 +7,7 @@ from pathlib import Path
 RESULT_PREFIX = "RESULT_JSON="
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SITECUSTOMIZE_SITE_PACKAGES = (
-    REPO_ROOT / "runtime" / "python" / "extensions" / "sitecustomize" / "site-packages"
+    REPO_ROOT / "runtime-hooks" / "python" / "sitecustomize" / "site-packages"
 )
 
 
