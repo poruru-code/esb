@@ -382,6 +382,66 @@ def test_deploy_templates_artifact_driver_rewrites_push_target_for_containerd(
     assert commands[5] == ["docker", "push", "127.0.0.1:5010/esb-lambda-echo:e2e-test"]
 
 
+def test_deploy_templates_artifact_driver_rewrites_dockerignore_per_function(monkeypatch, tmp_path):
+    config_dir = tmp_path / "merged-config"
+    image_ref = "127.0.0.1:5010/esb-lambda-echo:e2e-test"
+    base_ref = "127.0.0.1:5010/esb-lambda-base:e2e-test"
+    manifest = _write_artifact_fixture(tmp_path, image_ref=image_ref, base_ref=base_ref)
+    artifact_root = tmp_path / "fixture"
+    dockerignore = artifact_root / ".dockerignore"
+    original = "\n".join(
+        [
+            "*",
+            "!.dockerignore",
+            "!functions/",
+            "!functions/lambda-scheduled/",
+            "!functions/lambda-scheduled/**",
+            "",
+        ]
+    )
+    dockerignore.write_text(original, encoding="utf-8")
+
+    ctx = _make_context(
+        tmp_path,
+        artifact_manifest=str(manifest),
+        runtime_env={
+            "CONFIG_DIR": str(config_dir),
+            "HOST_REGISTRY_ADDR": "127.0.0.1:5010",
+            "CONTAINER_REGISTRY": "127.0.0.1:5010",
+        },
+    )
+
+    inspected: list[str] = []
+
+    def fake_run_and_stream(cmd: list[str], **kwargs: Any) -> int:
+        del kwargs
+        if cmd[0:3] == ["docker", "buildx", "build"] and "--file" in cmd:
+            if cmd[cmd.index("--file") + 1].endswith("functions/lambda-echo/Dockerfile"):
+                inspected.append(dockerignore.read_text(encoding="utf-8"))
+        return 0
+
+    monkeypatch.setattr("e2e.runner.deploy.run_and_stream", fake_run_and_stream)
+
+    log = LogSink(tmp_path / "deploy.log")
+    log.open()
+    try:
+        deploy_templates(
+            ctx,
+            [],
+            no_cache=False,
+            verbose=False,
+            log=log,
+            printer=None,
+        )
+    finally:
+        log.close()
+
+    assert len(inspected) == 1
+    assert "!functions/lambda-echo/" in inspected[0]
+    assert "!functions/lambda-echo/**" in inspected[0]
+    assert dockerignore.read_text(encoding="utf-8") == original
+
+
 def test_deploy_templates_artifact_driver_requires_manifest(tmp_path):
     ctx = _make_context(
         tmp_path,
