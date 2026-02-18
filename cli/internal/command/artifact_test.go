@@ -2,12 +2,15 @@ package command
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/poruru/edge-serverless-box/cli/internal/domain/state"
+	"github.com/poruru/edge-serverless-box/cli/internal/infra/ui"
 	"github.com/poruru/edge-serverless-box/tools/artifactctl/pkg/engine"
 )
 
@@ -33,12 +36,6 @@ func TestArtifactGenerateToDeployFlags(t *testing.T) {
 	if !got.BuildOnly {
 		t.Fatal("BuildOnly must be true for artifact generate")
 	}
-	if got.generateBuildImages == nil || !*got.generateBuildImages {
-		t.Fatalf("generateBuildImages must be true when build-images is enabled: %#v", got.generateBuildImages)
-	}
-	if !got.skipStagingMerge {
-		t.Fatalf("artifact generate must skip staging merge, got %#v", got.skipStagingMerge)
-	}
 	if got.Mode != cmd.Mode || got.Output != cmd.Output || got.Manifest != cmd.Manifest || got.Project != cmd.Project {
 		t.Fatalf("basic flag mapping mismatch: %#v", got)
 	}
@@ -58,14 +55,8 @@ func TestArtifactGenerateToDeployFlags(t *testing.T) {
 
 func TestArtifactGenerateToDeployFlagsDefaultsToRenderOnly(t *testing.T) {
 	got := artifactGenerateToDeployFlags(ArtifactGenerateCmd{})
-	if got.generateBuildImages == nil {
-		t.Fatal("generateBuildImages must always be set by artifact adapter")
-	}
-	if *got.generateBuildImages {
-		t.Fatalf("artifact generate default must be render-only, got %#v", got.generateBuildImages)
-	}
-	if !got.skipStagingMerge {
-		t.Fatalf("artifact generate must skip staging merge, got %#v", got.skipStagingMerge)
+	if !got.BuildOnly {
+		t.Fatal("BuildOnly must be true for artifact generate")
 	}
 }
 
@@ -77,6 +68,69 @@ func TestRunArtifactGenerateDelegatesToDeploy(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "builder not configured") {
 		t.Fatalf("unexpected output: %q", out.String())
+	}
+}
+
+func TestRunArtifactGenerateUsesRenderOnlyOverrides(t *testing.T) {
+	tmp := t.TempDir()
+	setWorkingDir(t, tmp)
+	if err := os.WriteFile(filepath.Join(tmp, "docker-compose.docker.yml"), []byte("services: {}\n"), 0o600); err != nil {
+		t.Fatalf("write compose marker: %v", err)
+	}
+	templatePath := filepath.Join(tmp, "template.yaml")
+	if err := os.WriteFile(templatePath, []byte("Resources: {}"), 0o600); err != nil {
+		t.Fatalf("write template: %v", err)
+	}
+	writeTestRuntimeAssets(t, tmp)
+
+	builder := &deployEntryBuilder{}
+	provisioner := &deployEntryProvisioner{}
+	deps := Dependencies{
+		RepoResolver: func(string) (string, error) { return tmp, nil },
+		Deploy: DeployDeps{
+			Build: DeployBuildDeps{
+				Build: builder.Build,
+			},
+			Runtime: DeployRuntimeDeps{
+				ApplyRuntimeEnv: func(state.Context) error { return nil },
+			},
+			Provision: DeployProvisionDeps{
+				ComposeRunner: deployEntryRunner{},
+				NewDeployUI: func(_ io.Writer, _ bool) ui.UserInterface {
+					return deployEntryUI{}
+				},
+				ComposeProvisionerFactory: func(_ ui.UserInterface) ComposeProvisioner {
+					return provisioner
+				},
+			},
+		},
+	}
+	cli := CLI{
+		Template: []string{templatePath},
+		EnvFlag:  "dev",
+		Artifact: ArtifactCmd{
+			Generate: ArtifactGenerateCmd{
+				Mode: "docker",
+			},
+		},
+	}
+
+	var out bytes.Buffer
+	exitCode := runArtifactGenerate(cli, deps, &out)
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d output=%q", exitCode, out.String())
+	}
+	if len(builder.requests) != 1 {
+		t.Fatalf("expected 1 build request, got %d", len(builder.requests))
+	}
+	if builder.requests[0].BuildImages {
+		t.Fatalf("artifact generate default must be render-only, got %#v", builder.requests[0])
+	}
+	if !builder.requests[0].SkipStaging {
+		t.Fatalf("artifact generate must skip staging merge, got %#v", builder.requests[0])
+	}
+	if provisioner.runCalls != 0 {
+		t.Fatalf("provisioner must not run for artifact generate, got %d", provisioner.runCalls)
 	}
 }
 
