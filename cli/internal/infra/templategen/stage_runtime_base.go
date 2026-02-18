@@ -30,7 +30,7 @@ func stageRuntimeBaseContext(ctx stageContext) error {
 	if err := copyDir(sourceDir, destDir); err != nil {
 		return fmt.Errorf("stage python runtime base context: %w", err)
 	}
-	if err := stageRuntimeBaseFile(
+	if _, err := stageRuntimeBaseFileIfExists(
 		ctx,
 		runtimeBaseJavaAgentSourceRel,
 		runtimeBaseJavaAgentSourceRel,
@@ -38,7 +38,7 @@ func stageRuntimeBaseContext(ctx stageContext) error {
 	); err != nil {
 		return err
 	}
-	if err := stageRuntimeBaseFile(
+	if _, err := stageRuntimeBaseFileIfExists(
 		ctx,
 		runtimeBaseJavaWrapperSourceRel,
 		runtimeBaseJavaWrapperSourceRel,
@@ -58,12 +58,6 @@ func stageRuntimeBaseContext(ctx stageContext) error {
 	if !fileExists(dockerfilePath) {
 		return fmt.Errorf("python runtime base dockerfile not found after staging: %s", dockerfilePath)
 	}
-	if !fileExists(filepath.Join(ctx.OutputDir, runtimeBaseContextDirName, runtimeBaseJavaAgentSourceRel)) {
-		return fmt.Errorf("java runtime agent not found after staging: %s", filepath.Join(ctx.OutputDir, runtimeBaseContextDirName, runtimeBaseJavaAgentSourceRel))
-	}
-	if !fileExists(filepath.Join(ctx.OutputDir, runtimeBaseContextDirName, runtimeBaseJavaWrapperSourceRel)) {
-		return fmt.Errorf("java runtime wrapper not found after staging: %s", filepath.Join(ctx.OutputDir, runtimeBaseContextDirName, runtimeBaseJavaWrapperSourceRel))
-	}
 	if !dirExists(filepath.Join(ctx.OutputDir, runtimeBaseContextDirName, runtimeBaseTemplatesRelDir)) {
 		return fmt.Errorf("runtime templates directory not found after staging: %s", filepath.Join(ctx.OutputDir, runtimeBaseContextDirName, runtimeBaseTemplatesRelDir))
 	}
@@ -71,14 +65,15 @@ func stageRuntimeBaseContext(ctx stageContext) error {
 	return nil
 }
 
-func stageRuntimeBaseFile(ctx stageContext, sourceRel, destRel, label string) error {
+func stageRuntimeBaseFileIfExists(ctx stageContext, sourceRel, destRel, label string) (bool, error) {
 	source := filepath.Join(ctx.ProjectRoot, sourceRel)
 	if !fileExists(source) {
-		return fmt.Errorf("%s source not found: %s", label, source)
+		ctx.verbosef("Skipping %s staging; source not found: %s\n", label, source)
+		return false, nil
 	}
 	dest := filepath.Join(ctx.OutputDir, runtimeBaseContextDirName, destRel)
 	if err := copyFile(source, dest); err != nil {
-		return fmt.Errorf("stage %s: %w", label, err)
+		return false, fmt.Errorf("stage %s: %w", label, err)
 	}
-	return nil
+	return true, nil
 }
