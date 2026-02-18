@@ -17,6 +17,8 @@ mise exec -- jar --create --file app.jar -C build/classes .
 ## Optional Maven build
 
 If Maven is available and dependencies can be downloaded, you can also use `pom.xml`.
+Fixture POMs pin plugin versions and `project.build.outputTimestamp` so the generated
+`app.jar` stays deterministic for identical source/dependency inputs.
 
 ### Connectivity fixture (AWS SDK v2)
 
