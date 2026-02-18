@@ -91,6 +91,7 @@ func RenderDockerfile(
 		JavaAgentSource:     javaAgentSource,
 		OriginalHandler:     originalHandler,
 		CodeURI:             fn.CodeURI,
+		AppCodeJarPath:      fn.AppCodeJarPath,
 		Handler:             handler,
 		Layers:              fn.Layers,
 		PythonVersion:       profile.PythonVersion,
@@ -238,6 +239,7 @@ type dockerfileTemplateData struct {
 	JavaAgentSource     string
 	OriginalHandler     string
 	CodeURI             string
+	AppCodeJarPath      string
 	Handler             string
 	Layers              []manifest.LayerSpec
 	PythonVersion       string

@@ -60,10 +60,16 @@ func stageFunction(fn template.FunctionSpec, ctx stageContext) (stagedFunction, 
 	}
 
 	stagingSrc := filepath.Join(functionDir, "src")
+	fn.AppCodeJarPath = ""
 	if strings.TrimSpace(fn.CodeURI) != "" {
 		sourcePath := resolveResourcePath(ctx.BaseDir, fn.CodeURI)
 		if !dirExists(sourcePath) && !fileExists(sourcePath) {
 			return stagedFunction{}, fmt.Errorf("code uri not found for function %s: %s", fn.Name, sourcePath)
+		}
+		if profile.Kind == runtime.KindJava && fileExists(sourcePath) && strings.EqualFold(filepath.Ext(sourcePath), ".jar") {
+			if subDir := profile.CodeUriTargetDir(sourcePath); subDir != "" {
+				fn.AppCodeJarPath = path.Join(filepath.ToSlash(subDir), filepath.Base(sourcePath))
+			}
 		}
 		if !ctx.DryRun {
 			switch {
