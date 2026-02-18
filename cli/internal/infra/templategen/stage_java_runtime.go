@@ -9,12 +9,6 @@ import (
 )
 
 const (
-	containerM2SettingsPath = "/tmp/m2/settings.xml"
-	containerM2RepoPath     = "/tmp/m2/repository"
-	javaRuntimeBuildImage   = "public.ecr.aws/sam/build-java21@sha256:5f78d6d9124e54e5a7a9941ef179d74d88b7a5b117526ea8574137e5403b51b7"
-)
-
-const (
 	javaWrapperFileName = "lambda-java-wrapper.jar"
 	javaAgentFileName   = "lambda-java-agent.jar"
 )
@@ -77,13 +71,4 @@ func resolveJavaHooksDir(ctx stageContext) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("java runtime hooks directory not found")
-}
-
-func javaRuntimeMavenBuildLine() string {
-	return fmt.Sprintf(
-		"mvn -s %s -q -Dmaven.repo.local=%s -Dmaven.artifact.threads=1 -DskipTests "+
-			"-pl ../wrapper,../agent -am package",
-		containerM2SettingsPath,
-		containerM2RepoPath,
-	)
 }

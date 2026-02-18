@@ -6,10 +6,8 @@ Why: Prevent plan drift by defining hard invariants and forbidden paths.
 # Java Maven Proxy Contract
 
 ## Scope
-This contract applies to both paths:
+This contract applies to E2E Java warmup only:
 - E2E Java warmup (`e2e/runner/warmup.py`)
-- Deploy-time Java runtime jar build (`cli/internal/infra/templategen/stage_java_runtime.go`)
-- Maven settings/proxy rendering (`cli/internal/infra/templategen/stage_java_maven.go`)
 
 ## Invariants
 1. A temporary Maven `settings.xml` is generated for every run.
@@ -22,7 +20,7 @@ This contract applies to both paths:
 6. Java build image is fixed to this digest only:
    `public.ecr.aws/sam/build-java21@sha256:5f78d6d9124e54e5a7a9941ef179d74d88b7a5b117526ea8574137e5403b51b7`
 7. Maven dependency resolution runs with `-Dmaven.artifact.threads=1` for reproducibility.
-8. Maven local repository uses project-scope cache: `.esb/cache/m2/repository`.
+8. Maven local repository uses `M2_REPOSITORY_PATH` (`/tmp/m2/repository`) mounted cache.
 
 ## Forbidden
 - Host `~/.m2/settings.xml` dependency.
@@ -53,15 +51,12 @@ This contract applies to both paths:
 ## Verification Commands
 ```bash
 bash tools/ci/check_java_proxy_contract.sh
-cd cli && go test ./internal/infra/templategen -count=1
 uv run pytest -q e2e/runner/tests
 ```
 
 ---
 
 ## Implementation references
-- `cli/internal/infra/templategen/stage_java_runtime.go`
-- `cli/internal/infra/templategen/stage_java_maven.go`
-- `cli/internal/infra/templategen/stage_java_env_test.go`
 - `e2e/runner/warmup.py`
+- `e2e/runner/tests/test_warmup_command.py`
 - `runtime-hooks/java/README.md`

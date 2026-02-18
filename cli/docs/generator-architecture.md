@@ -57,11 +57,11 @@ flowchart TD
    - `cli/internal/infra/templategen/generate_test.go`
    - `cli/internal/usecase/deploy/runtime_config_test.go`
 
-### 3. Java build 挙動を変更
-1. `stage_java_runtime.go` / `stage_java_maven.go` を更新
-2. Docker 実行オプション・proxy 設定・成果物コピー契約を維持
+### 3. Java runtime hooks staging を変更
+1. `stage_java_runtime.go` を更新
+2. `runtime-hooks/java/{wrapper,agent}` の JAR 必須コピー契約を維持
 3. テスト:
-   - `cli/internal/infra/templategen/stage_java_env_test.go`
+   - `cli/internal/infra/templategen/generate_test.go`
 
 ## 変更時の最小テスト
 
