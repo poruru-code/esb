@@ -111,13 +111,16 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 
 	artifactBase := templategen.ResolveOutputDir(cfg.Paths.OutputDir, filepath.Dir(templatePath))
 	cfg.Paths.OutputDir = filepath.Join(artifactBase, request.Env)
-	lockRoot, err := staging.RootDir(templatePath)
-	if err != nil {
-		return err
+	lockRoot := ""
+	if request.BuildImages {
+		lockRoot, err = staging.RootDir(templatePath)
+		if err != nil {
+			return err
+		}
 	}
 
 	composeProject := resolveComposeProjectName(request.ProjectName, cfg.App.Name, request.Env)
-	if err := applyBuildEnv(request.Env, templatePath, composeProject); err != nil {
+	if err := applyBuildEnv(request.Env, templatePath, composeProject, request.SkipStaging); err != nil {
 		return err
 	}
 	imageLabels := brandingImageLabels(composeProject, request.Env)

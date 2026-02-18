@@ -311,10 +311,10 @@ func TestGoBuilderBuildRenderOnlySkipsImageBuilds(t *testing.T) {
 	if hasDockerCommand(dockerRunner.calls, "buildx", "inspect") {
 		t.Fatalf("render-only build must not run buildx inspect")
 	}
-	stagingDir, err := staging.ConfigDir(templatePath, "demo-staging", "staging")
-	if err != nil {
-		t.Fatalf("resolve staging config dir: %v", err)
+	if got := os.Getenv(constants.EnvConfigDir); got != "" {
+		t.Fatalf("render-only build with SkipStaging must not set %s, got %q", constants.EnvConfigDir, got)
 	}
+	stagingDir := filepath.Join(repoRoot, meta.HomeDir, "staging", "demo-staging", "staging", "config")
 	if _, err := os.Stat(filepath.Join(stagingDir, "functions.yml")); !os.IsNotExist(err) {
 		if err != nil {
 			t.Fatalf("stat staging functions.yml: %v", err)
