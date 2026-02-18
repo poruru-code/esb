@@ -103,6 +103,31 @@ def test_build_plan_propagates_core_fields() -> None:
     }
 
 
+def test_build_plan_treats_null_artifact_manifest_as_unset() -> None:
+    matrix = [
+        {
+            "esb_env": "e2e-docker",
+            "suites": ["smoke"],
+            "artifact_manifest": None,
+        }
+    ]
+    suites = {
+        "smoke": {
+            "targets": ["../scenarios/smoke/test_smoke.py"],
+            "exclude": [],
+        }
+    }
+
+    scenarios = build_plan(matrix, suites)
+    scenario = scenarios["e2e-docker"]
+
+    assert scenario.extra == {
+        "image_prewarm": "",
+        "image_uri_overrides": {},
+        "image_runtime_overrides": {},
+    }
+
+
 def test_build_env_scenarios_rejects_legacy_deploy_driver_field() -> None:
     matrix = [
         {

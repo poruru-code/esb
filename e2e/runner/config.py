@@ -74,9 +74,11 @@ def build_env_scenarios(matrix: list, suites: dict, profile_filter: str | None =
                 "image_uri_overrides": entry.get("image_uri_overrides", {}) or {},
                 "image_runtime_overrides": entry.get("image_runtime_overrides", {}) or {},
             }
-            artifact_manifest = str(entry.get("artifact_manifest", "")).strip()
-            if artifact_manifest:
-                env_scenarios[env_name]["artifact_manifest"] = artifact_manifest
+            artifact_manifest_value = entry.get("artifact_manifest")
+            if artifact_manifest_value is not None:
+                artifact_manifest = str(artifact_manifest_value).strip()
+                if artifact_manifest:
+                    env_scenarios[env_name]["artifact_manifest"] = artifact_manifest
 
         for suite_name in suite_names:
             suite_def = suites.get(suite_name)
