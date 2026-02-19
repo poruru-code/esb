@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -17,6 +18,7 @@ type commandDeps struct {
 	prepareImages func(artifactcore.PrepareImagesRequest) error
 	apply         func(artifactcore.ApplyRequest) error
 	warningWriter io.Writer
+	helpWriter    io.Writer
 }
 
 func main() {
@@ -32,6 +34,7 @@ func defaultDeps() commandDeps {
 		prepareImages: artifactcore.PrepareImages,
 		apply:         artifactcore.Apply,
 		warningWriter: os.Stderr,
+		helpWriter:    os.Stdout,
 	}
 }
 
@@ -59,11 +62,27 @@ func newFlagSet(name string) *flag.FlagSet {
 	return fs
 }
 
+func handleParseError(err error, fs *flag.FlagSet, deps commandDeps) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, flag.ErrHelp) {
+		helpWriter := deps.helpWriter
+		if helpWriter == nil {
+			helpWriter = os.Stdout
+		}
+		fs.SetOutput(helpWriter)
+		fs.Usage()
+		return nil
+	}
+	return err
+}
+
 func runValidateID(args []string, deps commandDeps) error {
 	fs := newFlagSet("validate-id")
 	artifact := fs.String("artifact", "", "Path to artifact.yml")
 	if err := fs.Parse(args); err != nil {
-		return err
+		return handleParseError(err, fs, deps)
 	}
 	if *artifact == "" {
 		return fmt.Errorf("--artifact is required")
@@ -79,7 +98,7 @@ func runMerge(args []string, deps commandDeps) error {
 	artifact := fs.String("artifact", "", "Path to artifact.yml")
 	out := fs.String("out", "", "Output CONFIG_DIR")
 	if err := fs.Parse(args); err != nil {
-		return err
+		return handleParseError(err, fs, deps)
 	}
 	if *artifact == "" {
 		return fmt.Errorf("--artifact is required")
@@ -100,7 +119,7 @@ func runApply(args []string, deps commandDeps) error {
 	secretEnv := fs.String("secret-env", "", "Path to secret env file")
 	strict := fs.Bool("strict", false, "Enable strict runtime metadata validation")
 	if err := fs.Parse(args); err != nil {
-		return err
+		return handleParseError(err, fs, deps)
 	}
 	if *artifact == "" {
 		return fmt.Errorf("--artifact is required")
@@ -130,7 +149,7 @@ func runPrepareImages(args []string, deps commandDeps) error {
 	artifact := fs.String("artifact", "", "Path to artifact.yml")
 	noCache := fs.Bool("no-cache", false, "Do not use cache when building images")
 	if err := fs.Parse(args); err != nil {
-		return err
+		return handleParseError(err, fs, deps)
 	}
 	if *artifact == "" {
 		return fmt.Errorf("--artifact is required")

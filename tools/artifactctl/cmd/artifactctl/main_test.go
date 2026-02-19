@@ -94,6 +94,51 @@ func TestRunReturnsFlagParseErrors(t *testing.T) {
 	}
 }
 
+func TestRunSubcommandHelpPrintsUsageAndReturnsNil(t *testing.T) {
+	cases := []struct {
+		name string
+		args []string
+	}{
+		{name: "validate-id", args: []string{"validate-id", "--help"}},
+		{name: "merge", args: []string{"merge", "--help"}},
+		{name: "prepare-images", args: []string{"prepare-images", "--help"}},
+		{name: "apply", args: []string{"apply", "--help"}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var out bytes.Buffer
+			deps := commandDeps{
+				helpWriter: &out,
+				validateIDs: func(string) error {
+					t.Fatal("validateIDs must not be called on --help")
+					return nil
+				},
+				mergeConfig: func(artifactcore.MergeRequest) error {
+					t.Fatal("mergeConfig must not be called on --help")
+					return nil
+				},
+				prepareImages: func(artifactcore.PrepareImagesRequest) error {
+					t.Fatal("prepareImages must not be called on --help")
+					return nil
+				},
+				apply: func(artifactcore.ApplyRequest) error {
+					t.Fatal("apply must not be called on --help")
+					return nil
+				},
+			}
+
+			err := run(tc.args, deps)
+			if err != nil {
+				t.Fatalf("expected nil error for --help, got: %v", err)
+			}
+			if !strings.Contains(out.String(), "Usage of "+tc.name+":") {
+				t.Fatalf("expected usage output for %s, got: %q", tc.name, out.String())
+			}
+		})
+	}
+}
+
 func TestRunDispatchesValidateID(t *testing.T) {
 	called := false
 	deps := commandDeps{
