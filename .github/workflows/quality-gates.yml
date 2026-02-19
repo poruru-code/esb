@@ -38,6 +38,30 @@ jobs:
       - name: Ty check
         run: uv run ty check
 
+  proto-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Buf
+        uses: bufbuild/buf-setup-action@v1
+        with:
+          version: 1.65.0
+
+      - name: Verify generated stubs are up to date
+        run: |
+          buf generate services/contracts --template services/contracts/buf.gen.yaml
+          python services/contracts/scripts/fix_python_grpc_imports.py
+          git diff --exit-code -- services/agent/pkg/api/v1 services/gateway/pb
+
+      - name: Breaking change check against develop
+        run: |
+          git fetch origin develop --depth=1
+          buf breaking services/contracts/proto --against '.git#branch=origin/develop,subdir=services/contracts/proto'
+
   go-lint-agent:
     runs-on: ubuntu-latest
     steps:

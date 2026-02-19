@@ -153,7 +153,7 @@ sequenceDiagram
 
 ## Implementation references
 - `services/contracts/proto/agent.proto`
-- `tools/gen_proto.py`
+- `services/contracts/buf.gen.yaml`
 - `services/agent/internal/api/server.go`
 - `services/agent/internal/runtime/interface.go`
 - `services/agent/cmd/agent/main.go`

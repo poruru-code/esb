@@ -41,7 +41,7 @@ Image 関数は deploy/apply 時に `artifactctl deploy` で再ビルド・push 
 
 ## Implementation references
 - `services/contracts/proto/agent.proto`
-- `tools/gen_proto.py`
+- `services/contracts/buf.gen.yaml`
 - `services/agent/cmd/agent/main.go`
 - `services/agent/internal/api/server.go`
 - `services/agent/internal/runtime/interface.go`

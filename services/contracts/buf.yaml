@@ -1,0 +1,12 @@
+# Where: services/contracts/buf.yaml
+# What: Buf module configuration for shared service protobuf contracts.
+# Why: Keep proto lint/breaking settings colocated with contract ownership.
+version: v2
+modules:
+  - path: proto
+lint:
+  use:
+    - MINIMAL
+breaking:
+  use:
+    - FILE
