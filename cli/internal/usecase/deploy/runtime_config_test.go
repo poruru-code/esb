@@ -202,8 +202,8 @@ func TestResolveRuntimeConfigTargetSkipsWhenDockerClientNotConfigured(t *testing
 	}
 }
 
-func TestSelectRuntimeConfigContainerPrefersGatewayRunningThenName(t *testing.T) {
-	selected := selectRuntimeConfigContainer([]container.Summary{
+func TestOrderedRuntimeConfigContainersPrefersGatewayRunningThenName(t *testing.T) {
+	ordered := orderedRuntimeConfigContainers([]container.Summary{
 		{
 			ID:    "agent-running",
 			State: "running",
@@ -237,11 +237,11 @@ func TestSelectRuntimeConfigContainerPrefersGatewayRunningThenName(t *testing.T)
 			},
 		},
 	})
-	if selected == nil {
-		t.Fatal("expected selected container, got nil")
+	if len(ordered) == 0 {
+		t.Fatal("expected ordered containers, got empty result")
 	}
-	if selected.ID != "gateway-running-alpha" {
-		t.Fatalf("expected gateway-running-alpha, got %q", selected.ID)
+	if ordered[0].ID != "gateway-running-alpha" {
+		t.Fatalf("expected gateway-running-alpha, got %q", ordered[0].ID)
 	}
 }
 

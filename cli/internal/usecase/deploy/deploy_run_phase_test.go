@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/state"
+	"github.com/poruru/edge-serverless-box/pkg/artifactcore"
 )
 
 func TestRunApplyPhaseReturnsRegistryWaitError(t *testing.T) {
@@ -20,8 +21,8 @@ func TestRunApplyPhaseReturnsRegistryWaitError(t *testing.T) {
 			ComposeProject: "esb-dev",
 			TemplatePath:   filepath.Join(repoRoot, "template.yaml"),
 			Env:            "dev",
+			Mode:           "docker",
 		},
-		Mode: "docker",
 	}
 
 	workflow := Workflow{
@@ -52,8 +53,8 @@ func TestRunApplyPhaseReturnsArtifactPathRequiredWhenWaitPasses(t *testing.T) {
 			ComposeProject: "esb-dev",
 			TemplatePath:   filepath.Join(repoRoot, "template.yaml"),
 			Env:            "dev",
+			Mode:           "docker",
 		},
-		Mode: "docker",
 	}
 
 	workflow := Workflow{
@@ -61,7 +62,7 @@ func TestRunApplyPhaseReturnsArtifactPathRequiredWhenWaitPasses(t *testing.T) {
 	}
 
 	err := workflow.runApplyPhase(req)
-	if !errors.Is(err, errArtifactPathRequired) {
-		t.Fatalf("expected errArtifactPathRequired, got %v", err)
+	if !errors.Is(err, artifactcore.ErrArtifactPathRequired) {
+		t.Fatalf("expected ErrArtifactPathRequired, got %v", err)
 	}
 }

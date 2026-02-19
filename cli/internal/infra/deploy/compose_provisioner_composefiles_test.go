@@ -30,6 +30,9 @@ type provisionerRunner struct {
 	runCalls      int
 	runQuietCalls int
 	runOutputFn   func(args []string) ([]byte, error)
+	runErr        error
+	runQuietErr   error
+	runQuietArgs  [][]string
 }
 
 func (c *provisionerDockerClient) ContainerList(_ context.Context, _ container.ListOptions) ([]container.Summary, error) {
@@ -73,6 +76,9 @@ func (c *provisionerDockerClient) VolumesPrune(_ context.Context, _ filters.Args
 
 func (r *provisionerRunner) Run(_ context.Context, _, _ string, _ ...string) error {
 	r.runCalls++
+	if r.runErr != nil {
+		return r.runErr
+	}
 	return nil
 }
 
@@ -91,8 +97,12 @@ func (r *provisionerRunner) RunOutput(_ context.Context, _, _ string, args ...st
 	return []byte{}, nil
 }
 
-func (r *provisionerRunner) RunQuiet(_ context.Context, _, _ string, _ ...string) error {
+func (r *provisionerRunner) RunQuiet(_ context.Context, _, _ string, args ...string) error {
 	r.runQuietCalls++
+	r.runQuietArgs = append(r.runQuietArgs, append([]string(nil), args...))
+	if r.runQuietErr != nil {
+		return r.runQuietErr
+	}
 	return nil
 }
 
@@ -168,7 +178,7 @@ func TestResolveComposeFilesForProjectReturnsComposeFiles(t *testing.T) {
 	}
 }
 
-func TestRunProvisionerChecksServicesOnceWhenResolvedFilesExist(t *testing.T) {
+func TestRunProvisionerSkipsServicePrecheckWhenResolvedFilesExist(t *testing.T) {
 	configFile := filepath.Join(t.TempDir(), "docker-compose.yml")
 	if err := writeTestComposeFile(configFile, "services: {}"); err != nil {
 		t.Fatalf("write compose file: %v", err)
@@ -196,46 +206,43 @@ func TestRunProvisionerChecksServicesOnceWhenResolvedFilesExist(t *testing.T) {
 	if err := p.RunProvisioner("esb-dev", compose.ModeDocker, true, false, projectDir, nil); err != nil {
 		t.Fatalf("run provisioner: %v", err)
 	}
-	if runner.serviceChecks != 1 {
-		t.Fatalf("expected one compose service check, got %d", runner.serviceChecks)
+	if runner.serviceChecks != 0 {
+		t.Fatalf("expected no compose service precheck, got %d", runner.serviceChecks)
 	}
 	if runner.runQuietCalls != 1 {
 		t.Fatalf("expected one quiet run, got %d", runner.runQuietCalls)
 	}
 }
 
-func TestFilterExistingComposeFiles(t *testing.T) {
+func TestRunProvisionerParityExpectsSharedRunErrorClass(t *testing.T) {
 	root := t.TempDir()
-	relative := "docker-compose.yml"
-	relativePath := filepath.Join(root, relative)
-	absolutePath := filepath.Join(root, "docker-compose.extra.yml")
-	if err := writeTestComposeFile(relativePath, "services: {}"); err != nil {
-		t.Fatalf("write relative file: %v", err)
+	if err := writeTestComposeFile(filepath.Join(root, "docker-compose.docker.yml"), "services: {}\n"); err != nil {
+		t.Fatalf("write repo root marker: %v", err)
 	}
-	if err := writeTestComposeFile(absolutePath, "services: {}"); err != nil {
-		t.Fatalf("write absolute file: %v", err)
+	composePath := filepath.Join(root, "docker-compose.yml")
+	if err := writeTestComposeFile(composePath, "services:\n  provisioner: {}\n"); err != nil {
+		t.Fatalf("write compose file: %v", err)
 	}
+	runner := &provisionerRunner{
+		runOutputFn: func(args []string) ([]byte, error) {
+			if containsArg(args, "--help") {
+				return []byte("--no-warn-orphans"), nil
+			}
+			if containsArg(args, "config") && containsArg(args, "--services") {
+				return []byte("provisioner\n"), nil
+			}
+			return []byte{}, nil
+		},
+		runQuietErr: errors.New("compose failed"),
+	}
+	p := newComposeProvisioner(runner, nil, nil)
 
-	existing, missing := filterExistingComposeFiles(root, []string{
-		relative,
-		absolutePath,
-		"missing.yml",
-		" ",
-	})
-	if len(existing) != 2 {
-		t.Fatalf("expected 2 existing files, got %d", len(existing))
+	err := p.RunProvisioner("esb-dev", compose.ModeDocker, true, false, root, []string{composePath})
+	if err == nil {
+		t.Fatal("expected error")
 	}
-	if existing[0] != relativePath {
-		t.Fatalf("unexpected relative path resolution: %s", existing[0])
-	}
-	if existing[1] != absolutePath {
-		t.Fatalf("unexpected absolute path resolution: %s", existing[1])
-	}
-	if len(missing) != 1 {
-		t.Fatalf("expected 1 missing file, got %d", len(missing))
-	}
-	if missing[0] != filepath.Join(root, "missing.yml") {
-		t.Fatalf("unexpected missing path: %s", missing[0])
+	if !strings.Contains(err.Error(), "run provisioner") {
+		t.Fatalf("expected shared run error class, got: %v", err)
 	}
 }
 
@@ -270,43 +277,6 @@ func TestDefaultComposeFiles(t *testing.T) {
 	}
 	if containerdFiles[1] != containerdProxy {
 		t.Fatalf("unexpected containerd proxy file: %s", containerdFiles[1])
-	}
-}
-
-func TestComposeHasServices(t *testing.T) {
-	runner := &provisionerRunner{
-		runOutputFn: func(args []string) ([]byte, error) {
-			if containsArg(args, "config") && containsArg(args, "--services") {
-				return []byte("database\nprovisioner\n"), nil
-			}
-			return []byte{}, nil
-		},
-	}
-	p := composeProvisioner{composeRunner: runner}
-
-	ok, missing := p.composeHasServices("/tmp", "esb-dev", []string{"a.yml"}, []string{"database", "provisioner"})
-	if !ok {
-		t.Fatalf("expected service check success, missing=%v", missing)
-	}
-	if len(missing) != 0 {
-		t.Fatalf("expected no missing services, got %v", missing)
-	}
-}
-
-func TestComposeHasServicesReturnsRequiredWhenCommandFails(t *testing.T) {
-	runner := &provisionerRunner{
-		runOutputFn: func(_ []string) ([]byte, error) {
-			return nil, errors.New("boom")
-		},
-	}
-	p := composeProvisioner{composeRunner: runner}
-	required := []string{"database", "provisioner"}
-	ok, missing := p.composeHasServices("/tmp", "esb-dev", []string{"a.yml"}, required)
-	if ok {
-		t.Fatal("expected failure when compose config command fails")
-	}
-	if len(missing) != len(required) {
-		t.Fatalf("expected all services as missing, got %v", missing)
 	}
 }
 

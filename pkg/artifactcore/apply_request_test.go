@@ -1,13 +1,17 @@
 package artifactcore
 
-import (
-	"bytes"
-	"testing"
-)
+import "testing"
 
-func TestNewApplyRequestNormalizesPaths(t *testing.T) {
-	var warning bytes.Buffer
-	req := NewApplyRequest("  artifact.yml  ", "  out/config  ", "  secret.env  ", true, &warning)
+func TestNormalizeApplyInputNormalizesPaths(t *testing.T) {
+	req, err := normalizeApplyInput(ApplyInput{
+		ArtifactPath:  "  artifact.yml  ",
+		OutputDir:     "  out/config  ",
+		SecretEnvPath: "  secret.env  ",
+		Strict:        true,
+	})
+	if err != nil {
+		t.Fatalf("normalizeApplyInput() error = %v", err)
+	}
 	if req.ArtifactPath != "artifact.yml" {
 		t.Fatalf("ArtifactPath = %q, want artifact.yml", req.ArtifactPath)
 	}
@@ -19,8 +23,5 @@ func TestNewApplyRequestNormalizesPaths(t *testing.T) {
 	}
 	if !req.Strict {
 		t.Fatal("Strict must be true")
-	}
-	if req.WarningWriter != &warning {
-		t.Fatalf("WarningWriter mismatch: %#v", req.WarningWriter)
 	}
 }

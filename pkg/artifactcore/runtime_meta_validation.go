@@ -1,8 +1,6 @@
 package artifactcore
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -113,7 +111,7 @@ func resolveArtifactFileDigest(
 		return "", false, nil
 	}
 	sourcePath := filepath.Join(artifactRoot, relPath)
-	digest, err := fileSHA256(sourcePath)
+	digest, err := FileSHA256(sourcePath)
 	if err != nil {
 		message := fmt.Sprintf("%s source unreadable at %s: %v", field, sourcePath, err)
 		if strict {
@@ -215,13 +213,4 @@ func validateDigest(field, actual, expected string, strict bool, warnings *[]str
 		*warnings = append(*warnings, message)
 	}
 	return nil
-}
-
-func fileSHA256(path string) (string, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	sum := sha256.Sum256(data)
-	return hex.EncodeToString(sum[:]), nil
 }

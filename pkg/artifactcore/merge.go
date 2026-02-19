@@ -16,7 +16,7 @@ var (
 	mergeLockPollInterval = 50 * time.Millisecond
 )
 
-const mergeLockFileName = ".artifactctl-merge.lock"
+const mergeLockFileName = ".artifact-merge.lock"
 
 func mergeWithManifest(manifestPath, outputDir string, manifest ArtifactManifest) error {
 	if outputDir == "" {

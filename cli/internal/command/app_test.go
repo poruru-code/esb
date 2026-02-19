@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alecthomas/kong"
 	"github.com/poruru/edge-serverless-box/cli/internal/version"
 )
 
@@ -85,6 +86,34 @@ func TestDispatchCommandArtifactGenerate(t *testing.T) {
 	}
 	if exitCode == 0 {
 		t.Fatalf("expected non-zero exit code when dependencies are missing, got %d", exitCode)
+	}
+}
+
+func TestDeployParseApplyOptions(t *testing.T) {
+	cli := CLI{}
+	parser, err := kong.New(&cli)
+	if err != nil {
+		t.Fatalf("kong.New() error = %v", err)
+	}
+	if _, err := parser.Parse([]string{"deploy", "--secret-env", "secret.env", "--strict"}); err != nil {
+		t.Fatalf("parser.Parse() error = %v", err)
+	}
+	if cli.Deploy.SecretEnv != "secret.env" {
+		t.Fatalf("SecretEnv=%q, want secret.env", cli.Deploy.SecretEnv)
+	}
+	if !cli.Deploy.Strict {
+		t.Fatal("Strict=false, want true")
+	}
+}
+
+func TestDeployParseRejectsNoDepsFlag(t *testing.T) {
+	cli := CLI{}
+	parser, err := kong.New(&cli)
+	if err != nil {
+		t.Fatalf("kong.New() error = %v", err)
+	}
+	if _, err := parser.Parse([]string{"deploy", "--no-deps"}); err == nil {
+		t.Fatal("parser.Parse() succeeded for removed --no-deps flag")
 	}
 }
 
@@ -212,12 +241,35 @@ func TestRequiresRepoScope(t *testing.T) {
 		{name: "deploy", args: []string{"deploy"}, want: true},
 		{name: "deploy with global flags", args: []string{"--env", "dev", "deploy"}, want: true},
 		{name: "help token in flag value is ignored", args: []string{"--env", "help", "deploy"}, want: true},
+		{name: "help token in compose-file value is ignored", args: []string{"--compose-file", "help", "deploy"}, want: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := requiresRepoScope(tt.args)
 			if got != tt.want {
 				t.Fatalf("requiresRepoScope(%v) = %v, want %v", tt.args, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCommandFlagExpectsValueUsesCLIReflection(t *testing.T) {
+	tests := []struct {
+		flag string
+		want bool
+	}{
+		{flag: "--compose-file", want: true},
+		{flag: "--env", want: true},
+		{flag: "--no-cache", want: false},
+		{flag: "-v", want: false},
+		{flag: "-e", want: true},
+		{flag: "--manifest=artifact.yml", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.flag, func(t *testing.T) {
+			got := commandFlagExpectsValue(tt.flag)
+			if got != tt.want {
+				t.Fatalf("commandFlagExpectsValue(%q) = %v, want %v", tt.flag, got, tt.want)
 			}
 		})
 	}

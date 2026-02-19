@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"reflect"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/alecthomas/kong"
 	"github.com/joho/godotenv"
@@ -19,6 +21,7 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/interaction"
 	runtimeinfra "github.com/poruru/edge-serverless-box/cli/internal/infra/runtime"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/ui"
+	usecasedeploy "github.com/poruru/edge-serverless-box/cli/internal/usecase/deploy"
 	"github.com/poruru/edge-serverless-box/cli/internal/version"
 )
 
@@ -27,6 +30,8 @@ const (
 	repoRequiredErrorMessage = "EBS repository root not found from current directory. Run this command inside the EBS repository."
 	cliCommandName           = "esb"
 )
+
+var commandValueFlags = collectValueFlags(reflect.TypeOf(CLI{}))
 
 // Dependencies holds all injected dependencies required for CLI command execution.
 // This structure enables dependency injection for testing and allows swapping
@@ -63,8 +68,9 @@ type (
 		BuildOnly    bool     `name:"build-only" help:"Build only (skip provisioner and runtime sync)"`
 		Bundle       bool     `name:"bundle-manifest" help:"Write bundle manifest (for bundling)"`
 		NoCache      bool     `name:"no-cache" help:"Do not use cache when building images"`
-		NoDeps       bool     `name:"no-deps" help:"Do not start dependent services when running provisioner (default)"`
 		WithDeps     bool     `name:"with-deps" help:"Start dependent services when running provisioner"`
+		SecretEnv    string   `name:"secret-env" help:"Path to secret env file for apply phase"`
+		Strict       bool     `name:"strict" help:"Enable strict runtime metadata validation for apply phase"`
 		Verbose      bool     `short:"v" help:"Verbose output"`
 		Emoji        bool     `name:"emoji" help:"Enable emoji output (default: auto)"`
 		NoEmoji      bool     `name:"no-emoji" help:"Disable emoji output"`
@@ -123,8 +129,8 @@ type (
 
 	DeployProvisionDeps struct {
 		ComposeRunner             compose.CommandRunner
-		ComposeProvisioner        ComposeProvisioner
-		ComposeProvisionerFactory func(ui.UserInterface) ComposeProvisioner
+		ComposeProvisioner        usecasedeploy.ComposeProvisioner
+		ComposeProvisionerFactory func(ui.UserInterface) usecasedeploy.ComposeProvisioner
 		NewDeployUI               func(io.Writer, bool) ui.UserInterface
 	}
 )
@@ -134,17 +140,7 @@ type (
 
 	DockerClientFactory func() (compose.DockerClient, error)
 
-	ComposeProvisioner interface {
-		CheckServicesStatus(composeProject, mode string)
-		RunProvisioner(
-			composeProject string,
-			mode string,
-			noDeps bool,
-			verbose bool,
-			projectDir string,
-			composeFiles []string,
-		) error
-	}
+	ComposeProvisioner = usecasedeploy.ComposeProvisioner
 )
 
 // Run is the main entry point for CLI command execution.
@@ -257,12 +253,83 @@ func commandName(args []string) string {
 }
 
 func commandFlagExpectsValue(arg string) bool {
-	switch arg {
-	case "-e", "--env", "-t", "--template", "--env-file", "-m", "--mode", "-o", "--output", "--manifest", "-p", "--project", "--image-uri", "--image-runtime", "--artifact", "--out", "--secret-env":
-		return true
-	default:
+	trimmed := strings.TrimSpace(arg)
+	if trimmed == "" || trimmed == "-" || trimmed == "--" {
 		return false
 	}
+	if strings.Contains(trimmed, "=") {
+		return false
+	}
+	_, ok := commandValueFlags[trimmed]
+	return ok
+}
+
+func collectValueFlags(root reflect.Type) map[string]struct{} {
+	out := map[string]struct{}{}
+	collectValueFlagsRecursive(root, out)
+	return out
+}
+
+func collectValueFlagsRecursive(current reflect.Type, out map[string]struct{}) {
+	for current.Kind() == reflect.Pointer {
+		current = current.Elem()
+	}
+	if current.Kind() != reflect.Struct {
+		return
+	}
+
+	for i := 0; i < current.NumField(); i++ {
+		field := current.Field(i)
+		if field.PkgPath != "" {
+			continue
+		}
+		if _, isCommand := field.Tag.Lookup("cmd"); isCommand {
+			collectValueFlagsRecursive(field.Type, out)
+			continue
+		}
+		if !fieldRequiresValue(field.Type) {
+			continue
+		}
+		if shortName := strings.TrimSpace(field.Tag.Get("short")); shortName != "" {
+			out["-"+shortName] = struct{}{}
+		}
+		longName := strings.TrimSpace(field.Tag.Get("name"))
+		if longName == "" {
+			longName = toKebabCase(field.Name)
+		}
+		if longName != "" {
+			out["--"+longName] = struct{}{}
+		}
+	}
+}
+
+func fieldRequiresValue(fieldType reflect.Type) bool {
+	for fieldType.Kind() == reflect.Pointer {
+		fieldType = fieldType.Elem()
+	}
+	switch fieldType.Kind() {
+	case reflect.Bool:
+		return false
+	case reflect.Struct:
+		return false
+	default:
+		return true
+	}
+}
+
+func toKebabCase(value string) string {
+	var out strings.Builder
+	for i, r := range value {
+		if unicode.IsUpper(r) {
+			if i > 0 {
+				out.WriteByte('-')
+			}
+			out.WriteRune(unicode.ToLower(r))
+			continue
+		}
+		out.WriteRune(r)
+	}
+	return out.String()
 }
 
 func enforceRepoScope(args []string, deps Dependencies, out io.Writer) (int, bool) {
@@ -284,6 +351,9 @@ func requiresRepoScope(args []string) bool {
 }
 
 func isHelpCommand(args []string) bool {
+	if len(args) > 0 && args[0] == "help" {
+		return true
+	}
 	skipNext := false
 	for _, arg := range args {
 		if skipNext {
@@ -294,15 +364,13 @@ func isHelpCommand(args []string) bool {
 			switch arg {
 			case "-h", "--help":
 				return true
-			default:
-				if commandFlagExpectsValue(arg) {
-					skipNext = true
-				}
+			case "--":
+				return false
+			}
+			if commandFlagExpectsValue(arg) {
+				skipNext = true
 			}
 			continue
-		}
-		if arg == "help" {
-			return true
 		}
 	}
 	return false

@@ -35,12 +35,12 @@ func TestPrepareImagesBuildsAndPushesDockerRefs(t *testing.T) {
 	t.Setenv("HOST_REGISTRY_ADDR", "127.0.0.1:5010")
 
 	runner := &recordCommandRunner{}
-	err := PrepareImages(PrepareImagesRequest{
+	err := prepareImages(prepareImagesInput{
 		ArtifactPath: manifestPath,
 		Runner:       runner,
 	})
 	if err != nil {
-		t.Fatalf("PrepareImages() error = %v", err)
+		t.Fatalf("prepareImages() error = %v", err)
 	}
 	if len(runner.commands) != 4 {
 		t.Fatalf("expected 4 commands, got %d", len(runner.commands))
@@ -81,12 +81,12 @@ func TestPrepareImagesRewritesPushTargetsForContainerdRefs(t *testing.T) {
 	t.Setenv("HOST_REGISTRY_ADDR", "127.0.0.1:5010")
 
 	runner := &recordCommandRunner{}
-	err := PrepareImages(PrepareImagesRequest{
+	err := prepareImages(prepareImagesInput{
 		ArtifactPath: manifestPath,
 		Runner:       runner,
 	})
 	if err != nil {
-		t.Fatalf("PrepareImages() error = %v", err)
+		t.Fatalf("prepareImages() error = %v", err)
 	}
 	if len(runner.commands) != 6 {
 		t.Fatalf("expected 6 commands, got %d", len(runner.commands))
@@ -159,17 +159,17 @@ func TestPrepareImagesRewritesFunctionDockerfileRegistryForBuild(t *testing.T) {
 		},
 	}
 
-	if err := PrepareImages(PrepareImagesRequest{
+	if err := prepareImages(prepareImagesInput{
 		ArtifactPath: manifestPath,
 		Runner:       runner,
 	}); err != nil {
-		t.Fatalf("PrepareImages() error = %v", err)
+		t.Fatalf("prepareImages() error = %v", err)
 	}
 
 	if functionBuildFile == "" {
 		t.Fatal("expected function build dockerfile capture")
 	}
-	if !strings.HasSuffix(functionBuildFile, ".artifactctl.build") {
+	if !strings.HasSuffix(functionBuildFile, ".artifact.build") {
 		t.Fatalf("expected temporary dockerfile suffix, got: %s", functionBuildFile)
 	}
 	if !strings.Contains(functionBuildText, "FROM 127.0.0.1:5010/esb-lambda-base:e2e-test") {
@@ -211,12 +211,12 @@ func TestPrepareImagesTemporarilyRewritesDockerignore(t *testing.T) {
 			return nil
 		},
 	}
-	err := PrepareImages(PrepareImagesRequest{
+	err := prepareImages(prepareImagesInput{
 		ArtifactPath: manifestPath,
 		Runner:       runner,
 	})
 	if err != nil {
-		t.Fatalf("PrepareImages() error = %v", err)
+		t.Fatalf("prepareImages() error = %v", err)
 	}
 	if inspected == "" {
 		t.Fatalf("expected dockerignore inspection during function build")
@@ -242,13 +242,13 @@ func TestPrepareImagesNoCacheAddsFlag(t *testing.T) {
 		"127.0.0.1:5010/esb-lambda-base:e2e-test",
 	)
 	runner := &recordCommandRunner{}
-	err := PrepareImages(PrepareImagesRequest{
+	err := prepareImages(prepareImagesInput{
 		ArtifactPath: manifestPath,
 		NoCache:      true,
 		Runner:       runner,
 	})
 	if err != nil {
-		t.Fatalf("PrepareImages() error = %v", err)
+		t.Fatalf("prepareImages() error = %v", err)
 	}
 	if len(runner.commands) == 0 {
 		t.Fatal("expected build commands")
@@ -269,7 +269,7 @@ func TestPrepareImagesReturnsRunnerError(t *testing.T) {
 	runner := &recordCommandRunner{
 		hook: func(_ []string) error { return errors.New("boom") },
 	}
-	err := PrepareImages(PrepareImagesRequest{
+	err := prepareImages(prepareImagesInput{
 		ArtifactPath: manifestPath,
 		Runner:       runner,
 	})
@@ -292,7 +292,7 @@ func TestPrepareImagesFailsWhenRuntimeBaseContextMissing(t *testing.T) {
 	}
 
 	runner := &recordCommandRunner{}
-	err := PrepareImages(PrepareImagesRequest{
+	err := prepareImages(prepareImagesInput{
 		ArtifactPath: manifestPath,
 		Runner:       runner,
 	})
@@ -305,7 +305,7 @@ func TestPrepareImagesFailsWhenRuntimeBaseContextMissing(t *testing.T) {
 }
 
 func TestPrepareImagesRequiresArtifactPath(t *testing.T) {
-	err := PrepareImages(PrepareImagesRequest{})
+	err := prepareImages(prepareImagesInput{})
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -325,7 +325,7 @@ func TestPrepareImagesFailsWhenFunctionsIsNotMap(t *testing.T) {
 	functionsPath := filepath.Join(root, "fixture", "config", "functions.yml")
 	mustWriteFile(t, functionsPath, "functions: []\n")
 
-	err := PrepareImages(PrepareImagesRequest{
+	err := prepareImages(prepareImagesInput{
 		ArtifactPath: manifestPath,
 		Runner:       &recordCommandRunner{},
 	})
@@ -349,12 +349,12 @@ func TestPrepareImagesSkipsWhenNoImageTarget(t *testing.T) {
 	mustWriteFile(t, functionsPath, "functions:\n  lambda-echo:\n    handler: index.handler\n")
 
 	runner := &recordCommandRunner{}
-	err := PrepareImages(PrepareImagesRequest{
+	err := prepareImages(prepareImagesInput{
 		ArtifactPath: manifestPath,
 		Runner:       runner,
 	})
 	if err != nil {
-		t.Fatalf("PrepareImages() error = %v", err)
+		t.Fatalf("prepareImages() error = %v", err)
 	}
 	if len(runner.commands) != 0 {
 		t.Fatalf("expected no docker command, got %v", runner.commands)

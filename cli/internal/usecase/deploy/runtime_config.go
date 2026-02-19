@@ -151,14 +151,6 @@ func orderedRuntimeConfigContainers(containers []container.Summary) []container.
 	return copied
 }
 
-func selectRuntimeConfigContainer(containers []container.Summary) *container.Summary {
-	ordered := orderedRuntimeConfigContainers(containers)
-	if len(ordered) == 0 {
-		return nil
-	}
-	return &ordered[0]
-}
-
 func runtimeConfigServicePriority(summary container.Summary) int {
 	service := strings.TrimSpace(summary.Labels[compose.ComposeServiceLabel])
 	if service == "gateway" {

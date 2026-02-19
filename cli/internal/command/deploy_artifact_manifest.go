@@ -4,8 +4,6 @@
 package command
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,8 +12,8 @@ import (
 
 	domaincfg "github.com/poruru/edge-serverless-box/cli/internal/domain/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/meta"
-	"github.com/poruru/edge-serverless-box/cli/internal/usecase/deploy"
 	"github.com/poruru/edge-serverless-box/cli/internal/version"
+	"github.com/poruru/edge-serverless-box/pkg/artifactcore"
 )
 
 const artifactManifestFileName = "artifact.yml"
@@ -32,7 +30,7 @@ func writeDeployArtifactManifest(
 		manifestOverride,
 	)
 	manifestDir := filepath.Dir(manifestPath)
-	entries := make([]deploy.ArtifactEntry, 0, len(inputs.Templates))
+	entries := make([]artifactcore.ArtifactEntry, 0, len(inputs.Templates))
 	runtimeMeta, err := resolveRuntimeMeta(inputs.ProjectDir)
 	if err != nil {
 		return "", err
@@ -45,7 +43,7 @@ func writeDeployArtifactManifest(
 		}
 		artifactRoot := toManifestPath(manifestDir, artifactRootAbs)
 
-		templateSHA, err := fileSHA256(tpl.TemplatePath)
+		templateSHA, err := artifactcore.FileSHA256(tpl.TemplatePath)
 		if err != nil {
 			return "", fmt.Errorf("hash template %s: %w", tpl.TemplatePath, err)
 		}
@@ -58,13 +56,13 @@ func writeDeployArtifactManifest(
 			return "", fmt.Errorf("bundle manifest not found: %s", bundlePath)
 		}
 
-		source := deploy.ArtifactSourceTemplate{
+		source := artifactcore.ArtifactSourceTemplate{
 			Path:       normalizeSourceTemplatePath(inputs.ProjectDir, tpl.TemplatePath),
 			SHA256:     templateSHA,
 			Parameters: cloneStringValues(tpl.Parameters),
 		}
-		entry := deploy.ArtifactEntry{
-			ID:               deploy.ComputeArtifactID(source.Path, source.Parameters, source.SHA256),
+		entry := artifactcore.ArtifactEntry{
+			ID:               artifactcore.ComputeArtifactID(source.Path, source.Parameters, source.SHA256),
 			ArtifactRoot:     artifactRoot,
 			RuntimeConfigDir: filepath.ToSlash("config"),
 			BundleManifest:   bundleManifest,
@@ -74,37 +72,37 @@ func writeDeployArtifactManifest(
 		entries = append(entries, entry)
 	}
 
-	manifest := deploy.ArtifactManifest{
-		SchemaVersion: deploy.ArtifactSchemaVersionV1,
+	manifest := artifactcore.ArtifactManifest{
+		SchemaVersion: artifactcore.ArtifactSchemaVersionV1,
 		Project:       strings.TrimSpace(inputs.Project),
 		Env:           strings.TrimSpace(inputs.Env),
 		Mode:          strings.TrimSpace(inputs.Mode),
 		Artifacts:     entries,
 		GeneratedAt:   time.Now().UTC().Format(time.RFC3339),
-		Generator: deploy.ArtifactGenerator{
+		Generator: artifactcore.ArtifactGenerator{
 			Name:    meta.AppName,
 			Version: version.GetVersion(),
 		},
 	}
-	if err := deploy.WriteArtifactManifest(manifestPath, manifest); err != nil {
+	if err := artifactcore.WriteArtifactManifest(manifestPath, manifest); err != nil {
 		return "", err
 	}
 	return manifestPath, nil
 }
 
-func resolveRuntimeMeta(projectDir string) (deploy.ArtifactRuntimeMeta, error) {
-	pythonSitecustomizeDigest, err := fileSHA256(filepath.Join(projectDir, "runtime-hooks", "python", "sitecustomize", "site-packages", "sitecustomize.py"))
+func resolveRuntimeMeta(projectDir string) (artifactcore.ArtifactRuntimeMeta, error) {
+	pythonSitecustomizeDigest, err := artifactcore.FileSHA256(filepath.Join(projectDir, "runtime-hooks", "python", "sitecustomize", "site-packages", "sitecustomize.py"))
 	if err != nil {
-		return deploy.ArtifactRuntimeMeta{}, fmt.Errorf("hash runtime hook python sitecustomize: %w", err)
+		return artifactcore.ArtifactRuntimeMeta{}, fmt.Errorf("hash runtime hook python sitecustomize: %w", err)
 	}
-	return deploy.ArtifactRuntimeMeta{
-		Hooks: deploy.RuntimeHooksMeta{
-			APIVersion:                deploy.RuntimeHooksAPIVersion,
+	return artifactcore.ArtifactRuntimeMeta{
+		Hooks: artifactcore.RuntimeHooksMeta{
+			APIVersion:                artifactcore.RuntimeHooksAPIVersion,
 			PythonSitecustomizeDigest: pythonSitecustomizeDigest,
 		},
-		Renderer: deploy.RendererMeta{
-			Name:       deploy.TemplateRendererName,
-			APIVersion: deploy.TemplateRendererAPIVersion,
+		Renderer: artifactcore.RendererMeta{
+			Name:       artifactcore.TemplateRendererName,
+			APIVersion: artifactcore.TemplateRendererAPIVersion,
 		},
 	}, nil
 }
@@ -146,9 +144,6 @@ func sanitizePathSegment(value string) string {
 
 func resolveTemplateArtifactRoot(templatePath, outputDir, env string) (string, error) {
 	resolved := domaincfg.ResolveOutputSummary(templatePath, outputDir, env)
-	if filepath.IsAbs(resolved) {
-		return filepath.Clean(resolved), nil
-	}
 	abs, err := filepath.Abs(resolved)
 	if err != nil {
 		return "", fmt.Errorf("resolve artifact root %s: %w", resolved, err)
@@ -214,13 +209,4 @@ func cloneStringValues(values map[string]string) map[string]string {
 func pathExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
-}
-
-func fileSHA256(path string) (string, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	sum := sha256.Sum256(data)
-	return hex.EncodeToString(sum[:]), nil
 }

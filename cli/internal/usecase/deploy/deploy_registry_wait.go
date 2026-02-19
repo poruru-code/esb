@@ -61,7 +61,7 @@ func (w Workflow) waitRegistryAndServices(req Request) error {
 	}
 
 	// Check gateway/agent status (warning only).
-	w.checkServicesStatus(req.Context.ComposeProject, req.Mode)
+	w.checkServicesStatus(req.Context.ComposeProject, req.Context.Mode)
 	return nil
 }
 

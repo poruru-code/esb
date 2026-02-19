@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/meta"
-	usecasedeploy "github.com/poruru/edge-serverless-box/cli/internal/usecase/deploy"
+	"github.com/poruru/edge-serverless-box/pkg/artifactcore"
 )
 
 func TestSanitizePathSegmentBlocksDotSegments(t *testing.T) {
@@ -176,14 +176,14 @@ func TestResolveRuntimeMetaIncludesDigestsAndVersions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRuntimeMeta() error = %v", err)
 	}
-	if meta.Hooks.APIVersion != usecasedeploy.RuntimeHooksAPIVersion {
-		t.Fatalf("hooks api_version = %q, want %q", meta.Hooks.APIVersion, usecasedeploy.RuntimeHooksAPIVersion)
+	if meta.Hooks.APIVersion != artifactcore.RuntimeHooksAPIVersion {
+		t.Fatalf("hooks api_version = %q, want %q", meta.Hooks.APIVersion, artifactcore.RuntimeHooksAPIVersion)
 	}
-	if meta.Renderer.Name != usecasedeploy.TemplateRendererName {
-		t.Fatalf("renderer name = %q, want %q", meta.Renderer.Name, usecasedeploy.TemplateRendererName)
+	if meta.Renderer.Name != artifactcore.TemplateRendererName {
+		t.Fatalf("renderer name = %q, want %q", meta.Renderer.Name, artifactcore.TemplateRendererName)
 	}
-	if meta.Renderer.APIVersion != usecasedeploy.TemplateRendererAPIVersion {
-		t.Fatalf("renderer api_version = %q, want %q", meta.Renderer.APIVersion, usecasedeploy.TemplateRendererAPIVersion)
+	if meta.Renderer.APIVersion != artifactcore.TemplateRendererAPIVersion {
+		t.Fatalf("renderer api_version = %q, want %q", meta.Renderer.APIVersion, artifactcore.TemplateRendererAPIVersion)
 	}
 	if meta.Hooks.PythonSitecustomizeDigest == "" {
 		t.Fatal("python sitecustomize digest must not be empty")

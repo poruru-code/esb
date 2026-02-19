@@ -19,7 +19,7 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/state"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/build"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/ui"
-	usecasedeploy "github.com/poruru/edge-serverless-box/cli/internal/usecase/deploy"
+	"github.com/poruru/edge-serverless-box/pkg/artifactcore"
 )
 
 type deployEntryUI struct{}
@@ -43,20 +43,22 @@ func (deployEntryRunner) RunOutput(context.Context, string, string, ...string) (
 func (deployEntryRunner) RunQuiet(context.Context, string, string, ...string) error { return nil }
 
 type deployEntryProvisioner struct {
-	runCalls int
+	runCalls   int
+	noDepsArgs []bool
 }
 
 func (p *deployEntryProvisioner) CheckServicesStatus(string, string) {}
 
 func (p *deployEntryProvisioner) RunProvisioner(
-	string,
-	string,
-	bool,
-	bool,
-	string,
-	[]string,
+	_ string,
+	_ string,
+	noDeps bool,
+	_ bool,
+	_ string,
+	_ []string,
 ) error {
 	p.runCalls++
+	p.noDepsArgs = append(p.noDepsArgs, noDeps)
 	return nil
 }
 
@@ -161,24 +163,6 @@ func TestResolveDeployCommandConfigUsesInjectedRuntimeApplier(t *testing.T) {
 	}
 }
 
-func TestDeployCommandRunRejectsConflictingDepsFlags(t *testing.T) {
-	cmd := &deployCommand{
-		build:         func(build.BuildRequest) error { return nil },
-		applyRuntime:  func(state.Context) error { return nil },
-		ui:            deployEntryUI{},
-		composeRunner: deployEntryRunner{},
-	}
-	err := cmd.Run(
-		deployInputs{
-			Templates: []deployTemplateInput{{TemplatePath: "template.yaml"}},
-		},
-		DeployCmd{NoDeps: true, WithDeps: true},
-	)
-	if err == nil {
-		t.Fatalf("expected flag conflict error")
-	}
-}
-
 func TestDeployCommandRunBuildsAllTemplatesAndRunsProvisionerOnlyOnLast(t *testing.T) {
 	tmp := t.TempDir()
 	setWorkingDir(t, tmp)
@@ -244,9 +228,12 @@ func TestDeployCommandRunBuildsAllTemplatesAndRunsProvisionerOnlyOnLast(t *testi
 	if provisioner.runCalls != 1 {
 		t.Fatalf("expected provisioner run once for final template, got %d", provisioner.runCalls)
 	}
+	if len(provisioner.noDepsArgs) != 1 || !provisioner.noDepsArgs[0] {
+		t.Fatalf("expected default noDeps=true, got %#v", provisioner.noDepsArgs)
+	}
 
 	manifestPath := resolveDeployArtifactManifestPath(tmp, "esb-dev", "dev")
-	manifest, err := usecasedeploy.ReadArtifactManifest(manifestPath)
+	manifest, err := artifactcore.ReadArtifactManifest(manifestPath)
 	if err != nil {
 		t.Fatalf("read artifact manifest: %v", err)
 	}
@@ -264,6 +251,49 @@ func TestDeployCommandRunBuildsAllTemplatesAndRunsProvisionerOnlyOnLast(t *testi
 	}
 	if manifest.Artifacts[0].ArtifactRoot == "" || manifest.Artifacts[1].ArtifactRoot == "" {
 		t.Fatalf("artifact_root must not be empty: %#v", manifest.Artifacts)
+	}
+}
+
+func TestDeployCommandRunWithDepsDisablesNoDeps(t *testing.T) {
+	tmp := t.TempDir()
+	setWorkingDir(t, tmp)
+	if err := os.WriteFile(filepath.Join(tmp, "docker-compose.docker.yml"), []byte("services: {}\n"), 0o600); err != nil {
+		t.Fatalf("write compose marker: %v", err)
+	}
+	templatePath := filepath.Join(tmp, "template.yaml")
+	if err := os.WriteFile(templatePath, []byte("Resources: {}"), 0o600); err != nil {
+		t.Fatalf("write template: %v", err)
+	}
+	writeTestRuntimeAssets(t, tmp)
+
+	builder := &deployEntryBuilder{}
+	provisioner := &deployEntryProvisioner{}
+	cmd := &deployCommand{
+		build:         builder.Build,
+		applyRuntime:  func(state.Context) error { return nil },
+		ui:            deployEntryUI{},
+		composeRunner: deployEntryRunner{},
+		workflow: deployWorkflowDeps{
+			composeProvisioner: provisioner,
+			registryWaiter:     func(string, time.Duration) error { return nil },
+		},
+	}
+
+	err := cmd.Run(
+		deployInputs{
+			ProjectDir: tmp,
+			Env:        "dev",
+			Mode:       "docker",
+			Project:    "esb-dev",
+			Templates:  []deployTemplateInput{{TemplatePath: templatePath}},
+		},
+		DeployCmd{WithDeps: true},
+	)
+	if err != nil {
+		t.Fatalf("run deploy command: %v", err)
+	}
+	if len(provisioner.noDepsArgs) != 1 || provisioner.noDepsArgs[0] {
+		t.Fatalf("expected noDeps=false when --with-deps is enabled, got %#v", provisioner.noDepsArgs)
 	}
 }
 
@@ -300,7 +330,7 @@ func TestDeployCommandRunAllowsRenderOnlyGenerate(t *testing.T) {
 			Project:    "esb-dev",
 			Templates:  []deployTemplateInput{{TemplatePath: templatePath}},
 		},
-		DeployCmd{BuildOnly: true},
+		DeployCmd{BuildOnly: true, SecretEnv: "secret.env", Strict: true},
 		deployRunOverrides{
 			buildImages:    boolPtr(false),
 			forceBuildOnly: true,

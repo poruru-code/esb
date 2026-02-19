@@ -19,7 +19,6 @@ def _make_context(
     tmp_path: Path,
     *,
     image_uri_overrides: dict[str, str] | None = None,
-    image_runtime_overrides: dict[str, str] | None = None,
     artifact_manifest: str | None = None,
     runtime_env: dict[str, str] | None = None,
 ) -> RunContext:
@@ -28,8 +27,6 @@ def _make_context(
     extra: dict[str, Any] = {}
     if image_uri_overrides is not None:
         extra["image_uri_overrides"] = image_uri_overrides
-    if image_runtime_overrides is not None:
-        extra["image_runtime_overrides"] = image_runtime_overrides
     if artifact_manifest is not None:
         extra["artifact_manifest"] = artifact_manifest
     scenario = Scenario(
@@ -181,7 +178,6 @@ def test_deploy_artifacts_prepares_local_fixture_image(monkeypatch, tmp_path):
     ctx = _make_context(
         tmp_path,
         image_uri_overrides={"lambda-image": "127.0.0.1:5010/esb-e2e-lambda-python:latest"},
-        image_runtime_overrides={"lambda-image": "python"},
     )
 
     commands: list[list[str]] = []
@@ -256,17 +252,16 @@ def test_deploy_artifacts_runs_deploy_and_provision(monkeypatch, tmp_path):
         "--out",
         str(config_dir),
     ]
-    assert commands[1][0:8] == [
-        "docker",
-        "compose",
-        "--project-name",
+    assert commands[1] == [
+        "artifactctl",
+        "provision",
+        "--project",
         ctx.compose_project,
-        "--file",
+        "--compose-file",
         str(ctx.compose_file),
         "--env-file",
         ctx.env_file,
     ]
-    assert commands[1][-4:] == ["run", "--rm", "--no-deps", "provisioner"]
 
 
 def test_deploy_artifacts_deploy_with_no_cache(monkeypatch, tmp_path):
@@ -351,6 +346,7 @@ def test_deploy_artifacts_uses_resolved_artifactctl_bin(monkeypatch, tmp_path):
         log.close()
 
     assert commands[0][0] == "/opt/tools/custom-artifactctl"
+    assert commands[1][0] == "/opt/tools/custom-artifactctl"
 
 
 def test_deploy_artifacts_requires_manifest(tmp_path):
@@ -373,23 +369,17 @@ def test_deploy_artifacts_requires_manifest(tmp_path):
         log.close()
 
 
-def test_resolve_artifact_manifest_path_treats_none_as_unset(monkeypatch, tmp_path):
+def test_resolve_artifact_manifest_path_rejects_none(monkeypatch, tmp_path):
     ctx = _make_context(tmp_path)
     ctx.scenario.extra["artifact_manifest"] = None
-    default_root = tmp_path / "artifacts"
-    monkeypatch.setattr(deploy_module, "E2E_ARTIFACT_ROOT", default_root)
 
-    resolved = deploy_module._resolve_artifact_manifest_path(ctx)
-
-    assert resolved == (default_root / ctx.scenario.env_name / "artifact.yml").resolve()
+    with pytest.raises(ValueError, match="artifact_manifest is required"):
+        deploy_module._resolve_artifact_manifest_path(ctx)
 
 
-def test_resolve_artifact_manifest_path_treats_blank_as_unset(monkeypatch, tmp_path):
+def test_resolve_artifact_manifest_path_rejects_blank(monkeypatch, tmp_path):
     ctx = _make_context(tmp_path)
     ctx.scenario.extra["artifact_manifest"] = "   "
-    default_root = tmp_path / "artifacts"
-    monkeypatch.setattr(deploy_module, "E2E_ARTIFACT_ROOT", default_root)
 
-    resolved = deploy_module._resolve_artifact_manifest_path(ctx)
-
-    assert resolved == (default_root / ctx.scenario.env_name / "artifact.yml").resolve()
+    with pytest.raises(ValueError, match="artifact_manifest is required"):
+        deploy_module._resolve_artifact_manifest_path(ctx)

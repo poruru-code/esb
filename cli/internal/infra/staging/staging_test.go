@@ -36,6 +36,35 @@ func TestRootDirUsesRepoRoot(t *testing.T) {
 	}
 }
 
+func TestRootDirUsesTemplatePathWhenCwdOutsideRepo(t *testing.T) {
+	repoRoot := t.TempDir()
+	marker := filepath.Join(repoRoot, "docker-compose.docker.yml")
+	if err := os.WriteFile(marker, []byte{}, 0o600); err != nil {
+		t.Fatalf("write repo marker: %v", err)
+	}
+
+	templateDir := filepath.Join(repoRoot, "nested", "app")
+	if err := os.MkdirAll(templateDir, 0o755); err != nil {
+		t.Fatalf("mkdir template dir: %v", err)
+	}
+	templatePath := filepath.Join(templateDir, "template.yaml")
+	if err := os.WriteFile(templatePath, []byte{}, 0o600); err != nil {
+		t.Fatalf("write template: %v", err)
+	}
+
+	outside := t.TempDir()
+	chdir(t, outside)
+
+	root, err := RootDir(templatePath)
+	if err != nil {
+		t.Fatalf("root dir: %v", err)
+	}
+	want := filepath.Join(repoRoot, meta.HomeDir, "staging")
+	if filepath.Clean(root) != filepath.Clean(want) {
+		t.Fatalf("expected %q, got %q", want, root)
+	}
+}
+
 func TestComposeProjectKey(t *testing.T) {
 	if got := ComposeProjectKey("custom-project", "dev"); got != "custom-project" {
 		t.Fatalf("ComposeProjectKey() = %q, want %q", got, "custom-project")

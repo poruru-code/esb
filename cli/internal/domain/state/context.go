@@ -7,7 +7,6 @@ package state
 type Context struct {
 	ProjectDir     string
 	TemplatePath   string
-	OutputDir      string
 	Env            string
 	Mode           string
 	ComposeProject string

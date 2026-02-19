@@ -14,6 +14,7 @@ import (
 
 	domaincfg "github.com/poruru/edge-serverless-box/cli/internal/domain/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/ui"
+	"github.com/poruru/edge-serverless-box/pkg/yamlshape"
 	"gopkg.in/yaml.v3"
 )
 
@@ -35,8 +36,8 @@ func loadConfigSnapshot(configDir string) (domaincfg.Snapshot, error) {
 	}
 	if len(functions) > 0 {
 		if raw, ok := functions["functions"]; ok {
-			for name, value := range asMap(raw) {
-				snapshot.Functions[name] = value
+			for name, item := range yamlshape.AsMap(raw) {
+				snapshot.Functions[name] = item
 			}
 		}
 	}
@@ -47,9 +48,9 @@ func loadConfigSnapshot(configDir string) (domaincfg.Snapshot, error) {
 	}
 	if len(routing) > 0 {
 		if raw, ok := routing["routes"]; ok {
-			for _, route := range asSlice(raw) {
-				routeMap := asMap(route)
-				key := routeKey(routeMap)
+			for _, route := range yamlshape.AsSlice(raw) {
+				routeMap := yamlshape.AsMap(route)
+				key := yamlshape.RouteKey(routeMap)
 				if key == "" {
 					continue
 				}
@@ -64,7 +65,7 @@ func loadConfigSnapshot(configDir string) (domaincfg.Snapshot, error) {
 	}
 	if len(resources) > 0 {
 		if raw, ok := resources["resources"]; ok {
-			resourceMap := asMap(raw)
+			resourceMap := yamlshape.AsMap(raw)
 			snapshot.Resources["dynamodb"] = extractNamedResources(resourceMap, "dynamodb", "TableName")
 			snapshot.Resources["s3"] = extractNamedResources(resourceMap, "s3", "BucketName")
 			snapshot.Resources["layers"] = extractNamedResources(resourceMap, "layers", "Name")
@@ -137,52 +138,14 @@ func loadYamlFile(path string) (map[string]any, error) {
 	return out, nil
 }
 
-func asMap(value any) map[string]any {
-	switch typed := value.(type) {
-	case map[string]any:
-		return typed
-	case map[any]any:
-		out := make(map[string]any, len(typed))
-		for key, val := range typed {
-			if name, ok := key.(string); ok {
-				out[name] = val
-			}
-		}
-		return out
-	default:
-		return map[string]any{}
-	}
-}
-
-func asSlice(value any) []any {
-	switch typed := value.(type) {
-	case []any:
-		return typed
-	default:
-		return nil
-	}
-}
-
-func routeKey(route map[string]any) string {
-	path, _ := route["path"].(string)
-	method, _ := route["method"].(string)
-	if path == "" {
-		return ""
-	}
-	if method == "" {
-		method = "GET"
-	}
-	return fmt.Sprintf("%s:%s", path, method)
-}
-
 func extractNamedResources(resources map[string]any, key, nameField string) map[string]any {
 	out := map[string]any{}
 	raw, ok := resources[key]
 	if !ok {
 		return out
 	}
-	for _, item := range asSlice(raw) {
-		itemMap := asMap(item)
+	for _, item := range yamlshape.AsSlice(raw) {
+		itemMap := yamlshape.AsMap(item)
 		name, _ := itemMap[nameField].(string)
 		if name == "" {
 			continue

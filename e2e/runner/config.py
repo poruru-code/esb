@@ -153,6 +153,7 @@ def build_env_scenarios(matrix: list, suites: dict, profile_filter: str | None =
         _reject_legacy_deploy_fields(entry)
         esb_project = _resolve_esb_project(entry)
         config_dir = _validate_config_dir(entry, env_name, esb_project)
+        artifact_manifest = _require_non_empty_field(entry, "artifact_manifest")
         suite_names = entry.get("suites", [])
         if env_name not in env_scenarios:
             env_dir = entry.get("env_dir", env_name)
@@ -183,13 +184,8 @@ def build_env_scenarios(matrix: list, suites: dict, profile_filter: str | None =
                 "targets": [],
                 "exclude": [],
                 "image_uri_overrides": entry.get("image_uri_overrides", {}) or {},
-                "image_runtime_overrides": entry.get("image_runtime_overrides", {}) or {},
+                "artifact_manifest": artifact_manifest,
             }
-            artifact_manifest_value = entry.get("artifact_manifest")
-            if artifact_manifest_value is not None:
-                artifact_manifest = str(artifact_manifest_value).strip()
-                if artifact_manifest:
-                    env_scenarios[env_name]["artifact_manifest"] = artifact_manifest
         else:
             existing = env_scenarios[env_name]
             if existing.get("config_dir") != config_dir:
@@ -201,6 +197,11 @@ def build_env_scenarios(matrix: list, suites: dict, profile_filter: str | None =
                 raise ValueError(
                     f"esb_project mismatch for esb_env '{env_name}': "
                     f"{existing.get('esb_project')} != {esb_project}"
+                )
+            if existing.get("artifact_manifest") != artifact_manifest:
+                raise ValueError(
+                    f"artifact_manifest mismatch for esb_env '{env_name}': "
+                    f"{existing.get('artifact_manifest')} != {artifact_manifest}"
                 )
 
         for suite_name in suite_names:

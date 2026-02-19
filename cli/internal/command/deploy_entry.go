@@ -192,13 +192,7 @@ func (c *deployCommand) runWithOverrides(
 	overrides deployRunOverrides,
 ) error {
 	tag := resolveBrandTag()
-	if flags.NoDeps && flags.WithDeps {
-		return errors.New("deploy: --no-deps and --with-deps cannot be used together")
-	}
-	noDeps := true
-	if flags.WithDeps {
-		noDeps = false
-	}
+	noDeps := !flags.WithDeps
 	buildImages := true
 	if overrides.buildImages != nil {
 		buildImages = *overrides.buildImages
@@ -247,16 +241,12 @@ func (c *deployCommand) runWithOverrides(
 		ctx := state.Context{
 			ProjectDir:     inputs.ProjectDir,
 			TemplatePath:   tpl.TemplatePath,
-			OutputDir:      tpl.OutputDir,
 			Env:            inputs.Env,
 			Mode:           inputs.Mode,
 			ComposeProject: inputs.Project,
 		}
 		request := deploy.Request{
 			Context:        ctx,
-			Env:            inputs.Env,
-			Mode:           inputs.Mode,
-			TemplatePath:   tpl.TemplatePath,
 			OutputDir:      tpl.OutputDir,
 			Parameters:     tpl.Parameters,
 			ImageSources:   tpl.ImageSources,
@@ -297,22 +287,20 @@ func (c *deployCommand) runWithOverrides(
 	applyCtx := state.Context{
 		ProjectDir:     inputs.ProjectDir,
 		TemplatePath:   applyTemplate.TemplatePath,
-		OutputDir:      applyTemplate.OutputDir,
 		Env:            inputs.Env,
 		Mode:           inputs.Mode,
 		ComposeProject: inputs.Project,
 	}
 	applyReq := deploy.Request{
-		Context:      applyCtx,
-		Env:          inputs.Env,
-		Mode:         inputs.Mode,
-		TemplatePath: applyTemplate.TemplatePath,
-		ArtifactPath: manifestPath,
-		OutputDir:    applyTemplate.OutputDir,
-		NoDeps:       noDeps,
-		Verbose:      flags.Verbose,
-		ComposeFiles: inputs.ComposeFiles,
-		BuildOnly:    false,
+		Context:       applyCtx,
+		ArtifactPath:  manifestPath,
+		SecretEnvPath: flags.SecretEnv,
+		Strict:        flags.Strict,
+		OutputDir:     applyTemplate.OutputDir,
+		NoDeps:        noDeps,
+		Verbose:       flags.Verbose,
+		ComposeFiles:  inputs.ComposeFiles,
+		BuildOnly:     false,
 	}
 	if err := workflow.Apply(applyReq); err != nil {
 		return fmt.Errorf("deploy apply (%s): %w", applyTemplate.TemplatePath, err)

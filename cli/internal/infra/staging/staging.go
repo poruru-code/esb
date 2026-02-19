@@ -92,9 +92,12 @@ func ProjectRoot(templatePath string) (string, error) {
 	if strings.TrimSpace(templatePath) == "" {
 		return "", fmt.Errorf("template path is required")
 	}
-	repoRoot, err := config.ResolveRepoRoot("")
+	repoRoot, err := config.ResolveRepoRootFromPath(templatePath)
 	if err != nil {
-		return "", fmt.Errorf("resolve repo root from cwd: %w", err)
+		repoRoot, err = config.ResolveRepoRoot("")
+		if err != nil {
+			return "", fmt.Errorf("resolve repo root from template path/cwd: %w", err)
+		}
 	}
 	return filepath.Join(repoRoot, meta.HomeDir), nil
 }

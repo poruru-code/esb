@@ -115,8 +115,6 @@ func TestResolveDeployOutputInteractiveUsesPreviousWithoutPrompt(t *testing.T) {
 	prompter := &recordingPrompter{inputValue: "should-not-be-used"}
 	got, err := resolveDeployOutput(
 		"",
-		"e2e/fixtures/template.e2e.yaml",
-		"dev",
 		true,
 		prompter,
 		".esb/custom",
@@ -136,8 +134,6 @@ func TestResolveDeployOutputInteractiveUsesDefaultWithoutPrompt(t *testing.T) {
 	prompter := &recordingPrompter{inputValue: "should-not-be-used"}
 	got, err := resolveDeployOutput(
 		"",
-		"e2e/fixtures/template.e2e.yaml",
-		"dev",
 		true,
 		prompter,
 		"",

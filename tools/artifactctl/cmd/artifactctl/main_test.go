@@ -12,10 +12,12 @@ import (
 
 func newNoopDeps(out, errOut *bytes.Buffer) commandDeps {
 	return commandDeps{
-		prepareImages: func(artifactcore.PrepareImagesRequest) error { return nil },
-		apply:         func(artifactcore.ApplyRequest) error { return nil },
-		out:           out,
-		errOut:        errOut,
+		executeDeploy: func(artifactcore.DeployInput) (artifactcore.ApplyResult, error) {
+			return artifactcore.ApplyResult{}, nil
+		},
+		executeProvision: func(ProvisionInput) error { return nil },
+		out:              out,
+		errOut:           errOut,
 	}
 }
 
@@ -27,8 +29,8 @@ func TestRunShowsHelp(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("run returned code=%d", code)
 	}
-	if !strings.Contains(out.String(), "deploy") {
-		t.Fatalf("expected help output to mention deploy, got: %q", out.String())
+	if !strings.Contains(out.String(), "deploy") || !strings.Contains(out.String(), "provision") {
+		t.Fatalf("expected help output to mention deploy/provision, got: %q", out.String())
 	}
 	if errOut.Len() != 0 {
 		t.Fatalf("expected empty stderr, got: %q", errOut.String())
@@ -48,7 +50,20 @@ func TestRunDeployHelpShowsFlags(t *testing.T) {
 	}
 }
 
-func TestRunRequiresDeployCommand(t *testing.T) {
+func TestRunProvisionHelpShowsFlags(t *testing.T) {
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+
+	code := run([]string{"provision", "--help"}, newNoopDeps(&out, &errOut))
+	if code != 0 {
+		t.Fatalf("run returned code=%d", code)
+	}
+	if !strings.Contains(out.String(), "--project") || !strings.Contains(out.String(), "--compose-file") {
+		t.Fatalf("expected provision help output, got: %q", out.String())
+	}
+}
+
+func TestRunRequiresSubcommand(t *testing.T) {
 	var out bytes.Buffer
 	var errOut bytes.Buffer
 
@@ -56,7 +71,7 @@ func TestRunRequiresDeployCommand(t *testing.T) {
 	if code != 1 {
 		t.Fatalf("run returned code=%d", code)
 	}
-	if !strings.Contains(errOut.String(), "Hint: run `artifactctl --help` or `artifactctl deploy --help`.") {
+	if !strings.Contains(errOut.String(), "artifactctl provision --help") {
 		t.Fatalf("unexpected stderr: %q", errOut.String())
 	}
 }
@@ -87,25 +102,17 @@ func TestRunDeployRequiresMandatoryFlags(t *testing.T) {
 	}
 }
 
-func TestRunDeployDispatchesPrepareThenApply(t *testing.T) {
+func TestRunDeployDispatchesCanonicalDeployInput(t *testing.T) {
 	var out bytes.Buffer
 	var errOut bytes.Buffer
 	var warnings bytes.Buffer
 
-	order := make([]string, 0, 2)
-	var gotPrepare artifactcore.PrepareImagesRequest
-	var gotApply artifactcore.ApplyRequest
+	var got artifactcore.DeployInput
 
 	deps := commandDeps{
-		prepareImages: func(req artifactcore.PrepareImagesRequest) error {
-			order = append(order, "prepare")
-			gotPrepare = req
-			return nil
-		},
-		apply: func(req artifactcore.ApplyRequest) error {
-			order = append(order, "apply")
-			gotApply = req
-			return nil
+		executeDeploy: func(input artifactcore.DeployInput) (artifactcore.ApplyResult, error) {
+			got = input
+			return artifactcore.ApplyResult{Warnings: []string{"minor mismatch"}}, nil
 		},
 		warningWriter: &warnings,
 		out:           &out,
@@ -123,17 +130,14 @@ func TestRunDeployDispatchesPrepareThenApply(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("run returned code=%d, stderr=%q", code, errOut.String())
 	}
-	if len(order) != 2 || order[0] != "prepare" || order[1] != "apply" {
-		t.Fatalf("unexpected execution order: %#v", order)
+	if got.Apply.ArtifactPath != "artifact.yml" || !got.NoCache {
+		t.Fatalf("unexpected deploy input: %#v", got)
 	}
-	if gotPrepare.ArtifactPath != "artifact.yml" || !gotPrepare.NoCache {
-		t.Fatalf("unexpected prepare request: %#v", gotPrepare)
+	if got.Apply.OutputDir != "out" || got.Apply.SecretEnvPath != "secret.env" || !got.Apply.Strict {
+		t.Fatalf("unexpected apply input: %#v", got.Apply)
 	}
-	if gotApply.ArtifactPath != "artifact.yml" || gotApply.OutputDir != "out" || gotApply.SecretEnvPath != "secret.env" || !gotApply.Strict {
-		t.Fatalf("unexpected apply request: %#v", gotApply)
-	}
-	if gotApply.WarningWriter != &warnings {
-		t.Fatalf("unexpected warning writer: %#v", gotApply.WarningWriter)
+	if !strings.Contains(warnings.String(), "Warning: minor mismatch") {
+		t.Fatalf("expected warning output, got %q", warnings.String())
 	}
 }
 
@@ -141,12 +145,8 @@ func TestRunDeployUsesErrOutWhenWarningWriterUnset(t *testing.T) {
 	var out bytes.Buffer
 	var errOut bytes.Buffer
 	deps := commandDeps{
-		prepareImages: func(artifactcore.PrepareImagesRequest) error { return nil },
-		apply: func(req artifactcore.ApplyRequest) error {
-			if req.WarningWriter != &errOut {
-				t.Fatalf("unexpected warning writer: %#v", req.WarningWriter)
-			}
-			return nil
+		executeDeploy: func(input artifactcore.DeployInput) (artifactcore.ApplyResult, error) {
+			return artifactcore.ApplyResult{Warnings: []string{"runtime mismatch"}}, nil
 		},
 		out:    &out,
 		errOut: &errOut,
@@ -156,18 +156,18 @@ func TestRunDeployUsesErrOutWhenWarningWriterUnset(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("run returned code=%d, stderr=%q", code, errOut.String())
 	}
+	if !strings.Contains(errOut.String(), "Warning: runtime mismatch") {
+		t.Fatalf("expected warning in stderr, got %q", errOut.String())
+	}
 }
 
-func TestRunDeployStopsWhenPrepareFails(t *testing.T) {
+func TestRunDeployReportsExecuteFailure(t *testing.T) {
 	var out bytes.Buffer
 	var errOut bytes.Buffer
-	applyCalled := false
 
 	deps := commandDeps{
-		prepareImages: func(artifactcore.PrepareImagesRequest) error { return errors.New("boom-prepare") },
-		apply: func(artifactcore.ApplyRequest) error {
-			applyCalled = true
-			return nil
+		executeDeploy: func(artifactcore.DeployInput) (artifactcore.ApplyResult, error) {
+			return artifactcore.ApplyResult{}, errors.New("boom-deploy")
 		},
 		out:    &out,
 		errOut: &errOut,
@@ -177,30 +177,110 @@ func TestRunDeployStopsWhenPrepareFails(t *testing.T) {
 	if code != 1 {
 		t.Fatalf("run returned code=%d", code)
 	}
-	if applyCalled {
-		t.Fatal("apply must not be called when prepare fails")
-	}
-	if !strings.Contains(errOut.String(), "deploy failed during image preparation: boom-prepare") {
+	if !strings.Contains(errOut.String(), "deploy failed: boom-deploy") {
 		t.Fatalf("unexpected stderr: %q", errOut.String())
 	}
 }
 
-func TestRunDeployReportsApplyFailure(t *testing.T) {
+func TestRunProvisionDispatchesCanonicalInput(t *testing.T) {
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	var got ProvisionInput
+
+	deps := commandDeps{
+		executeDeploy: func(artifactcore.DeployInput) (artifactcore.ApplyResult, error) {
+			return artifactcore.ApplyResult{}, nil
+		},
+		executeProvision: func(input ProvisionInput) error {
+			got = input
+			return nil
+		},
+		out:    &out,
+		errOut: &errOut,
+	}
+
+	code := run([]string{
+		"provision",
+		"--project", "esb-dev",
+		"--compose-file", "compose.yml",
+		"--env-file", ".env",
+		"--project-dir", "/tmp/esb",
+		"--with-deps",
+		"-v",
+	}, deps)
+	if code != 0 {
+		t.Fatalf("run returned code=%d, stderr=%q", code, errOut.String())
+	}
+	if got.ComposeProject != "esb-dev" {
+		t.Fatalf("unexpected compose project: %#v", got)
+	}
+	if len(got.ComposeFiles) != 1 || got.ComposeFiles[0] != "compose.yml" {
+		t.Fatalf("unexpected compose files: %#v", got)
+	}
+	if got.EnvFile != ".env" || got.ProjectDir != "/tmp/esb" {
+		t.Fatalf("unexpected provision input: %#v", got)
+	}
+	if got.NoDeps {
+		t.Fatalf("expected NoDeps=false when --with-deps is set: %#v", got)
+	}
+	if !got.Verbose {
+		t.Fatalf("expected verbose=true: %#v", got)
+	}
+}
+
+func TestRunProvisionReportsExecuteFailure(t *testing.T) {
 	var out bytes.Buffer
 	var errOut bytes.Buffer
 
 	deps := commandDeps{
-		prepareImages: func(artifactcore.PrepareImagesRequest) error { return nil },
-		apply:         func(artifactcore.ApplyRequest) error { return errors.New("boom-apply") },
-		out:           &out,
-		errOut:        &errOut,
+		executeDeploy: func(artifactcore.DeployInput) (artifactcore.ApplyResult, error) {
+			return artifactcore.ApplyResult{}, nil
+		},
+		executeProvision: func(ProvisionInput) error { return errors.New("boom-provision") },
+		out:              &out,
+		errOut:           &errOut,
 	}
 
-	code := run([]string{"deploy", "--artifact", "artifact.yml", "--out", "out"}, deps)
+	code := run([]string{
+		"provision",
+		"--project", "esb-dev",
+		"--compose-file", "compose.yml",
+	}, deps)
 	if code != 1 {
 		t.Fatalf("run returned code=%d", code)
 	}
-	if !strings.Contains(errOut.String(), "deploy failed during artifact apply: boom-apply") {
+	if !strings.Contains(errOut.String(), "boom-provision") {
+		t.Fatalf("unexpected stderr: %q", errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "artifactctl provision --help") {
+		t.Fatalf("expected provision hint, got: %q", errOut.String())
+	}
+}
+
+func TestRunProvisionPreservesSharedRunErrorClass(t *testing.T) {
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+
+	deps := commandDeps{
+		executeDeploy: func(artifactcore.DeployInput) (artifactcore.ApplyResult, error) {
+			return artifactcore.ApplyResult{}, nil
+		},
+		executeProvision: func(ProvisionInput) error {
+			return errors.New("run provisioner: compose failed")
+		},
+		out:    &out,
+		errOut: &errOut,
+	}
+
+	code := run([]string{
+		"provision",
+		"--project", "esb-dev",
+		"--compose-file", "compose.yml",
+	}, deps)
+	if code != 1 {
+		t.Fatalf("run returned code=%d", code)
+	}
+	if !strings.Contains(errOut.String(), "run provisioner: compose failed") {
 		t.Fatalf("unexpected stderr: %q", errOut.String())
 	}
 }

@@ -14,7 +14,7 @@ func (w Workflow) emitPostBuildSummary(req Request) {
 		return
 	}
 
-	templateConfigDir, err := resolveTemplateConfigDir(req.TemplatePath, req.OutputDir, req.Env)
+	templateConfigDir, err := resolveTemplateConfigDir(req.Context.TemplatePath, req.OutputDir, req.Context.Env)
 	if err != nil {
 		w.UserInterface.Warn(fmt.Sprintf("Warning: failed to resolve template config dir: %v", err))
 	} else {
