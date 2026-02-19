@@ -1,4 +1,4 @@
-package engine
+package artifactcore
 
 func asMap(value any) map[string]any {
 	switch typed := value.(type) {

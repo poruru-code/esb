@@ -9,8 +9,8 @@ The E2E flow uses the image URI declared in `e2e/fixtures/template.e2e.yaml`:
 
 - `public.ecr.aws/r9p4t4p0/esb-e2e-lambda-python:latest`
 
-At deploy time, ESB image prewarm pulls that source image and republishes it to the
-internal registry.
+At deploy/apply time, `artifactctl prepare-images` builds function images from artifact
+Dockerfiles and pushes them to the internal registry.
 
 Use this directory when you need to rebuild and publish the source image.
 

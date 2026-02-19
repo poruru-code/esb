@@ -9,11 +9,11 @@ require (
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/joho/godotenv v1.5.1
 	github.com/poruru-code/aws-sam-parser-go v0.1.1
-	github.com/poruru/edge-serverless-box/tools/artifactctl v0.0.0
+	github.com/poruru/edge-serverless-box/pkg/artifactcore v0.0.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
-replace github.com/poruru/edge-serverless-box/tools/artifactctl => ../tools/artifactctl
+replace github.com/poruru/edge-serverless-box/pkg/artifactcore => ../pkg/artifactcore
 
 require (
 	dario.cat/mergo v1.0.1 // indirect

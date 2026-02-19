@@ -319,6 +319,45 @@ def test_deploy_artifacts_prepare_images_with_no_cache(monkeypatch, tmp_path):
     ]
 
 
+def test_deploy_artifacts_uses_resolved_artifactctl_bin(monkeypatch, tmp_path):
+    config_dir = tmp_path / "merged-config"
+    image_ref = "127.0.0.1:5010/esb-lambda-echo:e2e-test"
+    base_ref = "127.0.0.1:5010/esb-lambda-base:e2e-test"
+    manifest = _write_artifact_fixture(tmp_path, image_ref=image_ref, base_ref=base_ref)
+    ctx = _make_context(
+        tmp_path,
+        artifact_manifest=str(manifest),
+        runtime_env={
+            "CONFIG_DIR": str(config_dir),
+            "ARTIFACTCTL_BIN_RESOLVED": "/opt/tools/custom-artifactctl",
+        },
+    )
+
+    commands: list[list[str]] = []
+
+    def fake_run_and_stream(cmd: list[str], **kwargs: Any) -> int:
+        del kwargs
+        commands.append(list(cmd))
+        return 0
+
+    monkeypatch.setattr("e2e.runner.deploy.run_and_stream", fake_run_and_stream)
+
+    log = LogSink(tmp_path / "deploy.log")
+    log.open()
+    try:
+        deploy_artifacts(
+            ctx,
+            no_cache=False,
+            log=log,
+            printer=None,
+        )
+    finally:
+        log.close()
+
+    assert commands[0][0] == "/opt/tools/custom-artifactctl"
+    assert commands[1][0] == "/opt/tools/custom-artifactctl"
+
+
 def test_deploy_artifacts_requires_manifest(tmp_path):
     ctx = _make_context(
         tmp_path,

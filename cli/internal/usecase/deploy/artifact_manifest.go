@@ -1,9 +1,9 @@
 // Where: cli/internal/usecase/deploy/artifact_manifest.go
-// What: Artifact manifest aliases delegated to artifactctl engine.
-// Why: Keep Go logic single-sourced in tools/artifactctl.
+// What: Artifact manifest aliases delegated to shared artifact core.
+// Why: Keep Go logic single-sourced and decoupled from artifactctl CLI adapter.
 package deploy
 
-import engine "github.com/poruru/edge-serverless-box/tools/artifactctl/pkg/engine"
+import engine "github.com/poruru/edge-serverless-box/pkg/artifactcore"
 
 const ArtifactSchemaVersionV1 = engine.ArtifactSchemaVersionV1
 

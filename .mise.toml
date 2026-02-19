@@ -23,6 +23,7 @@ run = [
   "uv sync --all-extras",
   "lefthook install",
   "mise run build-cli",
+  "mise run build-artifactctl",
   "mise run setup:certs",
   "mise run setup:buildx",
 ]
@@ -39,7 +40,16 @@ run = "uv run python tools/buildkit/setup_buildx.py"
 description = "Build CLI to ~/.local/bin"
 dir = "cli"
 run = [
+  "mkdir -p ~/.local/bin",
   "go build -o ~/.local/bin/esb ./cmd/esb",
+]
+
+[tasks.build-artifactctl]
+description = "Build artifactctl to ~/.local/bin"
+dir = "tools/artifactctl"
+run = [
+  "mkdir -p ~/.local/bin",
+  "go build -o ~/.local/bin/artifactctl ./cmd/artifactctl",
 ]
 
 [tasks.dev-cli]

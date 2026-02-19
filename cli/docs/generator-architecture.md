@@ -50,7 +50,7 @@ flowchart TD
 
 ### 2. 新しい生成ファイルを追加
 1. `generate.go` に書き出しを追加
-2. `tools/artifactctl/pkg/engine/merge.go` と `usecase/deploy/runtime_config.go` への反映要否を確認
+2. `pkg/artifactcore/merge.go` と `usecase/deploy/runtime_config.go` への反映要否を確認
 3. テスト:
    - `cli/internal/infra/templategen/generate_test.go`
    - `cli/internal/usecase/deploy/runtime_config_test.go`

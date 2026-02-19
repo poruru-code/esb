@@ -42,6 +42,7 @@ mise trust
 mise install
 mise run setup
 ```
+`mise run setup` は `esb` と `artifactctl` を `~/.local/bin` にビルドします。
 
 ### Lint / Format
 ```bash

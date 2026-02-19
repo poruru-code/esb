@@ -30,7 +30,7 @@
   Evidence: `cli/internal/infra/templategen/generate.go` と `cli/internal/infra/templategen/generate_test.go` の `TestGenerateFilesImageFunctionWritesImportManifest`。
 
 - Observation: `prepare-images` は `functions.yml` の `functions.*.image` と Dockerfile 存在を基準に build/push するため、`image-import.json` を読まない。
-  Evidence: `tools/artifactctl/pkg/engine/prepare_images.go`。
+  Evidence: `pkg/artifactcore/prepare_images.go`。
 
 - Observation: `e2e/artifacts/*` には既存 `config/image-import.json` が含まれており、コード削除だけでは契約残骸が残る。
   Evidence: `e2e/artifacts/e2e-docker/template.e2e/e2e-docker/config/image-import.json`、`e2e/artifacts/e2e-containerd/template.e2e/e2e-containerd/config/image-import.json`。
@@ -78,9 +78,9 @@
 
 `cli/internal/usecase/deploy/deploy_runtime_provision.go` は apply 後に `image-import.json` を読み、`ImagePrewarm` 値に応じて `runImagePrewarm` を呼びます。`runImagePrewarm` 本体は `cli/internal/usecase/deploy/image_prewarm.go` にあり、外部 image をそのまま `pull/tag/push` します。
 
-一方で build 側は `cli/internal/infra/templategen/generate.go` が image 関数の Dockerfile を生成し、`tools/artifactctl/pkg/engine/prepare_images.go` がその Dockerfile から function image を再ビルドして push します。この build 経路だけが runtime hooks 注入を保証します。
+一方で build 側は `cli/internal/infra/templategen/generate.go` が image 関数の Dockerfile を生成し、`pkg/artifactcore/prepare_images.go` がその Dockerfile から function image を再ビルドして push します。この build 経路だけが runtime hooks 注入を保証します。
 
-`image-import.json` は現在 `templategen` が生成し、`tools/artifactctl/pkg/engine/merge.go` が merge し、`cli/internal/usecase/deploy/runtime_config.go` が runtime config として同期します。しかし runtime consumer がこのファイルを直接利用する経路はなく、実質 prewarm 系のためだけに残っています。
+`image-import.json` は現在 `templategen` が生成し、`pkg/artifactcore/merge.go` が merge し、`cli/internal/usecase/deploy/runtime_config.go` が runtime config として同期します。しかし runtime consumer がこのファイルを直接利用する経路はなく、実質 prewarm 系のためだけに残っています。
 
 ## Plan of Work
 
@@ -88,7 +88,7 @@
 
 次に usecase 層を簡素化します。`cli/internal/usecase/deploy/deploy.go` から `Request.ImagePrewarm` を削除し、`deploy_run.go` の normalize と apply フェーズ呼び出しを prewarm 非依存に変更します。`deploy_runtime_provision.go` では `image-import.json` 読み込み・必須判定・prewarm 実行を削除して、`artifact apply -> runtime config sync -> provisioner` のみにします。`image_prewarm.go` と専用テストは削除します。
 
-その後に generator/engine を整理します。`cli/internal/infra/templategen/generate.go` から image import 解決と `image-import.json` 出力を除去し、`cli/internal/infra/templategen/image_import.go` と関連テストを削除します。`tools/artifactctl/pkg/engine/merge.go` から image import merge 呼び出しを削除し、`merge_image_import.go` と `merge_io.go` 内の JSON 専用ロジックを撤去します。`cli/internal/usecase/deploy/runtime_config.go` の同期対象ファイルから `image-import.json` を外します。
+その後に generator/engine を整理します。`cli/internal/infra/templategen/generate.go` から image import 解決と `image-import.json` 出力を除去し、`cli/internal/infra/templategen/image_import.go` と関連テストを削除します。`pkg/artifactcore/merge.go` から image import merge 呼び出しを削除し、`merge_image_import.go` と `merge_io.go` 内の JSON 専用ロジックを撤去します。`cli/internal/usecase/deploy/runtime_config.go` の同期対象ファイルから `image-import.json` を外します。
 
 最後に契約と検証を揃えます。`docs/deploy-artifact-contract.md`、`cli/docs/architecture.md`、`cli/docs/container-management.md`、`cli/docs/generator-architecture.md`、`docs/container-runtime-operations.md` から prewarm/image-import 前提を削除し、`prepare-images` 経路を唯一の関数イメージ準備手順として記述します。`e2e` の matrix 正規化で未使用 `image_prewarm` を除去し、fixture manifest の `image_prewarm` と fixture config の `image-import.json` を削除して新契約に揃えます。加えて `.agent/execplan-artifact-first-deploy.md` に Track 更新を反映します。
 
@@ -100,14 +100,14 @@
    - `cli/internal/command/*`
    - `cli/internal/usecase/deploy/*`
    - `cli/internal/infra/templategen/*`
-   - `tools/artifactctl/pkg/engine/*`
+   - `pkg/artifactcore/*`
    - `e2e/runner/*`
    - `docs/*` と `cli/docs/*`
 
 2. 削除後のコンパイル確認。
 
       cd /home/akira/esb
-      go test ./cli/internal/command ./cli/internal/usecase/deploy ./cli/internal/infra/templategen ./tools/artifactctl/pkg/engine -count=1
+      go test ./cli/internal/command ./cli/internal/usecase/deploy ./cli/internal/infra/templategen ./pkg/artifactcore -count=1
 
 3. E2E runner の契約テスト確認。
 
@@ -157,8 +157,8 @@
   ok  	github.com/poruru/edge-serverless-box/cli/internal/infra/templategen
 
   cd /home/akira/esb
-  go -C tools/artifactctl test ./pkg/engine -count=1
-  ok  	github.com/poruru/edge-serverless-box/tools/artifactctl/pkg/engine
+  go -C pkg/artifactcore test ./... -count=1
+  ok  	github.com/poruru/edge-serverless-box/pkg/artifactcore
 
   cd /home/akira/esb
   X_API_KEY=dummy AUTH_USER=dummy AUTH_PASS=dummy uv run pytest -q e2e/runner/tests/test_config.py e2e/runner/tests/test_deploy_command.py
@@ -179,13 +179,13 @@
 
 `cli/internal/usecase/deploy.Request` は `ImagePrewarm` フィールドを持たない。
 
-`tools/artifactctl/pkg/engine.ArtifactEntry` は `ImagePrewarm` フィールドを持たない。
+`pkg/artifactcore.ArtifactEntry` は `ImagePrewarm` フィールドを持たない。
 
 `cli/internal/usecase/deploy.Workflow.runRuntimeProvisionPhase` は prewarm 引数を取らない。
 
 `cli/internal/infra/templategen.GenerateFiles` は `config/image-import.json` を出力しない。
 
-`tools/artifactctl/pkg/engine.mergeOneRuntimeConfig` は `functions.yml`、`routing.yml`、`resources.yml` のみを merge 対象にする。
+`pkg/artifactcore.mergeOneRuntimeConfig` は `functions.yml`、`routing.yml`、`resources.yml` のみを merge 対象にする。
 
 計画改訂履歴:
 - 2026-02-18: 初版作成。prewarm 廃止と image-import 廃止を同時に進める方針を明文化。

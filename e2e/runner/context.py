@@ -11,7 +11,6 @@ from e2e.runner.env import (
     apply_gateway_env_from_container,
     apply_proxy_defaults,
     calculate_runtime_env,
-    calculate_staging_dir,
     read_env_file,
 )
 from e2e.runner.lifecycle import resolve_compose_file
@@ -66,10 +65,13 @@ def _prepare_context(
     runtime_env[env_key("HOME")] = str((E2E_STATE_ROOT / env_name).absolute())
     runtime_env[constants.ENV_PROJECT_NAME] = compose_project
 
-    staging_config_dir = calculate_staging_dir(
-        compose_project,
-        env_name,
-    )
+    config_dir_raw = str(scenario.extra.get("config_dir", "")).strip()
+    if not config_dir_raw:
+        raise ValueError("scenario.extra.config_dir is required")
+    staging_config_dir = Path(config_dir_raw)
+    if not staging_config_dir.is_absolute():
+        staging_config_dir = PROJECT_ROOT / staging_config_dir
+    staging_config_dir = staging_config_dir.resolve()
     runtime_env[constants.ENV_CONFIG_DIR] = str(staging_config_dir)
     staging_config_dir.mkdir(parents=True, exist_ok=True)
 

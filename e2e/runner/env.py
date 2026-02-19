@@ -258,32 +258,11 @@ def calculate_runtime_env(
     env.setdefault("BUILDX_BUILDER", f"{BRAND_SLUG}-buildx")
     env.setdefault("COMPOSE_DOCKER_CLI_BUILD", "1")
 
-    # 9. Staging Config Dir
-    # Replicates staging.ConfigDir logic (fixed under repo root)
-    config_dir = calculate_staging_dir(project_name, env_name)
-    env[constants.ENV_CONFIG_DIR] = str(config_dir)
-
-    # 10. E2E safety toggles
+    # 9. E2E safety toggles
     env.setdefault("ESB_SKIP_GATEWAY_ALIGN", "1")
     apply_proxy_defaults(env)
 
     return env
-
-
-def calculate_staging_dir(
-    project_name: str,
-    env_name: str,
-) -> Path:
-    """Replicates staging.ConfigDir logic from Go (repo-root scoped)."""
-    # ComposeProjectKey logic
-    proj_key = project_name.strip()
-    if not proj_key:
-        proj_key = f"{BRAND_SLUG}-{env_name.lower()}" if env_name else BRAND_SLUG
-
-    env_label = (env_name or "default").lower()
-
-    root = PROJECT_ROOT / BRAND_HOME_DIR / "staging"
-    return root / proj_key / env_label / "config"
 
 
 def read_service_env(project_name: str, service: str) -> dict[str, str]:
