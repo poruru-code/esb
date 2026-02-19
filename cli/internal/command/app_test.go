@@ -236,6 +236,7 @@ func TestRequiresRepoScope(t *testing.T) {
 		{name: "root help flag", args: []string{"--help"}, want: false},
 		{name: "root short help flag", args: []string{"-h"}, want: false},
 		{name: "help command", args: []string{"help"}, want: false},
+		{name: "help command with global value flag", args: []string{"--env", "dev", "help"}, want: false},
 		{name: "subcommand help", args: []string{"deploy", "--help"}, want: false},
 		{name: "subcommand short help", args: []string{"deploy", "-h"}, want: false},
 		{name: "deploy", args: []string{"deploy"}, want: true},

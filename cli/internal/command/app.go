@@ -351,7 +351,7 @@ func requiresRepoScope(args []string) bool {
 }
 
 func isHelpCommand(args []string) bool {
-	if len(args) > 0 && args[0] == "help" {
+	if commandName(args) == "help" {
 		return true
 	}
 	skipNext := false
