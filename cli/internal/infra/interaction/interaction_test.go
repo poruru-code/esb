@@ -6,6 +6,8 @@ package interaction
 import (
 	"bytes"
 	"errors"
+	"io"
+	"os"
 	"strings"
 	"testing"
 )
@@ -46,6 +48,65 @@ func TestPromptYesNoWithIOReadError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "read confirmation") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestPromptYesNoUsesDefaultStdio(t *testing.T) {
+	stdinR, stdinW, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("create stdin pipe: %v", err)
+	}
+	stderrR, stderrW, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("create stderr pipe: %v", err)
+	}
+	_, _ = stdinW.Write([]byte("yes\n"))
+	_ = stdinW.Close()
+
+	oldStdin := os.Stdin
+	oldStderr := os.Stderr
+	os.Stdin = stdinR
+	os.Stderr = stderrW
+	t.Cleanup(func() {
+		os.Stdin = oldStdin
+		os.Stderr = oldStderr
+		_ = stdinR.Close()
+		_ = stderrR.Close()
+		_ = stderrW.Close()
+	})
+
+	ok, err := PromptYesNo("Continue?")
+	if err != nil {
+		t.Fatalf("PromptYesNo() error = %v", err)
+	}
+	if !ok {
+		t.Fatal("PromptYesNo() = false, want true")
+	}
+
+	_ = stderrW.Close()
+	out, err := io.ReadAll(stderrR)
+	if err != nil {
+		t.Fatalf("read stderr: %v", err)
+	}
+	if !strings.Contains(string(out), "Continue? [y/N]: ") {
+		t.Fatalf("unexpected prompt output: %q", string(out))
+	}
+}
+
+func TestIsTerminalNilAndPipe(t *testing.T) {
+	if IsTerminal(nil) {
+		t.Fatal("IsTerminal(nil) must be false")
+	}
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("create pipe: %v", err)
+	}
+	defer func() {
+		_ = r.Close()
+		_ = w.Close()
+	}()
+	if IsTerminal(r) {
+		t.Fatal("IsTerminal(pipe) must be false")
 	}
 }
 
