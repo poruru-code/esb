@@ -7,16 +7,6 @@ import (
 	"testing"
 )
 
-type recordRunner struct {
-	calls [][]string
-}
-
-func (r *recordRunner) Run(cmd []string) error {
-	copied := append([]string(nil), cmd...)
-	r.calls = append(r.calls, copied)
-	return nil
-}
-
 func TestExecuteApplyValidatesRequiredFields(t *testing.T) {
 	_, err := ExecuteApply(ApplyInput{
 		ArtifactPath: "",
@@ -44,43 +34,6 @@ func TestExecuteApplyNormalizesAndApplies(t *testing.T) {
 		OutputDir:    "  " + outputDir + "  ",
 	}); err != nil {
 		t.Fatalf("ExecuteApply() error = %v", err)
-	}
-
-	if _, err := os.Stat(filepath.Join(outputDir, "functions.yml")); err != nil {
-		t.Fatalf("functions.yml not merged: %v", err)
-	}
-}
-
-func TestExecuteDeployValidatesBeforePrepare(t *testing.T) {
-	runner := &recordRunner{}
-	_, err := ExecuteDeploy(DeployInput{
-		Apply: ApplyInput{
-			ArtifactPath: "artifact.yml",
-			OutputDir:    "",
-		},
-		Runner: runner,
-	})
-	if !errors.Is(err, ErrOutputDirRequired) {
-		t.Fatalf("expected ErrOutputDirRequired, got %v", err)
-	}
-	if len(runner.calls) != 0 {
-		t.Fatalf("runner must not be called when validation fails: %#v", runner.calls)
-	}
-}
-
-func TestExecuteDeployRunsPrepareThenApply(t *testing.T) {
-	manifestPath := writeExecutableArtifact(t)
-	outputDir := filepath.Join(t.TempDir(), "out")
-	runner := &recordRunner{}
-
-	if _, err := ExecuteDeploy(DeployInput{
-		Apply: ApplyInput{
-			ArtifactPath: manifestPath,
-			OutputDir:    outputDir,
-		},
-		Runner: runner,
-	}); err != nil {
-		t.Fatalf("ExecuteDeploy() error = %v", err)
 	}
 
 	if _, err := os.Stat(filepath.Join(outputDir, "functions.yml")); err != nil {

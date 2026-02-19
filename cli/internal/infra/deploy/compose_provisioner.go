@@ -13,7 +13,7 @@ import (
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/ui"
-	"github.com/poruru/edge-serverless-box/pkg/artifactcore/composeprovision"
+	"github.com/poruru/edge-serverless-box/pkg/composeprovision"
 )
 
 // ProvisionerRequest captures compose/provisioner execution inputs.
