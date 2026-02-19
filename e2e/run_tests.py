@@ -87,17 +87,20 @@ def ensure_artifactctl_available() -> str:
         if resolved is None:
             print(f"[ERROR] ARTIFACTCTL_BIN is set but not executable: {override}")
             sys.exit(1)
-        _prepend_path_entry(str(os.path.dirname(resolved)))
-        os.environ["ARTIFACTCTL_BIN_RESOLVED"] = resolved
-        return resolved
+        resolved_abs = os.path.abspath(resolved)
+        _prepend_path_entry(str(os.path.dirname(resolved_abs)))
+        os.environ["ARTIFACTCTL_BIN_RESOLVED"] = resolved_abs
+        return resolved_abs
 
     resolved = shutil.which("artifactctl")
     if resolved is not None:
-        os.environ["ARTIFACTCTL_BIN_RESOLVED"] = resolved
-        return resolved
+        resolved_abs = os.path.abspath(resolved)
+        os.environ["ARTIFACTCTL_BIN_RESOLVED"] = resolved_abs
+        return resolved_abs
 
     print("[ERROR] artifactctl binary not found in PATH.")
     print("        Install artifactctl or set ARTIFACTCTL_BIN to an executable path.")
+    print("        In this repository, you can install it via: mise run setup")
     print("        Example: ARTIFACTCTL_BIN=/path/to/artifactctl uv run e2e/run_tests.py ...")
     sys.exit(1)
 

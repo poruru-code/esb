@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -49,6 +50,17 @@ def test_ensure_artifactctl_available_uses_override(monkeypatch) -> None:
     assert os.environ["ARTIFACTCTL_BIN_RESOLVED"] == "/opt/bin/artifactctl"
     assert os.environ["PATH"].startswith("/opt/bin")
     monkeypatch.setenv("PATH", original_path)
+
+
+def test_ensure_artifactctl_available_normalizes_relative_override(monkeypatch, tmp_path) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("ARTIFACTCTL_BIN", "./bin/artifactctl")
+    monkeypatch.setattr("e2e.run_tests.shutil.which", lambda name: "./bin/artifactctl")
+    resolved = ensure_artifactctl_available()
+    expected = str((Path(tmp_path) / "bin" / "artifactctl").resolve())
+    assert resolved == expected
+    assert os.environ["ARTIFACTCTL_BIN_RESOLVED"] == expected
+    assert os.environ["PATH"].startswith(str((Path(tmp_path) / "bin").resolve()))
 
 
 def test_ensure_artifactctl_available_fails_when_missing(monkeypatch) -> None:
