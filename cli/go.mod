@@ -13,8 +13,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 )
 
-replace github.com/poruru/edge-serverless-box/pkg/artifactcore => ../pkg/artifactcore
-
 require (
 	dario.cat/mergo v1.0.1 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect

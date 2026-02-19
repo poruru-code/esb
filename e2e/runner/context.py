@@ -49,6 +49,7 @@ def _prepare_context(
         env_name,
         scenario.mode,
         env_file,
+        scenario.env_vars,
     )
 
     state_env = _load_state_env(env_name)
@@ -56,6 +57,7 @@ def _prepare_context(
         if key in state_env:
             runtime_env[key] = state_env[key]
 
+    # Scenario-level values are the final explicit overrides.
     runtime_env.update(scenario.env_vars)
     apply_proxy_defaults(runtime_env)
     _apply_port_overrides(runtime_env, port_overrides)

@@ -106,3 +106,38 @@ def test_calculate_runtime_env_mode_registry_defaults():
     env_containerd = calculate_runtime_env("p", "e", "containerd")
     assert env_containerd[registry_key] == "registry:5010/"
     assert env_containerd[constants.ENV_CONTAINER_REGISTRY] == "registry:5010"
+
+
+def test_calculate_runtime_env_prefers_explicit_overrides_over_env_file(tmp_path):
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "SUBNET_EXTERNAL=172.200.0.0/16",
+                "RUNTIME_NET_SUBNET=172.210.0.0/16",
+                "RUNTIME_NODE_IP=172.210.0.10",
+                "LAMBDA_NETWORK=from-env-file",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    overrides = {
+        "SUBNET_EXTERNAL": "172.146.0.0/16",
+        "RUNTIME_NET_SUBNET": "172.186.0.0/16",
+        "RUNTIME_NODE_IP": "172.186.0.10",
+        "LAMBDA_NETWORK": "esb_int_e2e-docker",
+    }
+
+    with mock.patch.dict(os.environ, {}, clear=True):
+        env = calculate_runtime_env(
+            "esb",
+            "e2e-docker",
+            "docker",
+            env_file=str(env_file),
+            env_overrides=overrides,
+        )
+
+    for key, value in overrides.items():
+        assert env[key] == value

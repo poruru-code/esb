@@ -213,6 +213,11 @@ repo 分離後の依存方向:
 - CLI repo は core 側モジュールを参照して同一 core ロジックをリンクする（または同一バイナリを呼び出す）
 - core <- CLI の逆依存は作らない
 
+artifactcore 配布/開発ルール:
+- `cli/go.mod` と `tools/artifactctl/go.mod` に `replace ../pkg/artifactcore` を置かない。
+- ローカル開発時の解決は repo ルート `go.work` の `replace` に限定する。
+- CI は `go.mod` 側の `replace` 混入と `services/* -> tools/*|pkg/artifactcore` 逆依存を拒否する。
+
 ## フェーズ別ユースケース整理（CLI あり / CLI なし）
 この契約では「生成」と「適用」を分離します。
 CLI なし運用でも、生成済み成果物を入力に **Phase 3 以降は手動実行可能** とします。

@@ -1,0 +1,9 @@
+go 1.25.1
+
+use (
+	./cli
+	./services/agent
+	./tools/artifactctl
+)
+
+replace github.com/poruru/edge-serverless-box/pkg/artifactcore => ./pkg/artifactcore

@@ -79,3 +79,27 @@ jobs:
           install-mode: goinstall
           working-directory: cli
           args: ./...
+
+  go-boundary-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.1"
+          cache: true
+          cache-dependency-path: |
+            cli/go.sum
+            tools/artifactctl/go.sum
+            services/agent/go.sum
+
+      - name: Boundary checks
+        run: ./tools/ci/check_tooling_boundaries.sh
+
+      - name: Verify cli/artifactctl compile with workspace contract
+        run: |
+          go -C cli test ./... -run '^$'
+          go -C tools/artifactctl test ./... -run '^$'
