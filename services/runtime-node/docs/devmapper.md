@@ -14,14 +14,8 @@ runtime-node は **devmapper pool を自動作成しません**。起動時に p
 - `DEVMAPPER_POOL` が設定済み: **既存 pool を必須**として検証
 
 ## 事前準備（開発用）
-スクリプト: `tools/setup_devmapper.sh`
-
-例:
-```bash
-./tools/setup_devmapper.sh fc-dev-pool2
-```
-
-このスクリプトは loop デバイスと thin-pool を作成します（root 権限が必要）。
+thin-pool はホスト側で事前作成してください（runtime-node は作成しません）。
+運用方法はホスト標準手順に従ってください。
 
 ## 関連環境変数
 | 変数 | 既定 | 説明 |
@@ -36,4 +30,3 @@ runtime-node は **devmapper pool を自動作成しません**。起動時に p
 
 ## Implementation references
 - `services/runtime-node/entrypoint.common.sh`
-- `tools/setup_devmapper.sh`

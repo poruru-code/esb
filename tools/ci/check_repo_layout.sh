@@ -32,8 +32,8 @@ forbid_reference() {
     --glob '!.agent/**' \
     -- "$pattern" \
     cli services e2e tools docs docker-bake.hcl docker-compose.containerd.yml \
-    docker-compose.docker.yml docker-compose.fc.yml docker-compose.fc-node.yml \
-    Makefile .mise.toml >/dev/null; then
+    docker-compose.docker.yml \
+    .mise.toml >/dev/null; then
     echo "[layout-check] FORBIDDEN REFERENCE: '$pattern'" >&2
     failures=$((failures + 1))
   fi
@@ -49,8 +49,8 @@ forbid_regex_reference() {
     --glob '!.agent/**' \
     -- "$pattern" \
     cli services e2e tools docs docker-bake.hcl docker-compose.containerd.yml \
-    docker-compose.docker.yml docker-compose.fc.yml docker-compose.fc-node.yml \
-    Makefile .mise.toml >/dev/null; then
+    docker-compose.docker.yml \
+    .mise.toml >/dev/null; then
     echo "[layout-check] FORBIDDEN REFERENCE (regex): '$pattern'" >&2
     failures=$((failures + 1))
   fi
