@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -118,13 +119,13 @@ func runDeploy(cmd DeployCmd, deps commandDeps, errOut io.Writer) error {
 			warningWriter = errOut
 		}
 	}
-	applyReq := artifactcore.ApplyRequest{
-		ArtifactPath:  artifactPath,
-		OutputDir:     outputDir,
-		SecretEnvPath: strings.TrimSpace(cmd.SecretEnv),
-		Strict:        cmd.Strict,
-		WarningWriter: warningWriter,
-	}
+	applyReq := artifactcore.NewApplyRequest(
+		artifactPath,
+		outputDir,
+		cmd.SecretEnv,
+		cmd.Strict,
+		warningWriter,
+	)
 	if err := deps.apply(applyReq); err != nil {
 		return fmt.Errorf("deploy failed during artifact apply: %w", err)
 	}
@@ -132,13 +133,15 @@ func runDeploy(cmd DeployCmd, deps commandDeps, errOut io.Writer) error {
 }
 
 func hintForDeployError(err error) string {
-	msg := strings.ToLower(err.Error())
+	var missingSecretKeys artifactcore.MissingSecretKeysError
+	var missingReferencedPath artifactcore.MissingReferencedPathError
+
 	switch {
-	case strings.Contains(msg, "runtime base dockerfile not found"):
+	case errors.Is(err, artifactcore.ErrRuntimeBaseDockerfileMissing):
 		return "run `esb artifact generate ...` to stage runtime-base into the artifact before deploy."
-	case strings.Contains(msg, "secret env file is required"), strings.Contains(msg, "missing required secret env keys"):
+	case errors.Is(err, artifactcore.ErrSecretEnvFileRequired), errors.As(err, &missingSecretKeys):
 		return "set `--secret-env <path>` with all required secret keys listed in artifact.yml."
-	case strings.Contains(msg, "no such file or directory"):
+	case errors.As(err, &missingReferencedPath):
 		return "confirm `--artifact` and referenced files exist and are readable."
 	default:
 		return "run `artifactctl deploy --help` for required arguments."

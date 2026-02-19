@@ -2,6 +2,7 @@ package artifactcore
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -145,6 +146,13 @@ func TestApply_RuntimeDigestVerificationMissingArtifactSourceWarnsUnlessStrict(t
 	}
 	if !strings.Contains(err.Error(), "python_sitecustomize_digest source unreadable") {
 		t.Fatalf("unexpected strict error: %v", err)
+	}
+	var missingPathErr MissingReferencedPathError
+	if !errors.As(err, &missingPathErr) {
+		t.Fatalf("expected MissingReferencedPathError in strict error chain: %v", err)
+	}
+	if !strings.HasSuffix(missingPathErr.Path, artifactPythonSitecustomizeRel) {
+		t.Fatalf("unexpected strict missing path: %q", missingPathErr.Path)
 	}
 }
 

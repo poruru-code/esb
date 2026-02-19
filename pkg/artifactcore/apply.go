@@ -17,6 +17,22 @@ type ApplyRequest struct {
 	WarningWriter io.Writer
 }
 
+func NewApplyRequest(
+	artifactPath string,
+	outputDir string,
+	secretEnvPath string,
+	strict bool,
+	warningWriter io.Writer,
+) ApplyRequest {
+	return ApplyRequest{
+		ArtifactPath:  strings.TrimSpace(artifactPath),
+		OutputDir:     strings.TrimSpace(outputDir),
+		SecretEnvPath: strings.TrimSpace(secretEnvPath),
+		Strict:        strict,
+		WarningWriter: warningWriter,
+	}
+}
+
 func Apply(req ApplyRequest) error {
 	manifest, err := ReadArtifactManifest(req.ArtifactPath)
 	if err != nil {
@@ -48,7 +64,7 @@ func validateRequiredSecrets(manifest ArtifactManifest, secretEnvPath string) er
 		return nil
 	}
 	if strings.TrimSpace(secretEnvPath) == "" {
-		return fmt.Errorf("secret env file is required because required_secret_env is defined: %s", strings.Join(required, ", "))
+		return fmt.Errorf("%w: required_secret_env is defined: %s", ErrSecretEnvFileRequired, strings.Join(required, ", "))
 	}
 	provided, err := readEnvKeys(secretEnvPath)
 	if err != nil {
@@ -61,7 +77,7 @@ func validateRequiredSecrets(manifest ArtifactManifest, secretEnvPath string) er
 		}
 	}
 	if len(missing) > 0 {
-		return fmt.Errorf("missing required secret env keys: %s", strings.Join(missing, ", "))
+		return MissingSecretKeysError{Keys: missing}
 	}
 	return nil
 }
@@ -89,6 +105,9 @@ func collectRequiredSecretEnv(manifest ArtifactManifest) []string {
 func readEnvKeys(path string) (map[string]struct{}, error) {
 	file, err := os.Open(path)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("open secret env file: %w", MissingReferencedPathError{Path: path})
+		}
 		return nil, fmt.Errorf("open secret env file: %w", err)
 	}
 	defer file.Close()

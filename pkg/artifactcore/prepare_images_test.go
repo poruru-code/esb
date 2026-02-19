@@ -299,8 +299,8 @@ func TestPrepareImagesFailsWhenRuntimeBaseContextMissing(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if !strings.Contains(err.Error(), "runtime base dockerfile not found") {
-		t.Fatalf("unexpected error: %v", err)
+	if !errors.Is(err, ErrRuntimeBaseDockerfileMissing) {
+		t.Fatalf("missing expected ErrRuntimeBaseDockerfileMissing: %v", err)
 	}
 }
 

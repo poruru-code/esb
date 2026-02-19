@@ -1,6 +1,7 @@
 package artifactcore
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -11,7 +12,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func TestMergeRuntimeConfig_UsesManifestOrderAndLastWriteWins(t *testing.T) {
+func TestApply_UsesManifestOrderAndLastWriteWins(t *testing.T) {
 	root := t.TempDir()
 	manifestDir := filepath.Join(root, "manifest")
 	if err := os.MkdirAll(manifestDir, 0o755); err != nil {
@@ -77,8 +78,8 @@ func TestMergeRuntimeConfig_UsesManifestOrderAndLastWriteWins(t *testing.T) {
 	}
 
 	outDir := filepath.Join(root, "out")
-	if err := MergeRuntimeConfig(MergeRequest{ArtifactPath: manifestPath, OutputDir: outDir}); err != nil {
-		t.Fatalf("MergeRuntimeConfig() error = %v", err)
+	if err := Apply(ApplyRequest{ArtifactPath: manifestPath, OutputDir: outDir}); err != nil {
+		t.Fatalf("Apply() error = %v", err)
 	}
 
 	functions := readYAMLFile(t, filepath.Join(outDir, "functions.yml"))
@@ -138,6 +139,9 @@ func TestApply_ValidatesRequiredSecretEnv(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for missing --secret-env")
 	}
+	if !errors.Is(err, ErrSecretEnvFileRequired) {
+		t.Fatalf("missing expected ErrSecretEnvFileRequired: %v", err)
+	}
 
 	secretEnv := filepath.Join(root, "secrets.env")
 	if err := os.WriteFile(secretEnv, []byte("X_API_KEY=abc\n"), 0o600); err != nil {
@@ -147,12 +151,158 @@ func TestApply_ValidatesRequiredSecretEnv(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for missing AUTH_PASS")
 	}
+	var missingSecretKeysErr MissingSecretKeysError
+	if !errors.As(err, &missingSecretKeysErr) {
+		t.Fatalf("missing expected MissingSecretKeysError: %v", err)
+	}
+	if got := missingSecretKeysErr.Error(); got != "missing required secret env keys: AUTH_PASS" {
+		t.Fatalf("unexpected MissingSecretKeysError message: %q", got)
+	}
+
+	err = Apply(ApplyRequest{
+		ArtifactPath:  manifestPath,
+		OutputDir:     outDir,
+		SecretEnvPath: filepath.Join(root, "missing-secrets.env"),
+	})
+	if err == nil {
+		t.Fatal("expected missing secret env file error")
+	}
+	var missingPathErr MissingReferencedPathError
+	if !errors.As(err, &missingPathErr) {
+		t.Fatalf("missing expected MissingReferencedPathError: %v", err)
+	}
+	if !strings.HasSuffix(missingPathErr.Path, "missing-secrets.env") {
+		t.Fatalf("unexpected missing path: %q", missingPathErr.Path)
+	}
 
 	if err := os.WriteFile(secretEnv, []byte("X_API_KEY=abc\nAUTH_PASS=pass\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := Apply(ApplyRequest{ArtifactPath: manifestPath, OutputDir: outDir, SecretEnvPath: secretEnv}); err != nil {
 		t.Fatalf("Apply() error = %v", err)
+	}
+}
+
+func TestApply_FailsWhenRequiredRuntimeConfigFileMissing(t *testing.T) {
+	root := t.TempDir()
+	artifactRoot := filepath.Join(root, "a")
+	writeYAMLFile(t, filepath.Join(artifactRoot, "config", "functions.yml"), map[string]any{"functions": map[string]any{}})
+
+	manifest := ArtifactManifest{
+		SchemaVersion: ArtifactSchemaVersionV1,
+		Project:       "esb-dev",
+		Env:           "dev",
+		Mode:          "docker",
+		Artifacts: []ArtifactEntry{
+			{
+				ArtifactRoot:     "../a",
+				RuntimeConfigDir: "config",
+				SourceTemplate:   ArtifactSourceTemplate{Path: "/tmp/a.yaml", SHA256: "sha-a"},
+			},
+		},
+	}
+	manifest.Artifacts[0].ID = ComputeArtifactID("/tmp/a.yaml", nil, "sha-a")
+	manifestPath := filepath.Join(root, "manifest", "artifact.yml")
+	if err := WriteArtifactManifest(manifestPath, manifest); err != nil {
+		t.Fatal(err)
+	}
+
+	err := Apply(ApplyRequest{
+		ArtifactPath: manifestPath,
+		OutputDir:    filepath.Join(root, "out"),
+	})
+	if err == nil {
+		t.Fatal("expected error for missing runtime config file")
+	}
+	var missingPathErr MissingReferencedPathError
+	if !errors.As(err, &missingPathErr) {
+		t.Fatalf("missing expected MissingReferencedPathError: %v", err)
+	}
+	if !strings.HasSuffix(missingPathErr.Path, "routing.yml") {
+		t.Fatalf("error does not point to missing routing.yml: %v", err)
+	}
+}
+
+func TestApply_FailsWhenFunctionsConfigFileMissing(t *testing.T) {
+	root := t.TempDir()
+	artifactRoot := filepath.Join(root, "a")
+	writeYAMLFile(t, filepath.Join(artifactRoot, "config", "routing.yml"), map[string]any{"routes": []any{}})
+
+	manifest := ArtifactManifest{
+		SchemaVersion: ArtifactSchemaVersionV1,
+		Project:       "esb-dev",
+		Env:           "dev",
+		Mode:          "docker",
+		Artifacts: []ArtifactEntry{
+			{
+				ArtifactRoot:     "../a",
+				RuntimeConfigDir: "config",
+				SourceTemplate:   ArtifactSourceTemplate{Path: "/tmp/a.yaml", SHA256: "sha-a"},
+			},
+		},
+	}
+	manifest.Artifacts[0].ID = ComputeArtifactID("/tmp/a.yaml", nil, "sha-a")
+	manifestPath := filepath.Join(root, "manifest", "artifact.yml")
+	if err := WriteArtifactManifest(manifestPath, manifest); err != nil {
+		t.Fatal(err)
+	}
+
+	err := Apply(ApplyRequest{
+		ArtifactPath: manifestPath,
+		OutputDir:    filepath.Join(root, "out"),
+	})
+	if err == nil {
+		t.Fatal("expected error for missing functions config file")
+	}
+	var missingPathErr MissingReferencedPathError
+	if !errors.As(err, &missingPathErr) {
+		t.Fatalf("missing expected MissingReferencedPathError: %v", err)
+	}
+	if !strings.HasSuffix(missingPathErr.Path, "functions.yml") {
+		t.Fatalf("error does not point to missing functions.yml: %v", err)
+	}
+}
+
+func TestApply_FailsWhenFunctionsConfigPathIsDirectory(t *testing.T) {
+	root := t.TempDir()
+	artifactRoot := filepath.Join(root, "a")
+	if err := os.MkdirAll(filepath.Join(artifactRoot, "config", "functions.yml"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeYAMLFile(t, filepath.Join(artifactRoot, "config", "routing.yml"), map[string]any{"routes": []any{}})
+
+	manifest := ArtifactManifest{
+		SchemaVersion: ArtifactSchemaVersionV1,
+		Project:       "esb-dev",
+		Env:           "dev",
+		Mode:          "docker",
+		Artifacts: []ArtifactEntry{
+			{
+				ArtifactRoot:     "../a",
+				RuntimeConfigDir: "config",
+				SourceTemplate:   ArtifactSourceTemplate{Path: "/tmp/a.yaml", SHA256: "sha-a"},
+			},
+		},
+	}
+	manifest.Artifacts[0].ID = ComputeArtifactID("/tmp/a.yaml", nil, "sha-a")
+	manifestPath := filepath.Join(root, "manifest", "artifact.yml")
+	if err := WriteArtifactManifest(manifestPath, manifest); err != nil {
+		t.Fatal(err)
+	}
+
+	err := Apply(ApplyRequest{
+		ArtifactPath: manifestPath,
+		OutputDir:    filepath.Join(root, "out"),
+	})
+	if err == nil {
+		t.Fatal("expected error when functions.yml is a directory")
+	}
+	var missingPathErr MissingReferencedPathError
+	if !errors.As(err, &missingPathErr) {
+		t.Fatalf("missing expected MissingReferencedPathError: %v", err)
+	}
+	if !strings.HasSuffix(missingPathErr.Path, "functions.yml") {
+		t.Fatalf("error does not point to functions.yml: %v", err)
 	}
 }
 

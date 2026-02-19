@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/meta"
+	usecasedeploy "github.com/poruru/edge-serverless-box/cli/internal/usecase/deploy"
 )
 
 func TestSanitizePathSegmentBlocksDotSegments(t *testing.T) {
@@ -84,14 +85,14 @@ func TestResolveRuntimeMetaIncludesDigestsAndVersions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRuntimeMeta() error = %v", err)
 	}
-	if meta.Hooks.APIVersion != runtimeHooksAPIVersion {
-		t.Fatalf("hooks api_version = %q, want %q", meta.Hooks.APIVersion, runtimeHooksAPIVersion)
+	if meta.Hooks.APIVersion != usecasedeploy.RuntimeHooksAPIVersion {
+		t.Fatalf("hooks api_version = %q, want %q", meta.Hooks.APIVersion, usecasedeploy.RuntimeHooksAPIVersion)
 	}
-	if meta.Renderer.Name != templateRendererName {
-		t.Fatalf("renderer name = %q, want %q", meta.Renderer.Name, templateRendererName)
+	if meta.Renderer.Name != usecasedeploy.TemplateRendererName {
+		t.Fatalf("renderer name = %q, want %q", meta.Renderer.Name, usecasedeploy.TemplateRendererName)
 	}
-	if meta.Renderer.APIVersion != templateRendererAPIVersion {
-		t.Fatalf("renderer api_version = %q, want %q", meta.Renderer.APIVersion, templateRendererAPIVersion)
+	if meta.Renderer.APIVersion != usecasedeploy.TemplateRendererAPIVersion {
+		t.Fatalf("renderer api_version = %q, want %q", meta.Renderer.APIVersion, usecasedeploy.TemplateRendererAPIVersion)
 	}
 	if meta.Hooks.PythonSitecustomizeDigest == "" {
 		t.Fatal("python sitecustomize digest must not be empty")

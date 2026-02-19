@@ -1,6 +1,7 @@
 package artifactcore
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -35,8 +36,8 @@ func TestManifestRoundTripAndValidateID(t *testing.T) {
 	if err := WriteArtifactManifest(path, manifest); err != nil {
 		t.Fatalf("WriteArtifactManifest() error = %v", err)
 	}
-	if err := ValidateIDs(path); err != nil {
-		t.Fatalf("ValidateIDs() error = %v", err)
+	if _, err := ReadArtifactManifest(path); err != nil {
+		t.Fatalf("ReadArtifactManifest() error = %v", err)
 	}
 }
 
@@ -111,6 +112,20 @@ func TestReadArtifactManifestAllowsUnknownFields(t *testing.T) {
 
 	if _, err := ReadArtifactManifest(path); err != nil {
 		t.Fatalf("ReadArtifactManifest() should accept unknown fields: %v", err)
+	}
+}
+
+func TestReadArtifactManifestMissingFile(t *testing.T) {
+	_, err := ReadArtifactManifest(filepath.Join(t.TempDir(), "missing.yml"))
+	if err == nil {
+		t.Fatal("expected missing-file error")
+	}
+	var missingPathErr MissingReferencedPathError
+	if !errors.As(err, &missingPathErr) {
+		t.Fatalf("expected MissingReferencedPathError, got: %v", err)
+	}
+	if !strings.HasSuffix(missingPathErr.Path, "missing.yml") {
+		t.Fatalf("unexpected missing path: %q", missingPathErr.Path)
 	}
 }
 

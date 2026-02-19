@@ -66,7 +66,7 @@ Use `artifactctl` as the canonical apply implementation.
 
 ```bash
 artifactctl deploy \
-  --artifact /path/to/artifact.yml
+  --artifact /path/to/artifact.yml \
   --out /path/to/config-dir \
   --secret-env /path/to/secrets.env \
   --strict

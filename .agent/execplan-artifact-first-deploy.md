@@ -420,3 +420,4 @@
 - 2026-02-19: Track M を追補。runtime network defaults の正本を `e2e/contracts/runtime_env_contract.yaml` に一本化し、runner が contract 注入する形へ変更。matrix 側の同キー上書きを禁止して二重管理を解消した。併せて `calculate_runtime_env` の override 優先順を明確化した。
 - 2026-02-19: Track N/O を完了。`tools/artifact/merge_runtime_config.sh` を撤去し docs を正本へ同期。`services/*` の tooling 逆依存をCIで検知する `tools/ci/check_tooling_boundaries.sh` を追加した。
 - 2026-02-19: Track J の UX 補強として `mise run setup` に `artifactctl` ビルドを追加。E2E の `artifactctl` 未導入エラーに setup 導線を明示し、初期セットアップの体験を `esb` と揃えた。
+- 2026-02-19: `pkg/artifactcore` の次段リファクタ用に詳細ExecPlan `.agent/execplan-artifactcore-refactor-call-contract.md` を追加。呼び出し契約整合・API surface 整理・typed error 契約化を段階実行する計画を確定した（レビュー cycle 7 で blocking 指摘なし）。

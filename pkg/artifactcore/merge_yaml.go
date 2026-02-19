@@ -1,23 +1,22 @@
 package artifactcore
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 )
 
-func mergeFunctionsYML(srcDir, destDir string, required bool) error {
+func mergeFunctionsYML(srcDir, destDir string) error {
 	srcPath := filepath.Join(srcDir, "functions.yml")
 	destPath := filepath.Join(destDir, "functions.yml")
 
 	srcData, srcExists, err := loadYAML(srcPath)
 	if err != nil {
-		return err
+		return wrapRequiredSourceLoadError(srcPath, err)
 	}
 	if !srcExists {
-		if required {
-			return fmt.Errorf("required file not found: %s", srcPath)
-		}
-		return nil
+		return fmt.Errorf("required file not found: %w", MissingReferencedPathError{Path: srcPath})
 	}
 	if srcData == nil {
 		srcData = map[string]any{}
@@ -87,19 +86,16 @@ func mergeDefaultsSection(existingDefaults, srcDefaults map[string]any, key stri
 	}
 }
 
-func mergeRoutingYML(srcDir, destDir string, required bool) error {
+func mergeRoutingYML(srcDir, destDir string) error {
 	srcPath := filepath.Join(srcDir, "routing.yml")
 	destPath := filepath.Join(destDir, "routing.yml")
 
 	srcData, srcExists, err := loadYAML(srcPath)
 	if err != nil {
-		return err
+		return wrapRequiredSourceLoadError(srcPath, err)
 	}
 	if !srcExists {
-		if required {
-			return fmt.Errorf("required file not found: %s", srcPath)
-		}
-		return nil
+		return fmt.Errorf("required file not found: %w", MissingReferencedPathError{Path: srcPath})
 	}
 	if srcData == nil {
 		srcData = map[string]any{}
@@ -241,4 +237,12 @@ func mergeResourceList(existing, src []any, keyField string) []any {
 		}
 	}
 	return existing
+}
+
+func wrapRequiredSourceLoadError(srcPath string, err error) error {
+	var pathErr *os.PathError
+	if errors.As(err, &pathErr) {
+		return fmt.Errorf("required file not found: %w", MissingReferencedPathError{Path: srcPath})
+	}
+	return err
 }
