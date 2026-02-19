@@ -124,16 +124,18 @@ def calculate_runtime_env(
     env_name: str,
     mode: str,
     env_file: str | None = None,
+    env_overrides: dict[str, str] | None = None,
 ) -> dict[str, str]:
     """Replicates Go CLI's applyRuntimeEnv logic for the E2E runner."""
     env = os.environ.copy()
 
-    # Load from env_file if provided (prioritize file over system env if needed,
-    # but Go CLI usually merges and prioritizes file for certain values)
+    # Load from env_file first, then apply explicit scenario overrides.
     env_from_file: dict[str, str] = {}
     if env_file:
         env_from_file = read_env_file(env_file)
         env.update(env_from_file)
+    if env_overrides:
+        env.update(env_overrides)
 
     if not env_name:
         env_name = "default"

@@ -1,7 +1,7 @@
 # Deploy Artifacts First: 実装同期版 ExecPlan
 
 この文書は `artifact-first deploy` 移行の現状を、実装に同期した状態で管理するための実行計画です。
-最終更新: 2026-02-18
+最終更新: 2026-02-19
 
 ## Purpose / Big Picture
 
@@ -10,6 +10,7 @@
 1. `esb` CLI 依存を実行経路から外し、成果物 (`artifact.yml` + runtime-config) を正本にする。
 2. CLI は「生成/適用を簡単にする補助ツール」に限定し、唯一の実行主体にしない。
 3. 将来のリポジトリ分離を可能にする責務境界を固定する。
+4. ESB 本体（runtime/services）には最小限の必須ロジックのみを残し、運用補助の複雑性は optional tool に隔離する。
 
 ## Responsibility Boundary (固定)
 
@@ -20,6 +21,7 @@
 - Artifact Applier
   - `artifact.yml` を検証し、`CONFIG_DIR` へ merge/apply する責務。
   - 実体: `tools/artifactctl` (`validate-id`, `merge`, `prepare-images`, `apply`)。
+  - 位置づけ: optional tool（ESB 本体 runtime の必須依存にしない）。
 
 - Runtime Consumer
   - 反映済み `CONFIG_DIR` を読むだけの責務。
@@ -57,7 +59,7 @@
 | B Artifact Engine | merge/apply/validate の Go 正本化 | 実装済み | Done |
 | C Adapter 分離 | CLI adapter と non-CLI adapter 分離 | 実装済み | Done |
 | D Runtime Hardening | フォールバック抑制と hard-fail 化 | 概ね実装済み | Done (要監視) |
-| E E2E Gate | artifact-only 回帰ゲートの常設 | docker/containerd は実装済み、firecracker は開発中のため保留 | Done (Scope-limited) |
+| E E2E Gate | artifact-only 回帰ゲートの常設 | docker/containerd は実装済み | Done |
 | F Cleanup | 旧 descriptor/冗長経路/未使用コード整理 | 追加是正が必要 | In Progress |
 
 ## UX Specification（現行）
@@ -81,23 +83,16 @@
 - `e2e/artifacts/*/artifact.yml` をそのまま consume する。
 - deploy は `artifactctl prepare-images` -> `artifactctl apply` -> provisioner 実行。
 - `image_uri_overrides` が local fixture repo を指す場合は、`tools/e2e-lambda-fixtures/*` から fixture image を build/push してから apply する。
-- firecracker profile は matrix でコメントアウト中（開発中のため現時点では対象外）。
 
 ## Remaining Gaps / Risks（厳格評価）
 
-1. firecracker は開発中のため gate 対象から除外中（再開時に Track C で復帰）。
-   - `e2e/environments/test_matrix.yaml`
-2. `cli` が `tools/artifactctl` モジュールへ直接依存しており、将来の repo 分離時に依存方向を固定できていない。
-   - `cli/internal/command/artifact.go`
-   - `cli/internal/usecase/deploy/artifact_manifest.go`
-   - `cli/go.mod`
-3. E2E runner が staging/config 計算を Python で再実装しており、Go 側ロジックとの drift リスクが残る。
-   - `e2e/runner/env.py`
-   - `cli/internal/infra/staging/staging.go`
-4. prewarm 廃止後も一部 docs に旧責務説明が残存している。
-   - `tools/e2e-lambda-fixtures/python/README.md`
-   - `services/agent/docs/README.md`
-   - `services/agent/docs/architecture.md`
+1. `pkg/artifactcore` の公開バージョン運用（tag/release 自動化）は未実装。
+   - 現状は `go.work` で開発時解決、`go.mod` 側 `replace` を禁止する運用に固定。
+2. runtime env 契約は `e2e/contracts/runtime_env_contract.yaml` を正本化したが、contract 未登録 env への適用拡張方針は未整理。
+   - `e2e/contracts/runtime_env_contract.yaml`
+   - `e2e/runner/config.py`
+3. 依存方向ガードは import path 文字列ベース検知のため、module path 改名時にルール更新が必要。
+   - `tools/ci/check_tooling_boundaries.sh`
 
 ## Completion Criteria 再判定（今回）
 
@@ -107,11 +102,10 @@
 | `esb deploy` が Generate/Apply 分離で動く | Pass | `cli/internal/command/deploy_entry.go` |
 | E2E artifact-only で docker/containerd が成立 | Pass | `e2e/runner/config.py`, `e2e/runner/deploy.py`, `e2e/runner/warmup.py` |
 | `uv run e2e/run_tests.py --parallel --verbose` で docker/containerd が完走する | Pass | 現行 gate 条件 |
-| firecracker を含む full gate（docker/containerd/firecracker） | Deferred | firecracker 開発中のため対象外 |
 | 非 CLI 実行が成果物だけに依存（build 時も repo 非依存） | Pass | `pkg/artifactcore/prepare_images.go`（`artifact_root/runtime-base/**` のみ参照） |
 | strict runtime metadata 検証が artifact ローカル前提で固定 | Pass | `pkg/artifactcore/runtime_meta_validation.go` |
 
-現時点の総合判定: **artifact-first の主経路は成立。ただし repo 分離耐性と docs 契約同期は未完了**
+現時点の総合判定: **artifact-first 主経路と責務境界の是正（Track L/M/N/O）は成立。残課題は公開運用自動化と継続監視に収束**
 
 ## Next Work (未完了対応の分割計画)
 
@@ -144,31 +138,6 @@
   - `pkg/artifactcore/runtime_meta_validation_test.go`
   - `docs/deploy-artifact-contract.md`
   - `docs/artifact-operations.md`
-
-### Track C: firecracker を含む E2E gate 復帰（Deferred）
-
-#### C-1: firecracker 再有効化の前提整備（Prep PR）
-- 目的:
-  - firecracker profile を matrix に戻す前に、環境前提・所要時間・失敗時の切り分けを定義する。
-- 変更対象:
-  - `docs/e2e-runtime-smoke.md`（または運用 docs）
-  - `e2e/environments/test_matrix.yaml`（必要ならコメント整備）
-- 受け入れ条件:
-  - CI/ローカルで firecracker 実行可否の判定条件が明文化されている。
-
-#### C-2: firecracker matrix 復帰（Gate PR）
-- 目的:
-  - `e2e-firecracker` を artifact-only gate に戻す。
-- 変更対象:
-  - `e2e/environments/test_matrix.yaml`
-  - 必要な runner 調整
-- 受け入れ条件:
-  - `uv run e2e/run_tests.py --parallel --verbose` が docker/containerd/firecracker を完走する。
-
-### 実行順（依存関係）
-
-1. C-1（firecracker 開発再開後）
-2. C-2（C-1 完了後）
 
 ### Track G: artifactctl UX 見直し（Deferred）
 
@@ -299,6 +268,7 @@
   - `config_dir` は `esb_project`/`esb_env` と整合する repo 相対パス（`.esb/staging/<project>-<env>/<env>/config`）のみ許可する。
   - `run_tests.py` の `ensure_local_artifactctl` を外部 binary 解決（PATH or env 明示）へ切り替える。
   - `ARTIFACTCTL_BIN` 指定時は解決済み実行パスを runner deploy フェーズまで伝播し、固定 `artifactctl` 名への依存を排除する。
+  - 開発者 UX の後方是正として、`mise run setup` に `artifactctl` ビルドを追加し、`esb` と同様に `~/.local/bin` へ導入する。
   - `e2e/scripts/regenerate_artifacts.sh` の CLI 起動元を repo 内実装固定から切り離し、分離後運用手順を docs 化する。
 - 主な変更対象:
   - `e2e/runner/env.py`
@@ -326,6 +296,90 @@
 - 受け入れ条件:
   - `rg -n "prewarm" services tools docs cli` で意図した残存箇所のみになる。
 
+### Track L: `pkg/artifactcore` 配布戦略の固定（Done）
+
+- 背景:
+  - `cli` / `artifactctl` は `pkg/artifactcore` を利用するが、`go.mod` の local `replace` は分離時の再現性を壊す。
+- 目的:
+  - `go.mod` の配布契約と開発時ローカル解決を分離する。
+- 実施内容:
+  - `cli/go.mod` と `tools/artifactctl/go.mod` から `replace ../pkg/artifactcore` を除去した状態を維持。
+  - repo ルート `go.work` のみで `pkg/artifactcore` をローカル解決する契約に固定。
+  - CI に boundary check + `cli`/`artifactctl` コンパイル確認を追加し、`go.mod` 側 `replace` 再混入を防止。
+  - docs に module contract（`go.work` 開発専用）を追記。
+- 主な変更対象:
+  - `go.work`
+  - `.github/workflows/*`
+  - `tools/ci/check_tooling_boundaries.sh`
+  - `docs/deploy-artifact-contract.md`
+- 受け入れ条件:
+  - `cli` / `artifactctl` の `go.mod` に `artifactcore` local `replace` が存在しない。
+  - `go.work` を使ったローカル開発で `cli` / `artifactctl` が build/test できる。
+  - CI で `replace` 混入が検知される。
+
+### Track M: E2E runtime env の single-source 化（Done）
+
+- 背景:
+  - `e2e/runner/env.py` は Go の runtime env 設定を Python で再実装しており、契約変更時の追従漏れリスクが残る。
+- 目的:
+  - E2E の env 生成ロジックを契約入力中心に再編し、Go 側との重複実装を最小化する。
+- 実施内容:
+  - runtime network defaults（`SUBNET_EXTERNAL` / `RUNTIME_NET_SUBNET` / `RUNTIME_NODE_IP` / `LAMBDA_NETWORK`）を `e2e/contracts/runtime_env_contract.yaml` に集約した。
+  - runner 計画生成時に contract から env vars を注入し、matrix 側で同キーの上書きを禁止した。
+  - `calculate_runtime_env(..., env_overrides=...)` を追加し、scenario `env_vars` を推測前に適用可能にした。
+  - subnet 計算契約を `e2e/contracts/runtime_env_contract.yaml` に固定し、Go/Python 双方のUTで同一フィクスチャ検証を追加した。
+- 主な変更対象:
+  - `e2e/runner/env.py`
+  - `e2e/runner/context.py`
+  - `e2e/runner/warmup.py`
+  - `e2e/runner/tests/test_env_contract.py`
+  - `cli/internal/infra/env/env_defaults_contract_test.go`
+  - `e2e/contracts/runtime_env_contract.yaml`
+  - `e2e/environments/test_matrix.yaml`
+  - `docs/artifact-operations.md`
+- 受け入れ条件:
+  - env 契約差分が UT で即検知できる。
+  - matrix と contract の runtime network 値の二重管理が排除されている。
+
+### Track N: docs 契約の残差分清掃（Done）
+
+- 背景:
+  - 一部 docs に `tools/artifactctl/pkg/engine` や `tools/artifact/*` wrapper 前提が残存している。
+- 目的:
+  - 実装正本（`pkg/artifactcore` + `tools/artifactctl` adapter）に docs を完全一致させる。
+- 実施内容:
+  - `docs/deploy-artifact-contract.md` から旧 `pkg/engine` / wrapper 前提記述を除去。
+  - `docs/artifact-operations.md` の apply 導線を `tools/artifactctl` 直実行に統一。
+  - `tools/artifact/merge_runtime_config.sh` を削除し、wrapper 経路を閉じた。
+- 主な変更対象:
+  - `docs/deploy-artifact-contract.md`
+  - `docs/artifact-operations.md`
+  - `tools/artifact/merge_runtime_config.sh`
+- 受け入れ条件:
+  - docs 内の実装参照が `pkg/artifactcore` / `tools/artifactctl` のみになる。
+  - wrapper 前提の運用説明が消えている。
+  - shell wrapper 実体が repo から消えている。
+
+### Track O: ESB 本体最小化ガード（Done）
+
+- 背景:
+  - 目的は CLI/運用補助の複雑性を ESB 本体から排除し、runtime 系を最小責務に保つこと。
+  - 現状は方向性として分離済みだが、将来変更で再混入するリスクが残る。
+- 目的:
+  - 「optional tool は独立、ESB 本体は最小」の境界を継続的に強制する。
+- 実施内容:
+  - `services/* -> tools/*|pkg/artifactcore` を検知する boundary check script を追加。
+  - CI quality gate に boundary check と compile 検証ジョブを追加。
+  - `services/agent/docs/architecture.md` と契約 docs に依存方向ルールを明文化。
+- 主な変更対象:
+  - `services/agent/docs/architecture.md`
+  - `docs/deploy-artifact-contract.md`
+  - `tools/ci/check_tooling_boundaries.sh`
+  - `.github/workflows/*`
+- 受け入れ条件:
+  - ESB runtime 系から tooling 実装への直接依存が CI で禁止される。
+  - optional tool を無効化しても runtime 系が build/run 可能であることを確認できる。
+
 ### 完了条件（更新）
 
 - 現フェーズ完了条件:
@@ -337,9 +391,6 @@
   - PR ごとに `e2e/runner/tests` を必須実行
   - Track D 最終PRで full E2E (`uv run e2e/run_tests.py --parallel --verbose`) を必須実行
   - テンプレート非依存性を runner UT で検証（template fixture を直接参照しない）
-- firecracker 再開時の追加完了条件（Deferred）:
-  - Track C の全ステップが完了
-  - `uv run e2e/run_tests.py --parallel --verbose` が docker/containerd/firecracker で完走
 
 ## Change Log
 
@@ -361,3 +412,11 @@
 - 2026-02-19: Track J を完了。`e2e/environments/test_matrix.yaml` に `config_dir` を必須化し、runner から staging path 推測ロジックを撤去。`run_tests.py` は repo 内 `artifactctl` 自動ビルドを廃止し、PATH/`ARTIFACTCTL_BIN` 明示解決へ切替えた。`e2e/scripts/regenerate_artifacts.sh` も `esb` 外部コマンド前提（`ESB_CMD` で上書き可）へ更新した。
 - 2026-02-19: Track K を完了。`services/agent/docs/*` と `tools/e2e-lambda-fixtures/python/README.md` の prewarm 前提記述を `artifactctl prepare-images` 前提へ更新し、`rg -n \"prewarm|image prewarm|image-prewarm|image_prewarm\" services tools docs cli e2e` が 0 件となることを確認した。
 - 2026-02-19: Track I/J/K の厳格レビュー指摘へ追補対応。`ARTIFACTCTL_BIN` 指定時の実行パス不整合を解消し、`e2e/runner/deploy.py` が解決済み binary を使用するよう修正。`config_dir` 検証を強化し、`esb_project`/`esb_env` 整合と repo 相対制約を追加。併せて docs/cli-docs の `tools/artifactctl/pkg/engine` 参照を現行 `pkg/artifactcore` へ更新した。
+- 2026-02-19: 分離準備レビュー第2巡で Remaining Gaps を現状コードに同期。未解決課題を Track L（artifactcore 配布戦略）/Track M（E2E runtime env single-source）/Track N（docs 契約残差分清掃）として追加した。
+- 2026-02-19: 分離準備レビュー第3巡で Track N を補強。docs 清掃対象に `tools/artifact/merge_runtime_config.sh` 実体撤去を追加し、wrapper 経路廃止を明示した。
+- 2026-02-19: 方針明確化を反映。最上位原則を「ESB 本体最小化 + optional tool への複雑性隔離」に更新し、継続ガードとして Track O を追加した。
+- 2026-02-19: ユーザー指示により Track C（firecracker）を計画スコープ外へ明示的に除外。以後の進捗評価・完了条件から firecracker を外した。
+- 2026-02-19: Track L を完了。`go.mod` からの `artifactcore` local `replace` 依存を維持せず、開発時解決を `go.work` に限定。CI に boundary/compile check を追加して再混入防止を実装した。
+- 2026-02-19: Track M を追補。runtime network defaults の正本を `e2e/contracts/runtime_env_contract.yaml` に一本化し、runner が contract 注入する形へ変更。matrix 側の同キー上書きを禁止して二重管理を解消した。併せて `calculate_runtime_env` の override 優先順を明確化した。
+- 2026-02-19: Track N/O を完了。`tools/artifact/merge_runtime_config.sh` を撤去し docs を正本へ同期。`services/*` の tooling 逆依存をCIで検知する `tools/ci/check_tooling_boundaries.sh` を追加した。
+- 2026-02-19: Track J の UX 補強として `mise run setup` に `artifactctl` ビルドを追加。E2E の `artifactctl` 未導入エラーに setup 導線を明示し、初期セットアップの体験を `esb` と揃えた。

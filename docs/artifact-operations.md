@@ -80,8 +80,13 @@ docker compose --profile deploy run --rm --no-deps provisioner
 ```
 
 Notes:
-- Call `tools/artifactctl` directly for merge/apply operations.
 - `tools/artifactctl prepare-images` uses `<artifact_root>/runtime-base/**` as the only base-image build context. It does not read repository-local `runtime-hooks/**`.
+- merge/apply は `tools/artifactctl` 直実行のみを運用経路とする（shell wrapper は廃止）。
+
+## Module Contract (artifactcore)
+- `cli/go.mod` と `tools/artifactctl/go.mod` には `pkg/artifactcore` の `replace` を置かない。
+- ローカル開発の依存解決は repo ルート `go.work` のみで行う。
+- `services/*` は `tools/*` / `pkg/artifactcore` を直接 import しない。
 
 ## E2E Contract (Current)
 `e2e/environments/test_matrix.yaml` is artifact-only:
@@ -90,6 +95,8 @@ Notes:
 - test execution consumes committed fixtures under `e2e/artifacts/*`
 - firecracker profile is currently disabled in matrix (docker/containerd are active gates)
 - deploy phases require `artifactctl` on PATH (or `ARTIFACTCTL_BIN` override)
+- runtime network defaults (`SUBNET_EXTERNAL`, `RUNTIME_NET_SUBNET`, `RUNTIME_NODE_IP`, `LAMBDA_NETWORK`) は `e2e/contracts/runtime_env_contract.yaml` を正本として runner が注入する
+- matrix `env_vars` では上記 runtime network keys を上書きしない（契約値との二重管理を禁止）
 
 Fixture refresh is a separate developer operation (outside E2E runtime):
 - regenerate fixtures with `e2e/scripts/regenerate_artifacts.sh`
