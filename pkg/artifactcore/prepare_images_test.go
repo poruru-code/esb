@@ -304,6 +304,74 @@ func TestPrepareImagesFailsWhenRuntimeBaseContextMissing(t *testing.T) {
 	}
 }
 
+func TestPrepareImagesRequiresArtifactPath(t *testing.T) {
+	err := PrepareImages(PrepareImagesRequest{})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "artifact path is required") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestPrepareImagesFailsWhenFunctionsIsNotMap(t *testing.T) {
+	root := t.TempDir()
+	manifestPath := writePrepareImageFixture(
+		t,
+		root,
+		"127.0.0.1:5010/esb-lambda-echo:e2e-test",
+		"127.0.0.1:5010/esb-lambda-base:e2e-test",
+	)
+	functionsPath := filepath.Join(root, "fixture", "config", "functions.yml")
+	mustWriteFile(t, functionsPath, "functions: []\n")
+
+	err := PrepareImages(PrepareImagesRequest{
+		ArtifactPath: manifestPath,
+		Runner:       &recordCommandRunner{},
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "functions must be map") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestPrepareImagesSkipsWhenNoImageTarget(t *testing.T) {
+	root := t.TempDir()
+	manifestPath := writePrepareImageFixture(
+		t,
+		root,
+		"127.0.0.1:5010/esb-lambda-echo:e2e-test",
+		"127.0.0.1:5010/esb-lambda-base:e2e-test",
+	)
+	functionsPath := filepath.Join(root, "fixture", "config", "functions.yml")
+	mustWriteFile(t, functionsPath, "functions:\n  lambda-echo:\n    handler: index.handler\n")
+
+	runner := &recordCommandRunner{}
+	err := PrepareImages(PrepareImagesRequest{
+		ArtifactPath: manifestPath,
+		Runner:       runner,
+	})
+	if err != nil {
+		t.Fatalf("PrepareImages() error = %v", err)
+	}
+	if len(runner.commands) != 0 {
+		t.Fatalf("expected no docker command, got %v", runner.commands)
+	}
+}
+
+func TestDefaultCommandRunnerRejectsEmptyCommand(t *testing.T) {
+	runner := defaultCommandRunner{}
+	err := runner.Run(nil)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "command is empty") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func writePrepareImageFixture(t *testing.T, root, imageRef, baseRef string) string {
 	t.Helper()
 	artifactRoot := filepath.Join(root, "fixture")

@@ -263,6 +263,85 @@ func TestWithOutputDirLockIgnoresUnparseableLockOwner(t *testing.T) {
 	}
 }
 
+func TestReadLockOwnerPIDParsesLegacyPrefix(t *testing.T) {
+	outputDir := t.TempDir()
+	lockPath := filepath.Join(outputDir, mergeLockFileName)
+	if err := os.WriteFile(lockPath, []byte("pid=1234\n"), 0o600); err != nil {
+		t.Fatalf("write lock file: %v", err)
+	}
+
+	pid, ok, err := readLockOwnerPID(lockPath)
+	if err != nil {
+		t.Fatalf("readLockOwnerPID() error = %v", err)
+	}
+	if !ok {
+		t.Fatal("expected lock owner PID")
+	}
+	if pid != 1234 {
+		t.Fatalf("pid = %d, want 1234", pid)
+	}
+}
+
+func TestReadLockOwnerPIDRejectsInvalidValues(t *testing.T) {
+	outputDir := t.TempDir()
+	lockPath := filepath.Join(outputDir, mergeLockFileName)
+
+	if err := os.WriteFile(lockPath, []byte("\n"), 0o600); err != nil {
+		t.Fatalf("write lock file: %v", err)
+	}
+	if pid, ok, err := readLockOwnerPID(lockPath); err != nil || ok || pid != 0 {
+		t.Fatalf("blank line should be ignored: pid=%d ok=%v err=%v", pid, ok, err)
+	}
+
+	if err := os.WriteFile(lockPath, []byte("pid=-10\n"), 0o600); err != nil {
+		t.Fatalf("write lock file: %v", err)
+	}
+	if pid, ok, err := readLockOwnerPID(lockPath); err != nil || ok || pid != 0 {
+		t.Fatalf("negative pid should be ignored: pid=%d ok=%v err=%v", pid, ok, err)
+	}
+
+	if err := os.Remove(lockPath); err != nil {
+		t.Fatalf("remove lock file: %v", err)
+	}
+	if pid, ok, err := readLockOwnerPID(lockPath); err != nil || ok || pid != 0 {
+		t.Fatalf("missing file should be treated as no owner: pid=%d ok=%v err=%v", pid, ok, err)
+	}
+}
+
+func TestIsProcessAliveForCurrentAndMissingPID(t *testing.T) {
+	alive, err := isProcessAlive(os.Getpid())
+	if err != nil {
+		t.Fatalf("isProcessAlive(current pid) error = %v", err)
+	}
+	if !alive {
+		t.Fatal("current process should be alive")
+	}
+
+	alive, err = isProcessAlive(99999999)
+	if err != nil {
+		t.Fatalf("isProcessAlive(missing pid) error = %v", err)
+	}
+	if alive {
+		t.Fatal("expected missing PID to be treated as dead")
+	}
+}
+
+func TestReadLockOwnerPIDReturnsErrorWhenPathIsDirectory(t *testing.T) {
+	outputDir := t.TempDir()
+	lockDir := filepath.Join(outputDir, "lockdir")
+	if err := os.MkdirAll(lockDir, 0o755); err != nil {
+		t.Fatalf("mkdir lockdir: %v", err)
+	}
+
+	_, _, err := readLockOwnerPID(lockDir)
+	if err == nil {
+		t.Fatal("expected read error")
+	}
+	if !strings.Contains(err.Error(), "read merge lock file") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func writeYAMLFile(t *testing.T, path string, value map[string]any) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
