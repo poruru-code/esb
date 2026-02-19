@@ -12,6 +12,7 @@ import (
 
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/interaction"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/sam"
+	"github.com/poruru/edge-serverless-box/pkg/yamlshape"
 )
 
 func promptTemplateParameters(
@@ -121,14 +122,14 @@ func promptTemplateParameters(
 // extractSAMParameters extracts parameter definitions from SAM template data.
 func extractSAMParameters(data map[string]any) map[string]samParameter {
 	result := make(map[string]samParameter)
-	params := asMap(data["Parameters"])
-	if params == nil {
+	params := yamlshape.AsMap(data["Parameters"])
+	if len(params) == 0 {
 		return result
 	}
 
 	for name, val := range params {
-		m := asMap(val)
-		if m == nil {
+		m := yamlshape.AsMap(val)
+		if len(m) == 0 {
 			continue
 		}
 
@@ -144,21 +145,4 @@ func extractSAMParameters(data map[string]any) map[string]samParameter {
 	}
 
 	return result
-}
-
-// asMap converts an interface to a map[string]any.
-func asMap(v any) map[string]any {
-	if m, ok := v.(map[string]any); ok {
-		return m
-	}
-	if m, ok := v.(map[any]any); ok {
-		result := make(map[string]any, len(m))
-		for key, value := range m {
-			if sk, ok := key.(string); ok {
-				result[sk] = value
-			}
-		}
-		return result
-	}
-	return nil
 }

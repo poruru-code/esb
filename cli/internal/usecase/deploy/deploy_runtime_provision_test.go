@@ -1,10 +1,12 @@
 package deploy
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/poruru/edge-serverless-box/pkg/artifactcore"
 	"gopkg.in/yaml.v3"
 )
 
@@ -15,29 +17,29 @@ func TestApplyArtifactRuntimeConfigUsesArtifactManifest(t *testing.T) {
 	writeRuntimeConfigFile(t, filepath.Join(artifactRoot, "config", "functions.yml"), "functions:\n  hello:\n    handler: a.handler\n")
 	writeRuntimeConfigFile(t, filepath.Join(artifactRoot, "config", "routing.yml"), "routes:\n  - path: /hello\n    method: GET\n    function: hello\n")
 
-	manifest := ArtifactManifest{
-		SchemaVersion: ArtifactSchemaVersionV1,
+	manifest := artifactcore.ArtifactManifest{
+		SchemaVersion: artifactcore.ArtifactSchemaVersionV1,
 		Project:       "esb-dev",
 		Env:           "dev",
 		Mode:          "docker",
-		Artifacts: []ArtifactEntry{
+		Artifacts: []artifactcore.ArtifactEntry{
 			{
 				ArtifactRoot:     "../artifact-a",
 				RuntimeConfigDir: "config",
-				SourceTemplate: ArtifactSourceTemplate{
+				SourceTemplate: artifactcore.ArtifactSourceTemplate{
 					Path:   "/tmp/template-a.yaml",
 					SHA256: "sha-a",
 				},
 			},
 		},
 	}
-	manifest.Artifacts[0].ID = ComputeArtifactID(
+	manifest.Artifacts[0].ID = artifactcore.ComputeArtifactID(
 		manifest.Artifacts[0].SourceTemplate.Path,
 		manifest.Artifacts[0].SourceTemplate.Parameters,
 		manifest.Artifacts[0].SourceTemplate.SHA256,
 	)
 	manifestPath := filepath.Join(root, "manifest", "artifact.yml")
-	if err := WriteArtifactManifest(manifestPath, manifest); err != nil {
+	if err := artifactcore.WriteArtifactManifest(manifestPath, manifest); err != nil {
 		t.Fatalf("write artifact manifest: %v", err)
 	}
 
@@ -71,28 +73,22 @@ func TestApplyArtifactRuntimeConfigFailsWhenArtifactPathEmpty(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when artifact path is empty")
 	}
-	if err != errArtifactPathRequired {
-		t.Fatalf("expected errArtifactPathRequired, got %v", err)
+	if !errors.Is(err, artifactcore.ErrArtifactPathRequired) {
+		t.Fatalf("expected ErrArtifactPathRequired, got %v", err)
 	}
 }
 
-func TestRuntimeProvisionApplyRequestDefaults(t *testing.T) {
-	req := runtimeProvisionApplyRequest("artifact.yml", "staging-config")
-
-	if req.ArtifactPath != "artifact.yml" {
-		t.Fatalf("ArtifactPath=%q", req.ArtifactPath)
+func TestApplyArtifactRuntimeConfigWrapsCoreErrors(t *testing.T) {
+	workflow := Workflow{}
+	err := workflow.applyArtifactRuntimeConfig(Request{}, t.TempDir())
+	if err == nil {
+		t.Fatal("expected error when artifact path is empty")
 	}
-	if req.OutputDir != "staging-config" {
-		t.Fatalf("OutputDir=%q", req.OutputDir)
+	if err.Error() == artifactcore.ErrArtifactPathRequired.Error() {
+		t.Fatalf("expected wrapped error, got %v", err)
 	}
-	if req.SecretEnvPath != "" {
-		t.Fatalf("SecretEnvPath=%q, want empty", req.SecretEnvPath)
-	}
-	if req.Strict {
-		t.Fatal("Strict=true, want false")
-	}
-	if req.WarningWriter != nil {
-		t.Fatalf("WarningWriter=%v, want nil", req.WarningWriter)
+	if !errors.Is(err, artifactcore.ErrArtifactPathRequired) {
+		t.Fatalf("expected ErrArtifactPathRequired, got %v", err)
 	}
 }
 

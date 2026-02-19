@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/poruru/edge-serverless-box/pkg/yamlshape"
 	"gopkg.in/yaml.v3"
 )
 
@@ -78,18 +79,18 @@ func TestApply_UsesManifestOrderAndLastWriteWins(t *testing.T) {
 	}
 
 	outDir := filepath.Join(root, "out")
-	if err := Apply(ApplyRequest{ArtifactPath: manifestPath, OutputDir: outDir}); err != nil {
+	if _, err := ExecuteApply(ApplyInput{ArtifactPath: manifestPath, OutputDir: outDir}); err != nil {
 		t.Fatalf("Apply() error = %v", err)
 	}
 
 	functions := readYAMLFile(t, filepath.Join(outDir, "functions.yml"))
-	fns := asMap(functions["functions"])
-	hello := asMap(fns["hello"])
+	fns := yamlshape.AsMap(functions["functions"])
+	hello := yamlshape.AsMap(fns["hello"])
 	if hello["handler"] != "b.handler" {
 		t.Fatalf("expected hello handler b.handler, got %#v", hello["handler"])
 	}
-	defaults := asMap(functions["defaults"])
-	env := asMap(defaults["environment"])
+	defaults := yamlshape.AsMap(functions["defaults"])
+	env := yamlshape.AsMap(defaults["environment"])
 	if env["LOG_LEVEL"] != "INFO" {
 		t.Fatalf("existing default should win: %#v", env["LOG_LEVEL"])
 	}
@@ -98,11 +99,11 @@ func TestApply_UsesManifestOrderAndLastWriteWins(t *testing.T) {
 	}
 
 	routing := readYAMLFile(t, filepath.Join(outDir, "routing.yml"))
-	routes := asSlice(routing["routes"])
+	routes := yamlshape.AsSlice(routing["routes"])
 	if len(routes) != 1 {
 		t.Fatalf("expected 1 route, got %d", len(routes))
 	}
-	route := asMap(routes[0])
+	route := yamlshape.AsMap(routes[0])
 	if route["function"] != "bye" {
 		t.Fatalf("expected route to be overwritten by b, got %#v", route["function"])
 	}
@@ -135,7 +136,7 @@ func TestApply_ValidatesRequiredSecretEnv(t *testing.T) {
 	}
 
 	outDir := filepath.Join(root, "out")
-	err := Apply(ApplyRequest{ArtifactPath: manifestPath, OutputDir: outDir})
+	_, err := ExecuteApply(ApplyInput{ArtifactPath: manifestPath, OutputDir: outDir})
 	if err == nil {
 		t.Fatal("expected error for missing --secret-env")
 	}
@@ -147,7 +148,7 @@ func TestApply_ValidatesRequiredSecretEnv(t *testing.T) {
 	if err := os.WriteFile(secretEnv, []byte("X_API_KEY=abc\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	err = Apply(ApplyRequest{ArtifactPath: manifestPath, OutputDir: outDir, SecretEnvPath: secretEnv})
+	_, err = ExecuteApply(ApplyInput{ArtifactPath: manifestPath, OutputDir: outDir, SecretEnvPath: secretEnv})
 	if err == nil {
 		t.Fatal("expected error for missing AUTH_PASS")
 	}
@@ -159,7 +160,7 @@ func TestApply_ValidatesRequiredSecretEnv(t *testing.T) {
 		t.Fatalf("unexpected MissingSecretKeysError message: %q", got)
 	}
 
-	err = Apply(ApplyRequest{
+	_, err = ExecuteApply(ApplyInput{
 		ArtifactPath:  manifestPath,
 		OutputDir:     outDir,
 		SecretEnvPath: filepath.Join(root, "missing-secrets.env"),
@@ -178,7 +179,7 @@ func TestApply_ValidatesRequiredSecretEnv(t *testing.T) {
 	if err := os.WriteFile(secretEnv, []byte("X_API_KEY=abc\nAUTH_PASS=pass\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := Apply(ApplyRequest{ArtifactPath: manifestPath, OutputDir: outDir, SecretEnvPath: secretEnv}); err != nil {
+	if _, err := ExecuteApply(ApplyInput{ArtifactPath: manifestPath, OutputDir: outDir, SecretEnvPath: secretEnv}); err != nil {
 		t.Fatalf("Apply() error = %v", err)
 	}
 }
@@ -207,7 +208,7 @@ func TestApply_FailsWhenRequiredRuntimeConfigFileMissing(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := Apply(ApplyRequest{
+	_, err := ExecuteApply(ApplyInput{
 		ArtifactPath: manifestPath,
 		OutputDir:    filepath.Join(root, "out"),
 	})
@@ -247,7 +248,7 @@ func TestApply_FailsWhenFunctionsConfigFileMissing(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := Apply(ApplyRequest{
+	_, err := ExecuteApply(ApplyInput{
 		ArtifactPath: manifestPath,
 		OutputDir:    filepath.Join(root, "out"),
 	})
@@ -290,7 +291,7 @@ func TestApply_FailsWhenFunctionsConfigPathIsDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := Apply(ApplyRequest{
+	_, err := ExecuteApply(ApplyInput{
 		ArtifactPath: manifestPath,
 		OutputDir:    filepath.Join(root, "out"),
 	})

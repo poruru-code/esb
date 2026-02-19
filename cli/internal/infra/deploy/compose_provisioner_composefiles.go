@@ -1,5 +1,5 @@
 // Where: cli/internal/infra/deploy/compose_provisioner_composefiles.go
-// What: Compose file resolution and service validation helpers.
+// What: Compose file resolution helpers.
 // Why: Isolate compose configuration mechanics from provisioner orchestration.
 package deploy
 
@@ -15,26 +15,6 @@ import (
 
 type dockerClientFactory func() (compose.DockerClient, error)
 
-func filterExistingComposeFiles(repoRoot string, files []string) ([]string, []string) {
-	existing := make([]string, 0, len(files))
-	missing := []string{}
-	for _, file := range files {
-		path := strings.TrimSpace(file)
-		if path == "" {
-			continue
-		}
-		if !filepath.IsAbs(path) && strings.TrimSpace(repoRoot) != "" {
-			path = filepath.Join(repoRoot, path)
-		}
-		if _, err := os.Stat(path); err != nil {
-			missing = append(missing, path)
-			continue
-		}
-		existing = append(existing, path)
-	}
-	return existing, missing
-}
-
 func defaultComposeFiles(repoRoot, mode string) []string {
 	files := []string{}
 	if mode == compose.ModeContainerd {
@@ -46,45 +26,6 @@ func defaultComposeFiles(repoRoot, mode string) []string {
 		files = append(files, proxyFile)
 	}
 	return files
-}
-
-func (p composeProvisioner) composeHasServices(
-	repoRoot string,
-	composeProject string,
-	files []string,
-	required []string,
-) (bool, []string) {
-	if p.composeRunner == nil || len(files) == 0 {
-		return true, nil
-	}
-	ctx := context.Background()
-	args := []string{"compose"}
-	for _, file := range files {
-		args = append(args, "-f", file)
-	}
-	if strings.TrimSpace(composeProject) != "" {
-		args = append(args, "-p", composeProject)
-	}
-	args = append(args, "--profile", "deploy", "config", "--services")
-	out, err := p.composeRunner.RunOutput(ctx, repoRoot, "docker", args...)
-	if err != nil {
-		return false, required
-	}
-	services := map[string]struct{}{}
-	for _, line := range strings.Split(string(out), "\n") {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
-			continue
-		}
-		services[trimmed] = struct{}{}
-	}
-	missing := []string{}
-	for _, name := range required {
-		if _, ok := services[name]; !ok {
-			missing = append(missing, name)
-		}
-	}
-	return len(missing) == 0, missing
 }
 
 func (p composeProvisioner) resolveComposeFilesForProject(

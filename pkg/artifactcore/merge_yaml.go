@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/poruru/edge-serverless-box/pkg/yamlshape"
 )
 
 func mergeFunctionsYML(srcDir, destDir string) error {
@@ -30,8 +32,8 @@ func mergeFunctionsYML(srcDir, destDir string) error {
 		existingData = map[string]any{}
 	}
 
-	srcFunctions := asMap(srcData["functions"])
-	existingFunctions := asMap(existingData["functions"])
+	srcFunctions := yamlshape.AsMap(srcData["functions"])
+	existingFunctions := yamlshape.AsMap(existingData["functions"])
 	if existingFunctions == nil {
 		existingFunctions = make(map[string]any)
 	}
@@ -39,8 +41,8 @@ func mergeFunctionsYML(srcDir, destDir string) error {
 		existingFunctions[name] = fn
 	}
 
-	srcDefaults := asMap(srcData["defaults"])
-	existingDefaults := asMap(existingData["defaults"])
+	srcDefaults := yamlshape.AsMap(srcData["defaults"])
+	existingDefaults := yamlshape.AsMap(existingData["defaults"])
 	if existingDefaults == nil {
 		existingDefaults = make(map[string]any)
 	}
@@ -68,11 +70,11 @@ func mergeDefaultsSection(existingDefaults, srcDefaults map[string]any, key stri
 	if srcDefaults == nil {
 		return
 	}
-	srcSection := asMap(srcDefaults[key])
+	srcSection := yamlshape.AsMap(srcDefaults[key])
 	if srcSection == nil {
 		return
 	}
-	existingSection := asMap(existingDefaults[key])
+	existingSection := yamlshape.AsMap(existingDefaults[key])
 	if existingSection == nil {
 		existingSection = make(map[string]any)
 	}
@@ -109,20 +111,20 @@ func mergeRoutingYML(srcDir, destDir string) error {
 		existingData = map[string]any{}
 	}
 
-	existingRoutes := asSlice(existingData["routes"])
+	existingRoutes := yamlshape.AsSlice(existingData["routes"])
 	routeIndex := make(map[string]int)
 	for i, route := range existingRoutes {
-		key := routeKey(asMap(route))
+		key := yamlshape.RouteKey(yamlshape.AsMap(route))
 		if key == "" {
 			continue
 		}
 		routeIndex[key] = i
 	}
 
-	srcRoutes := asSlice(srcData["routes"])
+	srcRoutes := yamlshape.AsSlice(srcData["routes"])
 	for _, route := range srcRoutes {
-		routeMap := asMap(route)
-		key := routeKey(routeMap)
+		routeMap := yamlshape.AsMap(route)
+		key := yamlshape.RouteKey(routeMap)
 		if key == "" {
 			continue
 		}
@@ -137,19 +139,6 @@ func mergeRoutingYML(srcDir, destDir string) error {
 	merged := map[string]any{"routes": existingRoutes}
 	return atomicWriteYAML(destPath, merged)
 }
-
-func routeKey(route map[string]any) string {
-	pathVal, _ := route["path"].(string)
-	method, _ := route["method"].(string)
-	if pathVal == "" {
-		return ""
-	}
-	if method == "" {
-		method = "GET"
-	}
-	return fmt.Sprintf("%s:%s", pathVal, method)
-}
-
 func mergeResourcesYML(srcDir, destDir string) error {
 	srcPath := filepath.Join(srcDir, "resources.yml")
 	destPath := filepath.Join(destDir, "resources.yml")
@@ -173,18 +162,18 @@ func mergeResourcesYML(srcDir, destDir string) error {
 		existingData = map[string]any{}
 	}
 
-	srcResources := asMap(srcData["resources"])
+	srcResources := yamlshape.AsMap(srcData["resources"])
 	if srcResources == nil {
 		srcResources = make(map[string]any)
 	}
-	existingResources := asMap(existingData["resources"])
+	existingResources := yamlshape.AsMap(existingData["resources"])
 	if existingResources == nil {
 		existingResources = make(map[string]any)
 	}
 
 	mergedDynamo := mergeResourceList(
-		asSlice(existingResources["dynamodb"]),
-		asSlice(srcResources["dynamodb"]),
+		yamlshape.AsSlice(existingResources["dynamodb"]),
+		yamlshape.AsSlice(srcResources["dynamodb"]),
 		"TableName",
 	)
 	if len(mergedDynamo) > 0 {
@@ -192,8 +181,8 @@ func mergeResourcesYML(srcDir, destDir string) error {
 	}
 
 	mergedS3 := mergeResourceList(
-		asSlice(existingResources["s3"]),
-		asSlice(srcResources["s3"]),
+		yamlshape.AsSlice(existingResources["s3"]),
+		yamlshape.AsSlice(srcResources["s3"]),
 		"BucketName",
 	)
 	if len(mergedS3) > 0 {
@@ -201,8 +190,8 @@ func mergeResourcesYML(srcDir, destDir string) error {
 	}
 
 	mergedLayers := mergeResourceList(
-		asSlice(existingResources["layers"]),
-		asSlice(srcResources["layers"]),
+		yamlshape.AsSlice(existingResources["layers"]),
+		yamlshape.AsSlice(srcResources["layers"]),
 		"Name",
 	)
 	if len(mergedLayers) > 0 {
@@ -216,7 +205,7 @@ func mergeResourcesYML(srcDir, destDir string) error {
 func mergeResourceList(existing, src []any, keyField string) []any {
 	index := make(map[string]int)
 	for i, item := range existing {
-		m := asMap(item)
+		m := yamlshape.AsMap(item)
 		key, _ := m[keyField].(string)
 		if key == "" {
 			continue
@@ -224,7 +213,7 @@ func mergeResourceList(existing, src []any, keyField string) []any {
 		index[key] = i
 	}
 	for _, item := range src {
-		m := asMap(item)
+		m := yamlshape.AsMap(item)
 		key, _ := m[keyField].(string)
 		if key == "" {
 			continue

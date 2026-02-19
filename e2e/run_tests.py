@@ -4,6 +4,7 @@
 # Why: Provide a single entry point for scenario setup, execution, and teardown.
 import os
 import shutil
+import subprocess
 import sys
 import warnings
 
@@ -81,6 +82,26 @@ def requires_artifactctl(args, env_scenarios: dict[str, object]) -> bool:
 
 
 def ensure_artifactctl_available() -> str:
+    def _assert_supported(binary_path: str) -> None:
+        required_subcommands = (("deploy", "--help"), ("provision", "--help"))
+        for subcommand in required_subcommands:
+            probe = subprocess.run(
+                [binary_path, *subcommand],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                check=False,
+            )
+            out = (probe.stdout or "").lower()
+            if probe.returncode != 0 or "unknown command" in out:
+                command = " ".join(subcommand)
+                print(f"[ERROR] artifactctl binary does not support `{command}`: {binary_path}")
+                print(
+                    "        Ensure a current artifactctl is installed or set ARTIFACTCTL_BIN explicitly."
+                )
+                print("        In this repository, you can install it via: mise run setup")
+                sys.exit(1)
+
     override = os.environ.get("ARTIFACTCTL_BIN", "").strip()
     if override:
         resolved = shutil.which(override)
@@ -88,13 +109,14 @@ def ensure_artifactctl_available() -> str:
             print(f"[ERROR] ARTIFACTCTL_BIN is set but not executable: {override}")
             sys.exit(1)
         resolved_abs = os.path.abspath(resolved)
-        _prepend_path_entry(str(os.path.dirname(resolved_abs)))
+        _assert_supported(resolved_abs)
         os.environ["ARTIFACTCTL_BIN_RESOLVED"] = resolved_abs
         return resolved_abs
 
     resolved = shutil.which("artifactctl")
     if resolved is not None:
         resolved_abs = os.path.abspath(resolved)
+        _assert_supported(resolved_abs)
         os.environ["ARTIFACTCTL_BIN_RESOLVED"] = resolved_abs
         return resolved_abs
 
@@ -103,14 +125,6 @@ def ensure_artifactctl_available() -> str:
     print("        In this repository, you can install it via: mise run setup")
     print("        Example: ARTIFACTCTL_BIN=/path/to/artifactctl uv run e2e/run_tests.py ...")
     sys.exit(1)
-
-
-def _prepend_path_entry(entry: str) -> None:
-    current_path = os.environ.get("PATH", "")
-    path_entries = [item for item in current_path.split(os.pathsep) if item]
-    if entry in path_entries:
-        return
-    os.environ["PATH"] = os.pathsep.join([entry, *path_entries])
 
 
 def main():

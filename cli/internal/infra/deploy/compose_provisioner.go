@@ -6,11 +6,14 @@ package deploy
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 
+	deployport "github.com/poruru/edge-serverless-box/cli/internal/domain/deployport"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/ui"
+	"github.com/poruru/edge-serverless-box/pkg/artifactcore/composeprovision"
 )
 
 // ProvisionerRequest captures compose/provisioner execution inputs.
@@ -24,17 +27,7 @@ type ProvisionerRequest struct {
 }
 
 // ComposeProvisioner provides compose-related operational behavior for deploy.
-type ComposeProvisioner interface {
-	CheckServicesStatus(composeProject, mode string)
-	RunProvisioner(
-		composeProject string,
-		mode string,
-		noDeps bool,
-		verbose bool,
-		projectDir string,
-		composeFiles []string,
-	) error
-}
+type ComposeProvisioner = deployport.ComposeProvisioner
 
 type composeProvisioner struct {
 	composeRunner compose.CommandRunner
@@ -89,17 +82,21 @@ func (p composeProvisioner) RunProvisioner(
 	}
 
 	ctx := context.Background()
-	required := []string{"provisioner", "database", "s3-storage", "victorialogs"}
 	var files []string
 	if len(request.ComposeFiles) > 0 {
-		existing, missing := filterExistingComposeFiles(repoRoot, request.ComposeFiles)
-		if len(missing) > 0 || len(existing) == 0 {
-			return fmt.Errorf("compose override files not found: %s", strings.Join(missing, ", "))
+		files = make([]string, 0, len(request.ComposeFiles))
+		for _, file := range request.ComposeFiles {
+			normalized := strings.TrimSpace(file)
+			if normalized == "" {
+				continue
+			}
+			if !filepath.IsAbs(normalized) {
+				normalized = filepath.Join(repoRoot, normalized)
+			}
+			files = append(files, normalized)
 		}
-		files = existing
-		ok, missingServices := p.composeHasServices(repoRoot, request.ComposeProject, files, required)
-		if !ok {
-			return fmt.Errorf("compose override missing services: %s", strings.Join(missingServices, ", "))
+		if len(files) == 0 {
+			return fmt.Errorf("compose file is required")
 		}
 	} else {
 		result, err := p.resolveComposeFilesForProject(ctx, request.ComposeProject)
@@ -118,38 +115,13 @@ func (p composeProvisioner) RunProvisioner(
 		if len(files) == 0 {
 			files = defaultComposeFiles(repoRoot, request.Mode)
 		}
-		if len(files) > 0 {
-			ok, missingServices := p.composeHasServices(repoRoot, request.ComposeProject, files, required)
-			if !ok {
-				return fmt.Errorf("compose config missing services: %s", strings.Join(missingServices, ", "))
-			}
-		}
 	}
 
-	args := []string{"compose"}
-	for _, file := range files {
-		args = append(args, "-f", file)
-	}
-	if p.composeSupportsNoWarnOrphans(repoRoot) {
-		args = append(args, "--no-warn-orphans")
-	}
-	args = append(args, "--profile", "deploy")
-	if request.ComposeProject != "" {
-		args = append(args, "-p", request.ComposeProject)
-	}
-	args = append(args, "run", "--rm")
-	if request.NoDeps {
-		args = append(args, "--no-deps")
-	}
-	args = append(args, "provisioner")
-	if request.Verbose {
-		if err := p.composeRunner.Run(ctx, repoRoot, "docker", args...); err != nil {
-			return fmt.Errorf("run provisioner: %w", err)
-		}
-		return nil
-	}
-	if err := p.composeRunner.RunQuiet(ctx, repoRoot, "docker", args...); err != nil {
-		return fmt.Errorf("run provisioner: %w", err)
-	}
-	return nil
+	return composeprovision.Execute(ctx, p.composeRunner, repoRoot, composeprovision.Request{
+		ComposeProject: request.ComposeProject,
+		ComposeFiles:   files,
+		NoDeps:         request.NoDeps,
+		Verbose:        request.Verbose,
+		NoWarnOrphans:  p.composeSupportsNoWarnOrphans(repoRoot),
+	})
 }

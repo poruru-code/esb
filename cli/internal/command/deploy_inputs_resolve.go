@@ -217,8 +217,6 @@ func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 				}
 				outputDir, err = resolveDeployOutput(
 					cli.Deploy.Output,
-					templatePath,
-					selectedEnv.Value,
 					isTTY,
 					prompter,
 					prevOutput,

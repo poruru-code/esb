@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 
+	deployport "github.com/poruru/edge-serverless-box/cli/internal/domain/deployport"
 	"github.com/poruru/edge-serverless-box/cli/internal/domain/state"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/build"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
@@ -23,10 +24,9 @@ var (
 // Request captures the inputs required to run a deploy.
 type Request struct {
 	Context        state.Context
-	Env            string
-	TemplatePath   string
 	ArtifactPath   string
-	Mode           string
+	SecretEnvPath  string
+	Strict         bool
 	OutputDir      string
 	Parameters     map[string]string
 	ImageSources   map[string]string
@@ -54,17 +54,7 @@ type Workflow struct {
 }
 
 // ComposeProvisioner defines compose-related operational behavior consumed by the workflow.
-type ComposeProvisioner interface {
-	CheckServicesStatus(composeProject, mode string)
-	RunProvisioner(
-		composeProject string,
-		mode string,
-		noDeps bool,
-		verbose bool,
-		projectDir string,
-		composeFiles []string,
-	) error
-}
+type ComposeProvisioner = deployport.ComposeProvisioner
 
 // DockerClientFactory constructs Docker SDK clients used by runtime inspection paths.
 type DockerClientFactory func() (compose.DockerClient, error)
@@ -93,9 +83,9 @@ func (w Workflow) buildRequest(req Request) build.BuildRequest {
 	return build.BuildRequest{
 		ProjectDir:    req.Context.ProjectDir,
 		ProjectName:   req.Context.ComposeProject,
-		TemplatePath:  req.TemplatePath,
-		Env:           req.Env,
-		Mode:          req.Mode,
+		TemplatePath:  req.Context.TemplatePath,
+		Env:           req.Context.Env,
+		Mode:          req.Context.Mode,
 		OutputDir:     req.OutputDir,
 		Parameters:    req.Parameters,
 		ImageSources:  req.ImageSources,

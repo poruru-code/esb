@@ -1,18 +1,22 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/alecthomas/kong"
 	"github.com/poruru/edge-serverless-box/pkg/artifactcore"
+	"github.com/poruru/edge-serverless-box/pkg/artifactcore/composeprovision"
 )
 
 type CLI struct {
-	Deploy DeployCmd `cmd:"" help:"Prepare images and apply artifact manifest"`
+	Deploy    DeployCmd    `cmd:"" help:"Prepare images and apply artifact manifest"`
+	Provision ProvisionCmd `cmd:"" help:"Run deploy provisioner via docker compose"`
 }
 
 type DeployCmd struct {
@@ -23,14 +27,32 @@ type DeployCmd struct {
 	NoCache   bool   `name:"no-cache" help:"Do not use cache when building images"`
 }
 
+type ProvisionCmd struct {
+	ComposeProject string   `name:"project" required:"" help:"Compose project name"`
+	ComposeFiles   []string `name:"compose-file" required:"" sep:"," help:"Compose file(s) to use (repeatable or comma-separated)"`
+	EnvFile        string   `name:"env-file" help:"Path to compose env file"`
+	ProjectDir     string   `name:"project-dir" help:"Working directory for docker compose (default: current directory)"`
+	WithDeps       bool     `name:"with-deps" help:"Start dependent services when running provisioner"`
+	Verbose        bool     `short:"v" help:"Verbose output"`
+}
+
 type kongExitCode int
 
 type commandDeps struct {
-	prepareImages func(artifactcore.PrepareImagesRequest) error
-	apply         func(artifactcore.ApplyRequest) error
-	warningWriter io.Writer
-	out           io.Writer
-	errOut        io.Writer
+	executeDeploy    func(artifactcore.DeployInput) (artifactcore.ApplyResult, error)
+	executeProvision func(ProvisionInput) error
+	warningWriter    io.Writer
+	out              io.Writer
+	errOut           io.Writer
+}
+
+type ProvisionInput struct {
+	ComposeProject string
+	ComposeFiles   []string
+	EnvFile        string
+	ProjectDir     string
+	NoDeps         bool
+	Verbose        bool
 }
 
 func main() {
@@ -39,11 +61,11 @@ func main() {
 
 func defaultDeps() commandDeps {
 	return commandDeps{
-		prepareImages: artifactcore.PrepareImages,
-		apply:         artifactcore.Apply,
-		warningWriter: os.Stderr,
-		out:           os.Stdout,
-		errOut:        os.Stderr,
+		executeDeploy:    artifactcore.ExecuteDeploy,
+		executeProvision: executeProvision,
+		warningWriter:    os.Stderr,
+		out:              os.Stdout,
+		errOut:           os.Stderr,
 	}
 }
 
@@ -84,32 +106,37 @@ func run(args []string, deps commandDeps) (exitCode int) {
 	ctx, err := parser.Parse(args)
 	if err != nil {
 		_, _ = fmt.Fprintf(errOut, "Error: %v\n", err)
-		_, _ = fmt.Fprintln(errOut, "Hint: run `artifactctl --help` or `artifactctl deploy --help`.")
+		_, _ = fmt.Fprintln(errOut, "Hint: run `artifactctl --help`, `artifactctl deploy --help`, or `artifactctl provision --help`.")
 		return 1
 	}
-	if ctx.Command() != "deploy" {
+	switch ctx.Command() {
+	case "deploy":
+		if err := runDeploy(cli.Deploy, deps, errOut); err != nil {
+			_, _ = fmt.Fprintf(errOut, "Error: %v\n", err)
+			if hint := hintForDeployError(err); hint != "" {
+				_, _ = fmt.Fprintf(errOut, "Hint: %s\n", hint)
+			}
+			return 1
+		}
+		return 0
+	case "provision":
+		if err := runProvision(cli.Provision, deps); err != nil {
+			_, _ = fmt.Fprintf(errOut, "Error: %v\n", err)
+			_, _ = fmt.Fprintln(errOut, "Hint: run `artifactctl provision --help` for required arguments.")
+			return 1
+		}
+		return 0
+	default:
 		_, _ = fmt.Fprintf(errOut, "Error: unsupported command: %s\n", ctx.Command())
 		_, _ = fmt.Fprintln(errOut, "Hint: run `artifactctl --help`.")
 		return 1
 	}
-	if err := runDeploy(cli.Deploy, deps, errOut); err != nil {
-		_, _ = fmt.Fprintf(errOut, "Error: %v\n", err)
-		if hint := hintForDeployError(err); hint != "" {
-			_, _ = fmt.Fprintf(errOut, "Hint: %s\n", hint)
-		}
-		return 1
-	}
-	return 0
 }
 
 func runDeploy(cmd DeployCmd, deps commandDeps, errOut io.Writer) error {
-	artifactPath := strings.TrimSpace(cmd.Artifact)
-	outputDir := strings.TrimSpace(cmd.Output)
-	if err := deps.prepareImages(artifactcore.PrepareImagesRequest{
-		ArtifactPath: artifactPath,
-		NoCache:      cmd.NoCache,
-	}); err != nil {
-		return fmt.Errorf("deploy failed during image preparation: %w", err)
+	executeDeploy := deps.executeDeploy
+	if executeDeploy == nil {
+		executeDeploy = artifactcore.ExecuteDeploy
 	}
 	warningWriter := deps.warningWriter
 	if warningWriter == nil {
@@ -119,17 +146,78 @@ func runDeploy(cmd DeployCmd, deps commandDeps, errOut io.Writer) error {
 			warningWriter = errOut
 		}
 	}
-	applyReq := artifactcore.NewApplyRequest(
-		artifactPath,
-		outputDir,
-		cmd.SecretEnv,
-		cmd.Strict,
-		warningWriter,
-	)
-	if err := deps.apply(applyReq); err != nil {
-		return fmt.Errorf("deploy failed during artifact apply: %w", err)
+	result, err := executeDeploy(artifactcore.DeployInput{
+		Apply: artifactcore.ApplyInput{
+			ArtifactPath:  cmd.Artifact,
+			OutputDir:     cmd.Output,
+			SecretEnvPath: cmd.SecretEnv,
+			Strict:        cmd.Strict,
+		},
+		NoCache: cmd.NoCache,
+	})
+	if err != nil {
+		return fmt.Errorf("deploy failed: %w", err)
+	}
+	for _, warning := range result.Warnings {
+		_, _ = fmt.Fprintf(warningWriter, "Warning: %s\n", warning)
 	}
 	return nil
+}
+
+func runProvision(cmd ProvisionCmd, deps commandDeps) error {
+	execProvision := deps.executeProvision
+	if execProvision == nil {
+		execProvision = executeProvision
+	}
+	return execProvision(ProvisionInput{
+		ComposeProject: cmd.ComposeProject,
+		ComposeFiles:   append([]string(nil), cmd.ComposeFiles...),
+		EnvFile:        cmd.EnvFile,
+		ProjectDir:     cmd.ProjectDir,
+		NoDeps:         !cmd.WithDeps,
+		Verbose:        cmd.Verbose,
+	})
+}
+
+func executeProvision(input ProvisionInput) error {
+	workingDir := strings.TrimSpace(input.ProjectDir)
+	if workingDir == "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("resolve working directory: %w", err)
+		}
+		workingDir = cwd
+	}
+	return composeprovision.Execute(
+		context.Background(),
+		osComposeRunner{},
+		workingDir,
+		composeprovision.Request{
+			ComposeProject: input.ComposeProject,
+			ComposeFiles:   input.ComposeFiles,
+			EnvFile:        input.EnvFile,
+			NoDeps:         input.NoDeps,
+			Verbose:        input.Verbose,
+		},
+	)
+}
+
+type osComposeRunner struct{}
+
+func (osComposeRunner) Run(ctx context.Context, cwd, name string, args ...string) error {
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Dir = cwd
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func (osComposeRunner) RunQuiet(ctx context.Context, cwd, name string, args ...string) error {
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Dir = cwd
+	cmd.Stdout = io.Discard
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 func hintForDeployError(err error) string {

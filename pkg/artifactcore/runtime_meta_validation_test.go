@@ -1,7 +1,6 @@
 package artifactcore
 
 import (
-	"bytes"
 	"errors"
 	"os"
 	"path/filepath"
@@ -17,7 +16,7 @@ func TestApply_RuntimeMetaMajorMismatchAlwaysFails(t *testing.T) {
 		},
 	})
 
-	err := Apply(ApplyRequest{
+	_, err := ExecuteApply(ApplyInput{
 		ArtifactPath: manifestPath,
 		OutputDir:    filepath.Join(root, "out"),
 		Strict:       false,
@@ -38,21 +37,19 @@ func TestApply_RuntimeMetaMinorMismatchWarnsUnlessStrict(t *testing.T) {
 		},
 	})
 
-	var warnings bytes.Buffer
-	err := Apply(ApplyRequest{
-		ArtifactPath:  manifestPath,
-		OutputDir:     filepath.Join(root, "out"),
-		Strict:        false,
-		WarningWriter: &warnings,
+	result, err := ExecuteApply(ApplyInput{
+		ArtifactPath: manifestPath,
+		OutputDir:    filepath.Join(root, "out"),
+		Strict:       false,
 	})
 	if err != nil {
 		t.Fatalf("non-strict apply should pass on minor mismatch: %v", err)
 	}
-	if !strings.Contains(warnings.String(), "minor mismatch") {
-		t.Fatalf("expected warning output, got %q", warnings.String())
+	if !containsWarning(result.Warnings, "minor mismatch") {
+		t.Fatalf("expected minor mismatch warning, got %#v", result.Warnings)
 	}
 
-	err = Apply(ApplyRequest{
+	_, err = ExecuteApply(ApplyInput{
 		ArtifactPath: manifestPath,
 		OutputDir:    filepath.Join(root, "out-strict"),
 		Strict:       true,
@@ -73,21 +70,19 @@ func TestApply_RuntimeDigestMismatchWarnsUnlessStrict(t *testing.T) {
 		},
 	})
 
-	var warnings bytes.Buffer
-	err := Apply(ApplyRequest{
-		ArtifactPath:  manifestPath,
-		OutputDir:     filepath.Join(root, "out"),
-		Strict:        false,
-		WarningWriter: &warnings,
+	result, err := ExecuteApply(ApplyInput{
+		ArtifactPath: manifestPath,
+		OutputDir:    filepath.Join(root, "out"),
+		Strict:       false,
 	})
 	if err != nil {
 		t.Fatalf("non-strict apply should pass on digest mismatch: %v", err)
 	}
-	if !strings.Contains(warnings.String(), "python_sitecustomize_digest mismatch") {
-		t.Fatalf("expected digest mismatch warning, got %q", warnings.String())
+	if !containsWarning(result.Warnings, "python_sitecustomize_digest mismatch") {
+		t.Fatalf("expected digest mismatch warning, got %#v", result.Warnings)
 	}
 
-	err = Apply(ApplyRequest{
+	_, err = ExecuteApply(ApplyInput{
 		ArtifactPath: manifestPath,
 		OutputDir:    filepath.Join(root, "out-strict"),
 		Strict:       true,
@@ -122,21 +117,19 @@ func TestApply_RuntimeDigestVerificationMissingArtifactSourceWarnsUnlessStrict(t
 		_ = os.Chdir(origWD)
 	})
 
-	var warnings bytes.Buffer
-	err = Apply(ApplyRequest{
-		ArtifactPath:  manifestPath,
-		OutputDir:     filepath.Join(root, "out"),
-		Strict:        false,
-		WarningWriter: &warnings,
+	result, err := ExecuteApply(ApplyInput{
+		ArtifactPath: manifestPath,
+		OutputDir:    filepath.Join(root, "out"),
+		Strict:       false,
 	})
 	if err != nil {
 		t.Fatalf("non-strict apply should pass when digest source is unavailable: %v", err)
 	}
-	if !strings.Contains(warnings.String(), "python_sitecustomize_digest source unreadable") {
-		t.Fatalf("expected source warning, got %q", warnings.String())
+	if !containsWarning(result.Warnings, "python_sitecustomize_digest source unreadable") {
+		t.Fatalf("expected source warning, got %#v", result.Warnings)
 	}
 
-	err = Apply(ApplyRequest{
+	_, err = ExecuteApply(ApplyInput{
 		ArtifactPath: manifestPath,
 		OutputDir:    filepath.Join(root, "out-strict"),
 		Strict:       true,
@@ -177,7 +170,7 @@ func TestApply_RuntimeDigestVerificationUsesArtifactSourcesOutsideRepoRoot(t *te
 		_ = os.Chdir(origWD)
 	})
 
-	err = Apply(ApplyRequest{
+	_, err = ExecuteApply(ApplyInput{
 		ArtifactPath: manifestPath,
 		OutputDir:    filepath.Join(root, "out-strict"),
 		Strict:       true,
@@ -226,7 +219,7 @@ func writeFixtureRuntimeMetaSources(t *testing.T, artifactRoot string) runtimeAs
 
 	writeFixtureFile(t, pythonPath, "print('fixture sitecustomize')\n")
 
-	pythonDigest, err := fileSHA256(pythonPath)
+	pythonDigest, err := FileSHA256(pythonPath)
 	if err != nil {
 		t.Fatalf("hash fixture python sitecustomize: %v", err)
 	}
@@ -244,4 +237,13 @@ func writeFixtureFile(t *testing.T, path, content string) {
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write fixture file %s: %v", path, err)
 	}
+}
+
+func containsWarning(warnings []string, pattern string) bool {
+	for _, warning := range warnings {
+		if strings.Contains(warning, pattern) {
+			return true
+		}
+	}
+	return false
 }

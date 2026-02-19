@@ -161,7 +161,7 @@ func TestApplyConfigDirEnvSetsHostAndComposeVarWhenStagingExists(t *testing.T) {
 		t.Fatalf("mkdir config dir: %v", err)
 	}
 
-	if err := applyConfigDirEnv(ctx, nil); err != nil {
+	if err := applyConfigDirEnv(ctx); err != nil {
 		t.Fatalf("applyConfigDirEnv: %v", err)
 	}
 
@@ -199,7 +199,7 @@ func TestApplyConfigDirEnvSetsHostAndComposeVarWithoutExistingDir(t *testing.T) 
 		t.Fatalf("resolve config dir: %v", err)
 	}
 
-	if err := applyConfigDirEnv(ctx, nil); err != nil {
+	if err := applyConfigDirEnv(ctx); err != nil {
 		t.Fatalf("applyConfigDirEnv: %v", err)
 	}
 

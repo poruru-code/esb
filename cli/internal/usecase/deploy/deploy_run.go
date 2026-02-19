@@ -21,9 +21,6 @@ var (
 	errApplyComposeProjectMissing = errors.New("compose project is required for apply phase")
 	errApplyEnvRequired           = errors.New("env is required for apply phase")
 	errApplyModeRequired          = errors.New("mode is required for apply phase")
-	errApplyTemplatePathConflict  = errors.New("template path mismatch between request and context for apply phase")
-	errApplyEnvConflict           = errors.New("env mismatch between request and context for apply phase")
-	errApplyModeConflict          = errors.New("mode mismatch between request and context for apply phase")
 )
 
 // Run executes the deploy workflow.
@@ -123,26 +120,12 @@ func (w Workflow) runApplyPhase(req Request) error {
 func normalizeApplyRequest(req Request) (Request, error) {
 	ctx := req.Context
 
-	reqTemplate := strings.TrimSpace(req.TemplatePath)
 	ctxTemplate := strings.TrimSpace(ctx.TemplatePath)
-	if reqTemplate != "" && ctxTemplate != "" && !sameCleanPath(reqTemplate, ctxTemplate) {
-		return Request{}, errApplyTemplatePathConflict
-	}
-	if ctxTemplate == "" {
-		ctxTemplate = reqTemplate
-	}
 	if ctxTemplate == "" {
 		return Request{}, errApplyTemplatePathRequired
 	}
 
-	reqEnv := strings.TrimSpace(req.Env)
 	ctxEnv := strings.TrimSpace(ctx.Env)
-	if reqEnv != "" && ctxEnv != "" && reqEnv != ctxEnv {
-		return Request{}, errApplyEnvConflict
-	}
-	if ctxEnv == "" {
-		ctxEnv = reqEnv
-	}
 	if ctxEnv == "" {
 		return Request{}, errApplyEnvRequired
 	}
@@ -151,14 +134,7 @@ func normalizeApplyRequest(req Request) (Request, error) {
 		return Request{}, errApplyComposeProjectMissing
 	}
 
-	reqMode := strings.TrimSpace(req.Mode)
 	ctxMode := strings.TrimSpace(ctx.Mode)
-	if reqMode != "" && ctxMode != "" && !strings.EqualFold(reqMode, ctxMode) {
-		return Request{}, errApplyModeConflict
-	}
-	if ctxMode == "" {
-		ctxMode = reqMode
-	}
 	if ctxMode == "" {
 		return Request{}, errApplyModeRequired
 	}
@@ -167,9 +143,6 @@ func normalizeApplyRequest(req Request) (Request, error) {
 	ctx.Env = ctxEnv
 	ctx.Mode = ctxMode
 	req.Context = ctx
-	req.TemplatePath = ctxTemplate
-	req.Env = ctxEnv
-	req.Mode = ctxMode
 	return req, nil
 }
 
@@ -187,15 +160,6 @@ func resolveApplyConfigDir(ctx state.Context) (string, error) {
 		return "", errApplyEnvRequired
 	}
 	return staging.ConfigDir(templatePath, composeProject, env)
-}
-
-func sameCleanPath(left, right string) bool {
-	absLeft, errLeft := filepath.Abs(left)
-	absRight, errRight := filepath.Abs(right)
-	if errLeft == nil && errRight == nil {
-		return filepath.Clean(absLeft) == filepath.Clean(absRight)
-	}
-	return filepath.Clean(left) == filepath.Clean(right)
 }
 
 func setConfigDirEnv(configDir string) error {

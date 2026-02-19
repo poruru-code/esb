@@ -9,7 +9,7 @@ from typing import Any, Callable
 
 from e2e.runner.logging import LogSink, run_and_stream
 from e2e.runner.models import RunContext
-from e2e.runner.utils import E2E_ARTIFACT_ROOT, PROJECT_ROOT
+from e2e.runner.utils import PROJECT_ROOT
 
 LOCAL_IMAGE_FIXTURES: dict[str, Path] = {
     "esb-e2e-lambda-python": PROJECT_ROOT / "tools" / "e2e-lambda-fixtures" / "python",
@@ -90,7 +90,16 @@ def _deploy_via_artifact_driver(
     if rc != 0:
         raise RuntimeError(f"artifact deploy failed with exit code {rc}")
 
-    provision_cmd = _build_provision_command(ctx)
+    provision_cmd = [
+        artifactctl_bin,
+        "provision",
+        "--project",
+        ctx.compose_project,
+        "--compose-file",
+        str(ctx.compose_file),
+    ]
+    if ctx.env_file:
+        provision_cmd.extend(["--env-file", ctx.env_file])
     rc = run_and_stream(
         provision_cmd,
         cwd=PROJECT_ROOT,
@@ -108,38 +117,15 @@ def _deploy_via_artifact_driver(
 
 def _resolve_artifact_manifest_path(ctx: RunContext) -> Path:
     manifest_value = ctx.scenario.extra.get("artifact_manifest")
-    if manifest_value is not None:
-        raw = str(manifest_value).strip()
-        if raw:
-            path = Path(raw)
-            if not path.is_absolute():
-                path = PROJECT_ROOT / path
-            return path.resolve()
-    return (E2E_ARTIFACT_ROOT / ctx.scenario.env_name / "artifact.yml").resolve()
-
-
-def _build_provision_command(ctx: RunContext) -> list[str]:
-    cmd = [
-        "docker",
-        "compose",
-        "--project-name",
-        ctx.compose_project,
-        "--file",
-        str(ctx.compose_file),
-    ]
-    if ctx.env_file:
-        cmd.extend(["--env-file", ctx.env_file])
-    cmd.extend(
-        [
-            "--profile",
-            "deploy",
-            "run",
-            "--rm",
-            "--no-deps",
-            "provisioner",
-        ]
-    )
-    return cmd
+    if manifest_value is None:
+        raise ValueError(f"artifact_manifest is required for scenario '{ctx.scenario.env_name}'")
+    raw = str(manifest_value).strip()
+    if raw == "":
+        raise ValueError(f"artifact_manifest is required for scenario '{ctx.scenario.env_name}'")
+    path = Path(raw)
+    if not path.is_absolute():
+        path = PROJECT_ROOT / path
+    return path.resolve()
 
 
 def _prepare_local_fixture_images(

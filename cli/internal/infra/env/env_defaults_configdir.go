@@ -17,9 +17,7 @@ import (
 
 // applyConfigDirEnv sets the CONFIG_DIR environment variable
 // based on the discovered project structure.
-func applyConfigDirEnv(ctx state.Context, resolver func(string) (string, error)) error {
-	_ = resolver
-
+func applyConfigDirEnv(ctx state.Context) error {
 	stagingAbs, err := staging.ConfigDir(ctx.TemplatePath, ctx.ComposeProject, ctx.Env)
 	if err != nil {
 		return fmt.Errorf("resolve config dir: %w", err)

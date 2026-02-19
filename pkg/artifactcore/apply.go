@@ -3,59 +3,27 @@ package artifactcore
 import (
 	"bufio"
 	"fmt"
-	"io"
 	"os"
 	"sort"
 	"strings"
 )
 
-type ApplyRequest struct {
-	ArtifactPath  string
-	OutputDir     string
-	SecretEnvPath string
-	Strict        bool
-	WarningWriter io.Writer
-}
-
-func NewApplyRequest(
-	artifactPath string,
-	outputDir string,
-	secretEnvPath string,
-	strict bool,
-	warningWriter io.Writer,
-) ApplyRequest {
-	return ApplyRequest{
-		ArtifactPath:  strings.TrimSpace(artifactPath),
-		OutputDir:     strings.TrimSpace(outputDir),
-		SecretEnvPath: strings.TrimSpace(secretEnvPath),
-		Strict:        strict,
-		WarningWriter: warningWriter,
-	}
-}
-
-func Apply(req ApplyRequest) error {
+func applyWithWarnings(req ApplyInput) ([]string, error) {
 	manifest, err := ReadArtifactManifest(req.ArtifactPath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	warnings, err := validateRuntimeMetadata(manifest, req.ArtifactPath, req.Strict)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	writeWarnings(req.WarningWriter, warnings)
 	if err := validateRequiredSecrets(manifest, req.SecretEnvPath); err != nil {
-		return err
+		return nil, err
 	}
-	return mergeWithManifest(req.ArtifactPath, req.OutputDir, manifest)
-}
-
-func writeWarnings(w io.Writer, warnings []string) {
-	if w == nil || len(warnings) == 0 {
-		return
+	if err := mergeWithManifest(req.ArtifactPath, req.OutputDir, manifest); err != nil {
+		return nil, err
 	}
-	for _, warning := range warnings {
-		_, _ = fmt.Fprintf(w, "Warning: %s\n", warning)
-	}
+	return warnings, nil
 }
 
 func validateRequiredSecrets(manifest ArtifactManifest, secretEnvPath string) error {

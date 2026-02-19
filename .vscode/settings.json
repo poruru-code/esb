@@ -1,9 +1,6 @@
 {
-  // Python: Use 'ty' extension for LSP features, disable default language server (Pylance/Jedi)
   "python.languageServer": "None",
   "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
-
-  // Python: Ruff for formatting and linting (aligned with lefthook)
   "[python]": {
     "editor.defaultFormatter": "charliermarsh.ruff",
     "editor.formatOnSave": true,
@@ -12,17 +9,12 @@
       "source.organizeImports.ruff": "explicit"
     }
   },
-
-  // Ty Type Checker Configuration
   "ty.enable": true,
   "ty.args": [
     "check",
-    // Target directories aligned with CLI/CI command
     "tools/",
     "services/gateway/"
   ],
-
-  // Go: ensure workspace module graph is resolved via repo root go.work
   "go.toolsEnvVars": {
     "GOWORK": "${workspaceFolder}/go.work"
   },

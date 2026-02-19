@@ -4,11 +4,10 @@
 package deploy
 
 import (
-	"errors"
-	"strings"
-)
+	"fmt"
 
-var errArtifactPathRequired = errors.New("artifact path is required for apply phase")
+	"github.com/poruru/edge-serverless-box/pkg/artifactcore"
+)
 
 func (w Workflow) runRuntimeProvisionPhase(req Request, stagingDir string) error {
 	if err := w.applyArtifactRuntimeConfig(req, stagingDir); err != nil {
@@ -19,7 +18,7 @@ func (w Workflow) runRuntimeProvisionPhase(req Request, stagingDir string) error
 	}
 	return w.wrapProvisionerError(w.runProvisioner(
 		req.Context.ComposeProject,
-		req.Mode,
+		req.Context.Mode,
 		req.NoDeps,
 		req.Verbose,
 		req.Context.ProjectDir,
@@ -28,19 +27,14 @@ func (w Workflow) runRuntimeProvisionPhase(req Request, stagingDir string) error
 }
 
 func (w Workflow) applyArtifactRuntimeConfig(req Request, stagingDir string) error {
-	artifactPath := strings.TrimSpace(req.ArtifactPath)
-	if artifactPath == "" {
-		return errArtifactPathRequired
+	_, err := artifactcore.ExecuteApply(artifactcore.ApplyInput{
+		ArtifactPath:  req.ArtifactPath,
+		OutputDir:     stagingDir,
+		SecretEnvPath: req.SecretEnvPath,
+		Strict:        req.Strict,
+	})
+	if err != nil {
+		return fmt.Errorf("apply artifact runtime config: %w", err)
 	}
-	return ApplyArtifact(runtimeProvisionApplyRequest(artifactPath, stagingDir))
-}
-
-func runtimeProvisionApplyRequest(artifactPath, outputDir string) ArtifactApplyRequest {
-	return ArtifactApplyRequest{
-		ArtifactPath:  artifactPath,
-		OutputDir:     outputDir,
-		SecretEnvPath: "",
-		Strict:        false,
-		WarningWriter: nil,
-	}
+	return nil
 }

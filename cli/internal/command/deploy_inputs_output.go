@@ -14,15 +14,10 @@ import (
 
 func resolveDeployOutput(
 	value string,
-	templatePath string,
-	env string,
 	isTTY bool,
 	prompter interaction.Prompter,
 	previous string,
 ) (string, error) {
-	_ = templatePath
-	_ = env
-
 	trimmed := strings.TrimSpace(value)
 	if trimmed != "" {
 		return trimmed, nil

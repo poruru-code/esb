@@ -12,6 +12,7 @@ import (
 	infradeploy "github.com/poruru/edge-serverless-box/cli/internal/infra/deploy"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/envutil"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
+	"github.com/poruru/edge-serverless-box/pkg/artifactcore"
 )
 
 func TestDeployWorkflowRunSuccess(t *testing.T) {
@@ -28,13 +29,13 @@ func TestDeployWorkflowRunSuccess(t *testing.T) {
 	ctx := state.Context{
 		ProjectDir:     repoRoot,
 		ComposeProject: "esb-dev",
+		TemplatePath:   filepath.Join(repoRoot, "template.yaml"),
+		Env:            "dev",
+		Mode:           "docker",
 	}
 	artifactPath := writeTestArtifactManifest(t)
 	req := Request{
 		Context:      ctx,
-		Env:          "dev",
-		Mode:         "docker",
-		TemplatePath: filepath.Join(repoRoot, "template.yaml"),
 		ArtifactPath: artifactPath,
 		OutputDir:    ".out",
 		Parameters:   map[string]string{"ParamA": "value"},
@@ -71,13 +72,13 @@ func TestDeployWorkflowRunSuccess(t *testing.T) {
 	if got.ProjectName != req.Context.ComposeProject {
 		t.Fatalf("project name mismatch: %s", got.ProjectName)
 	}
-	if got.TemplatePath != req.TemplatePath {
+	if got.TemplatePath != req.Context.TemplatePath {
 		t.Fatalf("template path mismatch: %s", got.TemplatePath)
 	}
-	if got.Env != req.Env {
+	if got.Env != req.Context.Env {
 		t.Fatalf("env mismatch: %s", got.Env)
 	}
-	if got.Mode != req.Mode {
+	if got.Mode != req.Context.Mode {
 		t.Fatalf("mode mismatch: %s", got.Mode)
 	}
 	if got.OutputDir != req.OutputDir {
@@ -122,13 +123,13 @@ func TestDeployWorkflowRunRespectsRenderOnlyBuildFlag(t *testing.T) {
 		Context: state.Context{
 			ProjectDir:     repoRoot,
 			ComposeProject: "esb-dev",
+			TemplatePath:   filepath.Join(repoRoot, "template.yaml"),
+			Env:            "dev",
+			Mode:           "docker",
 		},
-		Env:          "dev",
-		Mode:         "docker",
-		TemplatePath: filepath.Join(repoRoot, "template.yaml"),
-		OutputDir:    ".out",
-		BuildOnly:    true,
-		BuildImages:  &buildImages,
+		OutputDir:   ".out",
+		BuildOnly:   true,
+		BuildImages: &buildImages,
 	}
 
 	workflow := NewDeployWorkflow(builder.Build, envApplier.Apply, ui, runner)
@@ -164,15 +165,15 @@ func TestDeployWorkflowRunWithExternalTemplate(t *testing.T) {
 	ctx := state.Context{
 		ProjectDir:     repoRoot,
 		ComposeProject: "esb-dev",
+		TemplatePath:   externalTemplate,
+		Env:            "dev",
+		Mode:           "docker",
 	}
 	req := Request{
-		Context:      ctx,
-		Env:          "dev",
-		Mode:         "docker",
-		TemplatePath: externalTemplate,
-		OutputDir:    ".out",
-		Tag:          "v1.2.3",
-		BuildOnly:    true,
+		Context:   ctx,
+		OutputDir: ".out",
+		Tag:       "v1.2.3",
+		BuildOnly: true,
 	}
 
 	workflow := NewDeployWorkflow(builder.Build, envApplier.Apply, ui, runner)
@@ -208,13 +209,13 @@ func TestDeployWorkflowApplyRequiresArtifactPath(t *testing.T) {
 		Context: state.Context{
 			ProjectDir:     repoRoot,
 			ComposeProject: "esb-dev",
+			TemplatePath:   filepath.Join(repoRoot, "template.yaml"),
+			Env:            "dev",
+			Mode:           "docker",
 		},
-		Env:          "dev",
-		Mode:         "docker",
-		TemplatePath: filepath.Join(repoRoot, "template.yaml"),
 	})
-	if err == nil || !strings.Contains(err.Error(), errArtifactPathRequired.Error()) {
-		t.Fatalf("expected artifact-path-required error, got %v", err)
+	if !errors.Is(err, artifactcore.ErrArtifactPathRequired) {
+		t.Fatalf("expected ErrArtifactPathRequired, got %v", err)
 	}
 }
 
@@ -232,10 +233,10 @@ func TestDeployWorkflowApplySuccess(t *testing.T) {
 		Context: state.Context{
 			ComposeProject: "esb-dev",
 			ProjectDir:     repoRoot,
+			TemplatePath:   templatePath,
+			Env:            "dev",
+			Mode:           "docker",
 		},
-		Env:          "dev",
-		Mode:         "docker",
-		TemplatePath: templatePath,
 		ArtifactPath: artifactPath,
 	})
 	if err != nil {
@@ -273,9 +274,9 @@ func TestDeployWorkflowApplyRequiresTemplatePath(t *testing.T) {
 		Context: state.Context{
 			ComposeProject: "esb-dev",
 			ProjectDir:     repoRoot,
+			Env:            "dev",
+			Mode:           "docker",
 		},
-		Env:          "dev",
-		Mode:         "docker",
 		ArtifactPath: artifactPath,
 	})
 	if !errors.Is(err, errApplyTemplatePathRequired) {
@@ -293,11 +294,11 @@ func TestDeployWorkflowApplyRequiresComposeProject(t *testing.T) {
 	artifactPath := writeTestArtifactManifest(t)
 	err := workflow.Apply(Request{
 		Context: state.Context{
-			ProjectDir: repoRoot,
+			ProjectDir:   repoRoot,
+			TemplatePath: filepath.Join(repoRoot, "template.yaml"),
+			Env:          "dev",
+			Mode:         "docker",
 		},
-		Env:          "dev",
-		Mode:         "docker",
-		TemplatePath: filepath.Join(repoRoot, "template.yaml"),
 		ArtifactPath: artifactPath,
 	})
 	if !errors.Is(err, errApplyComposeProjectMissing) {
@@ -317,9 +318,9 @@ func TestDeployWorkflowApplyRequiresEnv(t *testing.T) {
 		Context: state.Context{
 			ComposeProject: "esb-dev",
 			ProjectDir:     repoRoot,
+			TemplatePath:   filepath.Join(repoRoot, "template.yaml"),
+			Mode:           "docker",
 		},
-		Mode:         "docker",
-		TemplatePath: filepath.Join(repoRoot, "template.yaml"),
 		ArtifactPath: artifactPath,
 	})
 	if !errors.Is(err, errApplyEnvRequired) {
@@ -339,89 +340,13 @@ func TestDeployWorkflowApplyRequiresMode(t *testing.T) {
 		Context: state.Context{
 			ComposeProject: "esb-dev",
 			ProjectDir:     repoRoot,
+			TemplatePath:   filepath.Join(repoRoot, "template.yaml"),
+			Env:            "dev",
 		},
-		Env:          "dev",
-		TemplatePath: filepath.Join(repoRoot, "template.yaml"),
 		ArtifactPath: artifactPath,
 	})
 	if !errors.Is(err, errApplyModeRequired) {
 		t.Fatalf("expected errApplyModeRequired, got %v", err)
-	}
-}
-
-func TestDeployWorkflowApplyRejectsTemplatePathConflict(t *testing.T) {
-	ui := &testUI{}
-	runner := &fakeComposeRunner{}
-	workflow := NewDeployWorkflow(nil, nil, ui, runner)
-	workflow.RegistryWaiter = noopRegistryWaiter
-	repoRoot := newTestRepoRoot(t)
-
-	artifactPath := writeTestArtifactManifest(t)
-	err := workflow.Apply(Request{
-		Context: state.Context{
-			ComposeProject: "esb-dev",
-			ProjectDir:     repoRoot,
-			TemplatePath:   filepath.Join(repoRoot, "context-template.yaml"),
-			Env:            "dev",
-		},
-		Env:          "dev",
-		Mode:         "docker",
-		TemplatePath: filepath.Join(repoRoot, "request-template.yaml"),
-		ArtifactPath: artifactPath,
-	})
-	if !errors.Is(err, errApplyTemplatePathConflict) {
-		t.Fatalf("expected errApplyTemplatePathConflict, got %v", err)
-	}
-}
-
-func TestDeployWorkflowApplyRejectsEnvConflict(t *testing.T) {
-	ui := &testUI{}
-	runner := &fakeComposeRunner{}
-	workflow := NewDeployWorkflow(nil, nil, ui, runner)
-	workflow.RegistryWaiter = noopRegistryWaiter
-	repoRoot := newTestRepoRoot(t)
-
-	artifactPath := writeTestArtifactManifest(t)
-	err := workflow.Apply(Request{
-		Context: state.Context{
-			ComposeProject: "esb-dev",
-			ProjectDir:     repoRoot,
-			TemplatePath:   filepath.Join(repoRoot, "template.yaml"),
-			Env:            "staging",
-		},
-		Env:          "dev",
-		Mode:         "docker",
-		TemplatePath: filepath.Join(repoRoot, "template.yaml"),
-		ArtifactPath: artifactPath,
-	})
-	if !errors.Is(err, errApplyEnvConflict) {
-		t.Fatalf("expected errApplyEnvConflict, got %v", err)
-	}
-}
-
-func TestDeployWorkflowApplyRejectsModeConflict(t *testing.T) {
-	ui := &testUI{}
-	runner := &fakeComposeRunner{}
-	workflow := NewDeployWorkflow(nil, nil, ui, runner)
-	workflow.RegistryWaiter = noopRegistryWaiter
-	repoRoot := newTestRepoRoot(t)
-
-	artifactPath := writeTestArtifactManifest(t)
-	err := workflow.Apply(Request{
-		Context: state.Context{
-			ComposeProject: "esb-dev",
-			ProjectDir:     repoRoot,
-			TemplatePath:   filepath.Join(repoRoot, "template.yaml"),
-			Env:            "dev",
-			Mode:           "containerd",
-		},
-		Env:          "dev",
-		Mode:         "docker",
-		TemplatePath: filepath.Join(repoRoot, "template.yaml"),
-		ArtifactPath: artifactPath,
-	})
-	if !errors.Is(err, errApplyModeConflict) {
-		t.Fatalf("expected errApplyModeConflict, got %v", err)
 	}
 }
 
@@ -466,10 +391,10 @@ func TestDeployWorkflowApplyKeepsProvisionerConfigInCanonicalPathWhenRuntimeSync
 		Context: state.Context{
 			ComposeProject: "esb-dev",
 			ProjectDir:     repoRoot,
+			TemplatePath:   templatePath,
+			Env:            "dev",
+			Mode:           "docker",
 		},
-		Env:          "dev",
-		Mode:         "docker",
-		TemplatePath: templatePath,
 		ArtifactPath: artifactPath,
 	}); err != nil {
 		t.Fatalf("Apply: %v", err)
@@ -507,26 +432,19 @@ func TestRunProvisionerUsesComposeOverride(t *testing.T) {
 		t.Fatalf("runProvisioner: %v", err)
 	}
 
-	foundConfig := false
 	foundRun := false
 	for _, cmd := range runner.commands {
 		joined := strings.Join(cmd, " ")
-		if strings.Contains(joined, "config --services") && strings.Contains(joined, composePath) {
-			foundConfig = true
-		}
 		if strings.Contains(joined, "run --rm provisioner") && strings.Contains(joined, composePath) {
 			foundRun = true
 		}
-	}
-	if !foundConfig {
-		t.Fatalf("expected compose config to use override file")
 	}
 	if !foundRun {
 		t.Fatalf("expected compose run to use override file")
 	}
 }
 
-func TestRunProvisionerFailsOnOverrideMissingServices(t *testing.T) {
+func TestRunProvisionerSkipsOverrideMissingServicesPrecheck(t *testing.T) {
 	runner := &fakeComposeRunner{output: []byte("provisioner\n")}
 	ui := &testUI{}
 	workflow := Workflow{
@@ -551,8 +469,8 @@ func TestRunProvisionerFailsOnOverrideMissingServices(t *testing.T) {
 		repoRoot,
 		[]string{composePath},
 	)
-	if err == nil || !strings.Contains(err.Error(), "compose override missing services") {
-		t.Fatalf("expected missing services error, got %v", err)
+	if err != nil {
+		t.Fatalf("expected provision run without precheck hard-fail, got %v", err)
 	}
 }
 
@@ -612,30 +530,30 @@ func writeTestArtifactManifest(t *testing.T) string {
 		t.Fatalf("write routing.yml: %v", err)
 	}
 
-	manifest := ArtifactManifest{
-		SchemaVersion: ArtifactSchemaVersionV1,
+	manifest := artifactcore.ArtifactManifest{
+		SchemaVersion: artifactcore.ArtifactSchemaVersionV1,
 		Project:       "esb-dev",
 		Env:           "dev",
 		Mode:          "docker",
-		Artifacts: []ArtifactEntry{
+		Artifacts: []artifactcore.ArtifactEntry{
 			{
 				ArtifactRoot:     "../artifact",
 				RuntimeConfigDir: "config",
-				SourceTemplate: ArtifactSourceTemplate{
+				SourceTemplate: artifactcore.ArtifactSourceTemplate{
 					Path:   "/tmp/template.yaml",
 					SHA256: "sha-template",
 				},
 			},
 		},
 	}
-	manifest.Artifacts[0].ID = ComputeArtifactID(
+	manifest.Artifacts[0].ID = artifactcore.ComputeArtifactID(
 		manifest.Artifacts[0].SourceTemplate.Path,
 		manifest.Artifacts[0].SourceTemplate.Parameters,
 		manifest.Artifacts[0].SourceTemplate.SHA256,
 	)
 
 	manifestPath := filepath.Join(root, "manifest", "artifact.yml")
-	if err := WriteArtifactManifest(manifestPath, manifest); err != nil {
+	if err := artifactcore.WriteArtifactManifest(manifestPath, manifest); err != nil {
 		t.Fatalf("write artifact manifest: %v", err)
 	}
 	return manifestPath

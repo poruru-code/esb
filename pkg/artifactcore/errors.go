@@ -10,6 +10,8 @@ import (
 var (
 	ErrRuntimeBaseDockerfileMissing = errors.New("runtime base dockerfile missing")
 	ErrSecretEnvFileRequired        = errors.New("secret env file required")
+	ErrArtifactPathRequired         = errors.New("artifact path is required")
+	ErrOutputDirRequired            = errors.New("output dir is required")
 )
 
 type MissingSecretKeysError struct {

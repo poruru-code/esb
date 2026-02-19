@@ -4,7 +4,6 @@
 package command
 
 import (
-	"errors"
 	"io"
 
 	"github.com/poruru/edge-serverless-box/pkg/artifactcore"
@@ -47,22 +46,19 @@ func boolPtr(value bool) *bool {
 
 func runArtifactApply(cli CLI, _ Dependencies, out io.Writer) int {
 	args := cli.Artifact.Apply
-	req := artifactcore.NewApplyRequest(
-		args.Artifact,
-		args.OutputDir,
-		args.SecretEnv,
-		args.Strict,
-		out,
-	)
-	if req.ArtifactPath == "" {
-		return exitWithError(out, errors.New("artifact apply: --artifact is required"))
-	}
-	if req.OutputDir == "" {
-		return exitWithError(out, errors.New("artifact apply: --out is required"))
-	}
-	if err := artifactcore.Apply(req); err != nil {
+	result, err := artifactcore.ExecuteApply(artifactcore.ApplyInput{
+		ArtifactPath:  args.Artifact,
+		OutputDir:     args.OutputDir,
+		SecretEnvPath: args.SecretEnv,
+		Strict:        args.Strict,
+	})
+	if err != nil {
 		return exitWithError(out, err)
 	}
-	legacyUI(out).Success("Artifact apply complete")
+	deployUI := legacyUI(out)
+	for _, warning := range result.Warnings {
+		deployUI.Warn(warning)
+	}
+	deployUI.Success("Artifact apply complete")
 	return 0
 }
