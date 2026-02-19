@@ -48,6 +48,107 @@ func TestSyncRuntimeConfigToTarget_ContainerCopyFailureIsReturned(t *testing.T) 
 	}
 }
 
+func TestSyncRuntimeConfigFromDirSkipsWhenComposeProjectEmpty(t *testing.T) {
+	called := false
+	workflow := Workflow{
+		DockerClient: func() (compose.DockerClient, error) {
+			called = true
+			return runtimeConfigDockerClient{}, nil
+		},
+	}
+	if err := workflow.syncRuntimeConfigFromDir("", t.TempDir()); err != nil {
+		t.Fatalf("syncRuntimeConfigFromDir() error = %v, want nil", err)
+	}
+	if called {
+		t.Fatal("docker client must not be called when compose project is empty")
+	}
+}
+
+func TestSyncRuntimeConfigFromDirRequiresStagingDir(t *testing.T) {
+	workflow := Workflow{}
+	err := workflow.syncRuntimeConfigFromDir("esb-dev", "")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "staging dir is required") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestSyncRuntimeConfigFromDirSkipsWhenStagingDirMissing(t *testing.T) {
+	workflow := Workflow{}
+	missing := filepath.Join(t.TempDir(), "missing")
+	if err := workflow.syncRuntimeConfigFromDir("esb-dev", missing); err != nil {
+		t.Fatalf("syncRuntimeConfigFromDir() error = %v, want nil", err)
+	}
+}
+
+func TestSyncRuntimeConfigFromDirPropagatesResolveTargetError(t *testing.T) {
+	workflow := Workflow{
+		DockerClient: func() (compose.DockerClient, error) {
+			return nil, errors.New("docker unavailable")
+		},
+	}
+
+	err := workflow.syncRuntimeConfigFromDir("esb-dev", t.TempDir())
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "create docker client") {
+		t.Fatalf("expected create docker client context, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "docker unavailable") {
+		t.Fatalf("expected underlying error in message, got: %v", err)
+	}
+}
+
+func TestSyncRuntimeConfigFromDirCopiesToResolvedBindPath(t *testing.T) {
+	stagingDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(stagingDir, "functions.yml"), []byte("functions:\n  a: {}\n"), 0o644); err != nil {
+		t.Fatalf("write functions.yml: %v", err)
+	}
+	destDir := t.TempDir()
+	destFile := filepath.Join(destDir, "functions.yml")
+	if err := os.WriteFile(destFile, []byte("functions:\n  old: {}\n"), 0o644); err != nil {
+		t.Fatalf("seed destination file: %v", err)
+	}
+
+	workflow := Workflow{
+		DockerClient: func() (compose.DockerClient, error) {
+			return runtimeConfigDockerClient{
+				containers: []container.Summary{
+					{
+						ID:    "gateway-1",
+						State: "running",
+						Labels: map[string]string{
+							compose.ComposeServiceLabel: "gateway",
+						},
+						Mounts: []container.MountPoint{
+							{
+								Destination: runtimeConfigMountPath,
+								Type:        "bind",
+								Source:      destDir,
+							},
+						},
+					},
+				},
+			}, nil
+		},
+	}
+
+	if err := workflow.syncRuntimeConfigFromDir("esb-dev", stagingDir); err != nil {
+		t.Fatalf("syncRuntimeConfigFromDir() error = %v", err)
+	}
+
+	got, err := os.ReadFile(destFile)
+	if err != nil {
+		t.Fatalf("read copied file: %v", err)
+	}
+	if string(got) != "functions:\n  a: {}\n" {
+		t.Fatalf("unexpected functions.yml content: %q", string(got))
+	}
+}
+
 func TestSyncRuntimeConfigToTarget_JoinsContainerAndVolumeErrors(t *testing.T) {
 	stagingDir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(stagingDir, "functions.yml"), []byte("k: v\n"), 0o644); err != nil {
