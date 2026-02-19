@@ -76,6 +76,26 @@ func TestApplyArtifactRuntimeConfigFailsWhenArtifactPathEmpty(t *testing.T) {
 	}
 }
 
+func TestRuntimeProvisionApplyRequestDefaults(t *testing.T) {
+	req := runtimeProvisionApplyRequest("artifact.yml", "staging-config")
+
+	if req.ArtifactPath != "artifact.yml" {
+		t.Fatalf("ArtifactPath=%q", req.ArtifactPath)
+	}
+	if req.OutputDir != "staging-config" {
+		t.Fatalf("OutputDir=%q", req.OutputDir)
+	}
+	if req.SecretEnvPath != "" {
+		t.Fatalf("SecretEnvPath=%q, want empty", req.SecretEnvPath)
+	}
+	if req.Strict {
+		t.Fatal("Strict=true, want false")
+	}
+	if req.WarningWriter != nil {
+		t.Fatalf("WarningWriter=%v, want nil", req.WarningWriter)
+	}
+}
+
 func writeRuntimeConfigFile(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

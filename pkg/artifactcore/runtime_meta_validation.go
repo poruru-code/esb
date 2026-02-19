@@ -12,10 +12,10 @@ import (
 )
 
 const (
-	supportedRuntimeHooksAPIVersion = "1.0"
-	supportedTemplateRendererName   = "esb-cli-embedded-templates"
-	supportedTemplateRendererAPI    = "1.0"
-	artifactPythonSitecustomizeRel  = "runtime-base/runtime-hooks/python/sitecustomize/site-packages/sitecustomize.py"
+	RuntimeHooksAPIVersion         = "1.0"
+	TemplateRendererName           = "esb-cli-embedded-templates"
+	TemplateRendererAPIVersion     = "1.0"
+	artifactPythonSitecustomizeRel = "runtime-base/runtime-hooks/python/sitecustomize/site-packages/sitecustomize.py"
 )
 
 type runtimeAssetDigests struct {
@@ -31,7 +31,7 @@ func validateRuntimeMetadata(manifest ArtifactManifest, manifestPath string, str
 		if err := validateAPIVersion(
 			prefix+".runtime_hooks.api_version",
 			entry.RuntimeMeta.Hooks.APIVersion,
-			supportedRuntimeHooksAPIVersion,
+			RuntimeHooksAPIVersion,
 			strict,
 			&warnings,
 		); err != nil {
@@ -40,16 +40,16 @@ func validateRuntimeMetadata(manifest ArtifactManifest, manifestPath string, str
 		if err := validateAPIVersion(
 			prefix+".template_renderer.api_version",
 			entry.RuntimeMeta.Renderer.APIVersion,
-			supportedTemplateRendererAPI,
+			TemplateRendererAPIVersion,
 			strict,
 			&warnings,
 		); err != nil {
 			return nil, err
 		}
-		if name := strings.TrimSpace(entry.RuntimeMeta.Renderer.Name); name != "" && name != supportedTemplateRendererName {
+		if name := strings.TrimSpace(entry.RuntimeMeta.Renderer.Name); name != "" && name != TemplateRendererName {
 			warnings = append(
 				warnings,
-				fmt.Sprintf("%s.name is %q (expected %q)", prefix+".template_renderer", name, supportedTemplateRendererName),
+				fmt.Sprintf("%s.name is %q (expected %q)", prefix+".template_renderer", name, TemplateRendererName),
 			)
 		}
 
@@ -117,6 +117,14 @@ func resolveArtifactFileDigest(
 	if err != nil {
 		message := fmt.Sprintf("%s source unreadable at %s: %v", field, sourcePath, err)
 		if strict {
+			if os.IsNotExist(err) {
+				return "", false, fmt.Errorf(
+					"%s source unreadable at %s: %w",
+					field,
+					sourcePath,
+					MissingReferencedPathError{Path: sourcePath},
+				)
+			}
 			return "", false, errors.New(message)
 		}
 		*warnings = append(*warnings, message)

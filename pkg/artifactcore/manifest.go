@@ -65,11 +65,6 @@ type RendererMeta struct {
 	APIVersion string `yaml:"api_version,omitempty"`
 }
 
-func ValidateIDs(path string) error {
-	_, err := ReadArtifactManifest(path)
-	return err
-}
-
 func (d ArtifactManifest) Validate() error {
 	schemaVersion := strings.TrimSpace(d.SchemaVersion)
 	if schemaVersion == "" {
@@ -174,6 +169,9 @@ func (d ArtifactManifest) ResolveBundleManifest(manifestPath string, index int) 
 func ReadArtifactManifest(path string) (ArtifactManifest, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return ArtifactManifest{}, fmt.Errorf("read artifact manifest: %w", MissingReferencedPathError{Path: path})
+		}
 		return ArtifactManifest{}, err
 	}
 	decoder := yaml.NewDecoder(bytes.NewReader(data))

@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -212,31 +213,41 @@ func TestHintForDeployError(t *testing.T) {
 	}{
 		{
 			name: "runtime base missing",
-			err:  errors.New("runtime base dockerfile not found: /tmp/Dockerfile"),
-			want: "run `esb artifact generate ...`",
+			err:  artifactcore.ErrRuntimeBaseDockerfileMissing,
+			want: "run `esb artifact generate ...` to stage runtime-base into the artifact before deploy.",
+		},
+		{
+			name: "secret env required",
+			err:  artifactcore.ErrSecretEnvFileRequired,
+			want: "set `--secret-env <path>` with all required secret keys listed in artifact.yml.",
 		},
 		{
 			name: "missing secrets",
-			err:  errors.New("missing required secret env keys: A, B"),
-			want: "--secret-env",
+			err:  artifactcore.MissingSecretKeysError{Keys: []string{"B", "A"}},
+			want: "set `--secret-env <path>` with all required secret keys listed in artifact.yml.",
 		},
 		{
 			name: "not found",
-			err:  errors.New("open /tmp/artifact.yml: no such file or directory"),
-			want: "confirm `--artifact`",
+			err:  artifactcore.MissingReferencedPathError{Path: "/tmp/artifact.yml"},
+			want: "confirm `--artifact` and referenced files exist and are readable.",
+		},
+		{
+			name: "wrapped not found",
+			err:  fmt.Errorf("deploy failed during artifact apply: %w", artifactcore.MissingReferencedPathError{Path: "/tmp/a.yml"}),
+			want: "confirm `--artifact` and referenced files exist and are readable.",
 		},
 		{
 			name: "fallback",
 			err:  errors.New("other"),
-			want: "artifactctl deploy --help",
+			want: "run `artifactctl deploy --help` for required arguments.",
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			got := hintForDeployError(tc.err)
-			if !strings.Contains(got, tc.want) {
-				t.Fatalf("hint=%q want substring=%q", got, tc.want)
+			if got != tc.want {
+				t.Fatalf("hint=%q want=%q", got, tc.want)
 			}
 		})
 	}

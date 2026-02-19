@@ -3,9 +3,18 @@
 // Why: Keep Go logic single-sourced and decoupled from artifactctl CLI adapter.
 package deploy
 
-import engine "github.com/poruru/edge-serverless-box/pkg/artifactcore"
+import (
+	"io"
 
-const ArtifactSchemaVersionV1 = engine.ArtifactSchemaVersionV1
+	engine "github.com/poruru/edge-serverless-box/pkg/artifactcore"
+)
+
+const (
+	ArtifactSchemaVersionV1    = engine.ArtifactSchemaVersionV1
+	RuntimeHooksAPIVersion     = engine.RuntimeHooksAPIVersion
+	TemplateRendererName       = engine.TemplateRendererName
+	TemplateRendererAPIVersion = engine.TemplateRendererAPIVersion
+)
 
 type (
 	ArtifactManifest       = engine.ArtifactManifest
@@ -15,8 +24,15 @@ type (
 	ArtifactRuntimeMeta    = engine.ArtifactRuntimeMeta
 	RuntimeHooksMeta       = engine.RuntimeHooksMeta
 	RendererMeta           = engine.RendererMeta
-	ArtifactApplyRequest   = engine.ApplyRequest
 )
+
+type ArtifactApplyRequest struct {
+	ArtifactPath  string
+	OutputDir     string
+	SecretEnvPath string
+	Strict        bool
+	WarningWriter io.Writer
+}
 
 func ReadArtifactManifest(path string) (ArtifactManifest, error) {
 	return engine.ReadArtifactManifest(path)
@@ -31,5 +47,15 @@ func ComputeArtifactID(templatePath string, parameters map[string]string, source
 }
 
 func ApplyArtifact(req ArtifactApplyRequest) error {
-	return engine.Apply(req)
+	return engine.Apply(toEngineApplyRequest(req))
+}
+
+func toEngineApplyRequest(req ArtifactApplyRequest) engine.ApplyRequest {
+	return engine.NewApplyRequest(
+		req.ArtifactPath,
+		req.OutputDir,
+		req.SecretEnvPath,
+		req.Strict,
+		req.WarningWriter,
+	)
 }

@@ -1,6 +1,7 @@
 package deploy
 
 import (
+	"bytes"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -251,5 +252,33 @@ func TestComputeArtifactIDDeterministic(t *testing.T) {
 	}
 	if !strings.HasPrefix(first, "template-") {
 		t.Fatalf("unexpected id prefix: %q", first)
+	}
+}
+
+func TestToEngineApplyRequestMapsAllFields(t *testing.T) {
+	var warnings bytes.Buffer
+	req := ArtifactApplyRequest{
+		ArtifactPath:  "artifact.yml",
+		OutputDir:     "staging",
+		SecretEnvPath: "secrets.env",
+		Strict:        true,
+		WarningWriter: &warnings,
+	}
+
+	got := toEngineApplyRequest(req)
+	if got.ArtifactPath != req.ArtifactPath {
+		t.Fatalf("ArtifactPath=%q", got.ArtifactPath)
+	}
+	if got.OutputDir != req.OutputDir {
+		t.Fatalf("OutputDir=%q", got.OutputDir)
+	}
+	if got.SecretEnvPath != req.SecretEnvPath {
+		t.Fatalf("SecretEnvPath=%q", got.SecretEnvPath)
+	}
+	if got.Strict != req.Strict {
+		t.Fatalf("Strict=%v", got.Strict)
+	}
+	if got.WarningWriter != req.WarningWriter {
+		t.Fatalf("WarningWriter=%v", got.WarningWriter)
 	}
 }

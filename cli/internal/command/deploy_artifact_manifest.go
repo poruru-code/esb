@@ -20,12 +20,6 @@ import (
 
 const artifactManifestFileName = "artifact.yml"
 
-const (
-	runtimeHooksAPIVersion     = "1.0"
-	templateRendererName       = "esb-cli-embedded-templates"
-	templateRendererAPIVersion = "1.0"
-)
-
 func writeDeployArtifactManifest(
 	inputs deployInputs,
 	bundleEnabled bool,
@@ -105,12 +99,12 @@ func resolveRuntimeMeta(projectDir string) (deploy.ArtifactRuntimeMeta, error) {
 	}
 	return deploy.ArtifactRuntimeMeta{
 		Hooks: deploy.RuntimeHooksMeta{
-			APIVersion:                runtimeHooksAPIVersion,
+			APIVersion:                deploy.RuntimeHooksAPIVersion,
 			PythonSitecustomizeDigest: pythonSitecustomizeDigest,
 		},
 		Renderer: deploy.RendererMeta{
-			Name:       templateRendererName,
-			APIVersion: templateRendererAPIVersion,
+			Name:       deploy.TemplateRendererName,
+			APIVersion: deploy.TemplateRendererAPIVersion,
 		},
 	}, nil
 }

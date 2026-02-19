@@ -222,10 +222,10 @@ func resolveRuntimeBaseBuildContext(artifactRoot string) (string, string, error)
 	contextDir := filepath.Join(artifactRoot, runtimeBaseContextDirName)
 	dockerfile := filepath.Join(contextDir, runtimeBasePythonDockerfileRel)
 	if _, err := os.Stat(dockerfile); err != nil {
-		return "", "", fmt.Errorf(
-			"runtime base dockerfile not found: %s (run artifact generate to stage runtime-base)",
-			dockerfile,
-		)
+		if !os.IsNotExist(err) {
+			return "", "", fmt.Errorf("stat runtime base dockerfile %s: %w", dockerfile, err)
+		}
+		return "", "", fmt.Errorf("%w: %s (run artifact generate to stage runtime-base)", ErrRuntimeBaseDockerfileMissing, dockerfile)
 	}
 	return dockerfile, contextDir, nil
 }

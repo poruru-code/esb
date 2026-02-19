@@ -32,8 +32,15 @@ func (w Workflow) applyArtifactRuntimeConfig(req Request, stagingDir string) err
 	if artifactPath == "" {
 		return errArtifactPathRequired
 	}
-	return ApplyArtifact(ArtifactApplyRequest{
-		ArtifactPath: artifactPath,
-		OutputDir:    stagingDir,
-	})
+	return ApplyArtifact(runtimeProvisionApplyRequest(artifactPath, stagingDir))
+}
+
+func runtimeProvisionApplyRequest(artifactPath, outputDir string) ArtifactApplyRequest {
+	return ArtifactApplyRequest{
+		ArtifactPath:  artifactPath,
+		OutputDir:     outputDir,
+		SecretEnvPath: "",
+		Strict:        false,
+		WarningWriter: nil,
+	}
 }
