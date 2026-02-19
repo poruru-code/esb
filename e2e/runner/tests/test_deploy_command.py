@@ -212,7 +212,7 @@ def test_deploy_artifacts_prepares_local_fixture_image(monkeypatch, tmp_path):
     assert commands[1] == ["docker", "push", "127.0.0.1:5010/esb-e2e-lambda-python:latest"]
 
 
-def test_deploy_artifacts_runs_prepare_apply_and_provision(monkeypatch, tmp_path):
+def test_deploy_artifacts_runs_deploy_and_provision(monkeypatch, tmp_path):
     config_dir = tmp_path / "merged-config"
     image_ref = "127.0.0.1:5010/esb-lambda-echo:e2e-test"
     base_ref = "127.0.0.1:5010/esb-lambda-base:e2e-test"
@@ -250,19 +250,13 @@ def test_deploy_artifacts_runs_prepare_apply_and_provision(monkeypatch, tmp_path
 
     assert commands[0] == [
         "artifactctl",
-        "prepare-images",
-        "--artifact",
-        str(manifest.resolve()),
-    ]
-    assert commands[1] == [
-        "artifactctl",
-        "apply",
+        "deploy",
         "--artifact",
         str(manifest.resolve()),
         "--out",
         str(config_dir),
     ]
-    assert commands[2][0:8] == [
+    assert commands[1][0:8] == [
         "docker",
         "compose",
         "--project-name",
@@ -272,10 +266,10 @@ def test_deploy_artifacts_runs_prepare_apply_and_provision(monkeypatch, tmp_path
         "--env-file",
         ctx.env_file,
     ]
-    assert commands[2][-4:] == ["run", "--rm", "--no-deps", "provisioner"]
+    assert commands[1][-4:] == ["run", "--rm", "--no-deps", "provisioner"]
 
 
-def test_deploy_artifacts_prepare_images_with_no_cache(monkeypatch, tmp_path):
+def test_deploy_artifacts_deploy_with_no_cache(monkeypatch, tmp_path):
     config_dir = tmp_path / "merged-config"
     image_ref = "127.0.0.1:5010/esb-lambda-echo:e2e-test"
     base_ref = "127.0.0.1:5010/esb-lambda-base:e2e-test"
@@ -312,9 +306,11 @@ def test_deploy_artifacts_prepare_images_with_no_cache(monkeypatch, tmp_path):
 
     assert commands[0] == [
         "artifactctl",
-        "prepare-images",
+        "deploy",
         "--artifact",
         str(manifest.resolve()),
+        "--out",
+        str(config_dir),
         "--no-cache",
     ]
 
@@ -355,7 +351,6 @@ def test_deploy_artifacts_uses_resolved_artifactctl_bin(monkeypatch, tmp_path):
         log.close()
 
     assert commands[0][0] == "/opt/tools/custom-artifactctl"
-    assert commands[1][0] == "/opt/tools/custom-artifactctl"
 
 
 def test_deploy_artifacts_requires_manifest(tmp_path):

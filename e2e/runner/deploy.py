@@ -62,54 +62,33 @@ def _deploy_via_artifact_driver(
     if config_dir == "":
         raise RuntimeError("CONFIG_DIR is required for artifact apply")
 
-    message = f"Preparing artifact images for {ctx.scenario.env_name}..."
+    message = f"Deploying artifact manifest for {ctx.scenario.env_name}..."
     log.write_line(message)
     if printer:
         printer(message)
     artifactctl_bin = _artifactctl_bin(ctx)
-    prepare_cmd = [
+    deploy_cmd = [
         artifactctl_bin,
-        "prepare-images",
-        "--artifact",
-        str(manifest_path),
-    ]
-    if no_cache:
-        prepare_cmd.append("--no-cache")
-    rc = run_and_stream(
-        prepare_cmd,
-        cwd=PROJECT_ROOT,
-        env=ctx.deploy_env,
-        log=log,
-        printer=printer,
-    )
-    if rc != 0:
-        raise RuntimeError(f"artifact prepare-images failed with exit code {rc}")
-
-    message = f"Applying artifact manifest for {ctx.scenario.env_name}..."
-    log.write_line(message)
-    if printer:
-        printer(message)
-
-    apply_cmd = [
-        artifactctl_bin,
-        "apply",
+        "deploy",
         "--artifact",
         str(manifest_path),
         "--out",
         config_dir,
     ]
+    if no_cache:
+        deploy_cmd.append("--no-cache")
     secret_env = str(ctx.scenario.extra.get("secret_env_file", "")).strip()
     if secret_env:
-        apply_cmd.extend(["--secret-env", secret_env])
+        deploy_cmd.extend(["--secret-env", secret_env])
     rc = run_and_stream(
-        apply_cmd,
+        deploy_cmd,
         cwd=PROJECT_ROOT,
         env=ctx.deploy_env,
         log=log,
         printer=printer,
     )
     if rc != 0:
-        raise RuntimeError(f"artifact apply failed with exit code {rc}")
+        raise RuntimeError(f"artifact deploy failed with exit code {rc}")
 
     provision_cmd = _build_provision_command(ctx)
     rc = run_and_stream(

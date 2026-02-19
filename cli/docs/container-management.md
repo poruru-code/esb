@@ -62,7 +62,7 @@ flowchart LR
 
 イメージ準備の標準経路:
 - CLI deploy 時: `esb deploy` が build phase で関数イメージを build/push
-- artifact-only 時: `tools/artifactctl prepare-images --artifact ...`
+- artifact-only 時: `artifactctl deploy --artifact ... --out ...` が prepare/apply を実行
 
 ```mermaid
 flowchart LR

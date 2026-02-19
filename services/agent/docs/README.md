@@ -8,7 +8,7 @@ Why: Keep agent-specific design details close to the implementation.
 Agent は Gateway からの gRPC リクエストを受け、Lambda ワーカーコンテナ（Docker / containerd）の
 ライフサイクル（作成/削除/一覧/メトリクス/Invoke 代理）を管理します。
 
-Image 関数は deploy/apply 時に `artifactctl prepare-images` で再ビルド・push された
+Image 関数は deploy/apply 時に `artifactctl deploy` で再ビルド・push された
 内部レジストリ参照を前提とし、実行時 Agent は内部レジストリ参照のみを扱います。
 
 ## このディレクトリのスコープ
