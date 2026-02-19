@@ -6,6 +6,7 @@ package staging
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/poruru/edge-serverless-box/cli/internal/meta"
@@ -32,6 +33,65 @@ func TestRootDirUsesRepoRoot(t *testing.T) {
 	want := filepath.Join(repoRoot, meta.HomeDir, "staging")
 	if filepath.Clean(root) != filepath.Clean(want) {
 		t.Fatalf("expected %q, got %q", want, root)
+	}
+}
+
+func TestComposeProjectKey(t *testing.T) {
+	if got := ComposeProjectKey("custom-project", "dev"); got != "custom-project" {
+		t.Fatalf("ComposeProjectKey() = %q, want %q", got, "custom-project")
+	}
+	if got := ComposeProjectKey("", "Dev"); got != meta.Slug+"-dev" {
+		t.Fatalf("ComposeProjectKey() env fallback = %q", got)
+	}
+	if got := ComposeProjectKey("", ""); got != meta.Slug {
+		t.Fatalf("ComposeProjectKey() default = %q, want %q", got, meta.Slug)
+	}
+}
+
+func TestCacheKeyStableAndEnvSensitive(t *testing.T) {
+	a := CacheKey("esb-dev", "dev")
+	b := CacheKey("esb-dev", "dev")
+	c := CacheKey("esb-dev", "staging")
+	if a != b {
+		t.Fatalf("CacheKey must be stable: %q vs %q", a, b)
+	}
+	if a == c {
+		t.Fatalf("CacheKey must vary by env: %q", a)
+	}
+	if !strings.HasPrefix(a, "esb-dev-") {
+		t.Fatalf("CacheKey prefix mismatch: %q", a)
+	}
+}
+
+func TestBaseDirAndConfigDir(t *testing.T) {
+	repoRoot := t.TempDir()
+	marker := filepath.Join(repoRoot, "docker-compose.docker.yml")
+	if err := os.WriteFile(marker, []byte{}, 0o600); err != nil {
+		t.Fatalf("write repo marker: %v", err)
+	}
+	chdir(t, repoRoot)
+
+	templatePath := filepath.Join(repoRoot, "template.yaml")
+	if err := os.WriteFile(templatePath, []byte{}, 0o600); err != nil {
+		t.Fatalf("write template: %v", err)
+	}
+
+	base, err := BaseDir(templatePath, "esb-dev", "dev")
+	if err != nil {
+		t.Fatalf("BaseDir() error = %v", err)
+	}
+	wantBase := filepath.Join(repoRoot, meta.HomeDir, "staging", "esb-dev", "dev")
+	if filepath.Clean(base) != filepath.Clean(wantBase) {
+		t.Fatalf("BaseDir() = %q, want %q", base, wantBase)
+	}
+
+	configDir, err := ConfigDir(templatePath, "esb-dev", "dev")
+	if err != nil {
+		t.Fatalf("ConfigDir() error = %v", err)
+	}
+	wantConfig := filepath.Join(wantBase, "config")
+	if filepath.Clean(configDir) != filepath.Clean(wantConfig) {
+		t.Fatalf("ConfigDir() = %q, want %q", configDir, wantConfig)
 	}
 }
 

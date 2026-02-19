@@ -77,6 +77,97 @@ func TestNormalizeSourceTemplatePathKeepsAbsolutePathOutsideProject(t *testing.T
 	}
 }
 
+func TestNormalizeSourceTemplatePathWithoutProjectDirReturnsAbsolutePath(t *testing.T) {
+	root := t.TempDir()
+	setWorkingDir(t, root)
+	rel := filepath.Join("templates", "template.yaml")
+	if err := os.MkdirAll(filepath.Join(root, "templates"), 0o755); err != nil {
+		t.Fatalf("mkdir templates: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, rel), []byte("Resources: {}\n"), 0o600); err != nil {
+		t.Fatalf("write template: %v", err)
+	}
+
+	got := normalizeSourceTemplatePath("", rel)
+	want, err := filepath.Abs(rel)
+	if err != nil {
+		t.Fatalf("filepath.Abs: %v", err)
+	}
+	if got != filepath.Clean(want) {
+		t.Fatalf("normalizeSourceTemplatePath() = %q, want %q", got, filepath.Clean(want))
+	}
+}
+
+func TestResolveTemplateArtifactRootResolvesRelativeSummaryToAbsolute(t *testing.T) {
+	root := t.TempDir()
+	setWorkingDir(t, root)
+	templateRel := filepath.Join("templates", "sample.yaml")
+	if err := os.MkdirAll(filepath.Join(root, "templates"), 0o755); err != nil {
+		t.Fatalf("mkdir templates: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, templateRel), []byte("Resources: {}\n"), 0o600); err != nil {
+		t.Fatalf("write template: %v", err)
+	}
+
+	got, err := resolveTemplateArtifactRoot(templateRel, "", "dev")
+	if err != nil {
+		t.Fatalf("resolveTemplateArtifactRoot() error = %v", err)
+	}
+	want, err := filepath.Abs(filepath.Join("templates", meta.OutputDir, "dev"))
+	if err != nil {
+		t.Fatalf("filepath.Abs: %v", err)
+	}
+	if got != filepath.Clean(want) {
+		t.Fatalf("resolveTemplateArtifactRoot() = %q, want %q", got, filepath.Clean(want))
+	}
+}
+
+func TestResolveTemplateArtifactRootHonorsAbsoluteOutputDir(t *testing.T) {
+	root := t.TempDir()
+	templateAbs := filepath.Join(root, "templates", "sample.yaml")
+	if err := os.MkdirAll(filepath.Dir(templateAbs), 0o755); err != nil {
+		t.Fatalf("mkdir template dir: %v", err)
+	}
+	if err := os.WriteFile(templateAbs, []byte("Resources: {}\n"), 0o600); err != nil {
+		t.Fatalf("write template: %v", err)
+	}
+	outputAbs := filepath.Join(root, "out")
+
+	got, err := resolveTemplateArtifactRoot(templateAbs, outputAbs, "dev")
+	if err != nil {
+		t.Fatalf("resolveTemplateArtifactRoot() error = %v", err)
+	}
+	want := filepath.Join(outputAbs, "dev")
+	if got != filepath.Clean(want) {
+		t.Fatalf("resolveTemplateArtifactRoot() = %q, want %q", got, filepath.Clean(want))
+	}
+}
+
+func TestCloneStringValues(t *testing.T) {
+	t.Run("empty map returns nil", func(t *testing.T) {
+		if got := cloneStringValues(nil); got != nil {
+			t.Fatalf("cloneStringValues(nil) = %#v, want nil", got)
+		}
+		if got := cloneStringValues(map[string]string{}); got != nil {
+			t.Fatalf("cloneStringValues(empty) = %#v, want nil", got)
+		}
+	})
+
+	t.Run("returns independent copy", func(t *testing.T) {
+		in := map[string]string{
+			"ParamA": "value-a",
+		}
+		out := cloneStringValues(in)
+		if out["ParamA"] != "value-a" {
+			t.Fatalf("cloned value mismatch: %#v", out)
+		}
+		in["ParamA"] = "changed"
+		if out["ParamA"] != "value-a" {
+			t.Fatalf("clone must not track source mutation: %#v", out)
+		}
+	})
+}
+
 func TestResolveRuntimeMetaIncludesDigestsAndVersions(t *testing.T) {
 	projectDir := t.TempDir()
 	writeTestRuntimeAssets(t, projectDir)

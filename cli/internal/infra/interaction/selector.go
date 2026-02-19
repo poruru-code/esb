@@ -9,19 +9,31 @@ import (
 	"github.com/charmbracelet/huh"
 )
 
+var runInputPrompt = func(title string, suggestions []string, input *string) error {
+	field := huh.NewInput().
+		Title(title).
+		Suggestions(suggestions).
+		Value(input)
+	if len(suggestions) > 0 {
+		field.Placeholder(suggestions[0])
+	}
+	return field.Run()
+}
+
+var runSelectPrompt = func(title string, options []huh.Option[string], selected *string) error {
+	return huh.NewSelect[string]().
+		Title(title).
+		Options(options...).
+		Value(selected).
+		Run()
+}
+
 // HuhPrompter implements the Prompter interface using the huh TUI library.
 type HuhPrompter struct{}
 
 func (p HuhPrompter) Input(title string, suggestions []string) (string, error) {
 	var input string
-	field := huh.NewInput().
-		Title(title).
-		Suggestions(suggestions).
-		Value(&input)
-	if len(suggestions) > 0 {
-		field.Placeholder(suggestions[0])
-	}
-	err := field.Run()
+	err := runInputPrompt(title, suggestions, &input)
 	if err != nil {
 		return "", fmt.Errorf("prompt input: %w", err)
 	}
@@ -35,11 +47,7 @@ func (p HuhPrompter) Select(title string, options []string) (string, error) {
 		huhOptions[i] = huh.NewOption(opt, opt)
 	}
 
-	err := huh.NewSelect[string]().
-		Title(title).
-		Options(huhOptions...).
-		Value(&selected).
-		Run()
+	err := runSelectPrompt(title, huhOptions, &selected)
 	if err != nil {
 		return "", fmt.Errorf("prompt select: %w", err)
 	}
@@ -57,11 +65,7 @@ func (p HuhPrompter) SelectValue(title string, options []SelectOption) (string, 
 	}
 
 	var selected string
-	err := huh.NewSelect[string]().
-		Title(title).
-		Options(huhOptions...).
-		Value(&selected).
-		Run()
+	err := runSelectPrompt(title, huhOptions, &selected)
 	if err != nil {
 		return "", fmt.Errorf("prompt select value: %w", err)
 	}
