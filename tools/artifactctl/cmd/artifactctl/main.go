@@ -1,170 +1,146 @@
 package main
 
 import (
-	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
+	"github.com/alecthomas/kong"
 	"github.com/poruru/edge-serverless-box/pkg/artifactcore"
 )
 
-const usageMessage = "usage: artifactctl <validate-id|merge|prepare-images|apply> [flags]"
+type CLI struct {
+	Deploy DeployCmd `cmd:"" help:"Prepare images and apply artifact manifest"`
+}
+
+type DeployCmd struct {
+	Artifact  string `name:"artifact" required:"" help:"Path to artifact manifest (artifact.yml)"`
+	Output    string `name:"out" required:"" help:"Output config directory (CONFIG_DIR)"`
+	SecretEnv string `name:"secret-env" help:"Path to secret env file"`
+	Strict    bool   `name:"strict" help:"Enable strict runtime metadata validation"`
+	NoCache   bool   `name:"no-cache" help:"Do not use cache when building images"`
+}
+
+type kongExitCode int
 
 type commandDeps struct {
-	validateIDs   func(string) error
-	mergeConfig   func(artifactcore.MergeRequest) error
 	prepareImages func(artifactcore.PrepareImagesRequest) error
 	apply         func(artifactcore.ApplyRequest) error
 	warningWriter io.Writer
-	helpWriter    io.Writer
+	out           io.Writer
+	errOut        io.Writer
 }
 
 func main() {
-	if err := run(os.Args[1:], defaultDeps()); err != nil {
-		exitf("%v", err)
-	}
+	os.Exit(run(os.Args[1:], defaultDeps()))
 }
 
 func defaultDeps() commandDeps {
 	return commandDeps{
-		validateIDs:   artifactcore.ValidateIDs,
-		mergeConfig:   artifactcore.MergeRuntimeConfig,
 		prepareImages: artifactcore.PrepareImages,
 		apply:         artifactcore.Apply,
 		warningWriter: os.Stderr,
-		helpWriter:    os.Stdout,
+		out:           os.Stdout,
+		errOut:        os.Stderr,
 	}
 }
 
-func run(args []string, deps commandDeps) error {
-	if len(args) < 1 {
-		return fmt.Errorf(usageMessage)
+func run(args []string, deps commandDeps) (exitCode int) {
+	out := deps.out
+	if out == nil {
+		out = os.Stdout
 	}
-	switch args[0] {
-	case "validate-id":
-		return runValidateID(args[1:], deps)
-	case "merge":
-		return runMerge(args[1:], deps)
-	case "prepare-images":
-		return runPrepareImages(args[1:], deps)
-	case "apply":
-		return runApply(args[1:], deps)
-	default:
-		return fmt.Errorf("unknown command: %s", args[0])
+	errOut := deps.errOut
+	if errOut == nil {
+		errOut = os.Stderr
 	}
-}
-
-func newFlagSet(name string) *flag.FlagSet {
-	fs := flag.NewFlagSet(name, flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-	return fs
-}
-
-func handleParseError(err error, fs *flag.FlagSet, deps commandDeps) error {
-	if err == nil {
-		return nil
+	cli := CLI{}
+	parser, err := kong.New(
+		&cli,
+		kong.Name("artifactctl"),
+		kong.Description("Prepare images and apply generated artifact manifests."),
+		kong.Writers(out, errOut),
+		kong.Exit(func(code int) {
+			panic(kongExitCode(code))
+		}),
+	)
+	if err != nil {
+		_, _ = fmt.Fprintf(errOut, "Error: initialize command parser: %v\n", err)
+		return 1
 	}
-	if errors.Is(err, flag.ErrHelp) {
-		helpWriter := deps.helpWriter
-		if helpWriter == nil {
-			helpWriter = os.Stdout
+	defer func() {
+		recovered := recover()
+		if recovered == nil {
+			return
 		}
-		fs.SetOutput(helpWriter)
-		fs.Usage()
-		return nil
+		code, ok := recovered.(kongExitCode)
+		if !ok {
+			panic(recovered)
+		}
+		exitCode = int(code)
+	}()
+	ctx, err := parser.Parse(args)
+	if err != nil {
+		_, _ = fmt.Fprintf(errOut, "Error: %v\n", err)
+		_, _ = fmt.Fprintln(errOut, "Hint: run `artifactctl --help` or `artifactctl deploy --help`.")
+		return 1
 	}
-	return err
+	if ctx.Command() != "deploy" {
+		_, _ = fmt.Fprintf(errOut, "Error: unsupported command: %s\n", ctx.Command())
+		_, _ = fmt.Fprintln(errOut, "Hint: run `artifactctl --help`.")
+		return 1
+	}
+	if err := runDeploy(cli.Deploy, deps, errOut); err != nil {
+		_, _ = fmt.Fprintf(errOut, "Error: %v\n", err)
+		if hint := hintForDeployError(err); hint != "" {
+			_, _ = fmt.Fprintf(errOut, "Hint: %s\n", hint)
+		}
+		return 1
+	}
+	return 0
 }
 
-func runValidateID(args []string, deps commandDeps) error {
-	fs := newFlagSet("validate-id")
-	artifact := fs.String("artifact", "", "Path to artifact.yml")
-	if err := fs.Parse(args); err != nil {
-		return handleParseError(err, fs, deps)
-	}
-	if *artifact == "" {
-		return fmt.Errorf("--artifact is required")
-	}
-	if err := deps.validateIDs(*artifact); err != nil {
-		return fmt.Errorf("validate-id failed: %w", err)
-	}
-	return nil
-}
-
-func runMerge(args []string, deps commandDeps) error {
-	fs := newFlagSet("merge")
-	artifact := fs.String("artifact", "", "Path to artifact.yml")
-	out := fs.String("out", "", "Output CONFIG_DIR")
-	if err := fs.Parse(args); err != nil {
-		return handleParseError(err, fs, deps)
-	}
-	if *artifact == "" {
-		return fmt.Errorf("--artifact is required")
-	}
-	if *out == "" {
-		return fmt.Errorf("--out is required")
-	}
-	if err := deps.mergeConfig(artifactcore.MergeRequest{ArtifactPath: *artifact, OutputDir: *out}); err != nil {
-		return fmt.Errorf("merge failed: %w", err)
-	}
-	return nil
-}
-
-func runApply(args []string, deps commandDeps) error {
-	fs := newFlagSet("apply")
-	artifact := fs.String("artifact", "", "Path to artifact.yml")
-	out := fs.String("out", "", "Output CONFIG_DIR")
-	secretEnv := fs.String("secret-env", "", "Path to secret env file")
-	strict := fs.Bool("strict", false, "Enable strict runtime metadata validation")
-	if err := fs.Parse(args); err != nil {
-		return handleParseError(err, fs, deps)
-	}
-	if *artifact == "" {
-		return fmt.Errorf("--artifact is required")
-	}
-	if *out == "" {
-		return fmt.Errorf("--out is required")
+func runDeploy(cmd DeployCmd, deps commandDeps, errOut io.Writer) error {
+	artifactPath := strings.TrimSpace(cmd.Artifact)
+	outputDir := strings.TrimSpace(cmd.Output)
+	if err := deps.prepareImages(artifactcore.PrepareImagesRequest{
+		ArtifactPath: artifactPath,
+		NoCache:      cmd.NoCache,
+	}); err != nil {
+		return fmt.Errorf("deploy failed during image preparation: %w", err)
 	}
 	warningWriter := deps.warningWriter
 	if warningWriter == nil {
-		warningWriter = os.Stderr
+		if errOut == nil {
+			warningWriter = os.Stderr
+		} else {
+			warningWriter = errOut
+		}
 	}
-	req := artifactcore.ApplyRequest{
-		ArtifactPath:  *artifact,
-		OutputDir:     *out,
-		SecretEnvPath: *secretEnv,
-		Strict:        *strict,
+	applyReq := artifactcore.ApplyRequest{
+		ArtifactPath:  artifactPath,
+		OutputDir:     outputDir,
+		SecretEnvPath: strings.TrimSpace(cmd.SecretEnv),
+		Strict:        cmd.Strict,
 		WarningWriter: warningWriter,
 	}
-	if err := deps.apply(req); err != nil {
-		return fmt.Errorf("apply failed: %w", err)
+	if err := deps.apply(applyReq); err != nil {
+		return fmt.Errorf("deploy failed during artifact apply: %w", err)
 	}
 	return nil
 }
 
-func runPrepareImages(args []string, deps commandDeps) error {
-	fs := newFlagSet("prepare-images")
-	artifact := fs.String("artifact", "", "Path to artifact.yml")
-	noCache := fs.Bool("no-cache", false, "Do not use cache when building images")
-	if err := fs.Parse(args); err != nil {
-		return handleParseError(err, fs, deps)
+func hintForDeployError(err error) string {
+	msg := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(msg, "runtime base dockerfile not found"):
+		return "run `esb artifact generate ...` to stage runtime-base into the artifact before deploy."
+	case strings.Contains(msg, "secret env file is required"), strings.Contains(msg, "missing required secret env keys"):
+		return "set `--secret-env <path>` with all required secret keys listed in artifact.yml."
+	case strings.Contains(msg, "no such file or directory"):
+		return "confirm `--artifact` and referenced files exist and are readable."
+	default:
+		return "run `artifactctl deploy --help` for required arguments."
 	}
-	if *artifact == "" {
-		return fmt.Errorf("--artifact is required")
-	}
-	req := artifactcore.PrepareImagesRequest{
-		ArtifactPath: *artifact,
-		NoCache:      *noCache,
-	}
-	if err := deps.prepareImages(req); err != nil {
-		return fmt.Errorf("prepare-images failed: %w", err)
-	}
-	return nil
-}
-
-func exitf(format string, args ...any) {
-	_, _ = fmt.Fprintf(os.Stderr, format+"\n", args...)
-	os.Exit(1)
 }

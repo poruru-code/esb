@@ -82,8 +82,7 @@ docker image prune -f
 - 内部レジストリに対象イメージが投入されていない
 
 対応:
-1. `tools/artifactctl prepare-images --artifact <artifact.yml>`
-2. その後 `tools/artifactctl apply --artifact <artifact.yml> --out <CONFIG_DIR>` を再実行
+1. `artifactctl deploy --artifact <artifact.yml> --out <CONFIG_DIR>` を再実行
 
 ### 4. `<untagged>` イメージが増える
 - `docker image prune -f` で中間レイヤーを整理

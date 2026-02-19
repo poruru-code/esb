@@ -34,7 +34,7 @@ esb artifact generate \
 
 Notes:
 - `esb artifact generate` does not merge outputs into `.esb/staging/**`.
-- Generate writes template outputs + `artifact.yml`; merge/apply is `artifact apply` (or `tools/artifactctl apply`) responsibility.
+- Generate writes template outputs + `artifact.yml`; apply responsibility is `artifact apply` (or `artifactctl deploy`).
 
 ### Generate with image build
 ```bash
@@ -62,16 +62,11 @@ esb artifact apply \
 - run apply once
 
 ## Non-CLI Apply Flow
-Use `tools/artifactctl` as the canonical apply implementation.
+Use `artifactctl` as the canonical apply implementation.
 
 ```bash
-tools/artifactctl validate-id --artifact /path/to/artifact.yml
-
-tools/artifactctl prepare-images \
+artifactctl deploy \
   --artifact /path/to/artifact.yml
-
-tools/artifactctl apply \
-  --artifact /path/to/artifact.yml \
   --out /path/to/config-dir \
   --secret-env /path/to/secrets.env \
   --strict
@@ -80,8 +75,9 @@ docker compose --profile deploy run --rm --no-deps provisioner
 ```
 
 Notes:
-- `tools/artifactctl prepare-images` uses `<artifact_root>/runtime-base/**` as the only base-image build context. It does not read repository-local `runtime-hooks/**`.
-- merge/apply は `tools/artifactctl` 直実行のみを運用経路とする（shell wrapper は廃止）。
+- `artifactctl deploy` internally runs image preparation and artifact apply in order.
+- `artifactctl deploy` uses `<artifact_root>/runtime-base/**` as the only base-image build context. It does not read repository-local `runtime-hooks/**`.
+- merge/apply は `artifactctl` 直実行のみを運用経路とする（shell wrapper は廃止）。
 
 ## Module Contract (artifactcore)
 - `cli/go.mod` と `tools/artifactctl/go.mod` には `pkg/artifactcore` の `replace` を置かない。
@@ -106,7 +102,7 @@ Fixture refresh is a separate developer operation (outside E2E runtime):
 ## Failure Policy
 - Missing `artifact.yml`, required runtime config files, invalid ID, missing required secrets: hard fail
 - Presence of legacy matrix fields (`deploy_driver`, `artifact_generate`): hard fail
-- Missing runtime-base context for required base-image build in `prepare-images`: hard fail
+- Missing runtime-base context for required base-image build in `artifactctl deploy` prepare phase: hard fail
 - Apply phase must not silently fall back to template-based sync paths
 - In `--strict`, runtime digest verification fails if `<artifact_root>/runtime-base/runtime-hooks/python/sitecustomize/site-packages/sitecustomize.py` is missing or unreadable
 - Removed runtime digests: `java_agent_digest`, `java_wrapper_digest`, `template_digest`

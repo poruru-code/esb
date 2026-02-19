@@ -77,7 +77,7 @@ Why: Define a stable boundary between artifact producer (CLI/manual) and runtime
 ### Entry 条件付き必須
 - `<artifact_root>/<runtime_config_dir>/resources.yml`: resource 定義を使う場合
 - `<artifact_root>/<bundle_manifest>`: bundle/import ワークフローを使う場合
-- `<artifact_root>/runtime-base/runtime-hooks/python/docker/Dockerfile`: `prepare-images` で `esb-lambda-base:*` を build/push する場合
+- `<artifact_root>/runtime-base/runtime-hooks/python/docker/Dockerfile`: `artifactctl deploy` の prepare phase で `esb-lambda-base:*` を build/push する場合
 - `<artifact_root>/runtime-base/runtime-hooks/python/sitecustomize/site-packages/sitecustomize.py`: `runtime_meta.runtime_hooks.python_sitecustomize_digest` を検証する場合
 
 ## パス規約
@@ -195,18 +195,18 @@ artifacts:
 - Applier（CLI / 手動適用）:
   - `artifact.yml` を検証
   - `artifacts[]` 配列順で runtime-config をマージし `CONFIG_DIR` へ反映
-  - 必要なら `prepare-images` と provision を実行
+  - `artifactctl deploy` と provision を実行
 - Runtime Consumer（Gateway/Provisioner/Agent）:
   - 反映済み設定を読み込むのみ
   - CLI バイナリへの依存を持たない
 
 ## ツール責務（確定）
 - `tools/artifactctl`（Go 実装）:
-  - `validate-id` / `merge` / `prepare-images` / `apply` の正本実装を提供する
+  - `deploy` の正本実装を提供する（内部で image prepare + apply を実行）
   - schema/path/id/secret/merge 規約の判定を一元化する
   - `tools/artifactctl/cmd/artifactctl` は command adapter、実ロジック正本は `pkg/artifactcore` とする
 - `esb artifact apply`:
-  - `tools/artifactctl apply` と同じ Go 実装を呼ぶ薄いアダプタとして振る舞う
+  - `artifactctl deploy` と同じ Go 実装を呼ぶ薄いアダプタとして振る舞う
 
 repo 分離後の依存方向:
 - core repo が `pkg/artifactcore` を保有する
@@ -231,14 +231,12 @@ CLI なし運用でも、生成済み成果物を入力に **Phase 3 以降は�
 |---|---|---|
 | 1. テンプレート解析 | `esb deploy` / `esb artifact generate` が SAM を解析 | 実行しない（生成済み成果物を受領） |
 | 2. 生成（Dockerfile / config） | `artifact.yml` を出力（`artifacts[]` に全テンプレートを記録） | 実行しない |
-| 3. 関数イメージ build/push | `esb deploy` または `esb artifact generate --build-images` が build/push を実行 | `tools/artifactctl prepare-images --artifact ...` を実行 |
-| 4. 入力検証 | `artifact.yml` を生成・検証 | `tools/artifactctl validate-id --artifact ...` |
-| 5. Runtime Config 反映 | `artifact.yml` を基に同期 | `tools/artifactctl merge/apply` を実行 |
-| 6. Provision | provisioner を実行 | `docker compose --profile deploy run --rm provisioner` |
-| 7. Runtime 起動 | `docker compose up` | `docker compose up` |
+| 3. Artifact 適用（検証 + 画像準備 + 設定反映） | `esb deploy` が apply phase を実行 | `artifactctl deploy --artifact ... --out ...` を実行 |
+| 4. Provision | provisioner を実行 | `docker compose --profile deploy run --rm provisioner` |
+| 5. Runtime 起動 | `docker compose up` | `docker compose up` |
 
 補足:
-- `prepare-images` は `artifact_root/runtime-base/**` を唯一入力として base image を build します（repo root の `runtime-hooks/**` は参照しません）。
+- `artifactctl deploy` の prepare phase は `artifact_root/runtime-base/**` を唯一入力として base image を build します（repo root の `runtime-hooks/**` は参照しません）。
 - `apply --strict` の runtime digest 検証は `artifact_root/runtime-base/runtime-hooks/python/**` を唯一入力とします（repo root の `runtime-hooks/**` は参照しません）。
 
 ## CLI コマンド責務（明示）
@@ -257,100 +255,47 @@ CLI なし運用でも、生成済み成果物を入力に **Phase 3 以降は�
 - 相対 `CodeUri` / Layer 解決はテンプレート配置基準を維持し、既存 Lambda コード変更を要求しません。
 - 複数テンプレート時の適用順と対象は `artifact.yml` の `artifacts[]` が正本です。
 
-## 手動ランブック（CLI なし、Phase 3-7）
-前提: `yq`, `docker`, `docker compose`, `tools/artifactctl` が利用可能であること。
+## 手動ランブック（CLI なし、Phase 3-5）
+前提: `docker`, `docker compose`, `artifactctl` が利用可能であること。
 
 ### 0) 変数
 ```bash
 ARTIFACT="/path/to/artifact.yml"
 COMPOSE_FILE="/path/to/esb/docker-compose.docker.yml"
 SECRETS_ENV="/path/to/secrets.env"   # 成果物外で管理
-MERGED_CONFIG_DIR="/path/to/merged-runtime-config"
+CONFIG_DIR="/path/to/merged-runtime-config"
 RUN_ENV="/path/to/run.env"
 ```
 
-### 1) Manifest 検証
+### 1) Artifact 適用（検証 + 画像準備 + 設定反映）
 ```bash
 test -f "${ARTIFACT}"
-yq -e '.schema_version == "1"' "${ARTIFACT}" >/dev/null
-yq -e '.project != "" and .env != "" and .mode != ""' "${ARTIFACT}" >/dev/null
-test "$(yq -r '.artifacts | length' "${ARTIFACT}")" -gt 0
-yq -e '.artifacts[].id | select(test("^[a-z0-9-]+-[0-9a-f]{8}$") | not)' "${ARTIFACT}" >/dev/null && { echo "invalid id format"; exit 1; } || true
-IDS_TOTAL="$(yq -r '.artifacts[].id' "${ARTIFACT}" | wc -l | tr -d ' ')"
-IDS_UNIQ="$(yq -r '.artifacts[].id' "${ARTIFACT}" | sort -u | wc -l | tr -d ' ')"
-[ "${IDS_TOTAL}" = "${IDS_UNIQ}" ] || { echo "duplicate artifact id"; exit 1; }
-tools/artifactctl validate-id --artifact "${ARTIFACT}"
-```
-
-### 2) Entry と必須ファイルを検証
-```bash
-MANIFEST_DIR="$(cd "$(dirname "${ARTIFACT}")" && pwd)"
-COUNT="$(yq -r '.artifacts | length' "${ARTIFACT}")"
-for i in $(seq 0 $((COUNT - 1))); do
-  ROOT_RAW="$(yq -r ".artifacts[$i].artifact_root" "${ARTIFACT}")"
-  case "${ROOT_RAW}" in
-    /*) ROOT_DIR="${ROOT_RAW}" ;;
-    *)  ROOT_DIR="${MANIFEST_DIR}/${ROOT_RAW}" ;;
-  esac
-  RUNTIME_REL="$(yq -r ".artifacts[$i].runtime_config_dir" "${ARTIFACT}")"
-  RUNTIME_DIR="${ROOT_DIR}/${RUNTIME_REL}"
-  test -f "${RUNTIME_DIR}/functions.yml"
-  test -f "${RUNTIME_DIR}/routing.yml"
-done
-```
-
-### 3) required secret の不足を検知
-```bash
-COUNT="$(yq -r '.artifacts | length' "${ARTIFACT}")"
-for i in $(seq 0 $((COUNT - 1))); do
-  while IFS= read -r key; do
-    [ -z "${key}" ] && continue
-    grep -q "^${key}=" "${SECRETS_ENV}" || { echo "missing secret: ${key}"; exit 1; }
-  done < <(yq -r ".artifacts[$i].required_secret_env[]?" "${ARTIFACT}")
-done
-```
-
-### 4) 関数イメージを build/push（必要時）
-```bash
-tools/artifactctl prepare-images --artifact "${ARTIFACT}"
-```
-
-注記:
-- `prepare-images` は `artifact_root/runtime-base/runtime-hooks/python/docker/Dockerfile` を使用します。対象 entry が `esb-lambda-base:*` を参照する場合、このファイルが欠けていると hard fail します。
-- `apply --strict` の runtime digest 検証は `artifact_root/runtime-base/runtime-hooks/python/**` を使用します。対象 digest に対応するファイルが欠けると hard fail します。
-
-### 5) runtime-config を配列順でマージし `CONFIG_DIR` を作る
-`artifact.yml` の `artifacts[]` 配列順がマージ順です。
-マージ規約（CLI と同等）:
-- `functions.yml`: function 名キーで last-write-wins、defaults は不足キー補完
-- `routing.yml`: `(path, method)` キーで last-write-wins
-- `resources.yml`: resource 名キーで last-write-wins
-
-```bash
-mkdir -p "${MERGED_CONFIG_DIR}"
-# 正本: Go 実装（artifactctl）。単一/複数テンプレートとも同じ実装を使う。
-tools/artifactctl merge \
+artifactctl deploy \
   --artifact "${ARTIFACT}" \
-  --out "${MERGED_CONFIG_DIR}"
+  --out "${CONFIG_DIR}" \
+  --secret-env "${SECRETS_ENV}"
 
 cat "${SECRETS_ENV}" > "${RUN_ENV}"
 {
-  echo "PROJECT_NAME=$(yq -r '.project' "${ARTIFACT}")"
-  echo "CONFIG_DIR=${MERGED_CONFIG_DIR}"
+  echo "CONFIG_DIR=${CONFIG_DIR}"
 } >> "${RUN_ENV}"
 ```
 
-### 6) Provision 実行
+注記:
+- `artifactctl deploy` は内部で image prepare と apply を順に実行します。
+- `deploy --strict` の runtime digest 検証は `artifact_root/runtime-base/runtime-hooks/python/**` を使用します。対象 digest に対応するファイルが欠けると hard fail します。
+
+### 2) Provision 実行
 ```bash
 docker compose --env-file "${RUN_ENV}" -f "${COMPOSE_FILE}" --profile deploy run --rm provisioner
 ```
 
-### 7) Runtime 起動
+### 3) Runtime 起動
 ```bash
 docker compose --env-file "${RUN_ENV}" -f "${COMPOSE_FILE}" up -d
 ```
 
-### 8) 確認
+### 4) 確認
 ```bash
 curl -k https://127.0.0.1/health
 ```
