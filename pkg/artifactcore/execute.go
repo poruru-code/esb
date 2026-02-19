@@ -15,30 +15,9 @@ type ApplyResult struct {
 	Warnings []string
 }
 
-type DeployInput struct {
-	Apply   ApplyInput
-	NoCache bool
-	Runner  CommandRunner
-}
-
 func ExecuteApply(input ApplyInput) (ApplyResult, error) {
 	normalized, err := normalizeApplyInput(input)
 	if err != nil {
-		return ApplyResult{}, err
-	}
-	return executeApplyNormalized(normalized)
-}
-
-func ExecuteDeploy(input DeployInput) (ApplyResult, error) {
-	normalized, err := normalizeApplyInput(input.Apply)
-	if err != nil {
-		return ApplyResult{}, err
-	}
-	if err := prepareImages(prepareImagesInput{
-		ArtifactPath: normalized.ArtifactPath,
-		NoCache:      input.NoCache,
-		Runner:       input.Runner,
-	}); err != nil {
 		return ApplyResult{}, err
 	}
 	return executeApplyNormalized(normalized)

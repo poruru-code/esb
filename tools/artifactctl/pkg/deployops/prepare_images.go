@@ -1,12 +1,16 @@
-package artifactcore
+package deployops
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/poruru/edge-serverless-box/pkg/artifactcore"
+	"gopkg.in/yaml.v3"
 )
 
 type prepareImagesInput struct {
@@ -45,9 +49,9 @@ const (
 func prepareImages(req prepareImagesInput) error {
 	manifestPath := strings.TrimSpace(req.ArtifactPath)
 	if manifestPath == "" {
-		return ErrArtifactPathRequired
+		return artifactcore.ErrArtifactPathRequired
 	}
-	manifest, err := ReadArtifactManifest(manifestPath)
+	manifest, err := artifactcore.ReadArtifactManifest(manifestPath)
 	if err != nil {
 		return err
 	}
@@ -225,7 +229,7 @@ func resolveRuntimeBaseBuildContext(artifactRoot string) (string, string, error)
 		if !os.IsNotExist(err) {
 			return "", "", fmt.Errorf("stat runtime base dockerfile %s: %w", dockerfile, err)
 		}
-		return "", "", fmt.Errorf("%w: %s (run artifact generate to stage runtime-base)", ErrRuntimeBaseDockerfileMissing, dockerfile)
+		return "", "", fmt.Errorf("%w: %s (run artifact generate to stage runtime-base)", artifactcore.ErrRuntimeBaseDockerfileMissing, dockerfile)
 	}
 	return dockerfile, contextDir, nil
 }
@@ -406,4 +410,37 @@ func readFileIfExists(path string) ([]byte, bool, error) {
 		return nil, false, err
 	}
 	return data, true, nil
+}
+
+func loadYAML(path string) (map[string]any, bool, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	result := map[string]any{}
+	if err := yaml.Unmarshal(data, &result); err != nil {
+		return nil, false, err
+	}
+	return result, true, nil
+}
+
+func sortedUniqueNonEmpty(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		result = append(result, trimmed)
+	}
+	sort.Strings(result)
+	return result
 }

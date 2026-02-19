@@ -1,4 +1,4 @@
-package artifactcore
+package deployops
 
 import (
 	"errors"
@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/poruru/edge-serverless-box/pkg/artifactcore"
 )
 
 type recordCommandRunner struct {
@@ -299,7 +301,7 @@ func TestPrepareImagesFailsWhenRuntimeBaseContextMissing(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if !errors.Is(err, ErrRuntimeBaseDockerfileMissing) {
+	if !errors.Is(err, artifactcore.ErrRuntimeBaseDockerfileMissing) {
 		t.Fatalf("missing expected ErrRuntimeBaseDockerfileMissing: %v", err)
 	}
 }
@@ -405,29 +407,29 @@ func writePrepareImageFixture(t *testing.T, root, imageRef, baseRef string) stri
 	mustWriteFile(t, filepath.Join(configDir, "routing.yml"), "routes: []\n")
 	mustWriteFile(t, filepath.Join(configDir, "resources.yml"), "resources: {}\n")
 
-	manifest := ArtifactManifest{
-		SchemaVersion: ArtifactSchemaVersionV1,
+	manifest := artifactcore.ArtifactManifest{
+		SchemaVersion: artifactcore.ArtifactSchemaVersionV1,
 		Project:       "esb-e2e-docker",
 		Env:           "e2e-docker",
 		Mode:          "docker",
-		Artifacts: []ArtifactEntry{
+		Artifacts: []artifactcore.ArtifactEntry{
 			{
 				ArtifactRoot:     "fixture",
 				RuntimeConfigDir: "config",
-				SourceTemplate: ArtifactSourceTemplate{
+				SourceTemplate: artifactcore.ArtifactSourceTemplate{
 					Path:   "e2e/fixtures/template.e2e.yaml",
 					SHA256: "sha",
 				},
 			},
 		},
 	}
-	manifest.Artifacts[0].ID = ComputeArtifactID(
+	manifest.Artifacts[0].ID = artifactcore.ComputeArtifactID(
 		manifest.Artifacts[0].SourceTemplate.Path,
 		manifest.Artifacts[0].SourceTemplate.Parameters,
 		manifest.Artifacts[0].SourceTemplate.SHA256,
 	)
 	manifestPath := filepath.Join(root, "artifact.yml")
-	if err := WriteArtifactManifest(manifestPath, manifest); err != nil {
+	if err := artifactcore.WriteArtifactManifest(manifestPath, manifest); err != nil {
 		t.Fatalf("write manifest: %v", err)
 	}
 	return manifestPath

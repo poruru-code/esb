@@ -11,7 +11,8 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/poruru/edge-serverless-box/pkg/artifactcore"
-	"github.com/poruru/edge-serverless-box/pkg/artifactcore/composeprovision"
+	"github.com/poruru/edge-serverless-box/pkg/composeprovision"
+	"github.com/poruru/edge-serverless-box/tools/artifactctl/pkg/deployops"
 )
 
 type CLI struct {
@@ -39,7 +40,7 @@ type ProvisionCmd struct {
 type kongExitCode int
 
 type commandDeps struct {
-	executeDeploy    func(artifactcore.DeployInput) (artifactcore.ApplyResult, error)
+	executeDeploy    func(deployops.Input) (artifactcore.ApplyResult, error)
 	executeProvision func(ProvisionInput) error
 	warningWriter    io.Writer
 	out              io.Writer
@@ -61,7 +62,7 @@ func main() {
 
 func defaultDeps() commandDeps {
 	return commandDeps{
-		executeDeploy:    artifactcore.ExecuteDeploy,
+		executeDeploy:    deployops.Execute,
 		executeProvision: executeProvision,
 		warningWriter:    os.Stderr,
 		out:              os.Stdout,
@@ -136,7 +137,7 @@ func run(args []string, deps commandDeps) (exitCode int) {
 func runDeploy(cmd DeployCmd, deps commandDeps, errOut io.Writer) error {
 	executeDeploy := deps.executeDeploy
 	if executeDeploy == nil {
-		executeDeploy = artifactcore.ExecuteDeploy
+		executeDeploy = deployops.Execute
 	}
 	warningWriter := deps.warningWriter
 	if warningWriter == nil {
@@ -146,14 +147,12 @@ func runDeploy(cmd DeployCmd, deps commandDeps, errOut io.Writer) error {
 			warningWriter = errOut
 		}
 	}
-	result, err := executeDeploy(artifactcore.DeployInput{
-		Apply: artifactcore.ApplyInput{
-			ArtifactPath:  cmd.Artifact,
-			OutputDir:     cmd.Output,
-			SecretEnvPath: cmd.SecretEnv,
-			Strict:        cmd.Strict,
-		},
-		NoCache: cmd.NoCache,
+	result, err := executeDeploy(deployops.Input{
+		ArtifactPath:  cmd.Artifact,
+		OutputDir:     cmd.Output,
+		SecretEnvPath: cmd.SecretEnv,
+		Strict:        cmd.Strict,
+		NoCache:       cmd.NoCache,
 	})
 	if err != nil {
 		return fmt.Errorf("deploy failed: %w", err)

@@ -8,11 +8,12 @@ import (
 	"testing"
 
 	"github.com/poruru/edge-serverless-box/pkg/artifactcore"
+	"github.com/poruru/edge-serverless-box/tools/artifactctl/pkg/deployops"
 )
 
 func newNoopDeps(out, errOut *bytes.Buffer) commandDeps {
 	return commandDeps{
-		executeDeploy: func(artifactcore.DeployInput) (artifactcore.ApplyResult, error) {
+		executeDeploy: func(deployops.Input) (artifactcore.ApplyResult, error) {
 			return artifactcore.ApplyResult{}, nil
 		},
 		executeProvision: func(ProvisionInput) error { return nil },
@@ -107,10 +108,10 @@ func TestRunDeployDispatchesCanonicalDeployInput(t *testing.T) {
 	var errOut bytes.Buffer
 	var warnings bytes.Buffer
 
-	var got artifactcore.DeployInput
+	var got deployops.Input
 
 	deps := commandDeps{
-		executeDeploy: func(input artifactcore.DeployInput) (artifactcore.ApplyResult, error) {
+		executeDeploy: func(input deployops.Input) (artifactcore.ApplyResult, error) {
 			got = input
 			return artifactcore.ApplyResult{Warnings: []string{"minor mismatch"}}, nil
 		},
@@ -130,11 +131,11 @@ func TestRunDeployDispatchesCanonicalDeployInput(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("run returned code=%d, stderr=%q", code, errOut.String())
 	}
-	if got.Apply.ArtifactPath != "artifact.yml" || !got.NoCache {
+	if got.ArtifactPath != "artifact.yml" || !got.NoCache {
 		t.Fatalf("unexpected deploy input: %#v", got)
 	}
-	if got.Apply.OutputDir != "out" || got.Apply.SecretEnvPath != "secret.env" || !got.Apply.Strict {
-		t.Fatalf("unexpected apply input: %#v", got.Apply)
+	if got.OutputDir != "out" || got.SecretEnvPath != "secret.env" || !got.Strict {
+		t.Fatalf("unexpected apply input: %#v", got)
 	}
 	if !strings.Contains(warnings.String(), "Warning: minor mismatch") {
 		t.Fatalf("expected warning output, got %q", warnings.String())
@@ -145,7 +146,7 @@ func TestRunDeployUsesErrOutWhenWarningWriterUnset(t *testing.T) {
 	var out bytes.Buffer
 	var errOut bytes.Buffer
 	deps := commandDeps{
-		executeDeploy: func(input artifactcore.DeployInput) (artifactcore.ApplyResult, error) {
+		executeDeploy: func(input deployops.Input) (artifactcore.ApplyResult, error) {
 			return artifactcore.ApplyResult{Warnings: []string{"runtime mismatch"}}, nil
 		},
 		out:    &out,
@@ -166,7 +167,7 @@ func TestRunDeployReportsExecuteFailure(t *testing.T) {
 	var errOut bytes.Buffer
 
 	deps := commandDeps{
-		executeDeploy: func(artifactcore.DeployInput) (artifactcore.ApplyResult, error) {
+		executeDeploy: func(deployops.Input) (artifactcore.ApplyResult, error) {
 			return artifactcore.ApplyResult{}, errors.New("boom-deploy")
 		},
 		out:    &out,
@@ -188,7 +189,7 @@ func TestRunProvisionDispatchesCanonicalInput(t *testing.T) {
 	var got ProvisionInput
 
 	deps := commandDeps{
-		executeDeploy: func(artifactcore.DeployInput) (artifactcore.ApplyResult, error) {
+		executeDeploy: func(deployops.Input) (artifactcore.ApplyResult, error) {
 			return artifactcore.ApplyResult{}, nil
 		},
 		executeProvision: func(input ProvisionInput) error {
@@ -233,7 +234,7 @@ func TestRunProvisionReportsExecuteFailure(t *testing.T) {
 	var errOut bytes.Buffer
 
 	deps := commandDeps{
-		executeDeploy: func(artifactcore.DeployInput) (artifactcore.ApplyResult, error) {
+		executeDeploy: func(deployops.Input) (artifactcore.ApplyResult, error) {
 			return artifactcore.ApplyResult{}, nil
 		},
 		executeProvision: func(ProvisionInput) error { return errors.New("boom-provision") },
@@ -262,7 +263,7 @@ func TestRunProvisionPreservesSharedRunErrorClass(t *testing.T) {
 	var errOut bytes.Buffer
 
 	deps := commandDeps{
-		executeDeploy: func(artifactcore.DeployInput) (artifactcore.ApplyResult, error) {
+		executeDeploy: func(deployops.Input) (artifactcore.ApplyResult, error) {
 			return artifactcore.ApplyResult{}, nil
 		},
 		executeProvision: func(ProvisionInput) error {
