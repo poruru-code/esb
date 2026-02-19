@@ -43,7 +43,7 @@ These paths are retired and must not be reintroduced:
 - `cli/assets/runtime_templates_embed.go`
 - `runtime-hooks/java/README.md`
 - `services/contracts/README.md`
-- `tools/gen_proto.py`
+- `services/contracts/buf.gen.yaml`
 - `tools/bootstrap/README.md`
 - `services/gateway/config/gateway_log.yaml`
 - `services/gateway/config/haproxy.gateway.cfg`

@@ -7,6 +7,7 @@ go = "1.25.1"
 uv = "0.8.13"
 lefthook = "2.0.15"
 step = "0.28.7"
+buf = "1.65.0"
  
 # Go tooling (installed via go install)
 "go:github.com/golangci/golangci-lint/cmd/golangci-lint" = "latest"
@@ -35,6 +36,13 @@ run = "uv run python tools/cert-gen/generate.py"
 [tasks."setup:buildx"]
 description = "Create buildx builder and buildkitd config"
 run = "uv run python tools/buildkit/setup_buildx.py"
+
+[tasks.gen-proto]
+description = "Generate Agent/Gateway protobuf stubs from services/contracts/proto"
+run = [
+  "buf generate services/contracts --template services/contracts/buf.gen.yaml",
+  "uv run python services/contracts/scripts/fix_python_grpc_imports.py",
+]
 
 [tasks.build-cli]
 description = "Build CLI to ~/.local/bin"

@@ -16,4 +16,5 @@ Rules:
 3. Root-level `contracts/` is retired for this repository layout.
 
 Generation entrypoint:
-- `tools/gen_proto.py`
+- `mise run gen-proto`
+- `buf generate services/contracts`
