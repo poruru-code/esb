@@ -35,7 +35,6 @@ def _make_context(
         mode="docker",
         env_file="e2e/environments/e2e-docker/.env",
         env_dir=None,
-        env_vars={},
         targets=[],
         exclude=[],
         project_name="esb",

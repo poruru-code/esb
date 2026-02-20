@@ -27,7 +27,9 @@ def test_runtime_env_subnet_indices_match_contract() -> None:
     for case in _load_contract_cases():
         env_name = str(case["env"])
         assert env_external_subnet_index(env_name) == int(case["external_subnet_index"])
-        assert env_runtime_subnet_index(env_name) == int(case["runtime_subnet_index"])
+        runtime_index = case.get("runtime_subnet_index")
+        if runtime_index is not None:
+            assert env_runtime_subnet_index(env_name) == int(runtime_index)
 
 
 def test_calculate_runtime_env_matches_contract_defaults() -> None:
@@ -36,9 +38,11 @@ def test_calculate_runtime_env_matches_contract_defaults() -> None:
             env_name = str(case["env"])
             env = calculate_runtime_env("esb", env_name, "docker")
             assert env[constants.ENV_SUBNET_EXTERNAL] == str(case["subnet_external"])
-            assert env[constants.ENV_RUNTIME_NET_SUBNET] == str(case["runtime_net_subnet"])
-            assert env[constants.ENV_RUNTIME_NODE_IP] == str(case["runtime_node_ip"])
             assert env[constants.ENV_LAMBDA_NETWORK] == str(case["lambda_network"])
+            if "runtime_net_subnet" in case:
+                assert env[constants.ENV_RUNTIME_NET_SUBNET] == str(case["runtime_net_subnet"])
+            if "runtime_node_ip" in case:
+                assert env[constants.ENV_RUNTIME_NODE_IP] == str(case["runtime_node_ip"])
 
 
 def test_calculate_runtime_env_prefers_explicit_overrides() -> None:
@@ -54,3 +58,13 @@ def test_calculate_runtime_env_prefers_explicit_overrides() -> None:
 
     for key, value in explicit.items():
         assert env[key] == value
+
+
+def test_calculate_runtime_env_containerd_does_not_use_legacy_runtime_network_defaults() -> None:
+    with mock.patch.dict(os.environ, {}, clear=True):
+        env = calculate_runtime_env("esb", "e2e-containerd", "containerd")
+
+    assert env[constants.ENV_SUBNET_EXTERNAL] == "172.70.0.0/16"
+    assert env[constants.ENV_LAMBDA_NETWORK] == "esb_int_e2e-containerd"
+    assert constants.ENV_RUNTIME_NET_SUBNET not in env
+    assert constants.ENV_RUNTIME_NODE_IP not in env

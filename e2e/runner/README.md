@@ -57,6 +57,8 @@ e2e/run_tests.py
 - `config_dir` を必須入力として取り込み（runner での staging パス推測は行わない）
 - suite の target をプロジェクト相対パスへ展開
 - `env_dir` / `env_file` に `firecracker` を含む場合の推論
+- 環境変数は `e2e/environments/*/.env` を単一の設定点として扱う
+- runtime network policy: `RUNTIME_NET_SUBNET` / `RUNTIME_NODE_IP` は docker モードのみ注入し、containerd/firecracker では CNI identity を正本として無効化
 
 その後 `e2e/runner/planner.py` が生の辞書を型付き `Scenario` に変換します。
 

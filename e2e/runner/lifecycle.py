@@ -177,7 +177,6 @@ def wait_for_gateway(
 def _compose_env(ctx: RunContext) -> dict[str, str]:
     compose_env = os.environ.copy()
     compose_env.update(ctx.runtime_env)
-    compose_env.update(ctx.scenario.env_vars)
     compose_env.setdefault(constants.ENV_PROJECT_NAME, ctx.compose_project)
     return {**compose_env}
 

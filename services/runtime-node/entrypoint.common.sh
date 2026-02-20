@@ -330,11 +330,60 @@ start_devmapper_watcher() {
 }
 
 apply_cni_nat() {
+  if ! resolve_cni_nat_inputs; then
+    if [ "${CNI_NAT_PENDING_LOGGED:-0}" != "1" ]; then
+      log_warn "CNI bridge/subnet unresolved; skipping CNI NAT rule apply for now"
+      CNI_NAT_PENDING_LOGGED=1
+    fi
+    return 0
+  fi
+
+  CNI_NAT_PENDING_LOGGED=0
   # Ensure SNAT/MASQUERADE for CNI subnet traffic exiting to external networks.
-  ensure_iptables_rule nat POSTROUTING -s 10.88.0.0/16 ! -d 10.88.0.0/16 -j MASQUERADE
+  ensure_iptables_rule nat POSTROUTING -s "$RESOLVED_CNI_SUBNET" ! -d "$RESOLVED_CNI_SUBNET" -j MASQUERADE
   # Allow forwarding between the CNI bridge and external interfaces.
-  ensure_iptables_rule filter FORWARD -i esb0 -j ACCEPT
-  ensure_iptables_rule filter FORWARD -o esb0 -j ACCEPT
+  ensure_iptables_rule filter FORWARD -i "$RESOLVED_CNI_BRIDGE" -j ACCEPT
+  ensure_iptables_rule filter FORWARD -o "$RESOLVED_CNI_BRIDGE" -j ACCEPT
+}
+
+resolve_cni_nat_inputs() {
+  RESOLVED_CNI_BRIDGE="${CNI_BRIDGE:-}"
+  RESOLVED_CNI_SUBNET="${CNI_SUBNET:-}"
+
+  if [ -z "$RESOLVED_CNI_BRIDGE" ] || [ -z "$RESOLVED_CNI_SUBNET" ]; then
+    load_cni_identity_file || true
+    if [ -z "$RESOLVED_CNI_BRIDGE" ]; then
+      RESOLVED_CNI_BRIDGE="${CNI_BRIDGE:-}"
+    fi
+    if [ -z "$RESOLVED_CNI_SUBNET" ]; then
+      RESOLVED_CNI_SUBNET="${CNI_SUBNET:-}"
+    fi
+  fi
+
+  if [ -z "$RESOLVED_CNI_BRIDGE" ] || [ -z "$RESOLVED_CNI_SUBNET" ]; then
+    return 1
+  fi
+  return 0
+}
+
+load_cni_identity_file() {
+  cni_identity_path="/var/lib/cni/esb-cni.env"
+  if [ ! -f "$cni_identity_path" ]; then
+    return 1
+  fi
+  # shellcheck disable=SC1090
+  . "$cni_identity_path"
+  return 0
+}
+
+start_cni_nat_watcher() {
+  cni_nat_interval=2
+  (
+    while true; do
+      apply_cni_nat || true
+      sleep "$cni_nat_interval"
+    done
+  ) &
 }
 
 ensure_iptables_rule() {

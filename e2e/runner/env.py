@@ -139,6 +139,7 @@ def calculate_runtime_env(
 
     if not env_name:
         env_name = "default"
+    mode_normalized = mode.lower()
 
     env[constants.ENV_ENV] = env_name
     env[constants.ENV_MODE] = mode
@@ -158,7 +159,7 @@ def calculate_runtime_env(
 
     registry = env.get(registry_key, "").strip()
     if registry_key not in env_from_file:
-        if mode.lower() == "docker":
+        if mode_normalized == "docker":
             registry = f"{constants.DEFAULT_AGENT_REGISTRY_HOST}/"
         else:
             registry = f"{constants.DEFAULT_AGENT_REGISTRY}/"
@@ -198,18 +199,26 @@ def calculate_runtime_env(
     if not env.get(constants.ENV_SUBNET_EXTERNAL):
         env[constants.ENV_SUBNET_EXTERNAL] = f"172.{env_external_subnet_index(env_name)}.0.0/16"
 
-    if not env.get(constants.ENV_RUNTIME_NET_SUBNET):
-        env[constants.ENV_RUNTIME_NET_SUBNET] = f"172.{env_runtime_subnet_index(env_name)}.0.0/16"
+    if mode_normalized == "docker":
+        if not env.get(constants.ENV_RUNTIME_NET_SUBNET):
+            env[constants.ENV_RUNTIME_NET_SUBNET] = (
+                f"172.{env_runtime_subnet_index(env_name)}.0.0/16"
+            )
 
-    if not env.get(constants.ENV_RUNTIME_NODE_IP):
-        env[constants.ENV_RUNTIME_NODE_IP] = f"172.{env_runtime_subnet_index(env_name)}.0.10"
+        if not env.get(constants.ENV_RUNTIME_NODE_IP):
+            env[constants.ENV_RUNTIME_NODE_IP] = f"172.{env_runtime_subnet_index(env_name)}.0.10"
+    else:
+        # containerd/firecracker paths resolve CNI from stack identity;
+        # keep legacy runtime subnet hints out of compose env to avoid forced CNI overrides.
+        env.pop(constants.ENV_RUNTIME_NET_SUBNET, None)
+        env.pop(constants.ENV_RUNTIME_NODE_IP, None)
 
     if not env.get(constants.ENV_LAMBDA_NETWORK):
         env[constants.ENV_LAMBDA_NETWORK] = f"{BRAND_SLUG}_int_{env_name}"
 
     # 4. Registry Defaults
     if constants.ENV_CONTAINER_REGISTRY not in env_from_file:
-        if mode.lower() == "docker":
+        if mode_normalized == "docker":
             env[constants.ENV_CONTAINER_REGISTRY] = constants.DEFAULT_AGENT_REGISTRY_HOST
         else:
             env[constants.ENV_CONTAINER_REGISTRY] = constants.DEFAULT_AGENT_REGISTRY

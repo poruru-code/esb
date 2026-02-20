@@ -6,75 +6,12 @@ import yaml
 from e2e.runner.utils import BRAND_HOME_DIR, BRAND_SLUG, PROJECT_ROOT
 
 MATRIX_ROOT = PROJECT_ROOT / "e2e" / "environments"
-CONTRACT_FILE = PROJECT_ROOT / "e2e" / "contracts" / "runtime_env_contract.yaml"
+
+_UNSUPPORTED_MATRIX_FIELDS = ("deploy_driver", "artifact_generate")
 
 
-_LEGACY_DEPLOY_FIELDS = ("deploy_driver", "artifact_generate")
-_RUNTIME_NETWORK_KEYS = (
-    "SUBNET_EXTERNAL",
-    "RUNTIME_NET_SUBNET",
-    "RUNTIME_NODE_IP",
-    "LAMBDA_NETWORK",
-)
-
-
-def _load_runtime_network_contract() -> dict[str, dict[str, str]]:
-    if not CONTRACT_FILE.exists():
-        return {}
-    with open(CONTRACT_FILE, "r", encoding="utf-8") as f:
-        data = yaml.safe_load(f) or {}
-    cases = data.get("cases", [])
-    if not isinstance(cases, list):
-        raise ValueError("runtime env contract 'cases' must be a list")
-
-    field_map = {
-        "subnet_external": "SUBNET_EXTERNAL",
-        "runtime_net_subnet": "RUNTIME_NET_SUBNET",
-        "runtime_node_ip": "RUNTIME_NODE_IP",
-        "lambda_network": "LAMBDA_NETWORK",
-    }
-    contract: dict[str, dict[str, str]] = {}
-    for raw_case in cases:
-        if not isinstance(raw_case, dict):
-            raise ValueError("runtime env contract case must be a map")
-        env_name = str(raw_case.get("env", "")).strip()
-        if not env_name:
-            raise ValueError("runtime env contract case requires non-empty 'env'")
-        values: dict[str, str] = {}
-        for source_key, target_key in field_map.items():
-            raw_value = raw_case.get(source_key)
-            if raw_value is None:
-                continue
-            value = str(raw_value).strip()
-            if value:
-                values[target_key] = value
-        if env_name in contract:
-            raise ValueError(f"duplicate runtime env contract case: {env_name}")
-        contract[env_name] = values
-    return contract
-
-
-def _inject_runtime_network_defaults(
-    env_name: str,
-    env_vars: dict[str, str],
-    contract: dict[str, dict[str, str]],
-) -> None:
-    defaults = contract.get(env_name)
-    if defaults is None:
-        return
-    conflicts = [key for key in _RUNTIME_NETWORK_KEYS if key in env_vars]
-    if conflicts:
-        joined = ", ".join(sorted(conflicts))
-        raise ValueError(
-            f"matrix env_vars for '{env_name}' must not set runtime network keys ({joined}); "
-            f"use {CONTRACT_FILE.relative_to(PROJECT_ROOT)}"
-        )
-    for key, value in defaults.items():
-        env_vars.setdefault(key, value)
-
-
-def _reject_legacy_deploy_fields(entry: dict) -> None:
-    for field in _LEGACY_DEPLOY_FIELDS:
+def _reject_unsupported_fields(entry: dict) -> None:
+    for field in _UNSUPPORTED_MATRIX_FIELDS:
         if field in entry:
             raise ValueError(f"legacy field '{field}' is no longer supported in E2E matrix")
 
@@ -139,7 +76,6 @@ def load_test_matrix() -> dict:
 
 def build_env_scenarios(matrix: list, suites: dict, profile_filter: str | None = None) -> dict:
     env_scenarios = {}
-    runtime_network_contract = _load_runtime_network_contract()
 
     for entry in matrix:
         env_name = entry.get("esb_env")
@@ -150,7 +86,7 @@ def build_env_scenarios(matrix: list, suites: dict, profile_filter: str | None =
         if profile_filter and env_name != profile_filter:
             continue
 
-        _reject_legacy_deploy_fields(entry)
+        _reject_unsupported_fields(entry)
         esb_project = _resolve_esb_project(entry)
         config_dir = _validate_config_dir(entry, env_name, esb_project)
         artifact_manifest = _require_non_empty_field(entry, "artifact_manifest")
@@ -167,11 +103,6 @@ def build_env_scenarios(matrix: list, suites: dict, profile_filter: str | None =
             if env_dir and not env_file:
                 env_file = f"e2e/environments/{env_dir}/.env"
 
-            env_vars = dict(entry.get("env_vars", {}))
-            if is_firecracker:
-                env_vars.setdefault("CONTAINERD_RUNTIME", "aws.firecracker")
-            _inject_runtime_network_defaults(env_name, env_vars, runtime_network_contract)
-
             env_scenarios[env_name] = {
                 "name": f"Combined Scenarios for {env_name}",
                 "env_file": env_file,
@@ -180,7 +111,6 @@ def build_env_scenarios(matrix: list, suites: dict, profile_filter: str | None =
                 "esb_env": env_name,
                 "esb_project": esb_project,
                 "mode": mode,
-                "env_vars": env_vars,
                 "targets": [],
                 "exclude": [],
                 "image_uri_overrides": entry.get("image_uri_overrides", {}) or {},

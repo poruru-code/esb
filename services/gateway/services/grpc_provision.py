@@ -56,12 +56,12 @@ class GrpcProvisionClient:
         env["AWS_REGION"] = default_region
 
         # Data Plane Host (fallback for Containerd mode)
-        data_plane_host = getattr(config, "DATA_PLANE_HOST", "10.88.0.1")
+        data_plane_host = str(getattr(config, "DATA_PLANE_HOST", "")).strip()
 
         # 1. VictoriaLogs (CloudWatch Logs)
         vl_url = getattr(config, "GATEWAY_VICTORIALOGS_URL", "")
 
-        if not vl_url:
+        if not vl_url and data_plane_host:
             vl_url = f"{ServiceDefaults.PROTOCOL}://{data_plane_host}:{ServiceDefaults.VICTORIALOGS_PORT}"
 
         if vl_url:
@@ -80,6 +80,8 @@ class GrpcProvisionClient:
         # 2. DynamoDB
         ddb_url = getattr(config, "DYNAMODB_ENDPOINT", "")
         if not ddb_url:
+            if not data_plane_host:
+                raise ValueError("DATA_PLANE_HOST or DYNAMODB_ENDPOINT is required")
             ddb_url = (
                 f"{ServiceDefaults.PROTOCOL}://{data_plane_host}:{ServiceDefaults.DYNAMODB_PORT}"
             )
@@ -91,6 +93,8 @@ class GrpcProvisionClient:
         # 3. S3
         s3_url = getattr(config, "S3_ENDPOINT", "")
         if not s3_url:
+            if not data_plane_host:
+                raise ValueError("DATA_PLANE_HOST or S3_ENDPOINT is required")
             s3_url = f"{ServiceDefaults.PROTOCOL}://{data_plane_host}:{ServiceDefaults.S3_PORT}"
 
         env["AWS_ENDPOINT_URL_S3"] = s3_url

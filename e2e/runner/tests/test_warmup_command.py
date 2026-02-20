@@ -14,7 +14,6 @@ def _scenario(name: str, env_name: str) -> Scenario:
         mode="docker",
         env_file=None,
         env_dir=None,
-        env_vars={},
         targets=[],
         exclude=[],
         project_name="esb",

@@ -4,6 +4,8 @@
 package identity
 
 import (
+	"crypto/md5"
+	"encoding/binary"
 	"fmt"
 	"strings"
 )
@@ -14,8 +16,15 @@ const (
 	EnvName              = "ENV"
 	EnvContainersNetwork = "CONTAINERS_NETWORK"
 
-	fixedCNIName   = "esb-net"
-	fixedCNIBridge = "esb0"
+	defaultBrand        = "esb"
+	bridgePrefix        = "esb-"
+	bridgeBrandRunes    = 4
+	bridgeHashRunes     = 6
+	subnetPrefixLength  = 23
+	subnetThirdStep     = 2
+	subnetThirdSlots    = 128   // /23 blocks per second octet
+	subnetPoolSize      = 32640 // 255 second-octet slots (excluding 88) x 128 third-octet slots (/23)
+	subnetSecondOctetEx = 88
 )
 
 type StackIdentity struct {
@@ -47,13 +56,38 @@ func (id StackIdentity) RuntimeNamespace() string {
 }
 
 func (id StackIdentity) RuntimeCNIName() string {
-	// Keep CNI network identity aligned with shared bridge to avoid multi-stack collisions.
-	return fixedCNIName
+	brand := id.normalizedBrand()
+	return brand + "-net"
 }
 
 func (id StackIdentity) RuntimeCNIBridge() string {
-	// Keep bridge name fixed for compatibility with runtime-node iptables forwarding rules.
-	return fixedCNIBridge
+	brand := id.normalizedBrand()
+	compactBrand := strings.ReplaceAll(brand, "-", "")
+	if compactBrand == "" {
+		compactBrand = defaultBrand
+	}
+	if len(compactBrand) > bridgeBrandRunes {
+		compactBrand = compactBrand[:bridgeBrandRunes]
+	}
+	return bridgePrefix + compactBrand + shortHash(brand, bridgeHashRunes)
+}
+
+func (id StackIdentity) RuntimeCNISubnet() string {
+	return id.RuntimeCNISubnetAt(0)
+}
+
+func (id StackIdentity) RuntimeCNISubnetAt(offset int) string {
+	brand := id.normalizedBrand()
+	base := int(hashMod(brand, subnetPoolSize))
+	slot := (base + offset) % subnetPoolSize
+	if slot < 0 {
+		slot += subnetPoolSize
+	}
+	return subnetFromSlot(slot)
+}
+
+func RuntimeCNISubnetPoolSize() int {
+	return subnetPoolSize
 }
 
 func (id StackIdentity) RuntimeResolvConfPath() string {
@@ -90,6 +124,14 @@ func (id StackIdentity) RuntimeLabelCreatedBy() string {
 
 func (id StackIdentity) RuntimeLabelCreatedByValue() string {
 	return id.BrandSlug + "-agent"
+}
+
+func (id StackIdentity) normalizedBrand() string {
+	brand := normalizeSlug(id.BrandSlug)
+	if brand == "" {
+		return defaultBrand
+	}
+	return brand
 }
 
 func deriveBrandFromProject(projectName, envName string) string {
@@ -176,4 +218,35 @@ func normalizeSlug(value string) string {
 		return ""
 	}
 	return slug
+}
+
+func shortHash(value string, digits int) string {
+	if digits <= 0 {
+		return ""
+	}
+	sum := md5.Sum([]byte(value))
+	hex := fmt.Sprintf("%x", sum)
+	if digits >= len(hex) {
+		return hex
+	}
+	return hex[:digits]
+}
+
+func hashMod(value string, mod int) uint32 {
+	if mod <= 0 {
+		return 0
+	}
+	sum := md5.Sum([]byte(value))
+	hash := binary.BigEndian.Uint32(sum[:4])
+	return hash % uint32(mod)
+}
+
+func subnetFromSlot(slot int) string {
+	secondIdx := slot / subnetThirdSlots
+	secondOctet := secondIdx
+	if secondOctet >= subnetSecondOctetEx {
+		secondOctet++
+	}
+	thirdOctet := (slot % subnetThirdSlots) * subnetThirdStep
+	return fmt.Sprintf("10.%d.%d.0/%d", secondOctet, thirdOctet, subnetPrefixLength)
 }
