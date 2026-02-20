@@ -27,7 +27,8 @@ Why: Keep docs aligned with entrypoint.sh and entrypoint.common.sh.
 | `WG_CONTROL_NET` | (空) | 追加 route 対象 CIDR |
 | `WG_CONTROL_GW` | (空) | route 用明示 gateway |
 | `WG_CONTROL_GW_HOST` | `gateway` | gateway 未指定時の名前解決先 |
-| `CNI_GW_IP` | `10.88.0.1` | compose/周辺サービスとの共有値（runtime-node 自体では参照しない） |
+| `CNI_SUBNET` | (空) | CNI サブネット（未指定時は Agent が出力する identity file から解決） |
+| `CNI_BRIDGE` | (空) | CNI bridge 名（未指定時は Agent identity file から解決） |
 
 ## devmapper / Firecracker 補助
 | 変数 | 既定 | 説明 |
@@ -38,8 +39,8 @@ Why: Keep docs aligned with entrypoint.sh and entrypoint.common.sh.
 | `VHOST_VSOCK_REQUIRED` | `0` | `1` で `/dev/vhost-vsock` 必須 |
 
 ## 補足
-- `apply_cni_nat` の MASQUERADE 対象は現状 `10.88.0.0/16` 固定です。
-- `CNI_SUBNET` / `CNI_DNS_SERVER` は主に Agent 側 CNI 設定で使用されます。
+- `apply_cni_nat` は `CNI_SUBNET` / `CNI_BRIDGE` を解決して iptables ルールを適用します。
+- `CNI_SUBNET` / `CNI_BRIDGE` が空の場合、`/var/lib/cni/esb-cni.env` を再読込して追従します（起動後の再適用ループあり）。
 
 ---
 

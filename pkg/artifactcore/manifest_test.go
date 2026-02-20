@@ -335,7 +335,7 @@ func TestWriteArtifactManifestSyncsArtifactIDs(t *testing.T) {
 	}
 }
 
-func TestManifestValidateRuntimeStackRequiresModeAndVersionWhenConfigured(t *testing.T) {
+func TestManifestValidateRuntimeStackRequiresModeWhenConfigured(t *testing.T) {
 	manifest := validTestManifest()
 	manifest.RuntimeStack = RuntimeStackMeta{
 		APIVersion: RuntimeStackAPIVersion,

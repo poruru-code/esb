@@ -106,6 +106,23 @@ def test_calculate_runtime_env_mode_registry_defaults():
     env_containerd = calculate_runtime_env("p", "e", "containerd")
     assert env_containerd[registry_key] == "registry:5010/"
     assert env_containerd[constants.ENV_CONTAINER_REGISTRY] == "registry:5010"
+    assert constants.ENV_RUNTIME_NET_SUBNET not in env_containerd
+    assert constants.ENV_RUNTIME_NODE_IP not in env_containerd
+
+
+def test_calculate_runtime_env_containerd_ignores_legacy_runtime_subnet_inputs():
+    with mock.patch.dict(
+        os.environ,
+        {
+            constants.ENV_RUNTIME_NET_SUBNET: "172.210.0.0/16",
+            constants.ENV_RUNTIME_NODE_IP: "172.210.0.10",
+        },
+        clear=True,
+    ):
+        env = calculate_runtime_env("p", "e2e-containerd", "containerd")
+
+    assert constants.ENV_RUNTIME_NET_SUBNET not in env
+    assert constants.ENV_RUNTIME_NODE_IP not in env
 
 
 def test_calculate_runtime_env_prefers_explicit_overrides_over_env_file(tmp_path):

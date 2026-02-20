@@ -97,7 +97,7 @@ sequenceDiagram
 
 ### 3) DNS 注入（containerd）
 - `resolv.conf` を Agent 側で生成し、ワーカーの `/etc/resolv.conf` に bind-mount します。
-- nameserver は `CNI_DNS_SERVER` → `CNI_GW_IP` → 既定値（`10.88.0.1`）の順で解決します。
+- nameserver は `CNI_DNS_SERVER` → `CNI_GW_IP` → `CNI_SUBNET` の gateway(`.1`) → 既定値（`10.88.0.1`）の順で解決します。
 
 ### 4) Snapshotter の選択（containerd）
 - `CONTAINERD_SNAPSHOTTER` が指定されていればそれを使用します。

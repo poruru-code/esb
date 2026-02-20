@@ -12,8 +12,8 @@ Why: Clarify runtime-mode tradeoffs and operational boundaries.
 | 項目 | Docker | containerd |
 | --- | --- | --- |
 | 実行エンジン | Docker Engine | containerd + CNI |
-| Worker IP | Docker network | CNI bridge (`10.88.0.0/16`) |
-| DNS | Docker DNS | CoreDNS (`10.88.0.1`) |
+| Worker IP | Docker network | CNI bridge（brand-resolved subnet） |
+| DNS | Docker DNS | CoreDNS（CNI gateway IP） |
 | Agent 接続 | Docker API | containerd socket + CNI |
 | Firecracker | 非対応 | `CONTAINERD_RUNTIME=aws.firecracker` |
 | 主な compose | `docker-compose.docker.yml` | `docker-compose.containerd.yml` |

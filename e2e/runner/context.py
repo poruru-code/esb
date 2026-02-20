@@ -49,7 +49,6 @@ def _prepare_context(
         env_name,
         scenario.mode,
         env_file,
-        scenario.env_vars,
     )
 
     state_env = _load_state_env(env_name)
@@ -57,8 +56,6 @@ def _prepare_context(
         if key in state_env:
             runtime_env[key] = state_env[key]
 
-    # Scenario-level values are the final explicit overrides.
-    runtime_env.update(scenario.env_vars)
     apply_proxy_defaults(runtime_env)
     _apply_port_overrides(runtime_env, port_overrides)
     runtime_env[env_key("PROJECT")] = project_name
@@ -78,13 +75,9 @@ def _prepare_context(
     staging_config_dir.mkdir(parents=True, exist_ok=True)
 
     tag_key = env_key(constants.ENV_TAG)
-    tag_override = scenario.env_vars.get(tag_key)
-    if tag_override:
-        runtime_env[tag_key] = tag_override
-    else:
-        current_tag = runtime_env.get(tag_key, "").strip()
-        if current_tag in ("", "latest"):
-            runtime_env[tag_key] = build_unique_tag(env_name)
+    current_tag = runtime_env.get(tag_key, "").strip()
+    if current_tag in ("", "latest"):
+        runtime_env[tag_key] = build_unique_tag(env_name)
 
     host_addr, service_addr = infra.get_registry_config()
     runtime_registry = host_addr if scenario.mode.lower() == "docker" else service_addr
@@ -96,11 +89,9 @@ def _prepare_context(
     deploy_env.update(runtime_env)
     deploy_env["PROJECT_NAME"] = compose_project
     deploy_env["ESB_META_REUSE"] = "1"
-    deploy_env.update(scenario.env_vars)
 
     pytest_env = os.environ.copy()
     pytest_env.update(runtime_env)
-    pytest_env.update(scenario.env_vars)
 
     return RunContext(
         scenario=scenario,

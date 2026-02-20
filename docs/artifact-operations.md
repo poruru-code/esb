@@ -12,7 +12,7 @@ This document defines operational flows for artifact-first deployment.
 - Applier responsibility: apply generated artifacts to `CONFIG_DIR` and run provisioner
 - Runtime responsibility: consume prepared runtime-config only
 - Payload contract responsibility: verify artifact input integrity (schema/path/id/runtime payload)
-- Runtime stack compatibility responsibility: verify live stack version/capability compatibility at deploy time
+- Runtime stack compatibility responsibility: verify live stack mode/API compatibility at deploy time
 
 Contract freeze:
 - `runtime-base/**` is out of deploy artifact contract scope.
@@ -22,7 +22,7 @@ Contract freeze:
 The contract details live in `docs/deploy-artifact-contract.md`.
 
 ## Phase Model
-0. Runtime compatibility phase: validate compatibility against live gateway/agent/provisioner/runtime-node before apply (phased implementation)
+0. Runtime compatibility phase: validate mode/API compatibility against live gateway/agent/provisioner/runtime-node before apply (phased implementation)
 1. Generate phase: parse templates and render artifact outputs (`artifact.yml`, runtime-config, Dockerfiles)
 2. Image build phase: optional operation outside deploy artifact contract
 3. Apply phase: validate payload integrity and merge artifact outputs into `CONFIG_DIR`, then provision
@@ -80,8 +80,9 @@ Boundary ownership map:
 - test execution consumes committed fixtures under `e2e/artifacts/*`
 - firecracker profile is currently disabled in matrix (docker/containerd are active gates)
 - deploy phases require `artifactctl` on PATH (or `ARTIFACTCTL_BIN` override)
-- runtime network defaults (`SUBNET_EXTERNAL`, `RUNTIME_NET_SUBNET`, `RUNTIME_NODE_IP`, `LAMBDA_NETWORK`) は `e2e/contracts/runtime_env_contract.yaml` を正本として runner が注入する
-- matrix `env_vars` では上記 runtime network keys を上書きしない（契約値との二重管理を禁止）
+- runtime network defaults は runner の決定論ロジックで算出し、`e2e/contracts/runtime_env_contract.yaml` で整合性を検証する
+- `RUNTIME_NET_SUBNET` / `RUNTIME_NODE_IP` は docker モードのみ既定注入し、containerd/firecracker モードでは注入しない（設定しても runtime env では無効化）
+- matrix での追加 env 注入は行わず、環境変数は `e2e/environments/*/.env` を唯一の設定点として扱う
 
 Fixture refresh is a separate developer operation (outside E2E runtime):
 - regenerate fixtures with `e2e/scripts/regenerate_artifacts.sh`

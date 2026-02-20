@@ -48,9 +48,7 @@ def _scenario_runtime_env_for_buildx(scenario: Scenario) -> dict[str, str]:
         scenario.env_name,
         scenario.mode,
         _resolve_env_file(scenario.env_file),
-        scenario.env_vars,
     )
-    runtime_env.update(scenario.env_vars)
     apply_proxy_defaults(runtime_env)
     return runtime_env
 

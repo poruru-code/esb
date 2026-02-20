@@ -48,9 +48,10 @@ Agent は起動時に brand slug を次の順で 1 回だけ解決し、runtime 
 | `CNI_CONF_DIR` | `/etc/cni/net.d` | CNI conf dir |
 | `CNI_BIN_DIR` | `/opt/cni/bin` | CNI plugin dir |
 | `CNI_CONF_FILE` | `<CNI_CONF_DIR>/10-<brand>-net.conflist` | CNI conf ファイル（brand は StackIdentity 由来） |
-| `CNI_SUBNET` | `10.88.0.0/16` | CNI サブネット |
+| `CNI_SUBNET` | brand 派生 | CNI サブネット（未指定時は既存 conf と衝突すれば次スロットへ自動シフト） |
+| `CNI_BRIDGE` | brand 派生 | CNI bridge 名 |
 | `CNI_GW_IP` | (空) | CNI GW（`CNI_DNS_SERVER` 未指定時の参照先） |
-| `CNI_DNS_SERVER` | `10.88.0.1` | nameserver（解決順: `CNI_DNS_SERVER` -> `CNI_GW_IP` -> `10.88.0.1`） |
+| `CNI_DNS_SERVER` | subnet gateway(.1) | nameserver（解決順: `CNI_DNS_SERVER` -> `CNI_GW_IP` -> `subnet gateway(.1)` -> `10.88.0.1`） |
 | `CNI_NET_DIR` | `/var/lib/cni/networks` | IPAM state の保存先（IP 再解決に使用） |
 
 ## レジストリ / 画像

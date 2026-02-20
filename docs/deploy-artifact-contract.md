@@ -105,6 +105,7 @@ Why: Define a stable boundary between artifact producer (external/manual) and ru
 - 手動更新時は `artifactctl manifest sync-ids --artifact <artifact.yml>` で ID を同期できます。
 - CI では `artifactctl manifest sync-ids --artifact <artifact.yml> --check` で不一致検知できます。
 - 手動作成時の `runtime_stack` は任意です。生成ツールによっては既定で `runtime_stack` を出力します。
+- `runtime_stack.esb_version` は任意メタ情報です。現行の互換判定は `api_version` と `mode` を主軸とし、`esb_version` 不一致は判定しません。
 
 ## パス規約
 ### 実行パス（厳格）
@@ -166,7 +167,7 @@ generator:
 runtime_stack:
   api_version: "1.0"
   mode: docker
-  esb_version: latest
+  # esb_version: latest  # optional metadata
 artifacts:
   - id: template-a-2b4f1a9c
     artifact_root: ../service-a/.esb/template-a/dev
@@ -201,7 +202,7 @@ artifacts:
   - `generated_at`
   - `generator`（name/version）
   - `merge_policy`（例: `last_write_wins_v1`）
-  - `runtime_stack`（`api_version`, `mode`, `esb_version`）
+  - `runtime_stack`（`api_version`, `mode`, optional `esb_version`）
 
 ## Payload 整合性ポリシー（現行実装）
 - `id` の再計算一致、schema/path/secret 充足を必須条件とします。
@@ -222,6 +223,7 @@ artifacts:
 - `artifactctl deploy` では live stack observation probe（docker compose project ベース）を apply 前に実行します。
 - producer 側の apply adapter でも apply 前に runtime observation を実行し、`artifactcore` へ渡します。
 - observation は docker 取得結果を優先し、未取得時は request（mode/tag）を fallback とします。
+- `esb_version` は manifest 上に保持可能ですが、現行の runtime compatibility 判定では比較しません。
 
 ## 移行互換ポリシー
 - 本契約の正本は `artifact.yml` 単一です。

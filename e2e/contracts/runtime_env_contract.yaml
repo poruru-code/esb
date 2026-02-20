@@ -15,8 +15,7 @@ cases:
     lambda_network: esb_int_e2e-docker
   - env: e2e-containerd
     external_subnet_index: 70
-    runtime_subnet_index: 110
     subnet_external: 172.70.0.0/16
-    runtime_net_subnet: 172.110.0.0/16
-    runtime_node_ip: 172.110.0.10
+    # containerd は stack identity 由来の CNI を使うため、
+    # RUNTIME_NET_SUBNET/RUNTIME_NODE_IP は runner 既定注入を行わない。
     lambda_network: esb_int_e2e-containerd

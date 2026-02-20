@@ -15,7 +15,6 @@ class Scenario:
     mode: str
     env_file: str | None
     env_dir: str | None
-    env_vars: dict[str, str]
     targets: list[str]
     exclude: list[str]
     project_name: str | None = None

@@ -90,7 +90,7 @@ class GatewayConfig(BaseAppConfig):
         default_factory=lambda: os.getenv("HOSTNAME") or "gateway",
         description="Gateway owner identifier for Agent resource ownership",
     )
-    DATA_PLANE_HOST: str = Field(default="10.88.0.1", description="Host for data plane services")
+    DATA_PLANE_HOST: str = Field(default="", description="Host for data plane services")
     LAMBDA_INVOKE_TIMEOUT: float = Field(
         default=30.0, description="Lambda invoke timeout (seconds)"
     )

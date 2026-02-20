@@ -37,9 +37,10 @@ Agent 起動時に CNI `.conflist` を生成します。
 
 - 出力先: `CNI_CONF_DIR`（既定 `/etc/cni/net.d`）
 - ファイル名: `10-<brand>-net.conflist`
-- bridge 名: `esb0`（runtime-node の FORWARD ルール互換のため固定）
-- サブネット: `CNI_SUBNET`（未指定時 `10.88.0.0/16`）
-- DNS: `CNI_DNS_SERVER` -> `CNI_GW_IP` -> `10.88.0.1`
+- bridge 名: `CNI_BRIDGE`（未指定時は brand 派生）
+- サブネット: `CNI_SUBNET`（未指定時は brand 派生。既存 CNI 設定と衝突した場合は次の決定論スロットへ移動）
+- DNS: `CNI_DNS_SERVER` -> `CNI_GW_IP` -> `subnet gateway(.1)` -> `10.88.0.1`
+- 共有 identity: `/var/lib/cni/esb-cni.env` へ `CNI_NETWORK/CNI_BRIDGE/CNI_SUBNET/CNI_GW_IP` を出力
 
 ## Ensure フロー（container 作成）
 

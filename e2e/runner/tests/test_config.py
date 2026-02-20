@@ -313,7 +313,7 @@ def test_build_env_scenarios_accepts_lowercase_config_dir_for_mixed_case_env() -
     assert scenarios["E2E-Docker"]["config_dir"] == ".esb/staging/esb-e2e-docker/e2e-docker/config"
 
 
-def test_build_env_scenarios_injects_runtime_network_contract_defaults() -> None:
+def test_build_env_scenarios_uses_default_env_file() -> None:
     matrix = [
         {
             "esb_env": "e2e-docker",
@@ -330,30 +330,4 @@ def test_build_env_scenarios_injects_runtime_network_contract_defaults() -> None
     }
 
     scenarios = build_env_scenarios(matrix, suites)
-    env_vars = scenarios["e2e-docker"]["env_vars"]
-
-    assert env_vars["SUBNET_EXTERNAL"] == "172.146.0.0/16"
-    assert env_vars["RUNTIME_NET_SUBNET"] == "172.186.0.0/16"
-    assert env_vars["RUNTIME_NODE_IP"] == "172.186.0.10"
-    assert env_vars["LAMBDA_NETWORK"] == "esb_int_e2e-docker"
-
-
-def test_build_env_scenarios_rejects_runtime_network_overrides_for_contract_env() -> None:
-    matrix = [
-        {
-            "esb_env": "e2e-docker",
-            "config_dir": ".esb/staging/esb-e2e-docker/e2e-docker/config",
-            "artifact_manifest": "e2e/artifacts/e2e-docker/artifact.yml",
-            "env_vars": {"SUBNET_EXTERNAL": "172.200.0.0/16"},
-            "suites": ["smoke"],
-        }
-    ]
-    suites = {
-        "smoke": {
-            "targets": ["../scenarios/smoke/test_smoke.py"],
-            "exclude": [],
-        }
-    }
-
-    with pytest.raises(ValueError, match="must not set runtime network keys"):
-        build_env_scenarios(matrix, suites)
+    assert scenarios["e2e-docker"]["env_file"] == "e2e/environments/e2e-docker/.env"
