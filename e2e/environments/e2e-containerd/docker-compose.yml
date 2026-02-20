@@ -12,6 +12,7 @@ services:
   gateway:
     environment:
       <<: *no_proxy
+      S3_PRESIGN_ENDPOINT: "http://localhost:${PORT_S3}"
   agent:
     environment:
       <<: *no_proxy
