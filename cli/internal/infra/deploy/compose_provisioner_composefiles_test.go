@@ -209,8 +209,8 @@ func TestRunProvisionerSkipsServicePrecheckWhenResolvedFilesExist(t *testing.T) 
 	if runner.serviceChecks != 0 {
 		t.Fatalf("expected no compose service precheck, got %d", runner.serviceChecks)
 	}
-	if runner.runQuietCalls != 1 {
-		t.Fatalf("expected one quiet run, got %d", runner.runQuietCalls)
+	if runner.runQuietCalls != 2 {
+		t.Fatalf("expected two quiet runs (build + run), got %d", runner.runQuietCalls)
 	}
 }
 
