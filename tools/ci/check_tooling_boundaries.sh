@@ -198,4 +198,11 @@ if ! diff -u <(printf "%s\n" "${expected_exports}") <(printf "%s\n" "${actual_ex
   exit 1
 fi
 
+echo "[check] validating artifactcore exported helper naming guard"
+if printf "%s\n" "${actual_exports}" | grep -Eq '(^|\.)(Infer|Parse|Preferred|Has)[A-Z]'; then
+  echo "[error] artifactcore must not export helper-style APIs (Infer/Parse/Preferred/Has...)." >&2
+  echo "        Move helper logic to caller/internal packages and keep artifactcore API contract-oriented." >&2
+  exit 1
+fi
+
 echo "[check] boundary checks passed"
