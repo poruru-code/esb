@@ -106,6 +106,23 @@ def lambda_handler(event, context):
                 "user": username,
             }
 
+        elif action == "presign_get":
+            expires_in = int(body.get("expires_in", 300))
+            presigned_url = s3_client.generate_presigned_url(
+                ClientMethod="get_object",
+                Params={"Bucket": bucket, "Key": key},
+                ExpiresIn=expires_in,
+            )
+            result = {
+                "action": "presign_get",
+                "success": True,
+                "bucket": bucket,
+                "key": key,
+                "expires_in": expires_in,
+                "url": presigned_url,
+                "user": username,
+            }
+
         elif action == "create_bucket":
             try:
                 s3_client.create_bucket(
