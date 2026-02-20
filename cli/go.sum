@@ -147,6 +147,16 @@ github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZb
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/poruru-code/aws-sam-parser-go v0.1.1 h1:UELpM1GxKRuaPwqKeL50hoJoUGQKL3jn4LQZnyXN+ME=
 github.com/poruru-code/aws-sam-parser-go v0.1.1/go.mod h1:RQaLFg/TMOEY+8rM0swdVzqDoTazL2c2pcgdJLgqoic=
+github.com/poruru-code/esb/pkg/artifactcore v0.0.0-20260220120751-741830b8344a h1:A/kRovy8CTKcfb60tcneVd9ccX+ynov0KJCRvnh7p4o=
+github.com/poruru-code/esb/pkg/artifactcore v0.0.0-20260220120751-741830b8344a/go.mod h1:sEsda7ck20PJPOzX7s5ZfbjP8koxKS6KztVte5YKzqM=
+github.com/poruru-code/esb/pkg/composeprovision v0.0.0-20260220120751-741830b8344a h1:QPY6znw5LVt4aMnztde8Kw61PaE13rWhEnMtCP8KOzo=
+github.com/poruru-code/esb/pkg/composeprovision v0.0.0-20260220120751-741830b8344a/go.mod h1:ANu7kFo8xCSOFXFyoVaijcaOmakwYLhKrPUMaNQNCWo=
+github.com/poruru-code/esb/pkg/deployops v0.0.0-20260220120751-741830b8344a h1:qi21bhUZBb7PWMBoFUt53P/OBgtFESuQ8OMCXi3ByFo=
+github.com/poruru-code/esb/pkg/deployops v0.0.0-20260220120751-741830b8344a/go.mod h1:xxoKvpGPzS1odvfziUfo2Q3moEY/qwZCoEQqXJu1fYo=
+github.com/poruru-code/esb/pkg/runtimeimage v0.0.0-20260220120751-741830b8344a h1:5iHSnej4ebwySKy1zU3ieK6zA5gaE0AXhvXPhsHjwRg=
+github.com/poruru-code/esb/pkg/runtimeimage v0.0.0-20260220120751-741830b8344a/go.mod h1:SHupbZF2wAL82KrInT89TFsNX0cmGvGwK7ODfHiJIyQ=
+github.com/poruru-code/esb/pkg/yamlshape v0.0.0-20260220120751-741830b8344a h1:BTMsirHnzNZ2pTy+UzRnjMxgoOKh2dy7X8ZnnDLlX0E=
+github.com/poruru-code/esb/pkg/yamlshape v0.0.0-20260220120751-741830b8344a/go.mod h1:matrYi2nvW67D9XNgC2k3fVtbEP4Ju5cefJnEmkfn9Q=
 github.com/rivo/uniseg v0.2.0/go.mod h1:J6wj4VEh+S6ZtnVlnTBMWIodfgj8LQOQFoIToxlJtxc=
 github.com/rivo/uniseg v0.4.7 h1:WUdvkW8uEhrYfLC4ZzdpI2ztxP1I582+49Oc5Mq64VQ=
 github.com/rivo/uniseg v0.4.7/go.mod h1:FN3SvrM+Zdj16jyLfmOkMNblXMcoc8DfTHruCPUcx88=

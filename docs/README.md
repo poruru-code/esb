@@ -26,6 +26,7 @@ Why: Help new contributors find the source-of-truth document without guessing.
 | Docker/containerd の差分を知りたい | [architecture-containerd.md](./architecture-containerd.md) |
 | ランタイム障害の運用手順を確認したい | [container-runtime-operations.md](./container-runtime-operations.md) |
 | artifact-first の運用手順を確認したい | [artifact-operations.md](./artifact-operations.md) |
+| CLI 分離の実行手順を確認したい | [cli-separation-checklist.md](./cli-separation-checklist.md) |
 | イメージ設計・ビルド方針を確認したい | [docker-image-architecture.md](./docker-image-architecture.md) |
 | Trace/ログ連携の仕様を確認したい | [trace-propagation.md](./trace-propagation.md), [local-logging-adapter.md](./local-logging-adapter.md) |
 | ディレクトリ責務分離を確認したい | [repo-layout-contract.md](./repo-layout-contract.md) |
@@ -36,6 +37,7 @@ Why: Help new contributors find the source-of-truth document without guessing.
 - [architecture-containerd.md](./architecture-containerd.md)
 - [container-runtime-operations.md](./container-runtime-operations.md)
 - [artifact-operations.md](./artifact-operations.md)
+- [cli-separation-checklist.md](./cli-separation-checklist.md)
 - [docker-image-architecture.md](./docker-image-architecture.md)
 - [environment-variables.md](./environment-variables.md)
 - [e2e-runtime-smoke.md](./e2e-runtime-smoke.md)

@@ -157,7 +157,7 @@ EOF
   printf "%s\n" "${out}"
 }
 
-echo "[check] validating artifactcore dependency contract"
+echo "[check] validating adapter dependency contract"
 mod_files=()
 for mod in cli/go.mod tools/artifactctl/go.mod; do
   if [[ -f "${mod}" ]]; then
@@ -165,9 +165,46 @@ for mod in cli/go.mod tools/artifactctl/go.mod; do
   fi
 done
 if (( ${#mod_files[@]} > 0 )); then
-  if search_files '^\s*replace\s+github\.com/(poruru|poruru-code)/(edge-serverless-box|esb)/pkg/(artifactcore|composeprovision)\b' \
+  if search_files '^\s*(replace\s+)?github\.com/(poruru|poruru-code)/(edge-serverless-box|esb)/pkg/[[:alnum:]_.-]+(\s+v[^[:space:]]+)?\s+=>\s*' \
     "${mod_files[@]}"; then
-    echo "[error] do not add pkg/* replace directives to adapter go.mod files; use workspace config" >&2
+    echo "[error] do not add pkg/* replace directives to adapter go.mod files" >&2
+    exit 1
+  fi
+
+  echo "[check] validating adapter pkg/* v0.0.0 freeze"
+  adapter_v0_allowlist_file="tools/ci/adapter_pkg_v0_allowlist.txt"
+  if [[ ! -f "${adapter_v0_allowlist_file}" ]]; then
+    echo "[error] missing allowlist file: ${adapter_v0_allowlist_file}" >&2
+    exit 1
+  fi
+
+  actual_adapter_v0="$(
+    awk '
+      function emit(line) {
+        gsub(/^[[:space:]]*require[[:space:]]+/, "", line)
+        sub(/^[[:space:]]+/, "", line)
+        split(line, parts, /[[:space:]]+/)
+        if (parts[1] != "" && parts[2] == "v0.0.0") {
+          print FILENAME " " parts[1]
+        }
+      }
+
+      /^[[:space:]]*require[[:space:]]+github.com\/(poruru|poruru-code)\/(edge-serverless-box|esb)\/pkg\/[A-Za-z0-9_.-]+[[:space:]]+v0\.0\.0([[:space:]]|$)/ {
+        emit($0)
+        next
+      }
+
+      /^[[:space:]]*github.com\/(poruru|poruru-code)\/(edge-serverless-box|esb)\/pkg\/[A-Za-z0-9_.-]+[[:space:]]+v0\.0\.0([[:space:]]|$)/ {
+        emit($0)
+        next
+      }
+    ' "${mod_files[@]}" | sed '/^[[:space:]]*$/d' | sort -u
+  )"
+  expected_adapter_v0="$(sed '/^[[:space:]]*$/d' "${adapter_v0_allowlist_file}" | sort -u)"
+  if ! diff -u \
+    <(printf "%s\n" "${expected_adapter_v0}" | sed '/^[[:space:]]*$/d') \
+    <(printf "%s\n" "${actual_adapter_v0}" | sed '/^[[:space:]]*$/d'); then
+    echo "[error] adapter pkg/* v0.0.0 set changed; update allowlist with separation rationale" >&2
     exit 1
   fi
 fi
