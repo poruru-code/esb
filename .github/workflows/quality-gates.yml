@@ -118,6 +118,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Enforce CLI absence
+        run: |
+          if [ -d cli ]; then
+            echo "cli/ must not exist in no-cli steady-state gate" >&2
+            find cli -maxdepth 3 -type f | head -n 20 >&2 || true
+            exit 1
+          fi
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
