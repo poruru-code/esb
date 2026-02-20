@@ -15,6 +15,12 @@ Why: Define a stable boundary between artifact producer (CLI/manual) and runtime
 - 複数テンプレート時の deploy 順と merge 順は `artifacts[]` 配列順を唯一の真実にします。
 - `.esb` 探索や `ARTIFACT_ROOTS` 手動列挙は非推奨ではなく禁止とします。
 
+## 契約固定ルール（ブレ防止）
+- `runtime-base/**` は Deploy Artifact Contract の対象外です。
+- `artifactctl deploy` は artifact 生成を行いません。必要な image build は許可しますが、artifact 作成時の `runtime-base/**` を base ソースとして使用しません。
+- `artifactctl deploy` が参照する lambda base は、実行時環境（現在の registry/tag/stack）を正とします。
+- 互換性判定は artifact 内ファイルではなく、実行時スタック観測結果に基づいて行います。
+
 ## 用語
 - Artifact Manifest: 適用の正本となる `artifact.yml`
 - Artifact Entry: `artifacts[]` の各要素（テンプレート単位の成果物情報）
@@ -33,17 +39,6 @@ Why: Define a stable boundary between artifact producer (CLI/manual) and runtime
     functions.yml
     routing.yml
     resources.yml              # 条件付き
-  runtime-base/               # 条件付き（python base build を行う場合）
-    runtime-hooks/
-      python/
-        docker/
-          Dockerfile
-        sitecustomize/
-          site-packages/
-            sitecustomize.py
-        trace-bridge/
-          layer/
-            trace_bridge.py
   bundle/
     manifest.json              # 条件付き
 
@@ -77,8 +72,39 @@ Why: Define a stable boundary between artifact producer (CLI/manual) and runtime
 ### Entry 条件付き必須
 - `<artifact_root>/<runtime_config_dir>/resources.yml`: resource 定義を使う場合
 - `<artifact_root>/<bundle_manifest>`: bundle/import ワークフローを使う場合
-- `<artifact_root>/runtime-base/runtime-hooks/python/docker/Dockerfile`: `artifactctl deploy` の prepare phase で `esb-lambda-base:*` を build/push する場合
-- `<artifact_root>/runtime-base/runtime-hooks/python/sitecustomize/site-packages/sitecustomize.py`: `runtime_meta.runtime_hooks.python_sitecustomize_digest` を検証する場合
+
+## 手動作成で成立する最小必須セット（固定）
+このセクションは「ESB CLI を使わず、手動で artifact を作る」場合の最小要件です。
+`artifactctl deploy` で成立させるため、以下だけを必須とします。
+
+- Manifest 必須:
+  - `schema_version`
+  - `project`
+  - `env`
+  - `mode`
+  - `artifacts[]`（1件以上）
+- Entry 必須:
+  - `id`（決定的 ID ルールに一致）
+  - `artifact_root`
+  - `runtime_config_dir`
+  - `source_template.path`
+- ファイル必須:
+  - `<artifact_root>/<runtime_config_dir>/functions.yml`
+  - `<artifact_root>/<runtime_config_dir>/routing.yml`
+
+最小セットでは以下は任意です（必要時のみ追加）:
+- `resources.yml`
+- `bundle_manifest`
+- `required_secret_env`
+- `runtime_stack`
+- `generated_at` / `generator` / `merge_policy`
+
+注意:
+- `id` は `source_template.path` / `source_template.parameters` / `source_template.sha256` から再計算されるため、
+  手動作成時も決定的 ID ルールに必ず一致させる必要があります。
+- 手動更新時は `artifactctl manifest sync-ids --artifact <artifact.yml>` で ID を同期できます。
+- CI では `artifactctl manifest sync-ids --artifact <artifact.yml> --check` で不一致検知できます。
+- 手動作成時の `runtime_stack` は任意です。`esb` CLI 生成では既定で `runtime_stack` を出力します。
 
 ## パス規約
 ### 実行パス（厳格）
@@ -127,39 +153,75 @@ artifacts:
   - id: template-a-2b4f1a9c
     artifact_root: ../service-a/.esb/template-a/dev
     runtime_config_dir: runtime-config
+    source_template:
+      path: /path/to/template-a.yaml
+```
+
+任意フィールドを使う場合の追加例:
+```yaml
+generated_at: "2026-02-20T00:00:00Z"
+generator:
+  name: esb
+  version: v0.0.0
+runtime_stack:
+  api_version: "1.0"
+  mode: docker
+  esb_version: latest
+artifacts:
+  - id: template-a-2b4f1a9c
+    artifact_root: ../service-a/.esb/template-a/dev
+    runtime_config_dir: runtime-config
     bundle_manifest: bundle/manifest.json
-    required_secret_env: []
+    required_secret_env:
+      - AUTH_PASS
     source_template:
       path: /path/to/template-a.yaml
       sha256: 2b4f...
       parameters:
         Stage: dev
-
-  - id: template-b-43ad77f0
-    artifact_root: ../service-b/.esb/template-b/dev
-    runtime_config_dir: runtime-config
-    required_secret_env: []
-    source_template:
-      path: /path/to/template-b.yaml
 ```
 
-## 推奨フィールド
-- Entry:
-  - `runtime_meta.runtime_hooks`（`api_version` + `python_sitecustomize_digest`）
-  - `runtime_meta.template_renderer`（`name`, `api_version`）
+## 契約境界（確定）
+本契約は以下の 2 層を明確に分離します。
+
+- Artifact Apply Contract（Payload 契約）
+  - `artifact.yml` と `artifact_root` 配下のファイルから、設定マージ・provision 前段を実行できることを定義します。
+  - ここで扱うのは「適用入力の完全性」です。
+- Runtime Stack Compatibility Contract（実行時互換性契約）
+  - 実行中の gateway / agent / provisioner / runtime-node と、artifact が要求する互換条件が一致することを定義します。
+  - ここで扱うのは「実行中スタックとの互換性」です。
+
+重要:
+- Dockerfile や runtime-base の保持有無は Runtime Stack 互換性の根拠にしてはいけません。
+- それだけで Runtime Stack 互換性は保証されません。
+- 互換性は、実行時のバージョン/能力検証でのみ成立します。
+
+## 推奨フィールド（Payload 契約）
 - Manifest:
   - `generated_at`
   - `generator`（name/version）
   - `merge_policy`（例: `last_write_wins_v1`）
+  - `runtime_stack`（`api_version`, `mode`, `esb_version`）
 
-## 互換性ポリシー
-- 互換判定の主軸は `api_version`（`major.minor`）です。
-- `major` 不一致は hard fail。
-- `minor` 不一致は warning（strict モードでは hard fail）。
-- runtime digest 検証対象は `runtime_meta.runtime_hooks.python_sitecustomize_digest` のみです。
-- `runtime_meta.runtime_hooks.java_agent_digest` / `java_wrapper_digest` / `runtime_meta.template_renderer.template_digest` は削除済みです（契約外）。
-- digest/checksum は既定で監査用途（warning）。strict で hard fail 化します。
-- runtime digest/checksum の検証元は `artifact_root/runtime-base/runtime-hooks/python/**` に固定します（repo root 推定は禁止）。
+## Payload 整合性ポリシー（現行実装）
+- `id` の再計算一致、schema/path/secret 充足を必須条件とします。
+- artifact 内 runtime hook の digest 一致は互換性判定条件に含めません。
+
+## Runtime Stack 互換性ポリシー（契約定義）
+このセクションは契約を先に固定するもので、段階的に実装します。
+
+- 互換性判定の主軸は「実行中サービスの実バージョン/能力」です。
+- 判定対象は gateway / agent / provisioner / runtime-node（最小）です。
+- `major` 非互換は hard fail。
+- `minor` 非互換は warning。
+- 判定データ源は「実行中スタックへの問い合わせ結果」であり、artifact 内 Dockerfile の存在可否ではありません。
+- `artifactctl deploy` は apply 前にこの互換性検証を実行し、失敗時は即時終了する必要があります。
+
+現状:
+- `artifact.yml` の `runtime_stack` フィールドと core validator（`pkg/artifactcore`）は実装済みです。
+- `artifactctl deploy` では live stack observation probe（docker compose project ベース）を apply 前に実行します。
+- `esb deploy`（CLI 経路）でも apply 前に runtime observation を実行し、`artifactcore` へ渡します。
+- CLI 経路の observation は docker 取得結果を優先し、未取得時は request（mode/tag）を fallback とします。
 
 ## 移行互換ポリシー
 - 本契約の正本は `artifact.yml` 単一です。
@@ -177,16 +239,12 @@ artifacts:
   - 必須ファイル欠落
   - schema major 非互換
   - required secret 未設定
-  - strict 時の `python_sitecustomize_digest` 不一致
-  - strict 時に runtime digest 検証元（`artifact_root/runtime-base/runtime-hooks/python/**`）が不足・読取不能
   - `artifact_root` または entry 内パス解決失敗
-  - `prepare-images` 実行時に必要な `runtime-base` コンテキストが不足
   - `id` 欠落、重複、または再計算値不一致
   - 複数テンプレート時に merge 規約どおりの `CONFIG_DIR` を生成できない
+  - Runtime Stack 互換性検証で `major` 非互換（実装後）
 - Warning:
-  - strict でない時の `python_sitecustomize_digest` 不一致
-  - strict でない時に runtime digest 検証元（`artifact_root/runtime-base/runtime-hooks/python/**`）が不足・読取不能
-  - minor 非互換（strict でない時）
+  - Runtime Stack 互換性検証の `minor` 非互換（warning）
 
 ## 実装責務
 - Producer（CLI / 手動生成）:
@@ -202,8 +260,10 @@ artifacts:
 
 ## ツール責務（確定）
 - `tools/artifactctl`（Go 実装）:
-  - `deploy` の正本実装を提供する（内部で image prepare + apply を実行）
+  - `deploy` の正本実装を提供する（検証 + apply を実行。必要時の image build/pull を含む）
   - schema/path/id/secret/merge 規約の判定を一元化する
+  - image build 時の lambda base 選択は実行時環境（registry/tag/stack）に従い、artifact 内 `runtime-base/**` を根拠にしない
+  - Runtime Stack 互換性検証の正本実装を保持し、apply 前に fail-fast 判定を行う
   - `tools/artifactctl/cmd/artifactctl` は command adapter、実ロジック正本は `pkg/artifactcore` とする
 - `esb artifact apply`:
   - `artifactctl deploy` と同じ Go 実装を呼ぶ薄いアダプタとして振る舞う
@@ -229,15 +289,16 @@ CLI なし運用でも、生成済み成果物を入力に **Phase 3 以降は�
 
 | フェーズ | CLI あり（esb 利用） | CLI なし（esb 非依存） |
 |---|---|---|
+| 0. Runtime Stack 互換性検証 | `esb deploy` の apply 前で実行（段階実装） | `artifactctl deploy` の apply 前で実行（段階実装） |
 | 1. テンプレート解析 | `esb deploy` / `esb artifact generate` が SAM を解析 | 実行しない（生成済み成果物を受領） |
 | 2. 生成（Dockerfile / config） | `artifact.yml` を出力（`artifacts[]` に全テンプレートを記録） | 実行しない |
-| 3. Artifact 適用（検証 + 画像準備 + 設定反映） | `esb deploy` が apply phase を実行 | `artifactctl deploy --artifact ... --out ...` を実行 |
+| 3. Artifact 適用（検証 + 設定反映） | `esb deploy` が apply phase を実行 | `artifactctl deploy --artifact ... --out ...` を実行 |
 | 4. Provision | provisioner を実行 | `docker compose --profile deploy run --rm provisioner` |
 | 5. Runtime 起動 | `docker compose up` | `docker compose up` |
 
 補足:
-- `artifactctl deploy` の prepare phase は `artifact_root/runtime-base/**` を唯一入力として base image を build します（repo root の `runtime-hooks/**` は参照しません）。
-- `apply --strict` の runtime digest 検証は `artifact_root/runtime-base/runtime-hooks/python/**` を唯一入力とします（repo root の `runtime-hooks/**` は参照しません）。
+- `artifactctl deploy` は `artifact_root` を読み取り専用として扱い、`artifact_root` 配下へ一時ファイルを書き込みません。
+- Runtime Stack 互換性検証は実行中スタック観測に基づいて実行します。
 
 ## CLI コマンド責務（明示）
 - `esb artifact generate`
@@ -267,7 +328,7 @@ CONFIG_DIR="/path/to/merged-runtime-config"
 RUN_ENV="/path/to/run.env"
 ```
 
-### 1) Artifact 適用（検証 + 画像準備 + 設定反映）
+### 1) Artifact 適用（検証 + 設定反映）
 ```bash
 test -f "${ARTIFACT}"
 artifactctl deploy \
@@ -282,8 +343,8 @@ cat "${SECRETS_ENV}" > "${RUN_ENV}"
 ```
 
 注記:
-- `artifactctl deploy` は内部で image prepare と apply を順に実行します。
-- `deploy --strict` の runtime digest 検証は `artifact_root/runtime-base/runtime-hooks/python/**` を使用します。対象 digest に対応するファイルが欠けると hard fail します。
+- `artifactctl deploy` は検証と apply を実行します（必要時に image build/pull を実行し得ます）。
+- image build では artifact 作成時の `runtime-base/**` ではなく、実行時環境の lambda base を使用します。
 
 ### 2) Provision 実行
 ```bash

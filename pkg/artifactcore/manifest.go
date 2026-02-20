@@ -24,6 +24,7 @@ type ArtifactManifest struct {
 	Project       string            `yaml:"project"`
 	Env           string            `yaml:"env"`
 	Mode          string            `yaml:"mode"`
+	RuntimeStack  RuntimeStackMeta  `yaml:"runtime_stack,omitempty"`
 	Artifacts     []ArtifactEntry   `yaml:"artifacts"`
 	GeneratedAt   string            `yaml:"generated_at,omitempty"`
 	Generator     ArtifactGenerator `yaml:"generator,omitempty"`
@@ -36,7 +37,6 @@ type ArtifactEntry struct {
 	BundleManifest    string                 `yaml:"bundle_manifest,omitempty"`
 	RequiredSecretEnv []string               `yaml:"required_secret_env,omitempty"`
 	SourceTemplate    ArtifactSourceTemplate `yaml:"source_template"`
-	RuntimeMeta       ArtifactRuntimeMeta    `yaml:"runtime_meta,omitempty"`
 }
 
 type ArtifactSourceTemplate struct {
@@ -50,19 +50,10 @@ type ArtifactGenerator struct {
 	Version string `yaml:"version,omitempty"`
 }
 
-type ArtifactRuntimeMeta struct {
-	Hooks    RuntimeHooksMeta `yaml:"runtime_hooks,omitempty"`
-	Renderer RendererMeta     `yaml:"template_renderer,omitempty"`
-}
-
-type RuntimeHooksMeta struct {
-	APIVersion                string `yaml:"api_version,omitempty"`
-	PythonSitecustomizeDigest string `yaml:"python_sitecustomize_digest,omitempty"`
-}
-
-type RendererMeta struct {
-	Name       string `yaml:"name,omitempty"`
+type RuntimeStackMeta struct {
 	APIVersion string `yaml:"api_version,omitempty"`
+	Mode       string `yaml:"mode,omitempty"`
+	ESBVersion string `yaml:"esb_version,omitempty"`
 }
 
 func (d ArtifactManifest) Validate() error {
@@ -82,6 +73,9 @@ func (d ArtifactManifest) Validate() error {
 	if strings.TrimSpace(d.Mode) == "" {
 		return fmt.Errorf("mode is required")
 	}
+	if err := d.RuntimeStack.Validate(); err != nil {
+		return err
+	}
 	if len(d.Artifacts) == 0 {
 		return fmt.Errorf("artifacts must contain at least one entry")
 	}
@@ -99,6 +93,32 @@ func (d ArtifactManifest) Validate() error {
 		if entry.ID != wantID {
 			return fmt.Errorf("artifacts[%d].id mismatch: got %q want %q", i, entry.ID, wantID)
 		}
+	}
+	return nil
+}
+
+func (r RuntimeStackMeta) Validate() error {
+	apiVersion := strings.TrimSpace(r.APIVersion)
+	mode := strings.TrimSpace(r.Mode)
+	esbVersion := strings.TrimSpace(r.ESBVersion)
+
+	if apiVersion == "" && mode == "" && esbVersion == "" {
+		return nil
+	}
+	if apiVersion == "" {
+		return fmt.Errorf("runtime_stack.api_version is required when runtime_stack is set")
+	}
+	if _, _, err := parseAPIVersion(apiVersion); err != nil {
+		return fmt.Errorf("runtime_stack.api_version is invalid (%q): %w", apiVersion, err)
+	}
+	if mode == "" {
+		return fmt.Errorf("runtime_stack.mode is required when runtime_stack is set")
+	}
+	if mode != "docker" && mode != "containerd" {
+		return fmt.Errorf("runtime_stack.mode must be docker or containerd")
+	}
+	if esbVersion == "" {
+		return fmt.Errorf("runtime_stack.esb_version is required when runtime_stack is set")
 	}
 	return nil
 }
@@ -174,20 +194,23 @@ func ReadArtifactManifest(path string) (ArtifactManifest, error) {
 		}
 		return ArtifactManifest{}, err
 	}
-	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	return decodeArtifactManifest(data, true)
+}
 
-	var manifest ArtifactManifest
-	if err := decoder.Decode(&manifest); err != nil {
-		return ArtifactManifest{}, fmt.Errorf("decode artifact manifest: %w", err)
-	}
-	if err := manifest.Validate(); err != nil {
+func ReadArtifactManifestUnchecked(path string) (ArtifactManifest, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return ArtifactManifest{}, fmt.Errorf("read artifact manifest: %w", MissingReferencedPathError{Path: path})
+		}
 		return ArtifactManifest{}, err
 	}
-	return manifest, nil
+	return decodeArtifactManifest(data, false)
 }
 
 func WriteArtifactManifest(path string, manifest ArtifactManifest) error {
 	normalized := normalizeArtifactManifest(manifest)
+	SyncArtifactIDs(&normalized)
 	if err := normalized.Validate(); err != nil {
 		return err
 	}
@@ -313,6 +336,39 @@ func validateRelativePath(field, value string) error {
 		return fmt.Errorf("%s must not escape artifact root", field)
 	}
 	return nil
+}
+
+func decodeArtifactManifest(data []byte, validate bool) (ArtifactManifest, error) {
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+
+	var manifest ArtifactManifest
+	if err := decoder.Decode(&manifest); err != nil {
+		return ArtifactManifest{}, fmt.Errorf("decode artifact manifest: %w", err)
+	}
+	if !validate {
+		return manifest, nil
+	}
+	if err := manifest.Validate(); err != nil {
+		return ArtifactManifest{}, err
+	}
+	return manifest, nil
+}
+
+func SyncArtifactIDs(manifest *ArtifactManifest) int {
+	if manifest == nil {
+		return 0
+	}
+	changed := 0
+	for i := range manifest.Artifacts {
+		entry := &manifest.Artifacts[i]
+		wantID := ComputeArtifactID(entry.SourceTemplate.Path, entry.SourceTemplate.Parameters, entry.SourceTemplate.SHA256)
+		if entry.ID == wantID {
+			continue
+		}
+		entry.ID = wantID
+		changed++
+	}
+	return changed
 }
 
 func ComputeArtifactID(templatePath string, parameters map[string]string, sourceSHA256 string) string {

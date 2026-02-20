@@ -1,6 +1,7 @@
 package deployops
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/poruru/edge-serverless-box/pkg/artifactcore"
@@ -10,29 +11,67 @@ type Input struct {
 	ArtifactPath  string
 	OutputDir     string
 	SecretEnvPath string
-	Strict        bool
 	NoCache       bool
 	Runner        CommandRunner
+	RuntimeProbe  RuntimeProbe
 }
+
+type RuntimeProbe func(manifest artifactcore.ArtifactManifest) (*artifactcore.RuntimeObservation, []string, error)
 
 func Execute(input Input) (artifactcore.ApplyResult, error) {
 	normalized, err := normalizeInput(input)
 	if err != nil {
 		return artifactcore.ApplyResult{}, err
 	}
+	manifest, err := artifactcore.ReadArtifactManifest(normalized.ArtifactPath)
+	if err != nil {
+		return artifactcore.ApplyResult{}, err
+	}
+	var (
+		observation *artifactcore.RuntimeObservation
+		warnings    []string
+	)
+	if hasRuntimeStack(manifest.RuntimeStack) {
+		probe := normalized.RuntimeProbe
+		if probe == nil {
+			probe = probeRuntimeObservation
+		}
+		observed, probeWarnings, probeErr := probe(manifest)
+		if probeErr != nil {
+			probeWarnings = append(
+				probeWarnings,
+				fmt.Sprintf("runtime compatibility probe failed: %v", probeErr),
+			)
+		}
+		observation = observed
+		warnings = append(warnings, probeWarnings...)
+	}
 	if err := prepareImages(prepareImagesInput{
 		ArtifactPath: normalized.ArtifactPath,
 		NoCache:      normalized.NoCache,
 		Runner:       normalized.Runner,
+		Runtime:      observation,
 	}); err != nil {
 		return artifactcore.ApplyResult{}, err
 	}
-	return artifactcore.ExecuteApply(artifactcore.ApplyInput{
+
+	result, err := artifactcore.ExecuteApply(artifactcore.ApplyInput{
 		ArtifactPath:  normalized.ArtifactPath,
 		OutputDir:     normalized.OutputDir,
 		SecretEnvPath: normalized.SecretEnvPath,
-		Strict:        normalized.Strict,
+		Runtime:       observation,
 	})
+	if err != nil {
+		return artifactcore.ApplyResult{}, err
+	}
+	result.Warnings = append(warnings, result.Warnings...)
+	return result, nil
+}
+
+func hasRuntimeStack(meta artifactcore.RuntimeStackMeta) bool {
+	return strings.TrimSpace(meta.APIVersion) != "" ||
+		strings.TrimSpace(meta.Mode) != "" ||
+		strings.TrimSpace(meta.ESBVersion) != ""
 }
 
 func normalizeInput(input Input) (Input, error) {

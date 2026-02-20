@@ -43,22 +43,27 @@ func TestExecuteApplyNormalizesAndApplies(t *testing.T) {
 
 func TestExecuteApplyReturnsWarningsAsData(t *testing.T) {
 	root := t.TempDir()
-	manifestPath := writeArtifactFixtureManifest(t, root, ArtifactRuntimeMeta{
-		Hooks: RuntimeHooksMeta{
-			APIVersion: "1.1",
-		},
+	manifestPath := writeArtifactFixtureManifest(t, root)
+	setRuntimeStackRequirements(t, manifestPath, RuntimeStackMeta{
+		APIVersion: "1.1",
+		Mode:       "docker",
+		ESBVersion: "latest",
 	})
 
 	result, err := ExecuteApply(ApplyInput{
 		ArtifactPath: manifestPath,
 		OutputDir:    filepath.Join(root, "out"),
-		Strict:       false,
+		Runtime: &RuntimeObservation{
+			Mode:       "docker",
+			ESBVersion: "latest",
+			Source:     "test",
+		},
 	})
 	if err != nil {
 		t.Fatalf("ExecuteApply() error = %v", err)
 	}
-	if !containsWarning(result.Warnings, "minor mismatch") {
-		t.Fatalf("expected minor mismatch warning, got %#v", result.Warnings)
+	if !containsWarning(result.Warnings, "runtime_stack.api_version minor mismatch") {
+		t.Fatalf("expected runtime_stack api minor mismatch warning, got %#v", result.Warnings)
 	}
 }
 

@@ -168,29 +168,7 @@ func TestCloneStringValues(t *testing.T) {
 	})
 }
 
-func TestResolveRuntimeMetaIncludesDigestsAndVersions(t *testing.T) {
-	projectDir := t.TempDir()
-	writeTestRuntimeAssets(t, projectDir)
-
-	meta, err := resolveRuntimeMeta(projectDir)
-	if err != nil {
-		t.Fatalf("resolveRuntimeMeta() error = %v", err)
-	}
-	if meta.Hooks.APIVersion != artifactcore.RuntimeHooksAPIVersion {
-		t.Fatalf("hooks api_version = %q, want %q", meta.Hooks.APIVersion, artifactcore.RuntimeHooksAPIVersion)
-	}
-	if meta.Renderer.Name != artifactcore.TemplateRendererName {
-		t.Fatalf("renderer name = %q, want %q", meta.Renderer.Name, artifactcore.TemplateRendererName)
-	}
-	if meta.Renderer.APIVersion != artifactcore.TemplateRendererAPIVersion {
-		t.Fatalf("renderer api_version = %q, want %q", meta.Renderer.APIVersion, artifactcore.TemplateRendererAPIVersion)
-	}
-	if meta.Hooks.PythonSitecustomizeDigest == "" {
-		t.Fatal("python sitecustomize digest must not be empty")
-	}
-}
-
-func TestResolveRuntimeMetaDoesNotRequireJavaJars(t *testing.T) {
+func TestManifestGenerationDoesNotRequireJavaJars(t *testing.T) {
 	projectDir := t.TempDir()
 	writeTestRuntimeAssets(t, projectDir)
 
@@ -201,11 +179,45 @@ func TestResolveRuntimeMetaDoesNotRequireJavaJars(t *testing.T) {
 		t.Fatalf("remove java wrapper jar: %v", err)
 	}
 
-	meta, err := resolveRuntimeMeta(projectDir)
-	if err != nil {
-		t.Fatalf("resolveRuntimeMeta() error = %v", err)
+	inputs := deployInputs{
+		ProjectDir: projectDir,
+		Project:    "demo",
+		Env:        "dev",
+		Mode:       "docker",
+		Templates: []deployTemplateInput{
+			{
+				TemplatePath: filepath.Join(projectDir, "template.yaml"),
+				OutputDir:    filepath.Join(projectDir, ".esb", "dev"),
+				Parameters: map[string]string{
+					"Stage": "dev",
+				},
+			},
+		},
 	}
-	if meta.Hooks.PythonSitecustomizeDigest == "" {
-		t.Fatal("python sitecustomize digest must not be empty")
+	if err := os.WriteFile(inputs.Templates[0].TemplatePath, []byte("Resources: {}\n"), 0o600); err != nil {
+		t.Fatalf("write template: %v", err)
+	}
+	manifestPath, err := writeDeployArtifactManifest(inputs, false, "", "latest")
+	if err != nil {
+		t.Fatalf("writeDeployArtifactManifest() error = %v", err)
+	}
+	manifest, err := artifactcore.ReadArtifactManifest(manifestPath)
+	if err != nil {
+		t.Fatalf("ReadArtifactManifest() error = %v", err)
+	}
+	if len(manifest.Artifacts) != 1 {
+		t.Fatalf("manifest artifacts len = %d, want 1", len(manifest.Artifacts))
+	}
+	if manifest.Artifacts[0].ID == "" {
+		t.Fatalf("artifact id should be generated")
+	}
+	if manifest.RuntimeStack.APIVersion != artifactcore.RuntimeStackAPIVersion {
+		t.Fatalf("runtime stack api_version = %q, want %q", manifest.RuntimeStack.APIVersion, artifactcore.RuntimeStackAPIVersion)
+	}
+	if manifest.RuntimeStack.Mode != "docker" {
+		t.Fatalf("runtime stack mode = %q, want docker", manifest.RuntimeStack.Mode)
+	}
+	if manifest.RuntimeStack.ESBVersion != "latest" {
+		t.Fatalf("runtime stack esb_version = %q, want latest", manifest.RuntimeStack.ESBVersion)
 	}
 }

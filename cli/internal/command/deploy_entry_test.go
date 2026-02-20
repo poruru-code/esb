@@ -330,7 +330,7 @@ func TestDeployCommandRunAllowsRenderOnlyGenerate(t *testing.T) {
 			Project:    "esb-dev",
 			Templates:  []deployTemplateInput{{TemplatePath: templatePath}},
 		},
-		DeployCmd{BuildOnly: true, SecretEnv: "secret.env", Strict: true},
+		DeployCmd{BuildOnly: true, SecretEnv: "secret.env"},
 		deployRunOverrides{
 			buildImages:    boolPtr(false),
 			forceBuildOnly: true,

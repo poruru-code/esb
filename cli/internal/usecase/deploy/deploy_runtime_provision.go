@@ -27,14 +27,23 @@ func (w Workflow) runRuntimeProvisionPhase(req Request, stagingDir string) error
 }
 
 func (w Workflow) applyArtifactRuntimeConfig(req Request, stagingDir string) error {
-	_, err := artifactcore.ExecuteApply(artifactcore.ApplyInput{
+	observation, observationWarnings := w.resolveRuntimeObservation(req)
+	result, err := artifactcore.ExecuteApply(artifactcore.ApplyInput{
 		ArtifactPath:  req.ArtifactPath,
 		OutputDir:     stagingDir,
 		SecretEnvPath: req.SecretEnvPath,
-		Strict:        req.Strict,
+		Runtime:       observation,
 	})
 	if err != nil {
 		return fmt.Errorf("apply artifact runtime config: %w", err)
+	}
+	if w.UserInterface != nil {
+		for _, warning := range observationWarnings {
+			w.UserInterface.Warn(fmt.Sprintf("Warning: %s", warning))
+		}
+		for _, warning := range result.Warnings {
+			w.UserInterface.Warn(fmt.Sprintf("Warning: %s", warning))
+		}
 	}
 	return nil
 }

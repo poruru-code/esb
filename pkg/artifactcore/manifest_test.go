@@ -115,6 +115,90 @@ func TestReadArtifactManifestAllowsUnknownFields(t *testing.T) {
 	}
 }
 
+func TestReadArtifactManifestUncheckedAllowsIDMismatch(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "artifact.yml")
+	content := strings.Join([]string{
+		`schema_version: "1"`,
+		`project: esb-dev`,
+		`env: dev`,
+		`mode: docker`,
+		`artifacts:`,
+		`  - id: template-deadbeef`,
+		`    artifact_root: ../service-a/.esb/template-a/dev`,
+		`    runtime_config_dir: config`,
+		`    source_template:`,
+		`      path: /tmp/template-a.yaml`,
+		`      sha256: sha-a`,
+		"",
+	}, "\n")
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	manifest, err := ReadArtifactManifestUnchecked(path)
+	if err != nil {
+		t.Fatalf("ReadArtifactManifestUnchecked() error = %v", err)
+	}
+	if len(manifest.Artifacts) != 1 {
+		t.Fatalf("expected single artifact entry, got %d", len(manifest.Artifacts))
+	}
+	if manifest.Artifacts[0].ID != "template-deadbeef" {
+		t.Fatalf("unexpected id: %q", manifest.Artifacts[0].ID)
+	}
+}
+
+func TestSyncArtifactIDsRewritesMismatchedEntries(t *testing.T) {
+	manifest := ArtifactManifest{
+		SchemaVersion: ArtifactSchemaVersionV1,
+		Project:       "esb-dev",
+		Env:           "dev",
+		Mode:          "docker",
+		Artifacts: []ArtifactEntry{
+			{
+				ID:               "template-deadbeef",
+				ArtifactRoot:     "../service-a/.esb/template-a/dev",
+				RuntimeConfigDir: "config",
+				SourceTemplate: ArtifactSourceTemplate{
+					Path:       "/tmp/template-a.yaml",
+					SHA256:     "sha-a",
+					Parameters: map[string]string{"Stage": "dev"},
+				},
+			},
+			{
+				ID:               "template-feedface",
+				ArtifactRoot:     "../service-a/.esb/template-b/dev",
+				RuntimeConfigDir: "config",
+				SourceTemplate: ArtifactSourceTemplate{
+					Path:   "/tmp/template-b.yaml",
+					SHA256: "sha-b",
+				},
+			},
+		},
+	}
+	wantFirst := ComputeArtifactID(
+		manifest.Artifacts[0].SourceTemplate.Path,
+		manifest.Artifacts[0].SourceTemplate.Parameters,
+		manifest.Artifacts[0].SourceTemplate.SHA256,
+	)
+	wantSecond := ComputeArtifactID(
+		manifest.Artifacts[1].SourceTemplate.Path,
+		manifest.Artifacts[1].SourceTemplate.Parameters,
+		manifest.Artifacts[1].SourceTemplate.SHA256,
+	)
+
+	changed := SyncArtifactIDs(&manifest)
+	if changed != 2 {
+		t.Fatalf("changed=%d want=2", changed)
+	}
+	if manifest.Artifacts[0].ID != wantFirst {
+		t.Fatalf("first id=%q want=%q", manifest.Artifacts[0].ID, wantFirst)
+	}
+	if manifest.Artifacts[1].ID != wantSecond {
+		t.Fatalf("second id=%q want=%q", manifest.Artifacts[1].ID, wantSecond)
+	}
+}
+
 func TestReadArtifactManifestMissingFile(t *testing.T) {
 	_, err := ReadArtifactManifest(filepath.Join(t.TempDir(), "missing.yml"))
 	if err == nil {
@@ -225,6 +309,77 @@ func TestWriteArtifactManifestFailsOnInvalidManifest(t *testing.T) {
 		t.Fatal("expected validation error")
 	}
 	if !strings.Contains(err.Error(), "schema_version is required") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestWriteArtifactManifestSyncsArtifactIDs(t *testing.T) {
+	manifest := validTestManifest()
+	manifest.Artifacts[0].ID = "template-deadbeef"
+	path := filepath.Join(t.TempDir(), "artifact.yml")
+
+	if err := WriteArtifactManifest(path, manifest); err != nil {
+		t.Fatalf("WriteArtifactManifest() error = %v", err)
+	}
+	readBack, err := ReadArtifactManifest(path)
+	if err != nil {
+		t.Fatalf("ReadArtifactManifest() error = %v", err)
+	}
+	wantID := ComputeArtifactID(
+		readBack.Artifacts[0].SourceTemplate.Path,
+		readBack.Artifacts[0].SourceTemplate.Parameters,
+		readBack.Artifacts[0].SourceTemplate.SHA256,
+	)
+	if readBack.Artifacts[0].ID != wantID {
+		t.Fatalf("artifact id=%q want=%q", readBack.Artifacts[0].ID, wantID)
+	}
+}
+
+func TestManifestValidateRuntimeStackRequiresModeAndVersionWhenConfigured(t *testing.T) {
+	manifest := validTestManifest()
+	manifest.RuntimeStack = RuntimeStackMeta{
+		APIVersion: RuntimeStackAPIVersion,
+	}
+
+	err := manifest.Validate()
+	if err == nil {
+		t.Fatal("expected runtime_stack validation error")
+	}
+	if !strings.Contains(err.Error(), "runtime_stack.mode is required") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestManifestValidateRuntimeStackRejectsInvalidMode(t *testing.T) {
+	manifest := validTestManifest()
+	manifest.RuntimeStack = RuntimeStackMeta{
+		APIVersion: RuntimeStackAPIVersion,
+		Mode:       "firecracker",
+		ESBVersion: "latest",
+	}
+
+	err := manifest.Validate()
+	if err == nil {
+		t.Fatal("expected runtime_stack mode validation error")
+	}
+	if !strings.Contains(err.Error(), "runtime_stack.mode must be docker or containerd") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestManifestValidateRuntimeStackRejectsInvalidAPIVersion(t *testing.T) {
+	manifest := validTestManifest()
+	manifest.RuntimeStack = RuntimeStackMeta{
+		APIVersion: "abc",
+		Mode:       "docker",
+		ESBVersion: "latest",
+	}
+
+	err := manifest.Validate()
+	if err == nil {
+		t.Fatal("expected runtime_stack api_version validation error")
+	}
+	if !strings.Contains(err.Error(), "runtime_stack.api_version is invalid") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

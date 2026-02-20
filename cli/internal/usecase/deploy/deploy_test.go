@@ -546,12 +546,6 @@ func writeTestArtifactManifest(t *testing.T) string {
 			},
 		},
 	}
-	manifest.Artifacts[0].ID = artifactcore.ComputeArtifactID(
-		manifest.Artifacts[0].SourceTemplate.Path,
-		manifest.Artifacts[0].SourceTemplate.Parameters,
-		manifest.Artifacts[0].SourceTemplate.SHA256,
-	)
-
 	manifestPath := filepath.Join(root, "manifest", "artifact.yml")
 	if err := artifactcore.WriteArtifactManifest(manifestPath, manifest); err != nil {
 		t.Fatalf("write artifact manifest: %v", err)

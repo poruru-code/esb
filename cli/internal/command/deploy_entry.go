@@ -266,11 +266,12 @@ func (c *deployCommand) runWithOverrides(
 		}
 	}
 
-	// Materialize strict artifact manifest after all generate steps.
+	// Materialize artifact manifest after all generate steps.
 	manifestPath, err := writeDeployArtifactManifest(
 		inputs,
 		flags.Bundle,
 		flags.Manifest,
+		tag,
 	)
 	if err != nil {
 		return fmt.Errorf("write artifact manifest: %w", err)
@@ -295,8 +296,8 @@ func (c *deployCommand) runWithOverrides(
 		Context:       applyCtx,
 		ArtifactPath:  manifestPath,
 		SecretEnvPath: flags.SecretEnv,
-		Strict:        flags.Strict,
 		OutputDir:     applyTemplate.OutputDir,
+		Tag:           tag,
 		NoDeps:        noDeps,
 		Verbose:       flags.Verbose,
 		ComposeFiles:  inputs.ComposeFiles,

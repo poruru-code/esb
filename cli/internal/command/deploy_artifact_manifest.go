@@ -22,6 +22,7 @@ func writeDeployArtifactManifest(
 	inputs deployInputs,
 	bundleEnabled bool,
 	manifestOverride string,
+	esbVersion string,
 ) (string, error) {
 	manifestPath := resolveDeployArtifactManifestPath(
 		inputs.ProjectDir,
@@ -31,10 +32,6 @@ func writeDeployArtifactManifest(
 	)
 	manifestDir := filepath.Dir(manifestPath)
 	entries := make([]artifactcore.ArtifactEntry, 0, len(inputs.Templates))
-	runtimeMeta, err := resolveRuntimeMeta(inputs.ProjectDir)
-	if err != nil {
-		return "", err
-	}
 
 	for _, tpl := range inputs.Templates {
 		artifactRootAbs, err := resolveTemplateArtifactRoot(tpl.TemplatePath, tpl.OutputDir, inputs.Env)
@@ -62,12 +59,10 @@ func writeDeployArtifactManifest(
 			Parameters: cloneStringValues(tpl.Parameters),
 		}
 		entry := artifactcore.ArtifactEntry{
-			ID:               artifactcore.ComputeArtifactID(source.Path, source.Parameters, source.SHA256),
 			ArtifactRoot:     artifactRoot,
 			RuntimeConfigDir: filepath.ToSlash("config"),
 			BundleManifest:   bundleManifest,
 			SourceTemplate:   source,
-			RuntimeMeta:      runtimeMeta,
 		}
 		entries = append(entries, entry)
 	}
@@ -77,6 +72,7 @@ func writeDeployArtifactManifest(
 		Project:       strings.TrimSpace(inputs.Project),
 		Env:           strings.TrimSpace(inputs.Env),
 		Mode:          strings.TrimSpace(inputs.Mode),
+		RuntimeStack:  defaultRuntimeStack(inputs.Mode, esbVersion),
 		Artifacts:     entries,
 		GeneratedAt:   time.Now().UTC().Format(time.RFC3339),
 		Generator: artifactcore.ArtifactGenerator{
@@ -90,21 +86,16 @@ func writeDeployArtifactManifest(
 	return manifestPath, nil
 }
 
-func resolveRuntimeMeta(projectDir string) (artifactcore.ArtifactRuntimeMeta, error) {
-	pythonSitecustomizeDigest, err := artifactcore.FileSHA256(filepath.Join(projectDir, "runtime-hooks", "python", "sitecustomize", "site-packages", "sitecustomize.py"))
-	if err != nil {
-		return artifactcore.ArtifactRuntimeMeta{}, fmt.Errorf("hash runtime hook python sitecustomize: %w", err)
+func defaultRuntimeStack(mode, esbVersion string) artifactcore.RuntimeStackMeta {
+	version := strings.TrimSpace(esbVersion)
+	if version == "" {
+		version = "latest"
 	}
-	return artifactcore.ArtifactRuntimeMeta{
-		Hooks: artifactcore.RuntimeHooksMeta{
-			APIVersion:                artifactcore.RuntimeHooksAPIVersion,
-			PythonSitecustomizeDigest: pythonSitecustomizeDigest,
-		},
-		Renderer: artifactcore.RendererMeta{
-			Name:       artifactcore.TemplateRendererName,
-			APIVersion: artifactcore.TemplateRendererAPIVersion,
-		},
-	}, nil
+	return artifactcore.RuntimeStackMeta{
+		APIVersion: artifactcore.RuntimeStackAPIVersion,
+		Mode:       strings.TrimSpace(mode),
+		ESBVersion: version,
+	}
 }
 
 func resolveDeployArtifactManifestPath(projectDir, project, env string, overridePath ...string) string {

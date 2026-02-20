@@ -70,7 +70,6 @@ type (
 		NoCache      bool     `name:"no-cache" help:"Do not use cache when building images"`
 		WithDeps     bool     `name:"with-deps" help:"Start dependent services when running provisioner"`
 		SecretEnv    string   `name:"secret-env" help:"Path to secret env file for apply phase"`
-		Strict       bool     `name:"strict" help:"Enable strict runtime metadata validation for apply phase"`
 		Verbose      bool     `short:"v" help:"Verbose output"`
 		Emoji        bool     `name:"emoji" help:"Enable emoji output (default: auto)"`
 		NoEmoji      bool     `name:"no-emoji" help:"Disable emoji output"`
@@ -105,7 +104,6 @@ type (
 		Artifact  string `name:"artifact" help:"Path to artifact manifest (artifact.yml)"`
 		OutputDir string `name:"out" help:"Output config directory"`
 		SecretEnv string `name:"secret-env" help:"Path to secret env file"`
-		Strict    bool   `name:"strict" help:"Enable strict runtime metadata validation"`
 	}
 
 	VersionCmd struct{}
