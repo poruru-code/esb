@@ -53,8 +53,10 @@ jobs:
 
       - name: Verify generated stubs are up to date
         run: |
-          buf generate services/contracts --template services/contracts/buf.gen.yaml
-          python services/contracts/scripts/fix_python_grpc_imports.py
+          pushd services/contracts
+          buf generate . --template buf.gen.yaml
+          python3 scripts/fix_python_grpc_imports.py
+          popd
           git diff --exit-code -- services/agent/pkg/api/v1 services/gateway/pb
 
       - name: Breaking change check against develop
@@ -84,7 +86,10 @@ jobs:
           args: ./...
 
   go-lint-cli:
+    if: ${{ hashFiles('cli/go.mod') != '' }}
     runs-on: ubuntu-latest
+    env:
+      GOWORK: ${{ github.workspace }}/go.work.cli
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -125,5 +130,13 @@ jobs:
 
       - name: Verify cli/artifactctl compile with workspace contract
         run: |
-          go -C cli test ./... -run '^$'
-          go -C tools/artifactctl test ./... -run '^$'
+          if [ -f cli/go.mod ]; then
+            if [ ! -f go.work.cli ]; then
+              echo "go.work.cli is required when cli/go.mod exists" >&2
+              exit 1
+            fi
+            GOWORK="${GITHUB_WORKSPACE}/go.work.cli" go -C cli test ./... -run '^$'
+          fi
+          if [ -f tools/artifactctl/go.mod ]; then
+            go -C tools/artifactctl test ./... -run '^$'
+          fi

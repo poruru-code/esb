@@ -21,7 +21,7 @@ If `tools/ci/artifactcore_exports_allowlist.txt` changed, explain why each new e
 
 - [ ] `./tools/ci/check_tooling_boundaries.sh`
 - [ ] `go -C tools/artifactctl test ./...`
-- [ ] `go -C cli test ./...`
+- [ ] `GOWORK=$(pwd)/go.work.cli go -C cli test ./...`
 - [ ] `GOWORK=off go -C pkg/artifactcore test ./...`
 - [ ] Additional tests (describe)
 

@@ -19,7 +19,7 @@ fi
 
 if ! command -v "${ESB_CMD_ARR[0]}" >/dev/null 2>&1; then
   echo "esb command not found: ${ESB_CMD_ARR[0]}" >&2
-  echo "Set ESB_CMD to your CLI invocation (example: ESB_CMD='go -C cli run ./cmd/esb')." >&2
+  echo "Set ESB_CMD to your CLI invocation (example: ESB_CMD='GOWORK=$(pwd)/go.work.cli go -C cli run ./cmd/esb')." >&2
   exit 1
 fi
 

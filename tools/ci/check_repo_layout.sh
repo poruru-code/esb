@@ -7,6 +7,24 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 failures=0
 
+SEARCH_TARGET_CANDIDATES=(
+  cli
+  services
+  e2e
+  tools
+  docs
+  docker-bake.hcl
+  docker-compose.containerd.yml
+  docker-compose.docker.yml
+  .mise.toml
+)
+SEARCH_TARGETS=()
+for candidate in "${SEARCH_TARGET_CANDIDATES[@]}"; do
+  if [[ -e "$ROOT_DIR/$candidate" ]]; then
+    SEARCH_TARGETS+=("$candidate")
+  fi
+done
+
 require_path() {
   local path="$1"
   if [[ ! -e "$ROOT_DIR/$path" ]]; then
@@ -23,6 +41,21 @@ forbid_path() {
   fi
 }
 
+require_any_path() {
+  local found=0
+  local path
+  for path in "$@"; do
+    if [[ -e "$ROOT_DIR/$path" ]]; then
+      found=1
+      break
+    fi
+  done
+  if [[ $found -eq 0 ]]; then
+    echo "[layout-check] MISSING (all candidates): $*" >&2
+    failures=$((failures + 1))
+  fi
+}
+
 forbid_reference() {
   local pattern="$1"
   pushd "$ROOT_DIR" >/dev/null
@@ -31,9 +64,7 @@ forbid_reference() {
     --glob '!tools/ci/check_repo_layout.sh' \
     --glob '!.agent/**' \
     -- "$pattern" \
-    cli services e2e tools docs docker-bake.hcl docker-compose.containerd.yml \
-    docker-compose.docker.yml \
-    .mise.toml >/dev/null; then
+    "${SEARCH_TARGETS[@]}" >/dev/null; then
     echo "[layout-check] FORBIDDEN REFERENCE: '$pattern'" >&2
     failures=$((failures + 1))
   fi
@@ -48,17 +79,19 @@ forbid_regex_reference() {
     --glob '!tools/ci/check_repo_layout.sh' \
     --glob '!.agent/**' \
     -- "$pattern" \
-    cli services e2e tools docs docker-bake.hcl docker-compose.containerd.yml \
-    docker-compose.docker.yml \
-    .mise.toml >/dev/null; then
+    "${SEARCH_TARGETS[@]}" >/dev/null; then
     echo "[layout-check] FORBIDDEN REFERENCE (regex): '$pattern'" >&2
     failures=$((failures + 1))
   fi
   popd >/dev/null
 }
 
-require_path "cli/assets/runtime-templates/java/templates/dockerfile.tmpl"
-require_path "cli/assets/runtime-templates/python/templates/dockerfile.tmpl"
+require_any_path \
+  "cli/assets/runtime-templates/java/templates/dockerfile.tmpl" \
+  "assets/runtime-templates/java/templates/dockerfile.tmpl"
+require_any_path \
+  "cli/assets/runtime-templates/python/templates/dockerfile.tmpl" \
+  "assets/runtime-templates/python/templates/dockerfile.tmpl"
 require_path "runtime-hooks/java/build/pom.xml"
 require_path "runtime-hooks/python/docker/Dockerfile"
 require_path "services/contracts/proto/agent.proto"
