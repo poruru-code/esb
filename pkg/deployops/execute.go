@@ -31,7 +31,7 @@ func Execute(input Input) (artifactcore.ApplyResult, error) {
 		observation *artifactcore.RuntimeObservation
 		warnings    []string
 	)
-	if hasRuntimeStack(manifest.RuntimeStack) {
+	if hasRuntimeStackRequirements(manifest.RuntimeStack) {
 		probe := normalized.RuntimeProbe
 		if probe == nil {
 			probe = probeRuntimeObservation
@@ -68,7 +68,7 @@ func Execute(input Input) (artifactcore.ApplyResult, error) {
 	return result, nil
 }
 
-func hasRuntimeStack(meta artifactcore.RuntimeStackMeta) bool {
+func hasRuntimeStackRequirements(meta artifactcore.RuntimeStackMeta) bool {
 	return strings.TrimSpace(meta.APIVersion) != "" ||
 		strings.TrimSpace(meta.Mode) != "" ||
 		strings.TrimSpace(meta.ESBVersion) != ""

@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/poruru/edge-serverless-box/pkg/artifactcore"
+	"github.com/poruru/edge-serverless-box/pkg/runtimeimage"
 )
 
 func TestParseServiceImages(t *testing.T) {
@@ -20,13 +20,13 @@ func TestParseServiceImages(t *testing.T) {
 }
 
 func TestInferRuntimeModeFromServiceImages(t *testing.T) {
-	if got := artifactcore.InferRuntimeModeFromServiceImages(map[string]string{"gateway": "registry:5010/esb-gateway-docker:latest"}); got != "docker" {
+	if got := runtimeimage.InferModeFromServiceImages(map[string]string{"gateway": "registry:5010/esb-gateway-docker:latest"}); got != "docker" {
 		t.Fatalf("InferRuntimeModeFromServiceImages() docker = %q", got)
 	}
-	if got := artifactcore.InferRuntimeModeFromServiceImages(map[string]string{"gateway": "registry:5010/esb-gateway-containerd:latest"}); got != "containerd" {
+	if got := runtimeimage.InferModeFromServiceImages(map[string]string{"gateway": "registry:5010/esb-gateway-containerd:latest"}); got != "containerd" {
 		t.Fatalf("InferRuntimeModeFromServiceImages() containerd = %q", got)
 	}
-	if got := artifactcore.InferRuntimeModeFromServiceImages(map[string]string{"gateway": "public.ecr.aws/lambda/python:3.12"}); got != "" {
+	if got := runtimeimage.InferModeFromServiceImages(map[string]string{"gateway": "public.ecr.aws/lambda/python:3.12"}); got != "" {
 		t.Fatalf("InferRuntimeModeFromServiceImages() unknown = %q", got)
 	}
 }
@@ -44,7 +44,7 @@ func TestParseRuntimeImageTag(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := artifactcore.ParseRuntimeImageTag(tc.image); got != tc.want {
+			if got := runtimeimage.ParseTag(tc.image); got != tc.want {
 				t.Fatalf("ParseRuntimeImageTag(%q) = %q, want %q", tc.image, got, tc.want)
 			}
 		})

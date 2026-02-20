@@ -4,6 +4,8 @@
 package command
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -40,7 +42,7 @@ func writeDeployArtifactManifest(
 		}
 		artifactRoot := toManifestPath(manifestDir, artifactRootAbs)
 
-		templateSHA, err := artifactcore.FileSHA256(tpl.TemplatePath)
+		templateSHA, err := fileSHA256(tpl.TemplatePath)
 		if err != nil {
 			return "", fmt.Errorf("hash template %s: %w", tpl.TemplatePath, err)
 		}
@@ -200,4 +202,13 @@ func cloneStringValues(values map[string]string) map[string]string {
 func pathExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+func fileSHA256(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:]), nil
 }

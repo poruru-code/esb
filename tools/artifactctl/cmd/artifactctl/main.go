@@ -12,7 +12,7 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/poruru/edge-serverless-box/pkg/artifactcore"
 	"github.com/poruru/edge-serverless-box/pkg/composeprovision"
-	"github.com/poruru/edge-serverless-box/tools/artifactctl/pkg/deployops"
+	"github.com/poruru/edge-serverless-box/pkg/deployops"
 )
 
 type CLI struct {
