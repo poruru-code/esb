@@ -339,6 +339,88 @@ func TestPrepareImagesNoCacheAddsFlag(t *testing.T) {
 	}
 }
 
+func TestPrepareImagesDefaultRunnerDoesNotAutoEnsureBase(t *testing.T) {
+	root := t.TempDir()
+	manifestPath := writePrepareImageFixture(
+		t,
+		root,
+		"127.0.0.1:5010/esb-lambda-echo:unit-default-runner",
+		"127.0.0.1:5010/esb-lambda-base:unit-default-runner",
+	)
+	runner := &recordCommandRunner{}
+
+	originalFactory := defaultCommandRunnerFactory
+	defaultCommandRunnerFactory = func() CommandRunner { return runner }
+	t.Cleanup(func() { defaultCommandRunnerFactory = originalFactory })
+
+	originalImageExists := dockerImageExistsFunc
+	dockerImageExistsFunc = func(string) bool { return false }
+	t.Cleanup(func() { dockerImageExistsFunc = originalImageExists })
+
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(root); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() {
+		if chdirErr := os.Chdir(wd); chdirErr != nil {
+			t.Fatalf("restore wd: %v", chdirErr)
+		}
+	})
+
+	err = prepareImages(prepareImagesInput{
+		ArtifactPath: manifestPath,
+	})
+	if err != nil {
+		t.Fatalf("prepareImages() error = %v", err)
+	}
+	if len(runner.commands) != 2 {
+		t.Fatalf("expected only function build/push commands, got %d: %v", len(runner.commands), runner.commands)
+	}
+}
+
+func TestPrepareImagesEnsureBaseRequiresRuntimeHooksDockerfile(t *testing.T) {
+	root := t.TempDir()
+	manifestPath := writePrepareImageFixture(
+		t,
+		root,
+		"127.0.0.1:5010/esb-lambda-echo:unit-ensure-base",
+		"127.0.0.1:5010/esb-lambda-base:unit-ensure-base",
+	)
+	runner := &recordCommandRunner{}
+
+	originalImageExists := dockerImageExistsFunc
+	dockerImageExistsFunc = func(string) bool { return false }
+	t.Cleanup(func() { dockerImageExistsFunc = originalImageExists })
+
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(root); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() {
+		if chdirErr := os.Chdir(wd); chdirErr != nil {
+			t.Fatalf("restore wd: %v", chdirErr)
+		}
+	})
+
+	err = prepareImages(prepareImagesInput{
+		ArtifactPath: manifestPath,
+		Runner:       runner,
+		EnsureBase:   true,
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "runtime hooks dockerfile is unavailable") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestPrepareImagesReturnsRunnerError(t *testing.T) {
 	root := t.TempDir()
 	manifestPath := writePrepareImageFixture(
