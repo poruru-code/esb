@@ -5,9 +5,12 @@ S3 compatibility tests (RustFS).
 - Validate behavior with RustFS backend
 """
 
+import os
 import uuid
+from urllib.parse import urlparse
 
 import pytest
+import requests
 
 from e2e.conftest import call_api
 from e2e.runner.aws_utils import AWSUtils
@@ -168,3 +171,50 @@ class TestS3:
 
         except Exception as e:
             pytest.fail(f"Failed to get bucket lifecycle configuration: {e}")
+
+    def test_presign_get_uses_public_port(self, auth_token):
+        """E2E: presigned URL should use public S3 host:port and be downloadable."""
+        port_s3 = os.getenv("PORT_S3", "").strip()
+        assert port_s3, "PORT_S3 is required for presign URL test"
+
+        test_key = f"test-presign-{uuid.uuid4().hex[:8]}.txt"
+        test_content = "presign-content"
+
+        put_response = call_api(
+            "/api/s3",
+            auth_token,
+            {"action": "put", "bucket": "e2e-test-bucket", "key": test_key, "body": test_content},
+        )
+        assert put_response.status_code == 200, f"PutObject failed: {put_response.text}"
+        assert put_response.json()["success"] is True
+
+        presign_response = call_api(
+            "/api/s3",
+            auth_token,
+            {
+                "action": "presign_get",
+                "bucket": "e2e-test-bucket",
+                "key": test_key,
+                "expires_in": 120,
+            },
+        )
+        assert presign_response.status_code == 200, (
+            f"Presign GetObject failed: {presign_response.text}"
+        )
+
+        presign_data = presign_response.json()
+        assert presign_data["success"] is True
+        presigned_url = presign_data.get("url")
+        assert isinstance(presigned_url, str) and presigned_url
+
+        parsed = urlparse(presigned_url)
+        assert parsed.hostname == "localhost", f"Unexpected presign host: {parsed.hostname}"
+        assert parsed.port == int(port_s3), (
+            f"Unexpected presign port: {parsed.port}, expected: {port_s3}"
+        )
+
+        download_response = requests.get(presigned_url, timeout=30)
+        assert download_response.status_code == 200, (
+            f"Presigned URL download failed: {download_response.status_code} {download_response.text}"
+        )
+        assert download_response.text == test_content

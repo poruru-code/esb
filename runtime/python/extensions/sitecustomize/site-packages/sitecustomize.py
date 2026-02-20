@@ -34,6 +34,8 @@ _BOTO3_SESSION_CLIENT_PATCH_FLAG = "_sitecustomize_boto3_session_patch"
 _AWSLAMBDA_PATCH_FLAG = "_sitecustomize_awslambdaric_patch"
 _LOGGING_PATCH_FLAG = "_sitecustomize_logging_patch"
 _STREAM_HOOK_FLAG = "_victorialogs_hook"
+_S3_PRESIGN_PATCH_FLAG = "_sitecustomize_s3_presign_patch"
+_S3_PRESIGN_ENV_VARS = ("S3_PRESIGN_ENDPOINT", "AWS_PRESIGN_ENDPOINT_URL_S3")
 
 # --- Config ---
 LOG_LEVEL_MAP = {"DEBUG": 10, "INFO": 20, "WARNING": 30, "ERROR": 40, "CRITICAL": 50}
@@ -537,6 +539,14 @@ def _create_mock_logs_client(create_client, args, kwargs):
     return client
 
 
+def _resolve_endpoint_from_env(env_vars):
+    for env_var in env_vars:
+        endpoint = os.environ.get(env_var)
+        if endpoint and endpoint.strip():
+            return endpoint.strip()
+    return None
+
+
 def _configure_service_endpoint(service_name, kwargs):
     """Inject endpoint settings based on environment variables."""
     service_cfg = SERVICE_CONFIG.get(service_name)
@@ -552,14 +562,8 @@ def _configure_service_endpoint(service_name, kwargs):
     elif service_name == "lambda":
         env_vars.append("GATEWAY_INTERNAL_URL")  # Already in env_var, but for clarity
 
-    endpoint = None
-    for ev in env_vars:
-        endpoint = os.environ.get(ev)
-        if endpoint:
-            break
-
+    endpoint = _resolve_endpoint_from_env(env_vars)
     if endpoint:
-        endpoint = endpoint.strip()
         kwargs["endpoint_url"] = endpoint
         kwargs["verify"] = False
         if service_cfg["config"]:
@@ -568,6 +572,64 @@ def _configure_service_endpoint(service_name, kwargs):
                 existing.merge(service_cfg["config"]) if existing else service_cfg["config"]
             )
         print(f"[sitecustomize] Redirecting {service_name} to {endpoint}", flush=True)
+
+
+def _patch_s3_presign_methods(client, create_client, args, kwargs):
+    presign_endpoint = _resolve_endpoint_from_env(_S3_PRESIGN_ENV_VARS)
+    if not presign_endpoint:
+        return
+
+    if getattr(client, _S3_PRESIGN_PATCH_FLAG, False):
+        return
+
+    current_endpoint = getattr(getattr(client, "meta", None), "endpoint_url", None)
+    if isinstance(current_endpoint, str) and current_endpoint.strip() == presign_endpoint:
+        return
+
+    presign_client = None
+    presign_client_lock = threading.Lock()
+
+    def _get_presign_client():
+        nonlocal presign_client
+        if presign_client is not None:
+            return presign_client
+
+        with presign_client_lock:
+            if presign_client is None:
+                presign_kwargs = dict(kwargs)
+                presign_kwargs["endpoint_url"] = presign_endpoint
+                presign_kwargs["verify"] = False
+
+                service_cfg = SERVICE_CONFIG.get("s3")
+                if service_cfg and service_cfg["config"]:
+                    existing = presign_kwargs.get("config")
+                    presign_kwargs["config"] = (
+                        existing.merge(service_cfg["config"]) if existing else service_cfg["config"]
+                    )
+
+                presign_client = create_client("s3", *args, **presign_kwargs)
+                print(
+                    f"[sitecustomize] Redirecting s3 presign methods to {presign_endpoint}",
+                    flush=True,
+                )
+
+        return presign_client
+
+    if hasattr(client, "generate_presigned_url"):
+
+        def _patched_generate_presigned_url(*method_args, **method_kwargs):
+            return _get_presign_client().generate_presigned_url(*method_args, **method_kwargs)
+
+        client.generate_presigned_url = _patched_generate_presigned_url
+
+    if hasattr(client, "generate_presigned_post"):
+
+        def _patched_generate_presigned_post(*method_args, **method_kwargs):
+            return _get_presign_client().generate_presigned_post(*method_args, **method_kwargs)
+
+        client.generate_presigned_post = _patched_generate_presigned_post
+
+    setattr(client, _S3_PRESIGN_PATCH_FLAG, True)
 
 
 def _register_lambda_hooks(client):
@@ -590,6 +652,8 @@ def _build_patched_client(create_client, service_name, args, kwargs):
     # 3. Lambda case (hook registration).
     if service_name == "lambda":
         _register_lambda_hooks(client)
+    elif service_name == "s3":
+        _patch_s3_presign_methods(client, create_client, args, kwargs)
 
     return client
 

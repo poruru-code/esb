@@ -63,6 +63,7 @@ async def test_provision_success(grpc_client, mock_stub, mock_registry):
         mock_config.GATEWAY_VICTORIALOGS_URL = "http://victorialogs:8428"
         mock_config.DYNAMODB_ENDPOINT = ""
         mock_config.S3_ENDPOINT = ""
+        mock_config.S3_PRESIGN_ENDPOINT = "https://public.example.com:8443"
         mock_config.DATA_PLANE_HOST = "10.88.0.1"
 
         # 2. Call
@@ -89,6 +90,8 @@ async def test_provision_success(grpc_client, mock_stub, mock_registry):
         assert env["AWS_LAMBDA_FUNCTION_VERSION"] == "$LATEST"
         assert env["AWS_REGION"] == "ap-northeast-1"
         assert env["VICTORIALOGS_URL"] == "http://victorialogs:8428"
+        assert env["S3_PRESIGN_ENDPOINT"] == "https://public.example.com:8443"
+        assert env["AWS_PRESIGN_ENDPOINT_URL_S3"] == "https://public.example.com:8443"
 
 
 @pytest.mark.asyncio
@@ -109,6 +112,7 @@ async def test_provision_fallback_containerd(grpc_client, mock_stub, mock_regist
         patch.object(grpc_client, "_wait_for_readiness", new_callable=AsyncMock),
     ):
         mock_config.S3_ENDPOINT = ""
+        mock_config.S3_PRESIGN_ENDPOINT = ""
         mock_config.DYNAMODB_ENDPOINT = ""
         mock_config.GATEWAY_VICTORIALOGS_URL = ""
         mock_config.VICTORIALOGS_URL = ""  # Host URL ignored in fallback
@@ -125,6 +129,8 @@ async def test_provision_fallback_containerd(grpc_client, mock_stub, mock_regist
         assert env["AWS_ENDPOINT_URL_S3"] == "http://10.99.99.99:9000"
         assert env["AWS_ENDPOINT_URL_DYNAMODB"] == "http://10.99.99.99:8000"
         assert env["AWS_ENDPOINT_URL_CLOUDWATCH_LOGS"] == "http://10.99.99.99:9428"
+        assert "S3_PRESIGN_ENDPOINT" not in env
+        assert "AWS_PRESIGN_ENDPOINT_URL_S3" not in env
         args, _ = mock_stub.EnsureContainer.call_args
         assert args[0].owner_id == OWNER_ID
 

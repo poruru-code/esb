@@ -96,6 +96,12 @@ class GrpcProvisionClient:
         env["AWS_ENDPOINT_URL_S3"] = s3_url
         env["S3_ENDPOINT"] = s3_url
 
+        # Optional public endpoint for presigned URL generation only.
+        s3_presign_url = getattr(config, "S3_PRESIGN_ENDPOINT", "")
+        if isinstance(s3_presign_url, str) and s3_presign_url:
+            env["S3_PRESIGN_ENDPOINT"] = s3_presign_url
+            env["AWS_PRESIGN_ENDPOINT_URL_S3"] = s3_presign_url
+
         # Inject Timeout & Memory from config
         if func_config:
             if func_config.timeout:

@@ -11,7 +11,9 @@ SITECUSTOMIZE_SITE_PACKAGES = (
 )
 
 
-def _run_sitecustomize_script(script: str) -> dict[str, object]:
+def _run_sitecustomize_script(
+    script: str, extra_env: dict[str, str] | None = None
+) -> dict[str, object]:
     # sitecustomize mutates global process state (e.g. boto3/client monkey patches and logging),
     # so each assertion runs in a subprocess to avoid cross-test contamination.
     env = os.environ.copy()
@@ -25,6 +27,8 @@ def _run_sitecustomize_script(script: str) -> dict[str, object]:
     env["AWS_DEFAULT_REGION"] = "us-east-1"
     env["AWS_EC2_METADATA_DISABLED"] = "true"
     env["S3_ENDPOINT"] = "http://127.0.0.1:4566"
+    if extra_env:
+        env.update(extra_env)
 
     completed = subprocess.run(
         [sys.executable, "-c", script],
@@ -118,3 +122,42 @@ print("RESULT_JSON=" + json.dumps(data, sort_keys=True))
     assert result["session_patch_flag"] is True
     assert result["session_s3_endpoint"] == "http://127.0.0.1:4566"
     assert result["session_logs_describe"] == {"logGroups": []}
+
+
+def test_sitecustomize_presign_uses_public_endpoint_only():
+    result = _run_sitecustomize_script(
+        """
+import json
+import boto3
+from urllib.parse import urlparse
+import sitecustomize  # noqa: F401
+
+client = boto3.client("s3")
+presigned_url = client.generate_presigned_url(
+    "get_object",
+    Params={"Bucket": "bucket-name", "Key": "sample.txt"},
+    ExpiresIn=600,
+)
+presigned_post = client.generate_presigned_post(
+    "bucket-name",
+    "sample.txt",
+    ExpiresIn=600,
+)
+
+data = {
+    "client_endpoint": client.meta.endpoint_url,
+    "presigned_url_netloc": urlparse(presigned_url).netloc,
+    "presigned_url_scheme": urlparse(presigned_url).scheme,
+    "presigned_post_netloc": urlparse(presigned_post["url"]).netloc,
+    "presigned_post_scheme": urlparse(presigned_post["url"]).scheme,
+}
+print("RESULT_JSON=" + json.dumps(data, sort_keys=True))
+""",
+        extra_env={"S3_PRESIGN_ENDPOINT": "https://public.example.com:8443"},
+    )
+
+    assert result["client_endpoint"] == "http://127.0.0.1:4566"
+    assert result["presigned_url_netloc"] == "public.example.com:8443"
+    assert result["presigned_url_scheme"] == "https"
+    assert result["presigned_post_netloc"] == "public.example.com:8443"
+    assert result["presigned_post_scheme"] == "https"
