@@ -1,26 +1,41 @@
 package runtime
 
-import "github.com/poruru/edge-serverless-box/meta"
+import "github.com/poruru-code/esb/services/agent/internal/identity"
 
-const (
+var (
 	// LabelFunctionName is the label key for the function name.
-	LabelFunctionName = meta.RuntimeLabelFunction
+	LabelFunctionName string
 
 	// LabelCreatedBy is the label key for the creator identifier.
-	LabelCreatedBy = meta.RuntimeLabelCreatedBy
+	LabelCreatedBy string
 
 	// ValueCreatedByAgent is the value for LabelCreatedBy.
-	ValueCreatedByAgent = meta.RuntimeLabelCreatedByValue
+	ValueCreatedByAgent string
 
 	// LabelEsbEnv is the label key for the environment identifier.
-	LabelEsbEnv = meta.RuntimeLabelEnv
+	LabelEsbEnv string
 
 	// LabelFunctionKind is the label key for function containers/images.
-	LabelFunctionKind = meta.LabelPrefix + ".kind"
+	LabelFunctionKind string
 
 	// LabelOwner is the label key for the gateway owner identifier.
-	LabelOwner = meta.LabelPrefix + ".owner"
+	LabelOwner string
 
 	// ValueFunctionKind is the label value for function containers/images.
 	ValueFunctionKind = "function"
 )
+
+const bootstrapBrandSlug = "esb"
+
+func init() {
+	ApplyIdentity(identity.StackIdentity{BrandSlug: bootstrapBrandSlug, Source: "bootstrap"})
+}
+
+func ApplyIdentity(id identity.StackIdentity) {
+	LabelFunctionName = id.RuntimeLabelFunction()
+	LabelCreatedBy = id.RuntimeLabelCreatedBy()
+	ValueCreatedByAgent = id.RuntimeLabelCreatedByValue()
+	LabelEsbEnv = id.RuntimeLabelEnv()
+	LabelFunctionKind = id.LabelPrefix() + ".kind"
+	LabelOwner = id.LabelPrefix() + ".owner"
+}

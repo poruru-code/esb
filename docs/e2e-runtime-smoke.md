@@ -50,7 +50,7 @@ Runner behavior is intentionally centralized:
 e2e/run_tests.py -> e2e.runner.*
 ```
 
-Contract visible to CLI users:
+Contract visible to runner users:
 - non-zero exit when any environment fails
 - failed environment tail logs from `e2e/.parallel-<env>.log`
 - `--profile` for targeted execution

@@ -89,9 +89,11 @@ sequenceDiagram
 - `container_id` に対する `owner_id` 不一致は `PermissionDenied` として扱われます。
 
 ### 2) 生成されるコンテナ名 / ラベル
-- containerd runtime は `esb-{env}-{function}-{id}` 形式の短い ID を使います。
-- docker runtime は `{brand}-{env}-{function}-{id}`（brand は `meta.Slug`）です。
+- docker / containerd とも `{brand}-{env}-{function}-{id}` を使います。
+- brand は起動時に `StackIdentity` で解決されます（`ESB_BRAND_SLUG` -> `PROJECT_NAME/ENV` -> `CONTAINERS_NETWORK`）。未解決時は起動を継続しません。
 - `owner_id`/`env`/`function` はラベルとして付与され、`List`/Janitor でフィルタに利用されます。
+- ラベルキーは brand で名前空間化されます（例: `esb_function`, `esb_env`, `com.esb.kind`, `com.esb.owner`）。
+- 契約の詳細は `docs/runtime-identity-contract.md` を参照してください。
 
 ### 3) DNS 注入（containerd）
 - `resolv.conf` を Agent 側で生成し、ワーカーの `/etc/resolv.conf` に bind-mount します。
@@ -106,9 +108,15 @@ sequenceDiagram
 - 無効化は `AGENT_GRPC_TLS_DISABLED=1`（信頼済みネットワークのみで使用）。
 
 ### 6) 画像解決の責務分離
-- 外部レジストリから内部レジストリへの同期は **CLI deploy prewarm の責務**です。
+- 外部レジストリ起点の `PackageType: Image` 関数は、deploy/apply 時に
+  **`artifactctl deploy` による Dockerfile 再ビルド + push** で内部レジストリへ配置されます。
 - Agent runtime は **内部レジストリ参照の pull のみ**を行います。
 - `image` が内部レジストリに存在しない場合は `EnsureContainer` が `Internal` で失敗します。
+
+### 7) 依存方向ガード（重要）
+- `services/*` は runtime 実行責務のみを持ち、tooling 実装へ依存しません。
+- `services/* -> tools/*` および `services/* -> pkg/artifactcore` の import は禁止です。
+- artifact の検証/merge/apply は `tools/artifactctl` 側に閉じ、runtime は反映済み `CONFIG_DIR` のみを読む契約を維持します。
 
 ## containerd runtime の責務分割
 containerd runtime 実装は 1 ファイル集中ではなく、以下に分割されています。
@@ -126,10 +134,11 @@ containerd runtime 実装は 1 ファイル集中ではなく、以下に分割�
 ---
 
 ## Implementation references
-- `proto/agent.proto`
+- `services/contracts/proto/agent.proto`
 - `services/agent/cmd/agent/main.go`
 - `services/agent/internal/api/server.go`
 - `services/agent/internal/runtime/interface.go`
+- `services/agent/internal/identity/stack_identity.go`
 - `services/agent/internal/runtime/containerd/runtime.go`
 - `services/agent/internal/runtime/containerd/ensure.go`
 - `services/agent/internal/runtime/containerd/cni.go`

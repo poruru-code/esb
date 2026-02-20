@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # Where: e2e/run_tests.py
-# What: E2E test runner for ESB CLI scenarios.
+# What: E2E test runner for artifact-based scenarios.
 # Why: Provide a single entry point for scenario setup, execution, and teardown.
 import os
+import shutil
 import subprocess
 import sys
 import warnings
@@ -15,7 +16,7 @@ from e2e.runner.live_display import LiveDisplay
 from e2e.runner.planner import apply_test_target, build_plan
 from e2e.runner.runner import run_parallel
 from e2e.runner.ui import PlainReporter
-from e2e.runner.utils import GO_CLI_ROOT, PROJECT_ROOT
+from e2e.runner.utils import PROJECT_ROOT
 
 # Canonical E2E execution path: e2e.runner.runner (legacy executor removed).
 
@@ -74,19 +75,63 @@ def resolve_live_enabled(no_live: bool) -> bool:
     return True
 
 
-def ensure_local_esb_cli() -> None:
-    if os.environ.get("ESB_CLI") or os.environ.get("ESB_BIN"):
-        return
+def requires_artifactctl(args, env_scenarios: dict[str, object]) -> bool:
+    if args.test_only:
+        return False
+    return bool(env_scenarios)
 
-    cli_bin_dir = GO_CLI_ROOT / "bin"
-    cli_bin_dir.mkdir(parents=True, exist_ok=True)
-    cli_bin = cli_bin_dir / "esb"
-    build_cmd = ["go", "build", "-o", str(cli_bin), "./cmd/esb"]
-    result = subprocess.run(build_cmd, cwd=GO_CLI_ROOT, check=False)
-    if result.returncode != 0:
-        print("[ERROR] failed to build local esb binary for E2E runner.")
-        sys.exit(result.returncode)
-    os.environ["ESB_CLI"] = str(cli_bin)
+
+def ensure_artifactctl_available() -> str:
+    def _assert_supported(binary_path: str) -> None:
+        required_subcommands = (("deploy", "--help"), ("provision", "--help"))
+        for subcommand in required_subcommands:
+            probe = subprocess.run(
+                [binary_path, *subcommand],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                check=False,
+            )
+            out = (probe.stdout or "").lower()
+            if probe.returncode != 0 or "unknown command" in out:
+                command = " ".join(subcommand)
+                print(f"[ERROR] artifactctl binary does not support `{command}`: {binary_path}")
+                print(
+                    "        Ensure a current artifactctl is installed or set ARTIFACTCTL_BIN explicitly."
+                )
+                print("        In this repository, you can install it via: mise run setup")
+                sys.exit(1)
+
+    override = os.environ.get("ARTIFACTCTL_BIN", "").strip()
+    if override:
+        resolved = shutil.which(override)
+        if resolved is None:
+            print(f"[ERROR] ARTIFACTCTL_BIN is set but not executable: {override}")
+            sys.exit(1)
+        resolved_abs = os.path.abspath(resolved)
+        _assert_supported(resolved_abs)
+        os.environ["ARTIFACTCTL_BIN_RESOLVED"] = resolved_abs
+        return resolved_abs
+
+    preferred_local = os.path.expanduser("~/.local/bin/artifactctl")
+    if os.path.isfile(preferred_local) and os.access(preferred_local, os.X_OK):
+        resolved_abs = os.path.abspath(preferred_local)
+        _assert_supported(resolved_abs)
+        os.environ["ARTIFACTCTL_BIN_RESOLVED"] = resolved_abs
+        return resolved_abs
+
+    resolved = shutil.which("artifactctl")
+    if resolved is not None:
+        resolved_abs = os.path.abspath(resolved)
+        _assert_supported(resolved_abs)
+        os.environ["ARTIFACTCTL_BIN_RESOLVED"] = resolved_abs
+        return resolved_abs
+
+    print("[ERROR] artifactctl binary not found in PATH.")
+    print("        Install artifactctl or set ARTIFACTCTL_BIN to an executable path.")
+    print("        In this repository, you can install it via: mise run setup")
+    print("        Example: ARTIFACTCTL_BIN=/path/to/artifactctl uv run e2e/run_tests.py ...")
+    sys.exit(1)
 
 
 def main():
@@ -95,36 +140,6 @@ def main():
     warnings.filterwarnings("ignore", category=DeprecationWarning)
 
     args = parse_args()
-
-    if not args.unit_only:
-        ensure_local_esb_cli()
-
-    # --- Unit Tests ---
-    if args.unit or args.unit_only:
-        print("\n=== Running Python Unit Tests ===\n")
-        python_cmd = [
-            sys.executable,
-            "-m",
-            "pytest",
-            "services/gateway/tests",
-            "-v",
-        ]
-        res = subprocess.run(python_cmd, cwd=PROJECT_ROOT, check=False)
-        if res.returncode != 0:
-            print("\n[FAILED] Python unit tests failed.")
-            sys.exit(res.returncode)
-
-        print("\n=== Running Go Unit Tests ===\n")
-        go_cmd = ["go", "test", "./..."]
-        go_res = subprocess.run(go_cmd, cwd=GO_CLI_ROOT, check=False)
-        if go_res.returncode != 0:
-            print("\n[FAILED] Go unit tests failed.")
-            sys.exit(go_res.returncode)
-
-        print("\n[PASSED] Unit Tests passed!")
-
-        if args.unit_only:
-            sys.exit(0)
 
     # --- Load Test Matrix ---
     config_matrix = load_test_matrix()
@@ -171,6 +186,8 @@ def main():
             emoji=args.emoji,
             show_progress=True,
         )
+        if requires_artifactctl(args, env_scenarios):
+            ensure_artifactctl_available()
         results = run_parallel(
             env_scenarios,
             reporter=reporter,
@@ -203,6 +220,8 @@ def main():
             emoji=args.emoji,
             show_progress=True,
         )
+        if requires_artifactctl(args, env_scenarios):
+            ensure_artifactctl_available()
         results = run_parallel(
             env_scenarios,
             reporter=reporter,
@@ -233,6 +252,8 @@ def main():
         live_display=live_display,
         show_progress=not (live_display and not args.verbose),
     )
+    if requires_artifactctl(args, env_scenarios):
+        ensure_artifactctl_available()
     results = run_parallel(
         env_scenarios,
         reporter=reporter,

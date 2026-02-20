@@ -38,7 +38,6 @@ def apply_test_target(
         env_vars=scenario.env_vars,
         targets=[target],
         exclude=[],
-        deploy_templates=scenario.deploy_templates,
         project_name=scenario.project_name,
         extra=scenario.extra,
     )
@@ -56,7 +55,6 @@ def _to_scenario(data: dict[str, Any]) -> Scenario:
         "env_vars",
         "targets",
         "exclude",
-        "deploy_templates",
         "esb_project",
     }
     return Scenario(
@@ -68,7 +66,6 @@ def _to_scenario(data: dict[str, Any]) -> Scenario:
         env_vars=data.get("env_vars", {}) or {},
         targets=data.get("targets", []) or [],
         exclude=data.get("exclude", []) or [],
-        deploy_templates=data.get("deploy_templates", []) or [],
         project_name=data.get("esb_project", BRAND_SLUG),
         extra={k: v for k, v in data.items() if k not in known_keys},
     )

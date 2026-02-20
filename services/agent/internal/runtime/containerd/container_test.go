@@ -8,7 +8,7 @@ import (
 
 	"github.com/containerd/containerd/cio"
 	"github.com/containerd/go-cni"
-	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
+	"github.com/poruru-code/esb/services/agent/internal/runtime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -18,7 +18,7 @@ func TestRuntime_Ensure_NewContainer(t *testing.T) {
 	mockCli := new(MockClient)
 	mockCNI := new(MockCNI)
 	// Phase 7: Pass environment name "test-env"
-	rt := NewRuntime(mockCli, mockCNI, "esb", "test-env")
+	rt := NewRuntime(mockCli, mockCNI, "esb", "test-env", "esb")
 	ctx := context.Background()
 	req := runtime.EnsureRequest{
 		FunctionName: "test-func",
@@ -84,7 +84,7 @@ func TestRuntime_Ensure_NetworkFailure_Rollback(t *testing.T) {
 	t.Skip("Skipping due to mocked panic issues. Validated by E2E.")
 	mockCli := new(MockClient)
 	mockCNI := new(MockCNI)
-	rt := NewRuntime(mockCli, mockCNI, "esb", "test-env")
+	rt := NewRuntime(mockCli, mockCNI, "esb", "test-env", "esb")
 	ctx := context.Background()
 	req := runtime.EnsureRequest{
 		FunctionName: "rollback-func",
@@ -141,7 +141,7 @@ func TestRuntime_Ensure_NetworkFailure_Rollback(t *testing.T) {
 func TestRuntime_Suspend_Red(t *testing.T) {
 	mockCli := new(MockClient)
 	mockCNI := new(MockCNI)
-	rt := NewRuntime(mockCli, mockCNI, "esb", "test-env")
+	rt := NewRuntime(mockCli, mockCNI, "esb", "test-env", "esb")
 	ctx := context.Background()
 	containerID := "esb-test-env-test-func-1234"
 
@@ -167,7 +167,7 @@ func TestRuntime_Suspend_Red(t *testing.T) {
 func TestRuntime_Resume_Red(t *testing.T) {
 	mockCli := new(MockClient)
 	mockCNI := new(MockCNI)
-	rt := NewRuntime(mockCli, mockCNI, "esb", "test-env")
+	rt := NewRuntime(mockCli, mockCNI, "esb", "test-env", "esb")
 	ctx := context.Background()
 	containerID := "esb-test-env-test-func-1234"
 

@@ -29,16 +29,12 @@ suites:
 matrix:
 # docker runtime
 - esb_env: e2e-docker
-  deploy_templates:
-  - e2e/fixtures/template.core.yaml
-  - e2e/fixtures/template.stateful.yaml
-  - e2e/fixtures/template.image.yaml
+  artifact_manifest: e2e/artifacts/e2e-docker/artifact.yml
+  config_dir: .esb/staging/esb-e2e-docker/e2e-docker/config
   env_vars:
     E2E_IMAGE_EXPECTED_LOGGER: cloudwatch.logs.python
   image_uri_overrides:
     lambda-image: 127.0.0.1:5010/esb-e2e-lambda-python:latest
-  image_runtime_overrides:
-    lambda-image: python
   suites:
   - smoke
   - standard
@@ -47,16 +43,12 @@ matrix:
 
 # containerd runtime
 - esb_env: e2e-containerd
-  deploy_templates:
-  - e2e/fixtures/template.core.yaml
-  - e2e/fixtures/template.stateful.yaml
-  - e2e/fixtures/template.image.yaml
+  artifact_manifest: e2e/artifacts/e2e-containerd/artifact.yml
+  config_dir: .esb/staging/esb-e2e-containerd/e2e-containerd/config
   env_vars:
     E2E_IMAGE_EXPECTED_LOGGER: cloudwatch.logs.java
   image_uri_overrides:
     lambda-image: 127.0.0.1:5010/esb-e2e-lambda-java:latest
-  image_runtime_overrides:
-    lambda-image: java21
   suites:
   - smoke
   - standard

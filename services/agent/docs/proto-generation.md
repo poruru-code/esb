@@ -6,7 +6,7 @@ Why: Keep proto contract and generated artifact paths consistent.
 # Proto Generation
 
 ## Source of Truth
-- Proto schema: `proto/agent.proto`
+- Proto schema: `services/contracts/proto/agent.proto`
 
 Agent の API 契約は proto を正本とし、Go/Python の generated code は派生物です。
 
@@ -26,30 +26,37 @@ Go 生成物は canonical path のみに配置します。
 
 ## Generation Command
 ```bash
-uv run python tools/gen_proto.py
+mise run gen-proto
+# or
+cd services/contracts
+buf generate . --template buf.gen.yaml
+uv run python scripts/fix_python_grpc_imports.py
 ```
 
 処理内容:
 1. Python gRPC code を `services/gateway/pb/` に生成
 2. import 形式を Python package 用に補正
-3. Go gRPC code を `services/agent/pkg/api/v1/` に生成（Docker 経由）
+3. Go gRPC code を `services/agent/pkg/api/v1/` に生成（buf plugin）
 
 ## Verification Checklist
-- `proto/agent.proto` 変更後に `python tools/gen_proto.py` を実行
+- `services/contracts/proto/agent.proto` 変更後に `mise run gen-proto` を実行
 - `services/agent/pkg/api/v1/agent*.go` が更新されること
 - `services/gateway/pb/agent_pb2*.py` が更新されること
 - 旧パス `services/agent/pkg/api/v1/proto` に差分が発生しないこと
 
 ## Operational Notes
-- `tools/gen_proto.py` は Go 生成で Docker イメージ（`rvolosatovs/protoc:latest`）を使用します。
-- 生成は deterministic ではない差分（toolchain 由来）を含み得るため、
-  PR では `proto/agent.proto` と generated files をセットでレビューします。
+- `services/contracts/buf.gen.yaml` で plugin version を pin し、生成の再現性を確保します。
+- Python gRPC plugin が absolute import を出力するため、
+  `services/contracts/scripts/fix_python_grpc_imports.py` で package-relative import に補正します。
+- PR では `services/contracts/proto/agent.proto` と generated files をセットでレビューします。
 
 ---
 
 ## Implementation references
-- `proto/agent.proto`
-- `tools/gen_proto.py`
+- `services/contracts/proto/agent.proto`
+- `services/contracts/buf.yaml`
+- `services/contracts/buf.gen.yaml`
+- `services/contracts/scripts/fix_python_grpc_imports.py`
 - `services/agent/pkg/api/v1/agent.pb.go`
 - `services/agent/pkg/api/v1/agent_grpc.pb.go`
 - `services/gateway/pb/agent_pb2.py`

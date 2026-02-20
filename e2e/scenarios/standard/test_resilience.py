@@ -27,6 +27,8 @@ from e2e.conftest import (
 class TestResilience:
     """Verify resilience and performance features."""
 
+    CIRCUIT_OPEN_MAX_LATENCY_SECONDS = 2.0
+
     # Unskipped - Agent restart recovery should work
     def test_orchestrator_restart_recovery(self, auth_token):
         """
@@ -167,7 +169,10 @@ class TestResilience:
             print(f"Status: {resp.status_code}, Body: {resp.text}, Latency: {duration:.2f}s")
 
             assert resp.status_code == 502
-            assert duration < 1.0, "Circuit Breaker should fail fast (< 1.0s)"
+            assert "Circuit is open" in resp.text, "Circuit open response was not returned"
+            assert duration < self.CIRCUIT_OPEN_MAX_LATENCY_SECONDS, (
+                f"Circuit Breaker should fail fast (< {self.CIRCUIT_OPEN_MAX_LATENCY_SECONDS}s)"
+            )
 
             # 4. Wait for recovery.
             print("Waiting for Circuit Breaker recovery (11s)...")

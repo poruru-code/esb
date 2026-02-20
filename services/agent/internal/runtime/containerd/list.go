@@ -16,7 +16,7 @@ import (
 
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/namespaces"
-	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
+	"github.com/poruru-code/esb/services/agent/internal/runtime"
 )
 
 // List returns the state of all managed containers.

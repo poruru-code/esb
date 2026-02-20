@@ -1,4 +1,4 @@
-module github.com/poruru/edge-serverless-box/services/agent
+module github.com/poruru-code/esb/services/agent
 
 go 1.25.1
 
@@ -24,9 +24,9 @@ require github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.3
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
+	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/prometheus/client_golang v1.23.2 // indirect
+	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.66.1 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
@@ -73,7 +73,6 @@ require (
 	github.com/petermattis/goid v0.0.0-20240813172612-4fcff4a6cae7 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/poruru/edge-serverless-box/meta v0.0.0
 	github.com/sasha-s/go-deadlock v0.3.5 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
@@ -94,5 +93,3 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gotest.tools/v3 v3.5.2 // indirect
 )
-
-replace github.com/poruru/edge-serverless-box/meta => ../../meta

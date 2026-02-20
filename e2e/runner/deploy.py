@@ -4,13 +4,12 @@
 from __future__ import annotations
 
 import threading
-import time
 from pathlib import Path
 from typing import Any, Callable
 
 from e2e.runner.logging import LogSink, run_and_stream
 from e2e.runner.models import RunContext
-from e2e.runner.utils import PROJECT_ROOT, build_esb_cmd
+from e2e.runner.utils import PROJECT_ROOT
 
 LOCAL_IMAGE_FIXTURES: dict[str, Path] = {
     "esb-e2e-lambda-python": PROJECT_ROOT / "tools" / "e2e-lambda-fixtures" / "python",
@@ -21,65 +20,112 @@ _prepared_local_fixture_images: set[str] = set()
 _prepared_local_fixture_lock = threading.Lock()
 
 
-def deploy_templates(
+def _artifactctl_bin(ctx: RunContext) -> str:
+    # run_tests.py resolves ARTIFACTCTL_BIN(_RESOLVED) before runner starts.
+    resolved = str(ctx.deploy_env.get("ARTIFACTCTL_BIN_RESOLVED", "")).strip()
+    if resolved:
+        return resolved
+    configured = str(ctx.deploy_env.get("ARTIFACTCTL_BIN", "")).strip()
+    if configured:
+        return configured
+    return "artifactctl"
+
+
+def deploy_artifacts(
     ctx: RunContext,
-    templates: list[Path],
     *,
     no_cache: bool,
-    verbose: bool,
     log: LogSink,
     printer: Callable[[str], None] | None = None,
 ) -> None:
     _prepare_local_fixture_images(ctx, log=log, printer=printer)
+    _deploy_via_artifact_driver(
+        ctx,
+        no_cache=no_cache,
+        log=log,
+        printer=printer,
+    )
 
-    for idx, tmpl in enumerate(templates, start=1):
-        label = f"{ctx.scenario.env_name}"
-        if len(templates) > 1:
-            label = f"{label} ({idx}/{len(templates)})"
-        message = f"Deploying functions for {label}..."
-        log.write_line(message)
-        if printer:
-            printer(message)
 
-        args = [
-            "deploy",
-            "--template",
-            str(tmpl),
-            "--compose-file",
-            str(ctx.compose_file),
-            "--no-deps",
-            "--no-save-defaults",
-            "--env",
-            ctx.scenario.env_name,
-            "--mode",
-            ctx.scenario.mode,
-        ]
-        image_prewarm = str(ctx.scenario.extra.get("image_prewarm", "")).strip().lower()
-        if image_prewarm:
-            args.extend(["--image-prewarm", image_prewarm])
-        args.extend(_build_image_override_args(ctx.scenario.extra))
-        if no_cache:
-            args.append("--no-cache")
-        if verbose and "--verbose" not in args and "-v" not in args:
-            try:
-                idx = args.index("deploy")
-                args.insert(idx + 1, "--verbose")
-            except ValueError:
-                pass
-        cmd = build_esb_cmd(args, ctx.env_file, env=ctx.deploy_env)
-        rc = run_and_stream(
-            cmd,
-            cwd=PROJECT_ROOT,
-            env=ctx.deploy_env,
-            log=log,
-            printer=printer,
-        )
-        if rc != 0:
-            raise RuntimeError(f"deploy failed with exit code {rc}")
-        time.sleep(2.0)
-        log.write_line("Done")
-        if printer:
-            printer("Done")
+def _deploy_via_artifact_driver(
+    ctx: RunContext,
+    *,
+    no_cache: bool,
+    log: LogSink,
+    printer: Callable[[str], None] | None = None,
+) -> None:
+    manifest_path = _resolve_artifact_manifest_path(ctx)
+    if not manifest_path.exists():
+        raise FileNotFoundError(f"artifact manifest not found: {manifest_path}")
+
+    config_dir = str(ctx.runtime_env.get("CONFIG_DIR", "")).strip()
+    if config_dir == "":
+        raise RuntimeError("CONFIG_DIR is required for artifact apply")
+
+    message = f"Deploying artifact manifest for {ctx.scenario.env_name}..."
+    log.write_line(message)
+    if printer:
+        printer(message)
+    artifactctl_bin = _artifactctl_bin(ctx)
+    deploy_cmd = [
+        artifactctl_bin,
+        "deploy",
+        "--artifact",
+        str(manifest_path),
+        "--out",
+        config_dir,
+    ]
+    if no_cache:
+        deploy_cmd.append("--no-cache")
+    secret_env = str(ctx.scenario.extra.get("secret_env_file", "")).strip()
+    if secret_env:
+        deploy_cmd.extend(["--secret-env", secret_env])
+    rc = run_and_stream(
+        deploy_cmd,
+        cwd=PROJECT_ROOT,
+        env=ctx.deploy_env,
+        log=log,
+        printer=printer,
+    )
+    if rc != 0:
+        raise RuntimeError(f"artifact deploy failed with exit code {rc}")
+
+    provision_cmd = [
+        artifactctl_bin,
+        "provision",
+        "--project",
+        ctx.compose_project,
+        "--compose-file",
+        str(ctx.compose_file),
+    ]
+    if ctx.env_file:
+        provision_cmd.extend(["--env-file", ctx.env_file])
+    rc = run_and_stream(
+        provision_cmd,
+        cwd=PROJECT_ROOT,
+        env=ctx.deploy_env,
+        log=log,
+        printer=printer,
+    )
+    if rc != 0:
+        raise RuntimeError(f"provisioner failed with exit code {rc}")
+
+    log.write_line("Done")
+    if printer:
+        printer("Done")
+
+
+def _resolve_artifact_manifest_path(ctx: RunContext) -> Path:
+    manifest_value = ctx.scenario.extra.get("artifact_manifest")
+    if manifest_value is None:
+        raise ValueError(f"artifact_manifest is required for scenario '{ctx.scenario.env_name}'")
+    raw = str(manifest_value).strip()
+    if raw == "":
+        raise ValueError(f"artifact_manifest is required for scenario '{ctx.scenario.env_name}'")
+    path = Path(raw)
+    if not path.is_absolute():
+        path = PROJECT_ROOT / path
+    return path.resolve()
 
 
 def _prepare_local_fixture_images(
@@ -163,19 +209,6 @@ def _fixture_repo_name(source: str) -> str:
     without_digest = source.split("@", 1)[0]
     last_segment = without_digest.rsplit("/", 1)[-1]
     return last_segment.split(":", 1)[0]
-
-
-def _build_image_override_args(extra: dict[str, Any]) -> list[str]:
-    args: list[str] = []
-    for value in _collect_function_overrides(
-        extra.get("image_uri_overrides"), "image_uri_overrides"
-    ):
-        args.extend(["--image-uri", value])
-    for value in _collect_function_overrides(
-        extra.get("image_runtime_overrides"), "image_runtime_overrides"
-    ):
-        args.extend(["--image-runtime", value])
-    return args
 
 
 def _collect_function_overrides(raw: Any, field_name: str) -> list[str]:

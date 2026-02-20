@@ -7,14 +7,14 @@ import (
 
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/containers"
-	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
+	"github.com/poruru-code/esb/services/agent/internal/runtime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
 
 func TestRuntime_GC(t *testing.T) {
 	mockCli := new(MockClient)
-	rt := NewRuntime(mockCli, nil, "esb", "test-env")
+	rt := NewRuntime(mockCli, nil, "esb", "test-env", "esb")
 
 	// We expect GC will call Containers()
 	mockCli.On("Containers", mock.Anything, mock.Anything).Return([]containerd.Container{}, nil)
@@ -27,7 +27,7 @@ func TestRuntime_GC(t *testing.T) {
 
 func TestRuntime_GC_SkipsUnmanagedContainers(t *testing.T) {
 	mockCli := new(MockClient)
-	rt := NewRuntime(mockCli, nil, "esb", "test-env")
+	rt := NewRuntime(mockCli, nil, "esb", "test-env", "esb")
 
 	managed := new(MockContainer)
 	managedID := "esb-test-env-func-1234"
@@ -68,7 +68,7 @@ func TestRuntime_GC_SkipsUnmanagedContainers(t *testing.T) {
 func TestRuntime_GC_RemovesCNIWhenTaskExists(t *testing.T) {
 	mockCli := new(MockClient)
 	mockCNI := new(MockCNI)
-	rt := NewRuntime(mockCli, mockCNI, "esb", "test-env")
+	rt := NewRuntime(mockCli, mockCNI, "esb", "test-env", "esb")
 
 	containerID := "esb-test-env-func-1234"
 	mockContainer := new(MockContainer)

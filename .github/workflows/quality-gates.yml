@@ -26,6 +26,7 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@v4
         with:
+          version: "0.8.13"
           enable-cache: true
 
       - name: Install dependencies
@@ -36,6 +37,32 @@ jobs:
 
       - name: Ty check
         run: uv run ty check
+
+  proto-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Buf
+        uses: bufbuild/buf-setup-action@v1
+        with:
+          version: 1.65.0
+
+      - name: Verify generated stubs are up to date
+        run: |
+          pushd services/contracts
+          buf generate . --template buf.gen.yaml
+          python3 scripts/fix_python_grpc_imports.py
+          popd
+          git diff --exit-code -- services/agent/pkg/api/v1 services/gateway/pb
+
+      - name: Breaking change check against develop
+        run: |
+          git fetch origin develop --depth=1
+          buf breaking services/contracts/proto --against '.git#branch=origin/develop,subdir=services/contracts/proto'
 
   go-lint-agent:
     runs-on: ubuntu-latest
@@ -58,7 +85,7 @@ jobs:
           working-directory: services/agent
           args: ./...
 
-  go-lint-cli:
+  go-boundary-guard:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -69,12 +96,57 @@ jobs:
         with:
           go-version: "1.25.1"
           cache: true
-          cache-dependency-path: cli/go.sum
+          cache-dependency-path: |
+            tools/artifactctl/go.sum
+            services/agent/go.sum
 
-      - name: Run golangci-lint (cli)
-        uses: golangci/golangci-lint-action@v6
+      - name: Boundary checks
+        run: ./tools/ci/check_tooling_boundaries.sh
+
+      - name: Layout checks
+        run: ./tools/ci/check_repo_layout.sh
+
+      - name: Verify artifactctl compile contract
+        run: |
+          if [ -f tools/artifactctl/go.mod ]; then
+            go -C tools/artifactctl test ./... -run '^$'
+          fi
+
+  no-cli-steady-state:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Enforce CLI absence
+        run: |
+          if [ -d cli ]; then
+            echo "cli/ must not exist in no-cli steady-state gate" >&2
+            find cli -maxdepth 3 -type f | head -n 20 >&2 || true
+            exit 1
+          fi
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          version: v1.64.8
-          install-mode: goinstall
-          working-directory: cli
-          args: ./...
+          go-version: "1.25.1"
+          cache: true
+          cache-dependency-path: |
+            tools/artifactctl/go.sum
+            pkg/artifactcore/go.sum
+            pkg/deployops/go.sum
+
+      - name: Boundary checks
+        run: ./tools/ci/check_tooling_boundaries.sh
+
+      - name: Layout checks
+        run: ./tools/ci/check_repo_layout.sh
+
+      - name: Verify non-cli compile contract
+        run: |
+          go -C tools/artifactctl test ./... -run '^$'
+          GOWORK=off go -C pkg/artifactcore test ./... -run '^$'
+          GOWORK=off go -C pkg/composeprovision test ./... -run '^$'
+          GOWORK=off go -C pkg/deployops test ./... -run '^$'
+          GOWORK=off go -C pkg/runtimeimage test ./... -run '^$'
+          GOWORK=off go -C pkg/yamlshape test ./... -run '^$'

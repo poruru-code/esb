@@ -68,5 +68,5 @@ docker exec <project>-runtime-node ctr -a /run/containerd/containerd.sock versio
 ## Implementation references
 - `docker-compose.containerd.yml`
 - `services/runtime-node/entrypoint.common.sh`
-- `config/Corefile`
+- `services/runtime-node/config/Corefile`
 - `services/agent/internal/cni/generator.go`

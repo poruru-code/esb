@@ -11,8 +11,8 @@ containerd と違い CNI は使わず、`CONTAINERS_NETWORK` 上の IP を Docke
 
 前提:
 - `services/agent/cmd/agent/main.go` で `client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())` を使用
-- `CONTAINERS_NETWORK` 未指定時は `bridge`（`config.DefaultNetwork`）
-- `ESB_ENV` 未指定時は `default`（`config.DefaultEnv`）
+- `CONTAINERS_NETWORK` と `ENV` は必須（欠落時は起動時 hard fail）
+- brand は `StackIdentity` で解決（`ESB_BRAND_SLUG` -> `PROJECT_NAME/ENV` -> `CONTAINERS_NETWORK`）
 
 ## runtime 分割
 Docker runtime は単一ファイル実装です（`runtime.go`）。
@@ -53,13 +53,13 @@ sequenceDiagram
 実装上の重要点:
 - API 層（`internal/api/server.go`）で `image` と `owner_id` は必須
 - runtime 層でも `owner_id` 空はエラー
-- コンテナ名: `{meta.Slug}-{env}-{function}-{hex(uuid[:4])}`
+- コンテナ名: `{brand}-{env}-{function}-{hex(uuid[:4])}`
 - label:
-  - `meta.RuntimeLabelFunction=<function_name>`
-  - `meta.RuntimeLabelCreatedBy=agent`
-  - `meta.LabelPrefix+".env"=<env>`
-  - `meta.LabelPrefix+".kind"=function`
-  - `meta.LabelPrefix+".owner"=<owner_id>`
+  - `<brand>_function=<function_name>`
+  - `created_by=<brand>-agent`
+  - `<brand>_env=<env>`
+  - `com.<brand>.kind=function`
+  - `com.<brand>.owner=<owner_id>`
 - ポートは `8080/tcp` を exposed（戻り値の `WorkerInfo.Port` も `8080`）
 - restart policy は `no`
 
@@ -108,9 +108,9 @@ sequenceDiagram
 
 List 実装の重要点:
 - filter label:
-  - `created_by=agent`
-  - `env=<runtime.env>`
-  - `kind=function`
+  - `created_by=<brand>-agent`
+  - `<brand>_env=<runtime.env>`
+  - `com.<brand>.kind=function`
 - `owner_id` は label から復元
 - `last_used_at` は `Touch` の記録を優先し、なければ Docker `Created` 時刻
 - 名前は Docker 由来の先頭 `/` を除去
@@ -126,5 +126,6 @@ List 実装の重要点:
 - `services/agent/internal/runtime/docker/runtime.go`
 - `services/agent/internal/api/server.go`
 - `services/agent/internal/runtime/constants.go`
+- `services/agent/internal/identity/stack_identity.go`
 - `services/agent/internal/config/constants.go`
 - `services/agent/cmd/agent/main.go`

@@ -10,11 +10,29 @@
   <properties>
     <maven.compiler.release>21</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.build.outputTimestamp>2025-01-01T00:00:00Z</project.build.outputTimestamp>
+    <maven.compiler.plugin.version>3.12.1</maven.compiler.plugin.version>
+    <maven.jar.plugin.version>3.4.2</maven.jar.plugin.version>
   </properties>
 
   <dependencies />
 
   <build>
     <finalName>app</finalName>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>${maven.compiler.plugin.version}</version>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>${maven.jar.plugin.version}</version>
+        <configuration>
+          <outputTimestamp>${project.build.outputTimestamp}</outputTimestamp>
+        </configuration>
+      </plugin>
+    </plugins>
   </build>
 </project>

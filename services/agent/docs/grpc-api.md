@@ -6,7 +6,7 @@ Why: Keep runtime control surface and error semantics explicit.
 # Agent gRPC API
 
 ## 参照（Source of Truth）
-- Proto 定義: `proto/agent.proto`
+- Proto 定義: `services/contracts/proto/agent.proto`
 - 実装: `services/agent/internal/api/server.go`
 
 > Generated artifact の配置と生成手順は `proto-generation.md` を参照してください。
@@ -140,7 +140,7 @@ sequenceDiagram
 - 証明書（サーバ側）:
   - `AGENT_GRPC_CERT_PATH`（既定: `/app/config/ssl/server.crt`）
   - `AGENT_GRPC_KEY_PATH`（既定: `/app/config/ssl/server.key`）
-  - `AGENT_GRPC_CA_CERT_PATH`（既定: `meta.RootCACertPath`）
+  - `AGENT_GRPC_CA_CERT_PATH`（既定: `/usr/local/share/ca-certificates/rootCA.crt`）
 
 ### Reflection（デバッグ用）
 - 有効化: `AGENT_GRPC_REFLECTION=1`
@@ -152,8 +152,8 @@ sequenceDiagram
 ---
 
 ## Implementation references
-- `proto/agent.proto`
-- `tools/gen_proto.py`
+- `services/contracts/proto/agent.proto`
+- `services/contracts/buf.gen.yaml`
 - `services/agent/internal/api/server.go`
 - `services/agent/internal/runtime/interface.go`
 - `services/agent/cmd/agent/main.go`

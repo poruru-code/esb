@@ -7,23 +7,22 @@ go = "1.25.1"
 uv = "0.8.13"
 lefthook = "2.0.15"
 step = "0.28.7"
+buf = "1.65.0"
  
 # Go tooling (installed via go install)
 "go:github.com/golangci/golangci-lint/cmd/golangci-lint" = "latest"
 "go:mvdan.cc/gofumpt" = "latest"
 "go:golang.org/x/tools/cmd/goimports" = "latest"
-"go:github.com/air-verse/air" = "latest"
 
 [env]
 _.path = ["~/.local/bin"]
-# CLI_CMD is read from config/defaults.env at runtime
  
 [tasks.setup]
 description = "Install dependencies and enable git hooks"
 run = [
   "uv sync --all-extras",
   "lefthook install",
-  "mise run build-cli",
+  "mise run build-artifactctl",
   "mise run setup:certs",
   "mise run setup:buildx",
 ]
@@ -36,14 +35,18 @@ run = "uv run python tools/cert-gen/generate.py"
 description = "Create buildx builder and buildkitd config"
 run = "uv run python tools/buildkit/setup_buildx.py"
 
-[tasks.build-cli]
-description = "Build CLI to ~/.local/bin"
-dir = "cli"
+[tasks.gen-proto]
+description = "Generate Agent/Gateway protobuf stubs from services/contracts/proto"
+dir = "services/contracts"
 run = [
-  "bash -lc 'source ../config/defaults.env && go build -o ~/.local/bin/${CLI_CMD} ./cmd/esb'",
+  "buf generate . --template buf.gen.yaml",
+  "uv run python scripts/fix_python_grpc_imports.py",
 ]
 
-[tasks.dev-cli]
-description = "Watch and rebuild CLI on changes"
-dir = "cli"
-run = "air"
+[tasks.build-artifactctl]
+description = "Build artifactctl to ~/.local/bin"
+dir = "tools/artifactctl"
+run = [
+  "mkdir -p ~/.local/bin",
+  "go build -o ~/.local/bin/artifactctl ./cmd/artifactctl",
+]

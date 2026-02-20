@@ -1,0 +1,132 @@
+syntax = "proto3";
+
+package esb.agent.v1;
+option go_package = "github.com/poruru-code/esb/services/agent/pkg/api/v1";
+
+service AgentService {
+  // Ensure a container and return connection info (start if missing, reuse if present).
+  rpc EnsureContainer (EnsureContainerRequest) returns (WorkerInfo);
+  
+  // Explicitly stop and remove a container.
+  rpc DestroyContainer (DestroyContainerRequest) returns (DestroyContainerResponse);
+
+  // Pause a container (for warm starts).
+  rpc PauseContainer (PauseContainerRequest) returns (PauseContainerResponse);
+
+  // Resume a container (for warm starts).
+  rpc ResumeContainer (ResumeContainerRequest) returns (ResumeContainerResponse);
+
+  // Get state of all managed containers (Phase 3: Janitor).
+  rpc ListContainers (ListContainersRequest) returns (ListContainersResponse);
+
+  // コンテナのメトリクスを取得
+  rpc GetContainerMetrics (GetContainerMetricsRequest) returns (GetContainerMetricsResponse);
+
+  // L7 invoke proxy (Gateway -> Agent -> Worker).
+  rpc InvokeWorker (InvokeWorkerRequest) returns (InvokeWorkerResponse);
+}
+
+message PauseContainerRequest {
+  string container_id = 1;
+  string owner_id = 2;
+}
+
+message PauseContainerResponse {
+  bool success = 1;
+}
+
+message ResumeContainerRequest {
+  string container_id = 1;
+  string owner_id = 2;
+}
+
+message ResumeContainerResponse {
+  bool success = 1;
+}
+
+message EnsureContainerRequest {
+  string function_name = 1;
+  string image = 2;
+  map<string, string> env = 3;
+  string owner_id = 4;
+  reserved 5, 6;
+  reserved "image_source", "image_ref";
+}
+
+message DestroyContainerRequest {
+  string function_name = 1;
+  string container_id = 2;
+  string owner_id = 3;
+}
+
+message DestroyContainerResponse {
+  bool success = 1;
+}
+
+message WorkerInfo {
+  string id = 1;
+  string name = 2;
+  string ip_address = 3;
+  int32 port = 4;
+}
+
+message InvokeWorkerRequest {
+  reserved 1, 2;
+  reserved "ip_address", "port";
+  string container_id = 7;
+  string path = 3;
+  bytes payload = 4;
+  map<string, string> headers = 5;
+  int32 timeout_ms = 6;
+  string owner_id = 8;
+}
+
+message InvokeWorkerResponse {
+  int32 status_code = 1;
+  map<string, string> headers = 2;
+  bytes body = 3;
+}
+
+// Phase 3: message for ListContainers.
+message ListContainersRequest {
+  string owner_id = 1;
+}
+
+message ListContainersResponse {
+  repeated ContainerState containers = 1;
+}
+
+message ContainerState {
+  string container_id = 1;
+  string function_name = 2;
+  string status = 3;      // "RUNNING", "PAUSED", "STOPPED", "UNKNOWN"
+  int64 last_used_at = 4; // Unix Timestamp (seconds)
+  string container_name = 5;
+  int64 created_at = 6;   // Unix Timestamp (seconds) - container creation time
+  string owner_id = 7;
+}
+
+// Metrics API
+message GetContainerMetricsRequest {
+  string container_id = 1;
+  string owner_id = 2;
+}
+
+message GetContainerMetricsResponse {
+  ContainerMetrics metrics = 1;
+}
+
+message ContainerMetrics {
+  string container_id = 1;
+  string function_name = 2;
+  string container_name = 3;
+  string state = 4;             // "RUNNING", "PAUSED", "STOPPED", "UNKNOWN"
+  uint64 memory_current = 5;    // bytes
+  uint64 memory_max = 6;        // bytes
+  uint64 oom_events = 7;        // count
+  uint64 cpu_usage_ns = 8;      // nanoseconds
+  uint32 exit_code = 9;
+  uint32 restart_count = 10;
+  int64 exit_time = 11;         // Unix Timestamp (秒)
+  int64 collected_at = 12;      // Unix Timestamp (秒)
+}

@@ -11,7 +11,6 @@ from e2e.runner.env import (
     apply_gateway_env_from_container,
     apply_proxy_defaults,
     calculate_runtime_env,
-    calculate_staging_dir,
     read_env_file,
 )
 from e2e.runner.lifecycle import resolve_compose_file
@@ -21,7 +20,6 @@ from e2e.runner.utils import (
     E2E_STATE_ROOT,
     PROJECT_ROOT,
     build_unique_tag,
-    default_e2e_deploy_templates,
     env_key,
 )
 
@@ -45,15 +43,13 @@ def _prepare_context(
     env_file = _resolve_env_file(scenario.env_file)
 
     compose_file = resolve_compose_file(scenario)
-    templates = _resolve_templates(scenario)
-    template_path = templates[0]
 
     runtime_env = calculate_runtime_env(
         project_name,
         env_name,
         scenario.mode,
         env_file,
-        template_path=str(template_path),
+        scenario.env_vars,
     )
 
     state_env = _load_state_env(env_name)
@@ -61,6 +57,7 @@ def _prepare_context(
         if key in state_env:
             runtime_env[key] = state_env[key]
 
+    # Scenario-level values are the final explicit overrides.
     runtime_env.update(scenario.env_vars)
     apply_proxy_defaults(runtime_env)
     _apply_port_overrides(runtime_env, port_overrides)
@@ -70,11 +67,13 @@ def _prepare_context(
     runtime_env[env_key("HOME")] = str((E2E_STATE_ROOT / env_name).absolute())
     runtime_env[constants.ENV_PROJECT_NAME] = compose_project
 
-    staging_config_dir = calculate_staging_dir(
-        compose_project,
-        env_name,
-        template_path=str(template_path),
-    )
+    config_dir_raw = str(scenario.extra.get("config_dir", "")).strip()
+    if not config_dir_raw:
+        raise ValueError("scenario.extra.config_dir is required")
+    staging_config_dir = Path(config_dir_raw)
+    if not staging_config_dir.is_absolute():
+        staging_config_dir = PROJECT_ROOT / staging_config_dir
+    staging_config_dir = staging_config_dir.resolve()
     runtime_env[constants.ENV_CONFIG_DIR] = str(staging_config_dir)
     staging_config_dir.mkdir(parents=True, exist_ok=True)
 
@@ -122,18 +121,6 @@ def _resolve_env_file(env_file: str | None) -> str | None:
     if not path.is_absolute():
         path = PROJECT_ROOT / path
     return str(path.absolute())
-
-
-def _resolve_templates(scenario: Scenario) -> list[Path]:
-    if scenario.deploy_templates:
-        return [_resolve_template_path(Path(template)) for template in scenario.deploy_templates]
-    return default_e2e_deploy_templates()
-
-
-def _resolve_template_path(path: Path) -> Path:
-    if path.is_absolute():
-        return path
-    return (PROJECT_ROOT / path).resolve()
 
 
 def _apply_ports_to_env_dict(ports: dict[str, int], env: dict[str, str]) -> None:

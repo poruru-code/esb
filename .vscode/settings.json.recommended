@@ -20,5 +20,15 @@
     // Target directories aligned with CLI/CI command
     "tools/",
     "services/gateway/"
-  ]
+  ],
+
+  // Go: ensure workspace module graph is resolved via repo root go.work
+  "go.toolsEnvVars": {
+    "GOWORK": "${workspaceFolder}/go.work"
+  },
+  "gopls": {
+    "env": {
+      "GOWORK": "${workspaceFolder}/go.work"
+    }
+  }
 }

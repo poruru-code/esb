@@ -1,0 +1,23 @@
+# syntax=docker/dockerfile:1.7
+# FunctionName: lambda-echo-java
+FROM public.ecr.aws/lambda/java:21
+
+# ESB Runtime
+ENV LAMBDA_ORIGINAL_HANDLER="com.fixtures.echo.Handler::handleRequest"
+COPY functions/lambda-echo-java/lambda-java-wrapper.jar /var/task/lib/lambda-java-wrapper.jar
+COPY functions/lambda-echo-java/lambda-java-agent.jar /var/task/lib/lambda-java-agent.jar
+ENV JAVA_AGENT_PRESENT=1
+ENV JAVA_TOOL_OPTIONS="-javaagent:/var/task/lib/lambda-java-agent.jar ${JAVA_TOOL_OPTIONS}"
+# Function code
+COPY functions/lambda-echo-java/src/ ${LAMBDA_TASK_ROOT}/
+# For single-jar CodeUri, treat the staged JAR as the deployment package.
+# Extract the app artifact itself instead of hard-coding specific subpaths.
+RUN set -eu; \
+    cd ${LAMBDA_TASK_ROOT}; \
+    app_jar="lib/app.jar"; \
+    if [ -f "${app_jar}" ]; then \
+      jar xf "${app_jar}"; \
+    fi
+
+# Handler
+CMD [ "com.runtime.lambda.HandlerWrapper::handleRequest" ]

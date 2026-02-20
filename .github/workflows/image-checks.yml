@@ -42,7 +42,7 @@ jobs:
           docker compose -f docker-compose.docker.yml build gateway agent
 
       - name: Run container structure tests
-        run: make cst IMAGE_TAG=latest
+        run: make -f tools/ci/Makefile cst IMAGE_TAG=latest
 
       - name: Run dockle checks
-        run: make dockle IMAGE_TAG=latest
+        run: make -f tools/ci/Makefile dockle IMAGE_TAG=latest

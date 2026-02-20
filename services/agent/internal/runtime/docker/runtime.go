@@ -18,9 +18,8 @@ import (
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/go-connections/nat"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/poruru/edge-serverless-box/meta"
-	"github.com/poruru/edge-serverless-box/services/agent/internal/config"
-	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
+	"github.com/poruru-code/esb/services/agent/internal/config"
+	"github.com/poruru-code/esb/services/agent/internal/runtime"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -40,15 +39,21 @@ type Runtime struct {
 	client        Client
 	networkID     string
 	env           string
+	brandSlug     string
 	accessTracker sync.Map // map[containerID]time.Time - tracks last access time
 }
 
 // NewRuntime creates a new Docker runtime.
-func NewRuntime(client Client, networkID, env string) *Runtime {
+func NewRuntime(client Client, networkID, env, brandSlug string) *Runtime {
+	brand := strings.TrimSpace(brandSlug)
+	if brand == "" {
+		brand = "esb"
+	}
 	return &Runtime{
 		client:    client,
 		networkID: networkID,
 		env:       env,
+		brandSlug: brand,
 	}
 }
 
@@ -73,7 +78,10 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 		if err != nil {
 			return nil, err
 		}
-		tag := runtime.ResolveFunctionImageTag()
+		tag, err := runtime.ResolveFunctionImageTag()
+		if err != nil {
+			return nil, err
+		}
 		if registry != "" {
 			imageName = fmt.Sprintf("%s/%s:%s", registry, baseImage, tag)
 		} else {
@@ -84,7 +92,7 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 	// Phase 7: Use new container name format: {brand}-{env}-{func}-{uuid}
 	u := uuid.New()
 	id := hex.EncodeToString(u[:4])
-	containerName := fmt.Sprintf("%s-%s-%s-%s", meta.Slug, r.env, req.FunctionName, id)
+	containerName := fmt.Sprintf("%s-%s-%s-%s", r.brandSlug, r.env, req.FunctionName, id)
 
 	// Phase 5 Step 0: Pull image from registry if set
 	registry := os.Getenv("CONTAINER_REGISTRY")

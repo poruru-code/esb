@@ -1,0 +1,22 @@
+cases:
+  - env: default
+    external_subnet_index: 50
+    runtime_subnet_index: 20
+    subnet_external: 172.50.0.0/16
+    runtime_net_subnet: 172.20.0.0/16
+    runtime_node_ip: 172.20.0.10
+    lambda_network: esb_int_default
+  - env: e2e-docker
+    external_subnet_index: 146
+    runtime_subnet_index: 186
+    subnet_external: 172.146.0.0/16
+    runtime_net_subnet: 172.186.0.0/16
+    runtime_node_ip: 172.186.0.10
+    lambda_network: esb_int_e2e-docker
+  - env: e2e-containerd
+    external_subnet_index: 70
+    runtime_subnet_index: 110
+    subnet_external: 172.70.0.0/16
+    runtime_net_subnet: 172.110.0.0/16
+    runtime_node_ip: 172.110.0.10
+    lambda_network: esb_int_e2e-containerd

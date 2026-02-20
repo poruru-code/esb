@@ -1,16 +1,15 @@
 <!--
 Where: docs/container-runtime-operations.md
 What: Runtime-side container lifecycle and troubleshooting guide.
-Why: Keep platform operations guidance separate from CLI implementation docs.
+Why: Keep platform operations guidance separate from producer tooling implementation docs.
 -->
 # コンテナ運用とランタイム管理
 
 本ドキュメントは Gateway / Agent / runtime-node の運用手順を扱います。  
-CLI の実装詳細は `cli/docs/container-management.md` を参照してください。
 
 ## スコープ
 - 対象: スタック起動、ログ確認、ランタイム状態確認、クリーンアップ
-- 非対象: `esb deploy` の内部設計（`cli/docs/*` 側）
+- 非対象: artifact 生成ツールの内部設計
 
 ## ライフサイクル責務
 
@@ -26,11 +25,11 @@ CLI の実装詳細は `cli/docs/container-management.md` を参照してくだ�
 
 ## 日常運用コマンド（最小セット）
 
-`<project>` は compose project 名（通常は `CLI_CMD` ベース）、`<brand>` は runtime namespace 名です。
+`<project>` は compose project 名（通常は `esb-<env>`）、`<brand>` は runtime namespace 名です。
 
 確認方法:
 - `docker ps --format '{{.Names}}' | grep -E '(gateway|agent)$'`
-- `grep '^CLI_CMD=' config/defaults.env`
+- `echo "${ENV_PREFIX:-ESB}"`
 
 ### スタック起動
 
@@ -40,9 +39,6 @@ docker compose -f docker-compose.docker.yml up -d
 
 # Control-plane 起動（containerd mode）
 docker compose -f docker-compose.containerd.yml up -d
-
-# 関数イメージ再ビルド（CLI）
-esb build --no-cache
 ```
 
 ### ログ・状態確認
@@ -74,16 +70,16 @@ docker image prune -f
 3. `ctr -n <brand> containers list`
 
 ### 2. 古いコードが実行される
-1. `esb build --no-cache`
-2. 実行モードに対応する compose で再起動
+1. 生成系ツールで関数イメージを再ビルド
+2. artifact apply を再実行
+3. 実行モードに対応する compose で再起動
 
 ### 3. Image 関数で `503` が出る
 原因:
 - 内部レジストリに対象イメージが投入されていない
 
 対応:
-1. `esb deploy --image-prewarm=all`
-2. 必要なら `--image-prewarm=all` で再実行して内部レジストリへの同期をリトライ
+1. `artifactctl deploy --artifact <artifact.yml> --out <CONFIG_DIR>` を再実行
 
 ### 4. `<untagged>` イメージが増える
 - `docker image prune -f` で中間レイヤーを整理
@@ -97,4 +93,4 @@ docker image prune -f
 - `services/gateway/services/janitor.py`
 - `services/agent/internal/runtime`
 - `services/runtime-node/docs/README.md`
-- `cli/internal/usecase/deploy/image_prewarm.go`
+- `pkg/artifactcore/prepare_images.go`

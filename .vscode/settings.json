@@ -1,0 +1,26 @@
+{
+  "python.languageServer": "None",
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll.ruff": "explicit",
+      "source.organizeImports.ruff": "explicit"
+    }
+  },
+  "ty.enable": true,
+  "ty.args": [
+    "check",
+    "tools/",
+    "services/gateway/"
+  ],
+  "go.toolsEnvVars": {
+    "GOWORK": "${workspaceFolder}/go.work"
+  },
+  "gopls": {
+    "env": {
+      "GOWORK": "${workspaceFolder}/go.work"
+    }
+  }
+}

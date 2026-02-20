@@ -21,23 +21,23 @@ import (
 	"github.com/containerd/containerd/oci"
 	"github.com/google/uuid"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
-	"github.com/poruru/edge-serverless-box/services/agent/internal/config"
-	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
+	"github.com/poruru-code/esb/services/agent/internal/config"
+	"github.com/poruru-code/esb/services/agent/internal/runtime"
 )
 
-func ensureResolvConf() (string, error) {
+func (r *Runtime) ensureResolvConf() (string, error) {
 	dnsServer := resolveCNIDNSServer()
 	if dnsServer == "" {
 		return "", fmt.Errorf("CNI DNS server is empty")
 	}
 	payload := fmt.Sprintf("nameserver %s\n", dnsServer)
-	if err := os.MkdirAll(filepath.Dir(resolvConfMountPath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(r.resolvConf), 0o755); err != nil {
 		return "", fmt.Errorf("create resolv.conf dir: %w", err)
 	}
-	if err := os.WriteFile(resolvConfMountPath, []byte(payload), 0o644); err != nil {
+	if err := os.WriteFile(r.resolvConf, []byte(payload), 0o644); err != nil {
 		return "", fmt.Errorf("write resolv.conf: %w", err)
 	}
-	return resolvConfMountPath, nil
+	return r.resolvConf, nil
 }
 
 func withResolvConf(path string) oci.SpecOpts {
@@ -93,7 +93,10 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 		if err != nil {
 			return nil, err
 		}
-		tag := runtime.ResolveFunctionImageTag()
+		tag, err := runtime.ResolveFunctionImageTag()
+		if err != nil {
+			return nil, err
+		}
 		if registry != "" {
 			image = fmt.Sprintf("%s/%s:%s", registry, baseImage, tag)
 		} else {
@@ -103,7 +106,7 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 
 	u := uuid.New()
 	id := hex.EncodeToString(u[:4])
-	containerID := fmt.Sprintf("esb-%s-%s-%s", r.env, req.FunctionName, id)
+	containerID := fmt.Sprintf("%s-%s-%s-%s", r.brandSlug, r.env, req.FunctionName, id)
 
 	imgObj, err := r.ensureImage(ctx, image)
 	if err != nil {
@@ -119,7 +122,7 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 		oci.WithImageConfig(imgObj),
 		oci.WithEnv(envList),
 	}
-	if resolvPath, err := ensureResolvConf(); err != nil {
+	if resolvPath, err := r.ensureResolvConf(); err != nil {
 		log.Printf("WARNING: failed to prepare resolv.conf: %v", err)
 	} else {
 		specOpts = append(specOpts, withResolvConf(resolvPath))

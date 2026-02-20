@@ -9,7 +9,6 @@ from e2e.runner import constants
 from e2e.runner.utils import (
     BRAND_HOME_DIR,
     BRAND_SLUG,
-    CLI_ROOT,
     ENV_PREFIX,
     PROJECT_ROOT,
     env_key,
@@ -125,17 +124,18 @@ def calculate_runtime_env(
     env_name: str,
     mode: str,
     env_file: str | None = None,
-    template_path: str | None = None,
+    env_overrides: dict[str, str] | None = None,
 ) -> dict[str, str]:
     """Replicates Go CLI's applyRuntimeEnv logic for the E2E runner."""
     env = os.environ.copy()
 
-    # Load from env_file if provided (prioritize file over system env if needed,
-    # but Go CLI usually merges and prioritizes file for certain values)
+    # Load from env_file first, then apply explicit scenario overrides.
     env_from_file: dict[str, str] = {}
     if env_file:
         env_from_file = read_env_file(env_file)
         env.update(env_from_file)
+    if env_overrides:
+        env.update(env_overrides)
 
     if not env_name:
         env_name = "default"
@@ -169,16 +169,6 @@ def calculate_runtime_env(
     insecure_key = env_key(constants.ENV_CONTAINER_REGISTRY_INSECURE)
     if not env.get(insecure_key):
         env[insecure_key] = "1"
-
-    # If using local dev, point to the Go CLI source root for template resolution
-    # (matching logic in cli/internal/config/config.go)
-    if constants.ENV_CLI_SRC_ROOT not in env:
-        env[constants.ENV_CLI_SRC_ROOT] = str(CLI_ROOT)
-
-    # Prefer a repo-local CLI binary when available.
-    local_cli = CLI_ROOT / "bin" / "esb"
-    if local_cli.exists() and constants.ENV_ESB_CLI not in env:
-        env[constants.ENV_ESB_CLI] = str(local_cli)
 
     # 2. Port Defaults (0 for dynamic)
     for port_suffix in (
@@ -240,7 +230,6 @@ def calculate_runtime_env(
 
     # 6. Branding & Certificates (Replicating applyBrandingEnv in Go)
     env["ENV_PREFIX"] = ENV_PREFIX
-    env[constants.ENV_CLI_CMD] = BRAND_SLUG
     env[constants.ENV_ROOT_CA_MOUNT_ID] = f"{BRAND_SLUG}_root_ca"
     env.setdefault(constants.ENV_ROOT_CA_CERT_FILENAME, constants.DEFAULT_ROOT_CA_FILENAME)
 
@@ -271,54 +260,11 @@ def calculate_runtime_env(
     env.setdefault("BUILDX_BUILDER", f"{BRAND_SLUG}-buildx")
     env.setdefault("COMPOSE_DOCKER_CLI_BUILD", "1")
 
-    # 9. Staging Config Dir
-    # Replicates staging.ConfigDir logic (fixed under repo root)
-    config_dir = calculate_staging_dir(project_name, env_name, template_path=template_path)
-    env[constants.ENV_CONFIG_DIR] = str(config_dir)
-
-    # 10. E2E safety toggles
+    # 9. E2E safety toggles
     env.setdefault("ESB_SKIP_GATEWAY_ALIGN", "1")
     apply_proxy_defaults(env)
 
     return env
-
-
-def calculate_staging_dir(
-    project_name: str,
-    env_name: str,
-    template_path: str | None = None,
-) -> Path:
-    """Replicates staging.ConfigDir logic from Go."""
-    # ComposeProjectKey logic
-    proj_key = project_name.strip()
-    if not proj_key:
-        proj_key = f"{BRAND_SLUG}-{env_name.lower()}" if env_name else BRAND_SLUG
-
-    env_label = (env_name or "default").lower()
-
-    template_dir = (
-        Path(template_path).expanduser().resolve().parent
-        if template_path
-        else (PROJECT_ROOT / "e2e" / "fixtures")
-    )
-    repo_root = resolve_repo_root(template_dir)
-
-    root = repo_root / BRAND_HOME_DIR / "staging"
-    return root / proj_key / env_label / "config"
-
-
-def resolve_repo_root(start: Path) -> Path:
-    """Resolve the ESB repository root by searching upward for marker files."""
-    markers = ("docker-compose.docker.yml", "docker-compose.containerd.yml")
-    current = start
-    while True:
-        for marker in markers:
-            if (current / marker).exists():
-                return current
-        if current.parent == current:
-            break
-        current = current.parent
-    raise RuntimeError(f"ESB repository root not found from: {start}")
 
 
 def read_service_env(project_name: str, service: str) -> dict[str, str]:

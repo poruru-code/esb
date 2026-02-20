@@ -60,7 +60,7 @@ Agent が Docker Engine 上の worker を直接管理します。
 | Agent | ワーカー作成/破棄/再利用、runtime への操作委譲 |
 | runtime-node | containerd/CNI/DNS 実行基盤（containerd モード時） |
 | Provisioner | `resources.yml` に基づく初期リソース整備 |
-| CLI (`esb`) | テンプレート解析、生成、ビルド、deploy オーケストレーション |
+| Artifact Producer（外部） | テンプレート解析と artifact 生成（本リポジトリ管理外） |
 
 ## 典型的な invoke フロー
 1. Client が Gateway API を呼び出す
@@ -71,14 +71,14 @@ Agent が Docker Engine 上の worker を直接管理します。
 6. ログ/トレースは共通契約（`trace_id`, `aws_request_id`）で記録される
 
 ## 構成反映の原則
-1. `esb deploy` が staging config を生成する
-2. deploy 実行時に runtime target へ同期する
-3. `--build-only` は同期/プロビジョニングを実行しない（生成とビルドに限定）
+1. 生成系ツールが staging config と artifact を生成する
+2. apply 実行時に runtime target へ同期する
+3. Provisioner は apply 後に実行する
 
 ## 開発者の拡張起点
 | 変更したい対象 | 入口ドキュメント |
 | --- | --- |
-| CLI の振る舞い・フラグ | `cli/docs/architecture.md` |
+| Artifact 契約と適用経路 | `docs/deploy-artifact-contract.md`, `docs/artifact-operations.md` |
 | Gateway の処理フロー | `services/gateway/docs/architecture.md` |
 | Agent/runtime 実装 | `services/agent/docs/README.md`, `services/runtime-node/docs/README.md` |
 | E2E 契約追加 | `docs/e2e-runtime-smoke.md`, `e2e/runner/README.md` |
@@ -88,7 +88,6 @@ Agent が Docker Engine 上の worker を直接管理します。
 - Agent: [services/agent/docs/README.md](../services/agent/docs/README.md)
 - runtime-node: [services/runtime-node/docs/README.md](../services/runtime-node/docs/README.md)
 - Provisioner: [services/provisioner/docs/README.md](../services/provisioner/docs/README.md)
-- CLI: [cli/docs/architecture.md](../cli/docs/architecture.md)
 - E2E smoke: [docs/e2e-runtime-smoke.md](./e2e-runtime-smoke.md)
 
 ---
@@ -97,5 +96,4 @@ Agent が Docker Engine 上の worker を直接管理します。
 - `README.md`
 - `docker-compose.containerd.yml`
 - `docker-compose.docker.yml`
-- `proto/agent.proto`
-- `cli/internal/usecase/deploy/deploy.go`
+- `services/contracts/proto/agent.proto`

@@ -16,9 +16,10 @@ compose 前提:
 この前提により Agent は `/proc/<pid>/ns/net` を参照し、CNI add/del を実行できます。
 
 前提:
-- `ESB_ENV` 未指定時は `default`（`config.DefaultEnv`）
-- namespace は `meta.RuntimeNamespace` 固定
+- `ENV` と `CONTAINERS_NETWORK` は必須（欠落時は起動時 hard fail）
+- namespace は `StackIdentity.RuntimeNamespace()`（brand slug）を使用
 - CNI `.conflist` は Agent 起動時に動的生成される
+- brand は `StackIdentity` で解決（`ESB_BRAND_SLUG` -> `PROJECT_NAME/ENV` -> `CONTAINERS_NETWORK`）
 
 ## runtime 分割
 | ファイル | 責務 |
@@ -35,7 +36,8 @@ compose 前提:
 Agent 起動時に CNI `.conflist` を生成します。
 
 - 出力先: `CNI_CONF_DIR`（既定 `/etc/cni/net.d`）
-- ファイル名: `10-<meta.RuntimeCNIName>.conflist`
+- ファイル名: `10-<brand>-net.conflist`
+- bridge 名: `esb0`（runtime-node の FORWARD ルール互換のため固定）
 - サブネット: `CNI_SUBNET`（未指定時 `10.88.0.0/16`）
 - DNS: `CNI_DNS_SERVER` -> `CNI_GW_IP` -> `10.88.0.1`
 
@@ -67,10 +69,10 @@ sequenceDiagram
 重要点:
 - `owner_id` は必須
 - `image` は必須（`EnsureContainer` で未指定は `InvalidArgument`）
-- コンテナ ID: `esb-{env}-{function}-{hex(uuid[:4])}`
+- コンテナ ID: `{brand}-{env}-{function}-{hex(uuid[:4])}`
 - `CONTAINERD_RUNTIME=aws.firecracker` 時は snapshotter 既定が `devmapper`（それ以外は `overlayfs`）
 - `CONTAINERD_RUNTIME` 指定時は `WithRuntime(runtimeName, nil)` を追加
-- `/run/containerd/esb/resolv.conf` を生成し、`/etc/resolv.conf` に read-only bind mount
+- `/run/containerd/<namespace>/resolv.conf` を生成し、`/etc/resolv.conf` に read-only bind mount
 - `AWS_LAMBDA_FUNCTION_MEMORY_SIZE` が有効な数値なら memory limit を適用
 - CNI setup 失敗時は task/container を rollback して失敗を返す
 
@@ -81,7 +83,7 @@ sequenceDiagram
 - pull は selected snapshotter 向けに unpack まで実行（`WithPullUnpack`）
 - `CONTAINER_REGISTRY_INSECURE=1/true/yes/on` なら plain HTTP resolver
 - insecure でない場合:
-  - `meta.RootCACertPath` の CA を読み込み HTTPS resolver を構成
+  - `/usr/local/share/ca-certificates/rootCA.crt` の CA を読み込み HTTPS resolver を構成
   - CA 未配置時は system cert resolver にフォールバック
 
 ## CNI setup retry
@@ -127,7 +129,7 @@ sequenceDiagram
 - IP は CNI state file を参照:
   - `CNI_NET_DIR`（既定 `/var/lib/cni/networks`）
   - `<CNI_NET_DIR>/<networkName>/<containerID>`
-  - `networkName` は CNI 設定から取得、不可なら `meta.RuntimeCNIName`
+  - `networkName` は CNI 設定から取得、不可なら `<brand>-net`
 
 `GC` 実装の重要点:
 - 管理対象コンテナのみ処理
@@ -143,7 +145,7 @@ sequenceDiagram
 
 ## 外部レジストリとの責務分離
 - runtime は外部レジストリ同期を行いません。
-- 外部イメージ取り込みは `esb deploy --image-prewarm=all` の責務です。
+- 外部イメージ取り込みは deploy/build 側（producer または `artifactctl deploy`）の責務です。
 - runtime は内部レジストリ参照の pull のみを行います。
 
 ---
@@ -158,6 +160,7 @@ sequenceDiagram
 - `services/agent/internal/runtime/containerd/gc.go`
 - `services/agent/internal/api/server.go`
 - `services/agent/internal/config/constants.go`
+- `services/agent/internal/identity/stack_identity.go`
 - `services/agent/cmd/agent/main.go`
 - `services/agent/internal/cni/generator.go`
 - `docker-compose.containerd.yml`

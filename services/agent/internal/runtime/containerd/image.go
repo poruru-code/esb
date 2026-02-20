@@ -17,11 +17,11 @@ import (
 	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/remotes"
 	"github.com/containerd/containerd/remotes/docker"
-	"github.com/poruru/edge-serverless-box/meta"
+	"github.com/poruru-code/esb/services/agent/internal/config"
 )
 
 // CA certificate path mounted in container
-const caCertPath = meta.RootCACertPath
+const caCertPath = config.DefaultCACertPath
 
 // ensureImage checks if the image exists in the current namespace, and pulls it if not.
 func (r *Runtime) ensureImage(ctx context.Context, ref string) (containerd.Image, error) {
