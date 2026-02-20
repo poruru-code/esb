@@ -63,7 +63,7 @@ Agent は起動時に brand slug を次の順で 1 回だけ解決し、runtime 
 
 ## 運用上の前提
 - `EnsureContainer` は `image` の指定を必須とします（`services/contracts/proto/agent.proto`）。
-- Image 関数の外部レジストリ解決は deploy/build 側（`esb deploy` または `artifactctl deploy`）の責務です。
+- Image 関数の外部レジストリ解決は deploy/build 側（producer または `artifactctl deploy`）の責務です。
 - Agent 実行時は内部レジストリ参照のみを pull します。
 
 ---

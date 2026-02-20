@@ -1,7 +1,7 @@
 <!--
 Where: services/provisioner/docs/resources-manifest.md
 What: Schema notes for runtime-config/resources.yml.
-Why: Provide a stable contract between CLI output and provisioner input.
+Why: Provide a stable contract between producer output and provisioner input.
 -->
 # resources.yml 仕様（Provisioner 入力）
 

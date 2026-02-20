@@ -16,8 +16,7 @@ Why: Help new contributors find the source-of-truth document without guessing.
 1. [システム仕様（概要）](./spec.md)
 2. [ランタイムモード概要（Docker / containerd）](./architecture-containerd.md)
 3. [コンテナ運用とランタイム管理](./container-runtime-operations.md)
-4. [CLI アーキテクチャ](https://github.com/poruru-code/esb-cli/blob/main/docs/architecture.md)
-5. [E2E Runtime Smoke 設計](./e2e-runtime-smoke.md)
+4. [E2E Runtime Smoke 設計](./e2e-runtime-smoke.md)
 
 ## 目的別ナビゲーション
 | 目的 | 最初に読むドキュメント |
@@ -26,7 +25,6 @@ Why: Help new contributors find the source-of-truth document without guessing.
 | Docker/containerd の差分を知りたい | [architecture-containerd.md](./architecture-containerd.md) |
 | ランタイム障害の運用手順を確認したい | [container-runtime-operations.md](./container-runtime-operations.md) |
 | artifact-first の運用手順を確認したい | [artifact-operations.md](./artifact-operations.md) |
-| CLI の実装/運用を確認したい | [esb-cli docs](https://github.com/poruru-code/esb-cli/tree/main/docs) |
 | イメージ設計・ビルド方針を確認したい | [docker-image-architecture.md](./docker-image-architecture.md) |
 | Trace/ログ連携の仕様を確認したい | [trace-propagation.md](./trace-propagation.md), [local-logging-adapter.md](./local-logging-adapter.md) |
 | ディレクトリ責務分離を確認したい | [repo-layout-contract.md](./repo-layout-contract.md) |
@@ -50,7 +48,6 @@ Why: Help new contributors find the source-of-truth document without guessing.
 - Agent: [services/agent/docs/README.md](../services/agent/docs/README.md)
 - Provisioner: [services/provisioner/docs/README.md](../services/provisioner/docs/README.md)
 - runtime-node: [services/runtime-node/docs/README.md](../services/runtime-node/docs/README.md)
-- CLI: [esb-cli/docs/architecture.md](https://github.com/poruru-code/esb-cli/blob/main/docs/architecture.md), [esb-cli/docs/build.md](https://github.com/poruru-code/esb-cli/blob/main/docs/build.md), [esb-cli/docs/container-management.md](https://github.com/poruru-code/esb-cli/blob/main/docs/container-management.md)
 - E2E Runner: [e2e/runner/README.md](../e2e/runner/README.md)
 
 ## 品質ゲート（最低限）
@@ -69,4 +66,3 @@ Why: Help new contributors find the source-of-truth document without guessing.
 - `docs/architecture-containerd.md`
 - `docs/container-runtime-operations.md`
 - `docs/artifact-operations.md`
-- `https://github.com/poruru-code/esb-cli/blob/main/docs/architecture.md`

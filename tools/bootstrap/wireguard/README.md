@@ -1,7 +1,7 @@
 # WireGuard config (gateway/compute)
 
 This directory ships **example** configs. You can still copy them manually, but
-`esb node provision` now **generates keys and configs automatically** if
+an external provisioning command can **generate keys and configs automatically** if
 `wireguard-tools` is installed on the control host.
 If you pass `--wg-conf`, auto-generation is skipped and that file is used as-is.
 
@@ -31,10 +31,10 @@ Edit both files:
 - Replace `<COMPUTE_PRIVATE_KEY>` / `<COMPUTE_PUBLIC_KEY>`
 - Replace `<COMPUTE_VM_IP>` and `10.88.x.x` values for your node
 
-## Auto-generate with `esb node provision`
+## Auto-generate with external provisioning command
 
 ```bash
-esb node provision \
+<provision-command> \
   --host esb@10.1.1.220 \
   --wg-subnet 10.88.1.0/24 \
   --wg-runtime-ip 172.20.0.10
@@ -58,7 +58,7 @@ Note:
 If TLS stalls over WireGuard (WSL/Hyper-V などで起きやすい), lower the WG MTU:
 
 ```bash
-ESB_WG_MTU=1340 esb node provision --host esb@10.1.1.220
+ESB_WG_MTU=1340 <provision-command> --host esb@10.1.1.220
 ```
 
 You can also edit the configs directly and restart WireGuard on both sides.

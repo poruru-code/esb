@@ -1,6 +1,6 @@
 <!--
 Where: docs/artifact-operations.md
-What: Operational guide for artifact-first deploy flows with and without CLI.
+What: Operational guide for artifact-first deploy flows.
 Why: Make generate/apply responsibilities and commands explicit for operators.
 -->
 # Artifact Operations Guide
@@ -28,52 +28,12 @@ The contract details live in `docs/deploy-artifact-contract.md`.
 3. Apply phase: validate payload integrity and merge artifact outputs into `CONFIG_DIR`, then provision
 4. Runtime phase: run compose services and execute tests/invocations
 
-## CLI Flow
-### Generate only
-Default is render-only (`--build-images` is false by default):
+## Producer Flow (Out of This Repository Scope)
+- 生成系ツールは `artifact.yml` と runtime-config を出力します。
+- 生成系ツールの操作方法・フラグは本リポジトリでは扱いません。
+- 本リポジトリでは apply/runtime 側の契約と実装のみを正本とします。
 
-```bash
-esb artifact generate \
-  --template e2e/fixtures/template.e2e.yaml \
-  --env dev \
-  --mode docker \
-  --no-save-defaults
-```
-
-Notes:
-- `esb artifact generate` does not merge outputs into `.esb/staging/**`.
-- Generate writes template outputs + `artifact.yml`; apply responsibility is `artifact apply` (or `artifactctl deploy`).
-
-### Generate with image build
-```bash
-esb artifact generate \
-  --template e2e/fixtures/template.e2e.yaml \
-  --env dev \
-  --mode docker \
-  --build-images \
-  --no-save-defaults
-```
-
-### Apply only
-```bash
-esb artifact apply \
-  --artifact .esb/artifacts/<project>/<env>/artifact.yml \
-  --out /path/to/config-dir \
-  --secret-env /path/to/secrets.env
-```
-
-### Composite flow
-`esb deploy` is a composite command:
-- run generate for all templates
-- write `artifact.yml`
-- run apply once
-
-Notes:
-- `esb deploy` / `esb artifact generate` が生成する `artifact.yml` には `runtime_stack` が既定で含まれます。
-- `esb artifact apply` は `artifactctl deploy` と同じ shared apply orchestrator (`pkg/deployops`) を使用します。
-- image build/pull may happen in deploy operations, but base image selection must follow current runtime environment.
-
-## Non-CLI Apply Flow
+## Apply Flow
 Use `artifactctl` as the canonical apply implementation.
 
 ```bash
@@ -90,7 +50,6 @@ Notes:
 - `artifactctl deploy` does not treat `runtime-base/**` as contract input.
 - `artifactctl deploy` may run image build/pull, but lambda base must be resolved from current runtime environment.
 - `runtime_stack` requirement validation exists in shared core; `artifactctl deploy` preflight performs runtime observation probe before apply.
-- `esb deploy` 経路でも runtime observation を apply 前に取得して `artifactcore` へ渡す。
 - `artifactctl deploy` must treat `<artifact_root>` as read-only. Temporary build files are created only in ephemeral workspace outside artifact directories.
 - merge/apply は `artifactctl` 直実行のみを運用経路とする（shell wrapper は廃止）。
 
@@ -105,14 +64,14 @@ artifactctl manifest sync-ids --artifact /path/to/artifact.yml --check
 ```
 
 ## Module Contract (artifactcore)
-- `github.com/poruru-code/esb-cli` と `tools/artifactctl/go.mod` には `pkg/artifactcore` の `replace` を置かない。
+- adapter modules と `tools/artifactctl/go.mod` には `pkg/artifactcore` の `replace` を置かない。
 - `services/*` は `tools/*` / `pkg/artifactcore` を直接 import しない。
 
 Boundary ownership map:
-- `esb-cli` owns producer orchestration only: template iteration, output root resolution, source template path/sha extraction.
+- producer adapter owns producer orchestration only: template iteration, output root resolution, source template path/sha extraction.
 - `pkg/deployops` owns shared apply orchestration: runtime observation probe, image prepare, and apply execution order.
 - `pkg/artifactcore` owns manifest/apply core semantics: deterministic artifact ID normalization on write and required ID/schema/path validation on read/apply.
-- `esb-cli` and `tools/artifactctl` are adapters for `deployops.Execute`; payload correctness logic stays in `pkg/artifactcore`.
+- producer adapter and `tools/artifactctl` are adapters for `deployops.Execute`; payload correctness logic stays in `pkg/artifactcore`.
 
 ## E2E Contract (Current)
 `e2e/environments/test_matrix.yaml` is artifact-only:
@@ -126,7 +85,7 @@ Boundary ownership map:
 
 Fixture refresh is a separate developer operation (outside E2E runtime):
 - regenerate fixtures with `e2e/scripts/regenerate_artifacts.sh`
-- this script uses `esb artifact generate` and commits raw output
+- this script uses an external artifact producer command and commits raw output
 - E2E runner may build/push local fixture images from `tools/e2e-lambda-fixtures/*` when `image_uri_overrides` points to local fixture repos
 
 ## Failure Policy

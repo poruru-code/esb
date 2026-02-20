@@ -1,13 +1,13 @@
 <!--
 Where: docs/deploy-artifact-contract.md
-What: Contract for deploy artifacts that can be consumed without esb CLI.
-Why: Define a stable boundary between artifact producer (CLI/manual) and runtime consumer.
+What: Contract for deploy artifacts that can be consumed without in-repo producer tooling.
+Why: Define a stable boundary between artifact producer (external/manual) and runtime consumer.
 -->
 # Deploy Artifact Contract
 
 ## 目的
-`esb` CLI がなくても、生成済み成果物だけで compose 起動・更新を行えるようにする契約です。
-この契約は「生成手段」と「適用手段」を分離し、CLI は補助ツールとして扱います。
+この契約は、生成済み成果物だけで compose 起動・更新を行えるようにするためのものです。
+この契約は「生成手段」と「適用手段」を分離し、生成ツールの実装に依存しません。
 
 ## 設計原則（Single Manifest）
 - 適用対象の正本は `artifact.yml` のみです。
@@ -46,8 +46,8 @@ Why: Define a stable boundary between artifact producer (CLI/manual) and runtime
   ...
 ```
 
-## CLI 既定出力先
-- `esb deploy` は `artifact.yml` を次へ出力します。
+## 典型的な出力先
+- 生成ツールは `artifact.yml` を次へ出力します。
   `<repo_root>/.esb/artifacts/<project>/<env>/artifact.yml`
 - `<project>` と `<env>` は path segment 化して保存します（`/` と `\` は `-` へ置換）。
 - 各 entry の `artifact_root` は、既定では `artifact.yml` からの relative path で出力します。
@@ -74,7 +74,7 @@ Why: Define a stable boundary between artifact producer (CLI/manual) and runtime
 - `<artifact_root>/<bundle_manifest>`: bundle/import ワークフローを使う場合
 
 ## 手動作成で成立する最小必須セット（固定）
-このセクションは「ESB CLI を使わず、手動で artifact を作る」場合の最小要件です。
+このセクションは「producer を使わず、手動で artifact を作る」場合の最小要件です。
 `artifactctl deploy` で成立させるため、以下だけを必須とします。
 
 - Manifest 必須:
@@ -104,7 +104,7 @@ Why: Define a stable boundary between artifact producer (CLI/manual) and runtime
   手動作成時も決定的 ID ルールに必ず一致させる必要があります。
 - 手動更新時は `artifactctl manifest sync-ids --artifact <artifact.yml>` で ID を同期できます。
 - CI では `artifactctl manifest sync-ids --artifact <artifact.yml> --check` で不一致検知できます。
-- 手動作成時の `runtime_stack` は任意です。`esb` CLI 生成では既定で `runtime_stack` を出力します。
+- 手動作成時の `runtime_stack` は任意です。生成ツールによっては既定で `runtime_stack` を出力します。
 
 ## パス規約
 ### 実行パス（厳格）
@@ -161,7 +161,7 @@ artifacts:
 ```yaml
 generated_at: "2026-02-20T00:00:00Z"
 generator:
-  name: esb
+  name: producer
   version: v0.0.0
 runtime_stack:
   api_version: "1.0"
@@ -220,8 +220,8 @@ artifacts:
 現状:
 - `artifact.yml` の `runtime_stack` フィールドと core validator（`pkg/artifactcore`）は実装済みです。
 - `artifactctl deploy` では live stack observation probe（docker compose project ベース）を apply 前に実行します。
-- `esb deploy`（CLI 経路）でも apply 前に runtime observation を実行し、`artifactcore` へ渡します。
-- CLI 経路の observation は docker 取得結果を優先し、未取得時は request（mode/tag）を fallback とします。
+- producer 側の apply adapter でも apply 前に runtime observation を実行し、`artifactcore` へ渡します。
+- observation は docker 取得結果を優先し、未取得時は request（mode/tag）を fallback とします。
 
 ## 移行互換ポリシー
 - 本契約の正本は `artifact.yml` 単一です。
@@ -247,16 +247,16 @@ artifacts:
   - Runtime Stack 互換性検証の `minor` 非互換（warning）
 
 ## 実装責務
-- Producer（CLI / 手動生成）:
+- Producer（外部ツール / 手動生成）:
   - `artifact.yml` を出力
   - `artifact.yml` を atomic write
-- Applier（CLI / 手動適用）:
+- Applier（adapter / 手動適用）:
   - `artifact.yml` を検証
   - `artifacts[]` 配列順で runtime-config をマージし `CONFIG_DIR` へ反映
   - `artifactctl deploy` と provision を実行
 - Runtime Consumer（Gateway/Provisioner/Agent）:
   - 反映済み設定を読み込むのみ
-  - CLI バイナリへの依存を持たない
+  - 生成系ツールへの依存を持たない
 
 ## ツール責務（確定）
 - `tools/artifactctl`（Go 実装）:
@@ -265,33 +265,33 @@ artifacts:
   - image build 時の lambda base 選択は実行時環境（registry/tag/stack）に従い、artifact 内 `runtime-base/**` を根拠にしない
   - Runtime Stack 互換性検証の正本実装を保持し、apply 前に fail-fast 判定を行う
   - `tools/artifactctl/cmd/artifactctl` は command adapter、実ロジック正本は `pkg/deployops` + `pkg/artifactcore` とする
-- `esb artifact apply`:
+- producer 側 apply adapter:
   - `artifactctl deploy` と同じ Go 実装を呼ぶ薄いアダプタとして振る舞う
 
 repo 分離後の依存方向:
 - core repo が `pkg/artifactcore` を保有する
-- CLI repo は core 側モジュールを参照して同一 core ロジックをリンクする（または同一バイナリを呼び出す）
-- core <- CLI の逆依存は作らない
+- producer repo は core 側モジュールを参照して同一 core ロジックをリンクする（または同一バイナリを呼び出す）
+- core <- producer の逆依存は作らない
 
 artifactcore 配布/開発ルール:
-- `github.com/poruru-code/esb-cli` と `tools/artifactctl/go.mod` に `pkg/artifactcore` の `replace` を置かない。
+- producer adapter module と `tools/artifactctl/go.mod` に `pkg/artifactcore` の `replace` を置かない。
 - CI は `go.mod` 側の `replace` 混入と `services/* -> tools/*|pkg/artifactcore` 逆依存を拒否する。
 
-## フェーズ別ユースケース整理（CLI あり / CLI なし）
+## フェーズ別ユースケース整理（Producer 経路 / Direct Apply 経路）
 この契約では「生成」と「適用」を分離します。
-CLI なし運用でも、生成済み成果物を入力に **Phase 3 以降は手動実行可能** とします。
+生成済み成果物を入力に **Phase 3 以降は手動実行可能** とします。
 
 注記:
 - ここでいう「手動」は「オペレータがコマンドを直接実行する運用」を意味します。
 - 「手動」は「shell にロジックを実装すること」を意味しません。
 - 判定・適用ロジックの正本は常に Go 実装（`pkg/deployops` + `pkg/artifactcore`、`tools/artifactctl` は adapter）です。
 
-| フェーズ | CLI あり（esb 利用） | CLI なし（esb 非依存） |
+| フェーズ | Producer 経路 | Direct Apply 経路 |
 |---|---|---|
-| 0. Runtime Stack 互換性検証 | `esb deploy` の apply 前で実行（段階実装） | `artifactctl deploy` の apply 前で実行（段階実装） |
-| 1. テンプレート解析 | `esb deploy` / `esb artifact generate` が SAM を解析 | 実行しない（生成済み成果物を受領） |
+| 0. Runtime Stack 互換性検証 | producer 側 apply 前で実行（段階実装） | `artifactctl deploy` の apply 前で実行（段階実装） |
+| 1. テンプレート解析 | producer が SAM を解析 | 実行しない（生成済み成果物を受領） |
 | 2. 生成（Dockerfile / config） | `artifact.yml` を出力（`artifacts[]` に全テンプレートを記録） | 実行しない |
-| 3. Artifact 適用（検証 + 設定反映） | `esb deploy` が apply phase を実行 | `artifactctl deploy --artifact ... --out ...` を実行 |
+| 3. Artifact 適用（検証 + 設定反映） | producer 側 apply adapter が実行 | `artifactctl deploy --artifact ... --out ...` を実行 |
 | 4. Provision | provisioner を実行 | `docker compose --profile deploy run --rm provisioner` |
 | 5. Runtime 起動 | `docker compose up` | `docker compose up` |
 
@@ -299,23 +299,19 @@ CLI なし運用でも、生成済み成果物を入力に **Phase 3 以降は�
 - `artifactctl deploy` は `artifact_root` を読み取り専用として扱い、`artifact_root` 配下へ一時ファイルを書き込みません。
 - Runtime Stack 互換性検証は実行中スタック観測に基づいて実行します。
 
-## CLI コマンド責務（明示）
-- `esb artifact generate`
-  - Generate フェーズ専用（既定は render-only、`--build-images` 指定時のみ image build）
-  - `.esb/staging/**` への merge は実行しない（merge/apply は apply フェーズ責務）
-  - Apply は実行しない
-- `esb artifact apply`
-  - Apply フェーズ専用（manifest 入力で merge/apply + provision 前段）
-- `esb deploy`
-  - `generate -> apply` の合成コマンド
-  - 内部実装が分離されていても外部 UX は単一コマンドを維持
+## Producer コマンド責務（外部管理）
+- producer のコマンド体系は本リポジトリ管理外です。
+- ただし責務境界は固定します:
+  - Generate フェーズは `artifact.yml` と runtime-config の出力に限定する
+  - Apply フェーズは shared core（`pkg/deployops` + `pkg/artifactcore`）を利用する
+  - `.esb/staging/**` への merge は apply フェーズ責務とする
 
 ## 補足（外部テンプレート）
 - テンプレートが EBS repo 外でも、出力はテンプレート基準の `.esb/...` を維持します。
 - 相対 `CodeUri` / Layer 解決はテンプレート配置基準を維持し、既存 Lambda コード変更を要求しません。
 - 複数テンプレート時の適用順と対象は `artifact.yml` の `artifacts[]` が正本です。
 
-## 手動ランブック（CLI なし、Phase 3-5）
+## 手動ランブック（Phase 3-5）
 前提: `docker`, `docker compose`, `artifactctl` が利用可能であること。
 
 ### 0) 変数
@@ -363,4 +359,4 @@ curl -k https://127.0.0.1/health
 ## E2E 契約（現行）
 - E2E matrix から `deploy_driver` / `artifact_generate` は撤去済みで、artifact 実行経路のみを許可します。
 - テストはコミット済み `e2e/artifacts/*` を consume し、ランタイムで generate は行いません。
-- fixture 更新時のみ `e2e/scripts/regenerate_artifacts.sh` により `esb artifact generate` を使用します。
+- fixture 更新時のみ `e2e/scripts/regenerate_artifacts.sh` により外部の artifact 生成コマンドを使用します。

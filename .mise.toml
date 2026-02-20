@@ -22,7 +22,6 @@ description = "Install dependencies and enable git hooks"
 run = [
   "uv sync --all-extras",
   "lefthook install",
-  "mise run check-esb",
   "mise run build-artifactctl",
   "mise run setup:certs",
   "mise run setup:buildx",
@@ -43,10 +42,6 @@ run = [
   "buf generate . --template buf.gen.yaml",
   "uv run python scripts/fix_python_grpc_imports.py",
 ]
-
-[tasks.check-esb]
-description = "Ensure esb CLI is installed (from esb-cli repo)"
-run = "command -v esb >/dev/null 2>&1 || { echo 'esb not found. Install from https://github.com/poruru-code/esb-cli'; exit 1; }"
 
 [tasks.build-artifactctl]
 description = "Build artifactctl to ~/.local/bin"

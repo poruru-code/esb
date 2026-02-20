@@ -14,23 +14,17 @@ Why: Provide a concise entry point and delegate details to docs.
 - [Agent docs](services/agent/docs/README.md)
 - [runtime-node docs](services/runtime-node/docs/README.md)
 - [Provisioner docs](services/provisioner/docs/README.md)
-- [CLI docs](https://github.com/poruru-code/esb-cli/tree/main/docs)
 
 ## できること（概要）
 - `Gateway` + `Agent` + `runtime-node` の分離構成で Lambda 互換の実行基盤を提供
 - S3/Dynamo/ログ基盤を同梱し、Compose だけで Control + Compute が起動
-- CLI (`esb`) で SAM テンプレートを解析し、設定・Dockerfile・関数イメージを生成
+- 生成済み artifact（`artifact.yml` + runtime-config）を `artifactctl` で適用できる
 
 ## クイックスタート（最小）
 ```bash
-esb build
 docker compose -f docker-compose.containerd.yml up -d
 ```
 詳細な手順・構成は docs に移譲しています。
-
-## CLI（概要）
-- `esb deploy`: SAM テンプレート解析、設定/Dockerfile/関数イメージ生成、provisioner 実行（`--build-only`でビルドのみ）
-- `esb version`: ビルド情報表示
 
 ## 開発 / コントリビュート
 ### 推奨ツール
@@ -42,7 +36,7 @@ mise trust
 mise install
 mise run setup
 ```
-`mise run setup` は `esb` コマンドの存在確認と `artifactctl` のビルドを行います。
+`mise run setup` は開発用ツールの検証と `artifactctl` のビルドを行います。
 
 ### Lint / Format
 ```bash
