@@ -7,7 +7,6 @@ func TestNormalizeApplyInputNormalizesPaths(t *testing.T) {
 		ArtifactPath:  "  artifact.yml  ",
 		OutputDir:     "  out/config  ",
 		SecretEnvPath: "  secret.env  ",
-		Strict:        true,
 	})
 	if err != nil {
 		t.Fatalf("normalizeApplyInput() error = %v", err)
@@ -20,8 +19,5 @@ func TestNormalizeApplyInputNormalizesPaths(t *testing.T) {
 	}
 	if req.SecretEnvPath != "secret.env" {
 		t.Fatalf("SecretEnvPath = %q, want secret.env", req.SecretEnvPath)
-	}
-	if !req.Strict {
-		t.Fatal("Strict must be true")
 	}
 }

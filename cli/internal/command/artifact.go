@@ -50,7 +50,6 @@ func runArtifactApply(cli CLI, _ Dependencies, out io.Writer) int {
 		ArtifactPath:  args.Artifact,
 		OutputDir:     args.OutputDir,
 		SecretEnvPath: args.SecretEnv,
-		Strict:        args.Strict,
 	})
 	if err != nil {
 		return exitWithError(out, err)

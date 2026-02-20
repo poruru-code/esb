@@ -11,13 +11,21 @@ This document defines operational flows for artifact-first deployment.
 - Producer responsibility: generate artifacts (`artifact.yml` + runtime-config outputs)
 - Applier responsibility: apply generated artifacts to `CONFIG_DIR` and run provisioner
 - Runtime responsibility: consume prepared runtime-config only
+- Payload contract responsibility: verify artifact input integrity (schema/path/id/runtime payload)
+- Runtime stack compatibility responsibility: verify live stack version/capability compatibility at deploy time
+
+Contract freeze:
+- `runtime-base/**` is out of deploy artifact contract scope.
+- `artifactctl deploy` may execute image build/pull when needed, but must not use artifact-time `runtime-base/**` as base source.
+- lambda base selection follows current runtime environment (registry/tag/stack), not artifact creation-time assets.
 
 The contract details live in `docs/deploy-artifact-contract.md`.
 
 ## Phase Model
+0. Runtime compatibility phase: validate compatibility against live gateway/agent/provisioner/runtime-node before apply (phased implementation)
 1. Generate phase: parse templates and render artifact outputs (`artifact.yml`, runtime-config, Dockerfiles)
-2. Image build phase: optional build/push of function images from rendered artifacts
-3. Apply phase: validate and merge artifact outputs into `CONFIG_DIR`, then provision
+2. Image build phase: optional operation outside deploy artifact contract
+3. Apply phase: validate payload integrity and merge artifact outputs into `CONFIG_DIR`, then provision
 4. Runtime phase: run compose services and execute tests/invocations
 
 ## CLI Flow
@@ -51,15 +59,20 @@ esb artifact generate \
 esb artifact apply \
   --artifact .esb/artifacts/<project>/<env>/artifact.yml \
   --out /path/to/config-dir \
-  --secret-env /path/to/secrets.env \
-  --strict
+  --secret-env /path/to/secrets.env
 ```
 
 ### Composite flow
 `esb deploy` is a composite command:
-- run generate for all templates (build-only internal phase, image build enabled by deploy semantics)
-- write strict `artifact.yml`
+- run generate for all templates
+- write `artifact.yml`
 - run apply once
+
+Notes:
+- `esb deploy` / `esb artifact generate` が生成する `artifact.yml` には `runtime_stack` が既定で含まれます。
+
+Note:
+- image build/pull may happen in deploy operations, but base image selection must follow current runtime environment.
 
 ## Non-CLI Apply Flow
 Use `artifactctl` as the canonical apply implementation.
@@ -68,21 +81,39 @@ Use `artifactctl` as the canonical apply implementation.
 artifactctl deploy \
   --artifact /path/to/artifact.yml \
   --out /path/to/config-dir \
-  --secret-env /path/to/secrets.env \
-  --strict
+  --secret-env /path/to/secrets.env
 
 docker compose --profile deploy run --rm --no-deps provisioner
 ```
 
 Notes:
-- `artifactctl deploy` internally runs image preparation and artifact apply in order.
-- `artifactctl deploy` uses `<artifact_root>/runtime-base/**` as the only base-image build context. It does not read repository-local `runtime-hooks/**`.
+- `artifactctl deploy` runs payload/runtime compatibility validation and artifact apply.
+- `artifactctl deploy` does not treat `runtime-base/**` as contract input.
+- `artifactctl deploy` may run image build/pull, but lambda base must be resolved from current runtime environment.
+- `runtime_stack` requirement validation exists in shared core; `artifactctl deploy` preflight performs runtime observation probe before apply.
+- `esb deploy` 経路でも runtime observation を apply 前に取得して `artifactcore` へ渡す。
+- `artifactctl deploy` must treat `<artifact_root>` as read-only. Temporary build files are created only in ephemeral workspace outside artifact directories.
 - merge/apply は `artifactctl` 直実行のみを運用経路とする（shell wrapper は廃止）。
+
+Manual artifact minimum:
+- `artifact.yml` with `schema_version/project/env/mode/artifacts[]`
+- each entry with `id/artifact_root/runtime_config_dir/source_template.path`
+- files: `<artifact_root>/<runtime_config_dir>/functions.yml` and `routing.yml`
+- manual ID sync helper:
+```bash
+artifactctl manifest sync-ids --artifact /path/to/artifact.yml
+artifactctl manifest sync-ids --artifact /path/to/artifact.yml --check
+```
 
 ## Module Contract (artifactcore)
 - `cli/go.mod` と `tools/artifactctl/go.mod` には `pkg/artifactcore` の `replace` を置かない。
 - ローカル開発の依存解決は repo ルート `go.work` のみで行う。
 - `services/*` は `tools/*` / `pkg/artifactcore` を直接 import しない。
+
+Boundary ownership map:
+- `cli` owns producer orchestration only: template iteration, output root resolution, source template path/sha extraction.
+- `pkg/artifactcore` owns manifest contract semantics: deterministic artifact ID normalization on write and required ID/schema/path validation on read/apply.
+- `cli` and `tools/artifactctl` are adapters for `artifactcore.ExecuteApply`; apply correctness logic must stay in `pkg/artifactcore`.
 
 ## E2E Contract (Current)
 `e2e/environments/test_matrix.yaml` is artifact-only:
@@ -102,7 +133,6 @@ Fixture refresh is a separate developer operation (outside E2E runtime):
 ## Failure Policy
 - Missing `artifact.yml`, required runtime config files, invalid ID, missing required secrets: hard fail
 - Presence of legacy matrix fields (`deploy_driver`, `artifact_generate`): hard fail
-- Missing runtime-base context for required base-image build in `artifactctl deploy` prepare phase: hard fail
 - Apply phase must not silently fall back to template-based sync paths
-- In `--strict`, runtime digest verification fails if `<artifact_root>/runtime-base/runtime-hooks/python/sitecustomize/site-packages/sitecustomize.py` is missing or unreadable
+- Runtime stack compatibility major mismatch is hard fail (when compatibility preflight is enabled)
 - Removed runtime digests: `java_agent_digest`, `java_wrapper_digest`, `template_digest`

@@ -95,14 +95,11 @@ func TestDeployParseApplyOptions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("kong.New() error = %v", err)
 	}
-	if _, err := parser.Parse([]string{"deploy", "--secret-env", "secret.env", "--strict"}); err != nil {
+	if _, err := parser.Parse([]string{"deploy", "--secret-env", "secret.env"}); err != nil {
 		t.Fatalf("parser.Parse() error = %v", err)
 	}
 	if cli.Deploy.SecretEnv != "secret.env" {
 		t.Fatalf("SecretEnv=%q, want secret.env", cli.Deploy.SecretEnv)
-	}
-	if !cli.Deploy.Strict {
-		t.Fatal("Strict=false, want true")
 	}
 }
 

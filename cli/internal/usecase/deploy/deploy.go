@@ -26,7 +26,6 @@ type Request struct {
 	Context        state.Context
 	ArtifactPath   string
 	SecretEnvPath  string
-	Strict         bool
 	OutputDir      string
 	Parameters     map[string]string
 	ImageSources   map[string]string

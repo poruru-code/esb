@@ -8,7 +8,6 @@ ArtifactManifest.ResolveArtifactRoot
 ArtifactManifest.ResolveBundleManifest
 ArtifactManifest.ResolveRuntimeConfigDir
 ArtifactManifest.Validate
-ArtifactRuntimeMeta
 ArtifactSchemaVersionV1
 ArtifactSourceTemplate
 ComputeArtifactID
@@ -23,9 +22,4 @@ MissingReferencedPathError.Error
 MissingSecretKeysError
 MissingSecretKeysError.Error
 ReadArtifactManifest
-RendererMeta
-RuntimeHooksAPIVersion
-RuntimeHooksMeta
-TemplateRendererAPIVersion
-TemplateRendererName
 WriteArtifactManifest

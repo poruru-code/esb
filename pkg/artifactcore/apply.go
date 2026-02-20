@@ -13,10 +13,12 @@ func applyWithWarnings(req ApplyInput) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	warnings, err := validateRuntimeMetadata(manifest, req.ArtifactPath, req.Strict)
+	warnings := make([]string, 0)
+	runtimeWarnings, err := validateRuntimeCompatibility(manifest, req.Runtime)
 	if err != nil {
 		return nil, err
 	}
+	warnings = append(warnings, runtimeWarnings...)
 	if err := validateRequiredSecrets(manifest, req.SecretEnvPath); err != nil {
 		return nil, err
 	}

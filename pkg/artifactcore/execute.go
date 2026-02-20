@@ -8,7 +8,7 @@ type ApplyInput struct {
 	ArtifactPath  string
 	OutputDir     string
 	SecretEnvPath string
-	Strict        bool
+	Runtime       *RuntimeObservation
 }
 
 type ApplyResult struct {

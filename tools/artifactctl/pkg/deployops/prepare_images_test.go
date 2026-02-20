@@ -44,30 +44,16 @@ func TestPrepareImagesBuildsAndPushesDockerRefs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("prepareImages() error = %v", err)
 	}
-	if len(runner.commands) != 4 {
-		t.Fatalf("expected 4 commands, got %d", len(runner.commands))
+	if len(runner.commands) != 2 {
+		t.Fatalf("expected 2 commands, got %d", len(runner.commands))
 	}
 
 	if runner.commands[0][0:3][0] != "docker" || runner.commands[0][1] != "buildx" || runner.commands[0][2] != "build" {
-		t.Fatalf("unexpected base build command: %v", runner.commands[0])
+		t.Fatalf("unexpected function build command: %v", runner.commands[0])
 	}
-	wantBaseDockerfile := filepath.Join(root, "fixture", "runtime-base", "runtime-hooks", "python", "docker", "Dockerfile")
-	wantBaseContext := filepath.Join(root, "fixture", "runtime-base")
-	assertCommandContains(t, runner.commands[0], "--tag", "127.0.0.1:5010/esb-lambda-base:e2e-test")
-	assertCommandContains(t, runner.commands[0], "--file", wantBaseDockerfile)
-	if got := runner.commands[0][len(runner.commands[0])-1]; got != wantBaseContext {
-		t.Fatalf("base build context = %q, want %q", got, wantBaseContext)
-	}
-	if !slices.Equal(runner.commands[1], []string{"docker", "push", "127.0.0.1:5010/esb-lambda-base:e2e-test"}) {
-		t.Fatalf("unexpected base push command: %v", runner.commands[1])
-	}
-
-	if runner.commands[2][0:3][0] != "docker" || runner.commands[2][1] != "buildx" || runner.commands[2][2] != "build" {
-		t.Fatalf("unexpected function build command: %v", runner.commands[2])
-	}
-	assertCommandContains(t, runner.commands[2], "--tag", "127.0.0.1:5010/esb-lambda-echo:e2e-test")
-	if !slices.Equal(runner.commands[3], []string{"docker", "push", "127.0.0.1:5010/esb-lambda-echo:e2e-test"}) {
-		t.Fatalf("unexpected function push command: %v", runner.commands[3])
+	assertCommandContains(t, runner.commands[0], "--tag", "127.0.0.1:5010/esb-lambda-echo:e2e-test")
+	if !slices.Equal(runner.commands[1], []string{"docker", "push", "127.0.0.1:5010/esb-lambda-echo:e2e-test"}) {
+		t.Fatalf("unexpected function push command: %v", runner.commands[1])
 	}
 }
 
@@ -90,34 +76,21 @@ func TestPrepareImagesRewritesPushTargetsForContainerdRefs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("prepareImages() error = %v", err)
 	}
-	if len(runner.commands) != 6 {
-		t.Fatalf("expected 6 commands, got %d", len(runner.commands))
+	if len(runner.commands) != 3 {
+		t.Fatalf("expected 3 commands, got %d", len(runner.commands))
 	}
 
-	assertCommandContains(t, runner.commands[0], "--tag", "127.0.0.1:5010/esb-lambda-base:e2e-test")
+	assertCommandContains(t, runner.commands[0], "--tag", "registry:5010/esb-lambda-echo:e2e-test")
 	if !slices.Equal(runner.commands[1], []string{
-		"docker",
-		"tag",
-		"127.0.0.1:5010/esb-lambda-base:e2e-test",
-		"registry:5010/esb-lambda-base:e2e-test",
-	}) {
-		t.Fatalf("unexpected base tag command: %v", runner.commands[1])
-	}
-	if !slices.Equal(runner.commands[2], []string{"docker", "push", "127.0.0.1:5010/esb-lambda-base:e2e-test"}) {
-		t.Fatalf("unexpected base push command: %v", runner.commands[2])
-	}
-
-	assertCommandContains(t, runner.commands[3], "--tag", "registry:5010/esb-lambda-echo:e2e-test")
-	if !slices.Equal(runner.commands[4], []string{
 		"docker",
 		"tag",
 		"registry:5010/esb-lambda-echo:e2e-test",
 		"127.0.0.1:5010/esb-lambda-echo:e2e-test",
 	}) {
-		t.Fatalf("unexpected function tag command: %v", runner.commands[4])
+		t.Fatalf("unexpected function tag command: %v", runner.commands[1])
 	}
-	if !slices.Equal(runner.commands[5], []string{"docker", "push", "127.0.0.1:5010/esb-lambda-echo:e2e-test"}) {
-		t.Fatalf("unexpected function push command: %v", runner.commands[5])
+	if !slices.Equal(runner.commands[2], []string{"docker", "push", "127.0.0.1:5010/esb-lambda-echo:e2e-test"}) {
+		t.Fatalf("unexpected function push command: %v", runner.commands[2])
 	}
 }
 
@@ -174,6 +147,10 @@ func TestPrepareImagesRewritesFunctionDockerfileRegistryForBuild(t *testing.T) {
 	if !strings.HasSuffix(functionBuildFile, ".artifact.build") {
 		t.Fatalf("expected temporary dockerfile suffix, got: %s", functionBuildFile)
 	}
+	artifactRoot := filepath.Join(root, "fixture")
+	if strings.HasPrefix(functionBuildFile, artifactRoot+string(os.PathSeparator)) {
+		t.Fatalf("temporary dockerfile must be outside artifact root: %s", functionBuildFile)
+	}
 	if !strings.Contains(functionBuildText, "FROM 127.0.0.1:5010/esb-lambda-base:e2e-test") {
 		t.Fatalf("expected rewritten build dockerfile, got:\n%s", functionBuildText)
 	}
@@ -182,7 +159,101 @@ func TestPrepareImagesRewritesFunctionDockerfileRegistryForBuild(t *testing.T) {
 	}
 }
 
-func TestPrepareImagesTemporarilyRewritesDockerignore(t *testing.T) {
+func TestPrepareImagesRewritesFunctionDockerfileLambdaBaseTagFromRuntimeObservation(t *testing.T) {
+	root := t.TempDir()
+	manifestPath := writePrepareImageFixture(
+		t,
+		root,
+		"registry:5010/esb-lambda-echo:e2e-test",
+		"registry:5010/esb-lambda-base:latest",
+	)
+	t.Setenv("CONTAINER_REGISTRY", "registry:5010")
+	t.Setenv("HOST_REGISTRY_ADDR", "127.0.0.1:5010")
+
+	var functionBuildText string
+	runner := &recordCommandRunner{
+		hook: func(cmd []string) error {
+			if len(cmd) < 4 || cmd[0] != "docker" || cmd[1] != "buildx" || cmd[2] != "build" {
+				return nil
+			}
+			for i := 0; i+1 < len(cmd); i++ {
+				if cmd[i] != "--file" {
+					continue
+				}
+				data, err := os.ReadFile(cmd[i+1])
+				if err != nil {
+					return err
+				}
+				functionBuildText = string(data)
+				return nil
+			}
+			return nil
+		},
+	}
+
+	err := prepareImages(prepareImagesInput{
+		ArtifactPath: manifestPath,
+		Runner:       runner,
+		Runtime: &artifactcore.RuntimeObservation{
+			ESBVersion: "runtime-v2",
+		},
+	})
+	if err != nil {
+		t.Fatalf("prepareImages() error = %v", err)
+	}
+	if !strings.Contains(functionBuildText, "FROM 127.0.0.1:5010/esb-lambda-base:runtime-v2") {
+		t.Fatalf("expected runtime tag rewrite in build dockerfile, got:\n%s", functionBuildText)
+	}
+}
+
+func TestPrepareImagesDoesNotRewritePinnedLambdaBaseTagFromRuntimeObservation(t *testing.T) {
+	root := t.TempDir()
+	manifestPath := writePrepareImageFixture(
+		t,
+		root,
+		"registry:5010/esb-lambda-echo:e2e-test",
+		"registry:5010/esb-lambda-base:e2e-test",
+	)
+	t.Setenv("CONTAINER_REGISTRY", "registry:5010")
+	t.Setenv("HOST_REGISTRY_ADDR", "127.0.0.1:5010")
+
+	var functionBuildText string
+	runner := &recordCommandRunner{
+		hook: func(cmd []string) error {
+			if len(cmd) < 4 || cmd[0] != "docker" || cmd[1] != "buildx" || cmd[2] != "build" {
+				return nil
+			}
+			for i := 0; i+1 < len(cmd); i++ {
+				if cmd[i] != "--file" {
+					continue
+				}
+				data, err := os.ReadFile(cmd[i+1])
+				if err != nil {
+					return err
+				}
+				functionBuildText = string(data)
+				return nil
+			}
+			return nil
+		},
+	}
+
+	err := prepareImages(prepareImagesInput{
+		ArtifactPath: manifestPath,
+		Runner:       runner,
+		Runtime: &artifactcore.RuntimeObservation{
+			ESBVersion: "runtime-v2",
+		},
+	})
+	if err != nil {
+		t.Fatalf("prepareImages() error = %v", err)
+	}
+	if !strings.Contains(functionBuildText, "FROM 127.0.0.1:5010/esb-lambda-base:e2e-test") {
+		t.Fatalf("expected pinned tag to be preserved in build dockerfile, got:\n%s", functionBuildText)
+	}
+}
+
+func TestPrepareImagesLeavesArtifactRootUnchanged(t *testing.T) {
 	root := t.TempDir()
 	manifestPath := writePrepareImageFixture(
 		t,
@@ -196,23 +267,7 @@ func TestPrepareImagesTemporarilyRewritesDockerignore(t *testing.T) {
 	if err := os.WriteFile(dockerignore, []byte(original), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	inspected := ""
-	runner := &recordCommandRunner{
-		hook: func(cmd []string) error {
-			if len(cmd) > 0 && cmd[0] == "docker" && slices.Contains(cmd, "--file") {
-				for i := 0; i+1 < len(cmd); i++ {
-					if cmd[i] == "--file" && strings.HasSuffix(cmd[i+1], "functions/lambda-echo/Dockerfile") {
-						data, err := os.ReadFile(dockerignore)
-						if err != nil {
-							return err
-						}
-						inspected = string(data)
-					}
-				}
-			}
-			return nil
-		},
-	}
+	runner := &recordCommandRunner{}
 	err := prepareImages(prepareImagesInput{
 		ArtifactPath: manifestPath,
 		Runner:       runner,
@@ -220,18 +275,42 @@ func TestPrepareImagesTemporarilyRewritesDockerignore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("prepareImages() error = %v", err)
 	}
-	if inspected == "" {
-		t.Fatalf("expected dockerignore inspection during function build")
-	}
-	if !containsLine(inspected, "!functions/lambda-echo/") || !containsLine(inspected, "!functions/lambda-echo/**") {
-		t.Fatalf("expected temporary dockerignore to include lambda-echo paths, got:\n%s", inspected)
-	}
-	restored, err := os.ReadFile(dockerignore)
+	unchanged, err := os.ReadFile(dockerignore)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(restored) != original {
-		t.Fatalf("expected dockerignore restoration, got:\n%s", string(restored))
+	if string(unchanged) != original {
+		t.Fatalf("artifact root file changed unexpectedly: got:\n%s", string(unchanged))
+	}
+	err = filepath.WalkDir(artifactRoot, func(path string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(path, ".artifact.build") {
+			t.Fatalf("artifact root should not contain temporary build files: %s", path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk artifact root: %v", err)
+	}
+	functionBuildContext := ""
+	for _, cmd := range runner.commands {
+		if len(cmd) >= 4 && cmd[0] == "docker" && cmd[1] == "buildx" && cmd[2] == "build" {
+			if slices.Contains(cmd, "--file") && slices.Contains(cmd, "--tag") && strings.Contains(strings.Join(cmd, " "), "esb-lambda-echo:e2e-test") {
+				functionBuildContext = cmd[len(cmd)-1]
+				break
+			}
+		}
+	}
+	if functionBuildContext == "" {
+		t.Fatal("expected function build command")
+	}
+	if functionBuildContext == artifactRoot || strings.HasPrefix(functionBuildContext, artifactRoot+string(os.PathSeparator)) {
+		t.Fatalf("function build must not use artifact root as context: %s", functionBuildContext)
 	}
 }
 
@@ -277,32 +356,6 @@ func TestPrepareImagesReturnsRunnerError(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected error")
-	}
-}
-
-func TestPrepareImagesFailsWhenRuntimeBaseContextMissing(t *testing.T) {
-	root := t.TempDir()
-	manifestPath := writePrepareImageFixture(
-		t,
-		root,
-		"127.0.0.1:5010/esb-lambda-echo:e2e-test",
-		"127.0.0.1:5010/esb-lambda-base:e2e-test",
-	)
-	missingDockerfile := filepath.Join(root, "fixture", "runtime-base", "runtime-hooks", "python", "docker", "Dockerfile")
-	if err := os.Remove(missingDockerfile); err != nil {
-		t.Fatalf("remove runtime base dockerfile: %v", err)
-	}
-
-	runner := &recordCommandRunner{}
-	err := prepareImages(prepareImagesInput{
-		ArtifactPath: manifestPath,
-		Runner:       runner,
-	})
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if !errors.Is(err, artifactcore.ErrRuntimeBaseDockerfileMissing) {
-		t.Fatalf("missing expected ErrRuntimeBaseDockerfileMissing: %v", err)
 	}
 }
 
@@ -379,19 +432,8 @@ func writePrepareImageFixture(t *testing.T, root, imageRef, baseRef string) stri
 	artifactRoot := filepath.Join(root, "fixture")
 	functionDir := filepath.Join(artifactRoot, "functions", "lambda-echo")
 	configDir := filepath.Join(artifactRoot, "config")
-	runtimeBaseDir := filepath.Join(artifactRoot, "runtime-base", "runtime-hooks", "python")
 	mustMkdirAll(t, functionDir)
 	mustMkdirAll(t, configDir)
-	mustMkdirAll(t, filepath.Join(runtimeBaseDir, "docker"))
-	mustMkdirAll(t, filepath.Join(runtimeBaseDir, "sitecustomize", "site-packages"))
-	mustMkdirAll(t, filepath.Join(runtimeBaseDir, "trace-bridge", "layer"))
-	mustWriteFile(
-		t,
-		filepath.Join(runtimeBaseDir, "docker", "Dockerfile"),
-		"FROM public.ecr.aws/lambda/python:3.12\nCOPY runtime-hooks/python/sitecustomize/site-packages/sitecustomize.py /opt/python/sitecustomize.py\nCOPY runtime-hooks/python/trace-bridge/layer/ /opt/python/\n",
-	)
-	mustWriteFile(t, filepath.Join(runtimeBaseDir, "sitecustomize", "site-packages", "sitecustomize.py"), "# stub")
-	mustWriteFile(t, filepath.Join(runtimeBaseDir, "trace-bridge", "layer", "trace_bridge.py"), "# stub")
 	mustWriteFile(
 		t,
 		filepath.Join(functionDir, "Dockerfile"),
@@ -443,15 +485,6 @@ func assertCommandContains(t *testing.T, cmd []string, key, value string) {
 		}
 	}
 	t.Fatalf("command missing %s %s: %v", key, value, cmd)
-}
-
-func containsLine(content, needle string) bool {
-	for _, line := range strings.Split(content, "\n") {
-		if line == needle {
-			return true
-		}
-	}
-	return false
 }
 
 func mustMkdirAll(t *testing.T, path string) {

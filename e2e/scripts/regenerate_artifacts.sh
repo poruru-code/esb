@@ -34,6 +34,7 @@ generate_fixture() {
   local artifact_dir="${REPO_ROOT}/e2e/artifacts/${env_name}"
   local output_dir="${artifact_dir}/template.e2e"
   local manifest_path="${artifact_dir}/artifact.yml"
+  local template_root="${output_dir}/${env_name}"
 
   rm -rf "${output_dir}"
   mkdir -p "${artifact_dir}"
@@ -57,15 +58,8 @@ generate_fixture() {
     exit 1
   fi
 
-  local runtime_base_dockerfile
-  runtime_base_dockerfile="${output_dir}/${env_name}/runtime-base/runtime-hooks/python/docker/Dockerfile"
-  if [[ ! -f "${runtime_base_dockerfile}" ]]; then
-    echo "runtime-base dockerfile not found for ${env_name}: ${runtime_base_dockerfile}" >&2
-    exit 1
-  fi
-
-  local runtime_base_root
-  runtime_base_root="${output_dir}/${env_name}/runtime-base"
+  # runtime-base is out of deploy artifact contract scope.
+  rm -rf "${template_root}/runtime-base"
 }
 
 cd "${REPO_ROOT}"

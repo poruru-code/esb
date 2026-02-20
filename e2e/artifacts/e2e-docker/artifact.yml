@@ -2,6 +2,10 @@ schema_version: "1"
 project: esb-e2e-docker
 env: e2e-docker
 mode: docker
+runtime_stack:
+  api_version: "1.0"
+  mode: docker
+  esb_version: e2e-docker-latest
 artifacts:
   - id: template-e2e-92eecc19
     artifact_root: template.e2e/e2e-docker
@@ -9,14 +13,7 @@ artifacts:
     source_template:
       path: e2e/fixtures/template.e2e.yaml
       sha256: 6a6b873fc6f14e8e2d81093b2c1dd5d9210099ee8f15d4fc684606c05217cd47
-    runtime_meta:
-      runtime_hooks:
-        api_version: "1.0"
-        python_sitecustomize_digest: bdc58c98ecf9558228b38692566042114c2ac77a04e44d0bb6475787154a896e
-      template_renderer:
-        name: esb-cli-embedded-templates
-        api_version: "1.0"
-generated_at: "2026-02-18T17:02:29Z"
+generated_at: "2026-02-20T07:04:04Z"
 generator:
   name: esb
   version: dev
