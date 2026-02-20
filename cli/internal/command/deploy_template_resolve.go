@@ -9,8 +9,8 @@ import (
 	"io"
 	"strings"
 
-	domaintpl "github.com/poruru/edge-serverless-box/cli/internal/domain/template"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/interaction"
+	domaintpl "github.com/poruru-code/esb/cli/internal/domain/template"
+	"github.com/poruru-code/esb/cli/internal/infra/interaction"
 )
 
 func resolveDeployTemplate(

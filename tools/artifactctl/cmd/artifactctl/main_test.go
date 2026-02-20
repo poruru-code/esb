@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/poruru/edge-serverless-box/pkg/artifactcore"
-	"github.com/poruru/edge-serverless-box/pkg/deployops"
+	"github.com/poruru-code/esb/pkg/artifactcore"
+	"github.com/poruru-code/esb/pkg/deployops"
 )
 
 func newNoopDeps(out, errOut *bytes.Buffer) commandDeps {

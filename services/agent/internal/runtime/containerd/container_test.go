@@ -8,7 +8,7 @@ import (
 
 	"github.com/containerd/containerd/cio"
 	"github.com/containerd/go-cni"
-	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
+	"github.com/poruru-code/esb/services/agent/internal/runtime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )

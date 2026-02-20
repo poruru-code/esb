@@ -3,7 +3,7 @@
 // Why: Allow swapping implementations (custom vs goformation).
 package sam
 
-import "github.com/poruru/edge-serverless-box/cli/internal/domain/template"
+import "github.com/poruru-code/esb/cli/internal/domain/template"
 
 type Parser interface {
 	Parse(content string, parameters map[string]string) (template.ParseResult, error)

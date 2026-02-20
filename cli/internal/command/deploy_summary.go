@@ -9,9 +9,9 @@ import (
 	"sort"
 	"strings"
 
-	domaincfg "github.com/poruru/edge-serverless-box/cli/internal/domain/config"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/interaction"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
+	domaincfg "github.com/poruru-code/esb/cli/internal/domain/config"
+	"github.com/poruru-code/esb/cli/internal/infra/interaction"
+	"github.com/poruru-code/esb/cli/internal/infra/staging"
 )
 
 func confirmDeployInputs(inputs deployInputs, isTTY bool, prompter interaction.Prompter) (bool, error) {

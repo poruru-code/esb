@@ -10,8 +10,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/constants"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
+	"github.com/poruru-code/esb/cli/internal/constants"
+	"github.com/poruru-code/esb/cli/internal/infra/config"
 )
 
 func TestResolveTemplateFallbackUsesPrevious(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/poruru/edge-serverless-box/pkg/runtimeimage"
+	"github.com/poruru-code/esb/pkg/runtimeimage"
 )
 
 func TestParseServiceImages(t *testing.T) {

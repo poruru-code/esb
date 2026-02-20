@@ -4,9 +4,9 @@
 package build
 
 import (
-	"github.com/poruru/edge-serverless-box/cli/internal/domain/template"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
-	templategen "github.com/poruru/edge-serverless-box/cli/internal/infra/templategen"
+	"github.com/poruru-code/esb/cli/internal/domain/template"
+	"github.com/poruru-code/esb/cli/internal/infra/config"
+	templategen "github.com/poruru-code/esb/cli/internal/infra/templategen"
 )
 
 func defaultGeneratorParameters() map[string]string {

@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/interaction"
-	"github.com/poruru/edge-serverless-box/cli/internal/meta"
+	"github.com/poruru-code/esb/cli/internal/infra/interaction"
+	"github.com/poruru-code/esb/cli/internal/meta"
 )
 
 type templateResolvePrompter struct {

@@ -6,7 +6,7 @@ package templategen
 import (
 	"io/fs"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/fileops"
+	"github.com/poruru-code/esb/cli/internal/infra/fileops"
 )
 
 func ensureDir(path string) error {

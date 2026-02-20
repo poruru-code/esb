@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/poruru/edge-serverless-box/services/agent/internal/config"
+	"github.com/poruru-code/esb/services/agent/internal/config"
 )
 
 type Plugin struct {

@@ -9,7 +9,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
+	"github.com/poruru-code/esb/cli/internal/infra/compose"
 )
 
 type buildxBuilderOptions struct {

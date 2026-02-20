@@ -1,3 +1,3 @@
-module github.com/poruru/edge-serverless-box/pkg/yamlshape
+module github.com/poruru-code/esb/pkg/yamlshape
 
 go 1.25.1

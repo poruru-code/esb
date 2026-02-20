@@ -9,11 +9,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	deployport "github.com/poruru/edge-serverless-box/cli/internal/domain/deployport"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/ui"
-	"github.com/poruru/edge-serverless-box/pkg/composeprovision"
+	deployport "github.com/poruru-code/esb/cli/internal/domain/deployport"
+	"github.com/poruru-code/esb/cli/internal/infra/compose"
+	"github.com/poruru-code/esb/cli/internal/infra/config"
+	"github.com/poruru-code/esb/cli/internal/infra/ui"
+	"github.com/poruru-code/esb/pkg/composeprovision"
 )
 
 // ProvisionerRequest captures compose/provisioner execution inputs.

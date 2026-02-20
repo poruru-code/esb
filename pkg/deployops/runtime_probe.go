@@ -5,8 +5,8 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/poruru/edge-serverless-box/pkg/artifactcore"
-	"github.com/poruru/edge-serverless-box/pkg/runtimeimage"
+	"github.com/poruru-code/esb/pkg/artifactcore"
+	"github.com/poruru-code/esb/pkg/runtimeimage"
 )
 
 func probeRuntimeObservation(manifest artifactcore.ArtifactManifest) (*artifactcore.RuntimeObservation, []string, error) {

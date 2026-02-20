@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
-	"github.com/poruru/edge-serverless-box/cli/internal/meta"
+	"github.com/poruru-code/esb/cli/internal/infra/compose"
+	"github.com/poruru-code/esb/cli/internal/meta"
 )
 
 // WriteBundleManifest writes bundle/manifest.json for deterministic image bundling.

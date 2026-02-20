@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/domain/template"
+	"github.com/poruru-code/esb/cli/internal/domain/template"
 )
 
 // resolveTag picks the Docker image tag from opts first, then generator config, then "latest".

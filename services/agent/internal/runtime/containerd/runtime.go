@@ -15,7 +15,7 @@ import (
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/namespaces"
 	"github.com/containerd/go-cni"
-	"github.com/poruru/edge-serverless-box/services/agent/internal/config"
+	"github.com/poruru-code/esb/services/agent/internal/config"
 )
 
 const (

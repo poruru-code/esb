@@ -1,6 +1,6 @@
 package runtime
 
-import "github.com/poruru/edge-serverless-box/services/agent/internal/identity"
+import "github.com/poruru-code/esb/services/agent/internal/identity"
 
 var (
 	// LabelFunctionName is the label key for the function name.

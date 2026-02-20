@@ -1,4 +1,4 @@
-module github.com/poruru/edge-serverless-box/pkg/runtimeimage
+module github.com/poruru-code/esb/pkg/runtimeimage
 
 go 1.25.1
 

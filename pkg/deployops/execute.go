@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/poruru/edge-serverless-box/pkg/artifactcore"
+	"github.com/poruru-code/esb/pkg/artifactcore"
 )
 
 type Input struct {

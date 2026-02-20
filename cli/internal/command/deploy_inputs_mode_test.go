@@ -7,7 +7,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/interaction"
+	"github.com/poruru-code/esb/cli/internal/infra/interaction"
 )
 
 type modeSelectPrompter struct {

@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/domain/state"
-	"github.com/poruru/edge-serverless-box/pkg/artifactcore"
+	"github.com/poruru-code/esb/cli/internal/domain/state"
+	"github.com/poruru-code/esb/pkg/artifactcore"
 )
 
 func TestRunApplyPhaseReturnsRegistryWaitError(t *testing.T) {

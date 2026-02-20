@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	runtimeinfra "github.com/poruru/edge-serverless-box/cli/internal/infra/runtime"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
+	runtimeinfra "github.com/poruru-code/esb/cli/internal/infra/runtime"
+	"github.com/poruru-code/esb/cli/internal/infra/staging"
 )
 
 func TestInferEnvFromConfigPath(t *testing.T) {

@@ -6,7 +6,7 @@ package command
 import (
 	"io"
 
-	"github.com/poruru/edge-serverless-box/pkg/deployops"
+	"github.com/poruru-code/esb/pkg/deployops"
 )
 
 func runArtifactGenerate(cli CLI, deps Dependencies, out io.Writer) int {

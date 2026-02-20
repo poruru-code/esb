@@ -9,7 +9,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru-code/esb/cli/internal/constants"
 	"gopkg.in/yaml.v3"
 )
 

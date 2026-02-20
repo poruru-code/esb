@@ -10,9 +10,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/interaction"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/sam"
-	"github.com/poruru/edge-serverless-box/pkg/yamlshape"
+	"github.com/poruru-code/esb/cli/internal/infra/interaction"
+	"github.com/poruru-code/esb/cli/internal/infra/sam"
+	"github.com/poruru-code/esb/pkg/yamlshape"
 )
 
 func promptTemplateParameters(

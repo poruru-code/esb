@@ -15,11 +15,11 @@ import (
 	"testing"
 	"time"
 
-	domaincfg "github.com/poruru/edge-serverless-box/cli/internal/domain/config"
-	"github.com/poruru/edge-serverless-box/cli/internal/domain/state"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/build"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/ui"
-	"github.com/poruru/edge-serverless-box/pkg/artifactcore"
+	domaincfg "github.com/poruru-code/esb/cli/internal/domain/config"
+	"github.com/poruru-code/esb/cli/internal/domain/state"
+	"github.com/poruru-code/esb/cli/internal/infra/build"
+	"github.com/poruru-code/esb/cli/internal/infra/ui"
+	"github.com/poruru-code/esb/pkg/artifactcore"
 )
 
 type deployEntryUI struct{}

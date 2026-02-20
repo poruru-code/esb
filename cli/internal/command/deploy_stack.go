@@ -11,10 +11,10 @@ import (
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
-	runtimecfg "github.com/poruru/edge-serverless-box/cli/internal/domain/runtime"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/interaction"
-	"github.com/poruru/edge-serverless-box/cli/internal/meta"
+	runtimecfg "github.com/poruru-code/esb/cli/internal/domain/runtime"
+	"github.com/poruru-code/esb/cli/internal/infra/compose"
+	"github.com/poruru-code/esb/cli/internal/infra/interaction"
+	"github.com/poruru-code/esb/cli/internal/meta"
 )
 
 var deployStackDiscoveryServicePriority = map[string]int{

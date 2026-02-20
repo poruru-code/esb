@@ -10,9 +10,9 @@ import (
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
-	"github.com/poruru/edge-serverless-box/pkg/artifactcore"
-	"github.com/poruru/edge-serverless-box/pkg/runtimeimage"
+	"github.com/poruru-code/esb/cli/internal/infra/compose"
+	"github.com/poruru-code/esb/pkg/artifactcore"
+	"github.com/poruru-code/esb/pkg/runtimeimage"
 )
 
 func (w Workflow) resolveRuntimeObservation(req Request) (*artifactcore.RuntimeObservation, []string) {

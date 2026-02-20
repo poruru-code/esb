@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"testing"
 
-	domaintpl "github.com/poruru/edge-serverless-box/cli/internal/domain/template"
+	domaintpl "github.com/poruru-code/esb/cli/internal/domain/template"
 )
 
 func TestUpdateTemplateHistoryMovesRecentToFront(t *testing.T) {

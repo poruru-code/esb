@@ -17,10 +17,10 @@ import (
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/volume"
-	runtimecfg "github.com/poruru/edge-serverless-box/cli/internal/domain/runtime"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/interaction"
-	runtimeinfra "github.com/poruru/edge-serverless-box/cli/internal/infra/runtime"
+	runtimecfg "github.com/poruru-code/esb/cli/internal/domain/runtime"
+	"github.com/poruru-code/esb/cli/internal/infra/compose"
+	"github.com/poruru-code/esb/cli/internal/infra/interaction"
+	runtimeinfra "github.com/poruru-code/esb/cli/internal/infra/runtime"
 )
 
 func TestInferEnvFromContainerLabels(t *testing.T) {

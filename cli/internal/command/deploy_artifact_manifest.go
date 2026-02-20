@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	domaincfg "github.com/poruru/edge-serverless-box/cli/internal/domain/config"
-	"github.com/poruru/edge-serverless-box/cli/internal/meta"
-	"github.com/poruru/edge-serverless-box/cli/internal/version"
-	"github.com/poruru/edge-serverless-box/pkg/artifactcore"
+	domaincfg "github.com/poruru-code/esb/cli/internal/domain/config"
+	"github.com/poruru-code/esb/cli/internal/meta"
+	"github.com/poruru-code/esb/cli/internal/version"
+	"github.com/poruru-code/esb/pkg/artifactcore"
 )
 
 const artifactManifestFileName = "artifact.yml"

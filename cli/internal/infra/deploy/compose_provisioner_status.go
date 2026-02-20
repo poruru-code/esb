@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
+	"github.com/poruru-code/esb/cli/internal/infra/compose"
 )
 
 // CheckServicesStatus checks if gateway and agent/runtime-node are running (warning only).

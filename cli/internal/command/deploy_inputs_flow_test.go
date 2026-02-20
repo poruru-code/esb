@@ -6,7 +6,7 @@ package command
 import (
 	"testing"
 
-	runtimeinfra "github.com/poruru/edge-serverless-box/cli/internal/infra/runtime"
+	runtimeinfra "github.com/poruru-code/esb/cli/internal/infra/runtime"
 )
 
 func TestResolveDeployEnvFromStackPrefersFlag(t *testing.T) {

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/poruru/edge-serverless-box/pkg/yamlshape"
+	"github.com/poruru-code/esb/pkg/yamlshape"
 	"gopkg.in/yaml.v3"
 )
 

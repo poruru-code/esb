@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/app"
-	"github.com/poruru/edge-serverless-box/cli/internal/command"
+	"github.com/poruru-code/esb/cli/internal/app"
+	"github.com/poruru-code/esb/cli/internal/command"
 )
 
 // main is the entry point for the ESB CLI. It builds the dependencies,

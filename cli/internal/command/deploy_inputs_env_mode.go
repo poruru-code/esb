@@ -8,9 +8,9 @@ import (
 	"io"
 	"strings"
 
-	runtimecfg "github.com/poruru/edge-serverless-box/cli/internal/domain/runtime"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/interaction"
-	runtimeinfra "github.com/poruru/edge-serverless-box/cli/internal/infra/runtime"
+	runtimecfg "github.com/poruru-code/esb/cli/internal/domain/runtime"
+	"github.com/poruru-code/esb/cli/internal/infra/interaction"
+	runtimeinfra "github.com/poruru-code/esb/cli/internal/infra/runtime"
 )
 
 func resolveDeployEnv(

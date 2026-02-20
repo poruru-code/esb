@@ -6,7 +6,7 @@ package sam
 import (
 	"strings"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/domain/value"
+	"github.com/poruru-code/esb/cli/internal/domain/value"
 )
 
 const (

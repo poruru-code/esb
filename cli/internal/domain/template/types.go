@@ -3,7 +3,7 @@
 // Why: Keep parsed template data independent from infra implementations.
 package template
 
-import "github.com/poruru/edge-serverless-box/cli/internal/domain/manifest"
+import "github.com/poruru-code/esb/cli/internal/domain/manifest"
 
 // ParseResult contains the parsed template outputs.
 type ParseResult struct {
