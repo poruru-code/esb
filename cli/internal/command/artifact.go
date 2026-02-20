@@ -6,7 +6,7 @@ package command
 import (
 	"io"
 
-	"github.com/poruru/edge-serverless-box/pkg/artifactcore"
+	"github.com/poruru/edge-serverless-box/pkg/deployops"
 )
 
 func runArtifactGenerate(cli CLI, deps Dependencies, out io.Writer) int {
@@ -46,7 +46,7 @@ func boolPtr(value bool) *bool {
 
 func runArtifactApply(cli CLI, _ Dependencies, out io.Writer) int {
 	args := cli.Artifact.Apply
-	result, err := artifactcore.ExecuteApply(artifactcore.ApplyInput{
+	result, err := deployops.Execute(deployops.Input{
 		ArtifactPath:  args.Artifact,
 		OutputDir:     args.OutputDir,
 		SecretEnvPath: args.SecretEnv,

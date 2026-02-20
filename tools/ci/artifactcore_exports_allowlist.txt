@@ -13,17 +13,12 @@ ArtifactSourceTemplate
 ComputeArtifactID
 ErrArtifactPathRequired
 ErrOutputDirRequired
-ErrRuntimeBaseDockerfileMissing
 ErrSecretEnvFileRequired
 ExecuteApply
-FileSHA256
-InferRuntimeModeFromImageRefs
-InferRuntimeModeFromServiceImages
 MissingReferencedPathError
 MissingReferencedPathError.Error
 MissingSecretKeysError
 MissingSecretKeysError.Error
-ParseRuntimeImageTag
 ReadArtifactManifest
 ReadArtifactManifestUnchecked
 RuntimeObservation

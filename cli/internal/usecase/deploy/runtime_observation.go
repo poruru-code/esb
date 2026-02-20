@@ -6,13 +6,13 @@ package deploy
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
 	"github.com/poruru/edge-serverless-box/pkg/artifactcore"
+	"github.com/poruru/edge-serverless-box/pkg/runtimeimage"
 )
 
 func (w Workflow) resolveRuntimeObservation(req Request) (*artifactcore.RuntimeObservation, []string) {
@@ -49,11 +49,11 @@ func (w Workflow) resolveRuntimeObservation(req Request) (*artifactcore.RuntimeO
 		return observation, warnings
 	}
 
-	imageRef, service := preferredServiceImage(serviceImages)
-	if mode := artifactcore.InferRuntimeModeFromServiceImages(serviceImages); mode != "" {
+	imageRef, service := runtimeimage.PreferredServiceImage(serviceImages)
+	if mode := runtimeimage.InferModeFromServiceImages(serviceImages); mode != "" {
 		observation.Mode = mode
 	}
-	if tag := artifactcore.ParseRuntimeImageTag(imageRef); tag != "" {
+	if tag := runtimeimage.ParseTag(imageRef); tag != "" {
 		observation.ESBVersion = tag
 	}
 	observation.Source = fmt.Sprintf("docker compose project=%s service=%s", project, service)
@@ -78,23 +78,4 @@ func selectServiceImages(containers []container.Summary) map[string]string {
 		images[service] = imageRef
 	}
 	return images
-}
-
-func preferredServiceImage(serviceImages map[string]string) (string, string) {
-	preferred := []string{"gateway", "agent", "provisioner", "runtime-node"}
-	for _, service := range preferred {
-		if imageRef := strings.TrimSpace(serviceImages[service]); imageRef != "" {
-			return imageRef, service
-		}
-	}
-	keys := make([]string, 0, len(serviceImages))
-	for key := range serviceImages {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	if len(keys) == 0 {
-		return "", ""
-	}
-	service := keys[0]
-	return serviceImages[service], service
 }

@@ -9,3 +9,5 @@ use (
 
 replace github.com/poruru/edge-serverless-box/pkg/artifactcore => ./pkg/artifactcore
 replace github.com/poruru/edge-serverless-box/pkg/composeprovision => ./pkg/composeprovision
+replace github.com/poruru/edge-serverless-box/pkg/deployops => ./pkg/deployops
+replace github.com/poruru/edge-serverless-box/pkg/runtimeimage => ./pkg/runtimeimage
