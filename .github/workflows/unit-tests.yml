@@ -19,7 +19,6 @@ jobs:
           go-version: "1.25.1"
           cache: true
           cache-dependency-path: |
-            cli/go.sum
             services/agent/go.sum
 
       - name: Set up Python

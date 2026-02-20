@@ -14,15 +14,19 @@ Execute the physical CLI split from `github.com/poruru-code/esb` to `github.com/
 
 ## Progress
 
-- [ ] Milestone 1: Seed `esb-cli` with `cli/` history from this repo.
-- [ ] Milestone 2: Make `esb-cli` standalone-compilable (module path, imports, tests).
-- [ ] Milestone 3: Remove `cli/` from `esb` and update CI/docs/contracts.
-- [ ] Milestone 4: Final verification and sign-off (`esb` no-CLI checks + full E2E).
+- [x] (2026-02-20) Milestone 1: Seed `esb-cli` with `cli/` history from this repo.
+- [x] (2026-02-20) Milestone 2: Make `esb-cli` standalone-compilable (module path, imports, tests).
+- [x] (2026-02-20) Milestone 3: Remove `cli/` from `esb` and update CI/docs/contracts.
+- [x] (2026-02-20) Milestone 4: Final verification and sign-off (`esb` no-CLI checks + full E2E).
 
 ## Surprises & Discoveries
 
 - Observation: readiness milestones are already complete in `esb`, including CLI-absent rehearsal CI.
   Evidence: `.agent/execplan-cli-separation-master-20260220.md` marked complete through Milestone 5.
+- Observation: `esb-cli` standalone tests initially failed due repo-root assumptions and monorepo fixture path assumptions.
+  Evidence: `TestRunNoArgsShowsUsage` / `TestCompletionCommandRemoved` and env contract fixture load failed before fallback/path fixes.
+- Observation: full E2E passed in no-CLI state with local `artifactctl` binary, but emitted non-blocking `runtime_stack.esb_version` warning.
+  Evidence: `uv run e2e/run_tests.py --parallel --verbose --cleanup` reported all matrix entries passed, with warning log only.
 
 ## Decision Log
 
@@ -32,7 +36,12 @@ Execute the physical CLI split from `github.com/poruru-code/esb` to `github.com/
 
 ## Outcomes & Retrospective
 
-To be filled after execution completes.
+Extraction execution completed end-to-end.
+
+- `esb-cli` repository has seeded history from `cli/` subtree and a standalone hardening branch with passing `GOWORK=off go test ./...`.
+- `esb` repository no longer contains `cli/` nor `go.work.cli*`.
+- CI/docs/contracts were updated to no-CLI steady state (external CLI docs links, no local CLI lint/build hooks).
+- Validation passed: boundary/layout checks, `tools/artifactctl` + `pkg/*` tests, gateway/runner/agent unit tests, and full E2E matrix.
 
 ## Context and Orientation
 

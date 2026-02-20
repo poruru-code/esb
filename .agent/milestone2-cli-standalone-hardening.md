@@ -10,13 +10,16 @@ Ensure extracted CLI builds independently in `esb-cli`.
 
 ## Progress
 
-- [ ] Update module path to `github.com/poruru-code/esb-cli`.
-- [ ] Rewrite internal imports from old module prefix.
-- [ ] Run `go test ./...` in `esb-cli`.
+- [x] (2026-02-20) Update module path to `github.com/poruru-code/esb-cli`.
+- [x] (2026-02-20) Rewrite internal imports from old module prefix.
+- [x] (2026-02-20) Run `go test ./...` in `esb-cli`.
 
 ## Surprises & Discoveries
 
-To be filled during implementation.
+- Observation: test assumptions about repo root and monorepo fixture layout broke after extraction.
+  Evidence: failures in `internal/command`, `internal/infra/deploy`, and `internal/infra/env` before fixes.
+- Observation: fallback to `projectDir` for compose provisioner root and local `testdata` fixture contract resolved standalone breaks without core behavior changes.
+  Evidence: `GOWORK=off go test ./...` became green after those adjustments.
 
 ## Decision Log
 
@@ -26,7 +29,11 @@ To be filled during implementation.
 
 ## Outcomes & Retrospective
 
-To be filled after implementation.
+Milestone 2 completed in `esb-cli`.
+
+- Branch: `feat/standalone-module-init`
+- Commit: `23e1ad9` (`feat: make cli standalone in esb-cli repo`)
+- Validation: `GOWORK=off go test ./...` passed.
 
 ## Revision Notes
 

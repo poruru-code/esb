@@ -10,14 +10,17 @@ Make `esb` repository stable without `cli/`.
 
 ## Progress
 
-- [ ] Remove `cli/`, `go.work.cli`, `go.work.cli.sum`.
-- [ ] Update CI workflows to no-CLI steady state.
-- [ ] Update docs/scripts pointing to in-repo CLI paths.
-- [ ] Keep boundary/layout contracts aligned with post-split ownership.
+- [x] (2026-02-20) Remove `cli/`, `go.work.cli`, `go.work.cli.sum`.
+- [x] (2026-02-20) Update CI workflows to no-CLI steady state.
+- [x] (2026-02-20) Update docs/scripts pointing to in-repo CLI paths.
+- [x] (2026-02-20) Keep boundary/layout contracts aligned with post-split ownership.
 
 ## Surprises & Discoveries
 
-To be filled during implementation.
+- Observation: layout guard had residual CLI template requirements and required simplification for no-CLI steady state.
+  Evidence: `check_repo_layout.sh` previously depended on `CLI_ABSENT_MODE` branch for missing `cli/assets`.
+- Observation: developer bootstrap still assumed local CLI build.
+  Evidence: `.mise.toml` and `lefthook.yml` contained local CLI-only tasks/hooks.
 
 ## Decision Log
 
@@ -27,7 +30,12 @@ To be filled during implementation.
 
 ## Outcomes & Retrospective
 
-To be filled after implementation.
+Milestone 3 completed.
+
+- `cli/` tree and `go.work.cli*` removed from `esb`.
+- quality-gates updated to no-CLI steady state (`go-lint-cli` removed, boundary/compile jobs simplified).
+- docs now point to `https://github.com/poruru-code/esb-cli`.
+- local developer flow updated (`mise setup` validates installed `esb` command; no in-repo CLI build hooks).
 
 ## Revision Notes
 

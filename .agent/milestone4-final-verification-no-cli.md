@@ -10,14 +10,17 @@ Validate runtime/tooling behavior after CLI removal from this repository.
 
 ## Progress
 
-- [ ] Run boundary/layout checks.
-- [ ] Run `tools/artifactctl` and `pkg/*` tests with `GOWORK=off`.
-- [ ] Run full E2E with local `artifactctl` binary.
-- [ ] Update master plan outcomes.
+- [x] (2026-02-20) Run boundary/layout checks.
+- [x] (2026-02-20) Run `tools/artifactctl` and `pkg/*` tests with `GOWORK=off`.
+- [x] (2026-02-20) Run full E2E with local `artifactctl` binary.
+- [x] (2026-02-20) Update master plan outcomes.
 
 ## Surprises & Discoveries
 
-To be filled during implementation.
+- Observation: direct `pytest e2e/runner` requires env bootstrap values and fails without them.
+  Evidence: `X_API_KEY is required` runtime error when env values were not set.
+- Observation: full E2E matrix remains green after CLI removal from this repository.
+  Evidence: docker + containerd matrix completed with `[PASSED] ALL MATRIX ENTRIES PASSED!`.
 
 ## Decision Log
 
@@ -27,7 +30,22 @@ To be filled during implementation.
 
 ## Outcomes & Retrospective
 
-To be filled after implementation.
+Milestone 4 completed.
+
+Validated commands:
+
+- `./tools/ci/check_tooling_boundaries.sh`
+- `./tools/ci/check_repo_layout.sh`
+- `GOWORK=off go -C tools/artifactctl test ./...`
+- `GOWORK=off go -C pkg/artifactcore test ./...`
+- `GOWORK=off go -C pkg/composeprovision test ./...`
+- `GOWORK=off go -C pkg/deployops test ./...`
+- `GOWORK=off go -C pkg/runtimeimage test ./...`
+- `GOWORK=off go -C pkg/yamlshape test ./...`
+- `uv run pytest services/gateway/tests -v`
+- `X_API_KEY=dummy AUTH_USER=dummy AUTH_PASS=dummy uv run pytest e2e/runner -q`
+- `go -C services/agent test ./...`
+- `ARTIFACTCTL_BIN=/tmp/artifactctl-local uv run e2e/run_tests.py --parallel --verbose --cleanup`
 
 ## Revision Notes
 

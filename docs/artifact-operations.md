@@ -105,15 +105,14 @@ artifactctl manifest sync-ids --artifact /path/to/artifact.yml --check
 ```
 
 ## Module Contract (artifactcore)
-- `cli/go.mod` と `tools/artifactctl/go.mod` には `pkg/artifactcore` の `replace` を置かない。
-- ローカル開発の依存解決は repo ルート `go.work` のみで行う。
+- `github.com/poruru-code/esb-cli` と `tools/artifactctl/go.mod` には `pkg/artifactcore` の `replace` を置かない。
 - `services/*` は `tools/*` / `pkg/artifactcore` を直接 import しない。
 
 Boundary ownership map:
-- `cli` owns producer orchestration only: template iteration, output root resolution, source template path/sha extraction.
+- `esb-cli` owns producer orchestration only: template iteration, output root resolution, source template path/sha extraction.
 - `pkg/deployops` owns shared apply orchestration: runtime observation probe, image prepare, and apply execution order.
 - `pkg/artifactcore` owns manifest/apply core semantics: deterministic artifact ID normalization on write and required ID/schema/path validation on read/apply.
-- `cli` and `tools/artifactctl` are adapters for `deployops.Execute`; payload correctness logic stays in `pkg/artifactcore`.
+- `esb-cli` and `tools/artifactctl` are adapters for `deployops.Execute`; payload correctness logic stays in `pkg/artifactcore`.
 
 ## E2E Contract (Current)
 `e2e/environments/test_matrix.yaml` is artifact-only:

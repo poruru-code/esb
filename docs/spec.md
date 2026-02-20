@@ -78,7 +78,7 @@ Agent が Docker Engine 上の worker を直接管理します。
 ## 開発者の拡張起点
 | 変更したい対象 | 入口ドキュメント |
 | --- | --- |
-| CLI の振る舞い・フラグ | `cli/docs/architecture.md` |
+| CLI の振る舞い・フラグ | `https://github.com/poruru-code/esb-cli/blob/main/docs/architecture.md` |
 | Gateway の処理フロー | `services/gateway/docs/architecture.md` |
 | Agent/runtime 実装 | `services/agent/docs/README.md`, `services/runtime-node/docs/README.md` |
 | E2E 契約追加 | `docs/e2e-runtime-smoke.md`, `e2e/runner/README.md` |
@@ -88,7 +88,7 @@ Agent が Docker Engine 上の worker を直接管理します。
 - Agent: [services/agent/docs/README.md](../services/agent/docs/README.md)
 - runtime-node: [services/runtime-node/docs/README.md](../services/runtime-node/docs/README.md)
 - Provisioner: [services/provisioner/docs/README.md](../services/provisioner/docs/README.md)
-- CLI: [cli/docs/architecture.md](../cli/docs/architecture.md)
+- CLI: [esb-cli/docs/architecture.md](https://github.com/poruru-code/esb-cli/blob/main/docs/architecture.md)
 - E2E smoke: [docs/e2e-runtime-smoke.md](./e2e-runtime-smoke.md)
 
 ---
@@ -98,4 +98,4 @@ Agent が Docker Engine 上の worker を直接管理します。
 - `docker-compose.containerd.yml`
 - `docker-compose.docker.yml`
 - `services/contracts/proto/agent.proto`
-- `cli/internal/usecase/deploy/deploy.go`
+- `https://github.com/poruru-code/esb-cli/blob/main/internal/usecase/deploy/deploy.go`

@@ -6,11 +6,11 @@ Why: Keep platform operations guidance separate from CLI implementation docs.
 # コンテナ運用とランタイム管理
 
 本ドキュメントは Gateway / Agent / runtime-node の運用手順を扱います。  
-CLI の実装詳細は `cli/docs/container-management.md` を参照してください。
+CLI の実装詳細は `https://github.com/poruru-code/esb-cli/blob/main/docs/container-management.md` を参照してください。
 
 ## スコープ
 - 対象: スタック起動、ログ確認、ランタイム状態確認、クリーンアップ
-- 非対象: `esb deploy` の内部設計（`cli/docs/*` 側）
+- 非対象: `esb deploy` の内部設計（`esb-cli/docs/*` 側）
 
 ## ライフサイクル責務
 

@@ -85,30 +85,6 @@ jobs:
           working-directory: services/agent
           args: ./...
 
-  go-lint-cli:
-    if: ${{ hashFiles('cli/go.mod') != '' }}
-    runs-on: ubuntu-latest
-    env:
-      GOWORK: ${{ github.workspace }}/go.work.cli
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.25.1"
-          cache: true
-          cache-dependency-path: cli/go.sum
-
-      - name: Run golangci-lint (cli)
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: v1.64.8
-          install-mode: goinstall
-          working-directory: cli
-          args: ./...
-
   go-boundary-guard:
     runs-on: ubuntu-latest
     steps:
@@ -121,7 +97,6 @@ jobs:
           go-version: "1.25.1"
           cache: true
           cache-dependency-path: |
-            cli/go.sum
             tools/artifactctl/go.sum
             services/agent/go.sum
 
@@ -131,20 +106,13 @@ jobs:
       - name: Layout checks
         run: ./tools/ci/check_repo_layout.sh
 
-      - name: Verify cli/artifactctl compile with workspace contract
+      - name: Verify artifactctl compile contract
         run: |
-          if [ -f cli/go.mod ]; then
-            if [ ! -f go.work.cli ]; then
-              echo "go.work.cli is required when cli/go.mod exists" >&2
-              exit 1
-            fi
-            GOWORK="${GITHUB_WORKSPACE}/go.work.cli" go -C cli test ./... -run '^$'
-          fi
           if [ -f tools/artifactctl/go.mod ]; then
             go -C tools/artifactctl test ./... -run '^$'
           fi
 
-  cli-absent-rehearsal:
+  no-cli-steady-state:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -160,14 +128,11 @@ jobs:
             pkg/artifactcore/go.sum
             pkg/deployops/go.sum
 
-      - name: Remove cli tree
-        run: rm -rf cli
-
-      - name: Boundary checks (no cli)
+      - name: Boundary checks
         run: ./tools/ci/check_tooling_boundaries.sh
 
-      - name: Layout checks (no cli)
-        run: CLI_ABSENT_MODE=1 ./tools/ci/check_repo_layout.sh
+      - name: Layout checks
+        run: ./tools/ci/check_repo_layout.sh
 
       - name: Verify non-cli compile contract
         run: |

@@ -6,10 +6,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 failures=0
-CLI_ABSENT_MODE="${CLI_ABSENT_MODE:-0}"
 
 SEARCH_TARGET_CANDIDATES=(
-  cli
   services
   e2e
   tools
@@ -87,14 +85,6 @@ forbid_regex_reference() {
   popd >/dev/null
 }
 
-if [[ "${CLI_ABSENT_MODE}" != "1" ]]; then
-  require_any_path \
-    "cli/assets/runtime-templates/java/templates/dockerfile.tmpl" \
-    "assets/runtime-templates/java/templates/dockerfile.tmpl"
-  require_any_path \
-    "cli/assets/runtime-templates/python/templates/dockerfile.tmpl" \
-    "assets/runtime-templates/python/templates/dockerfile.tmpl"
-fi
 require_path "runtime-hooks/java/build/pom.xml"
 require_path "runtime-hooks/python/docker/Dockerfile"
 require_path "services/contracts/proto/agent.proto"

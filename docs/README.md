@@ -16,7 +16,7 @@ Why: Help new contributors find the source-of-truth document without guessing.
 1. [システム仕様（概要）](./spec.md)
 2. [ランタイムモード概要（Docker / containerd）](./architecture-containerd.md)
 3. [コンテナ運用とランタイム管理](./container-runtime-operations.md)
-4. [CLI アーキテクチャ](../cli/docs/architecture.md)
+4. [CLI アーキテクチャ](https://github.com/poruru-code/esb-cli/blob/main/docs/architecture.md)
 5. [E2E Runtime Smoke 設計](./e2e-runtime-smoke.md)
 
 ## 目的別ナビゲーション
@@ -26,7 +26,7 @@ Why: Help new contributors find the source-of-truth document without guessing.
 | Docker/containerd の差分を知りたい | [architecture-containerd.md](./architecture-containerd.md) |
 | ランタイム障害の運用手順を確認したい | [container-runtime-operations.md](./container-runtime-operations.md) |
 | artifact-first の運用手順を確認したい | [artifact-operations.md](./artifact-operations.md) |
-| CLI 分離の実行手順を確認したい | [cli-separation-checklist.md](./cli-separation-checklist.md) |
+| CLI の実装/運用を確認したい | [esb-cli docs](https://github.com/poruru-code/esb-cli/tree/main/docs) |
 | イメージ設計・ビルド方針を確認したい | [docker-image-architecture.md](./docker-image-architecture.md) |
 | Trace/ログ連携の仕様を確認したい | [trace-propagation.md](./trace-propagation.md), [local-logging-adapter.md](./local-logging-adapter.md) |
 | ディレクトリ責務分離を確認したい | [repo-layout-contract.md](./repo-layout-contract.md) |
@@ -37,7 +37,6 @@ Why: Help new contributors find the source-of-truth document without guessing.
 - [architecture-containerd.md](./architecture-containerd.md)
 - [container-runtime-operations.md](./container-runtime-operations.md)
 - [artifact-operations.md](./artifact-operations.md)
-- [cli-separation-checklist.md](./cli-separation-checklist.md)
 - [docker-image-architecture.md](./docker-image-architecture.md)
 - [environment-variables.md](./environment-variables.md)
 - [e2e-runtime-smoke.md](./e2e-runtime-smoke.md)
@@ -51,13 +50,12 @@ Why: Help new contributors find the source-of-truth document without guessing.
 - Agent: [services/agent/docs/README.md](../services/agent/docs/README.md)
 - Provisioner: [services/provisioner/docs/README.md](../services/provisioner/docs/README.md)
 - runtime-node: [services/runtime-node/docs/README.md](../services/runtime-node/docs/README.md)
-- CLI: [cli/docs/architecture.md](../cli/docs/architecture.md), [cli/docs/build.md](../cli/docs/build.md), [cli/docs/container-management.md](../cli/docs/container-management.md)
+- CLI: [esb-cli/docs/architecture.md](https://github.com/poruru-code/esb-cli/blob/main/docs/architecture.md), [esb-cli/docs/build.md](https://github.com/poruru-code/esb-cli/blob/main/docs/build.md), [esb-cli/docs/container-management.md](https://github.com/poruru-code/esb-cli/blob/main/docs/container-management.md)
 - E2E Runner: [e2e/runner/README.md](../e2e/runner/README.md)
 
 ## 品質ゲート（最低限）
 - `quality-gates / python-static`
 - `quality-gates / go-lint-agent`
-- `quality-gates / go-lint-cli`
 
 ## ドキュメント運用ルール
 - システム全体の方針は `docs/`、実装詳細は subsystem docs に置く
@@ -71,4 +69,4 @@ Why: Help new contributors find the source-of-truth document without guessing.
 - `docs/architecture-containerd.md`
 - `docs/container-runtime-operations.md`
 - `docs/artifact-operations.md`
-- `cli/docs/architecture.md`
+- `https://github.com/poruru-code/esb-cli/blob/main/docs/architecture.md`

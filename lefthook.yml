@@ -25,20 +25,8 @@ pre-commit:
       glob: "**/*.go"
       run: goimports -w {staged_files} && gofumpt -w {staged_files} && git add {staged_files}
 
-    # --- Go Formatting (cli) ---
-    cli-fmt:
-      root: cli
-      glob: "**/*.go"
-      run: goimports -w {staged_files} && gofumpt -w {staged_files} && git add {staged_files}
-
     # --- Go Linting ---
     go-lint:
       root: services/agent
       glob: "**/*.go"
       run: golangci-lint run ./...
-
-    # --- Go Linting (cli) ---
-    cli-lint:
-      root: cli
-      glob: "**/*.go"
-      run: GOWORK=$(pwd)/../go.work.cli golangci-lint run ./...

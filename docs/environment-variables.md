@@ -27,7 +27,7 @@ Why: Explain how env config flows without duplicating subsystem details.
 - Agent: [services/agent/docs/configuration.md](../services/agent/docs/configuration.md)
 - runtime-node: [services/runtime-node/docs/configuration.md](../services/runtime-node/docs/configuration.md)
 - Provisioner: [services/provisioner/docs/configuration.md](../services/provisioner/docs/configuration.md)
-- CLI: [cli/docs/architecture.md](../cli/docs/architecture.md)
+- CLI: [esb-cli/docs/architecture.md](https://github.com/poruru-code/esb-cli/blob/main/docs/architecture.md)
 - E2E runner env: [e2e/runner/README.md](../e2e/runner/README.md)
 
 ---
@@ -35,5 +35,5 @@ Why: Explain how env config flows without duplicating subsystem details.
 ## Implementation references
 - `docker-compose.containerd.yml`
 - `docker-compose.docker.yml`
-- `cli/internal/usecase/deploy/runtime_config.go`
+- `https://github.com/poruru-code/esb-cli/blob/main/internal/usecase/deploy/runtime_config.go`
 - `services/gateway/config.py`

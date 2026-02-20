@@ -8,11 +8,11 @@ Why: Keep artifact-first boundaries explicit and enforceable in CI.
 ## Goal
 Artifact-first deploy and future repo split depend on clear ownership boundaries:
 - Service runtime behavior stays in core services/runtime hooks.
-- CLI-only generation assets stay in CLI.
+- CLI-only generation assets stay in `esb-cli` repository.
 - Shared contracts stay in dedicated contract directories.
 
 ## Canonical Ownership
-- CLI renderer assets: `cli/assets/runtime-templates/**` (CLI同梱時) または `assets/runtime-templates/**` (分離後)
+- CLI renderer assets: `https://github.com/poruru-code/esb-cli/tree/main/assets/runtime-templates/**`
 - Runtime-required hooks: `runtime-hooks/**`
 - Cross-service proto contracts: `services/contracts/proto/**`
 - Host bootstrap tooling: `tools/bootstrap/**`
@@ -40,7 +40,7 @@ These paths are retired and must not be reintroduced:
 ---
 
 ## Implementation references
-- `cli/assets/runtime_templates_embed.go`（CLI同梱時）
+- `https://github.com/poruru-code/esb-cli/blob/main/assets/runtime_templates_embed.go`
 - `runtime-hooks/java/README.md`
 - `services/contracts/README.md`
 - `services/contracts/buf.gen.yaml`

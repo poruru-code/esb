@@ -21,7 +21,7 @@ Provisioner は **runtime-config の `resources.yml`** を読み取り、S3/Dyna
 | 接続設定を確認したい | [configuration.md](./configuration.md) |
 
 ## 関連
-- CLI build/deploy: [cli/docs/build.md](../../../cli/docs/build.md)
+- CLI build/deploy: [esb-cli/docs/build.md](https://github.com/poruru-code/esb-cli/blob/main/docs/build.md)
 - System-level: [docs/spec.md](../../../docs/spec.md)
 
 ---

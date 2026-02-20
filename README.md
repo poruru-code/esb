@@ -14,7 +14,7 @@ Why: Provide a concise entry point and delegate details to docs.
 - [Agent docs](services/agent/docs/README.md)
 - [runtime-node docs](services/runtime-node/docs/README.md)
 - [Provisioner docs](services/provisioner/docs/README.md)
-- [CLI docs](cli/docs/architecture.md)
+- [CLI docs](https://github.com/poruru-code/esb-cli/tree/main/docs)
 
 ## できること（概要）
 - `Gateway` + `Agent` + `runtime-node` の分離構成で Lambda 互換の実行基盤を提供
@@ -42,7 +42,7 @@ mise trust
 mise install
 mise run setup
 ```
-`mise run setup` は `esb` と `artifactctl` を `~/.local/bin` にビルドします。
+`mise run setup` は `esb` コマンドの存在確認と `artifactctl` のビルドを行います。
 
 ### Lint / Format
 ```bash

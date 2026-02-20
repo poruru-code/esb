@@ -14,7 +14,7 @@ Regenerate all fixtures with:
 If `esb` is not on your PATH, set `ESB_CMD` explicitly.
 
 ```bash
-ESB_CMD='GOWORK=$(pwd)/go.work.cli go -C cli run ./cmd/esb' ./e2e/scripts/regenerate_artifacts.sh
+ESB_CMD='esb' ./e2e/scripts/regenerate_artifacts.sh
 ```
 
 Notes:
