@@ -70,8 +70,7 @@ esb artifact apply \
 
 Notes:
 - `esb deploy` / `esb artifact generate` が生成する `artifact.yml` には `runtime_stack` が既定で含まれます。
-
-Note:
+- `esb artifact apply` は `artifactctl deploy` と同じ shared apply orchestrator (`pkg/deployops`) を使用します。
 - image build/pull may happen in deploy operations, but base image selection must follow current runtime environment.
 
 ## Non-CLI Apply Flow
@@ -112,8 +111,9 @@ artifactctl manifest sync-ids --artifact /path/to/artifact.yml --check
 
 Boundary ownership map:
 - `cli` owns producer orchestration only: template iteration, output root resolution, source template path/sha extraction.
-- `pkg/artifactcore` owns manifest contract semantics: deterministic artifact ID normalization on write and required ID/schema/path validation on read/apply.
-- `cli` and `tools/artifactctl` are adapters for `artifactcore.ExecuteApply`; apply correctness logic must stay in `pkg/artifactcore`.
+- `pkg/deployops` owns shared apply orchestration: runtime observation probe, image prepare, and apply execution order.
+- `pkg/artifactcore` owns manifest/apply core semantics: deterministic artifact ID normalization on write and required ID/schema/path validation on read/apply.
+- `cli` and `tools/artifactctl` are adapters for `deployops.Execute`; payload correctness logic stays in `pkg/artifactcore`.
 
 ## E2E Contract (Current)
 `e2e/environments/test_matrix.yaml` is artifact-only:

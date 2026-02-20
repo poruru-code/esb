@@ -264,7 +264,7 @@ artifacts:
   - schema/path/id/secret/merge 規約の判定を一元化する
   - image build 時の lambda base 選択は実行時環境（registry/tag/stack）に従い、artifact 内 `runtime-base/**` を根拠にしない
   - Runtime Stack 互換性検証の正本実装を保持し、apply 前に fail-fast 判定を行う
-  - `tools/artifactctl/cmd/artifactctl` は command adapter、実ロジック正本は `pkg/artifactcore` とする
+  - `tools/artifactctl/cmd/artifactctl` は command adapter、実ロジック正本は `pkg/deployops` + `pkg/artifactcore` とする
 - `esb artifact apply`:
   - `artifactctl deploy` と同じ Go 実装を呼ぶ薄いアダプタとして振る舞う
 
@@ -285,7 +285,7 @@ CLI なし運用でも、生成済み成果物を入力に **Phase 3 以降は�
 注記:
 - ここでいう「手動」は「オペレータがコマンドを直接実行する運用」を意味します。
 - 「手動」は「shell にロジックを実装すること」を意味しません。
-- 判定・適用ロジックの正本は常に Go 実装（`tools/artifactctl`）です。
+- 判定・適用ロジックの正本は常に Go 実装（`pkg/deployops` + `pkg/artifactcore`、`tools/artifactctl` は adapter）です。
 
 | フェーズ | CLI あり（esb 利用） | CLI なし（esb 非依存） |
 |---|---|---|
