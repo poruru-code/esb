@@ -1,0 +1,8 @@
+cli/go.mod github.com/poruru-code/esb/pkg/artifactcore
+cli/go.mod github.com/poruru-code/esb/pkg/composeprovision
+cli/go.mod github.com/poruru-code/esb/pkg/deployops
+cli/go.mod github.com/poruru-code/esb/pkg/runtimeimage
+cli/go.mod github.com/poruru-code/esb/pkg/yamlshape
+tools/artifactctl/go.mod github.com/poruru-code/esb/pkg/artifactcore
+tools/artifactctl/go.mod github.com/poruru-code/esb/pkg/composeprovision
+tools/artifactctl/go.mod github.com/poruru-code/esb/pkg/deployops
