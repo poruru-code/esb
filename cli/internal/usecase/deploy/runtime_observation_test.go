@@ -65,6 +65,62 @@ func TestResolveRuntimeObservationUsesContainerImages(t *testing.T) {
 	}
 }
 
+func TestResolveRuntimeObservationQueriesRunningContainersOnly(t *testing.T) {
+	var gotAll bool
+	workflow := Workflow{
+		DockerClient: func() (compose.DockerClient, error) {
+			return runtimeObservationDockerClient{
+				containers: nil,
+				onListOptions: func(options container.ListOptions) {
+					gotAll = options.All
+				},
+			}, nil
+		},
+	}
+
+	_, _ = workflow.resolveRuntimeObservation(Request{
+		Context: state.Context{ComposeProject: "esb-dev", Mode: "docker"},
+		Tag:     "latest",
+	})
+
+	if gotAll {
+		t.Fatal("expected runtime observation to query running containers only (All=false)")
+	}
+}
+
+func TestResolveRuntimeObservationIgnoresStoppedContainers(t *testing.T) {
+	workflow := Workflow{
+		DockerClient: func() (compose.DockerClient, error) {
+			return runtimeObservationDockerClient{containers: []container.Summary{
+				{
+					State: "exited",
+					Image: "registry:5010/esb-gateway-containerd:v1.2.3",
+					Labels: map[string]string{
+						compose.ComposeServiceLabel: "gateway",
+					},
+				},
+			}}, nil
+		},
+	}
+
+	obs, warnings := workflow.resolveRuntimeObservation(Request{
+		Context: state.Context{ComposeProject: "esb-dev", Mode: "docker"},
+		Tag:     "latest",
+	})
+	if obs == nil {
+		t.Fatal("expected observation")
+	}
+	if obs.Mode != "docker" {
+		t.Fatalf("expected fallback mode docker, got %q", obs.Mode)
+	}
+	if obs.ESBVersion != "latest" {
+		t.Fatalf("expected fallback version latest, got %q", obs.ESBVersion)
+	}
+	if len(warnings) == 0 {
+		t.Fatal("expected warning for missing running compose services")
+	}
+}
+
 func TestResolveRuntimeObservationWarningsOnDockerClientFailure(t *testing.T) {
 	workflow := Workflow{
 		DockerClient: func() (compose.DockerClient, error) {
@@ -165,10 +221,14 @@ func TestApplyArtifactRuntimeConfigAllowsRuntimeStackWhenVersionObservationMissi
 }
 
 type runtimeObservationDockerClient struct {
-	containers []container.Summary
+	containers    []container.Summary
+	onListOptions func(container.ListOptions)
 }
 
-func (c runtimeObservationDockerClient) ContainerList(_ context.Context, _ container.ListOptions) ([]container.Summary, error) {
+func (c runtimeObservationDockerClient) ContainerList(_ context.Context, options container.ListOptions) ([]container.Summary, error) {
+	if c.onListOptions != nil {
+		c.onListOptions(options)
+	}
 	return c.containers, nil
 }
 

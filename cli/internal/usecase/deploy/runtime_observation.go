@@ -36,7 +36,7 @@ func (w Workflow) resolveRuntimeObservation(req Request) (*artifactcore.RuntimeO
 	filterArgs := filters.NewArgs()
 	filterArgs.Add("label", fmt.Sprintf("%s=%s", compose.ComposeProjectLabel, project))
 	containers, err := client.ContainerList(context.Background(), container.ListOptions{
-		All:     true,
+		All:     false,
 		Filters: filterArgs,
 	})
 	if err != nil {
@@ -63,6 +63,10 @@ func (w Workflow) resolveRuntimeObservation(req Request) (*artifactcore.RuntimeO
 func selectServiceImages(containers []container.Summary) map[string]string {
 	images := make(map[string]string)
 	for _, ctr := range containers {
+		state := strings.ToLower(strings.TrimSpace(ctr.State))
+		if state != "running" {
+			continue
+		}
 		service := strings.TrimSpace(ctr.Labels[compose.ComposeServiceLabel])
 		if service == "" {
 			continue
@@ -71,15 +75,7 @@ func selectServiceImages(containers []container.Summary) map[string]string {
 		if imageRef == "" {
 			continue
 		}
-		state := strings.ToLower(strings.TrimSpace(ctr.State))
-		existing, ok := images[service]
-		if !ok {
-			images[service] = imageRef
-			continue
-		}
-		if state == "running" && strings.TrimSpace(existing) != imageRef {
-			images[service] = imageRef
-		}
+		images[service] = imageRef
 	}
 	return images
 }
