@@ -98,6 +98,10 @@ class GatewayConfig(BaseAppConfig):
     # Data store endpoints for injection into Lambda
     DYNAMODB_ENDPOINT: str = Field(default="", description="Internal DynamoDB endpoint")
     S3_ENDPOINT: str = Field(default="", description="Internal S3 endpoint")
+    S3_PRESIGN_ENDPOINT: str = Field(
+        default="",
+        description="Public S3 endpoint used only for presigned URL generation in workers",
+    )
 
     # Flow control (Phase 4-1)
     MAX_CONCURRENT_REQUESTS: int = Field(default=10, description="Max concurrent per function")
