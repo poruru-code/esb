@@ -16,6 +16,7 @@ SEARCH_TARGET_CANDIDATES=(
   e2e
   tools
   docs
+  cli
   docker-bake.hcl
   docker-compose.containerd.yml
   docker-compose.docker.yml
