@@ -33,7 +33,18 @@ def _container_names() -> tuple[str, str]:
 
 def _read_cni_identity(agent_container: str) -> dict[str, str]:
     text = _assert_command_ok(
-        ["docker", "exec", agent_container, "sh", "-lc", "cat /var/lib/cni/esb-cni.env"],
+        [
+            "docker",
+            "exec",
+            agent_container,
+            "sh",
+            "-lc",
+            (
+                ". /var/lib/cni/esb-cni.env; "
+                "printf 'CNI_NETWORK=%s\nCNI_BRIDGE=%s\nCNI_SUBNET=%s\nCNI_GW_IP=%s\n' "
+                '"$CNI_NETWORK" "$CNI_BRIDGE" "$CNI_SUBNET" "$CNI_GW_IP"'
+            ),
+        ],
         context="read CNI identity file",
     )
     values: dict[str, str] = {}

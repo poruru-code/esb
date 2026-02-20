@@ -110,7 +110,8 @@ resolve_runtime_cni_defaults() {
     echo "WARN: DATA_PLANE_HOST unresolved (set DATA_PLANE_HOST or CNI identity inputs)"
   fi
   if [ -z "${GATEWAY_INTERNAL_URL:-}" ]; then
-    echo "WARN: GATEWAY_INTERNAL_URL unresolved (set GATEWAY_INTERNAL_URL or DATA_PLANE_HOST)"
+    echo "ERROR: GATEWAY_INTERNAL_URL unresolved (set GATEWAY_INTERNAL_URL or DATA_PLANE_HOST)" >&2
+    return 1
   fi
 
   if [ -z "${GATEWAY_WORKER_ROUTE_CIDR:-}" ] && [ -n "$resolved_subnet" ]; then
@@ -163,7 +164,9 @@ start_registry_proxy() {
   haproxy -f "$HAPROXY_CFG" >/dev/null 2>&1 &
 }
 
-resolve_runtime_cni_defaults
+if ! resolve_runtime_cni_defaults; then
+  exit 1
+fi
 
 if [ -f "$WG_CONF_PATH" ] && [ -c /dev/net/tun ]; then
   if command -v wireguard-go >/dev/null 2>&1; then
