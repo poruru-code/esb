@@ -179,12 +179,12 @@ func WriteIdentityFile(path, networkName, bridgeName, subnet string) error {
 	}
 
 	lines := []string{
-		fmt.Sprintf("CNI_NETWORK=%s", name),
-		fmt.Sprintf("CNI_BRIDGE=%s", bridge),
-		fmt.Sprintf("CNI_SUBNET=%s", cidr),
+		fmt.Sprintf("CNI_NETWORK=%s", shellSingleQuote(name)),
+		fmt.Sprintf("CNI_BRIDGE=%s", shellSingleQuote(bridge)),
+		fmt.Sprintf("CNI_SUBNET=%s", shellSingleQuote(cidr)),
 	}
 	if gw, err := GatewayIPFromSubnet(cidr); err == nil {
-		lines = append(lines, fmt.Sprintf("CNI_GW_IP=%s", gw))
+		lines = append(lines, fmt.Sprintf("CNI_GW_IP=%s", shellSingleQuote(gw)))
 	}
 
 	dir := filepath.Dir(outputPath)
@@ -214,6 +214,13 @@ func WriteIdentityFile(path, networkName, bridgeName, subnet string) error {
 		return err
 	}
 	return os.Rename(tmpName, outputPath)
+}
+
+func shellSingleQuote(value string) string {
+	if value == "" {
+		return "''"
+	}
+	return "'" + strings.ReplaceAll(value, "'", `'"'"'`) + "'"
 }
 
 func CollectSubnetClaims(configDir, selfNetwork string) (map[string]string, error) {

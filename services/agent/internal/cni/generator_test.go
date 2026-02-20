@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -133,14 +134,43 @@ func TestWriteIdentityFile(t *testing.T) {
 
 	text := string(data)
 	for _, expect := range []string{
-		"CNI_NETWORK=acme-net",
-		"CNI_BRIDGE=esb-acme123456",
-		"CNI_SUBNET=10.44.16.0/20",
-		"CNI_GW_IP=10.44.16.1",
+		"CNI_NETWORK='acme-net'",
+		"CNI_BRIDGE='esb-acme123456'",
+		"CNI_SUBNET='10.44.16.0/20'",
+		"CNI_GW_IP='10.44.16.1'",
 	} {
 		if !strings.Contains(text, expect+"\n") {
 			t.Fatalf("identity file missing %q in %q", expect, text)
 		}
+	}
+}
+
+func TestWriteIdentityFile_ShellEscapesValues(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "identity.env")
+	sentinel := filepath.Join(dir, "pwned")
+	malicious := fmt.Sprintf("$(touch %s)", sentinel)
+
+	if err := WriteIdentityFile(path, malicious, "esb-acme123456", "10.44.16.0/20"); err != nil {
+		t.Fatalf("WriteIdentityFile: %v", err)
+	}
+
+	cmd := exec.Command(
+		"sh",
+		"-c",
+		`. "$1"; printf '%s' "$CNI_NETWORK"`,
+		"sh",
+		path,
+	)
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("source identity file: %v", err)
+	}
+	if got := string(out); got != malicious {
+		t.Fatalf("CNI_NETWORK mismatch: got %q want %q", got, malicious)
+	}
+	if _, err := os.Stat(sentinel); !os.IsNotExist(err) {
+		t.Fatalf("malicious command was executed; sentinel exists: %v", err)
 	}
 }
 
