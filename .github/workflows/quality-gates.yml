@@ -136,7 +136,7 @@ jobs:
 
       - name: Verify non-cli compile contract
         run: |
-          GOWORK=off go -C tools/artifactctl test ./... -run '^$'
+          go -C tools/artifactctl test ./... -run '^$'
           GOWORK=off go -C pkg/artifactcore test ./... -run '^$'
           GOWORK=off go -C pkg/composeprovision test ./... -run '^$'
           GOWORK=off go -C pkg/deployops test ./... -run '^$'
