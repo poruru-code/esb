@@ -158,15 +158,23 @@ EOF
 }
 
 echo "[check] validating artifactcore dependency contract"
-if search_files '^\s*replace\s+github\.com/(poruru|poruru-code)/edge-serverless-box/pkg/(artifactcore|composeprovision)\b' \
-  cli/go.mod tools/artifactctl/go.mod; then
-  echo "[error] do not add pkg/* replace directives to cli/tools go.mod; use go.work only" >&2
-  exit 1
+mod_files=()
+for mod in cli/go.mod tools/artifactctl/go.mod; do
+  if [[ -f "${mod}" ]]; then
+    mod_files+=("${mod}")
+  fi
+done
+if (( ${#mod_files[@]} > 0 )); then
+  if search_files '^\s*replace\s+github\.com/(poruru|poruru-code)/(edge-serverless-box|esb)/pkg/(artifactcore|composeprovision)\b' \
+    "${mod_files[@]}"; then
+    echo "[error] do not add pkg/* replace directives to adapter go.mod files; use workspace config" >&2
+    exit 1
+  fi
 fi
 
 echo "[check] validating runtime/tooling dependency direction"
 if search_go_tree \
-  '"github\.com/(poruru|poruru-code)/edge-serverless-box/(tools/|pkg/artifactcore|pkg/composeprovision)' \
+  '"github\.com/(poruru|poruru-code)/(edge-serverless-box|esb)/(tools/|pkg/artifactcore|pkg/composeprovision)' \
   services; then
   echo "[error] services must not import tools/* or pkg/artifactcore|pkg/composeprovision" >&2
   exit 1
@@ -195,6 +203,13 @@ actual_exports="$(artifactcore_exports pkg/artifactcore)"
 expected_exports="$(sort -u "${allowlist_file}")"
 if ! diff -u <(printf "%s\n" "${expected_exports}") <(printf "%s\n" "${actual_exports}"); then
   echo "[error] artifactcore public API changed; update allowlist with design rationale" >&2
+  exit 1
+fi
+
+echo "[check] validating artifactcore exported helper naming guard"
+if printf "%s\n" "${actual_exports}" | grep -Eq '(^|\.)(Infer|Parse|Preferred|Has)[A-Z]'; then
+  echo "[error] artifactcore must not export helper-style APIs (Infer/Parse/Preferred/Has...)." >&2
+  echo "        Move helper logic to caller/internal packages and keep artifactcore API contract-oriented." >&2
   exit 1
 fi
 

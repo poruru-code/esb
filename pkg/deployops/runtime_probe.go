@@ -3,10 +3,10 @@ package deployops
 import (
 	"fmt"
 	"os/exec"
-	"sort"
 	"strings"
 
-	"github.com/poruru/edge-serverless-box/pkg/artifactcore"
+	"github.com/poruru-code/esb/pkg/artifactcore"
+	"github.com/poruru-code/esb/pkg/runtimeimage"
 )
 
 func probeRuntimeObservation(manifest artifactcore.ArtifactManifest) (*artifactcore.RuntimeObservation, []string, error) {
@@ -31,30 +31,14 @@ func probeRuntimeObservation(manifest artifactcore.ArtifactManifest) (*artifactc
 		return nil, []string{fmt.Sprintf("runtime compatibility probe found no running compose services for project %q", project)}, nil
 	}
 
-	preferred := []string{"gateway", "agent", "provisioner", "runtime-node"}
-	imageRef := ""
-	for _, service := range preferred {
-		ref := strings.TrimSpace(serviceImages[service])
-		if ref != "" {
-			imageRef = ref
-			break
-		}
-	}
-	if imageRef == "" {
-		keys := make([]string, 0, len(serviceImages))
-		for key := range serviceImages {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
-		imageRef = serviceImages[keys[0]]
-	}
+	imageRef, _ := runtimeimage.PreferredServiceImage(serviceImages)
 
 	warnings := make([]string, 0)
-	mode := artifactcore.InferRuntimeModeFromServiceImages(serviceImages)
+	mode := runtimeimage.InferModeFromServiceImages(serviceImages)
 	if mode == "" {
 		warnings = append(warnings, "runtime compatibility probe could not infer runtime mode from running images")
 	}
-	esbVersion := artifactcore.ParseRuntimeImageTag(imageRef)
+	esbVersion := runtimeimage.ParseTag(imageRef)
 	if esbVersion == "" {
 		warnings = append(warnings, fmt.Sprintf("runtime compatibility probe could not infer esb version tag from image %q", imageRef))
 	}

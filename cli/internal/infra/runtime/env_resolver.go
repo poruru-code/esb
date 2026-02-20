@@ -13,10 +13,10 @@ import (
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
-	"github.com/poruru/edge-serverless-box/cli/internal/constants"
-	"github.com/poruru/edge-serverless-box/cli/internal/domain/value"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
+	"github.com/poruru-code/esb/cli/internal/constants"
+	"github.com/poruru-code/esb/cli/internal/domain/value"
+	"github.com/poruru-code/esb/cli/internal/infra/compose"
+	"github.com/poruru-code/esb/cli/internal/infra/staging"
 )
 
 // EnvInference captures an inferred environment name and its source.

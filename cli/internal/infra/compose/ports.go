@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru-code/esb/cli/internal/constants"
 )
 
 // PortMapping defines a mapping from container port to environment variable name.

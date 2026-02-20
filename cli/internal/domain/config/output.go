@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/meta"
+	"github.com/poruru-code/esb/cli/internal/meta"
 )
 
 // NormalizeOutputDir normalizes the output directory name.

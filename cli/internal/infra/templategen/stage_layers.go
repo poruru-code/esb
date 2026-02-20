@@ -8,8 +8,8 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/domain/manifest"
-	"github.com/poruru/edge-serverless-box/cli/internal/domain/runtime"
+	"github.com/poruru-code/esb/cli/internal/domain/manifest"
+	"github.com/poruru-code/esb/cli/internal/domain/runtime"
 )
 
 // stageLayers stages each referenced layer inside the function directory,

@@ -9,9 +9,9 @@ import (
 	"io"
 	"path/filepath"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/constants"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
-	"github.com/poruru/edge-serverless-box/cli/internal/meta"
+	"github.com/poruru-code/esb/cli/internal/constants"
+	"github.com/poruru-code/esb/cli/internal/infra/compose"
+	"github.com/poruru-code/esb/cli/internal/meta"
 )
 
 type baseImageBuildInput struct {

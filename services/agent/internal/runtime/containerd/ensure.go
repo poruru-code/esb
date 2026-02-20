@@ -21,8 +21,8 @@ import (
 	"github.com/containerd/containerd/oci"
 	"github.com/google/uuid"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
-	"github.com/poruru/edge-serverless-box/services/agent/internal/config"
-	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
+	"github.com/poruru-code/esb/services/agent/internal/config"
+	"github.com/poruru-code/esb/services/agent/internal/runtime"
 )
 
 func (r *Runtime) ensureResolvConf() (string, error) {

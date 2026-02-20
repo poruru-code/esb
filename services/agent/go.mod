@@ -1,4 +1,4 @@
-module github.com/poruru/edge-serverless-box/services/agent
+module github.com/poruru-code/esb/services/agent
 
 go 1.25.1
 

@@ -18,8 +18,8 @@ import (
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/go-connections/nat"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/poruru/edge-serverless-box/services/agent/internal/config"
-	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
+	"github.com/poruru-code/esb/services/agent/internal/config"
+	"github.com/poruru-code/esb/services/agent/internal/runtime"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

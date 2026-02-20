@@ -7,11 +7,11 @@ import (
 	"errors"
 	"fmt"
 
-	deployport "github.com/poruru/edge-serverless-box/cli/internal/domain/deployport"
-	"github.com/poruru/edge-serverless-box/cli/internal/domain/state"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/build"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/ui"
+	deployport "github.com/poruru-code/esb/cli/internal/domain/deployport"
+	"github.com/poruru-code/esb/cli/internal/domain/state"
+	"github.com/poruru-code/esb/cli/internal/infra/build"
+	"github.com/poruru-code/esb/cli/internal/infra/compose"
+	"github.com/poruru-code/esb/cli/internal/infra/ui"
 )
 
 var (

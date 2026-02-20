@@ -39,9 +39,10 @@ run = "uv run python tools/buildkit/setup_buildx.py"
 
 [tasks.gen-proto]
 description = "Generate Agent/Gateway protobuf stubs from services/contracts/proto"
+dir = "services/contracts"
 run = [
-  "buf generate services/contracts --template services/contracts/buf.gen.yaml",
-  "uv run python services/contracts/scripts/fix_python_grpc_imports.py",
+  "buf generate . --template buf.gen.yaml",
+  "uv run python scripts/fix_python_grpc_imports.py",
 ]
 
 [tasks.build-cli]
@@ -49,7 +50,7 @@ description = "Build CLI to ~/.local/bin"
 dir = "cli"
 run = [
   "mkdir -p ~/.local/bin",
-  "go build -o ~/.local/bin/esb ./cmd/esb",
+  "GOWORK=../go.work.cli go build -o ~/.local/bin/esb ./cmd/esb",
 ]
 
 [tasks.build-artifactctl]
@@ -63,4 +64,4 @@ run = [
 [tasks.dev-cli]
 description = "Watch and rebuild CLI on changes"
 dir = "cli"
-run = "air"
+run = "GOWORK=../go.work.cli air"

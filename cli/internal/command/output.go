@@ -8,7 +8,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/ui"
+	"github.com/poruru-code/esb/cli/internal/infra/ui"
 )
 
 func legacyUI(out io.Writer) ui.UserInterface {

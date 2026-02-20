@@ -6,9 +6,9 @@ package sam
 import (
 	"strings"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/domain/manifest"
-	"github.com/poruru/edge-serverless-box/cli/internal/domain/template"
-	"github.com/poruru/edge-serverless-box/cli/internal/domain/value"
+	"github.com/poruru-code/esb/cli/internal/domain/manifest"
+	"github.com/poruru-code/esb/cli/internal/domain/template"
+	"github.com/poruru-code/esb/cli/internal/domain/value"
 )
 
 func mergeEnv(defaultEnv map[string]string, props map[string]any) map[string]string {

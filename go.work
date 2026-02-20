@@ -1,11 +1,16 @@
 go 1.25.1
 
 use (
-	./cli
-	./pkg/yamlshape
 	./services/agent
 	./tools/artifactctl
 )
 
-replace github.com/poruru/edge-serverless-box/pkg/artifactcore => ./pkg/artifactcore
-replace github.com/poruru/edge-serverless-box/pkg/composeprovision => ./pkg/composeprovision
+replace github.com/poruru-code/esb/pkg/artifactcore => ./pkg/artifactcore
+
+replace github.com/poruru-code/esb/pkg/composeprovision => ./pkg/composeprovision
+
+replace github.com/poruru-code/esb/pkg/deployops => ./pkg/deployops
+
+replace github.com/poruru-code/esb/pkg/runtimeimage => ./pkg/runtimeimage
+
+replace github.com/poruru-code/esb/pkg/yamlshape => ./pkg/yamlshape

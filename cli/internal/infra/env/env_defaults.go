@@ -10,10 +10,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/constants"
-	"github.com/poruru/edge-serverless-box/cli/internal/domain/state"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/envutil"
-	"github.com/poruru/edge-serverless-box/cli/internal/meta"
+	"github.com/poruru-code/esb/cli/internal/constants"
+	"github.com/poruru-code/esb/cli/internal/domain/state"
+	"github.com/poruru-code/esb/cli/internal/infra/envutil"
+	"github.com/poruru-code/esb/cli/internal/meta"
 )
 
 var errEnvPrefixRequired = errors.New("ENV_PREFIX is required")

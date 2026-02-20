@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/alecthomas/kong"
-	"github.com/poruru/edge-serverless-box/cli/internal/version"
+	"github.com/poruru-code/esb/cli/internal/version"
 )
 
 func TestRunNodeDisabled(t *testing.T) {

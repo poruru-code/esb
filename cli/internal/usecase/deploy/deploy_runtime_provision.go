@@ -6,7 +6,7 @@ package deploy
 import (
 	"fmt"
 
-	"github.com/poruru/edge-serverless-box/pkg/artifactcore"
+	"github.com/poruru-code/esb/pkg/artifactcore"
 )
 
 func (w Workflow) runRuntimeProvisionPhase(req Request, stagingDir string) error {

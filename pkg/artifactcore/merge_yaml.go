@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/poruru/edge-serverless-box/pkg/yamlshape"
+	"github.com/poruru-code/esb/pkg/yamlshape"
 )
 
 func mergeFunctionsYML(srcDir, destDir string) error {

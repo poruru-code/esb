@@ -14,10 +14,10 @@ import (
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/volume"
-	"github.com/poruru/edge-serverless-box/cli/internal/constants"
-	"github.com/poruru/edge-serverless-box/cli/internal/domain/state"
-	"github.com/poruru/edge-serverless-box/cli/internal/domain/value"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
+	"github.com/poruru-code/esb/cli/internal/constants"
+	"github.com/poruru-code/esb/cli/internal/domain/state"
+	"github.com/poruru-code/esb/cli/internal/domain/value"
+	"github.com/poruru-code/esb/cli/internal/infra/compose"
 )
 
 func TestPickGatewayNetworkPrefersExternalAndSorts(t *testing.T) {

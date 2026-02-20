@@ -8,7 +8,7 @@ import (
 
 	samparser "github.com/poruru-code/aws-sam-parser-go/parser"
 	"github.com/poruru-code/aws-sam-parser-go/schema"
-	"github.com/poruru/edge-serverless-box/cli/internal/domain/manifest"
+	"github.com/poruru-code/esb/cli/internal/domain/manifest"
 )
 
 // Template contains decoded SAM template fields used by the generator.

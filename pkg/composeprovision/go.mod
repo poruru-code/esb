@@ -1,3 +1,3 @@
-module github.com/poruru/edge-serverless-box/pkg/composeprovision
+module github.com/poruru-code/esb/pkg/composeprovision
 
 go 1.25.1

@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	domaincfg "github.com/poruru/edge-serverless-box/cli/internal/domain/config"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/ui"
+	domaincfg "github.com/poruru-code/esb/cli/internal/domain/config"
+	"github.com/poruru-code/esb/cli/internal/infra/ui"
 )
 
 func TestConfigDiffSnapshots(t *testing.T) {

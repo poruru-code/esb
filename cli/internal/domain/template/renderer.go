@@ -12,12 +12,12 @@ import (
 	"sync"
 	"text/template"
 
-	runtimeassets "github.com/poruru/edge-serverless-box/cli/assets"
-	"github.com/poruru/edge-serverless-box/cli/internal/domain/runtime"
-	"github.com/poruru/edge-serverless-box/cli/internal/meta"
+	runtimeassets "github.com/poruru-code/esb/cli/assets"
+	"github.com/poruru-code/esb/cli/internal/domain/runtime"
+	"github.com/poruru-code/esb/cli/internal/meta"
 
 	"github.com/Masterminds/sprig/v3"
-	"github.com/poruru/edge-serverless-box/cli/internal/domain/manifest"
+	"github.com/poruru-code/esb/cli/internal/domain/manifest"
 	"gopkg.in/yaml.v3"
 )
 

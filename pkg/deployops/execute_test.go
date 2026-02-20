@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/poruru/edge-serverless-box/pkg/artifactcore"
+	"github.com/poruru-code/esb/pkg/artifactcore"
 )
 
 func TestExecuteValidatesBeforePrepare(t *testing.T) {

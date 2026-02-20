@@ -28,8 +28,9 @@ Go 生成物は canonical path のみに配置します。
 ```bash
 mise run gen-proto
 # or
-buf generate services/contracts
-uv run python services/contracts/scripts/fix_python_grpc_imports.py
+cd services/contracts
+buf generate . --template buf.gen.yaml
+uv run python scripts/fix_python_grpc_imports.py
 ```
 
 処理内容:

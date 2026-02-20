@@ -11,9 +11,9 @@ import (
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/volume"
-	"github.com/poruru/edge-serverless-box/cli/internal/domain/state"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
-	"github.com/poruru/edge-serverless-box/pkg/artifactcore"
+	"github.com/poruru-code/esb/cli/internal/domain/state"
+	"github.com/poruru-code/esb/cli/internal/infra/compose"
+	"github.com/poruru-code/esb/pkg/artifactcore"
 )
 
 func TestResolveRuntimeObservationFallsBackToRequestValues(t *testing.T) {

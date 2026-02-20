@@ -12,7 +12,7 @@ Artifact-first deploy and future repo split depend on clear ownership boundaries
 - Shared contracts stay in dedicated contract directories.
 
 ## Canonical Ownership
-- CLI renderer assets: `cli/assets/runtime-templates/**`
+- CLI renderer assets: `cli/assets/runtime-templates/**` (CLI同梱時) または `assets/runtime-templates/**` (分離後)
 - Runtime-required hooks: `runtime-hooks/**`
 - Cross-service proto contracts: `services/contracts/proto/**`
 - Host bootstrap tooling: `tools/bootstrap/**`
@@ -40,7 +40,7 @@ These paths are retired and must not be reintroduced:
 ---
 
 ## Implementation references
-- `cli/assets/runtime_templates_embed.go`
+- `cli/assets/runtime_templates_embed.go`（CLI同梱時）
 - `runtime-hooks/java/README.md`
 - `services/contracts/README.md`
 - `services/contracts/buf.gen.yaml`

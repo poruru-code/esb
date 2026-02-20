@@ -17,7 +17,7 @@ import (
 	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/remotes"
 	"github.com/containerd/containerd/remotes/docker"
-	"github.com/poruru/edge-serverless-box/services/agent/internal/config"
+	"github.com/poruru-code/esb/services/agent/internal/config"
 )
 
 // CA certificate path mounted in container

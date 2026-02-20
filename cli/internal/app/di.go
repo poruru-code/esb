@@ -11,16 +11,16 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/command"
-	"github.com/poruru/edge-serverless-box/cli/internal/domain/state"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/build"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
-	infradeploy "github.com/poruru/edge-serverless-box/cli/internal/infra/deploy"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/env"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/interaction"
-	runtimeinfra "github.com/poruru/edge-serverless-box/cli/internal/infra/runtime"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/ui"
+	"github.com/poruru-code/esb/cli/internal/command"
+	"github.com/poruru-code/esb/cli/internal/domain/state"
+	"github.com/poruru-code/esb/cli/internal/infra/build"
+	"github.com/poruru-code/esb/cli/internal/infra/compose"
+	"github.com/poruru-code/esb/cli/internal/infra/config"
+	infradeploy "github.com/poruru-code/esb/cli/internal/infra/deploy"
+	"github.com/poruru-code/esb/cli/internal/infra/env"
+	"github.com/poruru-code/esb/cli/internal/infra/interaction"
+	runtimeinfra "github.com/poruru-code/esb/cli/internal/infra/runtime"
+	"github.com/poruru-code/esb/cli/internal/infra/ui"
 )
 
 type composePortDiscoverer struct{}

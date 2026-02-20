@@ -8,10 +8,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/constants"
-	domaintpl "github.com/poruru/edge-serverless-box/cli/internal/domain/template"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/envutil"
+	"github.com/poruru-code/esb/cli/internal/constants"
+	domaintpl "github.com/poruru-code/esb/cli/internal/domain/template"
+	"github.com/poruru-code/esb/cli/internal/infra/config"
+	"github.com/poruru-code/esb/cli/internal/infra/envutil"
 )
 
 func loadTemplateHistory() []string {

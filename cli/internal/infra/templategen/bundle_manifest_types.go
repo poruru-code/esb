@@ -4,8 +4,8 @@
 package templategen
 
 import (
-	"github.com/poruru/edge-serverless-box/cli/internal/domain/template"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
+	"github.com/poruru-code/esb/cli/internal/domain/template"
+	"github.com/poruru-code/esb/cli/internal/infra/compose"
 )
 
 const bundleManifestSchemaVersion = "1.1"

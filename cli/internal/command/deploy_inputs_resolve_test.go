@@ -11,9 +11,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/interaction"
+	"github.com/poruru-code/esb/cli/internal/infra/compose"
+	"github.com/poruru-code/esb/cli/internal/infra/config"
+	"github.com/poruru-code/esb/cli/internal/infra/interaction"
 )
 
 func TestResolveDeployInputsWarnsWhenRuntimeDiscoveryFails(t *testing.T) {

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/interaction"
-	runtimeinfra "github.com/poruru/edge-serverless-box/cli/internal/infra/runtime"
+	"github.com/poruru-code/esb/cli/internal/infra/interaction"
+	runtimeinfra "github.com/poruru-code/esb/cli/internal/infra/runtime"
 )
 
 type fixedEnvResolver struct {

@@ -17,4 +17,4 @@ Rules:
 
 Generation entrypoint:
 - `mise run gen-proto`
-- `buf generate services/contracts`
+- `(cd services/contracts && buf generate . --template buf.gen.yaml && uv run python scripts/fix_python_grpc_imports.py)`

@@ -13,7 +13,7 @@ import (
 	"testing"
 )
 
-const internalImportPrefix = "github.com/poruru/edge-serverless-box/cli/internal/"
+const internalImportPrefix = "github.com/poruru-code/esb/cli/internal/"
 
 var forbiddenPackageImports = map[string][]string{
 	"usecase/deploy": {

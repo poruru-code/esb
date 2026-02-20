@@ -174,7 +174,7 @@ RUN_UID="${RUN_UID:-1000}"
 RUN_GID="${RUN_GID:-1000}"
 
 # Ensure we are in the project root
-if [ ! -f "cli/go.mod" ]; then
+if [ ! -f "docker-compose.docker.yml" ] || [ ! -d "tools/dind-bundler" ]; then
   echo "Error: Please run this script from the project root."
   exit 1
 fi

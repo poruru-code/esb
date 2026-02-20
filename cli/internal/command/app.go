@@ -14,15 +14,15 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/joho/godotenv"
-	"github.com/poruru/edge-serverless-box/cli/internal/domain/state"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/build"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/compose"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/interaction"
-	runtimeinfra "github.com/poruru/edge-serverless-box/cli/internal/infra/runtime"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/ui"
-	usecasedeploy "github.com/poruru/edge-serverless-box/cli/internal/usecase/deploy"
-	"github.com/poruru/edge-serverless-box/cli/internal/version"
+	"github.com/poruru-code/esb/cli/internal/domain/state"
+	"github.com/poruru-code/esb/cli/internal/infra/build"
+	"github.com/poruru-code/esb/cli/internal/infra/compose"
+	"github.com/poruru-code/esb/cli/internal/infra/config"
+	"github.com/poruru-code/esb/cli/internal/infra/interaction"
+	runtimeinfra "github.com/poruru-code/esb/cli/internal/infra/runtime"
+	"github.com/poruru-code/esb/cli/internal/infra/ui"
+	usecasedeploy "github.com/poruru-code/esb/cli/internal/usecase/deploy"
+	"github.com/poruru-code/esb/cli/internal/version"
 )
 
 const (

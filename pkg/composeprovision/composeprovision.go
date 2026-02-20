@@ -25,14 +25,19 @@ func Execute(ctx context.Context, runner Runner, workingDir string, req Request)
 	if runner == nil {
 		return fmt.Errorf("compose runner is not configured")
 	}
-	args := buildArgs(req)
-	if req.Verbose {
-		if err := runner.Run(ctx, workingDir, "docker", args...); err != nil {
-			return fmt.Errorf("run provisioner: %w", err)
+	runCommand := func(args []string) error {
+		if req.Verbose {
+			return runner.Run(ctx, workingDir, "docker", args...)
 		}
-		return nil
+		return runner.RunQuiet(ctx, workingDir, "docker", args...)
 	}
-	if err := runner.RunQuiet(ctx, workingDir, "docker", args...); err != nil {
+
+	if req.NoDeps {
+		if err := runCommand(buildArgs(req)); err != nil {
+			return fmt.Errorf("run provisioner: build image: %w", err)
+		}
+	}
+	if err := runCommand(runArgs(req)); err != nil {
 		return fmt.Errorf("run provisioner: %w", err)
 	}
 	return nil
@@ -43,7 +48,26 @@ func buildArgs(req Request) []string {
 	if provisionerName == "" {
 		provisionerName = "provisioner"
 	}
+	args := composeBaseArgs(req)
+	args = append(args, "--profile", "deploy", "build", provisionerName)
+	return args
+}
 
+func runArgs(req Request) []string {
+	provisionerName := strings.TrimSpace(req.ProvisionerName)
+	if provisionerName == "" {
+		provisionerName = "provisioner"
+	}
+	args := composeBaseArgs(req)
+	args = append(args, "--profile", "deploy", "run", "--rm")
+	if req.NoDeps {
+		args = append(args, "--no-deps")
+	}
+	args = append(args, provisionerName)
+	return args
+}
+
+func composeBaseArgs(req Request) []string {
 	args := []string{"compose"}
 	for _, file := range req.ComposeFiles {
 		normalized := strings.TrimSpace(file)
@@ -61,10 +85,5 @@ func buildArgs(req Request) []string {
 	if envFile := strings.TrimSpace(req.EnvFile); envFile != "" {
 		args = append(args, "--env-file", envFile)
 	}
-	args = append(args, "--profile", "deploy", "run", "--rm")
-	if req.NoDeps {
-		args = append(args, "--no-deps")
-	}
-	args = append(args, provisionerName)
 	return args
 }

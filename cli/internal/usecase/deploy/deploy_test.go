@@ -7,12 +7,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/constants"
-	"github.com/poruru/edge-serverless-box/cli/internal/domain/state"
-	infradeploy "github.com/poruru/edge-serverless-box/cli/internal/infra/deploy"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/envutil"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
-	"github.com/poruru/edge-serverless-box/pkg/artifactcore"
+	"github.com/poruru-code/esb/cli/internal/constants"
+	"github.com/poruru-code/esb/cli/internal/domain/state"
+	infradeploy "github.com/poruru-code/esb/cli/internal/infra/deploy"
+	"github.com/poruru-code/esb/cli/internal/infra/envutil"
+	"github.com/poruru-code/esb/cli/internal/infra/staging"
+	"github.com/poruru-code/esb/pkg/artifactcore"
 )
 
 func TestDeployWorkflowRunSuccess(t *testing.T) {

@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/domain/state"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/ui"
-	engine "github.com/poruru/edge-serverless-box/pkg/artifactcore"
+	"github.com/poruru-code/esb/cli/internal/domain/state"
+	"github.com/poruru-code/esb/cli/internal/infra/ui"
+	engine "github.com/poruru-code/esb/pkg/artifactcore"
 )
 
 func TestArtifactGenerateToDeployFlags(t *testing.T) {

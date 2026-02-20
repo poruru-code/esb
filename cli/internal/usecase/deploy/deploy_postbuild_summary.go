@@ -6,7 +6,7 @@ package deploy
 import (
 	"fmt"
 
-	domaincfg "github.com/poruru/edge-serverless-box/cli/internal/domain/config"
+	domaincfg "github.com/poruru-code/esb/cli/internal/domain/config"
 )
 
 func (w Workflow) emitPostBuildSummary(req Request) {

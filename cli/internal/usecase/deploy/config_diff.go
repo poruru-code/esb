@@ -12,9 +12,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	domaincfg "github.com/poruru/edge-serverless-box/cli/internal/domain/config"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/ui"
-	"github.com/poruru/edge-serverless-box/pkg/yamlshape"
+	domaincfg "github.com/poruru-code/esb/cli/internal/domain/config"
+	"github.com/poruru-code/esb/cli/internal/infra/ui"
+	"github.com/poruru-code/esb/pkg/yamlshape"
 	"gopkg.in/yaml.v3"
 )
 

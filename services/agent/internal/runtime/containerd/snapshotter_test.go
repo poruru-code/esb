@@ -6,7 +6,7 @@ package containerd
 import (
 	"testing"
 
-	"github.com/poruru/edge-serverless-box/services/agent/internal/config"
+	"github.com/poruru-code/esb/services/agent/internal/config"
 )
 
 func TestResolveSnapshotter_Override(t *testing.T) {

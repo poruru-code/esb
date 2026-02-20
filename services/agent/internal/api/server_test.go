@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/containerd/containerd/errdefs"
-	"github.com/poruru/edge-serverless-box/services/agent/internal/api"
-	"github.com/poruru/edge-serverless-box/services/agent/internal/runtime"
-	pb "github.com/poruru/edge-serverless-box/services/agent/pkg/api/v1"
+	"github.com/poruru-code/esb/services/agent/internal/api"
+	"github.com/poruru-code/esb/services/agent/internal/runtime"
+	pb "github.com/poruru-code/esb/services/agent/pkg/api/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"google.golang.org/grpc"

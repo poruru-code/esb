@@ -6,8 +6,8 @@ package sam
 import (
 	"testing"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/domain/manifest"
-	"github.com/poruru/edge-serverless-box/cli/internal/domain/template"
+	"github.com/poruru-code/esb/cli/internal/domain/manifest"
+	"github.com/poruru-code/esb/cli/internal/domain/template"
 )
 
 func TestParseFunctionsParsesServerlessAndLambdaImage(t *testing.T) {

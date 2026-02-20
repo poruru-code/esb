@@ -11,8 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/domain/runtime"
-	"github.com/poruru/edge-serverless-box/cli/internal/domain/template"
+	"github.com/poruru-code/esb/cli/internal/domain/runtime"
+	"github.com/poruru-code/esb/cli/internal/domain/template"
 )
 
 type stageContext struct {

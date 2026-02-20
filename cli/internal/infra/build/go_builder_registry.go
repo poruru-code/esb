@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/constants"
+	"github.com/poruru-code/esb/cli/internal/constants"
 )
 
 func isLocalRegistryHost(host string) bool {

@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/poruru/edge-serverless-box/services/agent/internal/config"
+	"github.com/poruru-code/esb/services/agent/internal/config"
 )
 
 var defaultLogger *slog.Logger

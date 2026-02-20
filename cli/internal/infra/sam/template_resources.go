@@ -4,8 +4,8 @@
 package sam
 
 import (
-	"github.com/poruru/edge-serverless-box/cli/internal/domain/manifest"
-	"github.com/poruru/edge-serverless-box/cli/internal/domain/value"
+	"github.com/poruru-code/esb/cli/internal/domain/manifest"
+	"github.com/poruru-code/esb/cli/internal/domain/value"
 )
 
 func parseLayerResources(resources map[string]any) (map[string]manifest.LayerSpec, []manifest.LayerSpec) {

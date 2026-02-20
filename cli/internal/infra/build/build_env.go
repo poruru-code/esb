@@ -7,10 +7,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/constants"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/config"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/envutil"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/staging"
+	"github.com/poruru-code/esb/cli/internal/constants"
+	"github.com/poruru-code/esb/cli/internal/infra/config"
+	"github.com/poruru-code/esb/cli/internal/infra/envutil"
+	"github.com/poruru-code/esb/cli/internal/infra/staging"
 )
 
 func applyBuildEnv(env, composeProject string) error {

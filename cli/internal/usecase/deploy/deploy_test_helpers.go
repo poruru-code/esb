@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/poruru/edge-serverless-box/cli/internal/domain/state"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/build"
-	"github.com/poruru/edge-serverless-box/cli/internal/infra/ui"
+	"github.com/poruru-code/esb/cli/internal/domain/state"
+	"github.com/poruru-code/esb/cli/internal/infra/build"
+	"github.com/poruru-code/esb/cli/internal/infra/ui"
 )
 
 type recordBuilder struct {
