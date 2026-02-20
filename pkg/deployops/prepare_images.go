@@ -38,6 +38,12 @@ func (defaultCommandRunner) Run(cmd []string) error {
 	return command.Run()
 }
 
+var defaultCommandRunnerFactory = func() CommandRunner {
+	return defaultCommandRunner{}
+}
+
+var dockerImageExistsFunc = dockerImageExists
+
 type imageBuildTarget struct {
 	functionName string
 	imageRef     string
@@ -54,12 +60,10 @@ func prepareImages(req prepareImagesInput) error {
 		return err
 	}
 	runner := req.Runner
-	useDefaultRunner := false
 	if runner == nil {
-		runner = defaultCommandRunner{}
-		useDefaultRunner = true
+		runner = defaultCommandRunnerFactory()
 	}
-	ensureBase := req.EnsureBase || useDefaultRunner
+	ensureBase := req.EnsureBase
 	builtFunctionImages := make(map[string]struct{})
 	builtBaseImages := make(map[string]struct{})
 
@@ -350,7 +354,7 @@ func ensureLambdaBaseImage(
 	if _, done := builtBaseImages[baseImageRef]; done {
 		return nil
 	}
-	if dockerImageExists(baseImageRef) {
+	if dockerImageExistsFunc(baseImageRef) {
 		builtBaseImages[baseImageRef] = struct{}{}
 		return nil
 	}
