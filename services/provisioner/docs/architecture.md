@@ -14,13 +14,13 @@ Provisioner は `resources.yml` を読み取り、S3（RustFS）と DynamoDB（S
 ```mermaid
 sequenceDiagram
     autonumber
-    participant CLI as esb deploy
+    participant Producer as deploy flow
     participant DC as docker compose
     participant PR as provisioner
     participant S3 as RustFS (S3)
     participant DB as ScyllaDB (Dynamo)
 
-    CLI->>DC: docker compose run provisioner
+    Producer->>DC: docker compose run provisioner
     DC->>PR: start container
     PR->>PR: load /app/runtime-config/resources.yml
     alt Dynamo tables defined

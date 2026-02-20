@@ -145,7 +145,7 @@ sequenceDiagram
 
 ## 外部レジストリとの責務分離
 - runtime は外部レジストリ同期を行いません。
-- 外部イメージ取り込みは deploy/build 側（`esb deploy` または `artifactctl deploy`）の責務です。
+- 外部イメージ取り込みは deploy/build 側（producer または `artifactctl deploy`）の責務です。
 - runtime は内部レジストリ参照の pull のみを行います。
 
 ---

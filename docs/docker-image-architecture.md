@@ -1,7 +1,7 @@
 <!--
 Where: docs/docker-image-architecture.md
 What: System-wide Docker image design principles and build pipeline structure.
-Why: Keep platform-level image architecture outside CLI-local docs.
+Why: Keep platform-level image architecture outside producer-local docs.
 -->
 # Docker イメージ設計アーキテクチャ
 

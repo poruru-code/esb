@@ -6,14 +6,17 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 failures=0
-CLI_ABSENT_MODE="${CLI_ABSENT_MODE:-0}"
+
+has_rg() {
+  command -v rg >/dev/null 2>&1
+}
 
 SEARCH_TARGET_CANDIDATES=(
-  cli
   services
   e2e
   tools
   docs
+  cli
   docker-bake.hcl
   docker-compose.containerd.yml
   docker-compose.docker.yml
@@ -60,12 +63,21 @@ require_any_path() {
 forbid_reference() {
   local pattern="$1"
   pushd "$ROOT_DIR" >/dev/null
-  if rg -n --fixed-strings \
-    --glob '!docs/repo-layout-contract.md' \
-    --glob '!tools/ci/check_repo_layout.sh' \
-    --glob '!.agent/**' \
-    -- "$pattern" \
-    "${SEARCH_TARGETS[@]}" >/dev/null; then
+  if has_rg; then
+    if rg -n --fixed-strings \
+      --glob '!docs/repo-layout-contract.md' \
+      --glob '!tools/ci/check_repo_layout.sh' \
+      --glob '!.agent/**' \
+      -- "$pattern" \
+      "${SEARCH_TARGETS[@]}" >/dev/null; then
+      echo "[layout-check] FORBIDDEN REFERENCE: '$pattern'" >&2
+      failures=$((failures + 1))
+    fi
+  elif find "${SEARCH_TARGETS[@]}" -type f \
+      ! -path 'docs/repo-layout-contract.md' \
+      ! -path 'tools/ci/check_repo_layout.sh' \
+      ! -path '.agent/*' \
+      -print0 | xargs -0 -r grep -nF -- "$pattern" >/dev/null; then
     echo "[layout-check] FORBIDDEN REFERENCE: '$pattern'" >&2
     failures=$((failures + 1))
   fi
@@ -75,26 +87,27 @@ forbid_reference() {
 forbid_regex_reference() {
   local pattern="$1"
   pushd "$ROOT_DIR" >/dev/null
-  if rg -n \
-    --glob '!docs/repo-layout-contract.md' \
-    --glob '!tools/ci/check_repo_layout.sh' \
-    --glob '!.agent/**' \
-    -- "$pattern" \
-    "${SEARCH_TARGETS[@]}" >/dev/null; then
+  if has_rg; then
+    if rg -n \
+      --glob '!docs/repo-layout-contract.md' \
+      --glob '!tools/ci/check_repo_layout.sh' \
+      --glob '!.agent/**' \
+      -- "$pattern" \
+      "${SEARCH_TARGETS[@]}" >/dev/null; then
+      echo "[layout-check] FORBIDDEN REFERENCE (regex): '$pattern'" >&2
+      failures=$((failures + 1))
+    fi
+  elif find "${SEARCH_TARGETS[@]}" -type f \
+      ! -path 'docs/repo-layout-contract.md' \
+      ! -path 'tools/ci/check_repo_layout.sh' \
+      ! -path '.agent/*' \
+      -print0 | xargs -0 -r grep -nE -- "$pattern" >/dev/null; then
     echo "[layout-check] FORBIDDEN REFERENCE (regex): '$pattern'" >&2
     failures=$((failures + 1))
   fi
   popd >/dev/null
 }
 
-if [[ "${CLI_ABSENT_MODE}" != "1" ]]; then
-  require_any_path \
-    "cli/assets/runtime-templates/java/templates/dockerfile.tmpl" \
-    "assets/runtime-templates/java/templates/dockerfile.tmpl"
-  require_any_path \
-    "cli/assets/runtime-templates/python/templates/dockerfile.tmpl" \
-    "assets/runtime-templates/python/templates/dockerfile.tmpl"
-fi
 require_path "runtime-hooks/java/build/pom.xml"
 require_path "runtime-hooks/python/docker/Dockerfile"
 require_path "services/contracts/proto/agent.proto"

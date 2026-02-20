@@ -1,16 +1,15 @@
 <!--
 Where: docs/container-runtime-operations.md
 What: Runtime-side container lifecycle and troubleshooting guide.
-Why: Keep platform operations guidance separate from CLI implementation docs.
+Why: Keep platform operations guidance separate from producer tooling implementation docs.
 -->
 # コンテナ運用とランタイム管理
 
 本ドキュメントは Gateway / Agent / runtime-node の運用手順を扱います。  
-CLI の実装詳細は `cli/docs/container-management.md` を参照してください。
 
 ## スコープ
 - 対象: スタック起動、ログ確認、ランタイム状態確認、クリーンアップ
-- 非対象: `esb deploy` の内部設計（`cli/docs/*` 側）
+- 非対象: artifact 生成ツールの内部設計
 
 ## ライフサイクル責務
 
@@ -40,9 +39,6 @@ docker compose -f docker-compose.docker.yml up -d
 
 # Control-plane 起動（containerd mode）
 docker compose -f docker-compose.containerd.yml up -d
-
-# 関数イメージ再ビルド（CLI）
-esb build --no-cache
 ```
 
 ### ログ・状態確認
@@ -74,8 +70,9 @@ docker image prune -f
 3. `ctr -n <brand> containers list`
 
 ### 2. 古いコードが実行される
-1. `esb build --no-cache`
-2. 実行モードに対応する compose で再起動
+1. 生成系ツールで関数イメージを再ビルド
+2. artifact apply を再実行
+3. 実行モードに対応する compose で再起動
 
 ### 3. Image 関数で `503` が出る
 原因:

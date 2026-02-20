@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Where: e2e/scripts/regenerate_artifacts.sh
-# What: Regenerates E2E artifact fixtures using raw `esb artifact generate` output.
-# Why: Keep E2E fixtures aligned with CLI output without manual post-processing.
+# What: Regenerates E2E artifact fixtures using raw artifact producer output.
+# Why: Keep E2E fixtures aligned with producer output without manual post-processing.
 
 set -euo pipefail
 
@@ -10,16 +10,21 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 TEMPLATE_PATH="${REPO_ROOT}/e2e/fixtures/template.e2e.yaml"
 
-if [[ -n "${ESB_CMD:-}" ]]; then
+if [[ -n "${ARTIFACT_PRODUCER_CMD:-}" ]]; then
   # shellcheck disable=SC2206
-  ESB_CMD_ARR=(${ESB_CMD})
+  PRODUCER_CMD_ARR=(${ARTIFACT_PRODUCER_CMD})
+elif [[ -n "${ESB_CMD:-}" ]]; then
+  # shellcheck disable=SC2206
+  PRODUCER_CMD_ARR=(${ESB_CMD})
 else
-  ESB_CMD_ARR=(esb)
+  echo "artifact producer command is not configured." >&2
+  echo "Set ARTIFACT_PRODUCER_CMD (example: ARTIFACT_PRODUCER_CMD='your-producer-cli')." >&2
+  exit 1
 fi
 
-if ! command -v "${ESB_CMD_ARR[0]}" >/dev/null 2>&1; then
-  echo "esb command not found: ${ESB_CMD_ARR[0]}" >&2
-  echo "Set ESB_CMD to your CLI invocation (example: ESB_CMD='GOWORK=$(pwd)/go.work.cli go -C cli run ./cmd/esb')." >&2
+if ! command -v "${PRODUCER_CMD_ARR[0]}" >/dev/null 2>&1; then
+  echo "artifact producer command not found: ${PRODUCER_CMD_ARR[0]}" >&2
+  echo "Set ARTIFACT_PRODUCER_CMD to your producer invocation." >&2
   exit 1
 fi
 
@@ -39,7 +44,7 @@ generate_fixture() {
   rm -rf "${output_dir}"
   mkdir -p "${artifact_dir}"
 
-  ENV_PREFIX=ESB ESB_TAG="${tag}" "${ESB_CMD_ARR[@]}" artifact generate \
+  ENV_PREFIX=ESB ESB_TAG="${tag}" "${PRODUCER_CMD_ARR[@]}" artifact generate \
     --template "${TEMPLATE_PATH}" \
     --env "${env_name}" \
     --mode "${mode}" \

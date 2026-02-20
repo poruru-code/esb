@@ -1,7 +1,7 @@
 <!--
 Where: docs/runtime-identity-contract.md
 What: Shared runtime identity contract for stack-derived naming.
-Why: Keep CLI/Agent module-local constants decoupled while preserving naming compatibility.
+Why: Keep producer/Agent module-local constants decoupled while preserving naming compatibility.
 -->
 # Runtime Identity Contract
 

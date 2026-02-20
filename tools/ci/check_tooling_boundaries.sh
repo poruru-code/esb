@@ -159,7 +159,7 @@ EOF
 
 echo "[check] validating adapter dependency contract"
 mod_files=()
-for mod in cli/go.mod tools/artifactctl/go.mod; do
+for mod in tools/artifactctl/go.mod; do
   if [[ -f "${mod}" ]]; then
     mod_files+=("${mod}")
   fi

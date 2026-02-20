@@ -37,7 +37,7 @@ flowchart TD
 ```
 
 ## 実装境界
-- Gateway/CLI の上位契約は runtime モードに依存しません
+- Gateway/producer の上位契約は runtime モードに依存しません
 - モード差分は主に Agent/runtime-node 側の実行基盤に閉じます
 - E2E smoke はモード差分を吸収した共通契約として維持します
 

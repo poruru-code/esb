@@ -13,7 +13,6 @@ buf = "1.65.0"
 "go:github.com/golangci/golangci-lint/cmd/golangci-lint" = "latest"
 "go:mvdan.cc/gofumpt" = "latest"
 "go:golang.org/x/tools/cmd/goimports" = "latest"
-"go:github.com/air-verse/air" = "latest"
 
 [env]
 _.path = ["~/.local/bin"]
@@ -23,7 +22,6 @@ description = "Install dependencies and enable git hooks"
 run = [
   "uv sync --all-extras",
   "lefthook install",
-  "mise run build-cli",
   "mise run build-artifactctl",
   "mise run setup:certs",
   "mise run setup:buildx",
@@ -45,14 +43,6 @@ run = [
   "uv run python scripts/fix_python_grpc_imports.py",
 ]
 
-[tasks.build-cli]
-description = "Build CLI to ~/.local/bin"
-dir = "cli"
-run = [
-  "mkdir -p ~/.local/bin",
-  "GOWORK=../go.work.cli go build -o ~/.local/bin/esb ./cmd/esb",
-]
-
 [tasks.build-artifactctl]
 description = "Build artifactctl to ~/.local/bin"
 dir = "tools/artifactctl"
@@ -60,8 +50,3 @@ run = [
   "mkdir -p ~/.local/bin",
   "go build -o ~/.local/bin/artifactctl ./cmd/artifactctl",
 ]
-
-[tasks.dev-cli]
-description = "Watch and rebuild CLI on changes"
-dir = "cli"
-run = "GOWORK=../go.work.cli air"

@@ -61,7 +61,7 @@ e2e/run_tests.py
 その後 `e2e/runner/planner.py` が生の辞書を型付き `Scenario` に変換します。
 
 ## 失敗時・終了時の契約
-`e2e/run_tests.py` は次の CLI 契約を維持します。
+`e2e/run_tests.py` は次のコマンドライン契約を維持します。
 
 - いずれかの環境が失敗した場合、プロセスは非ゼロ（`1`）で終了します。
 - 失敗環境では `e2e/.parallel-<env>.log` の末尾ログを表示します。
@@ -69,7 +69,7 @@ e2e/run_tests.py
 - `--build-only` と `--test-only` は同時指定できません。
 - `--test-target` は `--profile` が必須で、指定 target のみ実行します。
 - deploy を伴う実行では `artifactctl` バイナリが PATH 上に必要です（または `ARTIFACTCTL_BIN` で明示）。
-- 開発環境では `mise run setup` で `esb` と `artifactctl` が `~/.local/bin` にビルドされます。
+- 開発環境では `mise run setup` で `artifactctl` が `~/.local/bin` にビルドされます。
 
 ## ログと診断
 - 環境ごとのログ: `e2e/.parallel-<env>.log`

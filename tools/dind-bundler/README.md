@@ -6,7 +6,7 @@
 ## 概要
 
 このツールセットは以下の機能を提供します：
-1.  **ビルド自動化**: `esb deploy --build-only --bundle-manifest` を実行して Lambda 関数イメージを生成し、必要なベースイメージと共に単一の tar アーカイブにまとめます。
+1.  **ビルド自動化**: producer の deploy(build-only + bundle-manifest) を実行して Lambda 関数イメージを生成し、必要なベースイメージと共に単一の tar アーカイブにまとめます。
 2.  **自己完結イメージ**: すべての依存イメージと設定ファイルを含む DinD イメージを作成します。
 3.  **自動起動**: コンテナ起動時に内部 Docker デーモンを立ち上げ、イメージをロードし、`docker-compose` でスタックを起動します。
 
@@ -29,9 +29,9 @@
 
 ### ビルドオプション (環境変数)
 
-*   `ESB_ENV=<env>`: `esb deploy --env` に渡す環境名を指定します。
+*   `ESB_ENV=<env>`: producer deploy の `--env` に渡す環境名を指定します。
 *   `CERT_DIR=<path>`: 証明書の保存先を指定します（デフォルト: `./.esb/certs`）。存在しない場合はエラーになります。
-*   `ESB_OUTPUT_DIR=<path>`: `esb deploy` の出力ディレクトリ（デフォルト: `.esb`）。
+*   `ESB_OUTPUT_DIR=<path>`: producer deploy の出力ディレクトリ（デフォルト: `.esb`）。
 *   `BUNDLE_MANIFEST_PATH=<path>`: バンドル用マニフェストのパスを明示指定します（複数テンプレートでは使用不可）。
 
 `.env` が存在する場合は DinD イメージに同梱されます。`.env` がない場合は、
@@ -42,7 +42,7 @@
 ## マニフェスト駆動
 
 バンドラーは **マニフェストを唯一の入力** としてイメージを収集します。
-`esb deploy --bundle-manifest` は `bundle/manifest.json` を生成し、
+producer deploy の `--bundle-manifest` は `bundle/manifest.json` を生成し、
 ビルドスクリプトはこのファイルを読み取って `images.tar` を作成します。
 既定パスは `.esb/<env>/bundle/manifest.json` です。
 複数テンプレートを指定した場合は、各テンプレートのマニフェストを統合して 1 つにまとめます。
@@ -64,14 +64,14 @@ docker run --privileged --name stack-bundle -p 8443:8443 -p 9000:9000 -p 9001:90
 sequenceDiagram
     participant User as ユーザー
     participant Script as build.sh
-    participant CLI as CLI (esb)
+    participant CLI as Producer CLI
     participant Docker as Docker Daemon
     participant Tar as images.tar
     participant Image as Target Image
 
     User->>Script: 実行 (template.e2e.yaml)
     Script->>Script: 証明書確認 (なければエラー)
-    Script->>CLI: esb deploy --build-only --bundle-manifest
+    Script->>CLI: producer deploy --build-only --bundle-manifest
     CLI->>Docker: 関数イメージの作成 (com.<brand>.kind=function)
     Script->>Docker: 外部イメージのPull (Scylla, RustFS等)
     Script->>Docker: 全イメージのSave

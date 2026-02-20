@@ -17,17 +17,14 @@ Why: Explain how env config flows without duplicating subsystem details.
    - Gateway が Lambda ワーカーへエンドポイント/設定を注入
 
 ## deploy 時の設定反映
-`esb deploy` は staging config を生成後、実行中 stack の runtime target へ同期します。
+artifact apply 実行時に、生成済み runtime-config が実行中 stack の runtime target へ同期されます。
 このため通常運用では `CONFIG_DIR` の手動指定は不要です。
-ただし `esb deploy --build-only` では同期と provisioner 実行を行わないため、
-実行系コンテナへ反映するには通常 deploy（build-only なし）が必要です。
 
 ## 詳細（subsystem docs）
 - Gateway: [services/gateway/docs/configuration.md](../services/gateway/docs/configuration.md)
 - Agent: [services/agent/docs/configuration.md](../services/agent/docs/configuration.md)
 - runtime-node: [services/runtime-node/docs/configuration.md](../services/runtime-node/docs/configuration.md)
 - Provisioner: [services/provisioner/docs/configuration.md](../services/provisioner/docs/configuration.md)
-- CLI: [cli/docs/architecture.md](../cli/docs/architecture.md)
 - E2E runner env: [e2e/runner/README.md](../e2e/runner/README.md)
 
 ---
@@ -35,5 +32,4 @@ Why: Explain how env config flows without duplicating subsystem details.
 ## Implementation references
 - `docker-compose.containerd.yml`
 - `docker-compose.docker.yml`
-- `cli/internal/usecase/deploy/runtime_config.go`
 - `services/gateway/config.py`
