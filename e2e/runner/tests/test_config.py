@@ -12,7 +12,7 @@ from e2e.runner.planner import build_plan
 def test_build_env_scenarios_includes_image_overrides() -> None:
     matrix = [
         {
-            "esb_env": "e2e-docker",
+            "env": "e2e-docker",
             "config_dir": ".esb/staging/esb-e2e-docker/e2e-docker/config",
             "artifact_manifest": "e2e/artifacts/e2e-docker/artifact.yml",
             "image_uri_overrides": {"lambda-image": "public.ecr.aws/example/repo:v1"},
@@ -36,7 +36,7 @@ def test_build_env_scenarios_includes_image_overrides() -> None:
 def test_build_env_scenarios_defaults_env_file_to_env_dir_dotenv() -> None:
     matrix = [
         {
-            "esb_env": "e2e-docker",
+            "env": "e2e-docker",
             "config_dir": ".esb/staging/esb-e2e-docker/e2e-docker/config",
             "artifact_manifest": "e2e/artifacts/e2e-docker/artifact.yml",
             "suites": ["smoke"],
@@ -57,7 +57,7 @@ def test_build_env_scenarios_defaults_env_file_to_env_dir_dotenv() -> None:
 def test_build_env_scenarios_preserves_explicit_env_file() -> None:
     matrix = [
         {
-            "esb_env": "e2e-docker",
+            "env": "e2e-docker",
             "config_dir": ".esb/staging/esb-e2e-docker/e2e-docker/config",
             "artifact_manifest": "e2e/artifacts/e2e-docker/artifact.yml",
             "env_dir": "e2e-docker",
@@ -80,7 +80,7 @@ def test_build_env_scenarios_preserves_explicit_env_file() -> None:
 def test_build_plan_propagates_core_fields() -> None:
     matrix = [
         {
-            "esb_env": "e2e-docker",
+            "env": "e2e-docker",
             "config_dir": ".esb/staging/esb-e2e-docker/e2e-docker/config",
             "suites": ["smoke"],
             "artifact_manifest": "e2e/artifacts/e2e-docker/artifact.yml",
@@ -108,7 +108,7 @@ def test_build_plan_propagates_core_fields() -> None:
 def test_build_plan_rejects_null_artifact_manifest() -> None:
     matrix = [
         {
-            "esb_env": "e2e-docker",
+            "env": "e2e-docker",
             "config_dir": ".esb/staging/esb-e2e-docker/e2e-docker/config",
             "suites": ["smoke"],
             "artifact_manifest": None,
@@ -128,7 +128,7 @@ def test_build_plan_rejects_null_artifact_manifest() -> None:
 def test_build_env_scenarios_rejects_legacy_deploy_driver_field() -> None:
     matrix = [
         {
-            "esb_env": "e2e-docker",
+            "env": "e2e-docker",
             "config_dir": ".esb/staging/esb-e2e-docker/e2e-docker/config",
             "artifact_manifest": "e2e/artifacts/e2e-docker/artifact.yml",
             "deploy_driver": "artifact",
@@ -149,7 +149,7 @@ def test_build_env_scenarios_rejects_legacy_deploy_driver_field() -> None:
 def test_build_env_scenarios_rejects_legacy_artifact_generate_field() -> None:
     matrix = [
         {
-            "esb_env": "e2e-docker",
+            "env": "e2e-docker",
             "config_dir": ".esb/staging/esb-e2e-docker/e2e-docker/config",
             "artifact_manifest": "e2e/artifacts/e2e-docker/artifact.yml",
             "artifact_generate": "none",
@@ -170,13 +170,13 @@ def test_build_env_scenarios_rejects_legacy_artifact_generate_field() -> None:
 def test_build_env_scenarios_rejects_legacy_field_on_duplicate_env_entry() -> None:
     matrix = [
         {
-            "esb_env": "e2e-docker",
+            "env": "e2e-docker",
             "config_dir": ".esb/staging/esb-e2e-docker/e2e-docker/config",
             "artifact_manifest": "e2e/artifacts/e2e-docker/artifact.yml",
             "suites": ["smoke"],
         },
         {
-            "esb_env": "e2e-docker",
+            "env": "e2e-docker",
             "config_dir": ".esb/staging/esb-e2e-docker/e2e-docker/config",
             "artifact_manifest": "e2e/artifacts/e2e-docker/artifact.yml",
             "deploy_driver": "artifact",
@@ -197,7 +197,7 @@ def test_build_env_scenarios_rejects_legacy_field_on_duplicate_env_entry() -> No
 def test_build_env_scenarios_requires_config_dir() -> None:
     matrix = [
         {
-            "esb_env": "e2e-docker",
+            "env": "e2e-docker",
             "artifact_manifest": "e2e/artifacts/e2e-docker/artifact.yml",
             "suites": ["smoke"],
         }
@@ -216,7 +216,7 @@ def test_build_env_scenarios_requires_config_dir() -> None:
 def test_build_env_scenarios_requires_artifact_manifest() -> None:
     matrix = [
         {
-            "esb_env": "e2e-docker",
+            "env": "e2e-docker",
             "config_dir": ".esb/staging/esb-e2e-docker/e2e-docker/config",
             "suites": ["smoke"],
         }
@@ -235,7 +235,7 @@ def test_build_env_scenarios_requires_artifact_manifest() -> None:
 def test_build_env_scenarios_rejects_mismatched_config_dir() -> None:
     matrix = [
         {
-            "esb_env": "e2e-docker",
+            "env": "e2e-docker",
             "config_dir": ".esb/staging/wrong/e2e-docker/config",
             "artifact_manifest": "e2e/artifacts/e2e-docker/artifact.yml",
             "suites": ["smoke"],
@@ -255,7 +255,7 @@ def test_build_env_scenarios_rejects_mismatched_config_dir() -> None:
 def test_build_env_scenarios_rejects_absolute_config_dir() -> None:
     matrix = [
         {
-            "esb_env": "e2e-docker",
+            "env": "e2e-docker",
             "config_dir": "/tmp/config",
             "artifact_manifest": "e2e/artifacts/e2e-docker/artifact.yml",
             "suites": ["smoke"],
@@ -275,7 +275,7 @@ def test_build_env_scenarios_rejects_absolute_config_dir() -> None:
 def test_build_env_scenarios_accepts_matching_custom_project() -> None:
     matrix = [
         {
-            "esb_env": "custom",
+            "env": "custom",
             "esb_project": "alt",
             "config_dir": ".esb/staging/alt-custom/custom/config",
             "artifact_manifest": "e2e/artifacts/custom/artifact.yml",
@@ -296,7 +296,7 @@ def test_build_env_scenarios_accepts_matching_custom_project() -> None:
 def test_build_env_scenarios_accepts_lowercase_config_dir_for_mixed_case_env() -> None:
     matrix = [
         {
-            "esb_env": "E2E-Docker",
+            "env": "E2E-Docker",
             "config_dir": ".esb/staging/esb-e2e-docker/e2e-docker/config",
             "artifact_manifest": "e2e/artifacts/e2e-docker/artifact.yml",
             "suites": ["smoke"],
@@ -316,7 +316,7 @@ def test_build_env_scenarios_accepts_lowercase_config_dir_for_mixed_case_env() -
 def test_build_env_scenarios_uses_default_env_file() -> None:
     matrix = [
         {
-            "esb_env": "e2e-docker",
+            "env": "e2e-docker",
             "config_dir": ".esb/staging/esb-e2e-docker/e2e-docker/config",
             "artifact_manifest": "e2e/artifacts/e2e-docker/artifact.yml",
             "suites": ["smoke"],

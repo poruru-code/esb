@@ -72,7 +72,7 @@ cd "${REPO_ROOT}"
 generate_fixture \
   "e2e-docker" \
   "docker" \
-  "esb-e2e-docker" \
+  "esb" \
   "127.0.0.1:5010/esb-e2e-lambda-python:latest" \
   "python" \
   "e2e-docker-latest"
@@ -80,7 +80,7 @@ generate_fixture \
 generate_fixture \
   "e2e-containerd" \
   "containerd" \
-  "esb-e2e-containerd" \
+  "esb" \
   "127.0.0.1:5010/esb-e2e-lambda-java:latest" \
   "java21" \
   "e2e-containerd-latest"

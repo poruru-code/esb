@@ -47,7 +47,7 @@ def _to_scenario(data: dict[str, Any]) -> Scenario:
     env_file = data.get("env_file") or None
     known_keys = {
         "name",
-        "esb_env",
+        "env",
         "mode",
         "env_file",
         "env_dir",
@@ -57,7 +57,7 @@ def _to_scenario(data: dict[str, Any]) -> Scenario:
     }
     return Scenario(
         name=data.get("name", ""),
-        env_name=data.get("esb_env", ""),
+        env_name=data.get("env", ""),
         mode=data.get("mode", "docker"),
         env_file=env_file,
         env_dir=data.get("env_dir"),

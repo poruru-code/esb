@@ -158,11 +158,11 @@ def main():
     if args.test_target:
         if not args.profile:
             print("[ERROR] --profile is required when using --test-target.")
-            env_names = [entry.get("esb_env") for entry in matrix if entry.get("esb_env")]
+            env_names = [entry.get("env") for entry in matrix if entry.get("env")]
             print(f"Available environments: {', '.join(env_names)}")
             sys.exit(1)
 
-        entry_by_env = {entry.get("esb_env"): entry for entry in matrix if entry.get("esb_env")}
+        entry_by_env = {entry.get("env"): entry for entry in matrix if entry.get("env")}
         if args.profile not in entry_by_env:
             print(f"[ERROR] Environment '{args.profile}' not found in matrix.")
             sys.exit(1)
