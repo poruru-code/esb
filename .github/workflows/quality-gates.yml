@@ -143,3 +143,37 @@ jobs:
           if [ -f tools/artifactctl/go.mod ]; then
             go -C tools/artifactctl test ./... -run '^$'
           fi
+
+  cli-absent-rehearsal:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.1"
+          cache: true
+          cache-dependency-path: |
+            tools/artifactctl/go.sum
+            pkg/artifactcore/go.sum
+            pkg/deployops/go.sum
+
+      - name: Remove cli tree
+        run: rm -rf cli
+
+      - name: Boundary checks (no cli)
+        run: ./tools/ci/check_tooling_boundaries.sh
+
+      - name: Layout checks (no cli)
+        run: CLI_ABSENT_MODE=1 ./tools/ci/check_repo_layout.sh
+
+      - name: Verify non-cli compile contract
+        run: |
+          GOWORK=off go -C tools/artifactctl test ./... -run '^$'
+          GOWORK=off go -C pkg/artifactcore test ./... -run '^$'
+          GOWORK=off go -C pkg/composeprovision test ./... -run '^$'
+          GOWORK=off go -C pkg/deployops test ./... -run '^$'
+          GOWORK=off go -C pkg/runtimeimage test ./... -run '^$'
+          GOWORK=off go -C pkg/yamlshape test ./... -run '^$'

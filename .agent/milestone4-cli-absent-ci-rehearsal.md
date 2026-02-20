@@ -10,14 +10,18 @@ This milestone proves the repository stays healthy when `cli/` is absent. After 
 
 ## Progress
 
-- [ ] Add CI job for CLI-absent mode.
-- [ ] Simulate missing `cli/` safely in workflow (e.g., sparse checkout or temporary move).
-- [ ] Run boundary/layout checks and artifactctl/package tests in that mode.
-- [ ] Confirm existing jobs remain unaffected.
+- [x] (2026-02-20 21:47Z) Add CI job for CLI-absent mode (`cli-absent-rehearsal`).
+- [x] (2026-02-20 21:47Z) Simulate missing `cli/` safely in workflow (`rm -rf cli` in dedicated job only).
+- [x] (2026-02-20 21:48Z) Run boundary/layout checks and artifactctl/package tests in that mode.
+- [x] (2026-02-20 21:49Z) Confirm existing guard/compile checks remain unaffected.
 
 ## Surprises & Discoveries
 
-To be filled during implementation.
+- Observation: existing `check_repo_layout.sh` fails in CLI-absent tree due hard requirement on `cli/assets/runtime-templates/...`.
+  Evidence: local rehearsal without `cli/` reported missing runtime template paths.
+
+- Observation: introducing `CLI_ABSENT_MODE=1` to layout check cleanly isolates split-rehearsal behavior without weakening default checks.
+  Evidence: normal layout check still passes; CLI-absent layout check passes only when flag is explicitly set.
 
 ## Decision Log
 
@@ -27,7 +31,7 @@ To be filled during implementation.
 
 ## Outcomes & Retrospective
 
-To be filled after implementation.
+Milestone completed. Quality gates now include a dedicated `cli-absent-rehearsal` job that removes `cli/`, runs boundary/layout checks, and validates non-CLI compile contracts. Local rehearsal run confirmed this path is green.
 
 ## Context and Orientation
 
@@ -73,3 +77,4 @@ No runtime interface changes; CI contract only.
 ## Revision Notes
 
 - 2026-02-20: Initial detailed milestone plan created from master plan.
+- 2026-02-20: Completed milestone with dedicated CI job and `CLI_ABSENT_MODE` layout-check switch.

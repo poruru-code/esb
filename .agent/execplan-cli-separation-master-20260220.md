@@ -16,9 +16,9 @@ You will be able to demonstrate success by running the quality gates and E2E mat
 - [x] (2026-02-20 20:00Z) Revalidated separation baseline and identified remaining blockers from current tree (`v0.0.0` dependencies, partial guard coverage, no CLI-missing CI job).
 - [x] (2026-02-20 20:56Z) Implemented PR-1: boundary guard hardening (full adapter `replace` ban, adapter `v0.0.0` drift detection via allowlist freeze, layout check wiring in quality gates).
 - [x] (2026-02-20 21:28Z) Implemented PR-2: package module versionability foundation (replaced plain placeholder `v0.0.0` in package modules with pseudo-version pins and verified all `pkg/*` tests with `GOWORK=off`).
-- [ ] Implement PR-3: adapter dependency normalization (`cli` / `artifactctl` remove `v0.0.0` and build with `GOWORK=off`). (blocked pending publication/availability of Milestone 2 package-module revisions)
-- [ ] Implement PR-4: CLI-absent rehearsal CI job and proof run.
-- [ ] Implement PR-5: execute final extraction handoff checklist (this repo side complete; CLI repo migration-ready state declared).
+- [x] (2026-02-20 21:38Z) Implemented PR-3: adapter dependency normalization (`cli` / `artifactctl` removed direct `pkg/* v0.0.0`, updated to pseudo-versions, and validated `GOWORK=off` compile checks).
+- [x] (2026-02-20 21:49Z) Implemented PR-4: CLI-absent rehearsal CI job and proof run.
+- [x] (2026-02-20 22:18Z) Implemented PR-5: extraction handoff checklist documented and final verification executed (boundary/layout, module tests, full E2E).
 
 ## Surprises & Discoveries
 
@@ -46,6 +46,15 @@ You will be able to demonstrate success by running the quality gates and E2E mat
 - Observation: adapters cannot complete `v0.0.0` normalization until Milestone 2 package-module go.mod changes are remotely resolvable revisions.
   Evidence: `go mod tidy` in `cli` and `tools/artifactctl` fails with `unknown revision pkg/<module>/v0.0.0`, and temporary pseudo-version adapter edits still fail via transitive `v0.0.0` from remote `pkg/deployops`/`pkg/artifactcore`.
 
+- Observation: once adapters were moved to pseudo-version `v0.0.0-20260220120751-741830b8344a` and `go mod tidy` was executed, both adapter compile checks passed with `GOWORK=off`.
+  Evidence: `GOWORK=off go -C tools/artifactctl test ./... -run '^$'` and `GOWORK=off go -C cli test ./... -run '^$'`.
+
+- Observation: CLI-absent rehearsal initially failed because layout check required runtime-template files under `cli/assets`.
+  Evidence: local rehearsal (`rm -rf cli`) produced missing path errors in `check_repo_layout.sh`.
+
+- Observation: final E2E matrix passed end-to-end with cleanup, confirming no regression from Milestone 1-4 contract hardening.
+  Evidence: `uv run e2e/run_tests.py --parallel --verbose --cleanup` ended with `[PASSED] ALL MATRIX ENTRIES PASSED!`.
+
 ## Decision Log
 
 - Decision: Keep the target module namespace as `github.com/poruru-code/esb` and treat old `edge-serverless-box` paths as legacy only.
@@ -72,9 +81,21 @@ You will be able to demonstrate success by running the quality gates and E2E mat
   Rationale: otherwise adapter normalization cannot be validated under `GOWORK=off` and will fail deterministically.
   Date/Author: 2026-02-20 / Codex
 
+- Decision: maintain adapter `v0.0.0` guard via empty allowlist baseline after Milestone 3.
+  Rationale: keeps CI logic stable while enforcing the new zero-placeholder target.
+  Date/Author: 2026-02-20 / Codex
+
+- Decision: add explicit `CLI_ABSENT_MODE=1` switch for layout check and use it only in dedicated CLI-absent rehearsal job.
+  Rationale: preserves strict default layout checks while enabling split-readiness rehearsal.
+  Date/Author: 2026-02-20 / Codex
+
+- Decision: keep extraction operation as separate follow-up execution step; this plan closes with readiness and verified checklist rather than moving directories in-place.
+  Rationale: decouples operational migration timing from contract hardening and CI proof completion.
+  Date/Author: 2026-02-20 / Codex
+
 ## Outcomes & Retrospective
 
-Milestone 1 and 2 complete. The repository now blocks adapter `pkg/*` replace directives comprehensively, fails on unreviewed adapter `v0.0.0` drift, and uses pseudo-version pins (instead of plain placeholder `v0.0.0`) in package-module internal requirements. Remaining work is adapter dependency normalization (Milestone 3), CLI-absent rehearsal CI (Milestone 4), and extraction sign-off (Milestone 5).
+Milestone 1-5 complete. The repository now blocks adapter `pkg/*` replace directives comprehensively, enforces a zero-placeholder adapter `v0.0.0` baseline, uses pseudo-version pins in shared package modules and adapters, continuously rehearses CLI-absent operation in CI, and provides an executable extraction checklist with successful final verification (including full E2E matrix).
 
 ## Context and Orientation
 
@@ -211,3 +232,6 @@ The primary interfaces that must remain stable during separation are `deployops.
 - 2026-02-20: Added explicit links to per-milestone detailed plans so implementation can proceed with a strict \"plan-before-execute\" workflow.
 - 2026-02-20: Updated after Milestone 1 implementation and validation; recorded transitional `v0.0.0` freeze guard decision and completion status.
 - 2026-02-20: Updated after Milestone 2 implementation; package modules moved from placeholder `v0.0.0` to pseudo-version pins.
+- 2026-02-20: Updated after Milestone 3 implementation; adapters moved to versioned `pkg/*` dependencies and `GOWORK=off` compile checks validated.
+- 2026-02-20: Updated after Milestone 4 implementation; added CLI-absent rehearsal CI and layout-check switch.
+- 2026-02-20: Updated after Milestone 5 implementation; extraction checklist added and final verification completed.

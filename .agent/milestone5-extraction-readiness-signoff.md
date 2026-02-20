@@ -10,14 +10,15 @@ This milestone finalizes separation readiness and documents the operational hand
 
 ## Progress
 
-- [ ] Update docs to reflect post-split ownership and workflows.
-- [ ] Add a precise extraction checklist (pre-checks, move, post-checks).
-- [ ] Run final verification set (quality gates + full E2E) from clean state.
-- [ ] Publish readiness statement in master plan retrospective.
+- [x] (2026-02-20 22:00Z) Update docs to reflect post-split ownership and workflows.
+- [x] (2026-02-20 22:00Z) Add a precise extraction checklist (pre-checks, move, post-checks).
+- [x] (2026-02-20 22:17Z) Run final verification set (boundary/layout + Go tests + full E2E with cleanup).
+- [x] (2026-02-20 22:18Z) Publish readiness statement in master plan retrospective.
 
 ## Surprises & Discoveries
 
-To be filled during implementation.
+- Observation: full E2E run emits runtime_stack version mismatch warning (`expected e2e-*-latest`, `observed e2e-e2e-*-latest`) but does not fail apply/test.
+  Evidence: deploy logs during `uv run e2e/run_tests.py --parallel --verbose --cleanup`.
 
 ## Decision Log
 
@@ -27,7 +28,7 @@ To be filled during implementation.
 
 ## Outcomes & Retrospective
 
-To be filled after implementation.
+Milestone completed. Extraction checklist is now documented in `docs/cli-separation-checklist.md`, linked from `docs/README.md`, and validated by final verification including full E2E matrix pass from cleaned runtime state.
 
 ## Context and Orientation
 
@@ -74,3 +75,4 @@ No new runtime interfaces; this is release-readiness closure.
 ## Revision Notes
 
 - 2026-02-20: Initial detailed milestone plan created from master plan.
+- 2026-02-20: Completed milestone with extraction checklist and final validation evidence.

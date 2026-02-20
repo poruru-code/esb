@@ -10,10 +10,10 @@ This milestone removes workspace-only dependency assumptions from `cli` and `too
 
 ## Progress
 
-- [ ] Replace adapter `pkg/* v0.0.0` requirements with resolvable versions. (blocked until Milestone 2 pseudo-versioned `pkg/*` deps are remotely available)
-- [ ] Ensure no adapter-local `replace github.com/poruru-code/esb/pkg/*` is required.
-- [ ] Update any supporting docs that mention workspace-only assumptions.
-- [ ] Validate adapter compile/test with `GOWORK=off`.
+- [x] (2026-02-20 21:36Z) Replace adapter `pkg/* v0.0.0` requirements with resolvable pseudo-versions.
+- [x] (2026-02-20 21:36Z) Ensure no adapter-local `replace github.com/poruru-code/esb/pkg/*` is required.
+- [x] (2026-02-20 21:37Z) Update guard baseline (`tools/ci/adapter_pkg_v0_allowlist.txt`) to reflect zero adapter `v0.0.0`.
+- [x] (2026-02-20 21:38Z) Validate adapter compile/test with `GOWORK=off`.
 
 ## Surprises & Discoveries
 
@@ -26,6 +26,9 @@ This milestone removes workspace-only dependency assumptions from `cli` and `too
 - Observation: even when adapter requirements are temporarily switched to pseudo-version (`...-d6d9b1efaded`), resolution still fails because remote `pkg/deployops` / `pkg/artifactcore` at that revision still require transitive `v0.0.0`.
   Evidence: temporary edit to `tools/artifactctl/go.mod` followed by `go mod tidy` failed fetching transitive `pkg/*@v0.0.0`.
 
+- Observation: after moving adapters to current pseudo-version (`v0.0.0-20260220120751-741830b8344a`) and tidying, `GOWORK=off` compile checks pass for both adapters.
+  Evidence: `GOWORK=off go -C tools/artifactctl test ./... -run '^$'` and `GOWORK=off go -C cli test ./... -run '^$'` both succeeded.
+
 ## Decision Log
 
 - Decision: `go.work.cli` remains optional convenience only, not a correctness dependency.
@@ -36,9 +39,13 @@ This milestone removes workspace-only dependency assumptions from `cli` and `too
   Rationale: adapters consume `pkg/deployops`/`pkg/artifactcore` transitively; unresolved transitive `v0.0.0` blocks adapter normalization.
   Date/Author: 2026-02-20 / Codex
 
+- Decision: normalize all direct adapter `pkg/*` requirements to the same current pseudo-version commit (`741830b`) and let transitive module constraints remain explicit from dependency modules.
+  Rationale: direct adapter contract is now versioned and deterministic; transitive graph stays owned by shared modules.
+  Date/Author: 2026-02-20 / Codex
+
 ## Outcomes & Retrospective
 
-To be filled after implementation.
+Milestone completed. Both adapters no longer use placeholder `v0.0.0` for internal `pkg/*` dependencies and compile under `GOWORK=off`. Adapter-side `pkg/*` `replace` directives remain absent, and the drift guard allowlist now represents the intended zero-`v0.0.0` state.
 
 ## Context and Orientation
 
@@ -83,3 +90,4 @@ No behavioral API changes expected in this milestone.
 
 - 2026-02-20: Initial detailed milestone plan created from master plan.
 - 2026-02-20: Added execution blocker and prerequisite after preflight validation.
+- 2026-02-20: Completed adapter normalization and `GOWORK=off` compile verification.
