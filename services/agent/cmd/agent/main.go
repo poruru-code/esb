@@ -118,13 +118,32 @@ func main() {
 		}
 
 		cniSubnet := strings.TrimSpace(os.Getenv("CNI_SUBNET"))
+		if cniSubnet == "" {
+			cniSubnet = resolveDerivedCNISubnet(cniConfDir, resolvedIdentity)
+			if err := os.Setenv("CNI_SUBNET", cniSubnet); err != nil {
+				slog.Warn("Failed to export derived CNI_SUBNET", "error", err)
+			}
+		}
+		cniBridge := strings.TrimSpace(os.Getenv("CNI_BRIDGE"))
+		if cniBridge == "" {
+			cniBridge = resolvedIdentity.RuntimeCNIBridge()
+		}
+		cniIdentityFile := cni_gen.DefaultIdentityFilePath
+		if err := cni_gen.WriteIdentityFile(
+			cniIdentityFile,
+			resolvedIdentity.RuntimeCNIName(),
+			cniBridge,
+			cniSubnet,
+		); err != nil {
+			slog.Warn("Failed to write CNI identity file", "path", cniIdentityFile, "error", err)
+		}
 
 		// Dynamically generate CNI configuration based on resolved stack identity.
 		if err := cni_gen.GenerateConfig(
 			cniConfDir,
 			cniSubnet,
 			resolvedIdentity.RuntimeCNIName(),
-			resolvedIdentity.RuntimeCNIBridge(),
+			cniBridge,
 		); err != nil {
 			slog.Warn("Failed to generate dynamic CNI config", "error", err)
 		}
@@ -345,4 +364,54 @@ func grpcServerOptions() ([]grpc.ServerOption, error) {
 	}
 
 	return []grpc.ServerOption{grpc.Creds(credentials.NewTLS(tlsConfig))}, nil
+}
+
+func resolveDerivedCNISubnet(cniConfDir string, resolvedIdentity identity.StackIdentity) string {
+	baseSubnet := resolvedIdentity.RuntimeCNISubnet()
+	claims, err := cni_gen.CollectSubnetClaims(cniConfDir, resolvedIdentity.RuntimeCNIName())
+	if err != nil {
+		slog.Warn(
+			"Failed to read existing CNI subnet claims; using base derived subnet",
+			"dir",
+			cniConfDir,
+			"error",
+			err,
+		)
+		return baseSubnet
+	}
+	if len(claims) == 0 {
+		return baseSubnet
+	}
+
+	for probe := 0; probe < identity.RuntimeCNISubnetPoolSize(); probe++ {
+		candidate := resolvedIdentity.RuntimeCNISubnetAt(probe)
+		if _, exists := claims[candidate]; exists {
+			continue
+		}
+		if probe > 0 {
+			fields := []any{
+				"brand", resolvedIdentity.BrandSlug,
+				"network", resolvedIdentity.RuntimeCNIName(),
+				"base_subnet", baseSubnet,
+				"selected_subnet", candidate,
+				"probe", probe,
+			}
+			if owner, ok := claims[baseSubnet]; ok {
+				fields = append(fields, "base_owner", owner)
+			}
+			slog.Warn("Resolved CNI subnet collision; selected alternate deterministic slot", fields...)
+		}
+		return candidate
+	}
+
+	slog.Error(
+		"CNI subnet pool exhausted while resolving collision; using base derived subnet",
+		"brand",
+		resolvedIdentity.BrandSlug,
+		"network",
+		resolvedIdentity.RuntimeCNIName(),
+		"pool_size",
+		identity.RuntimeCNISubnetPoolSize(),
+	)
+	return baseSubnet
 }

@@ -5,8 +5,10 @@ package containerd
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"strings"
 	"sync"
@@ -20,7 +22,6 @@ import (
 
 const (
 	runtimeFirecracker = "aws.firecracker"
-	defaultCNINetwork  = "esb-net"
 )
 
 type Runtime struct {
@@ -48,7 +49,7 @@ func NewRuntime(client Client, cniPlugin cni.CNI, namespace, env, brandSlug stri
 		namespace:  ns,
 		env:        env,
 		brandSlug:  brand,
-		cniNetwork: defaultCNINetwork,
+		cniNetwork: brand + "-net",
 		resolvConf: fmt.Sprintf("/run/containerd/%s/resolv.conf", ns),
 	}
 }
@@ -71,7 +72,31 @@ func resolveCNIDNSServer() string {
 	if value := strings.TrimSpace(os.Getenv("CNI_GW_IP")); value != "" {
 		return value
 	}
+	if value := strings.TrimSpace(os.Getenv("CNI_SUBNET")); value != "" {
+		if gw, err := subnetGateway(value); err == nil {
+			return gw
+		}
+	}
 	return config.DefaultCNIDNSServer
+}
+
+func subnetGateway(subnet string) (string, error) {
+	_, cidr, err := net.ParseCIDR(strings.TrimSpace(subnet))
+	if err != nil {
+		return "", err
+	}
+	ones, bits := cidr.Mask.Size()
+	if bits != 32 || ones >= 31 {
+		return "", fmt.Errorf("usable IPv4 CIDR required")
+	}
+	network := cidr.IP.Mask(cidr.Mask).To4()
+	if network == nil {
+		return "", fmt.Errorf("IPv4 CIDR required")
+	}
+	value := binary.BigEndian.Uint32(network) + 1
+	ip := make(net.IP, 4)
+	binary.BigEndian.PutUint32(ip, value)
+	return ip.String(), nil
 }
 
 func resolveCNINetDir() string {

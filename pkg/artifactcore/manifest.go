@@ -117,9 +117,6 @@ func (r RuntimeStackMeta) Validate() error {
 	if mode != "docker" && mode != "containerd" {
 		return fmt.Errorf("runtime_stack.mode must be docker or containerd")
 	}
-	if esbVersion == "" {
-		return fmt.Errorf("runtime_stack.esb_version is required when runtime_stack is set")
-	}
 	return nil
 }
 

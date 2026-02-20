@@ -12,7 +12,7 @@ Why: Keep operator-facing configuration aligned with services/gateway/config.py.
 | `X_API_KEY` | 認証 API キー |
 | `AUTH_USER` / `AUTH_PASS` | 認証ユーザー情報 |
 | `CONTAINERS_NETWORK` | 互換のため必須のネットワーク名（containerd では直接参照しない経路あり） |
-| `GATEWAY_INTERNAL_URL` | Lambda から参照する Gateway URL |
+| `GATEWAY_INTERNAL_URL` | Lambda から参照する Gateway URL（未指定時は entrypoint が `DATA_PLANE_HOST` から補完） |
 
 ## Agent 連携
 | 変数 | 既定 | 説明 |
@@ -54,7 +54,7 @@ Why: Keep operator-facing configuration aligned with services/gateway/config.py.
 ## Lambda への注入系
 | 変数 | 既定 | 説明 |
 | --- | --- | --- |
-| `DATA_PLANE_HOST` | `10.88.0.1` | data-plane host |
+| `DATA_PLANE_HOST` | (空) | data-plane host（未指定時は `entrypoint.sh` が CNI identity から解決） |
 | `S3_ENDPOINT` | (空) | Lambda 注入用 S3 endpoint |
 | `S3_PRESIGN_ENDPOINT` | (空) | Lambda 注入用の presign 専用公開 S3 endpoint（通常の S3 API 呼び出しには使わない） |
 | `DYNAMODB_ENDPOINT` | (空) | Lambda 注入用 Dynamo endpoint |

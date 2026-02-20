@@ -19,7 +19,7 @@ flowchart TD
     C --> C1[setup_cgroupv2_delegation]
     C1 --> C2[ip_forward + route_localnet]
     C2 --> C3[ensure_wg_route + watcher]
-    C3 --> C4[apply_cni_nat]
+    C3 --> C4[apply_cni_nat + watcher]
     C4 --> C5[ensure_devmapper_ready]
     C5 --> C6[start_containerd]
 
@@ -28,7 +28,7 @@ flowchart TD
     D2 --> D3[ensure_wg_route + watcher]
     D3 --> D4[ensure_vhost_vsock]
     D4 --> D5[start_udevd + fifo reader]
-    D5 --> D6[apply_cni_nat]
+    D5 --> D6[apply_cni_nat + watcher]
     D6 --> D7[ensure_devmapper_ready]
     D7 --> D8[start_containerd]
 ```
@@ -36,7 +36,7 @@ flowchart TD
 ## 重要ポイント
 - `IMAGE_RUNTIME` は `containerd` 固定（`entrypoint.sh` でチェック）
 - devmapper pool は **事前に存在**している必要があります（作成はしない）
-- `apply_cni_nat` が **`10.88.0.0/16` 固定**で SNAT/FORWARD を設定します
+- `apply_cni_nat` は `CNI_SUBNET` / `CNI_BRIDGE`（または `/var/lib/cni/esb-cni.env`）を参照して SNAT/FORWARD を設定します
 - containerd compose では Gateway/Agent/CoreDNS が runtime-node の NetNS を共有します
 
 ---

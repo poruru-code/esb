@@ -53,7 +53,7 @@ func TestApply_RuntimeStackModeMismatchAlwaysFails(t *testing.T) {
 	}
 }
 
-func TestApply_RuntimeStackVersionMismatchWarns(t *testing.T) {
+func TestApply_RuntimeStackVersionMismatchIsIgnored(t *testing.T) {
 	root := t.TempDir()
 	manifestPath := writeArtifactFixtureManifest(t, root)
 	setRuntimeStackRequirements(t, manifestPath, RuntimeStackMeta{
@@ -72,10 +72,10 @@ func TestApply_RuntimeStackVersionMismatchWarns(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("apply should warn on esb version mismatch: %v", err)
+		t.Fatalf("apply should ignore esb version mismatch: %v", err)
 	}
-	if !containsWarning(result.Warnings, "runtime_stack.esb_version mismatch") {
-		t.Fatalf("expected version mismatch warning, got %#v", result.Warnings)
+	if containsWarning(result.Warnings, "runtime_stack.esb_version") {
+		t.Fatalf("esb version mismatch warning should not be emitted: %#v", result.Warnings)
 	}
 }
 

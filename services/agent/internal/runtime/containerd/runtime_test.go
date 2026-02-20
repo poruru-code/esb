@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/containerd/go-cni"
+	"github.com/poruru-code/esb/services/agent/internal/config"
 )
 
 func TestExtractIPv4(t *testing.T) {
@@ -61,14 +62,34 @@ func TestExtractIPv4(t *testing.T) {
 	}
 }
 
-func TestNewRuntime_UsesSharedCNINetwork(t *testing.T) {
+func TestNewRuntime_UsesBrandScopedCNINetwork(t *testing.T) {
 	rt := NewRuntime(nil, nil, "acme", "dev", "brand-a")
-	if got := rt.cniNetwork; got != "esb-net" {
-		t.Fatalf("cniNetwork = %q, want %q", got, "esb-net")
+	if got := rt.cniNetwork; got != "brand-a-net" {
+		t.Fatalf("cniNetwork = %q, want %q", got, "brand-a-net")
 	}
 
 	rtOther := NewRuntime(nil, nil, "acme", "dev", "brand-b")
-	if got := rtOther.cniNetwork; got != "esb-net" {
-		t.Fatalf("cniNetwork (other brand) = %q, want %q", got, "esb-net")
+	if got := rtOther.cniNetwork; got != "brand-b-net" {
+		t.Fatalf("cniNetwork (other brand) = %q, want %q", got, "brand-b-net")
+	}
+}
+
+func TestResolveCNIDNSServer_FromSubnet(t *testing.T) {
+	t.Setenv("CNI_DNS_SERVER", "")
+	t.Setenv("CNI_GW_IP", "")
+	t.Setenv("CNI_SUBNET", "10.44.16.0/20")
+
+	if got := resolveCNIDNSServer(); got != "10.44.16.1" {
+		t.Fatalf("resolveCNIDNSServer() = %q, want %q", got, "10.44.16.1")
+	}
+}
+
+func TestResolveCNIDNSServer_DefaultFallback(t *testing.T) {
+	t.Setenv("CNI_DNS_SERVER", "")
+	t.Setenv("CNI_GW_IP", "")
+	t.Setenv("CNI_SUBNET", "invalid-cidr")
+
+	if got := resolveCNIDNSServer(); got != config.DefaultCNIDNSServer {
+		t.Fatalf("resolveCNIDNSServer() = %q, want %q", got, config.DefaultCNIDNSServer)
 	}
 }

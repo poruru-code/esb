@@ -9,12 +9,14 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"fmt"
 	"math/big"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/poruru-code/esb/services/agent/internal/identity"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -45,6 +47,40 @@ func TestGrpcServerOptions_EnabledByDefault(t *testing.T) {
 	opts, err := grpcServerOptions()
 	assert.NoError(t, err)
 	assert.Len(t, opts, 1)
+}
+
+func TestResolveDerivedCNISubnet_NoClaimsReturnsBase(t *testing.T) {
+	id := identity.StackIdentity{BrandSlug: "acme-core"}
+	got := resolveDerivedCNISubnet(t.TempDir(), id)
+	assert.Equal(t, id.RuntimeCNISubnet(), got)
+}
+
+func TestResolveDerivedCNISubnet_SkipsClaimedSubnet(t *testing.T) {
+	dir := t.TempDir()
+	id := identity.StackIdentity{BrandSlug: "acme-core"}
+	claimed := fmt.Sprintf(`{
+  "name": "other-net",
+  "plugins": [{"type":"bridge","ipam":{"type":"host-local","subnet":"%s"}}]
+}`, id.RuntimeCNISubnet())
+	err := os.WriteFile(filepath.Join(dir, "10-other.conflist"), []byte(claimed), 0o644)
+	assert.NoError(t, err)
+
+	got := resolveDerivedCNISubnet(dir, id)
+	assert.Equal(t, id.RuntimeCNISubnetAt(1), got)
+}
+
+func TestResolveDerivedCNISubnet_IgnoresOwnNetworkClaim(t *testing.T) {
+	dir := t.TempDir()
+	id := identity.StackIdentity{BrandSlug: "acme-core"}
+	own := fmt.Sprintf(`{
+  "name": "%s",
+  "plugins": [{"type":"bridge","ipam":{"type":"host-local","subnet":"%s"}}]
+}`, id.RuntimeCNIName(), id.RuntimeCNISubnet())
+	err := os.WriteFile(filepath.Join(dir, "10-self.conflist"), []byte(own), 0o644)
+	assert.NoError(t, err)
+
+	got := resolveDerivedCNISubnet(dir, id)
+	assert.Equal(t, id.RuntimeCNISubnet(), got)
 }
 
 func writeTestCerts(t *testing.T) (string, string, string) {

@@ -6,7 +6,6 @@ set -eu
 
 . /entrypoint.common.sh
 
-CNI_GW_IP="${CNI_GW_IP:-10.88.0.1}"
 CONTAINERD_BIN="${CONTAINERD_BIN:-containerd}"
 CONTAINERD_CONFIG="${CONTAINERD_CONFIG:-/etc/firecracker-containerd/config.toml}"
 
@@ -44,6 +43,7 @@ start_udevd
 start_firecracker_fifo_reader
 
 apply_cni_nat
+start_cni_nat_watcher
 
 ensure_devmapper_ready
 start_devmapper_watcher

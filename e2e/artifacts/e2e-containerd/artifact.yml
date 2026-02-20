@@ -2,10 +2,6 @@ schema_version: "1"
 project: esb-e2e-containerd
 env: e2e-containerd
 mode: containerd
-runtime_stack:
-  api_version: "1.0"
-  mode: containerd
-  esb_version: e2e-containerd-latest
 artifacts:
   - id: template-e2e-92eecc19
     artifact_root: template.e2e/e2e-containerd

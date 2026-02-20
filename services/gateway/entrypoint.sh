@@ -42,8 +42,83 @@ WG_CONF_PATH="${WG_CONF_PATH:-/app/config/wireguard/wg0.conf}"
 WG_INTERFACE="${WG_INTERFACE:-wg0}"
 WORKER_ROUTE_VIA_HOST="${GATEWAY_WORKER_ROUTE_VIA_HOST:-}"
 WORKER_ROUTE_VIA="${GATEWAY_WORKER_ROUTE_VIA:-}"
-WORKER_ROUTE_CIDR="${GATEWAY_WORKER_ROUTE_CIDR:-10.88.0.0/16}"
+WORKER_ROUTE_CIDR="${GATEWAY_WORKER_ROUTE_CIDR:-}"
 HAPROXY_CFG="${HAPROXY_CFG:-/app/config/haproxy.gateway.cfg}"
+
+load_cni_identity_file() {
+  cni_identity_file="/var/lib/cni/esb-cni.env"
+  if [ ! -f "$cni_identity_file" ]; then
+    return 1
+  fi
+  # shellcheck disable=SC1090
+  . "$cni_identity_file"
+  return 0
+}
+
+first_host_from_cidr() {
+  cidr="$1"
+  network_ip="${cidr%%/*}"
+  if [ -z "$network_ip" ]; then
+    return 1
+  fi
+  gateway_ip="$(printf '%s' "$network_ip" | awk -F. 'NF==4 {printf "%s.%s.%s.%d", $1, $2, $3, $4+1}')"
+  if [ -z "$gateway_ip" ]; then
+    return 1
+  fi
+  printf '%s\n' "$gateway_ip"
+}
+
+resolve_runtime_cni_defaults() {
+  resolved_subnet="${CNI_SUBNET:-}"
+  resolved_gw="${CNI_GW_IP:-}"
+  wait_attempts=30
+  wait_interval=0.2
+
+  if [ -z "$resolved_subnet" ] || [ -z "$resolved_gw" ]; then
+    while [ "$wait_attempts" -gt 0 ]; do
+      load_cni_identity_file || true
+      if [ -z "$resolved_subnet" ]; then
+        resolved_subnet="${CNI_SUBNET:-}"
+      fi
+      if [ -z "$resolved_gw" ]; then
+        resolved_gw="${CNI_GW_IP:-}"
+      fi
+      # route default needs subnet; keep waiting until subnet is known.
+      if [ -n "$resolved_subnet" ]; then
+        break
+      fi
+      wait_attempts=$((wait_attempts - 1))
+      sleep "$wait_interval"
+    done
+  fi
+
+  if [ -z "$resolved_gw" ] && [ -n "$resolved_subnet" ]; then
+    resolved_gw="$(first_host_from_cidr "$resolved_subnet" || true)"
+  fi
+
+  if [ -z "${DATA_PLANE_HOST:-}" ] && [ -n "$resolved_gw" ]; then
+    DATA_PLANE_HOST="$resolved_gw"
+    export DATA_PLANE_HOST
+  fi
+
+  if [ -z "${GATEWAY_INTERNAL_URL:-}" ] && [ -n "${DATA_PLANE_HOST:-}" ]; then
+    GATEWAY_INTERNAL_URL="https://${DATA_PLANE_HOST}:8443"
+    export GATEWAY_INTERNAL_URL
+  fi
+
+  if [ -z "${DATA_PLANE_HOST:-}" ]; then
+    echo "WARN: DATA_PLANE_HOST unresolved (set DATA_PLANE_HOST or CNI identity inputs)"
+  fi
+  if [ -z "${GATEWAY_INTERNAL_URL:-}" ]; then
+    echo "WARN: GATEWAY_INTERNAL_URL unresolved (set GATEWAY_INTERNAL_URL or DATA_PLANE_HOST)"
+  fi
+
+  if [ -z "${GATEWAY_WORKER_ROUTE_CIDR:-}" ] && [ -n "$resolved_subnet" ]; then
+    WORKER_ROUTE_CIDR="$resolved_subnet"
+  else
+    WORKER_ROUTE_CIDR="${GATEWAY_WORKER_ROUTE_CIDR:-}"
+  fi
+}
 
 apply_wg_routes() {
   if ! command -v python >/dev/null 2>&1; then
@@ -65,6 +140,10 @@ apply_worker_routes_override() {
   if [ -z "$WORKER_ROUTE_VIA" ]; then
     return
   fi
+  if [ -z "$WORKER_ROUTE_CIDR" ]; then
+    echo "WARN: Worker route CIDR unresolved; skipping worker route override"
+    return
+  fi
   python -m services.gateway.core.wg_routes \
     --interface "$WG_INTERFACE" \
     --conf "$WG_CONF_PATH" \
@@ -83,6 +162,8 @@ start_registry_proxy() {
   fi
   haproxy -f "$HAPROXY_CFG" >/dev/null 2>&1 &
 }
+
+resolve_runtime_cni_defaults
 
 if [ -f "$WG_CONF_PATH" ] && [ -c /dev/net/tun ]; then
   if command -v wireguard-go >/dev/null 2>&1; then

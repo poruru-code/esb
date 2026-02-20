@@ -19,7 +19,6 @@ def _make_context(tmp_path: Path, *, env_file: str | None) -> RunContext:
         mode="docker",
         env_file=env_file,
         env_dir=None,
-        env_vars={},
         targets=[],
         exclude=[],
         project_name="esb",

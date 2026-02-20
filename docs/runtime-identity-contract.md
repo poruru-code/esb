@@ -31,7 +31,8 @@ brand slug は次の順序で 1 つに解決します。
 | `BrandSlug` | 解決済み brand |
 | `RuntimeNamespace` | `<brand>` |
 | `RuntimeCNIName` | `<brand>-net` |
-| `RuntimeCNIBridge` | `esb0`（runtime-node forwarding 互換のため固定） |
+| `RuntimeCNIBridge` | `esb-<brand4><hash6>` |
+| `RuntimeCNISubnet` | 決定論的な `10.x.y.0/23` |
 | `RuntimeContainerPrefix` | `<brand>` |
 | `ImagePrefix` | `<brand>` |
 | `EnvPrefix` | `<brand>` を大文字化し `-` を `_` へ変換 |
@@ -44,17 +45,22 @@ brand slug は次の順序で 1 つに解決します。
 | `RuntimeLabelOwner` | `com.<brand>.owner` |
 | `RuntimeResolvConfPath` | `/run/containerd/<brand>/resolv.conf` |
 
+補足:
+- `RuntimeCNISubnet` は `10.88.x.x` 帯を除外した `/23` スロットから派生されます。
+- Agent は `CNI_SUBNET` 未指定時に既存 CNI 設定の subnet 使用状況を確認し、衝突時は同一 hash 空間の次スロットへ進めます（決定論維持）。
+- 有限 IPv4 スロット上の決定論マッピングのため理論上の衝突可能性は残りますが、従来の `/20` 派生よりスロット空間を拡張し、かつローカル衝突は上記 probe で回避します。
+
 ## Tag Compatibility
 既定タグ解決は `<EnvPrefix>_TAG` を優先し、未設定時は `ESB_TAG`、さらに未設定時は `latest` を使います。
 
 ## Compose Injection Contract
 stack から安定して brand を導出するため、Agent には最低限以下を渡します。
 
-- `PROJECT_NAME`
 - `ENV`
 - `CONTAINERS_NETWORK`
 
-上記の入力欠落時は Agent 起動時に失敗します。
+`PROJECT_NAME` は任意入力です（あれば導出優先度を上げるために使用）。
+`ENV` と `CONTAINERS_NETWORK` の両方が欠落した場合は Agent 起動時に失敗します。
 
 ## Source of Truth
 - `services/agent/internal/identity/stack_identity.go`

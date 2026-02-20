@@ -13,7 +13,7 @@ from e2e.runner.models import Scenario
 from e2e.runner.utils import env_key
 
 
-def test_prepare_context_merges_runtime_env_and_overrides(monkeypatch, tmp_path):
+def test_prepare_context_merges_runtime_env(monkeypatch, tmp_path):
     compose_file = tmp_path / "docker-compose.docker.yml"
     compose_file.write_text("services: {}\n", encoding="utf-8")
     staging_dir = tmp_path / "staging" / "config"
@@ -24,6 +24,8 @@ def test_prepare_context_merges_runtime_env_and_overrides(monkeypatch, tmp_path)
             env_key(constants.PORT_GATEWAY_HTTPS): "0",
             constants.ENV_CONTAINER_REGISTRY: "registry:5010",
             constants.ENV_BUILDKITD_CONFIG: "/tmp/buildkitd.toml",
+            constants.ENV_AUTH_USER: "calc-user",
+            "EXTRA_KEY": "EXTRA_VAL",
             "BUILDX_BUILDER": "esb-buildx",
         },
     )
@@ -46,7 +48,6 @@ def test_prepare_context_merges_runtime_env_and_overrides(monkeypatch, tmp_path)
         mode="docker",
         env_file="e2e/environments/e2e-docker/.env",
         env_dir=None,
-        env_vars={constants.ENV_AUTH_USER: "scenario-user", "EXTRA_KEY": "EXTRA_VAL"},
         targets=["e2e/scenarios/smoke/test_smoke.py"],
         exclude=[],
         project_name="esb",
@@ -64,7 +65,7 @@ def test_prepare_context_merges_runtime_env_and_overrides(monkeypatch, tmp_path)
     assert ctx.compose_file == compose_file
     assert ctx.project_name == "esb"
     assert ctx.compose_project == "esb-e2e-docker"
-    assert ctx.runtime_env[constants.ENV_AUTH_USER] == "scenario-user"
+    assert ctx.runtime_env[constants.ENV_AUTH_USER] == "state-user"
     assert ctx.runtime_env[env_key(constants.ENV_TAG)] == "generated-tag"
     assert ctx.runtime_env[env_key(constants.PORT_GATEWAY_HTTPS)] == "18443"
     assert ctx.runtime_env[env_key(constants.PORT_AGENT_GRPC)] == "15051"
@@ -83,7 +84,7 @@ def test_prepare_context_merges_runtime_env_and_overrides(monkeypatch, tmp_path)
     assert staging_dir.exists()
 
 
-def test_prepare_context_reapplies_proxy_defaults_after_scenario_override(monkeypatch, tmp_path):
+def test_prepare_context_reapplies_proxy_defaults(monkeypatch, tmp_path):
     compose_file = tmp_path / "docker-compose.docker.yml"
     compose_file.write_text("services: {}\n", encoding="utf-8")
     staging_dir = tmp_path / "staging" / "config"
@@ -95,6 +96,7 @@ def test_prepare_context_reapplies_proxy_defaults_after_scenario_override(monkey
             env_key(constants.PORT_GATEWAY_HTTPS): "0",
             constants.ENV_CONTAINER_REGISTRY: "registry:5010",
             constants.ENV_BUILDKITD_CONFIG: "/tmp/buildkitd.toml",
+            "HTTP_PROXY": "http://proxy.example:8080",
             "BUILDX_BUILDER": "esb-buildx",
         },
     )
@@ -114,7 +116,6 @@ def test_prepare_context_reapplies_proxy_defaults_after_scenario_override(monkey
         mode="docker",
         env_file="e2e/environments/e2e-docker/.env",
         env_dir=None,
-        env_vars={"HTTP_PROXY": "http://proxy.example:8080"},
         targets=["e2e/scenarios/smoke/test_smoke.py"],
         exclude=[],
         project_name="esb",
@@ -157,7 +158,6 @@ def test_prepare_context_requires_config_dir(monkeypatch, tmp_path):
         mode="docker",
         env_file="e2e/environments/e2e-docker/.env",
         env_dir=None,
-        env_vars={},
         targets=[],
         exclude=[],
         project_name="esb",

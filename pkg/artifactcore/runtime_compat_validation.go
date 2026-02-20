@@ -43,15 +43,6 @@ func validateRuntimeCompatibility(manifest ArtifactManifest, observation *Runtim
 		}
 	}
 
-	requiredVersion := strings.TrimSpace(manifest.RuntimeStack.ESBVersion)
-	if requiredVersion != "" {
-		if obs.ESBVersion == "" {
-			warnings = append(warnings, fmt.Sprintf("runtime_stack.esb_version expected %q but observed value is empty", requiredVersion))
-		} else if requiredVersion != obs.ESBVersion {
-			warnings = append(warnings, fmt.Sprintf("runtime_stack.esb_version mismatch: expected %q, observed %q", requiredVersion, obs.ESBVersion))
-		}
-	}
-
 	return warnings, nil
 }
 

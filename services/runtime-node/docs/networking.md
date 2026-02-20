@@ -8,8 +8,8 @@ Why: Clarify CNI/CoreDNS/NAT wiring and operational checks.
 ## 概要
 runtime-node は CNI bridge と CoreDNS を使って worker ネットワークを提供します。
 
-- worker subnet: `10.88.0.0/16`（CNI）
-- DNS: `10.88.0.1:53`（CoreDNS sidecar）
+- worker subnet: `CNI_SUBNET`（Agent 解決値）
+- DNS: `<CNI gateway>:53`（CoreDNS sidecar）
 - 外向き通信: runtime-node の iptables MASQUERADE
 
 ## 構成
@@ -18,12 +18,12 @@ flowchart TD
     subgraph RuntimeNS["runtime-node NetNS"]
         RN["runtime-node\ncontainerd + CNI"]
         AG["agent"]
-        DNS["coredns\n10.88.0.1:53"]
+        DNS["coredns\n<CNI_GW_IP>:53"]
         GW["gateway"]
     end
 
-    subgraph WorkerNet["CNI bridge 10.88.0.0/16"]
-        WK["worker (RIE)\n10.88.x.x"]
+    subgraph WorkerNet["CNI bridge (brand-resolved subnet)"]
+        WK["worker (RIE)\n10.x.y.z"]
     end
 
     subgraph External["external_network"]
@@ -45,7 +45,7 @@ flowchart TD
 ## 実装上の要点
 - CoreDNS は `network_mode: service:runtime-node` で runtime-node の NetNS を共有
 - Agent/Gateway も containerd compose では runtime-node NetNS を共有
-- NAT ルールは `apply_cni_nat()` で投入され、現状サブネットは `10.88.0.0/16` 固定
+- NAT ルールは `apply_cni_nat()` で投入され、`CNI_SUBNET` と `CNI_BRIDGE`（または `/var/lib/cni/esb-cni.env`）へ追従
 
 ## 代表的な確認コマンド
 ```bash
@@ -60,8 +60,8 @@ docker exec <project>-runtime-node ctr -a /run/containerd/containerd.sock versio
 ```
 
 ## 注意
-`CNI_SUBNET` を変更しても、runtime-node 側 NAT ルールは自動追従しません。
-サブネット変更を行う場合は `entrypoint.common.sh` の NAT 設定も合わせて更新が必要です。
+`runtime-node` は起動時と定期再適用で `/var/lib/cni/esb-cni.env` を再読込します。
+`CNI_SUBNET` / `CNI_BRIDGE` の更新は iptables ルールへ自動追従します（既存ルールは `ensure_iptables_rule` で冪等化）。
 
 ---
 
