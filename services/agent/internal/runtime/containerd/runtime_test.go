@@ -60,3 +60,15 @@ func TestExtractIPv4(t *testing.T) {
 		})
 	}
 }
+
+func TestNewRuntime_UsesSharedCNINetwork(t *testing.T) {
+	rt := NewRuntime(nil, nil, "acme", "dev", "brand-a")
+	if got := rt.cniNetwork; got != "esb-net" {
+		t.Fatalf("cniNetwork = %q, want %q", got, "esb-net")
+	}
+
+	rtOther := NewRuntime(nil, nil, "acme", "dev", "brand-b")
+	if got := rtOther.cniNetwork; got != "esb-net" {
+		t.Fatalf("cniNetwork (other brand) = %q, want %q", got, "esb-net")
+	}
+}

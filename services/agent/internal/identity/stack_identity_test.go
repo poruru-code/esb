@@ -71,7 +71,7 @@ func TestStackIdentityDerivedValues(t *testing.T) {
 	if got := id.RuntimeNamespace(); got != "acme-core" {
 		t.Fatalf("namespace = %q", got)
 	}
-	if got := id.RuntimeCNIName(); got != "acme-core-net" {
+	if got := id.RuntimeCNIName(); got != "esb-net" {
 		t.Fatalf("cni name = %q", got)
 	}
 	if got := id.RuntimeCNIBridge(); got != "esb0" {

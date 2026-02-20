@@ -20,6 +20,7 @@ import (
 
 const (
 	runtimeFirecracker = "aws.firecracker"
+	defaultCNINetwork  = "esb-net"
 )
 
 type Runtime struct {
@@ -47,7 +48,7 @@ func NewRuntime(client Client, cniPlugin cni.CNI, namespace, env, brandSlug stri
 		namespace:  ns,
 		env:        env,
 		brandSlug:  brand,
-		cniNetwork: brand + "-net",
+		cniNetwork: defaultCNINetwork,
 		resolvConf: fmt.Sprintf("/run/containerd/%s/resolv.conf", ns),
 	}
 }

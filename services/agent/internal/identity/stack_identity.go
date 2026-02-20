@@ -14,6 +14,7 @@ const (
 	EnvName              = "ENV"
 	EnvContainersNetwork = "CONTAINERS_NETWORK"
 
+	fixedCNIName   = "esb-net"
 	fixedCNIBridge = "esb0"
 )
 
@@ -46,7 +47,8 @@ func (id StackIdentity) RuntimeNamespace() string {
 }
 
 func (id StackIdentity) RuntimeCNIName() string {
-	return id.BrandSlug + "-net"
+	// Keep CNI network identity aligned with shared bridge to avoid multi-stack collisions.
+	return fixedCNIName
 }
 
 func (id StackIdentity) RuntimeCNIBridge() string {
