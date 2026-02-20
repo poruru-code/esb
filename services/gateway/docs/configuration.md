@@ -56,6 +56,7 @@ Why: Keep operator-facing configuration aligned with services/gateway/config.py.
 | --- | --- | --- |
 | `DATA_PLANE_HOST` | `10.88.0.1` | data-plane host |
 | `S3_ENDPOINT` | (空) | Lambda 注入用 S3 endpoint |
+| `S3_PRESIGN_ENDPOINT` | (空) | Lambda 注入用の presign 専用公開 S3 endpoint（通常の S3 API 呼び出しには使わない） |
 | `DYNAMODB_ENDPOINT` | (空) | Lambda 注入用 Dynamo endpoint |
 | `GATEWAY_VICTORIALOGS_URL` | (空) | Lambda 注入用 logs endpoint |
 

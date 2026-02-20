@@ -13,7 +13,7 @@ artifacts:
     source_template:
       path: e2e/fixtures/template.e2e.yaml
       sha256: 6a6b873fc6f14e8e2d81093b2c1dd5d9210099ee8f15d4fc684606c05217cd47
-generated_at: "2026-02-20T07:04:05Z"
+generated_at: "2026-02-20T10:52:59Z"
 generator:
   name: esb
-  version: dev
+  version: 3ddc92b
