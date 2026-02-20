@@ -165,7 +165,7 @@ for mod in cli/go.mod tools/artifactctl/go.mod; do
   fi
 done
 if (( ${#mod_files[@]} > 0 )); then
-  if search_files '^\s*(replace\s+)?github\.com/(poruru|poruru-code)/(edge-serverless-box|esb)/pkg/[[:alnum:]_.-]+\s+=>\s*' \
+  if search_files '^\s*(replace\s+)?github\.com/(poruru|poruru-code)/(edge-serverless-box|esb)/pkg/[[:alnum:]_.-]+(\s+v[^[:space:]]+)?\s+=>\s*' \
     "${mod_files[@]}"; then
     echo "[error] do not add pkg/* replace directives to adapter go.mod files" >&2
     exit 1
