@@ -56,9 +56,7 @@ def _validate_config_dir(entry: dict, env_name: str, esb_project: str) -> str:
         f"{BRAND_HOME_DIR}/staging/{esb_project}-{env_key}/{env_key}/config"
     )
     if normalized != expected:
-        raise ValueError(
-            f"config_dir mismatch for esb_env '{env_name}': {normalized} != {expected}"
-        )
+        raise ValueError(f"config_dir mismatch for env '{env_name}': {normalized} != {expected}")
     return normalized
 
 
@@ -78,7 +76,7 @@ def build_env_scenarios(matrix: list, suites: dict, profile_filter: str | None =
     env_scenarios = {}
 
     for entry in matrix:
-        env_name = entry.get("esb_env")
+        env_name = entry.get("env")
         if not env_name:
             print(f"[ERROR] Invalid matrix entry format: {entry}")
             continue
@@ -108,7 +106,7 @@ def build_env_scenarios(matrix: list, suites: dict, profile_filter: str | None =
                 "env_file": env_file,
                 "env_dir": f"e2e/environments/{env_dir}" if env_dir else env_dir,
                 "config_dir": config_dir,
-                "esb_env": env_name,
+                "env": env_name,
                 "esb_project": esb_project,
                 "mode": mode,
                 "targets": [],
@@ -120,17 +118,17 @@ def build_env_scenarios(matrix: list, suites: dict, profile_filter: str | None =
             existing = env_scenarios[env_name]
             if existing.get("config_dir") != config_dir:
                 raise ValueError(
-                    f"config_dir mismatch for esb_env '{env_name}': "
+                    f"config_dir mismatch for env '{env_name}': "
                     f"{existing.get('config_dir')} != {config_dir}"
                 )
             if existing.get("esb_project") != esb_project:
                 raise ValueError(
-                    f"esb_project mismatch for esb_env '{env_name}': "
+                    f"esb_project mismatch for env '{env_name}': "
                     f"{existing.get('esb_project')} != {esb_project}"
                 )
             if existing.get("artifact_manifest") != artifact_manifest:
                 raise ValueError(
-                    f"artifact_manifest mismatch for esb_env '{env_name}': "
+                    f"artifact_manifest mismatch for env '{env_name}': "
                     f"{existing.get('artifact_manifest')} != {artifact_manifest}"
                 )
 
