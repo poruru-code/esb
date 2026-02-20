@@ -38,8 +38,24 @@ def test_requires_artifactctl_false_without_scenarios() -> None:
     assert requires_artifactctl(_args(), {}) is False
 
 
-def test_ensure_artifactctl_available_uses_path(monkeypatch) -> None:
+def test_ensure_artifactctl_available_prefers_local_bin(monkeypatch, tmp_path) -> None:
     monkeypatch.delenv("ARTIFACTCTL_BIN", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    local_bin = tmp_path / ".local" / "bin" / "artifactctl"
+    local_bin.parent.mkdir(parents=True)
+    local_bin.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    local_bin.chmod(0o755)
+    monkeypatch.setattr("e2e.run_tests.shutil.which", lambda name: "/usr/local/bin/artifactctl")
+    monkeypatch.setattr("e2e.run_tests.subprocess.run", _probe_ok)
+    resolved = ensure_artifactctl_available()
+    expected = str(local_bin.resolve())
+    assert resolved == expected
+    assert os.environ["ARTIFACTCTL_BIN_RESOLVED"] == expected
+
+
+def test_ensure_artifactctl_available_uses_path(monkeypatch, tmp_path) -> None:
+    monkeypatch.delenv("ARTIFACTCTL_BIN", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setattr("e2e.run_tests.shutil.which", lambda name: "/usr/local/bin/artifactctl")
     monkeypatch.setattr("e2e.run_tests.subprocess.run", _probe_ok)
     resolved = ensure_artifactctl_available()
@@ -73,6 +89,7 @@ def test_ensure_artifactctl_available_normalizes_relative_override(monkeypatch, 
 
 def test_ensure_artifactctl_available_fails_when_missing(monkeypatch) -> None:
     monkeypatch.delenv("ARTIFACTCTL_BIN", raising=False)
+    monkeypatch.setenv("HOME", "/tmp/esb-no-local-artifactctl")
     monkeypatch.setattr("e2e.run_tests.shutil.which", lambda name: None)
     with pytest.raises(SystemExit):
         ensure_artifactctl_available()
@@ -87,6 +104,7 @@ def test_ensure_artifactctl_available_fails_when_override_missing(monkeypatch) -
 
 def test_ensure_artifactctl_available_fails_when_subcommand_contract_missing(monkeypatch) -> None:
     monkeypatch.delenv("ARTIFACTCTL_BIN", raising=False)
+    monkeypatch.setenv("HOME", "/tmp/esb-no-local-artifactctl")
     monkeypatch.setattr("e2e.run_tests.shutil.which", lambda name: "/usr/local/bin/artifactctl")
     monkeypatch.setattr(
         "e2e.run_tests.subprocess.run",

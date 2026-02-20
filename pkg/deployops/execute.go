@@ -51,6 +51,7 @@ func Execute(input Input) (artifactcore.ApplyResult, error) {
 		NoCache:      normalized.NoCache,
 		Runner:       normalized.Runner,
 		Runtime:      observation,
+		EnsureBase:   true,
 	}); err != nil {
 		return artifactcore.ApplyResult{}, err
 	}

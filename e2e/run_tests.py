@@ -113,6 +113,13 @@ def ensure_artifactctl_available() -> str:
         os.environ["ARTIFACTCTL_BIN_RESOLVED"] = resolved_abs
         return resolved_abs
 
+    preferred_local = os.path.expanduser("~/.local/bin/artifactctl")
+    if os.path.isfile(preferred_local) and os.access(preferred_local, os.X_OK):
+        resolved_abs = os.path.abspath(preferred_local)
+        _assert_supported(resolved_abs)
+        os.environ["ARTIFACTCTL_BIN_RESOLVED"] = resolved_abs
+        return resolved_abs
+
     resolved = shutil.which("artifactctl")
     if resolved is not None:
         resolved_abs = os.path.abspath(resolved)
