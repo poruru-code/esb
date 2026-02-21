@@ -5,12 +5,14 @@ Java counterpart: `e2e/fixtures/images/lambda/java`.
 
 ## Repository usage
 
-The E2E flow uses the image URI declared in `e2e/fixtures/template.e2e.yaml`:
+The default image URI in `e2e/fixtures/template.e2e.yaml` is:
 
-- `public.ecr.aws/r9p4t4p0/esb-e2e-lambda-python:latest`
+- `127.0.0.1:5010/esb-e2e-lambda-python:latest`
 
-At deploy/apply time, `artifactctl deploy` builds function images from artifact
-Dockerfiles and pushes them to the internal registry.
+During E2E deploy, runner prepares this fixture image first
+by scanning artifact Dockerfiles (`FROM ...`) and then running
+`docker buildx build` + `docker push`, followed by
+`artifactctl deploy` / `artifactctl provision`.
 
 Use this directory when you need to rebuild and publish the source image.
 
@@ -20,15 +22,15 @@ Use this directory when you need to rebuild and publish the source image.
 docker buildx build \
   --platform linux/amd64 \
   --load \
-  --tag public.ecr.aws/r9p4t4p0/esb-e2e-lambda-python:latest \
+  --tag 127.0.0.1:5010/esb-e2e-lambda-python:latest \
   ./e2e/fixtures/images/lambda/python
-docker push public.ecr.aws/r9p4t4p0/esb-e2e-lambda-python:latest
+docker push 127.0.0.1:5010/esb-e2e-lambda-python:latest
 ```
 
 ## Local smoke run (optional)
 
 ```bash
-docker run --rm -p 9000:8080 public.ecr.aws/r9p4t4p0/esb-e2e-lambda-python:latest
+docker run --rm -p 9000:8080 127.0.0.1:5010/esb-e2e-lambda-python:latest
 curl -sS -XPOST localhost:9000/2015-03-31/functions/function/invocations \
   -d '{"message":"hello-image"}'
 ```

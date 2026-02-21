@@ -7,7 +7,7 @@ from e2e.runner.utils import BRAND_HOME_DIR, BRAND_SLUG, PROJECT_ROOT
 
 MATRIX_ROOT = PROJECT_ROOT / "e2e" / "environments"
 
-_UNSUPPORTED_MATRIX_FIELDS = ("deploy_driver", "artifact_generate")
+_UNSUPPORTED_MATRIX_FIELDS = ("deploy_driver", "artifact_generate", "image_uri_overrides")
 
 
 def _reject_unsupported_fields(entry: dict) -> None:
@@ -111,7 +111,6 @@ def build_env_scenarios(matrix: list, suites: dict, profile_filter: str | None =
                 "mode": mode,
                 "targets": [],
                 "exclude": [],
-                "image_uri_overrides": entry.get("image_uri_overrides", {}) or {},
                 "artifact_manifest": artifact_manifest,
             }
         else:

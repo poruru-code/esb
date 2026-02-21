@@ -18,15 +18,12 @@ from e2e.runner.models import RunContext, Scenario
 def _make_context(
     tmp_path: Path,
     *,
-    image_uri_overrides: dict[str, str] | None = None,
     artifact_manifest: str | None = None,
     runtime_env: dict[str, str] | None = None,
 ) -> RunContext:
     compose_file = tmp_path / "docker-compose.yml"
     compose_file.write_text("services: {}\n", encoding="utf-8")
     extra: dict[str, Any] = {}
-    if image_uri_overrides is not None:
-        extra["image_uri_overrides"] = image_uri_overrides
     if artifact_manifest is not None:
         extra["artifact_manifest"] = artifact_manifest
     scenario = Scenario(
@@ -127,32 +124,31 @@ def _write_artifact_fixture(
     return manifest_path
 
 
-def test_collect_local_fixture_image_sources_filters_non_fixture() -> None:
-    extra = {
-        "image_uri_overrides": {
-            "lambda-image": "127.0.0.1:5010/esb-e2e-lambda-python:latest",
-            "other": "public.ecr.aws/example/repo:v1",
-        }
-    }
-    assert _collect_local_fixture_image_sources(extra) == [
-        "127.0.0.1:5010/esb-e2e-lambda-python:latest"
-    ]
+def test_collect_local_fixture_image_sources_filters_non_fixture(tmp_path) -> None:
+    manifest = _write_artifact_fixture(
+        tmp_path,
+        image_ref="127.0.0.1:5010/esb-lambda-echo:e2e-test",
+        base_ref="public.ecr.aws/example/repo:v1",
+    )
+    assert _collect_local_fixture_image_sources(manifest) == []
 
 
-def test_collect_local_fixture_image_sources_includes_java_fixture() -> None:
-    extra = {
-        "image_uri_overrides": {
-            "lambda-image": "127.0.0.1:5010/esb-e2e-lambda-java:latest",
-        }
-    }
-    assert _collect_local_fixture_image_sources(extra) == [
+def test_collect_local_fixture_image_sources_includes_java_fixture(tmp_path) -> None:
+    manifest = _write_artifact_fixture(
+        tmp_path,
+        image_ref="127.0.0.1:5010/esb-lambda-echo:e2e-test",
+        base_ref="127.0.0.1:5010/esb-e2e-lambda-java:latest",
+    )
+    assert _collect_local_fixture_image_sources(manifest) == [
         "127.0.0.1:5010/esb-e2e-lambda-java:latest"
     ]
 
 
-def test_deploy_artifacts_rejects_invalid_image_override(monkeypatch, tmp_path):
+def test_deploy_artifacts_rejects_invalid_manifest_artifacts_field(monkeypatch, tmp_path):
+    manifest = tmp_path / "artifact.yml"
+    manifest.write_text("artifacts: invalid\n", encoding="utf-8")
     ctx = _make_context(tmp_path)
-    ctx.scenario.extra["image_uri_overrides"] = "invalid-override-format"
+    ctx.scenario.extra["artifact_manifest"] = str(manifest)
 
     monkeypatch.setattr(
         "e2e.runner.deploy._deploy_via_artifact_driver", lambda *args, **kwargs: None
@@ -161,7 +157,7 @@ def test_deploy_artifacts_rejects_invalid_image_override(monkeypatch, tmp_path):
     log = LogSink(tmp_path / "deploy.log")
     log.open()
     try:
-        with pytest.raises(ValueError, match="image_uri_overrides"):
+        with pytest.raises(ValueError, match="artifacts"):
             deploy_artifacts(
                 ctx,
                 no_cache=False,
@@ -174,9 +170,14 @@ def test_deploy_artifacts_rejects_invalid_image_override(monkeypatch, tmp_path):
 
 def test_deploy_artifacts_prepares_local_fixture_image(monkeypatch, tmp_path):
     deploy_module._prepared_local_fixture_images.clear()
+    manifest = _write_artifact_fixture(
+        tmp_path,
+        image_ref="127.0.0.1:5010/esb-lambda-echo:e2e-test",
+        base_ref="127.0.0.1:5010/esb-e2e-lambda-python:latest",
+    )
     ctx = _make_context(
         tmp_path,
-        image_uri_overrides={"lambda-image": "127.0.0.1:5010/esb-e2e-lambda-python:latest"},
+        artifact_manifest=str(manifest),
     )
 
     commands: list[list[str]] = []
@@ -205,6 +206,65 @@ def test_deploy_artifacts_prepares_local_fixture_image(monkeypatch, tmp_path):
 
     assert commands[0][0:3] == ["docker", "buildx", "build"]
     assert commands[1] == ["docker", "push", "127.0.0.1:5010/esb-e2e-lambda-python:latest"]
+
+
+def test_deploy_artifacts_prepares_fixture_then_runs_deploy_and_provision(monkeypatch, tmp_path):
+    deploy_module._prepared_local_fixture_images.clear()
+    config_dir = tmp_path / "merged-config"
+    image_ref = "127.0.0.1:5010/esb-lambda-echo:e2e-test"
+    base_ref = "127.0.0.1:5010/esb-e2e-lambda-python:latest"
+    manifest = _write_artifact_fixture(tmp_path, image_ref=image_ref, base_ref=base_ref)
+    ctx = _make_context(
+        tmp_path,
+        artifact_manifest=str(manifest),
+        runtime_env={
+            "CONFIG_DIR": str(config_dir),
+            "HOST_REGISTRY_ADDR": "127.0.0.1:5010",
+            "CONTAINER_REGISTRY": "127.0.0.1:5010",
+        },
+    )
+
+    commands: list[list[str]] = []
+
+    def fake_run_and_stream(cmd: list[str], **kwargs: Any) -> int:
+        del kwargs
+        commands.append(list(cmd))
+        return 0
+
+    monkeypatch.setattr("e2e.runner.deploy.run_and_stream", fake_run_and_stream)
+
+    log = LogSink(tmp_path / "deploy.log")
+    log.open()
+    try:
+        deploy_artifacts(
+            ctx,
+            no_cache=False,
+            log=log,
+            printer=None,
+        )
+    finally:
+        log.close()
+
+    assert commands[0][0:3] == ["docker", "buildx", "build"]
+    assert commands[1] == ["docker", "push", "127.0.0.1:5010/esb-e2e-lambda-python:latest"]
+    assert commands[2] == [
+        "artifactctl",
+        "deploy",
+        "--artifact",
+        str(manifest.resolve()),
+        "--out",
+        str(config_dir),
+    ]
+    assert commands[3] == [
+        "artifactctl",
+        "provision",
+        "--project",
+        ctx.compose_project,
+        "--compose-file",
+        str(ctx.compose_file),
+        "--env-file",
+        ctx.env_file,
+    ]
 
 
 def test_deploy_artifacts_runs_deploy_and_provision(monkeypatch, tmp_path):
