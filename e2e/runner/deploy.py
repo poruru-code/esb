@@ -3,9 +3,12 @@
 # Why: Keep deploy logic separate from lifecycle and test orchestration.
 from __future__ import annotations
 
+import re
 import threading
 from pathlib import Path
-from typing import Any, Callable
+from typing import Callable
+
+import yaml
 
 from e2e.runner.logging import LogSink, run_and_stream
 from e2e.runner.models import RunContext
@@ -19,6 +22,10 @@ LOCAL_IMAGE_FIXTURES: dict[str, Path] = {
 
 _prepared_local_fixture_images: set[str] = set()
 _prepared_local_fixture_lock = threading.Lock()
+_DOCKERFILE_FROM_PATTERN = re.compile(
+    r"^FROM(?:\s+--platform=[^\s]+)?\s+(?P<source>[^\s]+)",
+    re.IGNORECASE,
+)
 
 
 def _artifactctl_bin(ctx: RunContext) -> str:
@@ -135,7 +142,10 @@ def _prepare_local_fixture_images(
     log: LogSink,
     printer: Callable[[str], None] | None = None,
 ) -> None:
-    sources = _collect_local_fixture_image_sources(ctx.scenario.extra)
+    manifest_path = _resolve_artifact_manifest_path(ctx)
+    if not manifest_path.exists():
+        return
+    sources = _collect_local_fixture_image_sources(manifest_path)
     if not sources:
         return
 
@@ -189,15 +199,53 @@ def _prepare_local_fixture_images(
             _prepared_local_fixture_images.add(source)
 
 
-def _collect_local_fixture_image_sources(extra: dict[str, Any]) -> list[str]:
-    values = _collect_function_overrides(extra.get("image_uri_overrides"), "image_uri_overrides")
+def _collect_local_fixture_image_sources(manifest_path: Path) -> list[str]:
+    with manifest_path.open("r", encoding="utf-8") as handle:
+        payload = yaml.safe_load(handle) or {}
+    if not isinstance(payload, dict):
+        raise ValueError(f"artifact manifest must be a map: {manifest_path}")
+
+    artifacts = payload.get("artifacts")
+    if artifacts is None:
+        return []
+    if not isinstance(artifacts, list):
+        raise ValueError(f"artifact manifest field 'artifacts' must be a list: {manifest_path}")
+
     sources: set[str] = set()
-    for value in values:
-        _, _, source = value.partition("=")
-        source = source.strip()
+    for artifact in artifacts:
+        if not isinstance(artifact, dict):
+            raise ValueError(f"artifact entries must be maps: {manifest_path}")
+        artifact_root_raw = str(artifact.get("artifact_root", "")).strip()
+        if artifact_root_raw == "":
+            continue
+        artifact_root = Path(artifact_root_raw)
+        if not artifact_root.is_absolute():
+            artifact_root = manifest_path.parent / artifact_root
+        artifact_root = artifact_root.resolve()
+        if not artifact_root.exists():
+            raise FileNotFoundError(f"artifact_root not found: {artifact_root}")
+        sources.update(_collect_local_fixture_sources_from_artifact_root(artifact_root))
+    return sorted(sources)
+
+
+def _collect_local_fixture_sources_from_artifact_root(artifact_root: Path) -> set[str]:
+    sources: set[str] = set()
+    for dockerfile in sorted(artifact_root.rglob("Dockerfile")):
+        sources.update(_collect_local_fixture_sources_from_dockerfile(dockerfile))
+    return sources
+
+
+def _collect_local_fixture_sources_from_dockerfile(dockerfile: Path) -> set[str]:
+    sources: set[str] = set()
+    content = dockerfile.read_text(encoding="utf-8")
+    for line in content.splitlines():
+        match = _DOCKERFILE_FROM_PATTERN.match(line.strip())
+        if match is None:
+            continue
+        source = match.group("source").strip()
         if _is_local_fixture_image_source(source):
             sources.add(source)
-    return sorted(sources)
+    return sources
 
 
 def _is_local_fixture_image_source(source: str) -> bool:
@@ -210,40 +258,3 @@ def _fixture_repo_name(source: str) -> str:
     without_digest = source.split("@", 1)[0]
     last_segment = without_digest.rsplit("/", 1)[-1]
     return last_segment.split(":", 1)[0]
-
-
-def _collect_function_overrides(raw: Any, field_name: str) -> list[str]:
-    if raw is None:
-        return []
-    if isinstance(raw, dict):
-        out: list[str] = []
-        for key in sorted(raw):
-            fn_name = str(key).strip()
-            value = str(raw[key]).strip()
-            if not fn_name or not value:
-                raise ValueError(f"{field_name} entries must have non-empty function and value")
-            out.append(f"{fn_name}={value}")
-        return out
-    if isinstance(raw, str):
-        value = _normalize_function_override(raw, field_name)
-        if value == "":
-            return []
-        return [value]
-    if isinstance(raw, list):
-        out: list[str] = []
-        for item in raw:
-            value = _normalize_function_override(str(item), field_name)
-            if value != "":
-                out.append(value)
-        return out
-    raise ValueError(f"{field_name} must be map or list")
-
-
-def _normalize_function_override(raw: str, field_name: str) -> str:
-    value = raw.strip()
-    if value == "":
-        return ""
-    function_name, separator, override_value = value.partition("=")
-    if separator == "" or function_name.strip() == "" or override_value.strip() == "":
-        raise ValueError(f"{field_name} must use <function>=<value>: {raw!r}")
-    return f"{function_name.strip()}={override_value.strip()}"

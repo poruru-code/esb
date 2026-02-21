@@ -4,10 +4,12 @@ AWS Lambda container image (Java 21) for ESB E2E `PackageType: Image` tests.
 
 ## Usage in E2E
 
-This fixture is used through matrix override:
+This fixture is referenced from generated artifact Dockerfiles using:
 
-- `image_uri_overrides.lambda-image=127.0.0.1:5010/esb-e2e-lambda-java:latest`
-- `image_runtime_overrides.lambda-image=java21`
+- `FROM 127.0.0.1:5010/esb-e2e-lambda-java:latest`
+
+For artifact fixture generation, `e2e/scripts/regenerate_artifacts.sh` sets
+`--image-runtime "lambda-image=java21"` for the containerd artifact.
 
 The image builds `app.jar` from source during Docker build, and deploy
 automatically builds/pushes this image to the local registry.

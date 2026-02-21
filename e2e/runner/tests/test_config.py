@@ -1,6 +1,6 @@
 # Where: e2e/runner/tests/test_config.py
 # What: Unit tests for matrix-to-scenario normalization.
-# Why: Keep E2E matrix extra fields wired into deploy scenario extras.
+# Why: Keep E2E matrix contract stable for artifact-only deployment.
 from __future__ import annotations
 
 import pytest
@@ -9,7 +9,7 @@ from e2e.runner.config import build_env_scenarios
 from e2e.runner.planner import build_plan
 
 
-def test_build_env_scenarios_includes_image_overrides() -> None:
+def test_build_env_scenarios_rejects_legacy_image_uri_overrides_field() -> None:
     matrix = [
         {
             "env": "e2e-docker",
@@ -26,11 +26,8 @@ def test_build_env_scenarios_includes_image_overrides() -> None:
         }
     }
 
-    scenarios = build_env_scenarios(matrix, suites)
-
-    scenario = scenarios["e2e-docker"]
-    assert scenario["image_uri_overrides"] == {"lambda-image": "public.ecr.aws/example/repo:v1"}
-    assert scenario["artifact_manifest"] == "e2e/artifacts/e2e-docker/artifact.yml"
+    with pytest.raises(ValueError, match="legacy field 'image_uri_overrides'"):
+        build_env_scenarios(matrix, suites)
 
 
 def test_build_env_scenarios_defaults_env_file_to_env_dir_dotenv() -> None:
@@ -101,7 +98,6 @@ def test_build_plan_propagates_core_fields() -> None:
     assert scenario.extra == {
         "artifact_manifest": "e2e/artifacts/e2e-docker/artifact.yml",
         "config_dir": ".esb/staging/esb-e2e-docker/e2e-docker/config",
-        "image_uri_overrides": {},
     }
 
 
