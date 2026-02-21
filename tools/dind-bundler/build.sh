@@ -672,8 +672,13 @@ for artifact_dir in "${ARTIFACT_DIRS[@]}"; do
         ;;
       ENV=*)
         value="${line#ENV=}"
-        if [ -n "$value" ] && [ -z "$ARTIFACT_ENV" ]; then
-          ARTIFACT_ENV="$value"
+        if [ -n "$value" ]; then
+          if [ -z "$ARTIFACT_ENV" ]; then
+            ARTIFACT_ENV="$value"
+          elif [ "$ARTIFACT_ENV" != "$value" ]; then
+            echo "Error: artifact env mismatch. expected '$ARTIFACT_ENV', got '$value' ($artifact_manifest_path)"
+            exit 1
+          fi
         fi
         ;;
       RUNTIME=*)

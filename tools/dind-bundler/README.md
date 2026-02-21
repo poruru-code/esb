@@ -88,8 +88,19 @@ docker run --privileged --name stack-bundle \
   -d my-stack-bundle:latest
 ```
 
+## DinD E2E Equivalent
+
+DinD 実体に対する E2E `pytest` 再現は次を利用してください。
+
+```bash
+./tools/dind-bundler/dind-e2e-equivalent/run_dind_e2e_equivalent_pytest.sh
+```
+
+詳細は `tools/dind-bundler/dind-e2e-equivalent/README.md` を参照してください。
+
 ## ファイル構成
 
 - `build.sh`: artifact 入力から DinD イメージを作るオーケストレーション
 - `Dockerfile`: DinD ベースイメージ定義
 - `entrypoint.sh`: dockerd 起動・`images.tar` ロード・ローカル registry 自動 seed・起動時 provision 実行・`docker compose up`
+- `dind-e2e-equivalent/run_dind_e2e_equivalent_pytest.sh`: DinD 起動 + DinD対象 `pytest` 一括再現スクリプト

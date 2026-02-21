@@ -104,10 +104,27 @@ setup_local_registry() {
 }
 
 seed_local_registry_images() {
-  registry_prefix="${LOCAL_REGISTRY_ADDR}/"
-  images="$(docker images --format '{{.Repository}}:{{.Tag}}' | awk -v pfx="$registry_prefix" 'index($0,pfx)==1')"
+  registry_port="${LOCAL_REGISTRY_ADDR##*:}"
+  registry_addr_prefix="${LOCAL_REGISTRY_ADDR}/"
+  registry_internal_prefix="registry:${registry_port}/"
+  registry_localhost_prefix="localhost:${registry_port}/"
+  registry_loopback_prefix="127.0.0.1:${registry_port}/"
+  images="$(
+    docker images --format '{{.Repository}}:{{.Tag}}' | awk \
+      -v a="$registry_addr_prefix" \
+      -v b="$registry_internal_prefix" \
+      -v c="$registry_localhost_prefix" \
+      -v d="$registry_loopback_prefix" \
+      '
+        index($0, a) == 1 || index($0, b) == 1 || index($0, c) == 1 || index($0, d) == 1 {
+          if (!seen[$0]++) {
+            print $0
+          }
+        }
+      '
+  )"
   if [ -z "$images" ]; then
-    echo "No local-registry-tagged images found for ${registry_prefix}; skipping registry seed."
+    echo "No local-registry-tagged images found for ${LOCAL_REGISTRY_ADDR}; skipping registry seed."
     return 0
   fi
 
