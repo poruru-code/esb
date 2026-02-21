@@ -4,8 +4,7 @@
 
 FROM docker:24-dind
 
-ARG BRAND_SLUG=esb
-ARG BRAND_HOME=.${BRAND_SLUG}
+ARG BRAND_HOME
 ARG CERT_UID=1000
 ARG CERT_GID=1000
 ENV DOCKER_TLS_CERTDIR=
@@ -24,16 +23,15 @@ RUN chmod +x /usr/local/bin/entrypoint.sh
 COPY images.tar /images.tar
 
 # Copy project configuration files
-COPY docker-compose.docker.yml /app/
-COPY config /app/config
+COPY docker-compose.bundle.yml /app/
+COPY runtime-config /app/runtime-config
 COPY .env /app/.env
-COPY bundle /app/bundle
 
 # Copy certificates
-RUN mkdir -p /root/${BRAND_HOME}/certs
+RUN test -n "${BRAND_HOME}" && mkdir -p /root/${BRAND_HOME}/certs
 COPY --chown=${CERT_UID}:${CERT_GID} certs /root/${BRAND_HOME}/certs
 
 ENTRYPOINT ["entrypoint.sh"]
 
 # Start services using docker compose
-CMD ["docker", "compose", "-f", "docker-compose.docker.yml", "up", "--no-build"]
+CMD ["docker", "compose", "-f", "docker-compose.bundle.yml", "up", "--no-build"]
