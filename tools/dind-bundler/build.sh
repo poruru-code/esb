@@ -266,10 +266,10 @@ prepare_fixture_image_if_known() {
   local fixture_dir=""
   case "$repo" in
     esb-e2e-lambda-python)
-      fixture_dir="$(pwd)/tools/e2e-lambda-fixtures/python"
+      fixture_dir="$(pwd)/e2e/fixtures/images/lambda/python"
       ;;
     esb-e2e-lambda-java)
-      fixture_dir="$(pwd)/tools/e2e-lambda-fixtures/java"
+      fixture_dir="$(pwd)/e2e/fixtures/images/lambda/java"
       ;;
     *)
       return 0

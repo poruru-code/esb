@@ -17,6 +17,6 @@ automatically builds/pushes this image to the local registry.
 ```bash
 docker buildx build --platform linux/amd64 --load \
   --tag 127.0.0.1:5010/esb-e2e-lambda-java:latest \
-  ./tools/e2e-lambda-fixtures/java
+  ./e2e/fixtures/images/lambda/java
 docker push 127.0.0.1:5010/esb-e2e-lambda-java:latest
 ```

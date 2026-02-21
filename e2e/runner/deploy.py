@@ -11,9 +11,10 @@ from e2e.runner.logging import LogSink, run_and_stream
 from e2e.runner.models import RunContext
 from e2e.runner.utils import PROJECT_ROOT
 
+LOCAL_IMAGE_FIXTURE_ROOT = PROJECT_ROOT / "e2e" / "fixtures" / "images" / "lambda"
 LOCAL_IMAGE_FIXTURES: dict[str, Path] = {
-    "esb-e2e-lambda-python": PROJECT_ROOT / "tools" / "e2e-lambda-fixtures" / "python",
-    "esb-e2e-lambda-java": PROJECT_ROOT / "tools" / "e2e-lambda-fixtures" / "java",
+    "esb-e2e-lambda-python": LOCAL_IMAGE_FIXTURE_ROOT / "python",
+    "esb-e2e-lambda-java": LOCAL_IMAGE_FIXTURE_ROOT / "java",
 }
 
 _prepared_local_fixture_images: set[str] = set()

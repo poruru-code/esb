@@ -1,7 +1,7 @@
 # esb-e2e-lambda-python
 
 AWS Lambda container image (Python 3.12) for ESB E2E `PackageType: Image` tests.
-Java counterpart: `tools/e2e-lambda-fixtures/java`.
+Java counterpart: `e2e/fixtures/images/lambda/java`.
 
 ## Repository usage
 
@@ -21,7 +21,7 @@ docker buildx build \
   --platform linux/amd64 \
   --load \
   --tag public.ecr.aws/r9p4t4p0/esb-e2e-lambda-python:latest \
-  ./tools/e2e-lambda-fixtures/python
+  ./e2e/fixtures/images/lambda/python
 docker push public.ecr.aws/r9p4t4p0/esb-e2e-lambda-python:latest
 ```
 
