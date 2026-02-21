@@ -1,4 +1,4 @@
-# Where: tools/e2e-lambda-fixtures/python/Dockerfile
+# Where: e2e/fixtures/images/lambda/python/Dockerfile
 # What: Minimal AWS Lambda Python 3.12 container image for E2E tests.
 # Why: Validate SAM PackageType=Image flow with a known-good runtime image.
 FROM public.ecr.aws/lambda/python:3.12

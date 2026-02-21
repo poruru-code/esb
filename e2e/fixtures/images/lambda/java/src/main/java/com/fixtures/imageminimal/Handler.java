@@ -1,4 +1,4 @@
-// Where: tools/e2e-lambda-fixtures/java/src/main/java/com/fixtures/imageminimal/Handler.java
+// Where: e2e/fixtures/images/lambda/java/src/main/java/com/fixtures/imageminimal/Handler.java
 // What: Java image fixture Lambda handler for E2E image-function tests.
 // Why: Validate Java image patch behavior with the same functional contract as Python fixture.
 package com.fixtures.imageminimal;

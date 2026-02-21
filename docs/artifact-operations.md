@@ -87,7 +87,7 @@ Boundary ownership map:
 Fixture refresh is a separate developer operation (outside E2E runtime):
 - regenerate fixtures with `e2e/scripts/regenerate_artifacts.sh`
 - this script uses an external artifact producer command and commits raw output
-- E2E runner may build/push local fixture images from `tools/e2e-lambda-fixtures/*` when `image_uri_overrides` points to local fixture repos
+- E2E runner may build/push local fixture images from `e2e/fixtures/images/lambda/*` when `image_uri_overrides` points to local fixture repos
 
 ## Failure Policy
 - Missing `artifact.yml`, required runtime config files, invalid ID, missing required secrets: hard fail

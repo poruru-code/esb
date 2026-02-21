@@ -1,4 +1,4 @@
-# Where: tools/e2e-lambda-fixtures/java/Dockerfile
+# Where: e2e/fixtures/images/lambda/java/Dockerfile
 # What: Minimal AWS Lambda Java 21 container image for E2E image-function tests.
 # Why: Validate ImageUri + Java agent injection flow with a deterministic fixture image.
 FROM maven:3.9.11-eclipse-temurin-21 AS builder

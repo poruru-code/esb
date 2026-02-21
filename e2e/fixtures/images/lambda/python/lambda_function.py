@@ -1,4 +1,4 @@
-# Where: tools/e2e-lambda-fixtures/python/lambda_function.py
+# Where: e2e/fixtures/images/lambda/python/lambda_function.py
 # What: Lambda handler for image-based E2E invocation tests.
 # Why: Validate sitecustomize behaviors with PackageType=Image functions.
 from __future__ import annotations
