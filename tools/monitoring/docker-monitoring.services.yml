@@ -1,0 +1,61 @@
+services:
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.55.1
+    ports:
+      - "${PORT_CADVISOR:-8080}:8080"
+    command:
+      - "--housekeeping_interval=10s"
+      - "--docker_only=false"
+    volumes:
+      - "/:/rootfs:ro"
+      - "/var/run:/var/run:ro"
+      - "/sys:/sys:ro"
+      - "/var/lib/docker:/var/lib/docker:ro"
+      - "/dev/disk:/dev/disk:ro"
+      - "/run/containerd:/run/containerd:ro"
+      - "/var/lib/containerd:/var/lib/containerd:ro"
+    restart: unless-stopped
+    networks:
+      - external_network
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    ports:
+      - "${PORT_PROMETHEUS:-9090}:9090"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-7d}"
+      - "--web.enable-lifecycle"
+    volumes:
+      - "./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro"
+      - "prometheus_data:/prometheus"
+    depends_on:
+      cadvisor:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - external_network
+
+  grafana:
+    image: grafana/grafana:11.2.2
+    ports:
+      - "${PORT_GRAFANA:-3000}:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      - "grafana_data:/var/lib/grafana"
+      - "./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro"
+      - "./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro"
+      - "./grafana/dashboards:/etc/grafana/provisioning/dashboards-json:ro"
+    depends_on:
+      prometheus:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - external_network
+
+volumes:
+  prometheus_data:
+  grafana_data:

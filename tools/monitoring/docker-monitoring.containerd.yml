@@ -1,0 +1,5 @@
+name: esb
+
+include:
+  - path: ../../docker-compose.yml
+  - path: docker-monitoring.services.yml

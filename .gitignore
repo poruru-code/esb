@@ -43,6 +43,7 @@ docker-images/
 
 # Environment
 .env
+!tools/monitoring/.env
 !e2e/environments/**/.env
 .env.local
 .branding.env
