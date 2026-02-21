@@ -1,0 +1,57 @@
+x-default-logging: &default_logging
+  driver: ${COMPOSE_LOG_DRIVER:-local}
+  options:
+    max-size: ${COMPOSE_LOG_MAX_SIZE:-10m}
+    max-file: "${COMPOSE_LOG_MAX_FILE:-5}"
+
+services:
+  registry:
+    logging: *default_logging
+    mem_limit: ${REGISTRY_MEM_LIMIT:-512m}
+    cpus: "${REGISTRY_CPUS:-0.50}"
+    pids_limit: ${REGISTRY_PIDS_LIMIT:-256}
+
+  s3-storage:
+    logging: *default_logging
+    mem_limit: ${S3_STORAGE_MEM_LIMIT:-1g}
+    cpus: "${S3_STORAGE_CPUS:-1.0}"
+    pids_limit: ${S3_STORAGE_PIDS_LIMIT:-256}
+
+  database:
+    logging: *default_logging
+    mem_limit: ${DATABASE_MEM_LIMIT:-4g}
+    cpus: "${DATABASE_CPUS:-2.0}"
+    pids_limit: ${DATABASE_PIDS_LIMIT:-1024}
+
+  victorialogs:
+    logging: *default_logging
+    mem_limit: ${VICTORIALOGS_MEM_LIMIT:-1g}
+    cpus: "${VICTORIALOGS_CPUS:-1.0}"
+    pids_limit: ${VICTORIALOGS_PIDS_LIMIT:-256}
+
+  provisioner:
+    logging: *default_logging
+
+  gateway:
+    logging: *default_logging
+    mem_limit: ${GATEWAY_MEM_LIMIT:-768m}
+    cpus: "${GATEWAY_CPUS:-1.0}"
+    pids_limit: ${GATEWAY_PIDS_LIMIT:-256}
+
+  agent:
+    logging: *default_logging
+    mem_limit: ${AGENT_MEM_LIMIT:-768m}
+    cpus: "${AGENT_CPUS:-1.0}"
+    pids_limit: ${AGENT_PIDS_LIMIT:-256}
+
+  runtime-node:
+    logging: *default_logging
+    mem_limit: ${RUNTIME_NODE_MEM_LIMIT:-2g}
+    cpus: "${RUNTIME_NODE_CPUS:-2.0}"
+    pids_limit: ${RUNTIME_NODE_PIDS_LIMIT:-2048}
+
+  coredns:
+    logging: *default_logging
+    mem_limit: ${COREDNS_MEM_LIMIT:-256m}
+    cpus: "${COREDNS_CPUS:-0.50}"
+    pids_limit: ${COREDNS_PIDS_LIMIT:-128}

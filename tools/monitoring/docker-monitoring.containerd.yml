@@ -1,0 +1,7 @@
+name: esb
+
+include:
+  - path: ../../docker-compose.infra.yml
+  - path: ../../docker-compose.containerd.yml
+  - path: ../../docker-compose.containerd.ops.yml
+  - path: docker-monitoring.services.yml
