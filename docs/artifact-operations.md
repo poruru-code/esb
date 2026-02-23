@@ -42,7 +42,7 @@ artifactctl deploy \
   --out /path/to/config-dir \
   --secret-env /path/to/secrets.env
 
-docker compose --profile deploy run --rm --no-deps provisioner
+docker compose up -d
 ```
 
 Notes:
@@ -51,6 +51,8 @@ Notes:
 - `artifactctl deploy` may run image build/pull, but lambda base must be resolved from current runtime environment.
 - `runtime_stack` requirement validation exists in shared core; `artifactctl deploy` preflight performs runtime observation probe before apply.
 - `artifactctl deploy` must treat `<artifact_root>` as read-only. Temporary build files are created only in ephemeral workspace outside artifact directories.
+- `docker compose up` では one-shot `provisioner` が自動実行され、成功後に runtime サービスが起動します。
+- 明示的に再provisionしたい場合は `artifactctl provision ...` または `docker compose --profile deploy run --rm provisioner` を使えます。
 - merge/apply は `artifactctl` 直実行のみを運用経路とする（shell wrapper は廃止）。
 
 Manual artifact minimum:

@@ -259,7 +259,7 @@ artifactcore 配布/開発ルール:
 | 1. テンプレート解析 | producer が SAM を解析 | 実行しない（生成済み成果物を受領） |
 | 2. 生成（Dockerfile / config） | `artifact.yml` を出力（`artifacts[]` に全テンプレートを記録） | 実行しない |
 | 3. Artifact 適用（検証 + 設定反映） | producer 側 apply adapter が実行 | `artifactctl deploy --artifact ... --out ...` を実行 |
-| 4. Provision | provisioner を実行 | `docker compose --profile deploy run --rm provisioner` |
+| 4. Provision | provisioner を実行 | `docker compose up` の起動シーケンス内で自動実行（必要時は `docker compose --profile deploy run --rm provisioner` を明示実行） |
 | 5. Runtime 起動 | `docker compose up` | `docker compose up` |
 
 補足:
@@ -308,12 +308,12 @@ cat "${SECRETS_ENV}" > "${RUN_ENV}"
 - `artifactctl deploy` は検証と apply を実行します（必要時に image build/pull を実行し得ます）。
 - image build では artifact 作成時の `runtime-base/**` ではなく、実行時環境の lambda base を使用します。
 
-### 2) Provision 実行
+### 2) Provision 実行（任意: 明示再実行したい場合）
 ```bash
 docker compose --env-file "${RUN_ENV}" -f "${COMPOSE_FILE}" --profile deploy run --rm provisioner
 ```
 
-### 3) Runtime 起動
+### 3) Runtime 起動（起動時に Provisioner は自動実行）
 ```bash
 docker compose --env-file "${RUN_ENV}" -f "${COMPOSE_FILE}" up -d
 ```
