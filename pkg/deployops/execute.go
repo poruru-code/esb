@@ -65,6 +65,9 @@ func Execute(input Input) (artifactcore.ApplyResult, error) {
 	if err != nil {
 		return artifactcore.ApplyResult{}, err
 	}
+	if err := normalizeOutputFunctionImages(normalized.OutputDir); err != nil {
+		return artifactcore.ApplyResult{}, err
+	}
 	result.Warnings = append(warnings, result.Warnings...)
 	return result, nil
 }
