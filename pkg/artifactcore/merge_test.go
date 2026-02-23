@@ -59,19 +59,12 @@ func TestApply_UsesManifestOrderAndLastWriteWins(t *testing.T) {
 			{
 				ArtifactRoot:     "../a",
 				RuntimeConfigDir: "config",
-				SourceTemplate:   ArtifactSourceTemplate{Path: "/tmp/a.yaml", SHA256: "sha-a"},
 			},
 			{
 				ArtifactRoot:     "../b",
 				RuntimeConfigDir: "config",
-				SourceTemplate:   ArtifactSourceTemplate{Path: "/tmp/b.yaml", SHA256: "sha-b"},
 			},
 		},
-	}
-	for i := range manifest.Artifacts {
-		e := manifest.Artifacts[i]
-		e.ID = ComputeArtifactID(e.SourceTemplate.Path, e.SourceTemplate.Parameters, e.SourceTemplate.SHA256)
-		manifest.Artifacts[i] = e
 	}
 	manifestPath := filepath.Join(manifestDir, "artifact.yml")
 	if err := WriteArtifactManifest(manifestPath, manifest); err != nil {
@@ -125,11 +118,9 @@ func TestApply_ValidatesRequiredSecretEnv(t *testing.T) {
 				ArtifactRoot:      "../a",
 				RuntimeConfigDir:  "config",
 				RequiredSecretEnv: []string{"X_API_KEY", "AUTH_PASS"},
-				SourceTemplate:    ArtifactSourceTemplate{Path: "/tmp/a.yaml", SHA256: "sha-a"},
 			},
 		},
 	}
-	manifest.Artifacts[0].ID = ComputeArtifactID("/tmp/a.yaml", nil, "sha-a")
 	manifestPath := filepath.Join(root, "manifest", "artifact.yml")
 	if err := WriteArtifactManifest(manifestPath, manifest); err != nil {
 		t.Fatal(err)
@@ -198,11 +189,9 @@ func TestApply_FailsWhenRequiredRuntimeConfigFileMissing(t *testing.T) {
 			{
 				ArtifactRoot:     "../a",
 				RuntimeConfigDir: "config",
-				SourceTemplate:   ArtifactSourceTemplate{Path: "/tmp/a.yaml", SHA256: "sha-a"},
 			},
 		},
 	}
-	manifest.Artifacts[0].ID = ComputeArtifactID("/tmp/a.yaml", nil, "sha-a")
 	manifestPath := filepath.Join(root, "manifest", "artifact.yml")
 	if err := WriteArtifactManifest(manifestPath, manifest); err != nil {
 		t.Fatal(err)
@@ -238,11 +227,9 @@ func TestApply_FailsWhenFunctionsConfigFileMissing(t *testing.T) {
 			{
 				ArtifactRoot:     "../a",
 				RuntimeConfigDir: "config",
-				SourceTemplate:   ArtifactSourceTemplate{Path: "/tmp/a.yaml", SHA256: "sha-a"},
 			},
 		},
 	}
-	manifest.Artifacts[0].ID = ComputeArtifactID("/tmp/a.yaml", nil, "sha-a")
 	manifestPath := filepath.Join(root, "manifest", "artifact.yml")
 	if err := WriteArtifactManifest(manifestPath, manifest); err != nil {
 		t.Fatal(err)
@@ -281,11 +268,9 @@ func TestApply_FailsWhenFunctionsConfigPathIsDirectory(t *testing.T) {
 			{
 				ArtifactRoot:     "../a",
 				RuntimeConfigDir: "config",
-				SourceTemplate:   ArtifactSourceTemplate{Path: "/tmp/a.yaml", SHA256: "sha-a"},
 			},
 		},
 	}
-	manifest.Artifacts[0].ID = ComputeArtifactID("/tmp/a.yaml", nil, "sha-a")
 	manifestPath := filepath.Join(root, "manifest", "artifact.yml")
 	if err := WriteArtifactManifest(manifestPath, manifest); err != nil {
 		t.Fatal(err)

@@ -3,8 +3,7 @@ project: esb
 env: e2e-docker
 mode: docker
 artifacts:
-  - id: template-e2e-92eecc19
-    artifact_root: template.e2e/e2e-docker
+  - artifact_root: template.e2e/e2e-docker
     runtime_config_dir: config
     source_template:
       path: e2e/fixtures/template.e2e.yaml

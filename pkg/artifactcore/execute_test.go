@@ -83,13 +83,8 @@ func writeExecutableArtifact(t *testing.T) string {
 		Mode:          "docker",
 		Artifacts: []ArtifactEntry{
 			{
-				ID:               ComputeArtifactID("template.yaml", nil, "sha"),
 				ArtifactRoot:     "artifact",
 				RuntimeConfigDir: "config",
-				SourceTemplate: ArtifactSourceTemplate{
-					Path:   "template.yaml",
-					SHA256: "sha",
-				},
 			},
 		},
 	}

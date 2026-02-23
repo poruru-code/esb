@@ -109,12 +109,11 @@ def _write_artifact_fixture(
         "mode": "docker",
         "artifacts": [
             {
-                "id": "template-e2e-1234abcd",
                 "artifact_root": "fixture",
                 "runtime_config_dir": "config",
                 "source_template": {
                     "path": "e2e/fixtures/template.e2e.yaml",
-                    "sha256": "sha",
+                    "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
                 },
             }
         ],

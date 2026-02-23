@@ -17,7 +17,6 @@ func newNoopDeps(out, errOut *bytes.Buffer) commandDeps {
 			return artifactcore.ApplyResult{}, nil
 		},
 		executeProvision: func(ProvisionInput) error { return nil },
-		syncManifestIDs:  func(string, bool) (int, error) { return 0, nil },
 		out:              out,
 		errOut:           errOut,
 	}
@@ -62,19 +61,6 @@ func TestRunProvisionHelpShowsFlags(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "--project") || !strings.Contains(out.String(), "--compose-file") {
 		t.Fatalf("expected provision help output, got: %q", out.String())
-	}
-}
-
-func TestRunManifestSyncIDsHelpShowsFlags(t *testing.T) {
-	var out bytes.Buffer
-	var errOut bytes.Buffer
-
-	code := run([]string{"manifest", "sync-ids", "--help"}, newNoopDeps(&out, &errOut))
-	if code != 0 {
-		t.Fatalf("run returned code=%d", code)
-	}
-	if !strings.Contains(out.String(), "--artifact") || !strings.Contains(out.String(), "--check") {
-		t.Fatalf("expected manifest sync-ids help output, got: %q", out.String())
 	}
 }
 
@@ -192,61 +178,6 @@ func TestRunDeployReportsExecuteFailure(t *testing.T) {
 		t.Fatalf("run returned code=%d", code)
 	}
 	if !strings.Contains(errOut.String(), "deploy failed: boom-deploy") {
-		t.Fatalf("unexpected stderr: %q", errOut.String())
-	}
-}
-
-func TestRunManifestSyncIDsDispatchesWriteMode(t *testing.T) {
-	var out bytes.Buffer
-	var errOut bytes.Buffer
-	gotPath := ""
-	gotWrite := false
-
-	deps := commandDeps{
-		syncManifestIDs: func(path string, write bool) (int, error) {
-			gotPath = path
-			gotWrite = write
-			return 2, nil
-		},
-		out:    &out,
-		errOut: &errOut,
-	}
-
-	code := run([]string{"manifest", "sync-ids", "--artifact", "artifact.yml"}, deps)
-	if code != 0 {
-		t.Fatalf("run returned code=%d, stderr=%q", code, errOut.String())
-	}
-	if gotPath != "artifact.yml" || !gotWrite {
-		t.Fatalf("unexpected sync args: path=%q write=%v", gotPath, gotWrite)
-	}
-	if !strings.Contains(out.String(), "updated=2") {
-		t.Fatalf("expected sync summary, got %q", out.String())
-	}
-}
-
-func TestRunManifestSyncIDsCheckFailsWhenDifferenceExists(t *testing.T) {
-	var out bytes.Buffer
-	var errOut bytes.Buffer
-
-	deps := commandDeps{
-		syncManifestIDs: func(path string, write bool) (int, error) {
-			if write {
-				t.Fatal("check mode must not write")
-			}
-			if path != "artifact.yml" {
-				t.Fatalf("unexpected path: %q", path)
-			}
-			return 1, nil
-		},
-		out:    &out,
-		errOut: &errOut,
-	}
-
-	code := run([]string{"manifest", "sync-ids", "--artifact", "artifact.yml", "--check"}, deps)
-	if code != 1 {
-		t.Fatalf("run returned code=%d", code)
-	}
-	if !strings.Contains(errOut.String(), "requires id sync") {
 		t.Fatalf("unexpected stderr: %q", errOut.String())
 	}
 }

@@ -11,7 +11,7 @@ This document defines operational flows for artifact-first deployment.
 - Producer responsibility: generate artifacts (`artifact.yml` + runtime-config outputs)
 - Applier responsibility: apply generated artifacts to `CONFIG_DIR` and run provisioner
 - Runtime responsibility: consume prepared runtime-config only
-- Payload contract responsibility: verify artifact input integrity (schema/path/id/runtime payload)
+- Payload contract responsibility: verify artifact input integrity (schema/path/runtime payload)
 - Runtime stack compatibility responsibility: verify live stack mode/API compatibility at deploy time
 
 Contract freeze:
@@ -55,13 +55,8 @@ Notes:
 
 Manual artifact minimum:
 - `artifact.yml` with `schema_version/project/env/mode/artifacts[]`
-- each entry with `id/artifact_root/runtime_config_dir/source_template.path`
+- each entry with `artifact_root/runtime_config_dir` (`source_template` is optional metadata)
 - files: `<artifact_root>/<runtime_config_dir>/functions.yml` and `routing.yml`
-- manual ID sync helper:
-```bash
-artifactctl manifest sync-ids --artifact /path/to/artifact.yml
-artifactctl manifest sync-ids --artifact /path/to/artifact.yml --check
-```
 
 ## Module Contract (artifactcore)
 - adapter modules と `tools/artifactctl/go.mod` には `pkg/artifactcore` の `replace` を置かない。
@@ -70,7 +65,7 @@ artifactctl manifest sync-ids --artifact /path/to/artifact.yml --check
 Boundary ownership map:
 - producer adapter owns producer orchestration only: template iteration, output root resolution, source template path/sha extraction.
 - `pkg/deployops` owns shared apply orchestration: runtime observation probe, image prepare, and apply execution order.
-- `pkg/artifactcore` owns manifest/apply core semantics: deterministic artifact ID normalization on write and required ID/schema/path validation on read/apply.
+- `pkg/artifactcore` owns manifest/apply core semantics: required schema/path/secret/runtime payload validation on read/apply.
 - producer adapter and `tools/artifactctl` are adapters for `deployops.Execute`; payload correctness logic stays in `pkg/artifactcore`.
 
 ## E2E Contract (Current)
@@ -90,7 +85,7 @@ Fixture refresh is a separate developer operation (outside E2E runtime):
 - E2E runner scans generated artifact Dockerfiles and builds/pushes local fixture images from `e2e/fixtures/images/lambda/*` when `FROM` uses local fixture repos
 
 ## Failure Policy
-- Missing `artifact.yml`, required runtime config files, invalid ID, missing required secrets: hard fail
+- Missing `artifact.yml`, required runtime config files, invalid manifest paths, missing required secrets: hard fail
 - Presence of legacy matrix fields (`deploy_driver`, `artifact_generate`): hard fail
 - Apply phase must not silently fall back to template-based sync paths
 - Runtime stack compatibility major mismatch is hard fail (when compatibility preflight is enabled)
