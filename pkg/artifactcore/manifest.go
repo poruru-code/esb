@@ -36,7 +36,7 @@ type ArtifactEntry struct {
 }
 
 type ArtifactSourceTemplate struct {
-	Path       string            `yaml:"path"`
+	Path       string            `yaml:"path,omitempty"`
 	SHA256     string            `yaml:"sha256,omitempty"`
 	Parameters map[string]string `yaml:"parameters,omitempty"`
 	pathSet    bool

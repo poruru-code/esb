@@ -213,6 +213,40 @@ func TestManifestValidateAllowsSourceTemplateWithoutPath(t *testing.T) {
 	}
 }
 
+func TestManifestRoundTripAllowsSourceTemplateWithoutPath(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "artifact.yml")
+	manifest := ArtifactManifest{
+		SchemaVersion: ArtifactSchemaVersionV1,
+		Project:       "esb-dev",
+		Env:           "dev",
+		Mode:          "docker",
+		Artifacts: []ArtifactEntry{
+			{
+				ArtifactRoot:     "../service-a/.esb/template-a/dev",
+				RuntimeConfigDir: "config",
+				SourceTemplate: &ArtifactSourceTemplate{
+					SHA256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+				},
+			},
+		},
+	}
+
+	if err := WriteArtifactManifest(path, manifest); err != nil {
+		t.Fatalf("WriteArtifactManifest() error = %v", err)
+	}
+	readBack, err := ReadArtifactManifest(path)
+	if err != nil {
+		t.Fatalf("ReadArtifactManifest() error = %v", err)
+	}
+	if readBack.Artifacts[0].SourceTemplate == nil {
+		t.Fatal("source_template should remain set")
+	}
+	if readBack.Artifacts[0].SourceTemplate.Path != "" {
+		t.Fatalf("source_template.path = %q, want empty", readBack.Artifacts[0].SourceTemplate.Path)
+	}
+}
+
 func TestManifestValidateRejectsEmptySourceTemplateParameterKey(t *testing.T) {
 	manifest := validTestManifest()
 	manifest.Artifacts[0].SourceTemplate = &ArtifactSourceTemplate{
