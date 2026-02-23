@@ -31,6 +31,51 @@ run = [
 description = "Generate development certificates using step-cli"
 run = "uv run python tools/cert-gen/generate.py"
 
+[tasks."rotate:certs:leaf"]
+description = "Regenerate server/client certificate files only (restart required)"
+run = [
+  "CERT_DIR=\"${CERT_DIR:-./.esb/certs}\"; rm -f \"$CERT_DIR/server.crt\" \"$CERT_DIR/server.key\" \"$CERT_DIR/client.crt\" \"$CERT_DIR/client.key\"",
+  "mise run setup:certs",
+]
+
+[tasks."rotate:certs:leaf:docker"]
+description = "Regenerate leaf certs and restart gateway/agent in docker mode"
+run = [
+  "mise run rotate:certs:leaf",
+  "docker compose -f docker-compose.docker.yml restart agent gateway",
+]
+
+[tasks."rotate:certs:leaf:containerd"]
+description = "Regenerate leaf certs and restart gateway/agent in containerd mode"
+run = [
+  "mise run rotate:certs:leaf",
+  "docker compose -f docker-compose.containerd.yml restart agent gateway",
+]
+
+[tasks."rotate:certs:all:files"]
+description = "Regenerate Root CA and leaf certificate files only (no image rebuild)"
+run = "mise run setup:certs -- --force --skip-root-ca-install"
+
+[tasks."rotate:certs:all:docker"]
+description = "Regenerate Root/leaf certs, then rebuild/redeploy docker mode services"
+run = [
+  "mise run rotate:certs:all:files",
+  "CERT_DIR=\"${CERT_DIR:-./.esb/certs}\"; ROOT_CA_FINGERPRINT=$(md5sum \"$CERT_DIR/rootCA.crt\"); ROOT_CA_FINGERPRINT=${ROOT_CA_FINGERPRINT%% *}; ROOT_CA_FINGERPRINT=\"$ROOT_CA_FINGERPRINT\" docker compose -f docker-compose.docker.yml build os-base python-base gateway agent",
+  "docker compose -f docker-compose.docker.yml up -d --force-recreate gateway agent",
+]
+
+[tasks."rotate:certs:all:containerd"]
+description = "Regenerate Root/leaf certs, then rebuild/redeploy containerd mode services"
+run = [
+  "mise run rotate:certs:all:files",
+  "CERT_DIR=\"${CERT_DIR:-./.esb/certs}\"; ROOT_CA_FINGERPRINT=$(md5sum \"$CERT_DIR/rootCA.crt\"); ROOT_CA_FINGERPRINT=${ROOT_CA_FINGERPRINT%% *}; ROOT_CA_FINGERPRINT=\"$ROOT_CA_FINGERPRINT\" docker compose -f docker-compose.containerd.yml build os-base python-base runtime-node agent gateway",
+  "docker compose -f docker-compose.containerd.yml up -d --force-recreate runtime-node agent gateway",
+]
+
+[tasks."rotate:certs:all"]
+description = "Guard task: choose rotate:certs:all:docker or rotate:certs:all:containerd"
+run = "echo 'Use one of: mise run rotate:certs:all:docker or mise run rotate:certs:all:containerd' >&2; exit 1"
+
 [tasks."setup:buildx"]
 description = "Create buildx builder and buildkitd config"
 run = "uv run python tools/buildkit/setup_buildx.py"

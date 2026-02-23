@@ -26,6 +26,7 @@ Why: Help new contributors find the source-of-truth document without guessing.
 | ランタイム障害の運用手順を確認したい | [container-runtime-operations.md](./container-runtime-operations.md) |
 | artifact-first の運用手順を確認したい | [artifact-operations.md](./artifact-operations.md) |
 | イメージ設計・ビルド方針を確認したい | [docker-image-architecture.md](./docker-image-architecture.md) |
+| 証明書ローテーションと制約を確認したい | [certificate-operations.md](./certificate-operations.md) |
 | Trace/ログ連携の仕様を確認したい | [trace-propagation.md](./trace-propagation.md), [local-logging-adapter.md](./local-logging-adapter.md) |
 | ディレクトリ責務分離を確認したい | [repo-layout-contract.md](./repo-layout-contract.md) |
 | Branding 運用を確認したい | [branding-generator.md](./branding-generator.md) |
@@ -36,6 +37,7 @@ Why: Help new contributors find the source-of-truth document without guessing.
 - [container-runtime-operations.md](./container-runtime-operations.md)
 - [artifact-operations.md](./artifact-operations.md)
 - [docker-image-architecture.md](./docker-image-architecture.md)
+- [certificate-operations.md](./certificate-operations.md)
 - [environment-variables.md](./environment-variables.md)
 - [e2e-runtime-smoke.md](./e2e-runtime-smoke.md)
 - [local-logging-adapter.md](./local-logging-adapter.md)
