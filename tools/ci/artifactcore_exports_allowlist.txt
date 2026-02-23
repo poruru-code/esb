@@ -10,6 +10,8 @@ ArtifactManifest.ResolveRuntimeConfigDir
 ArtifactManifest.Validate
 ArtifactSchemaVersionV1
 ArtifactSourceTemplate
+ArtifactSourceTemplate.UnmarshalYAML
+ArtifactSourceTemplate.Validate
 ErrArtifactPathRequired
 ErrOutputDirRequired
 ErrSecretEnvFileRequired
