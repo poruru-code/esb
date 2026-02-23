@@ -21,5 +21,6 @@ Notes:
 - The script writes both generated files and `artifact.yml` directly into `e2e/artifacts/*`.
 - The script uses environment-specific tags (`e2e-docker-latest`, `e2e-containerd-latest`) to avoid cross-environment image collisions.
 - The script fails if the generated manifest mode does not match the requested mode.
-- The script fails if generated manifest entries contain `id`, or if `source_template.path` / `source_template.sha256` are missing.
+- The script fails if generated manifest entries contain `id`.
+- `source_template` is optional; when present, `source_template.path` / `source_template.sha256` must not be blank and `sha256` must be lowercase 64-hex.
 - The script removes `<artifact_root>/runtime-base/**` from fixtures after generation.

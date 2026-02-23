@@ -53,17 +53,25 @@ for i, artifact in enumerate(artifacts):
         raise SystemExit(f"{env_name}: artifacts[{i}].id must not exist ({manifest_path})")
 
     source_template = artifact.get("source_template")
+    if source_template is None:
+        continue
     if not isinstance(source_template, dict):
-        raise SystemExit(f"{env_name}: artifacts[{i}].source_template must exist ({manifest_path})")
+        raise SystemExit(f"{env_name}: artifacts[{i}].source_template must be an object ({manifest_path})")
 
-    path = source_template.get("path")
-    if not isinstance(path, str) or not path.strip():
+    path_present = "path" in source_template
+    path = source_template.get("path", "")
+    if path_present and (not isinstance(path, str) or not path.strip()):
         raise SystemExit(
-            f"{env_name}: artifacts[{i}].source_template.path must be non-empty ({manifest_path})"
+            f"{env_name}: artifacts[{i}].source_template.path must not be blank ({manifest_path})"
         )
 
-    sha = source_template.get("sha256")
-    if not isinstance(sha, str) or not re.fullmatch(r"[0-9a-f]{64}", sha):
+    sha_present = "sha256" in source_template
+    sha = source_template.get("sha256", "")
+    if sha_present and (not isinstance(sha, str) or not sha.strip()):
+        raise SystemExit(
+            f"{env_name}: artifacts[{i}].source_template.sha256 must not be blank ({manifest_path})"
+        )
+    if isinstance(sha, str) and sha.strip() and not re.fullmatch(r"[0-9a-f]{64}", sha):
         raise SystemExit(
             f"{env_name}: artifacts[{i}].source_template.sha256 must be 64 lowercase hex ({manifest_path})"
         )
