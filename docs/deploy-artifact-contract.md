@@ -62,10 +62,8 @@ Why: Define a stable boundary between artifact producer (external/manual) and ru
 - `artifacts[]`（1件以上）
 
 ### Entry 必須
-- `id`
 - `artifact_root`
 - `runtime_config_dir`
-- `source_template.path`
 - `<artifact_root>/<runtime_config_dir>/functions.yml`
 - `<artifact_root>/<runtime_config_dir>/routing.yml`
 
@@ -84,10 +82,8 @@ Why: Define a stable boundary between artifact producer (external/manual) and ru
   - `mode`
   - `artifacts[]`（1件以上）
 - Entry 必須:
-  - `id`（決定的 ID ルールに一致）
   - `artifact_root`
   - `runtime_config_dir`
-  - `source_template.path`
 - ファイル必須:
   - `<artifact_root>/<runtime_config_dir>/functions.yml`
   - `<artifact_root>/<runtime_config_dir>/routing.yml`
@@ -96,14 +92,13 @@ Why: Define a stable boundary between artifact producer (external/manual) and ru
 - `resources.yml`
 - `bundle_manifest`
 - `required_secret_env`
+- `source_template`
 - `runtime_stack`
 - `generated_at` / `generator` / `merge_policy`
 
 注意:
-- `id` は `source_template.path` / `source_template.parameters` / `source_template.sha256` から再計算されるため、
-  手動作成時も決定的 ID ルールに必ず一致させる必要があります。
-- 手動更新時は `artifactctl manifest sync-ids --artifact <artifact.yml>` で ID を同期できます。
-- CI では `artifactctl manifest sync-ids --artifact <artifact.yml> --check` で不一致検知できます。
+- `source_template` は deploy 適用の正本ではなく、参照用メタデータです。
+- `source_template` を設定する場合のみ形式検証されます（`path` がある場合は空白禁止、`sha256` がある場合は 64 桁の小文字 hex、`parameters` は空キー禁止）。
 - 手動作成時の `runtime_stack` は任意です。生成ツールによっては既定で `runtime_stack` を出力します。
 - `runtime_stack.esb_version` は任意メタ情報です。現行の互換判定は `api_version` と `mode` を主軸とし、`esb_version` 不一致は判定しません。
 
@@ -115,34 +110,7 @@ Why: Define a stable boundary between artifact producer (external/manual) and ru
 ### 参照パス（管理用）
 - `artifact_root` は absolute/relative の両方を許可
 - relative の `artifact_root` は `artifact.yml` の所在ディレクトリ基準で解決
-- `source_template.path` は管理情報なので absolute/relative の両方を許可
-
-## Entry ID ルール
-- `id` は必須で、`artifact.yml` 内で一意でなければなりません。
-- 採番は連番禁止。決定的 ID を使用します。
-- 形式: `<template_slug>-<h8>`
-- `template_slug`: `source_template.path` のファイル名（拡張子除去）を `[a-z0-9-]` へ正規化
-- `h8`: `sha256(canonical_template_ref + \"\\n\" + canonical_parameters + \"\\n\" + canonical_source_sha256)` の先頭8桁
-- `canonical_template_ref`: `source_template.path` の文字列を正規化した参照値（`/` 区切り、絶対/相対の区別は保持）
-- `canonical_source_sha256`: `source_template.sha256`（未指定時は空文字）
-- `canonical_parameters`: key 昇順で `key=value` を `\\n` 連結した文字列（末尾改行なし）
-- 絶対化や symlink 解決などのファイルシステム依存処理は ID 算出に使いません（`source_template.path` の記録文字列のみを正規化して使用）。
-- `id` は表示/追跡用途であり、適用順序は常に `artifacts[]` 配列順で決定します。
-- Applier は `id` を再計算し、manifest 記載値と不一致なら hard fail とします。
-
-### `canonical_template_ref` 正規化アルゴリズム（確定）
-1. 入力: `source_template.path` の記録文字列（manifest 上の値）
-2. 先頭/末尾の空白を除去する
-3. `\` を `/` へ置換する
-4. `.` / `..` を lexical に正規化する（`path.Clean` 相当、filesystem 参照なし）
-5. 連続する `/` は 1 つに畳み込む
-6. 絶対/相対の区別は保持する（先頭 `/` の有無を維持）
-7. 文字大小は変更しない
-
-例:
-- `./svc/../template.yaml` -> `template.yaml`
-- `C:\\work\\sam\\template.yaml` -> `C:/work/sam/template.yaml`
-- `/repo//templates/./a.yaml` -> `/repo/templates/a.yaml`
+- `source_template.path` は管理情報なので absolute/relative の両方を許可（設定時のみ検証対象）
 
 ## Manifest（`artifact.yml`）最小スキーマ
 ```yaml
@@ -151,11 +119,8 @@ project: esb-dev
 env: dev
 mode: docker
 artifacts:
-  - id: template-a-2b4f1a9c
-    artifact_root: ../service-a/.esb/template-a/dev
+  - artifact_root: ../service-a/.esb/template-a/dev
     runtime_config_dir: runtime-config
-    source_template:
-      path: /path/to/template-a.yaml
 ```
 
 任意フィールドを使う場合の追加例:
@@ -169,15 +134,14 @@ runtime_stack:
   mode: docker
   # esb_version: latest  # optional metadata
 artifacts:
-  - id: template-a-2b4f1a9c
-    artifact_root: ../service-a/.esb/template-a/dev
+  - artifact_root: ../service-a/.esb/template-a/dev
     runtime_config_dir: runtime-config
     bundle_manifest: bundle/manifest.json
     required_secret_env:
       - AUTH_PASS
     source_template:
       path: /path/to/template-a.yaml
-      sha256: 2b4f...
+      sha256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
       parameters:
         Stage: dev
 ```
@@ -205,7 +169,8 @@ artifacts:
   - `runtime_stack`（`api_version`, `mode`, optional `esb_version`）
 
 ## Payload 整合性ポリシー（現行実装）
-- `id` の再計算一致、schema/path/secret 充足を必須条件とします。
+- schema/path/secret 充足を必須条件とします。
+- `source_template` は任意で、設定された場合のみ形式検証を行います。
 - artifact 内 runtime hook の digest 一致は互換性判定条件に含めません。
 
 ## Runtime Stack 互換性ポリシー（契約定義）
@@ -242,7 +207,7 @@ artifacts:
   - schema major 非互換
   - required secret 未設定
   - `artifact_root` または entry 内パス解決失敗
-  - `id` 欠落、重複、または再計算値不一致
+  - `source_template` が設定されている場合の形式不正（空白 path / 不正 sha256 / 空 parameter key）
   - 複数テンプレート時に merge 規約どおりの `CONFIG_DIR` を生成できない
   - Runtime Stack 互換性検証で `major` 非互換（実装後）
 - Warning:
@@ -263,7 +228,7 @@ artifacts:
 ## ツール責務（確定）
 - `tools/artifactctl`（Go 実装）:
   - `deploy` の正本実装を提供する（検証 + apply を実行。必要時の image build/pull を含む）
-  - schema/path/id/secret/merge 規約の判定を一元化する
+  - schema/path/secret/merge 規約の判定を一元化する
   - image build 時の lambda base 選択は実行時環境（registry/tag/stack）に従い、artifact 内 `runtime-base/**` を根拠にしない
   - Runtime Stack 互換性検証の正本実装を保持し、apply 前に fail-fast 判定を行う
   - `tools/artifactctl/cmd/artifactctl` は command adapter、実ロジック正本は `pkg/deployops` + `pkg/artifactcore` とする

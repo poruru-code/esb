@@ -10,7 +10,8 @@ ArtifactManifest.ResolveRuntimeConfigDir
 ArtifactManifest.Validate
 ArtifactSchemaVersionV1
 ArtifactSourceTemplate
-ComputeArtifactID
+ArtifactSourceTemplate.UnmarshalYAML
+ArtifactSourceTemplate.Validate
 ErrArtifactPathRequired
 ErrOutputDirRequired
 ErrSecretEnvFileRequired
@@ -25,5 +26,4 @@ RuntimeObservation
 RuntimeStackAPIVersion
 RuntimeStackMeta
 RuntimeStackMeta.Validate
-SyncArtifactIDs
 WriteArtifactManifest

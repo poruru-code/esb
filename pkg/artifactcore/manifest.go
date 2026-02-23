@@ -2,11 +2,8 @@ package artifactcore
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -17,7 +14,7 @@ import (
 
 const ArtifactSchemaVersionV1 = "1"
 
-var artifactIDPattern = regexp.MustCompile(`^[a-z0-9-]+-[0-9a-f]{8}$`)
+var sourceTemplateSHA256Pattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
 
 type ArtifactManifest struct {
 	SchemaVersion string            `yaml:"schema_version"`
@@ -31,18 +28,19 @@ type ArtifactManifest struct {
 }
 
 type ArtifactEntry struct {
-	ID                string                 `yaml:"id"`
-	ArtifactRoot      string                 `yaml:"artifact_root"`
-	RuntimeConfigDir  string                 `yaml:"runtime_config_dir"`
-	BundleManifest    string                 `yaml:"bundle_manifest,omitempty"`
-	RequiredSecretEnv []string               `yaml:"required_secret_env,omitempty"`
-	SourceTemplate    ArtifactSourceTemplate `yaml:"source_template"`
+	ArtifactRoot      string                  `yaml:"artifact_root"`
+	RuntimeConfigDir  string                  `yaml:"runtime_config_dir"`
+	BundleManifest    string                  `yaml:"bundle_manifest,omitempty"`
+	RequiredSecretEnv []string                `yaml:"required_secret_env,omitempty"`
+	SourceTemplate    *ArtifactSourceTemplate `yaml:"source_template,omitempty"`
 }
 
 type ArtifactSourceTemplate struct {
-	Path       string            `yaml:"path"`
+	Path       string            `yaml:"path,omitempty"`
 	SHA256     string            `yaml:"sha256,omitempty"`
 	Parameters map[string]string `yaml:"parameters,omitempty"`
+	pathSet    bool
+	shaSet     bool
 }
 
 type ArtifactGenerator struct {
@@ -79,19 +77,9 @@ func (d ArtifactManifest) Validate() error {
 	if len(d.Artifacts) == 0 {
 		return fmt.Errorf("artifacts must contain at least one entry")
 	}
-	seen := make(map[string]struct{}, len(d.Artifacts))
 	for i := range d.Artifacts {
-		entry := d.Artifacts[i]
-		if err := entry.Validate(i); err != nil {
+		if err := d.Artifacts[i].Validate(i); err != nil {
 			return err
-		}
-		if _, ok := seen[entry.ID]; ok {
-			return fmt.Errorf("artifacts[%d].id must be unique: %s", i, entry.ID)
-		}
-		seen[entry.ID] = struct{}{}
-		wantID := ComputeArtifactID(entry.SourceTemplate.Path, entry.SourceTemplate.Parameters, entry.SourceTemplate.SHA256)
-		if entry.ID != wantID {
-			return fmt.Errorf("artifacts[%d].id mismatch: got %q want %q", i, entry.ID, wantID)
 		}
 	}
 	return nil
@@ -120,14 +108,58 @@ func (r RuntimeStackMeta) Validate() error {
 	return nil
 }
 
+func (t *ArtifactSourceTemplate) UnmarshalYAML(value *yaml.Node) error {
+	type rawSourceTemplate struct {
+		Path       *string           `yaml:"path"`
+		SHA256     *string           `yaml:"sha256"`
+		Parameters map[string]string `yaml:"parameters,omitempty"`
+	}
+
+	var raw rawSourceTemplate
+	if err := value.Decode(&raw); err != nil {
+		return err
+	}
+
+	t.pathSet = raw.Path != nil
+	t.shaSet = raw.SHA256 != nil
+	t.Parameters = raw.Parameters
+	if raw.Path != nil {
+		t.Path = *raw.Path
+	} else {
+		t.Path = ""
+	}
+	if raw.SHA256 != nil {
+		t.SHA256 = *raw.SHA256
+	} else {
+		t.SHA256 = ""
+	}
+	return nil
+}
+
+func (t ArtifactSourceTemplate) Validate(prefix string) error {
+	path := strings.TrimSpace(t.Path)
+	if (t.pathSet || t.Path != "") && path == "" {
+		return fmt.Errorf("%s.path must not be blank", prefix)
+	}
+
+	sha := strings.TrimSpace(t.SHA256)
+	if (t.shaSet || t.SHA256 != "") && sha == "" {
+		return fmt.Errorf("%s.sha256 must not be blank", prefix)
+	}
+	if sha != "" && !sourceTemplateSHA256Pattern.MatchString(sha) {
+		return fmt.Errorf("%s.sha256 must be 64 lowercase hex characters", prefix)
+	}
+
+	for key := range t.Parameters {
+		if strings.TrimSpace(key) == "" {
+			return fmt.Errorf("%s.parameters contains empty key", prefix)
+		}
+	}
+	return nil
+}
+
 func (e ArtifactEntry) Validate(index int) error {
 	prefix := fmt.Sprintf("artifacts[%d]", index)
-	if strings.TrimSpace(e.ID) == "" {
-		return fmt.Errorf("%s.id is required", prefix)
-	}
-	if !artifactIDPattern.MatchString(e.ID) {
-		return fmt.Errorf("%s.id must match %s", prefix, artifactIDPattern.String())
-	}
 	if err := validateArtifactRoot(fmt.Sprintf("%s.artifact_root", prefix), e.ArtifactRoot); err != nil {
 		return err
 	}
@@ -144,8 +176,10 @@ func (e ArtifactEntry) Validate(index int) error {
 			return fmt.Errorf("%s.required_secret_env contains empty key", prefix)
 		}
 	}
-	if strings.TrimSpace(e.SourceTemplate.Path) == "" {
-		return fmt.Errorf("%s.source_template.path is required", prefix)
+	if e.SourceTemplate != nil {
+		if err := e.SourceTemplate.Validate(fmt.Sprintf("%s.source_template", prefix)); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -207,7 +241,6 @@ func ReadArtifactManifestUnchecked(path string) (ArtifactManifest, error) {
 
 func WriteArtifactManifest(path string, manifest ArtifactManifest) error {
 	normalized := normalizeArtifactManifest(manifest)
-	SyncArtifactIDs(&normalized)
 	if err := normalized.Validate(); err != nil {
 		return err
 	}
@@ -259,12 +292,16 @@ func normalizeArtifactManifest(d ArtifactManifest) ArtifactManifest {
 	for i := range normalized.Artifacts {
 		entry := normalized.Artifacts[i]
 		entry.RequiredSecretEnv = sortedUniqueNonEmpty(entry.RequiredSecretEnv)
-		if entry.SourceTemplate.Parameters != nil {
-			cloned := make(map[string]string, len(entry.SourceTemplate.Parameters))
-			for k, v := range entry.SourceTemplate.Parameters {
-				cloned[k] = v
+		if entry.SourceTemplate != nil {
+			copied := *entry.SourceTemplate
+			if copied.Parameters != nil {
+				cloned := make(map[string]string, len(copied.Parameters))
+				for k, v := range copied.Parameters {
+					cloned[k] = v
+				}
+				copied.Parameters = cloned
 			}
-			entry.SourceTemplate.Parameters = cloned
+			entry.SourceTemplate = &copied
 		}
 		normalized.Artifacts[i] = entry
 	}
@@ -349,86 +386,4 @@ func decodeArtifactManifest(data []byte, validate bool) (ArtifactManifest, error
 		return ArtifactManifest{}, err
 	}
 	return manifest, nil
-}
-
-func SyncArtifactIDs(manifest *ArtifactManifest) int {
-	if manifest == nil {
-		return 0
-	}
-	changed := 0
-	for i := range manifest.Artifacts {
-		entry := &manifest.Artifacts[i]
-		wantID := ComputeArtifactID(entry.SourceTemplate.Path, entry.SourceTemplate.Parameters, entry.SourceTemplate.SHA256)
-		if entry.ID == wantID {
-			continue
-		}
-		entry.ID = wantID
-		changed++
-	}
-	return changed
-}
-
-func ComputeArtifactID(templatePath string, parameters map[string]string, sourceSHA256 string) string {
-	templateSlug := templateSlug(templatePath)
-	canonicalTemplate := canonicalTemplateRef(templatePath)
-	canonicalParams := canonicalParameters(parameters)
-	canonicalSHA := strings.TrimSpace(sourceSHA256)
-	seed := canonicalTemplate + "\n" + canonicalParams + "\n" + canonicalSHA
-	sum := sha256.Sum256([]byte(seed))
-	return fmt.Sprintf("%s-%s", templateSlug, hex.EncodeToString(sum[:4]))
-}
-
-func canonicalTemplateRef(value string) string {
-	trimmed := strings.TrimSpace(value)
-	replaced := strings.ReplaceAll(trimmed, "\\", "/")
-	cleaned := path.Clean(replaced)
-	if cleaned == "" {
-		return "."
-	}
-	return cleaned
-}
-
-func canonicalParameters(parameters map[string]string) string {
-	if len(parameters) == 0 {
-		return ""
-	}
-	keys := make([]string, 0, len(parameters))
-	for key := range parameters {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	lines := make([]string, 0, len(keys))
-	for _, key := range keys {
-		lines = append(lines, key+"="+parameters[key])
-	}
-	return strings.Join(lines, "\n")
-}
-
-func templateSlug(templatePath string) string {
-	trimmed := strings.TrimSpace(templatePath)
-	replaced := strings.ReplaceAll(trimmed, "\\", "/")
-	base := path.Base(replaced)
-	ext := path.Ext(base)
-	stem := strings.TrimSuffix(base, ext)
-	stem = strings.ToLower(stem)
-	var out strings.Builder
-	lastDash := false
-	for _, r := range stem {
-		isAlpha := r >= 'a' && r <= 'z'
-		isNum := r >= '0' && r <= '9'
-		if isAlpha || isNum {
-			out.WriteRune(r)
-			lastDash = false
-			continue
-		}
-		if !lastDash {
-			out.WriteRune('-')
-			lastDash = true
-		}
-	}
-	slug := strings.Trim(out.String(), "-")
-	if slug == "" {
-		return "template"
-	}
-	return slug
 }

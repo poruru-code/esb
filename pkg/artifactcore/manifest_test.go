@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestManifestRoundTripAndValidateID(t *testing.T) {
+func TestManifestRoundTripAndValidate(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "artifact.yml")
 	manifest := ArtifactManifest{
@@ -20,35 +20,14 @@ func TestManifestRoundTripAndValidateID(t *testing.T) {
 			{
 				ArtifactRoot:     "../service-a/.esb/template-a/dev",
 				RuntimeConfigDir: "config",
-				SourceTemplate: ArtifactSourceTemplate{
-					Path:       "/tmp/template-a.yaml",
-					SHA256:     "sha-a",
-					Parameters: map[string]string{"Stage": "dev"},
-				},
 			},
 		},
 	}
-	manifest.Artifacts[0].ID = ComputeArtifactID(
-		manifest.Artifacts[0].SourceTemplate.Path,
-		manifest.Artifacts[0].SourceTemplate.Parameters,
-		manifest.Artifacts[0].SourceTemplate.SHA256,
-	)
 	if err := WriteArtifactManifest(path, manifest); err != nil {
 		t.Fatalf("WriteArtifactManifest() error = %v", err)
 	}
 	if _, err := ReadArtifactManifest(path); err != nil {
 		t.Fatalf("ReadArtifactManifest() error = %v", err)
-	}
-}
-
-func TestComputeArtifactIDDeterministic(t *testing.T) {
-	first := ComputeArtifactID("./svc/../template.yaml", map[string]string{"B": "2", "A": "1"}, "sha")
-	second := ComputeArtifactID("template.yaml", map[string]string{"A": "1", "B": "2"}, "sha")
-	if first != second {
-		t.Fatalf("id mismatch: %s != %s", first, second)
-	}
-	if !strings.HasPrefix(first, "template-") {
-		t.Fatalf("unexpected id: %s", first)
 	}
 }
 
@@ -62,18 +41,9 @@ func TestManifestValidateRejectsUnsupportedSchemaVersion(t *testing.T) {
 			{
 				ArtifactRoot:     "../service-a/.esb/template-a/dev",
 				RuntimeConfigDir: "config",
-				SourceTemplate: ArtifactSourceTemplate{
-					Path:   "/tmp/template-a.yaml",
-					SHA256: "sha-a",
-				},
 			},
 		},
 	}
-	manifest.Artifacts[0].ID = ComputeArtifactID(
-		manifest.Artifacts[0].SourceTemplate.Path,
-		manifest.Artifacts[0].SourceTemplate.Parameters,
-		manifest.Artifacts[0].SourceTemplate.SHA256,
-	)
 
 	err := manifest.Validate()
 	if err == nil {
@@ -87,7 +57,6 @@ func TestManifestValidateRejectsUnsupportedSchemaVersion(t *testing.T) {
 func TestReadArtifactManifestAllowsUnknownFields(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "artifact.yml")
-	id := ComputeArtifactID("/tmp/template-a.yaml", map[string]string{"Stage": "dev"}, "sha-a")
 	content := strings.Join([]string{
 		`schema_version: "1"`,
 		`project: esb-dev`,
@@ -95,13 +64,12 @@ func TestReadArtifactManifestAllowsUnknownFields(t *testing.T) {
 		`mode: docker`,
 		`future_top_level: true`,
 		`artifacts:`,
-		`  - id: ` + id,
-		`    artifact_root: ../service-a/.esb/template-a/dev`,
+		`  - artifact_root: ../service-a/.esb/template-a/dev`,
 		`    runtime_config_dir: config`,
 		`    future_entry_field: abc`,
 		`    source_template:`,
 		`      path: /tmp/template-a.yaml`,
-		`      sha256: sha-a`,
+		`      sha256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef`,
 		`      parameters:`,
 		`        Stage: dev`,
 		"",
@@ -115,7 +83,7 @@ func TestReadArtifactManifestAllowsUnknownFields(t *testing.T) {
 	}
 }
 
-func TestReadArtifactManifestUncheckedAllowsIDMismatch(t *testing.T) {
+func TestReadArtifactManifestUncheckedSkipsValidation(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "artifact.yml")
 	content := strings.Join([]string{
@@ -124,12 +92,10 @@ func TestReadArtifactManifestUncheckedAllowsIDMismatch(t *testing.T) {
 		`env: dev`,
 		`mode: docker`,
 		`artifacts:`,
-		`  - id: template-deadbeef`,
-		`    artifact_root: ../service-a/.esb/template-a/dev`,
+		`  - artifact_root: ../service-a/.esb/template-a/dev`,
 		`    runtime_config_dir: config`,
 		`    source_template:`,
-		`      path: /tmp/template-a.yaml`,
-		`      sha256: sha-a`,
+		`      sha256: not-hex`,
 		"",
 	}, "\n")
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
@@ -143,12 +109,113 @@ func TestReadArtifactManifestUncheckedAllowsIDMismatch(t *testing.T) {
 	if len(manifest.Artifacts) != 1 {
 		t.Fatalf("expected single artifact entry, got %d", len(manifest.Artifacts))
 	}
-	if manifest.Artifacts[0].ID != "template-deadbeef" {
-		t.Fatalf("unexpected id: %q", manifest.Artifacts[0].ID)
+}
+
+func TestReadArtifactManifestRejectsExplicitEmptySourceTemplatePath(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "artifact.yml")
+	content := strings.Join([]string{
+		`schema_version: "1"`,
+		`project: esb-dev`,
+		`env: dev`,
+		`mode: docker`,
+		`artifacts:`,
+		`  - artifact_root: ../service-a/.esb/template-a/dev`,
+		`    runtime_config_dir: config`,
+		`    source_template:`,
+		`      path: ""`,
+		"",
+	}, "\n")
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	_, err := ReadArtifactManifest(path)
+	if err == nil {
+		t.Fatal("expected source_template.path validation error")
+	}
+	if !strings.Contains(err.Error(), "source_template.path must not be blank") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
-func TestSyncArtifactIDsRewritesMismatchedEntries(t *testing.T) {
+func TestReadArtifactManifestRejectsExplicitEmptySourceTemplateSHA256(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "artifact.yml")
+	content := strings.Join([]string{
+		`schema_version: "1"`,
+		`project: esb-dev`,
+		`env: dev`,
+		`mode: docker`,
+		`artifacts:`,
+		`  - artifact_root: ../service-a/.esb/template-a/dev`,
+		`    runtime_config_dir: config`,
+		`    source_template:`,
+		`      sha256: ""`,
+		"",
+	}, "\n")
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	_, err := ReadArtifactManifest(path)
+	if err == nil {
+		t.Fatal("expected source_template.sha256 validation error")
+	}
+	if !strings.Contains(err.Error(), "source_template.sha256 must not be blank") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestManifestValidateAllowsMissingSourceTemplate(t *testing.T) {
+	manifest := validTestManifest()
+	manifest.Artifacts[0].SourceTemplate = nil
+
+	if err := manifest.Validate(); err != nil {
+		t.Fatalf("expected missing source_template to be allowed, got %v", err)
+	}
+}
+
+func TestManifestValidateRejectsBlankSourceTemplatePath(t *testing.T) {
+	manifest := validTestManifest()
+	manifest.Artifacts[0].SourceTemplate = &ArtifactSourceTemplate{Path: "   "}
+
+	err := manifest.Validate()
+	if err == nil {
+		t.Fatal("expected source_template.path validation error")
+	}
+	if !strings.Contains(err.Error(), "source_template.path must not be blank") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestManifestValidateRejectsInvalidSourceTemplateSHA256(t *testing.T) {
+	manifest := validTestManifest()
+	manifest.Artifacts[0].SourceTemplate = &ArtifactSourceTemplate{SHA256: "abc"}
+
+	err := manifest.Validate()
+	if err == nil {
+		t.Fatal("expected source_template.sha256 validation error")
+	}
+	if !strings.Contains(err.Error(), "source_template.sha256 must be 64 lowercase hex characters") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestManifestValidateAllowsSourceTemplateWithoutPath(t *testing.T) {
+	manifest := validTestManifest()
+	manifest.Artifacts[0].SourceTemplate = &ArtifactSourceTemplate{
+		SHA256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+	}
+
+	if err := manifest.Validate(); err != nil {
+		t.Fatalf("expected source_template without path to be allowed, got %v", err)
+	}
+}
+
+func TestManifestRoundTripAllowsSourceTemplateWithoutPath(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "artifact.yml")
 	manifest := ArtifactManifest{
 		SchemaVersion: ArtifactSchemaVersionV1,
 		Project:       "esb-dev",
@@ -156,46 +223,42 @@ func TestSyncArtifactIDsRewritesMismatchedEntries(t *testing.T) {
 		Mode:          "docker",
 		Artifacts: []ArtifactEntry{
 			{
-				ID:               "template-deadbeef",
 				ArtifactRoot:     "../service-a/.esb/template-a/dev",
 				RuntimeConfigDir: "config",
-				SourceTemplate: ArtifactSourceTemplate{
-					Path:       "/tmp/template-a.yaml",
-					SHA256:     "sha-a",
-					Parameters: map[string]string{"Stage": "dev"},
-				},
-			},
-			{
-				ID:               "template-feedface",
-				ArtifactRoot:     "../service-a/.esb/template-b/dev",
-				RuntimeConfigDir: "config",
-				SourceTemplate: ArtifactSourceTemplate{
-					Path:   "/tmp/template-b.yaml",
-					SHA256: "sha-b",
+				SourceTemplate: &ArtifactSourceTemplate{
+					SHA256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 				},
 			},
 		},
 	}
-	wantFirst := ComputeArtifactID(
-		manifest.Artifacts[0].SourceTemplate.Path,
-		manifest.Artifacts[0].SourceTemplate.Parameters,
-		manifest.Artifacts[0].SourceTemplate.SHA256,
-	)
-	wantSecond := ComputeArtifactID(
-		manifest.Artifacts[1].SourceTemplate.Path,
-		manifest.Artifacts[1].SourceTemplate.Parameters,
-		manifest.Artifacts[1].SourceTemplate.SHA256,
-	)
 
-	changed := SyncArtifactIDs(&manifest)
-	if changed != 2 {
-		t.Fatalf("changed=%d want=2", changed)
+	if err := WriteArtifactManifest(path, manifest); err != nil {
+		t.Fatalf("WriteArtifactManifest() error = %v", err)
 	}
-	if manifest.Artifacts[0].ID != wantFirst {
-		t.Fatalf("first id=%q want=%q", manifest.Artifacts[0].ID, wantFirst)
+	readBack, err := ReadArtifactManifest(path)
+	if err != nil {
+		t.Fatalf("ReadArtifactManifest() error = %v", err)
 	}
-	if manifest.Artifacts[1].ID != wantSecond {
-		t.Fatalf("second id=%q want=%q", manifest.Artifacts[1].ID, wantSecond)
+	if readBack.Artifacts[0].SourceTemplate == nil {
+		t.Fatal("source_template should remain set")
+	}
+	if readBack.Artifacts[0].SourceTemplate.Path != "" {
+		t.Fatalf("source_template.path = %q, want empty", readBack.Artifacts[0].SourceTemplate.Path)
+	}
+}
+
+func TestManifestValidateRejectsEmptySourceTemplateParameterKey(t *testing.T) {
+	manifest := validTestManifest()
+	manifest.Artifacts[0].SourceTemplate = &ArtifactSourceTemplate{
+		Parameters: map[string]string{"": "x"},
+	}
+
+	err := manifest.Validate()
+	if err == nil {
+		t.Fatal("expected source_template.parameters validation error")
+	}
+	if !strings.Contains(err.Error(), "source_template.parameters contains empty key") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
@@ -294,12 +357,8 @@ func TestWriteArtifactManifestFailsOnInvalidManifest(t *testing.T) {
 		Mode:          "docker",
 		Artifacts: []ArtifactEntry{
 			{
-				ID:               "template-aaaaaaaa",
 				ArtifactRoot:     "../service-a/.esb/template-a/dev",
 				RuntimeConfigDir: "config",
-				SourceTemplate: ArtifactSourceTemplate{
-					Path: "/tmp/template-a.yaml",
-				},
 			},
 		},
 	}
@@ -310,28 +369,6 @@ func TestWriteArtifactManifestFailsOnInvalidManifest(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "schema_version is required") {
 		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
-func TestWriteArtifactManifestSyncsArtifactIDs(t *testing.T) {
-	manifest := validTestManifest()
-	manifest.Artifacts[0].ID = "template-deadbeef"
-	path := filepath.Join(t.TempDir(), "artifact.yml")
-
-	if err := WriteArtifactManifest(path, manifest); err != nil {
-		t.Fatalf("WriteArtifactManifest() error = %v", err)
-	}
-	readBack, err := ReadArtifactManifest(path)
-	if err != nil {
-		t.Fatalf("ReadArtifactManifest() error = %v", err)
-	}
-	wantID := ComputeArtifactID(
-		readBack.Artifacts[0].SourceTemplate.Path,
-		readBack.Artifacts[0].SourceTemplate.Parameters,
-		readBack.Artifacts[0].SourceTemplate.SHA256,
-	)
-	if readBack.Artifacts[0].ID != wantID {
-		t.Fatalf("artifact id=%q want=%q", readBack.Artifacts[0].ID, wantID)
 	}
 }
 
@@ -385,7 +422,7 @@ func TestManifestValidateRuntimeStackRejectsInvalidAPIVersion(t *testing.T) {
 }
 
 func validTestManifest() ArtifactManifest {
-	manifest := ArtifactManifest{
+	return ArtifactManifest{
 		SchemaVersion: ArtifactSchemaVersionV1,
 		Project:       "esb-dev",
 		Env:           "dev",
@@ -394,18 +431,12 @@ func validTestManifest() ArtifactManifest {
 			{
 				ArtifactRoot:     "../service-a/.esb/template-a/dev",
 				RuntimeConfigDir: "config",
-				SourceTemplate: ArtifactSourceTemplate{
+				SourceTemplate: &ArtifactSourceTemplate{
 					Path:       "/tmp/template-a.yaml",
-					SHA256:     "sha-a",
+					SHA256:     "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 					Parameters: map[string]string{"Stage": "dev"},
 				},
 			},
 		},
 	}
-	manifest.Artifacts[0].ID = ComputeArtifactID(
-		manifest.Artifacts[0].SourceTemplate.Path,
-		manifest.Artifacts[0].SourceTemplate.Parameters,
-		manifest.Artifacts[0].SourceTemplate.SHA256,
-	)
-	return manifest
 }
