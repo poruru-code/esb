@@ -37,6 +37,8 @@ mise install
 mise run setup
 ```
 `mise run setup` は開発用ツールの検証と `artifactctl` のビルドを行います。
+証明書の作成・ローテーション手順は `docs/certificate-operations.md` を参照してください。
+証明書ローテーション用の補助タスク: `mise run rotate:certs:leaf:docker` / `mise run rotate:certs:leaf:containerd` / `mise run rotate:certs:all:docker` / `mise run rotate:certs:all:containerd`
 
 ### Lint / Format
 ```bash

@@ -126,6 +126,7 @@ def build_step_root_ca_command(
     cert_file: str,
     key_file: str,
     not_after: str | None = None,
+    overwrite: bool = False,
 ) -> list[str]:
     cmd = [
         step_path,
@@ -141,6 +142,8 @@ def build_step_root_ca_command(
     ]
     if not_after:
         cmd.extend(["--not-after", not_after])
+    if overwrite:
+        cmd.append("--force")
     return cmd
 
 
@@ -153,6 +156,7 @@ def build_step_leaf_command(
     ca_cert: str,
     ca_key: str,
     not_after: str | None = None,
+    overwrite: bool = False,
 ) -> list[str]:
     cmd = [
         step_path,
@@ -174,6 +178,8 @@ def build_step_leaf_command(
         cmd.extend(["--not-after", not_after])
     for san in sans:
         cmd.extend(["--san", san])
+    if overwrite:
+        cmd.append("--force")
     return cmd
 
 
@@ -183,9 +189,17 @@ def generate_root_ca(
     step_path: str,
     subject: str,
     not_after: str | None,
+    overwrite: bool = False,
 ) -> None:
     output_dir = os.path.dirname(cert_file)
-    cmd = build_step_root_ca_command(step_path, subject, cert_file, key_file, not_after)
+    cmd = build_step_root_ca_command(
+        step_path,
+        subject,
+        cert_file,
+        key_file,
+        not_after,
+        overwrite=overwrite,
+    )
 
     print(f"Generating root CA in {output_dir}...")
     print(f"Certificate: {os.path.basename(cert_file)}")
@@ -207,10 +221,19 @@ def generate_leaf_cert(
     label: str,
     subject: str,
     not_after: str | None,
+    overwrite: bool = False,
 ) -> None:
     output_dir = os.path.dirname(cert_file)
     cmd = build_step_leaf_command(
-        step_path, subject, cert_file, key_file, sans, ca_cert, ca_key, not_after
+        step_path,
+        subject,
+        cert_file,
+        key_file,
+        sans,
+        ca_cert,
+        ca_key,
+        not_after,
+        overwrite=overwrite,
     )
 
     print(f"Generating {label} certificate in {output_dir}...")
@@ -330,9 +353,21 @@ if __name__ == "__main__":
         "--config", default="tools/cert-gen/config.toml", help="Path to config file"
     )
     parser.add_argument(
+        "--output-dir",
+        help=(
+            "Override certificate output directory. "
+            "Takes precedence over config.toml [certificate].output_dir and CERT_DIR env."
+        ),
+    )
+    parser.add_argument(
         "--force",
         action="store_true",
         help="Force regeneration of certificates and CA installation",
+    )
+    parser.add_argument(
+        "--skip-root-ca-install",
+        action="store_true",
+        help="Skip local trust-store installation of the generated Root CA",
     )
     args = parser.parse_args()
 
@@ -351,10 +386,11 @@ if __name__ == "__main__":
     host_cfg = config.get("hosts", {})
 
     # Derivation logic for output_dir:
-    # 1. Flag (future)
+    # 1. --output-dir
     # 2. config.toml [certificate] output_dir
-    # 3. Repo root: <repo_root>/.<brand>/certs
-    output_dir = cert_cfg.get("output_dir")
+    # 3. CERT_DIR env
+    # 4. Repo root: <repo_root>/.<brand>/certs
+    output_dir = args.output_dir or cert_cfg.get("output_dir") or os.environ.get("CERT_DIR")
     if not output_dir:
         output_dir = str(brand_dir / "certs")
 
@@ -395,8 +431,18 @@ if __name__ == "__main__":
     root_ca_subject = "ESB Local CA"
 
     if args.force or not (os.path.exists(root_ca_cert) and os.path.exists(root_ca_key)):
-        generate_root_ca(root_ca_cert, root_ca_key, step_path, root_ca_subject, ca_validity)
-        install_root_ca(step_path, root_ca_cert, output_dir)
+        generate_root_ca(
+            root_ca_cert,
+            root_ca_key,
+            step_path,
+            root_ca_subject,
+            ca_validity,
+            overwrite=args.force,
+        )
+        if args.skip_root_ca_install:
+            print("Skipping local Root CA install (--skip-root-ca-install).")
+        else:
+            install_root_ca(step_path, root_ca_cert, output_dir)
     else:
         print(f"Root CA exists at {root_ca_cert}. Skipping generation. Use --force to regenerate.")
 
@@ -425,6 +471,7 @@ if __name__ == "__main__":
             "server",
             server_subject,
             server_validity,
+            overwrite=args.force,
         )
     else:
         print(
@@ -443,6 +490,7 @@ if __name__ == "__main__":
             "client",
             client_subject,
             client_validity,
+            overwrite=args.force,
         )
     else:
         print(
