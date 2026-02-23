@@ -7,8 +7,8 @@ artifacts:
     runtime_config_dir: config
     source_template:
       path: e2e/fixtures/template.e2e.yaml
-      sha256: 6a6b873fc6f14e8e2d81093b2c1dd5d9210099ee8f15d4fc684606c05217cd47
-generated_at: "2026-02-20T18:52:14Z"
+      sha256: bb616172afa3ae5b610e5ea2a7c6d2fa1475cbca566ca6b7aa24ba083bb4425a
+generated_at: "2026-02-23T16:55:41Z"
 generator:
   name: esb
-  version: 67fb0d8
+  version: 7c8fdf9
