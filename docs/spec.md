@@ -73,7 +73,7 @@ Agent が Docker Engine 上の worker を直接管理します。
 ## 構成反映の原則
 1. 生成系ツールが staging config と artifact を生成する
 2. apply 実行時に runtime target へ同期する
-3. Provisioner は apply 後に実行する
+3. Provisioner は apply 後に実行する（通常の `docker compose up` では起動シーケンス内で自動実行される）
 
 ## 開発者の拡張起点
 | 変更したい対象 | 入口ドキュメント |
