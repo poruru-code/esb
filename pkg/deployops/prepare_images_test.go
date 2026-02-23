@@ -57,6 +57,56 @@ func TestPrepareImagesBuildsAndPushesDockerRefs(t *testing.T) {
 	}
 }
 
+func TestPrepareImagesNormalizesFixedArtifactRegistryToRuntimeRegistry(t *testing.T) {
+	root := t.TempDir()
+	manifestPath := writePrepareImageFixture(
+		t,
+		root,
+		"127.0.0.1:5010/esb-lambda-echo:e2e-test",
+		"127.0.0.1:5010/esb-lambda-base:e2e-test",
+	)
+	t.Setenv("CONTAINER_REGISTRY", "127.0.0.1:5512")
+	t.Setenv("HOST_REGISTRY_ADDR", "127.0.0.1:5512")
+
+	var functionBuildText string
+	runner := &recordCommandRunner{
+		hook: func(cmd []string) error {
+			if len(cmd) < 4 || cmd[0] != "docker" || cmd[1] != "buildx" || cmd[2] != "build" {
+				return nil
+			}
+			for i := 0; i+1 < len(cmd); i++ {
+				if cmd[i] != "--file" {
+					continue
+				}
+				data, err := os.ReadFile(cmd[i+1])
+				if err != nil {
+					return err
+				}
+				functionBuildText = string(data)
+				return nil
+			}
+			return nil
+		},
+	}
+	err := prepareImages(prepareImagesInput{
+		ArtifactPath: manifestPath,
+		Runner:       runner,
+	})
+	if err != nil {
+		t.Fatalf("prepareImages() error = %v", err)
+	}
+	if len(runner.commands) != 2 {
+		t.Fatalf("expected function build/push commands, got %d: %v", len(runner.commands), runner.commands)
+	}
+	assertCommandContains(t, runner.commands[0], "--tag", "127.0.0.1:5512/esb-lambda-echo:e2e-test")
+	if !slices.Equal(runner.commands[1], []string{"docker", "push", "127.0.0.1:5512/esb-lambda-echo:e2e-test"}) {
+		t.Fatalf("unexpected function push command: %v", runner.commands[1])
+	}
+	if !strings.Contains(functionBuildText, "FROM 127.0.0.1:5512/esb-lambda-base:e2e-test") {
+		t.Fatalf("expected rewritten build dockerfile, got:\n%s", functionBuildText)
+	}
+}
+
 func TestPrepareImagesRewritesPushTargetsForContainerdRefs(t *testing.T) {
 	root := t.TempDir()
 	manifestPath := writePrepareImageFixture(
@@ -389,7 +439,14 @@ func TestPrepareImagesEnsureBaseRequiresRuntimeHooksDockerfile(t *testing.T) {
 		"127.0.0.1:5010/esb-lambda-echo:unit-ensure-base",
 		"127.0.0.1:5010/esb-lambda-base:unit-ensure-base",
 	)
-	runner := &recordCommandRunner{}
+	runner := &recordCommandRunner{
+		hook: func(cmd []string) error {
+			if len(cmd) >= 2 && cmd[0] == "docker" && cmd[1] == "pull" {
+				return errors.New("pull failed")
+			}
+			return nil
+		},
+	}
 
 	originalImageExists := dockerImageExistsFunc
 	dockerImageExistsFunc = func(string) bool { return false }
@@ -418,6 +475,155 @@ func TestPrepareImagesEnsureBaseRequiresRuntimeHooksDockerfile(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "runtime hooks dockerfile is unavailable") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestPrepareImagesEnsureBaseRunsWithoutFunctionTargets(t *testing.T) {
+	root := t.TempDir()
+	manifestPath := writePrepareImageFixture(
+		t,
+		root,
+		"127.0.0.1:5010/esb-lambda-echo:unit-ensure-base-no-targets",
+		"127.0.0.1:5010/esb-lambda-base:unit-ensure-base-no-targets",
+	)
+	functionsPath := filepath.Join(root, "fixture", "config", "functions.yml")
+	mustWriteFile(t, functionsPath, "functions: {}\n")
+
+	t.Setenv("CONTAINER_REGISTRY", "127.0.0.1:5010")
+	t.Setenv("HOST_REGISTRY_ADDR", "127.0.0.1:5010")
+	t.Setenv("ESB_TAG", "latest")
+
+	originalImageExists := dockerImageExistsFunc
+	dockerImageExistsFunc = func(string) bool { return false }
+	t.Cleanup(func() { dockerImageExistsFunc = originalImageExists })
+
+	runner := &recordCommandRunner{}
+	err := prepareImages(prepareImagesInput{
+		ArtifactPath: manifestPath,
+		Runner:       runner,
+		EnsureBase:   true,
+	})
+	if err != nil {
+		t.Fatalf("prepareImages() error = %v", err)
+	}
+	if len(runner.commands) != 2 {
+		t.Fatalf("expected base pull/push commands, got %d: %v", len(runner.commands), runner.commands)
+	}
+	if !slices.Equal(runner.commands[0], []string{"docker", "pull", "127.0.0.1:5010/esb-lambda-base:latest"}) {
+		t.Fatalf("unexpected base pull command: %v", runner.commands[0])
+	}
+	if !slices.Equal(runner.commands[1], []string{"docker", "push", "127.0.0.1:5010/esb-lambda-base:latest"}) {
+		t.Fatalf("unexpected base push command: %v", runner.commands[1])
+	}
+}
+
+func TestPrepareImagesEnsureBasePushesWhenBaseExistsLocally(t *testing.T) {
+	root := t.TempDir()
+	manifestPath := writePrepareImageFixture(
+		t,
+		root,
+		"registry:5010/esb-lambda-echo:unit-ensure-base-local-present",
+		"registry:5010/esb-lambda-base:unit-ensure-base-local-present",
+	)
+	functionsPath := filepath.Join(root, "fixture", "config", "functions.yml")
+	mustWriteFile(t, functionsPath, "functions: {}\n")
+
+	t.Setenv("CONTAINER_REGISTRY", "registry:5010")
+	t.Setenv("HOST_REGISTRY_ADDR", "127.0.0.1:5010")
+	t.Setenv("ESB_TAG", "latest")
+
+	originalImageExists := dockerImageExistsFunc
+	dockerImageExistsFunc = func(ref string) bool {
+		return ref == "127.0.0.1:5010/esb-lambda-base:latest"
+	}
+	t.Cleanup(func() { dockerImageExistsFunc = originalImageExists })
+
+	runner := &recordCommandRunner{}
+	err := prepareImages(prepareImagesInput{
+		ArtifactPath: manifestPath,
+		Runner:       runner,
+		EnsureBase:   true,
+	})
+	if err != nil {
+		t.Fatalf("prepareImages() error = %v", err)
+	}
+	if len(runner.commands) != 1 {
+		t.Fatalf("expected base push command, got %d: %v", len(runner.commands), runner.commands)
+	}
+	if !slices.Equal(runner.commands[0], []string{"docker", "push", "127.0.0.1:5010/esb-lambda-base:latest"}) {
+		t.Fatalf("unexpected base push command: %v", runner.commands[0])
+	}
+}
+
+func TestPrepareImagesEnsureBasePullsBeforeBuildingWhenLocalMissing(t *testing.T) {
+	root := t.TempDir()
+	manifestPath := writePrepareImageFixture(
+		t,
+		root,
+		"127.0.0.1:5010/esb-lambda-echo:unit-ensure-base-pull-first",
+		"127.0.0.1:5010/esb-lambda-base:unit-ensure-base-pull-first",
+	)
+	functionsPath := filepath.Join(root, "fixture", "config", "functions.yml")
+	mustWriteFile(t, functionsPath, "functions: {}\n")
+
+	t.Setenv("CONTAINER_REGISTRY", "127.0.0.1:5010")
+	t.Setenv("HOST_REGISTRY_ADDR", "127.0.0.1:5010")
+	t.Setenv("ESB_TAG", "latest")
+
+	originalImageExists := dockerImageExistsFunc
+	dockerImageExistsFunc = func(string) bool { return false }
+	t.Cleanup(func() { dockerImageExistsFunc = originalImageExists })
+
+	runner := &recordCommandRunner{}
+	err := prepareImages(prepareImagesInput{
+		ArtifactPath: manifestPath,
+		Runner:       runner,
+		EnsureBase:   true,
+	})
+	if err != nil {
+		t.Fatalf("prepareImages() error = %v", err)
+	}
+	if len(runner.commands) != 2 {
+		t.Fatalf("expected base pull/push commands, got %d: %v", len(runner.commands), runner.commands)
+	}
+	if !slices.Equal(runner.commands[0], []string{"docker", "pull", "127.0.0.1:5010/esb-lambda-base:latest"}) {
+		t.Fatalf("unexpected base pull command: %v", runner.commands[0])
+	}
+	if !slices.Equal(runner.commands[1], []string{"docker", "push", "127.0.0.1:5010/esb-lambda-base:latest"}) {
+		t.Fatalf("unexpected base push command: %v", runner.commands[1])
+	}
+}
+
+func TestPrepareImagesEnsureBaseWithoutTargetsRequiresRegistryEnv(t *testing.T) {
+	root := t.TempDir()
+	manifestPath := writePrepareImageFixture(
+		t,
+		root,
+		"127.0.0.1:5010/esb-lambda-echo:unit-ensure-base-requires-registry",
+		"127.0.0.1:5010/esb-lambda-base:unit-ensure-base-requires-registry",
+	)
+	functionsPath := filepath.Join(root, "fixture", "config", "functions.yml")
+	mustWriteFile(t, functionsPath, "functions: {}\n")
+
+	t.Setenv("CONTAINER_REGISTRY", "")
+	t.Setenv("HOST_REGISTRY_ADDR", "")
+	t.Setenv("REGISTRY", "")
+	t.Setenv("ESB_TAG", "latest")
+
+	runner := &recordCommandRunner{}
+	err := prepareImages(prepareImagesInput{
+		ArtifactPath: manifestPath,
+		Runner:       runner,
+		EnsureBase:   true,
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "lambda base registry is unresolved") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(runner.commands) != 0 {
+		t.Fatalf("expected no docker command when registry is unresolved, got: %v", runner.commands)
 	}
 }
 
