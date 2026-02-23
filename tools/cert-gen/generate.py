@@ -353,6 +353,13 @@ if __name__ == "__main__":
         "--config", default="tools/cert-gen/config.toml", help="Path to config file"
     )
     parser.add_argument(
+        "--output-dir",
+        help=(
+            "Override certificate output directory. "
+            "Takes precedence over config.toml [certificate].output_dir and CERT_DIR env."
+        ),
+    )
+    parser.add_argument(
         "--force",
         action="store_true",
         help="Force regeneration of certificates and CA installation",
@@ -379,10 +386,11 @@ if __name__ == "__main__":
     host_cfg = config.get("hosts", {})
 
     # Derivation logic for output_dir:
-    # 1. Flag (future)
+    # 1. --output-dir
     # 2. config.toml [certificate] output_dir
-    # 3. Repo root: <repo_root>/.<brand>/certs
-    output_dir = cert_cfg.get("output_dir")
+    # 3. CERT_DIR env
+    # 4. Repo root: <repo_root>/.<brand>/certs
+    output_dir = args.output_dir or cert_cfg.get("output_dir") or os.environ.get("CERT_DIR")
     if not output_dir:
         output_dir = str(brand_dir / "certs")
 

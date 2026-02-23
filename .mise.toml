@@ -35,7 +35,7 @@ run = "uv run python tools/cert-gen/generate.py"
 description = "Regenerate server/client certificate files only (restart required)"
 run = [
   "CERT_DIR=\"${CERT_DIR:-./.esb/certs}\"; rm -f \"$CERT_DIR/server.crt\" \"$CERT_DIR/server.key\" \"$CERT_DIR/client.crt\" \"$CERT_DIR/client.key\"",
-  "mise run setup:certs",
+  "CERT_DIR=\"${CERT_DIR:-./.esb/certs}\"; mise run setup:certs -- --output-dir \"$CERT_DIR\"",
 ]
 
 [tasks."rotate:certs:leaf:docker"]
@@ -54,7 +54,7 @@ run = [
 
 [tasks."rotate:certs:all:files"]
 description = "Regenerate Root CA and leaf certificate files only (no image rebuild)"
-run = "mise run setup:certs -- --force --skip-root-ca-install"
+run = "CERT_DIR=\"${CERT_DIR:-./.esb/certs}\"; mise run setup:certs -- --force --skip-root-ca-install --output-dir \"$CERT_DIR\""
 
 [tasks."rotate:certs:all:docker"]
 description = "Regenerate Root/leaf certs, then rebuild/redeploy docker mode services"
