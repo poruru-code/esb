@@ -15,7 +15,7 @@ type prepareImagesInput struct {
 	ArtifactPath string
 	NoCache      bool
 	Runner       CommandRunner
-	Runtime      *artifactcore.RuntimeObservation
+	Runtime      *RuntimeObservation
 	EnsureBase   bool
 }
 
@@ -61,6 +61,7 @@ func prepareImagesWithResult(req prepareImagesInput) (prepareImagesResult, error
 	if manifestPath == "" {
 		return prepareImagesResult{}, artifactcore.ErrArtifactPathRequired
 	}
+	runtime := normalizeRuntimeObservation(req.Runtime)
 	manifest, err := artifactcore.ReadArtifactManifest(manifestPath)
 	if err != nil {
 		return prepareImagesResult{}, err
@@ -116,7 +117,7 @@ func prepareImagesWithResult(req prepareImagesInput) (prepareImagesResult, error
 					target.functionName,
 					contextRoot,
 					req.NoCache,
-					req.Runtime,
+					runtime,
 					runner,
 					ensureBase,
 					builtBaseImages,
@@ -133,7 +134,7 @@ func prepareImagesWithResult(req prepareImagesInput) (prepareImagesResult, error
 		}
 	}
 	if ensureBase && !hasFunctionBuildTargets {
-		defaultBaseRef, err := resolveDefaultLambdaBaseRef(req.Runtime)
+		defaultBaseRef, err := resolveDefaultLambdaBaseRef(runtime)
 		if err != nil {
 			return prepareImagesResult{}, err
 		}
@@ -191,7 +192,7 @@ func collectImageBuildTargets(
 func buildAndPushFunctionImage(
 	imageRef, functionName, contextRoot string,
 	noCache bool,
-	runtime *artifactcore.RuntimeObservation,
+	runtime *RuntimeObservation,
 	runner CommandRunner,
 	ensureBase bool,
 	builtBaseImages map[string]struct{},

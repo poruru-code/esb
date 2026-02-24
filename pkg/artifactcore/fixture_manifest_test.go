@@ -2,7 +2,6 @@ package artifactcore
 
 import (
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -30,13 +29,4 @@ func writeArtifactFixtureManifest(t *testing.T, root string) string {
 		t.Fatalf("write manifest: %v", err)
 	}
 	return manifestPath
-}
-
-func containsWarning(warnings []string, pattern string) bool {
-	for _, warning := range warnings {
-		if strings.Contains(warning, pattern) {
-			return true
-		}
-	}
-	return false
 }

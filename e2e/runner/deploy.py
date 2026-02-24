@@ -91,9 +91,6 @@ def _deploy_via_artifact_driver(
     ]
     if no_cache:
         deploy_cmd.append("--no-cache")
-    secret_env = str(ctx.scenario.extra.get("secret_env_file", "")).strip()
-    if secret_env:
-        deploy_cmd.extend(["--secret-env", secret_env])
     rc = run_and_stream(
         deploy_cmd,
         cwd=PROJECT_ROOT,

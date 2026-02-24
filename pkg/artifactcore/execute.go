@@ -5,10 +5,8 @@ import (
 )
 
 type ApplyInput struct {
-	ArtifactPath  string
-	OutputDir     string
-	SecretEnvPath string
-	Runtime       *RuntimeObservation
+	ArtifactPath string
+	OutputDir    string
 }
 
 type ApplyResult struct {
@@ -26,7 +24,6 @@ func ExecuteApply(input ApplyInput) (ApplyResult, error) {
 func normalizeApplyInput(input ApplyInput) (ApplyInput, error) {
 	input.ArtifactPath = strings.TrimSpace(input.ArtifactPath)
 	input.OutputDir = strings.TrimSpace(input.OutputDir)
-	input.SecretEnvPath = strings.TrimSpace(input.SecretEnvPath)
 	if input.ArtifactPath == "" {
 		return ApplyInput{}, ErrArtifactPathRequired
 	}

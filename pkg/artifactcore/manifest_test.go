@@ -70,8 +70,7 @@ func TestReadArtifactManifestAllowsUnknownFields(t *testing.T) {
 		`    source_template:`,
 		`      path: /tmp/template-a.yaml`,
 		`      sha256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef`,
-		`      parameters:`,
-		`        Stage: dev`,
+		`      future_source_field: abc`,
 		"",
 	}, "\n")
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
@@ -247,21 +246,6 @@ func TestManifestRoundTripAllowsSourceTemplateWithoutPath(t *testing.T) {
 	}
 }
 
-func TestManifestValidateRejectsEmptySourceTemplateParameterKey(t *testing.T) {
-	manifest := validTestManifest()
-	manifest.Artifacts[0].SourceTemplate = &ArtifactSourceTemplate{
-		Parameters: map[string]string{"": "x"},
-	}
-
-	err := manifest.Validate()
-	if err == nil {
-		t.Fatal("expected source_template.parameters validation error")
-	}
-	if !strings.Contains(err.Error(), "source_template.parameters contains empty key") {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
 func TestReadArtifactManifestMissingFile(t *testing.T) {
 	_, err := ReadArtifactManifest(filepath.Join(t.TempDir(), "missing.yml"))
 	if err == nil {
@@ -273,62 +257,6 @@ func TestReadArtifactManifestMissingFile(t *testing.T) {
 	}
 	if !strings.HasSuffix(missingPathErr.Path, "missing.yml") {
 		t.Fatalf("unexpected missing path: %q", missingPathErr.Path)
-	}
-}
-
-func TestResolveBundleManifest(t *testing.T) {
-	manifest := ArtifactManifest{
-		Artifacts: []ArtifactEntry{
-			{
-				ArtifactRoot:   "./artifact-a",
-				BundleManifest: "bundle/manifest.json",
-			},
-		},
-	}
-	manifestPath := filepath.Join("/tmp", "project", "artifact.yml")
-
-	got, err := manifest.ResolveBundleManifest(manifestPath, 0)
-	if err != nil {
-		t.Fatalf("ResolveBundleManifest() error = %v", err)
-	}
-	want := filepath.Join("/tmp", "project", "artifact-a", "bundle", "manifest.json")
-	if got != want {
-		t.Fatalf("bundle path = %q, want %q", got, want)
-	}
-}
-
-func TestResolveBundleManifestReturnsEmptyWhenUnset(t *testing.T) {
-	manifest := ArtifactManifest{
-		Artifacts: []ArtifactEntry{
-			{
-				ArtifactRoot: "./artifact-a",
-			},
-		},
-	}
-	got, err := manifest.ResolveBundleManifest(filepath.Join("/tmp", "project", "artifact.yml"), 0)
-	if err != nil {
-		t.Fatalf("ResolveBundleManifest() error = %v", err)
-	}
-	if got != "" {
-		t.Fatalf("expected empty bundle path, got %q", got)
-	}
-}
-
-func TestResolveBundleManifestRejectsEscapingPath(t *testing.T) {
-	manifest := ArtifactManifest{
-		Artifacts: []ArtifactEntry{
-			{
-				ArtifactRoot:   "./artifact-a",
-				BundleManifest: "../escape.json",
-			},
-		},
-	}
-	_, err := manifest.ResolveBundleManifest(filepath.Join("/tmp", "project", "artifact.yml"), 0)
-	if err == nil {
-		t.Fatal("expected error for escaping bundle path")
-	}
-	if !strings.Contains(err.Error(), "must not escape artifact root") {
-		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
@@ -372,55 +300,6 @@ func TestWriteArtifactManifestFailsOnInvalidManifest(t *testing.T) {
 	}
 }
 
-func TestManifestValidateRuntimeStackRequiresModeWhenConfigured(t *testing.T) {
-	manifest := validTestManifest()
-	manifest.RuntimeStack = RuntimeStackMeta{
-		APIVersion: RuntimeStackAPIVersion,
-	}
-
-	err := manifest.Validate()
-	if err == nil {
-		t.Fatal("expected runtime_stack validation error")
-	}
-	if !strings.Contains(err.Error(), "runtime_stack.mode is required") {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
-func TestManifestValidateRuntimeStackRejectsInvalidMode(t *testing.T) {
-	manifest := validTestManifest()
-	manifest.RuntimeStack = RuntimeStackMeta{
-		APIVersion: RuntimeStackAPIVersion,
-		Mode:       "firecracker",
-		ESBVersion: "latest",
-	}
-
-	err := manifest.Validate()
-	if err == nil {
-		t.Fatal("expected runtime_stack mode validation error")
-	}
-	if !strings.Contains(err.Error(), "runtime_stack.mode must be docker or containerd") {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
-func TestManifestValidateRuntimeStackRejectsInvalidAPIVersion(t *testing.T) {
-	manifest := validTestManifest()
-	manifest.RuntimeStack = RuntimeStackMeta{
-		APIVersion: "abc",
-		Mode:       "docker",
-		ESBVersion: "latest",
-	}
-
-	err := manifest.Validate()
-	if err == nil {
-		t.Fatal("expected runtime_stack api_version validation error")
-	}
-	if !strings.Contains(err.Error(), "runtime_stack.api_version is invalid") {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
 func validTestManifest() ArtifactManifest {
 	return ArtifactManifest{
 		SchemaVersion: ArtifactSchemaVersionV1,
@@ -432,9 +311,8 @@ func validTestManifest() ArtifactManifest {
 				ArtifactRoot:     "../service-a/.esb/template-a/dev",
 				RuntimeConfigDir: "config",
 				SourceTemplate: &ArtifactSourceTemplate{
-					Path:       "/tmp/template-a.yaml",
-					SHA256:     "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-					Parameters: map[string]string{"Stage": "dev"},
+					Path:   "/tmp/template-a.yaml",
+					SHA256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 				},
 			},
 		},

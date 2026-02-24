@@ -5,7 +5,6 @@ ArtifactEntry.Validate
 ArtifactGenerator
 ArtifactManifest
 ArtifactManifest.ResolveArtifactRoot
-ArtifactManifest.ResolveBundleManifest
 ArtifactManifest.ResolveRuntimeConfigDir
 ArtifactManifest.Validate
 ArtifactSchemaVersionV1
@@ -14,16 +13,9 @@ ArtifactSourceTemplate.UnmarshalYAML
 ArtifactSourceTemplate.Validate
 ErrArtifactPathRequired
 ErrOutputDirRequired
-ErrSecretEnvFileRequired
 ExecuteApply
 MissingReferencedPathError
 MissingReferencedPathError.Error
-MissingSecretKeysError
-MissingSecretKeysError.Error
 ReadArtifactManifest
 ReadArtifactManifestUnchecked
-RuntimeObservation
-RuntimeStackAPIVersion
-RuntimeStackMeta
-RuntimeStackMeta.Validate
 WriteArtifactManifest
