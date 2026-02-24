@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 # FunctionName: lambda-image
-FROM 127.0.0.1:5010/esb-e2e-lambda-java:latest
+FROM 127.0.0.1:5010/esb-e2e-image-java:latest
 
 # ESB Runtime
 COPY functions/lambda-image/lambda-java-agent.jar /var/task/lib/lambda-java-agent.jar

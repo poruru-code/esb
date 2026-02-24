@@ -18,6 +18,7 @@ Contract freeze:
 - `runtime-base/**` is out of deploy artifact contract scope.
 - `artifactctl deploy` may execute image build/pull when needed, but must not use artifact-time `runtime-base/**` as base source.
 - lambda base selection follows current runtime environment (registry/tag/stack), not artifact creation-time assets.
+- `artifactctl deploy` must ensure lambda base availability in the target registry even when no function image build targets exist.
 
 The contract details live in `docs/deploy-artifact-contract.md`.
 
@@ -49,6 +50,8 @@ Notes:
 - `artifactctl deploy` runs payload/runtime compatibility validation and artifact apply.
 - `artifactctl deploy` does not treat `runtime-base/**` as contract input.
 - `artifactctl deploy` may run image build/pull, but lambda base must be resolved from current runtime environment.
+- `artifactctl deploy` ensures/pushes lambda base required by deploy-time function builds; when function build targets are absent, it ensures default `esb-lambda-base:<resolved-tag>`.
+- `artifactctl deploy` normalizes deploy-built function image refs from artifact-time local registry aliases (e.g. `127.0.0.1:5010`, `registry:5010`) to the current runtime registry (`CONTAINER_REGISTRY`) before build/push and output generation.
 - `runtime_stack` requirement validation exists in shared core; `artifactctl deploy` preflight performs runtime observation probe before apply.
 - `artifactctl deploy` must treat `<artifact_root>` as read-only. Temporary build files are created only in ephemeral workspace outside artifact directories.
 - `docker compose up` では one-shot `provisioner` が自動実行され、成功後に runtime サービスが起動します。

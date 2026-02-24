@@ -45,7 +45,7 @@ public final class Handler implements RequestHandler<Map<String, Object>, Map<St
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("success", true);
         response.put("action", action);
-        response.put("handler", "esb-e2e-lambda-java");
+        response.put("handler", "esb-e2e-image-java");
 
         try {
             switch (action) {
@@ -68,7 +68,7 @@ public final class Handler implements RequestHandler<Map<String, Object>, Map<St
             Map<String, Object> error = new LinkedHashMap<>();
             error.put("success", false);
             error.put("action", action);
-            error.put("handler", "esb-e2e-lambda-java");
+            error.put("handler", "esb-e2e-image-java");
             error.put("error", String.valueOf(e));
             return error;
         }

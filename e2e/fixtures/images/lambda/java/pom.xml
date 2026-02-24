@@ -4,7 +4,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>com.fixtures</groupId>
-  <artifactId>esb-e2e-lambda-java</artifactId>
+  <artifactId>esb-e2e-image-java</artifactId>
   <version>1.0.0</version>
 
   <properties>
