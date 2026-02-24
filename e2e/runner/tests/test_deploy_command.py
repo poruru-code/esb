@@ -207,6 +207,63 @@ def test_deploy_artifacts_prepares_local_fixture_image(monkeypatch, tmp_path):
     assert commands[1] == ["docker", "push", "127.0.0.1:5010/esb-e2e-image-python:latest"]
 
 
+def _assert_contains_pair(cmd: list[str], key: str, value: str) -> None:
+    for idx in range(len(cmd) - 1):
+        if cmd[idx] == key and cmd[idx + 1] == value:
+            return
+    raise AssertionError(f"missing pair {key} {value!r} in command: {cmd}")
+
+
+def test_deploy_artifacts_local_fixture_build_propagates_proxy_build_args(monkeypatch, tmp_path):
+    deploy_module._prepared_local_fixture_images.clear()
+    manifest = _write_artifact_fixture(
+        tmp_path,
+        image_ref="127.0.0.1:5010/esb-lambda-echo:e2e-test",
+        base_ref="127.0.0.1:5010/esb-e2e-image-java:latest",
+    )
+    ctx = _make_context(
+        tmp_path,
+        artifact_manifest=str(manifest),
+        runtime_env={
+            "http_proxy": "http://proxy.example:8080",
+            "HTTPS_PROXY": "http://secure-proxy.example:8443",
+            "NO_PROXY": "localhost,127.0.0.1,registry",
+        },
+    )
+
+    commands: list[list[str]] = []
+
+    monkeypatch.setattr(
+        "e2e.runner.deploy._deploy_via_artifact_driver", lambda *args, **kwargs: None
+    )
+
+    def fake_run_and_stream(cmd, **kwargs):
+        commands.append(list(cmd))
+        return 0
+
+    monkeypatch.setattr("e2e.runner.deploy.run_and_stream", fake_run_and_stream)
+
+    log = LogSink(tmp_path / "deploy.log")
+    log.open()
+    try:
+        deploy_artifacts(
+            ctx,
+            no_cache=False,
+            log=log,
+            printer=None,
+        )
+    finally:
+        log.close()
+
+    build_cmd = commands[0]
+    _assert_contains_pair(build_cmd, "--build-arg", "HTTP_PROXY=http://proxy.example:8080")
+    _assert_contains_pair(build_cmd, "--build-arg", "http_proxy=http://proxy.example:8080")
+    _assert_contains_pair(build_cmd, "--build-arg", "HTTPS_PROXY=http://secure-proxy.example:8443")
+    _assert_contains_pair(build_cmd, "--build-arg", "https_proxy=http://secure-proxy.example:8443")
+    _assert_contains_pair(build_cmd, "--build-arg", "NO_PROXY=localhost,127.0.0.1,registry")
+    _assert_contains_pair(build_cmd, "--build-arg", "no_proxy=localhost,127.0.0.1,registry")
+
+
 def test_deploy_artifacts_prepares_fixture_then_runs_deploy_and_provision(monkeypatch, tmp_path):
     deploy_module._prepared_local_fixture_images.clear()
     config_dir = tmp_path / "merged-config"

@@ -19,6 +19,11 @@ LOCAL_IMAGE_FIXTURES: dict[str, Path] = {
     "esb-e2e-image-python": LOCAL_IMAGE_FIXTURE_ROOT / "python",
     "esb-e2e-image-java": LOCAL_IMAGE_FIXTURE_ROOT / "java",
 }
+_PROXY_ENV_ALIASES: tuple[tuple[str, str], ...] = (
+    ("HTTP_PROXY", "http_proxy"),
+    ("HTTPS_PROXY", "https_proxy"),
+    ("NO_PROXY", "no_proxy"),
+)
 
 _prepared_local_fixture_images: set[str] = set()
 _prepared_local_fixture_lock = threading.Lock()
@@ -171,10 +176,15 @@ def _prepare_local_fixture_images(
                 "--platform",
                 "linux/amd64",
                 "--load",
-                "--tag",
-                source,
-                str(fixture_dir),
             ]
+            build_cmd = _append_proxy_build_args(build_cmd, ctx.deploy_env)
+            build_cmd.extend(
+                [
+                    "--tag",
+                    source,
+                    str(fixture_dir),
+                ]
+            )
             rc = run_and_stream(
                 build_cmd,
                 cwd=PROJECT_ROOT,
@@ -197,6 +207,16 @@ def _prepare_local_fixture_images(
                 raise RuntimeError(f"failed to push local fixture image {source} (exit code {rc})")
 
             _prepared_local_fixture_images.add(source)
+
+
+def _append_proxy_build_args(cmd: list[str], env: dict[str, str]) -> list[str]:
+    for upper, lower in _PROXY_ENV_ALIASES:
+        value = env.get(upper, "").strip() or env.get(lower, "").strip()
+        if value == "":
+            continue
+        cmd.extend(["--build-arg", f"{upper}={value}"])
+        cmd.extend(["--build-arg", f"{lower}={value}"])
+    return cmd
 
 
 def _collect_local_fixture_image_sources(manifest_path: Path) -> list[str]:
