@@ -209,6 +209,31 @@ func TestPrepareImagesRewritesFunctionDockerfileRegistryForBuild(t *testing.T) {
 	}
 }
 
+func TestRewriteDockerfileForBuildRewritesNonBaseAliasStages(t *testing.T) {
+	content := strings.Join([]string{
+		"FROM registry:5010/esb-lambda-base:latest AS base",
+		"FROM registry:5010/esb-tooling:latest AS tooling",
+		"RUN echo ready",
+		"FROM base",
+		"",
+	}, "\n")
+	rewritten, changed := rewriteDockerfileForBuild(
+		content,
+		"127.0.0.1:5512",
+		[]string{"registry:5010", "127.0.0.1:5512"},
+		"runtime-v2",
+	)
+	if !changed {
+		t.Fatal("expected dockerfile rewrite")
+	}
+	if !strings.Contains(rewritten, "FROM 127.0.0.1:5512/esb-lambda-base:runtime-v2 AS base") {
+		t.Fatalf("expected lambda base alias+tag rewrite, got:\n%s", rewritten)
+	}
+	if !strings.Contains(rewritten, "FROM 127.0.0.1:5512/esb-tooling:latest AS tooling") {
+		t.Fatalf("expected non-base alias rewrite, got:\n%s", rewritten)
+	}
+}
+
 func TestPrepareImagesRewritesFunctionDockerfileLambdaBaseTagFromRuntimeObservation(t *testing.T) {
 	root := t.TempDir()
 	manifestPath := writePrepareImageFixture(

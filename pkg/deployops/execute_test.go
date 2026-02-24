@@ -104,6 +104,47 @@ func TestExecuteNormalizesOutputFunctionImagesToRuntimeRegistry(t *testing.T) {
 	}
 }
 
+func TestExecuteDoesNotNormalizeOutputImageWithoutPublishedFunctionImage(t *testing.T) {
+	root := t.TempDir()
+	manifestPath := writePrepareImageFixture(
+		t,
+		root,
+		"127.0.0.1:5010/esb-lambda-echo:e2e-test",
+		"127.0.0.1:5010/esb-lambda-base:e2e-test",
+	)
+	dockerfilePath := filepath.Join(root, "fixture", "functions", "lambda-echo", "Dockerfile")
+	if err := os.Remove(dockerfilePath); err != nil {
+		t.Fatalf("remove dockerfile: %v", err)
+	}
+
+	t.Setenv("CONTAINER_REGISTRY", "127.0.0.1:5512")
+	t.Setenv("HOST_REGISTRY_ADDR", "127.0.0.1:5512")
+	t.Setenv("ESB_TAG", "latest")
+
+	originalImageExists := dockerImageExistsFunc
+	dockerImageExistsFunc = func(string) bool { return true }
+	t.Cleanup(func() { dockerImageExistsFunc = originalImageExists })
+
+	outputDir := filepath.Join(root, "out")
+	runner := &recordCommandRunner{}
+	result, err := Execute(Input{
+		ArtifactPath: manifestPath,
+		OutputDir:    outputDir,
+		Runner:       runner,
+	})
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if len(result.Warnings) != 0 {
+		t.Fatalf("unexpected warnings: %#v", result.Warnings)
+	}
+
+	imageRef := outputFunctionImageRef(t, outputDir, "lambda-echo")
+	if imageRef != "127.0.0.1:5010/esb-lambda-echo:e2e-test" {
+		t.Fatalf("unexpected output image ref: %s", imageRef)
+	}
+}
+
 func TestExecuteEnsuresBaseWhenNoFunctionTargets(t *testing.T) {
 	root := t.TempDir()
 	manifestPath := writePrepareImageFixture(

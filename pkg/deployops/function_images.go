@@ -79,7 +79,7 @@ func rewriteRegistryAlias(imageRef, targetRegistry string, aliases []string) (st
 	return trimmed, false
 }
 
-func normalizeOutputFunctionImages(outputDir string) error {
+func normalizeOutputFunctionImages(outputDir string, publishedFunctionImages map[string]struct{}) error {
 	functionsPath := filepath.Join(outputDir, "functions.yml")
 	payload, ok, err := loadYAML(functionsPath)
 	if err != nil {
@@ -109,6 +109,9 @@ func normalizeOutputFunctionImages(outputDir string) error {
 		}
 		normalized, rewritten := normalizeFunctionImageRefForRuntime(imageRef)
 		if !rewritten || normalized == imageRef {
+			continue
+		}
+		if _, ok := publishedFunctionImages[normalized]; !ok {
 			continue
 		}
 		functionPayload["image"] = normalized

@@ -50,14 +50,23 @@ type imageBuildTarget struct {
 	dockerfile   string
 }
 
+type prepareImagesResult struct {
+	publishedFunctionImages map[string]struct{}
+}
+
 func prepareImages(req prepareImagesInput) error {
+	_, err := prepareImagesWithResult(req)
+	return err
+}
+
+func prepareImagesWithResult(req prepareImagesInput) (prepareImagesResult, error) {
 	manifestPath := strings.TrimSpace(req.ArtifactPath)
 	if manifestPath == "" {
-		return artifactcore.ErrArtifactPathRequired
+		return prepareImagesResult{}, artifactcore.ErrArtifactPathRequired
 	}
 	manifest, err := artifactcore.ReadArtifactManifest(manifestPath)
 	if err != nil {
-		return err
+		return prepareImagesResult{}, err
 	}
 	runner := req.Runner
 	if runner == nil {
@@ -66,28 +75,29 @@ func prepareImages(req prepareImagesInput) error {
 	ensureBase := req.EnsureBase
 	builtFunctionImages := make(map[string]struct{})
 	builtBaseImages := make(map[string]struct{})
+	publishedFunctionImages := make(map[string]struct{})
 	hasFunctionBuildTargets := false
 
 	for i := range manifest.Artifacts {
 		artifactRoot, err := manifest.ResolveArtifactRoot(manifestPath, i)
 		if err != nil {
-			return err
+			return prepareImagesResult{}, err
 		}
 		runtimeConfigDir, err := manifest.ResolveRuntimeConfigDir(manifestPath, i)
 		if err != nil {
-			return err
+			return prepareImagesResult{}, err
 		}
 		functionsPath := filepath.Join(runtimeConfigDir, "functions.yml")
 		functionsPayload, ok, err := loadYAML(functionsPath)
 		if err != nil {
-			return fmt.Errorf("load functions config: %w", err)
+			return prepareImagesResult{}, fmt.Errorf("load functions config: %w", err)
 		}
 		if !ok {
-			return fmt.Errorf("functions config not found: %s", functionsPath)
+			return prepareImagesResult{}, fmt.Errorf("functions config not found: %s", functionsPath)
 		}
 		functionsRaw, ok := functionsPayload["functions"].(map[string]any)
 		if !ok {
-			return fmt.Errorf("functions must be map in %s", functionsPath)
+			return prepareImagesResult{}, fmt.Errorf("functions must be map in %s", functionsPath)
 		}
 
 		buildTargets := collectImageBuildTargets(artifactRoot, functionsRaw, builtFunctionImages)
@@ -116,22 +126,23 @@ func prepareImages(req prepareImagesInput) error {
 					return err
 				}
 				builtFunctionImages[target.imageRef] = struct{}{}
+				publishedFunctionImages[target.imageRef] = struct{}{}
 			}
 			return nil
 		}); err != nil {
-			return err
+			return prepareImagesResult{}, err
 		}
 	}
 	if ensureBase && !hasFunctionBuildTargets {
 		defaultBaseRef, err := resolveDefaultLambdaBaseRef(req.Runtime)
 		if err != nil {
-			return err
+			return prepareImagesResult{}, err
 		}
 		if err := ensureLambdaBaseImage(defaultBaseRef, req.NoCache, runner, builtBaseImages); err != nil {
-			return err
+			return prepareImagesResult{}, err
 		}
 	}
-	return nil
+	return prepareImagesResult{publishedFunctionImages: publishedFunctionImages}, nil
 }
 
 func collectImageBuildTargets(
@@ -288,7 +299,7 @@ func rewriteDockerfileFromRef(ref, hostRegistry string, registryAliases []string
 		rewritten = baseRef
 		changed = true
 	} else if hostRegistry != "" {
-		if baseRef, refChanged := rewriteRegistryAlias(rewritten, hostRegistry, registryAliases); refChanged && isLambdaBaseRef(baseRef) {
+		if baseRef, refChanged := rewriteRegistryAlias(rewritten, hostRegistry, registryAliases); refChanged {
 			rewritten = baseRef
 			changed = true
 		}
