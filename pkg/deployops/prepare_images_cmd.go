@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"sort"
 	"strings"
+
+	proxybuildargs "github.com/poruru-code/esb/pkg/proxy/buildargs"
 )
 
 func buildxBuildCommandWithBuildArgs(
@@ -49,28 +51,7 @@ func buildxBuildCommand(tag, dockerfile, contextDir string, noCache bool) []stri
 }
 
 func appendProxyBuildArgs(cmd []string) []string {
-	type proxyEnvPair struct {
-		upper string
-		lower string
-	}
-	pairs := []proxyEnvPair{
-		{upper: "HTTP_PROXY", lower: "http_proxy"},
-		{upper: "HTTPS_PROXY", lower: "https_proxy"},
-		{upper: "NO_PROXY", lower: "no_proxy"},
-	}
-
-	for _, pair := range pairs {
-		value := strings.TrimSpace(os.Getenv(pair.upper))
-		if value == "" {
-			value = strings.TrimSpace(os.Getenv(pair.lower))
-		}
-		if value == "" {
-			continue
-		}
-		cmd = append(cmd, "--build-arg", pair.upper+"="+value)
-		cmd = append(cmd, "--build-arg", pair.lower+"="+value)
-	}
-	return cmd
+	return proxybuildargs.AppendDockerBuildArgsFromOS(cmd)
 }
 
 func resolvePushReference(imageRef string) string {

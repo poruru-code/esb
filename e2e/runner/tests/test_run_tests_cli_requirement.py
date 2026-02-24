@@ -3,6 +3,7 @@
 # Why: E2E deploy phase requires artifactctl, while test-only runs do not.
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from types import SimpleNamespace
@@ -16,8 +17,18 @@ def _args(*, test_only: bool = False) -> SimpleNamespace:
     return SimpleNamespace(test_only=test_only)
 
 
-def _probe_ok(*args, **kwargs):
-    del args, kwargs
+def _probe_ok(args, **kwargs):
+    del kwargs
+    cmd = list(args)
+    if cmd[-3:] == ["capabilities", "--output", "json"]:
+        payload = {
+            "schema_version": 1,
+            "contracts": {
+                "maven_shim_ensure_schema_version": 1,
+                "fixture_image_ensure_schema_version": 1,
+            },
+        }
+        return SimpleNamespace(returncode=0, stdout=json.dumps(payload))
     return SimpleNamespace(returncode=0, stdout="usage")
 
 
@@ -114,15 +125,39 @@ def test_ensure_artifactctl_available_fails_when_subcommand_contract_missing(mon
         ensure_artifactctl_available()
 
 
-def test_ensure_artifactctl_available_fails_when_internal_maven_shim_missing(monkeypatch) -> None:
+def test_ensure_artifactctl_available_fails_when_fixture_ensure_subcommand_missing(
+    monkeypatch,
+) -> None:
     monkeypatch.delenv("ARTIFACTCTL_BIN", raising=False)
     monkeypatch.setenv("HOME", "/tmp/esb-no-local-artifactctl")
     monkeypatch.setattr("e2e.run_tests.shutil.which", lambda name: "/usr/local/bin/artifactctl")
 
     def fake_probe(args, **kwargs):
         del kwargs
-        if args[-3:] == ["maven-shim", "ensure", "--help"]:
-            return SimpleNamespace(returncode=1, stdout="unknown command: internal")
+        cmd = list(args)
+        if cmd[-4:] == ["internal", "fixture-image", "ensure", "--help"]:
+            return SimpleNamespace(returncode=1, stdout="unknown command")
+        return SimpleNamespace(returncode=0, stdout="usage")
+
+    monkeypatch.setattr("e2e.run_tests.subprocess.run", fake_probe)
+    with pytest.raises(SystemExit):
+        ensure_artifactctl_available()
+
+
+def test_ensure_artifactctl_available_fails_when_capabilities_contract_mismatch(
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("ARTIFACTCTL_BIN", raising=False)
+    monkeypatch.setenv("HOME", "/tmp/esb-no-local-artifactctl")
+    monkeypatch.setattr("e2e.run_tests.shutil.which", lambda name: "/usr/local/bin/artifactctl")
+
+    def fake_probe(args, **kwargs):
+        del kwargs
+        if list(args)[-3:] == ["capabilities", "--output", "json"]:
+            return SimpleNamespace(
+                returncode=0,
+                stdout='{"schema_version":1,"contracts":{"maven_shim_ensure_schema_version":1}}',
+            )
         return SimpleNamespace(returncode=0, stdout="usage")
 
     monkeypatch.setattr("e2e.run_tests.subprocess.run", fake_probe)

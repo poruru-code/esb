@@ -10,14 +10,9 @@ import pytest
 import yaml
 
 from e2e.runner import deploy as deploy_module
-from e2e.runner.deploy import _collect_local_fixture_image_sources, deploy_artifacts
+from e2e.runner.deploy import deploy_artifacts
 from e2e.runner.logging import LogSink
 from e2e.runner.models import RunContext, Scenario
-
-_JAVA_MAVEN_BASE_IMAGE = (
-    "public.ecr.aws/sam/build-java21"
-    "@sha256:5f78d6d9124e54e5a7a9941ef179d74d88b7a5b117526ea8574137e5403b51b7"
-)
 
 
 def _make_context(
@@ -128,27 +123,7 @@ def _write_artifact_fixture(
     return manifest_path
 
 
-def test_collect_local_fixture_image_sources_filters_non_fixture(tmp_path) -> None:
-    manifest = _write_artifact_fixture(
-        tmp_path,
-        image_ref="127.0.0.1:5010/esb-lambda-echo:e2e-test",
-        base_ref="public.ecr.aws/example/repo:v1",
-    )
-    assert _collect_local_fixture_image_sources(manifest) == []
-
-
-def test_collect_local_fixture_image_sources_includes_java_fixture(tmp_path) -> None:
-    manifest = _write_artifact_fixture(
-        tmp_path,
-        image_ref="127.0.0.1:5010/esb-lambda-echo:e2e-test",
-        base_ref="127.0.0.1:5010/esb-e2e-image-java:latest",
-    )
-    assert _collect_local_fixture_image_sources(manifest) == [
-        "127.0.0.1:5010/esb-e2e-image-java:latest"
-    ]
-
-
-def test_deploy_artifacts_rejects_invalid_manifest_artifacts_field(monkeypatch, tmp_path):
+def test_deploy_artifacts_reports_fixture_prepare_failure(monkeypatch, tmp_path):
     manifest = tmp_path / "artifact.yml"
     manifest.write_text("artifacts: invalid\n", encoding="utf-8")
     ctx = _make_context(tmp_path)
@@ -157,11 +132,12 @@ def test_deploy_artifacts_rejects_invalid_manifest_artifacts_field(monkeypatch, 
     monkeypatch.setattr(
         "e2e.runner.deploy._deploy_via_artifact_driver", lambda *args, **kwargs: None
     )
+    monkeypatch.setattr("e2e.runner.deploy.run_and_stream", lambda *args, **kwargs: 1)
 
     log = LogSink(tmp_path / "deploy.log")
     log.open()
     try:
-        with pytest.raises(ValueError, match="artifacts"):
+        with pytest.raises(RuntimeError, match="failed to prepare local fixture images"):
             deploy_artifacts(
                 ctx,
                 no_cache=False,
@@ -193,6 +169,18 @@ def test_deploy_artifacts_prepares_local_fixture_image(monkeypatch, tmp_path):
 
     def fake_run_and_stream(cmd, **kwargs):
         commands.append(list(cmd))
+        on_line = kwargs.get("on_line")
+        if (
+            len(cmd) >= 4
+            and cmd[0] == "artifactctl"
+            and cmd[1] == "internal"
+            and cmd[2] == "fixture-image"
+            and cmd[3] == "ensure"
+            and on_line is not None
+        ):
+            on_line(
+                '{"schema_version":1,"prepared_images":["127.0.0.1:5010/esb-e2e-image-python:latest"]}'
+            )
         return 0
 
     monkeypatch.setattr("e2e.runner.deploy.run_and_stream", fake_run_and_stream)
@@ -209,18 +197,19 @@ def test_deploy_artifacts_prepares_local_fixture_image(monkeypatch, tmp_path):
     finally:
         log.close()
 
-    assert commands[0][0:3] == ["docker", "buildx", "build"]
-    assert commands[1] == ["docker", "push", "127.0.0.1:5010/esb-e2e-image-python:latest"]
+    assert commands[0] == [
+        "artifactctl",
+        "internal",
+        "fixture-image",
+        "ensure",
+        "--artifact",
+        str(manifest.resolve()),
+        "--output",
+        "json",
+    ]
 
 
-def _assert_contains_pair(cmd: list[str], key: str, value: str) -> None:
-    for idx in range(len(cmd) - 1):
-        if cmd[idx] == key and cmd[idx + 1] == value:
-            return
-    raise AssertionError(f"missing pair {key} {value!r} in command: {cmd}")
-
-
-def test_deploy_artifacts_local_fixture_build_propagates_proxy_build_args(monkeypatch, tmp_path):
+def test_deploy_artifacts_local_fixture_prepare_uses_internal_contract(monkeypatch, tmp_path):
     deploy_module._prepared_local_fixture_images.clear()
     deploy_module._prepared_maven_shim_images.clear()
     manifest = _write_artifact_fixture(
@@ -244,8 +233,6 @@ def test_deploy_artifacts_local_fixture_build_propagates_proxy_build_args(monkey
         "e2e.runner.deploy._deploy_via_artifact_driver", lambda *args, **kwargs: None
     )
 
-    shim_tag = "127.0.0.1:5010/esb-maven-shim:0f9e5ac6f33b3755"
-
     def fake_run_and_stream(cmd, **kwargs):
         commands.append(list(cmd))
         on_line = kwargs.get("on_line")
@@ -253,11 +240,13 @@ def test_deploy_artifacts_local_fixture_build_propagates_proxy_build_args(monkey
             len(cmd) >= 4
             and cmd[0] == "artifactctl"
             and cmd[1] == "internal"
-            and cmd[2] == "maven-shim"
+            and cmd[2] == "fixture-image"
             and cmd[3] == "ensure"
             and on_line is not None
         ):
-            on_line(f'{{"schema_version":1,"shim_image":"{shim_tag}"}}')
+            on_line(
+                '{"schema_version":1,"prepared_images":["127.0.0.1:5010/esb-e2e-image-java:latest"]}'
+            )
         return 0
 
     monkeypatch.setattr("e2e.runner.deploy.run_and_stream", fake_run_and_stream)
@@ -274,120 +263,52 @@ def test_deploy_artifacts_local_fixture_build_propagates_proxy_build_args(monkey
     finally:
         log.close()
 
-    shim_ensure_cmd = commands[0]
-    fixture_build_cmd = commands[1]
-    assert shim_ensure_cmd == [
+    fixture_ensure_cmd = commands[0]
+    assert fixture_ensure_cmd == [
         "artifactctl",
         "internal",
-        "maven-shim",
+        "fixture-image",
         "ensure",
-        "--base-image",
-        _JAVA_MAVEN_BASE_IMAGE,
+        "--artifact",
+        str(manifest.resolve()),
         "--output",
         "json",
-        "--host-registry",
-        "127.0.0.1:5010",
     ]
 
-    assert fixture_build_cmd[0:3] == ["docker", "buildx", "build"]
-    _assert_contains_pair(fixture_build_cmd, "--build-arg", "HTTP_PROXY=http://proxy.example:8080")
-    _assert_contains_pair(fixture_build_cmd, "--build-arg", "http_proxy=http://proxy.example:8080")
-    _assert_contains_pair(
-        fixture_build_cmd, "--build-arg", "HTTPS_PROXY=http://secure-proxy.example:8443"
-    )
-    _assert_contains_pair(
-        fixture_build_cmd, "--build-arg", "https_proxy=http://secure-proxy.example:8443"
-    )
-    _assert_contains_pair(fixture_build_cmd, "--build-arg", "NO_PROXY=localhost,127.0.0.1,registry")
-    _assert_contains_pair(fixture_build_cmd, "--build-arg", "no_proxy=localhost,127.0.0.1,registry")
-    _assert_contains_pair(fixture_build_cmd, "--build-arg", f"MAVEN_IMAGE={shim_tag}")
 
-
-def test_parse_maven_shim_ensure_output_validates_schema_and_image() -> None:
-    shim_image = deploy_module._parse_maven_shim_ensure_output(
+def test_parse_fixture_image_ensure_output_validates_schema() -> None:
+    prepared = deploy_module._parse_fixture_image_ensure_output(
         [
             "prelude log line",
-            '{"schema_version":1,"shim_image":"127.0.0.1:5010/esb-maven-shim:deadbeef"}',
+            '{"schema_version":1,"prepared_images":["127.0.0.1:5010/esb-e2e-image-java:latest"]}',
         ]
     )
-    assert shim_image == "127.0.0.1:5010/esb-maven-shim:deadbeef"
+    assert prepared == ["127.0.0.1:5010/esb-e2e-image-java:latest"]
 
 
-def test_parse_maven_shim_ensure_output_ignores_unrelated_json_logs() -> None:
-    shim_image = deploy_module._parse_maven_shim_ensure_output(
+def test_parse_fixture_image_ensure_output_ignores_unrelated_json_logs() -> None:
+    prepared = deploy_module._parse_fixture_image_ensure_output(
         [
             '{"level":"info","msg":"building shim image"}',
-            '{"schema_version":1,"shim_image":"127.0.0.1:5010/esb-maven-shim:cafebabe"}',
+            '{"schema_version":1,"prepared_images":["127.0.0.1:5010/esb-e2e-image-python:latest"]}',
             '{"event":"docker-finished"}',
         ]
     )
-    assert shim_image == "127.0.0.1:5010/esb-maven-shim:cafebabe"
+    assert prepared == ["127.0.0.1:5010/esb-e2e-image-python:latest"]
 
 
-def test_parse_maven_shim_ensure_output_rejects_malformed_payload() -> None:
-    with pytest.raises(RuntimeError, match="does not include shim_image"):
-        deploy_module._parse_maven_shim_ensure_output(['{"schema_version":1,"shim_image":"   "}'])
+def test_parse_fixture_image_ensure_output_rejects_non_list_payload() -> None:
+    with pytest.raises(RuntimeError, match="does not include prepared_images"):
+        deploy_module._parse_fixture_image_ensure_output(
+            ['{"schema_version":1,"prepared_images":"not-a-list"}']
+        )
 
 
-def test_parse_maven_shim_ensure_output_rejects_missing_payload() -> None:
+def test_parse_fixture_image_ensure_output_rejects_missing_payload() -> None:
     with pytest.raises(RuntimeError, match="no JSON payload with required fields"):
-        deploy_module._parse_maven_shim_ensure_output(
+        deploy_module._parse_fixture_image_ensure_output(
             ["line-a", '{"level":"info","msg":"line-b"}', '{"schema_version":1}']
         )
-
-
-def test_java_fixture_contract_accepts_maven_image_injection(tmp_path) -> None:
-    fixture_dir = tmp_path / "java"
-    fixture_dir.mkdir(parents=True, exist_ok=True)
-    (fixture_dir / "Dockerfile").write_text(
-        "\n".join(
-            [
-                "ARG MAVEN_IMAGE=public.ecr.aws/sam/build-java21:latest",
-                "FROM ${MAVEN_IMAGE} AS builder",
-                "RUN mvn -q -DskipTests package",
-            ]
-        )
-        + "\n",
-        encoding="utf-8",
-    )
-
-    deploy_module._assert_java_fixture_uses_maven_shim_contract(fixture_dir)
-
-
-@pytest.mark.parametrize(
-    ("dockerfile_text", "expected_message"),
-    [
-        (
-            "\n".join(
-                [
-                    "FROM maven:3.9.11-eclipse-temurin-21 AS builder",
-                    "RUN mvn -q -DskipTests package",
-                ]
-            )
-            + "\n",
-            r"must define `ARG MAVEN_IMAGE`",
-        ),
-        (
-            "\n".join(
-                [
-                    "ARG MAVEN_IMAGE=public.ecr.aws/sam/build-java21:latest",
-                    "FROM maven:3.9.11-eclipse-temurin-21 AS builder",
-                ]
-            )
-            + "\n",
-            r"must use `FROM \${MAVEN_IMAGE} AS builder`",
-        ),
-    ],
-)
-def test_java_fixture_contract_rejects_stale_dockerfile(
-    tmp_path, dockerfile_text: str, expected_message: str
-) -> None:
-    fixture_dir = tmp_path / "java"
-    fixture_dir.mkdir(parents=True, exist_ok=True)
-    (fixture_dir / "Dockerfile").write_text(dockerfile_text, encoding="utf-8")
-
-    with pytest.raises(RuntimeError, match=expected_message):
-        deploy_module._assert_java_fixture_uses_maven_shim_contract(fixture_dir)
 
 
 def test_deploy_artifacts_prepares_fixture_then_runs_deploy_and_provision(monkeypatch, tmp_path):
@@ -410,8 +331,19 @@ def test_deploy_artifacts_prepares_fixture_then_runs_deploy_and_provision(monkey
     commands: list[list[str]] = []
 
     def fake_run_and_stream(cmd: list[str], **kwargs: Any) -> int:
-        del kwargs
         commands.append(list(cmd))
+        on_line = kwargs.get("on_line")
+        if (
+            len(cmd) >= 4
+            and cmd[0] == "artifactctl"
+            and cmd[1] == "internal"
+            and cmd[2] == "fixture-image"
+            and cmd[3] == "ensure"
+            and on_line is not None
+        ):
+            on_line(
+                '{"schema_version":1,"prepared_images":["127.0.0.1:5010/esb-e2e-image-python:latest"]}'
+            )
         return 0
 
     monkeypatch.setattr("e2e.runner.deploy.run_and_stream", fake_run_and_stream)
@@ -428,9 +360,17 @@ def test_deploy_artifacts_prepares_fixture_then_runs_deploy_and_provision(monkey
     finally:
         log.close()
 
-    assert commands[0][0:3] == ["docker", "buildx", "build"]
-    assert commands[1] == ["docker", "push", "127.0.0.1:5010/esb-e2e-image-python:latest"]
-    assert commands[2] == [
+    assert commands[0] == [
+        "artifactctl",
+        "internal",
+        "fixture-image",
+        "ensure",
+        "--artifact",
+        str(manifest.resolve()),
+        "--output",
+        "json",
+    ]
+    assert commands[1] == [
         "artifactctl",
         "deploy",
         "--artifact",
@@ -438,7 +378,7 @@ def test_deploy_artifacts_prepares_fixture_then_runs_deploy_and_provision(monkey
         "--out",
         str(config_dir),
     ]
-    assert commands[3] == [
+    assert commands[2] == [
         "artifactctl",
         "provision",
         "--project",
@@ -468,8 +408,17 @@ def test_deploy_artifacts_runs_deploy_and_provision(monkeypatch, tmp_path):
     commands: list[list[str]] = []
 
     def fake_run_and_stream(cmd: list[str], **kwargs: Any) -> int:
-        del kwargs
         commands.append(list(cmd))
+        on_line = kwargs.get("on_line")
+        if (
+            len(cmd) >= 4
+            and cmd[0] == "artifactctl"
+            and cmd[1] == "internal"
+            and cmd[2] == "fixture-image"
+            and cmd[3] == "ensure"
+            and on_line is not None
+        ):
+            on_line('{"schema_version":1,"prepared_images":[]}')
         return 0
 
     monkeypatch.setattr("e2e.runner.deploy.run_and_stream", fake_run_and_stream)
@@ -488,13 +437,23 @@ def test_deploy_artifacts_runs_deploy_and_provision(monkeypatch, tmp_path):
 
     assert commands[0] == [
         "artifactctl",
+        "internal",
+        "fixture-image",
+        "ensure",
+        "--artifact",
+        str(manifest.resolve()),
+        "--output",
+        "json",
+    ]
+    assert commands[1] == [
+        "artifactctl",
         "deploy",
         "--artifact",
         str(manifest.resolve()),
         "--out",
         str(config_dir),
     ]
-    assert commands[1] == [
+    assert commands[2] == [
         "artifactctl",
         "provision",
         "--project",
@@ -522,8 +481,17 @@ def test_deploy_artifacts_deploy_with_no_cache(monkeypatch, tmp_path):
     )
 
     def fake_run_and_stream(cmd: list[str], **kwargs: Any) -> int:
-        del kwargs
         commands.append(list(cmd))
+        on_line = kwargs.get("on_line")
+        if (
+            len(cmd) >= 4
+            and cmd[0] == "artifactctl"
+            and cmd[1] == "internal"
+            and cmd[2] == "fixture-image"
+            and cmd[3] == "ensure"
+            and on_line is not None
+        ):
+            on_line('{"schema_version":1,"prepared_images":[]}')
         return 0
 
     commands: list[list[str]] = []
@@ -543,6 +511,17 @@ def test_deploy_artifacts_deploy_with_no_cache(monkeypatch, tmp_path):
 
     assert commands[0] == [
         "artifactctl",
+        "internal",
+        "fixture-image",
+        "ensure",
+        "--artifact",
+        str(manifest.resolve()),
+        "--output",
+        "json",
+        "--no-cache",
+    ]
+    assert commands[1] == [
+        "artifactctl",
         "deploy",
         "--artifact",
         str(manifest.resolve()),
@@ -550,6 +529,140 @@ def test_deploy_artifacts_deploy_with_no_cache(monkeypatch, tmp_path):
         str(config_dir),
         "--no-cache",
     ]
+
+
+def test_deploy_artifacts_fixture_prepare_is_cached_by_conditions(monkeypatch, tmp_path):
+    deploy_module._prepared_local_fixture_images.clear()
+    deploy_module._prepared_maven_shim_images.clear()
+    config_dir = tmp_path / "merged-config"
+    image_ref = "127.0.0.1:5010/esb-lambda-echo:e2e-test"
+    base_ref = "127.0.0.1:5010/esb-lambda-base:e2e-test"
+    manifest = _write_artifact_fixture(tmp_path, image_ref=image_ref, base_ref=base_ref)
+    ctx = _make_context(
+        tmp_path,
+        artifact_manifest=str(manifest),
+        runtime_env={
+            "CONFIG_DIR": str(config_dir),
+            "HOST_REGISTRY_ADDR": "127.0.0.1:5010",
+            "CONTAINER_REGISTRY": "127.0.0.1:5010",
+            "http_proxy": "http://proxy.example:8080",
+        },
+    )
+
+    commands: list[list[str]] = []
+
+    def fake_run_and_stream(cmd: list[str], **kwargs: Any) -> int:
+        commands.append(list(cmd))
+        on_line = kwargs.get("on_line")
+        if (
+            len(cmd) >= 4
+            and cmd[0] == "artifactctl"
+            and cmd[1] == "internal"
+            and cmd[2] == "fixture-image"
+            and cmd[3] == "ensure"
+            and on_line is not None
+        ):
+            on_line('{"schema_version":1,"prepared_images":[]}')
+        return 0
+
+    monkeypatch.setattr("e2e.runner.deploy.run_and_stream", fake_run_and_stream)
+
+    log = LogSink(tmp_path / "deploy.log")
+    log.open()
+    try:
+        deploy_artifacts(
+            ctx,
+            no_cache=False,
+            log=log,
+            printer=None,
+        )
+        deploy_artifacts(
+            ctx,
+            no_cache=False,
+            log=log,
+            printer=None,
+        )
+    finally:
+        log.close()
+
+    fixture_ensure_count = sum(
+        1
+        for cmd in commands
+        if len(cmd) >= 4
+        and cmd[0] == "artifactctl"
+        and cmd[1] == "internal"
+        and cmd[2] == "fixture-image"
+        and cmd[3] == "ensure"
+    )
+    assert fixture_ensure_count == 1
+
+
+def test_deploy_artifacts_fixture_prepare_reexecutes_with_no_cache(monkeypatch, tmp_path):
+    deploy_module._prepared_local_fixture_images.clear()
+    deploy_module._prepared_maven_shim_images.clear()
+    config_dir = tmp_path / "merged-config"
+    image_ref = "127.0.0.1:5010/esb-lambda-echo:e2e-test"
+    base_ref = "127.0.0.1:5010/esb-lambda-base:e2e-test"
+    manifest = _write_artifact_fixture(tmp_path, image_ref=image_ref, base_ref=base_ref)
+    ctx = _make_context(
+        tmp_path,
+        artifact_manifest=str(manifest),
+        runtime_env={
+            "CONFIG_DIR": str(config_dir),
+            "HOST_REGISTRY_ADDR": "127.0.0.1:5010",
+            "CONTAINER_REGISTRY": "127.0.0.1:5010",
+            "http_proxy": "http://proxy.example:8080",
+        },
+    )
+
+    commands: list[list[str]] = []
+
+    def fake_run_and_stream(cmd: list[str], **kwargs: Any) -> int:
+        commands.append(list(cmd))
+        on_line = kwargs.get("on_line")
+        if (
+            len(cmd) >= 4
+            and cmd[0] == "artifactctl"
+            and cmd[1] == "internal"
+            and cmd[2] == "fixture-image"
+            and cmd[3] == "ensure"
+            and on_line is not None
+        ):
+            on_line('{"schema_version":1,"prepared_images":[]}')
+        return 0
+
+    monkeypatch.setattr("e2e.runner.deploy.run_and_stream", fake_run_and_stream)
+
+    log = LogSink(tmp_path / "deploy.log")
+    log.open()
+    try:
+        deploy_artifacts(
+            ctx,
+            no_cache=True,
+            log=log,
+            printer=None,
+        )
+        deploy_artifacts(
+            ctx,
+            no_cache=True,
+            log=log,
+            printer=None,
+        )
+    finally:
+        log.close()
+
+    fixture_ensure_cmds = [
+        cmd
+        for cmd in commands
+        if len(cmd) >= 4
+        and cmd[0] == "artifactctl"
+        and cmd[1] == "internal"
+        and cmd[2] == "fixture-image"
+        and cmd[3] == "ensure"
+    ]
+    assert len(fixture_ensure_cmds) == 2
+    for cmd in fixture_ensure_cmds:
+        assert "--no-cache" in cmd
 
 
 def test_deploy_artifacts_uses_resolved_artifactctl_bin(monkeypatch, tmp_path):
@@ -569,8 +682,17 @@ def test_deploy_artifacts_uses_resolved_artifactctl_bin(monkeypatch, tmp_path):
     commands: list[list[str]] = []
 
     def fake_run_and_stream(cmd: list[str], **kwargs: Any) -> int:
-        del kwargs
         commands.append(list(cmd))
+        on_line = kwargs.get("on_line")
+        if (
+            len(cmd) >= 4
+            and cmd[0] == "/opt/tools/custom-artifactctl"
+            and cmd[1] == "internal"
+            and cmd[2] == "fixture-image"
+            and cmd[3] == "ensure"
+            and on_line is not None
+        ):
+            on_line('{"schema_version":1,"prepared_images":[]}')
         return 0
 
     monkeypatch.setattr("e2e.runner.deploy.run_and_stream", fake_run_and_stream)
@@ -589,6 +711,7 @@ def test_deploy_artifacts_uses_resolved_artifactctl_bin(monkeypatch, tmp_path):
 
     assert commands[0][0] == "/opt/tools/custom-artifactctl"
     assert commands[1][0] == "/opt/tools/custom-artifactctl"
+    assert commands[2][0] == "/opt/tools/custom-artifactctl"
 
 
 def test_deploy_artifacts_requires_manifest(tmp_path):
