@@ -6,10 +6,19 @@ from __future__ import annotations
 import subprocess
 import sys
 import threading
+import urllib.parse
 from pathlib import Path
 from typing import Callable, TextIO
 
 _OUTPUT_LOCK = threading.Lock()
+_PROXY_ENV_KEYS = {
+    "HTTP_PROXY",
+    "http_proxy",
+    "HTTPS_PROXY",
+    "https_proxy",
+    "ALL_PROXY",
+    "all_proxy",
+}
 
 
 def safe_print(message: str = "", *, prefix: str | None = None) -> None:
@@ -73,9 +82,11 @@ def run_and_stream(
     printer: Callable[[str], None] | None = None,
     on_line: Callable[[str], None] | None = None,
 ) -> int:
-    log.write_line(f"$ {' '.join(cmd)}")
+    display_cmd = _redact_cmd(cmd)
+    rendered_cmd = f"$ {' '.join(display_cmd)}"
+    log.write_line(rendered_cmd)
     if printer:
-        printer(f"$ {' '.join(cmd)}")
+        printer(rendered_cmd)
     proc = subprocess.Popen(
         cmd,
         cwd=str(cwd),
@@ -96,3 +107,44 @@ def run_and_stream(
         if printer:
             printer(line)
     return proc.wait()
+
+
+def _redact_cmd(cmd: list[str]) -> list[str]:
+    redacted: list[str] = []
+    for token in cmd:
+        redacted.append(_redact_proxy_token(token))
+    return redacted
+
+
+def _redact_proxy_token(token: str) -> str:
+    if "=" not in token:
+        return token
+    key, value = token.split("=", 1)
+    canonical_key = key.strip("\"'")
+    suffix_key = canonical_key.split(".")[-1]
+    if canonical_key in _PROXY_ENV_KEYS or suffix_key in _PROXY_ENV_KEYS:
+        return f"{key}={_redact_proxy_url(value)}"
+    return token
+
+
+def _redact_proxy_url(raw: str) -> str:
+    try:
+        parsed = urllib.parse.urlsplit(raw.strip())
+    except ValueError:
+        return raw
+    if not parsed.scheme or not parsed.hostname:
+        return raw
+    if parsed.username is None:
+        return raw
+    username = urllib.parse.quote("***", safe="")
+    password = urllib.parse.quote("***", safe="") if parsed.password is not None else ""
+    auth = username if password == "" else f"{username}:{password}"
+    host = parsed.hostname
+    if ":" in host and not host.startswith("["):
+        host = f"[{host}]"
+    if parsed.port is not None:
+        host = f"{host}:{parsed.port}"
+    netloc = f"{auth}@{host}"
+    return urllib.parse.urlunsplit(
+        (parsed.scheme, netloc, parsed.path, parsed.query, parsed.fragment)
+    )

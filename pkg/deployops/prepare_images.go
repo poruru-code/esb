@@ -1,20 +1,20 @@
 package deployops
 
 import (
-	"encoding/base64"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/poruru-code/esb/pkg/artifactcore"
+	proxymaven "github.com/poruru-code/esb/pkg/proxy/maven"
 	"gopkg.in/yaml.v3"
 )
 
@@ -48,7 +48,9 @@ var defaultCommandRunnerFactory = func() CommandRunner {
 
 var dockerImageExistsFunc = dockerImageExists
 
-var mavenRunCommandPattern = regexp.MustCompile(`\bmvn\s+`)
+var mavenRunCommandPattern = regexp.MustCompile(`(^|&&|\|\||;)[[:space:]]*mvn([[:space:]]|$)`)
+
+var mavenWrapperRunCommandPattern = regexp.MustCompile(`(^|&&|\|\||;)[[:space:]]*\./mvnw([[:space:]]|$)`)
 
 type imageBuildTarget struct {
 	functionName string
@@ -60,7 +62,7 @@ type prepareImagesResult struct {
 	publishedFunctionImages map[string]struct{}
 }
 
-const mavenSettingsBuildArg = "ESB_MAVEN_SETTINGS_XML_B64"
+const mavenShimImagePrefix = "esb-maven-shim"
 
 func prepareImages(req prepareImagesInput) error {
 	_, err := prepareImagesWithResult(req)
@@ -84,6 +86,7 @@ func prepareImagesWithResult(req prepareImagesInput) (prepareImagesResult, error
 	builtFunctionImages := make(map[string]struct{})
 	builtBaseImages := make(map[string]struct{})
 	publishedFunctionImages := make(map[string]struct{})
+	resolvedMavenShimImages := make(map[string]string)
 	hasFunctionBuildTargets := false
 
 	for i := range manifest.Artifacts {
@@ -130,6 +133,7 @@ func prepareImagesWithResult(req prepareImagesInput) (prepareImagesResult, error
 					runner,
 					ensureBase,
 					builtBaseImages,
+					resolvedMavenShimImages,
 				); err != nil {
 					return err
 				}
@@ -204,10 +208,17 @@ func buildAndPushFunctionImage(
 	runner CommandRunner,
 	ensureBase bool,
 	builtBaseImages map[string]struct{},
+	resolvedMavenShimImages map[string]string,
 ) error {
 	dockerfile := filepath.Join(contextRoot, "functions", functionName, "Dockerfile")
 	pushRef := resolvePushReference(imageRef)
-	resolvedDockerfile, cleanup, err := resolveFunctionBuildDockerfile(dockerfile, runtime)
+	resolvedDockerfile, cleanup, err := resolveFunctionBuildDockerfile(
+		dockerfile,
+		runtime,
+		noCache,
+		runner,
+		resolvedMavenShimImages,
+	)
 	if err != nil {
 		return err
 	}
@@ -238,7 +249,13 @@ func buildAndPushFunctionImage(
 	return nil
 }
 
-func resolveFunctionBuildDockerfile(dockerfile string, runtime *artifactcore.RuntimeObservation) (string, func(), error) {
+func resolveFunctionBuildDockerfile(
+	dockerfile string,
+	runtime *artifactcore.RuntimeObservation,
+	noCache bool,
+	runner CommandRunner,
+	resolvedMavenShimImages map[string]string,
+) (string, func(), error) {
 	data, err := os.ReadFile(dockerfile)
 	if err != nil {
 		return "", nil, fmt.Errorf("read dockerfile %s: %w", dockerfile, err)
@@ -249,11 +266,15 @@ func resolveFunctionBuildDockerfile(dockerfile string, runtime *artifactcore.Run
 		resolveRegistryAliases(),
 		resolveLambdaBaseTag(runtime),
 	)
-	mavenSettingsB64, err := mavenSettingsBuildArgFromEnv()
+	rewritten, mavenChanged, err := rewriteDockerfileForMavenShim(
+		rewritten,
+		func(baseRef string) (string, error) {
+			return ensureMavenShimImage(baseRef, noCache, runner, resolvedMavenShimImages)
+		},
+	)
 	if err != nil {
 		return "", nil, err
 	}
-	rewritten, mavenChanged := rewriteDockerfileForMavenProxy(rewritten, mavenSettingsB64)
 	if mavenChanged {
 		changed = true
 	}
@@ -303,214 +324,206 @@ func rewriteDockerfileForBuild(content, hostRegistry string, registryAliases []s
 	return strings.Join(lines, "\n"), true
 }
 
-func rewriteDockerfileForMavenProxy(content, mavenSettingsB64 string) (string, bool) {
-	if strings.TrimSpace(mavenSettingsB64) == "" {
-		return content, false
-	}
+func rewriteDockerfileForMavenShim(
+	content string,
+	resolveShim func(baseRef string) (string, error),
+) (string, bool, error) {
 	lines := strings.Split(content, "\n")
 	changed := false
-	rewritten := make([]string, 0, len(lines)+4)
-
-	for _, line := range lines {
+	sawMavenRun := false
+	rewrittenMavenBase := false
+	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		lowerTrimmed := strings.ToLower(trimmed)
-		if !strings.HasPrefix(lowerTrimmed, "run ") {
-			rewritten = append(rewritten, line)
+		if strings.HasPrefix(lowerTrimmed, "run ") {
+			command := strings.TrimSpace(trimmed[4:])
+			if mavenRunCommandPattern.MatchString(command) || mavenWrapperRunCommandPattern.MatchString(command) {
+				sawMavenRun = true
+			}
 			continue
 		}
-		command := strings.TrimSpace(trimmed[4:])
-		if !mavenRunCommandPattern.MatchString(command) {
-			rewritten = append(rewritten, line)
+		if !strings.HasPrefix(lowerTrimmed, "from ") {
 			continue
 		}
-
-		commandWithSettings := mavenRunCommandPattern.ReplaceAllString(
-			command,
-			"mvn -s /tmp/maven-settings.xml ",
-		)
-		if commandWithSettings == command {
-			rewritten = append(rewritten, line)
+		parts := strings.Fields(trimmed)
+		if len(parts) < 2 {
 			continue
 		}
-
+		refIndex := fromImageTokenIndex(parts)
+		if refIndex < 0 {
+			continue
+		}
+		baseRef := strings.TrimSpace(parts[refIndex])
+		if !isMavenBaseRef(baseRef) {
+			continue
+		}
+		shimRef, err := resolveShim(baseRef)
+		if err != nil {
+			return "", false, err
+		}
+		parts[refIndex] = shimRef
 		indentLen := len(line) - len(strings.TrimLeft(line, " \t"))
 		indent := line[:indentLen]
-		rewritten = append(
-			rewritten,
-			indent+`ARG `+mavenSettingsBuildArg+`="`+mavenSettingsB64+`"`,
-			indent+`RUN if [ -n "${`+mavenSettingsBuildArg+`}" ]; then \`,
-			indent+`      printf '%s' "${`+mavenSettingsBuildArg+`}" | base64 --decode >/tmp/maven-settings.xml; \`,
-			indent+`      `+strings.TrimSuffix(commandWithSettings, ";")+`; \`,
-			indent+`    else \`,
-			indent+`      `+strings.TrimSuffix(command, ";")+`; \`,
-			indent+`    fi`,
-		)
+		lines[i] = indent + strings.Join(parts, " ")
+		rewrittenMavenBase = true
 		changed = true
 	}
 
-	if !changed {
-		return content, false
-	}
-	return strings.Join(rewritten, "\n"), true
-}
-
-func mavenSettingsBuildArgFromEnv() (string, error) {
-	httpsProxy := strings.TrimSpace(os.Getenv("HTTPS_PROXY"))
-	if httpsProxy == "" {
-		httpsProxy = strings.TrimSpace(os.Getenv("https_proxy"))
-	}
-	httpProxy := strings.TrimSpace(os.Getenv("HTTP_PROXY"))
-	if httpProxy == "" {
-		httpProxy = strings.TrimSpace(os.Getenv("http_proxy"))
-	}
-	proxyURL := httpsProxy
-	if proxyURL == "" {
-		proxyURL = httpProxy
-	}
-	if proxyURL == "" {
-		return "", nil
-	}
-	noProxy := strings.TrimSpace(os.Getenv("NO_PROXY"))
-	if noProxy == "" {
-		noProxy = strings.TrimSpace(os.Getenv("no_proxy"))
-	}
-
-	settingsXML, err := renderMavenProxySettings(proxyURL, noProxy)
-	if err != nil {
-		return "", err
-	}
-	return base64.StdEncoding.EncodeToString([]byte(settingsXML)), nil
-}
-
-func normalizeMavenNonProxyToken(token string) string {
-	normalized := strings.TrimSpace(token)
-	if normalized == "" {
-		return ""
-	}
-
-	if strings.HasPrefix(normalized, "[") && strings.Contains(normalized, "]") {
-		closingIndex := strings.Index(normalized, "]")
-		ipv6Host := strings.TrimSpace(normalized[1:closingIndex])
-		if ipv6Host != "" {
-			normalized = ipv6Host
-		}
-	} else if strings.Count(normalized, ":") == 1 {
-		host, port, ok := strings.Cut(normalized, ":")
-		if ok {
-			if _, err := strconv.Atoi(strings.TrimSpace(port)); err == nil {
-				normalized = strings.TrimSpace(host)
-			}
-		}
-	}
-
-	if strings.HasPrefix(normalized, ".") && !strings.HasPrefix(normalized, "*.") {
-		normalized = "*" + normalized
-	}
-	return normalized
-}
-
-func mavenNonProxyHosts(noProxy string) string {
-	seen := make(map[string]struct{})
-	values := make([]string, 0)
-	for _, token := range strings.Split(strings.ReplaceAll(noProxy, ";", ","), ",") {
-		normalized := normalizeMavenNonProxyToken(token)
-		if normalized == "" {
-			continue
-		}
-		if _, exists := seen[normalized]; exists {
-			continue
-		}
-		seen[normalized] = struct{}{}
-		values = append(values, normalized)
-	}
-	return strings.Join(values, "|")
-}
-
-func parseProxyEndpoint(proxyURL string) (host string, port int, username, password string, err error) {
-	parsed, err := url.Parse(strings.TrimSpace(proxyURL))
-	if err != nil {
-		return "", 0, "", "", fmt.Errorf("proxy URL is invalid: %w", err)
-	}
-	if parsed.Scheme == "" || parsed.Hostname() == "" {
-		return "", 0, "", "", fmt.Errorf("proxy URL must include scheme and host: %s", proxyURL)
-	}
-	scheme := strings.ToLower(parsed.Scheme)
-	if scheme != "http" && scheme != "https" {
-		return "", 0, "", "", fmt.Errorf("proxy URL must use http or https: %s", proxyURL)
-	}
-	if (parsed.Path != "" && parsed.Path != "/") || parsed.RawQuery != "" || parsed.Fragment != "" {
-		return "", 0, "", "", fmt.Errorf("proxy URL must not include path/query/fragment: %s", proxyURL)
-	}
-	if parsed.Port() != "" {
-		parsedPort, convErr := strconv.Atoi(parsed.Port())
-		if convErr != nil || parsedPort < 1 || parsedPort > 65535 {
-			return "", 0, "", "", fmt.Errorf("proxy URL has invalid port: %s", proxyURL)
-		}
-		port = parsedPort
-	} else if scheme == "https" {
-		port = 443
-	} else {
-		port = 80
-	}
-
-	username = parsed.User.Username()
-	password, _ = parsed.User.Password()
-	return parsed.Hostname(), port, username, password, nil
-}
-
-func escapeXMLText(value string) string {
-	return strings.NewReplacer(
-		"&", "&amp;",
-		"<", "&lt;",
-		">", "&gt;",
-		"\"", "&quot;",
-		"'", "&apos;",
-	).Replace(value)
-}
-
-func renderMavenProxySettings(proxyURL, noProxy string) (string, error) {
-	host, port, username, password, err := parseProxyEndpoint(proxyURL)
-	if err != nil {
-		return "", err
-	}
-	nonProxyHosts := mavenNonProxyHosts(noProxy)
-
-	lines := []string{
-		"<settings>",
-		"  <proxies>",
-	}
-	for _, proxy := range []struct {
-		id       string
-		protocol string
-	}{
-		{id: "http-proxy", protocol: "http"},
-		{id: "https-proxy", protocol: "https"},
-	} {
-		lines = append(
-			lines,
-			"    <proxy>",
-			fmt.Sprintf("      <id>%s</id>", escapeXMLText(proxy.id)),
-			"      <active>true</active>",
-			fmt.Sprintf("      <protocol>%s</protocol>", escapeXMLText(proxy.protocol)),
-			fmt.Sprintf("      <host>%s</host>", escapeXMLText(host)),
-			fmt.Sprintf("      <port>%d</port>", port),
+	if sawMavenRun && !rewrittenMavenBase {
+		return "", false, fmt.Errorf(
+			"maven run command detected but no maven base stage is rewriteable; use 'FROM maven:...' (or equivalent maven repo) in Dockerfile",
 		)
-		if username != "" {
-			lines = append(lines, fmt.Sprintf("      <username>%s</username>", escapeXMLText(username)))
-		}
-		if password != "" {
-			lines = append(lines, fmt.Sprintf("      <password>%s</password>", escapeXMLText(password)))
-		}
-		if nonProxyHosts != "" {
-			lines = append(
-				lines,
-				fmt.Sprintf("      <nonProxyHosts>%s</nonProxyHosts>", escapeXMLText(nonProxyHosts)),
-			)
-		}
-		lines = append(lines, "    </proxy>")
 	}
-	lines = append(lines, "  </proxies>", "</settings>")
-	return strings.Join(lines, "\n") + "\n", nil
+	if !changed {
+		return content, false, nil
+	}
+	return strings.Join(lines, "\n"), true, nil
+}
+
+func isMavenBaseRef(imageRef string) bool {
+	ref := strings.TrimSpace(imageRef)
+	if ref == "" {
+		return false
+	}
+	withoutDigest := strings.SplitN(ref, "@", 2)[0]
+	slash := strings.LastIndex(withoutDigest, "/")
+	colon := strings.LastIndex(withoutDigest, ":")
+	repo := withoutDigest
+	if colon > slash {
+		repo = withoutDigest[:colon]
+	}
+	lastSegment := repo
+	if slash >= 0 && slash+1 < len(repo) {
+		lastSegment = repo[slash+1:]
+	}
+	return lastSegment == "maven"
+}
+
+func ensureMavenShimImage(
+	baseRef string,
+	noCache bool,
+	runner CommandRunner,
+	resolvedMavenShimImages map[string]string,
+) (string, error) {
+	baseRef = strings.TrimSpace(baseRef)
+	if baseRef == "" {
+		return "", fmt.Errorf("maven base image reference is empty")
+	}
+	if shimRef, ok := resolvedMavenShimImages[baseRef]; ok {
+		return shimRef, nil
+	}
+
+	hash := sha256.Sum256([]byte(baseRef))
+	shortHash := hex.EncodeToString(hash[:])[:16]
+	shimImage := fmt.Sprintf("%s:%s", mavenShimImagePrefix, shortHash)
+	hostRegistry := strings.TrimSuffix(strings.TrimSpace(resolveHostFunctionRegistry()), "/")
+	shimRef := shimImage
+	if hostRegistry != "" {
+		shimRef = hostRegistry + "/" + shimImage
+	}
+
+	if noCache || !dockerImageExistsFunc(shimRef) {
+		if err := validateMavenShimProxyEnv(); err != nil {
+			return "", err
+		}
+		dockerfilePath, contextRoot, err := resolveMavenShimBuildPaths()
+		if err != nil {
+			return "", err
+		}
+		buildCmd := buildxBuildCommandWithBuildArgs(
+			shimRef,
+			dockerfilePath,
+			contextRoot,
+			noCache,
+			map[string]string{
+				"BASE_MAVEN_IMAGE": baseRef,
+			},
+		)
+		if err := runner.Run(buildCmd); err != nil {
+			return "", fmt.Errorf("build maven shim image %s from %s: %w", shimRef, baseRef, err)
+		}
+	}
+	if hostRegistry != "" {
+		if err := runner.Run([]string{"docker", "push", shimRef}); err != nil {
+			return "", fmt.Errorf("push maven shim image %s: %w", shimRef, err)
+		}
+	}
+
+	resolvedMavenShimImages[baseRef] = shimRef
+	return shimRef, nil
+}
+
+func validateMavenShimProxyEnv() error {
+	env := map[string]string{
+		"HTTP_PROXY":  os.Getenv("HTTP_PROXY"),
+		"http_proxy":  os.Getenv("http_proxy"),
+		"HTTPS_PROXY": os.Getenv("HTTPS_PROXY"),
+		"https_proxy": os.Getenv("https_proxy"),
+	}
+	if _, err := proxymaven.ResolveEndpointsFromEnv(env); err != nil {
+		return fmt.Errorf("invalid proxy configuration for maven shim build: %w", err)
+	}
+	return nil
+}
+
+func resolveMavenShimBuildPaths() (dockerfilePath, buildContext string, err error) {
+	start, err := os.Getwd()
+	if err != nil {
+		return "", "", fmt.Errorf("resolve working directory: %w", err)
+	}
+	current := start
+	for {
+		candidate := filepath.Join(current, "tools", "maven-shim", "Dockerfile")
+		info, statErr := os.Stat(candidate)
+		if statErr == nil && !info.IsDir() {
+			contextRoot := filepath.Join(current, "tools", "maven-shim")
+			return candidate, contextRoot, nil
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			break
+		}
+		current = parent
+	}
+	return "", "", fmt.Errorf(
+		"maven shim Dockerfile is unavailable (expected: tools/maven-shim/Dockerfile from working tree root)",
+	)
+}
+
+func buildxBuildCommandWithBuildArgs(
+	tag, dockerfile, contextDir string,
+	noCache bool,
+	buildArgs map[string]string,
+) []string {
+	cmd := []string{
+		"docker",
+		"buildx",
+		"build",
+		"--platform",
+		"linux/amd64",
+		"--load",
+		"--pull",
+	}
+	if noCache {
+		cmd = append(cmd, "--no-cache")
+	}
+	cmd = appendProxyBuildArgs(cmd)
+	if len(buildArgs) > 0 {
+		keys := make([]string, 0, len(buildArgs))
+		for key := range buildArgs {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			value := strings.TrimSpace(buildArgs[key])
+			if value == "" {
+				continue
+			}
+			cmd = append(cmd, "--build-arg", key+"="+value)
+		}
+	}
+	cmd = append(cmd, "--tag", tag, "--file", dockerfile, contextDir)
+	return cmd
 }
 
 func rewriteDockerfileFromRef(ref, hostRegistry string, registryAliases []string, lambdaBaseTag string) (string, bool) {
@@ -599,21 +612,7 @@ func fromImageTokenIndex(parts []string) int {
 }
 
 func buildxBuildCommand(tag, dockerfile, contextDir string, noCache bool) []string {
-	cmd := []string{
-		"docker",
-		"buildx",
-		"build",
-		"--platform",
-		"linux/amd64",
-		"--load",
-		"--pull",
-	}
-	if noCache {
-		cmd = append(cmd, "--no-cache")
-	}
-	cmd = appendProxyBuildArgs(cmd)
-	cmd = append(cmd, "--tag", tag, "--file", dockerfile, contextDir)
-	return cmd
+	return buildxBuildCommandWithBuildArgs(tag, dockerfile, contextDir, noCache, nil)
 }
 
 func appendProxyBuildArgs(cmd []string) []string {

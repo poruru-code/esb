@@ -3,7 +3,6 @@
 # Why: Keep E2E deploy contract stable without requiring esb CLI execution.
 from __future__ import annotations
 
-import base64
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +13,11 @@ from e2e.runner import deploy as deploy_module
 from e2e.runner.deploy import _collect_local_fixture_image_sources, deploy_artifacts
 from e2e.runner.logging import LogSink
 from e2e.runner.models import RunContext, Scenario
+
+_JAVA_MAVEN_BASE_IMAGE = (
+    "public.ecr.aws/sam/build-java21"
+    "@sha256:5f78d6d9124e54e5a7a9941ef179d74d88b7a5b117526ea8574137e5403b51b7"
+)
 
 
 def _make_context(
@@ -170,6 +174,7 @@ def test_deploy_artifacts_rejects_invalid_manifest_artifacts_field(monkeypatch, 
 
 def test_deploy_artifacts_prepares_local_fixture_image(monkeypatch, tmp_path):
     deploy_module._prepared_local_fixture_images.clear()
+    deploy_module._prepared_maven_shim_images.clear()
     manifest = _write_artifact_fixture(
         tmp_path,
         image_ref="127.0.0.1:5010/esb-lambda-echo:e2e-test",
@@ -215,19 +220,9 @@ def _assert_contains_pair(cmd: list[str], key: str, value: str) -> None:
     raise AssertionError(f"missing pair {key} {value!r} in command: {cmd}")
 
 
-def _get_build_arg_value(cmd: list[str], key: str) -> str:
-    prefix = f"{key}="
-    for idx in range(len(cmd) - 1):
-        if cmd[idx] != "--build-arg":
-            continue
-        value = cmd[idx + 1]
-        if value.startswith(prefix):
-            return value[len(prefix) :]
-    raise AssertionError(f"missing --build-arg for {key!r} in command: {cmd}")
-
-
 def test_deploy_artifacts_local_fixture_build_propagates_proxy_build_args(monkeypatch, tmp_path):
     deploy_module._prepared_local_fixture_images.clear()
+    deploy_module._prepared_maven_shim_images.clear()
     manifest = _write_artifact_fixture(
         tmp_path,
         image_ref="127.0.0.1:5010/esb-lambda-echo:e2e-test",
@@ -267,39 +262,62 @@ def test_deploy_artifacts_local_fixture_build_propagates_proxy_build_args(monkey
     finally:
         log.close()
 
-    build_cmd = commands[0]
-    _assert_contains_pair(build_cmd, "--build-arg", "HTTP_PROXY=http://proxy.example:8080")
-    _assert_contains_pair(build_cmd, "--build-arg", "http_proxy=http://proxy.example:8080")
-    _assert_contains_pair(build_cmd, "--build-arg", "HTTPS_PROXY=http://secure-proxy.example:8443")
-    _assert_contains_pair(build_cmd, "--build-arg", "https_proxy=http://secure-proxy.example:8443")
-    _assert_contains_pair(build_cmd, "--build-arg", "NO_PROXY=localhost,127.0.0.1,registry")
-    _assert_contains_pair(build_cmd, "--build-arg", "no_proxy=localhost,127.0.0.1,registry")
-
-    settings_b64 = _get_build_arg_value(build_cmd, "ESB_MAVEN_SETTINGS_XML_B64")
-    settings_xml = base64.b64decode(settings_b64).decode("utf-8")
-    assert "<settings>" in settings_xml
-    assert "<host>secure-proxy.example</host>" in settings_xml
-    assert "<nonProxyHosts>localhost|127.0.0.1|registry</nonProxyHosts>" in settings_xml
-
-
-def test_maven_settings_build_arg_accepts_trailing_slash_proxy_url() -> None:
-    settings_b64 = deploy_module._maven_settings_b64_for_fixture(
-        "esb-e2e-image-java",
-        {
-            "HTTP_PROXY": "http://web_user:Web_User@proxy389.example.co.jp:8080/",
-            "NO_PROXY": "localhost,127.0.0.1,.example.co.jp",
-        },
+    shim_build_cmd = commands[0]
+    shim_push_cmd = commands[1]
+    fixture_build_cmd = commands[2]
+    assert shim_build_cmd[0:3] == ["docker", "buildx", "build"]
+    _assert_contains_pair(
+        shim_build_cmd,
+        "--build-arg",
+        f"BASE_MAVEN_IMAGE={_JAVA_MAVEN_BASE_IMAGE}",
     )
-    settings_xml = base64.b64decode(settings_b64).decode("utf-8")
-    assert "<host>proxy389.example.co.jp</host>" in settings_xml
-    assert "<port>8080</port>" in settings_xml
-    assert "<username>web_user</username>" in settings_xml
-    assert "<password>Web_User</password>" in settings_xml
-    assert "<nonProxyHosts>localhost|127.0.0.1|*.example.co.jp</nonProxyHosts>" in settings_xml
+    _assert_contains_pair(shim_build_cmd, "--build-arg", "HTTP_PROXY=http://proxy.example:8080")
+    _assert_contains_pair(shim_build_cmd, "--build-arg", "http_proxy=http://proxy.example:8080")
+    _assert_contains_pair(
+        shim_build_cmd, "--build-arg", "HTTPS_PROXY=http://secure-proxy.example:8443"
+    )
+    _assert_contains_pair(
+        shim_build_cmd, "--build-arg", "https_proxy=http://secure-proxy.example:8443"
+    )
+    _assert_contains_pair(shim_build_cmd, "--build-arg", "NO_PROXY=localhost,127.0.0.1,registry")
+    _assert_contains_pair(shim_build_cmd, "--build-arg", "no_proxy=localhost,127.0.0.1,registry")
+
+    assert fixture_build_cmd[0:3] == ["docker", "buildx", "build"]
+    _assert_contains_pair(fixture_build_cmd, "--build-arg", "HTTP_PROXY=http://proxy.example:8080")
+    _assert_contains_pair(fixture_build_cmd, "--build-arg", "http_proxy=http://proxy.example:8080")
+    _assert_contains_pair(
+        fixture_build_cmd, "--build-arg", "HTTPS_PROXY=http://secure-proxy.example:8443"
+    )
+    _assert_contains_pair(
+        fixture_build_cmd, "--build-arg", "https_proxy=http://secure-proxy.example:8443"
+    )
+    _assert_contains_pair(fixture_build_cmd, "--build-arg", "NO_PROXY=localhost,127.0.0.1,registry")
+    _assert_contains_pair(fixture_build_cmd, "--build-arg", "no_proxy=localhost,127.0.0.1,registry")
+    shim_tag = deploy_module._maven_shim_image_tag(
+        _JAVA_MAVEN_BASE_IMAGE,
+        registry="127.0.0.1:5010",
+    )
+    assert shim_push_cmd == ["docker", "push", shim_tag]
+    _assert_contains_pair(fixture_build_cmd, "--build-arg", f"MAVEN_IMAGE={shim_tag}")
+
+
+def test_maven_shim_image_tag_is_stable() -> None:
+    tag1 = deploy_module._maven_shim_image_tag(_JAVA_MAVEN_BASE_IMAGE)
+    tag2 = deploy_module._maven_shim_image_tag(_JAVA_MAVEN_BASE_IMAGE)
+    assert tag1 == tag2
+    assert tag1.startswith("esb-maven-shim:")
+    assert (
+        deploy_module._maven_shim_image_tag(
+            _JAVA_MAVEN_BASE_IMAGE,
+            registry="127.0.0.1:5010",
+        )
+        == f"127.0.0.1:5010/{tag1}"
+    )
 
 
 def test_deploy_artifacts_prepares_fixture_then_runs_deploy_and_provision(monkeypatch, tmp_path):
     deploy_module._prepared_local_fixture_images.clear()
+    deploy_module._prepared_maven_shim_images.clear()
     config_dir = tmp_path / "merged-config"
     image_ref = "127.0.0.1:5010/esb-lambda-echo:e2e-test"
     base_ref = "127.0.0.1:5010/esb-e2e-image-python:latest"

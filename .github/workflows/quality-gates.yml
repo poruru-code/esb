@@ -108,6 +108,9 @@ jobs:
       - name: Layout checks
         run: ./tools/ci/check_repo_layout.sh
 
+      - name: Maven proxy contract checks
+        run: ./tools/ci/check_maven_proxy_contract.sh
+
       - name: Verify artifactctl compile contract
         run: |
           if [ -f tools/artifactctl/go.mod ]; then
@@ -143,6 +146,9 @@ jobs:
 
       - name: Layout checks
         run: ./tools/ci/check_repo_layout.sh
+
+      - name: Maven proxy contract checks
+        run: ./tools/ci/check_maven_proxy_contract.sh
 
       - name: Verify non-cli compile contract
         run: |

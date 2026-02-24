@@ -3,13 +3,11 @@
 # Why: Keep deploy logic separate from lifecycle and test orchestration.
 from __future__ import annotations
 
-import base64
+import hashlib
 import re
 import threading
-import urllib.parse
 from pathlib import Path
 from typing import Callable
-from xml.sax.saxutils import escape as xml_escape
 
 import yaml
 
@@ -27,9 +25,17 @@ _PROXY_ENV_ALIASES: tuple[tuple[str, str], ...] = (
     ("HTTPS_PROXY", "https_proxy"),
     ("NO_PROXY", "no_proxy"),
 )
-_MAVEN_SETTINGS_B64_BUILD_ARG = "ESB_MAVEN_SETTINGS_XML_B64"
+_JAVA_FIXTURE_NAME = "esb-e2e-image-java"
+_JAVA_FIXTURE_MAVEN_BASE_IMAGE = (
+    "public.ecr.aws/sam/build-java21"
+    "@sha256:5f78d6d9124e54e5a7a9941ef179d74d88b7a5b117526ea8574137e5403b51b7"
+)
+_MAVEN_SHIM_CONTEXT = PROJECT_ROOT / "tools" / "maven-shim"
+_MAVEN_SHIM_DOCKERFILE = _MAVEN_SHIM_CONTEXT / "Dockerfile"
+_MAVEN_SHIM_IMAGE_REPO = "esb-maven-shim"
 
 _prepared_local_fixture_images: set[str] = set()
+_prepared_maven_shim_images: set[str] = set()
 _prepared_local_fixture_lock = threading.Lock()
 _DOCKERFILE_FROM_PATTERN = re.compile(
     r"^FROM(?:\s+--platform=[^\s]+)?\s+(?P<source>[^\s]+)",
@@ -173,6 +179,17 @@ def _prepare_local_fixture_images(
             if printer:
                 printer(message)
 
+            maven_shim_tag = ""
+            if fixture_name == _JAVA_FIXTURE_NAME:
+                shim_registry = _image_registry_host(source)
+                maven_shim_tag = _ensure_maven_shim_image(
+                    _JAVA_FIXTURE_MAVEN_BASE_IMAGE,
+                    registry=shim_registry,
+                    env=ctx.deploy_env,
+                    log=log,
+                    printer=printer,
+                )
+
             build_cmd = [
                 "docker",
                 "buildx",
@@ -182,12 +199,11 @@ def _prepare_local_fixture_images(
                 "--load",
             ]
             build_cmd = _append_proxy_build_args(build_cmd, ctx.deploy_env)
-            maven_settings_b64 = _maven_settings_b64_for_fixture(fixture_name, ctx.deploy_env)
-            if maven_settings_b64:
+            if maven_shim_tag:
                 build_cmd.extend(
                     [
                         "--build-arg",
-                        f"{_MAVEN_SETTINGS_B64_BUILD_ARG}={maven_settings_b64}",
+                        f"MAVEN_IMAGE={maven_shim_tag}",
                     ]
                 )
             build_cmd.extend(
@@ -231,114 +247,86 @@ def _append_proxy_build_args(cmd: list[str], env: dict[str, str]) -> list[str]:
     return cmd
 
 
-def _maven_settings_b64_for_fixture(fixture_name: str, env: dict[str, str]) -> str:
-    if fixture_name != "esb-e2e-image-java":
+def _image_registry_host(image_ref: str) -> str:
+    without_digest = image_ref.split("@", 1)[0].strip()
+    if "/" not in without_digest:
         return ""
-
-    https_proxy = env.get("HTTPS_PROXY", "").strip() or env.get("https_proxy", "").strip()
-    http_proxy = env.get("HTTP_PROXY", "").strip() or env.get("http_proxy", "").strip()
-    proxy_url = https_proxy or http_proxy
-    if not proxy_url:
+    candidate = without_digest.split("/", 1)[0].strip()
+    if candidate == "":
         return ""
-
-    no_proxy = env.get("NO_PROXY", "").strip() or env.get("no_proxy", "").strip()
-    settings_xml = _render_maven_proxy_settings(proxy_url, no_proxy)
-    return base64.b64encode(settings_xml.encode("utf-8")).decode("ascii")
-
-
-def _normalize_maven_non_proxy_token(token: str) -> str:
-    normalized = token.strip()
-    if not normalized:
-        return ""
-
-    if normalized.startswith("[") and "]" in normalized:
-        closing_index = normalized.find("]")
-        ipv6_host = normalized[1:closing_index].strip()
-        if ipv6_host:
-            normalized = ipv6_host
-    elif normalized.count(":") == 1:
-        host, port = normalized.rsplit(":", 1)
-        if port.isdigit():
-            normalized = host.strip()
-
-    if normalized.startswith(".") and not normalized.startswith("*."):
-        normalized = f"*{normalized}"
-
-    return normalized
+    if candidate == "localhost" or "." in candidate or ":" in candidate:
+        return candidate
+    return ""
 
 
-def _maven_non_proxy_hosts(no_proxy_value: str) -> str:
-    seen: set[str] = set()
-    values: list[str] = []
-    for token in no_proxy_value.replace(";", ",").split(","):
-        normalized = _normalize_maven_non_proxy_token(token)
-        if not normalized or normalized in seen:
-            continue
-        seen.add(normalized)
-        values.append(normalized)
-    return "|".join(values)
+def _maven_shim_image_tag(base_image: str, *, registry: str = "") -> str:
+    digest = hashlib.sha256(base_image.encode("utf-8")).hexdigest()[:16]
+    tag = f"{_MAVEN_SHIM_IMAGE_REPO}:{digest}"
+    normalized_registry = registry.strip().rstrip("/")
+    if normalized_registry:
+        return f"{normalized_registry}/{tag}"
+    return tag
 
 
-def _parse_proxy_endpoint(proxy_url: str) -> tuple[str, int, str, str]:
-    parsed = urllib.parse.urlsplit(proxy_url.strip())
-    if not parsed.scheme or not parsed.hostname:
-        raise ValueError(f"proxy URL must include scheme and host: {proxy_url}")
-    scheme = parsed.scheme.lower()
-    if scheme not in {"http", "https"}:
-        raise ValueError(f"proxy URL must use http or https: {proxy_url}")
-    if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
-        raise ValueError(f"proxy URL must not include path/query/fragment: {proxy_url}")
+def _ensure_maven_shim_image(
+    base_image: str,
+    *,
+    registry: str,
+    env: dict[str, str],
+    log: LogSink,
+    printer: Callable[[str], None] | None = None,
+) -> str:
+    shim_tag = _maven_shim_image_tag(base_image, registry=registry)
+    if shim_tag in _prepared_maven_shim_images:
+        return shim_tag
 
-    try:
-        port = parsed.port
-    except ValueError as exc:
-        raise ValueError(f"proxy URL has invalid port: {proxy_url}") from exc
-    if port is None:
-        port = 80 if scheme == "http" else 443
-    if port < 1 or port > 65535:
-        raise ValueError(f"proxy URL has invalid port: {proxy_url}")
+    if not _MAVEN_SHIM_DOCKERFILE.exists():
+        raise FileNotFoundError(f"Maven shim Dockerfile not found: {_MAVEN_SHIM_DOCKERFILE}")
 
-    return (
-        parsed.hostname,
-        port,
-        urllib.parse.unquote(parsed.username or ""),
-        urllib.parse.unquote(parsed.password or ""),
-    )
-
-
-def _render_maven_proxy_settings(proxy_url: str, no_proxy: str) -> str:
-    host, port, username, password = _parse_proxy_endpoint(proxy_url)
-    non_proxy_hosts = _maven_non_proxy_hosts(no_proxy)
-
-    lines = [
-        "<settings>",
-        "  <proxies>",
+    build_cmd = [
+        "docker",
+        "buildx",
+        "build",
+        "--platform",
+        "linux/amd64",
+        "--load",
     ]
-    for proxy_id, protocol in (("http-proxy", "http"), ("https-proxy", "https")):
-        lines.extend(
-            [
-                "    <proxy>",
-                f"      <id>{xml_escape(proxy_id)}</id>",
-                "      <active>true</active>",
-                f"      <protocol>{xml_escape(protocol)}</protocol>",
-                f"      <host>{xml_escape(host)}</host>",
-                f"      <port>{port}</port>",
-            ]
-        )
-        if username:
-            lines.append(f"      <username>{xml_escape(username)}</username>")
-        if password:
-            lines.append(f"      <password>{xml_escape(password)}</password>")
-        if non_proxy_hosts:
-            lines.append(f"      <nonProxyHosts>{xml_escape(non_proxy_hosts)}</nonProxyHosts>")
-        lines.append("    </proxy>")
-    lines.extend(
+    build_cmd = _append_proxy_build_args(build_cmd, env)
+    build_cmd.extend(
         [
-            "  </proxies>",
-            "</settings>",
+            "--build-arg",
+            f"BASE_MAVEN_IMAGE={base_image}",
+            "--tag",
+            shim_tag,
+            "--file",
+            str(_MAVEN_SHIM_DOCKERFILE),
+            str(_MAVEN_SHIM_CONTEXT),
         ]
     )
-    return "\n".join(lines) + "\n"
+    rc = run_and_stream(
+        build_cmd,
+        cwd=PROJECT_ROOT,
+        env=env,
+        log=log,
+        printer=printer,
+    )
+    if rc != 0:
+        raise RuntimeError(f"failed to build maven shim image {shim_tag} (exit code {rc})")
+
+    if registry:
+        push_cmd = ["docker", "push", shim_tag]
+        rc = run_and_stream(
+            push_cmd,
+            cwd=PROJECT_ROOT,
+            env=env,
+            log=log,
+            printer=printer,
+        )
+        if rc != 0:
+            raise RuntimeError(f"failed to push maven shim image {shim_tag} (exit code {rc})")
+
+    _prepared_maven_shim_images.add(shim_tag)
+    return shim_tag
 
 
 def _collect_local_fixture_image_sources(manifest_path: Path) -> list[str]:
