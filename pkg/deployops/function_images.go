@@ -10,7 +10,7 @@ import (
 )
 
 func resolveRuntimeFunctionRegistry() string {
-	for _, key := range []string{"CONTAINER_REGISTRY", "REGISTRY", "HOST_REGISTRY_ADDR"} {
+	for _, key := range []string{"CONTAINER_REGISTRY", "HOST_REGISTRY_ADDR", "REGISTRY"} {
 		value := strings.TrimSuffix(strings.TrimSpace(os.Getenv(key)), "/")
 		if value != "" {
 			return value
