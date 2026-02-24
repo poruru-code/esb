@@ -46,13 +46,14 @@ func Execute(input Input) (artifactcore.ApplyResult, error) {
 		observation = observed
 		warnings = append(warnings, probeWarnings...)
 	}
-	if err := prepareImages(prepareImagesInput{
+	prepareResult, err := prepareImagesWithResult(prepareImagesInput{
 		ArtifactPath: normalized.ArtifactPath,
 		NoCache:      normalized.NoCache,
 		Runner:       normalized.Runner,
 		Runtime:      observation,
 		EnsureBase:   true,
-	}); err != nil {
+	})
+	if err != nil {
 		return artifactcore.ApplyResult{}, err
 	}
 
@@ -63,6 +64,9 @@ func Execute(input Input) (artifactcore.ApplyResult, error) {
 		Runtime:       observation,
 	})
 	if err != nil {
+		return artifactcore.ApplyResult{}, err
+	}
+	if err := normalizeOutputFunctionImages(normalized.OutputDir, prepareResult.publishedFunctionImages); err != nil {
 		return artifactcore.ApplyResult{}, err
 	}
 	result.Warnings = append(warnings, result.Warnings...)

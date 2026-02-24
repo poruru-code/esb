@@ -136,10 +136,10 @@ def test_collect_local_fixture_image_sources_includes_java_fixture(tmp_path) -> 
     manifest = _write_artifact_fixture(
         tmp_path,
         image_ref="127.0.0.1:5010/esb-lambda-echo:e2e-test",
-        base_ref="127.0.0.1:5010/esb-e2e-lambda-java:latest",
+        base_ref="127.0.0.1:5010/esb-e2e-image-java:latest",
     )
     assert _collect_local_fixture_image_sources(manifest) == [
-        "127.0.0.1:5010/esb-e2e-lambda-java:latest"
+        "127.0.0.1:5010/esb-e2e-image-java:latest"
     ]
 
 
@@ -172,7 +172,7 @@ def test_deploy_artifacts_prepares_local_fixture_image(monkeypatch, tmp_path):
     manifest = _write_artifact_fixture(
         tmp_path,
         image_ref="127.0.0.1:5010/esb-lambda-echo:e2e-test",
-        base_ref="127.0.0.1:5010/esb-e2e-lambda-python:latest",
+        base_ref="127.0.0.1:5010/esb-e2e-image-python:latest",
     )
     ctx = _make_context(
         tmp_path,
@@ -204,14 +204,14 @@ def test_deploy_artifacts_prepares_local_fixture_image(monkeypatch, tmp_path):
         log.close()
 
     assert commands[0][0:3] == ["docker", "buildx", "build"]
-    assert commands[1] == ["docker", "push", "127.0.0.1:5010/esb-e2e-lambda-python:latest"]
+    assert commands[1] == ["docker", "push", "127.0.0.1:5010/esb-e2e-image-python:latest"]
 
 
 def test_deploy_artifacts_prepares_fixture_then_runs_deploy_and_provision(monkeypatch, tmp_path):
     deploy_module._prepared_local_fixture_images.clear()
     config_dir = tmp_path / "merged-config"
     image_ref = "127.0.0.1:5010/esb-lambda-echo:e2e-test"
-    base_ref = "127.0.0.1:5010/esb-e2e-lambda-python:latest"
+    base_ref = "127.0.0.1:5010/esb-e2e-image-python:latest"
     manifest = _write_artifact_fixture(tmp_path, image_ref=image_ref, base_ref=base_ref)
     ctx = _make_context(
         tmp_path,
@@ -245,7 +245,7 @@ def test_deploy_artifacts_prepares_fixture_then_runs_deploy_and_provision(monkey
         log.close()
 
     assert commands[0][0:3] == ["docker", "buildx", "build"]
-    assert commands[1] == ["docker", "push", "127.0.0.1:5010/esb-e2e-lambda-python:latest"]
+    assert commands[1] == ["docker", "push", "127.0.0.1:5010/esb-e2e-image-python:latest"]
     assert commands[2] == [
         "artifactctl",
         "deploy",

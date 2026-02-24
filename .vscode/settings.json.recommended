@@ -24,11 +24,11 @@
 
   // Go: ensure workspace module graph is resolved via repo root go.work
   "go.toolsEnvVars": {
-    "GOWORK": "${workspaceFolder}/go.work"
+    "GOWORK": "auto"
   },
   "gopls": {
     "env": {
-      "GOWORK": "${workspaceFolder}/go.work"
+      "GOWORK": "auto"
     }
   }
 }

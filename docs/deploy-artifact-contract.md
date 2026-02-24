@@ -19,6 +19,8 @@ Why: Define a stable boundary between artifact producer (external/manual) and ru
 - `runtime-base/**` は Deploy Artifact Contract の対象外です。
 - `artifactctl deploy` は artifact 生成を行いません。必要な image build は許可しますが、artifact 作成時の `runtime-base/**` を base ソースとして使用しません。
 - `artifactctl deploy` が参照する lambda base は、実行時環境（現在の registry/tag/stack）を正とします。
+- `artifactctl deploy` は関数イメージの build 対象有無に関係なく、deploy 前提条件として lambda base を target registry へ確保する必要があります。
+- `artifactctl deploy` は deploy で build/push する function image の local registry alias（例: `127.0.0.1:5010`, `registry:5010`）を deploy 実行時の `CONTAINER_REGISTRY` に正規化して扱います。
 - 互換性判定は artifact 内ファイルではなく、実行時スタック観測結果に基づいて行います。
 
 ## 用語
@@ -307,6 +309,8 @@ cat "${SECRETS_ENV}" > "${RUN_ENV}"
 注記:
 - `artifactctl deploy` は検証と apply を実行します（必要時に image build/pull を実行し得ます）。
 - image build では artifact 作成時の `runtime-base/**` ではなく、実行時環境の lambda base を使用します。
+- `artifactctl deploy` は deploy 時に必要な lambda base を確保し、関数 build が 0 件のときは既定の `esb-lambda-base:<resolved-tag>` を target registry へ確保します。
+- `artifactctl deploy` は最終 `CONFIG_DIR/functions.yml` でも、deploy で build/push した function image を実行時 registry へ正規化します。
 
 ### 2) Provision 実行（任意: 明示再実行したい場合）
 ```bash

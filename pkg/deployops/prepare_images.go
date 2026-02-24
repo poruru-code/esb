@@ -50,14 +50,23 @@ type imageBuildTarget struct {
 	dockerfile   string
 }
 
+type prepareImagesResult struct {
+	publishedFunctionImages map[string]struct{}
+}
+
 func prepareImages(req prepareImagesInput) error {
+	_, err := prepareImagesWithResult(req)
+	return err
+}
+
+func prepareImagesWithResult(req prepareImagesInput) (prepareImagesResult, error) {
 	manifestPath := strings.TrimSpace(req.ArtifactPath)
 	if manifestPath == "" {
-		return artifactcore.ErrArtifactPathRequired
+		return prepareImagesResult{}, artifactcore.ErrArtifactPathRequired
 	}
 	manifest, err := artifactcore.ReadArtifactManifest(manifestPath)
 	if err != nil {
-		return err
+		return prepareImagesResult{}, err
 	}
 	runner := req.Runner
 	if runner == nil {
@@ -66,33 +75,36 @@ func prepareImages(req prepareImagesInput) error {
 	ensureBase := req.EnsureBase
 	builtFunctionImages := make(map[string]struct{})
 	builtBaseImages := make(map[string]struct{})
+	publishedFunctionImages := make(map[string]struct{})
+	hasFunctionBuildTargets := false
 
 	for i := range manifest.Artifacts {
 		artifactRoot, err := manifest.ResolveArtifactRoot(manifestPath, i)
 		if err != nil {
-			return err
+			return prepareImagesResult{}, err
 		}
 		runtimeConfigDir, err := manifest.ResolveRuntimeConfigDir(manifestPath, i)
 		if err != nil {
-			return err
+			return prepareImagesResult{}, err
 		}
 		functionsPath := filepath.Join(runtimeConfigDir, "functions.yml")
 		functionsPayload, ok, err := loadYAML(functionsPath)
 		if err != nil {
-			return fmt.Errorf("load functions config: %w", err)
+			return prepareImagesResult{}, fmt.Errorf("load functions config: %w", err)
 		}
 		if !ok {
-			return fmt.Errorf("functions config not found: %s", functionsPath)
+			return prepareImagesResult{}, fmt.Errorf("functions config not found: %s", functionsPath)
 		}
 		functionsRaw, ok := functionsPayload["functions"].(map[string]any)
 		if !ok {
-			return fmt.Errorf("functions must be map in %s", functionsPath)
+			return prepareImagesResult{}, fmt.Errorf("functions must be map in %s", functionsPath)
 		}
 
 		buildTargets := collectImageBuildTargets(artifactRoot, functionsRaw, builtFunctionImages)
 		if len(buildTargets) == 0 {
 			continue
 		}
+		hasFunctionBuildTargets = true
 
 		functionNames := make([]string, 0, len(buildTargets))
 		for _, target := range buildTargets {
@@ -114,13 +126,23 @@ func prepareImages(req prepareImagesInput) error {
 					return err
 				}
 				builtFunctionImages[target.imageRef] = struct{}{}
+				publishedFunctionImages[target.imageRef] = struct{}{}
 			}
 			return nil
 		}); err != nil {
-			return err
+			return prepareImagesResult{}, err
 		}
 	}
-	return nil
+	if ensureBase && !hasFunctionBuildTargets {
+		defaultBaseRef, err := resolveDefaultLambdaBaseRef(req.Runtime)
+		if err != nil {
+			return prepareImagesResult{}, err
+		}
+		if err := ensureLambdaBaseImage(defaultBaseRef, req.NoCache, runner, builtBaseImages); err != nil {
+			return prepareImagesResult{}, err
+		}
+	}
+	return prepareImagesResult{publishedFunctionImages: publishedFunctionImages}, nil
 }
 
 func collectImageBuildTargets(
@@ -147,7 +169,11 @@ func collectImageBuildTargets(
 		if imageRef == "" {
 			continue
 		}
-		if _, ok := builtFunctionImages[imageRef]; ok {
+		normalizedImageRef, _ := normalizeFunctionImageRefForRuntime(imageRef)
+		if normalizedImageRef == "" {
+			continue
+		}
+		if _, ok := builtFunctionImages[normalizedImageRef]; ok {
 			continue
 		}
 		dockerfile := filepath.Join(artifactRoot, "functions", functionName, "Dockerfile")
@@ -156,7 +182,7 @@ func collectImageBuildTargets(
 		}
 		targets = append(targets, imageBuildTarget{
 			functionName: functionName,
-			imageRef:     imageRef,
+			imageRef:     normalizedImageRef,
 			dockerfile:   dockerfile,
 		})
 	}
@@ -179,7 +205,7 @@ func buildAndPushFunctionImage(
 	}
 	defer cleanup()
 	if ensureBase {
-		if err := ensureLambdaBaseImage(
+		if err := ensureLambdaBaseImageFromDockerfile(
 			resolvedDockerfile,
 			noCache,
 			runner,
@@ -205,16 +231,14 @@ func buildAndPushFunctionImage(
 }
 
 func resolveFunctionBuildDockerfile(dockerfile string, runtime *artifactcore.RuntimeObservation) (string, func(), error) {
-	runtimeRegistry := strings.TrimSuffix(strings.TrimSpace(os.Getenv("CONTAINER_REGISTRY")), "/")
-	hostRegistry := strings.TrimSuffix(strings.TrimSpace(os.Getenv("HOST_REGISTRY_ADDR")), "/")
 	data, err := os.ReadFile(dockerfile)
 	if err != nil {
 		return "", nil, fmt.Errorf("read dockerfile %s: %w", dockerfile, err)
 	}
 	rewritten, changed := rewriteDockerfileForBuild(
 		string(data),
-		runtimeRegistry,
-		hostRegistry,
+		resolveHostFunctionRegistry(),
+		resolveRegistryAliases(),
 		resolveLambdaBaseTag(runtime),
 	)
 	if !changed {
@@ -231,9 +255,7 @@ func resolveFunctionBuildDockerfile(dockerfile string, runtime *artifactcore.Run
 	return tmpPath, cleanup, nil
 }
 
-func rewriteDockerfileForBuild(content, runtimeRegistry, hostRegistry, lambdaBaseTag string) (string, bool) {
-	runtimePrefix := runtimeRegistry + "/"
-	hostPrefix := hostRegistry + "/"
+func rewriteDockerfileForBuild(content, hostRegistry string, registryAliases []string, lambdaBaseTag string) (string, bool) {
 	lines := strings.Split(content, "\n")
 	changed := false
 	for i, line := range lines {
@@ -249,7 +271,7 @@ func rewriteDockerfileForBuild(content, runtimeRegistry, hostRegistry, lambdaBas
 		if refIndex < 0 {
 			continue
 		}
-		rewrittenRef, rewritten := rewriteDockerfileFromRef(parts[refIndex], runtimePrefix, hostPrefix, lambdaBaseTag)
+		rewrittenRef, rewritten := rewriteDockerfileFromRef(parts[refIndex], hostRegistry, registryAliases, lambdaBaseTag)
 		if !rewritten {
 			continue
 		}
@@ -265,7 +287,7 @@ func rewriteDockerfileForBuild(content, runtimeRegistry, hostRegistry, lambdaBas
 	return strings.Join(lines, "\n"), true
 }
 
-func rewriteDockerfileFromRef(ref, runtimePrefix, hostPrefix, lambdaBaseTag string) (string, bool) {
+func rewriteDockerfileFromRef(ref, hostRegistry string, registryAliases []string, lambdaBaseTag string) (string, bool) {
 	current := strings.TrimSpace(ref)
 	if current == "" {
 		return ref, false
@@ -273,9 +295,12 @@ func rewriteDockerfileFromRef(ref, runtimePrefix, hostPrefix, lambdaBaseTag stri
 	rewritten := current
 	changed := false
 
-	if runtimePrefix != "/" && hostPrefix != "/" && runtimePrefix != hostPrefix {
-		if strings.HasPrefix(rewritten, runtimePrefix) {
-			rewritten = hostPrefix + strings.TrimPrefix(rewritten, runtimePrefix)
+	if baseRef, refChanged := rewriteLambdaBaseRefForBuild(rewritten); refChanged {
+		rewritten = baseRef
+		changed = true
+	} else if hostRegistry != "" {
+		if baseRef, refChanged := rewriteRegistryAlias(rewritten, hostRegistry, registryAliases); refChanged {
+			rewritten = baseRef
 			changed = true
 		}
 	}
@@ -324,129 +349,6 @@ func rewriteLambdaBaseTag(imageRef, tag string) (string, bool) {
 		}
 	}
 	return repo + ":" + trimmedTag, true
-}
-
-func resolveLambdaBaseTag(runtime *artifactcore.RuntimeObservation) string {
-	if runtime != nil {
-		if tag := strings.TrimSpace(runtime.ESBVersion); tag != "" {
-			return tag
-		}
-	}
-	if tag := strings.TrimSpace(os.Getenv("ESB_TAG")); tag != "" {
-		return tag
-	}
-	return ""
-}
-
-func ensureLambdaBaseImage(
-	functionDockerfile string,
-	noCache bool,
-	runner CommandRunner,
-	builtBaseImages map[string]struct{},
-) error {
-	baseImageRef, ok, err := readLambdaBaseRef(functionDockerfile)
-	if err != nil {
-		return err
-	}
-	if !ok || baseImageRef == "" {
-		return nil
-	}
-	if _, done := builtBaseImages[baseImageRef]; done {
-		return nil
-	}
-	if dockerImageExistsFunc(baseImageRef) {
-		builtBaseImages[baseImageRef] = struct{}{}
-		return nil
-	}
-
-	baseDockerfile, buildContext, err := resolveRuntimeHooksBuildPaths()
-	if err != nil {
-		return err
-	}
-	if err := runner.Run(buildxBuildCommand(baseImageRef, baseDockerfile, buildContext, noCache)); err != nil {
-		return fmt.Errorf("build lambda base image %s: %w", baseImageRef, err)
-	}
-	pushRef := resolvePushReference(baseImageRef)
-	if pushRef != baseImageRef {
-		if err := runner.Run([]string{"docker", "tag", baseImageRef, pushRef}); err != nil {
-			return fmt.Errorf("tag lambda base image %s -> %s: %w", baseImageRef, pushRef, err)
-		}
-	}
-	if err := runner.Run([]string{"docker", "push", pushRef}); err != nil {
-		return fmt.Errorf("push lambda base image %s: %w", pushRef, err)
-	}
-	builtBaseImages[baseImageRef] = struct{}{}
-	builtBaseImages[pushRef] = struct{}{}
-	return nil
-}
-
-func resolveRuntimeHooksBuildPaths() (dockerfilePath, buildContext string, err error) {
-	start, err := os.Getwd()
-	if err != nil {
-		return "", "", fmt.Errorf("resolve working directory: %w", err)
-	}
-	current := start
-	for {
-		candidate := filepath.Join(current, "runtime-hooks", "python", "docker", "Dockerfile")
-		info, statErr := os.Stat(candidate)
-		if statErr == nil && !info.IsDir() {
-			return candidate, current, nil
-		}
-		parent := filepath.Dir(current)
-		if parent == current {
-			break
-		}
-		current = parent
-	}
-	return "", "", fmt.Errorf(
-		"lambda base image %q not found locally and runtime hooks dockerfile is unavailable (expected: runtime-hooks/python/docker/Dockerfile from working tree root)",
-		"esb-lambda-base",
-	)
-}
-
-func readLambdaBaseRef(dockerfilePath string) (string, bool, error) {
-	data, err := os.ReadFile(dockerfilePath)
-	if err != nil {
-		return "", false, fmt.Errorf("read dockerfile %s: %w", dockerfilePath, err)
-	}
-	for _, line := range strings.Split(string(data), "\n") {
-		trimmed := strings.TrimSpace(line)
-		if !strings.HasPrefix(strings.ToLower(trimmed), "from ") {
-			continue
-		}
-		parts := strings.Fields(trimmed)
-		refIndex := fromImageTokenIndex(parts)
-		if refIndex < 0 || refIndex >= len(parts) {
-			continue
-		}
-		ref := strings.TrimSpace(parts[refIndex])
-		if isLambdaBaseRef(ref) {
-			return ref, true, nil
-		}
-	}
-	return "", false, nil
-}
-
-func isLambdaBaseRef(imageRef string) bool {
-	ref := strings.TrimSpace(imageRef)
-	if ref == "" {
-		return false
-	}
-	withoutDigest := strings.SplitN(ref, "@", 2)[0]
-	if withoutDigest == "" {
-		return false
-	}
-	slash := strings.LastIndex(withoutDigest, "/")
-	colon := strings.LastIndex(withoutDigest, ":")
-	repo := withoutDigest
-	if colon > slash {
-		repo = withoutDigest[:colon]
-	}
-	lastSegment := repo
-	if slash >= 0 && slash+1 < len(repo) {
-		lastSegment = repo[slash+1:]
-	}
-	return lastSegment == "esb-lambda-base"
 }
 
 func dockerImageExists(imageRef string) bool {
