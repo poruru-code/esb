@@ -370,6 +370,128 @@ func TestRunInternalMavenShimEnsureReportsFailure(t *testing.T) {
 	}
 }
 
+func TestRunInternalFixtureImageEnsureOutputsJSON(t *testing.T) {
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+
+	var got FixtureImageEnsureInput
+	deps := commandDeps{
+		executeDeploy: func(deployops.Input) (artifactcore.ApplyResult, error) {
+			return artifactcore.ApplyResult{}, nil
+		},
+		executeProvision: func(ProvisionInput) error { return nil },
+		ensureFixtureImages: func(input FixtureImageEnsureInput) (FixtureImageEnsureResult, error) {
+			got = input
+			return FixtureImageEnsureResult{
+				SchemaVersion: 1,
+				PreparedImages: []string{
+					"127.0.0.1:5010/esb-e2e-image-java:latest",
+					"127.0.0.1:5010/esb-e2e-image-python:latest",
+				},
+			}, nil
+		},
+		out:    &out,
+		errOut: &errOut,
+	}
+
+	code := run([]string{
+		"internal",
+		"fixture-image",
+		"ensure",
+		"--artifact", "artifact.yml",
+		"--no-cache",
+		"--output", "json",
+	}, deps)
+	if code != 0 {
+		t.Fatalf("run returned code=%d, stderr=%q", code, errOut.String())
+	}
+	if got.ArtifactPath != "artifact.yml" || !got.NoCache {
+		t.Fatalf("unexpected fixture ensure input: %#v", got)
+	}
+
+	var payload FixtureImageEnsureResult
+	if err := json.Unmarshal(out.Bytes(), &payload); err != nil {
+		t.Fatalf("stdout is not JSON: %v, raw=%q", err, out.String())
+	}
+	if payload.SchemaVersion != 1 || len(payload.PreparedImages) != 2 {
+		t.Fatalf("unexpected payload: %#v", payload)
+	}
+}
+
+func TestRunInternalFixtureImageEnsureReportsFailure(t *testing.T) {
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+
+	deps := commandDeps{
+		executeDeploy: func(deployops.Input) (artifactcore.ApplyResult, error) {
+			return artifactcore.ApplyResult{}, nil
+		},
+		executeProvision: func(ProvisionInput) error { return nil },
+		ensureFixtureImages: func(FixtureImageEnsureInput) (FixtureImageEnsureResult, error) {
+			return FixtureImageEnsureResult{}, errors.New("boom-fixture")
+		},
+		out:    &out,
+		errOut: &errOut,
+	}
+
+	code := run([]string{
+		"internal",
+		"fixture-image",
+		"ensure",
+		"--artifact", "artifact.yml",
+	}, deps)
+	if code != 1 {
+		t.Fatalf("run returned code=%d", code)
+	}
+	if !strings.Contains(errOut.String(), "fixture image ensure failed: boom-fixture") {
+		t.Fatalf("unexpected stderr: %q", errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "artifactctl internal fixture-image ensure --help") {
+		t.Fatalf("expected internal command hint, got: %q", errOut.String())
+	}
+}
+
+func TestRunInternalCapabilitiesOutputsJSON(t *testing.T) {
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+
+	deps := commandDeps{
+		executeDeploy: func(deployops.Input) (artifactcore.ApplyResult, error) {
+			return artifactcore.ApplyResult{}, nil
+		},
+		executeProvision: func(ProvisionInput) error { return nil },
+		capabilities: func() ArtifactctlCapabilities {
+			return ArtifactctlCapabilities{
+				SchemaVersion: 1,
+				Contracts: ArtifactctlContractVersions{
+					MavenShimEnsureSchemaVersion:    1,
+					FixtureImageEnsureSchemaVersion: 1,
+				},
+			}
+		},
+		out:    &out,
+		errOut: &errOut,
+	}
+
+	code := run([]string{"internal", "capabilities", "--output", "json"}, deps)
+	if code != 0 {
+		t.Fatalf("run returned code=%d, stderr=%q", code, errOut.String())
+	}
+	var payload ArtifactctlCapabilities
+	if err := json.Unmarshal(out.Bytes(), &payload); err != nil {
+		t.Fatalf("stdout is not JSON: %v, raw=%q", err, out.String())
+	}
+	if payload.SchemaVersion != 1 {
+		t.Fatalf("unexpected schema version: %#v", payload)
+	}
+	if payload.Contracts.MavenShimEnsureSchemaVersion != 1 {
+		t.Fatalf("unexpected contracts payload: %#v", payload)
+	}
+	if payload.Contracts.FixtureImageEnsureSchemaVersion != 1 {
+		t.Fatalf("unexpected contracts payload: %#v", payload)
+	}
+}
+
 func TestRunInternalMavenShimEnsureKeepsStdoutMachineReadable(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("shell script setup for fake docker is not portable to windows")

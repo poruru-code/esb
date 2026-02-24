@@ -16,11 +16,13 @@ import (
 	"strings"
 	"time"
 
+	proxybuildargs "github.com/poruru-code/esb/pkg/proxy/buildargs"
 	proxymaven "github.com/poruru-code/esb/pkg/proxy/maven"
 )
 
 const (
 	mavenShimImagePrefix = "esb-maven-shim"
+	mavenShimTagSchema   = "v2"
 	lockAcquireTimeout   = 2 * time.Minute
 	lockRetryInterval    = 200 * time.Millisecond
 	staleLockThreshold   = 5 * time.Minute
@@ -28,6 +30,8 @@ const (
 
 //go:embed assets/*
 var mavenShimAssets embed.FS
+
+var mavenShimAssetFingerprint = mustComputeMavenShimAssetFingerprint()
 
 type CommandRunner interface {
 	Run(cmd []string) error
@@ -54,9 +58,7 @@ func EnsureImage(input EnsureInput) (EnsureResult, error) {
 		return EnsureResult{}, fmt.Errorf("command runner is nil")
 	}
 
-	hash := sha256.Sum256([]byte(baseRef))
-	shortHash := hex.EncodeToString(hash[:])[:16]
-	shimImage := fmt.Sprintf("%s:%s", mavenShimImagePrefix, shortHash)
+	shimImage := deriveShimImageTag(baseRef)
 
 	hostRegistry := strings.TrimSuffix(strings.TrimSpace(input.HostRegistry), "/")
 	shimRef := shimImage
@@ -107,6 +109,35 @@ func EnsureImage(input EnsureInput) (EnsureResult, error) {
 	}
 
 	return EnsureResult{ShimImage: shimRef}, nil
+}
+
+func deriveShimImageTag(baseRef string) string {
+	hashInput := strings.Join(
+		[]string{mavenShimTagSchema, baseRef, mavenShimAssetFingerprint},
+		"\n",
+	)
+	hash := sha256.Sum256([]byte(hashInput))
+	shortHash := hex.EncodeToString(hash[:])[:16]
+	return fmt.Sprintf("%s:%s", mavenShimImagePrefix, shortHash)
+}
+
+func mustComputeMavenShimAssetFingerprint() string {
+	files := []string{
+		"assets/Dockerfile",
+		"assets/mvn-wrapper.sh",
+	}
+	digest := sha256.New()
+	for _, file := range files {
+		content, err := mavenShimAssets.ReadFile(file)
+		if err != nil {
+			panic(fmt.Sprintf("read maven shim asset %s: %v", file, err))
+		}
+		_, _ = digest.Write([]byte(file))
+		_, _ = digest.Write([]byte{0})
+		_, _ = digest.Write(content)
+		_, _ = digest.Write([]byte{0})
+	}
+	return hex.EncodeToString(digest.Sum(nil))
 }
 
 func validateProxyEnv() error {
@@ -190,27 +221,7 @@ func buildxBuildCommandWithBuildArgs(
 }
 
 func appendProxyBuildArgs(cmd []string) []string {
-	type proxyEnvPair struct {
-		upper string
-		lower string
-	}
-	pairs := []proxyEnvPair{
-		{upper: "HTTP_PROXY", lower: "http_proxy"},
-		{upper: "HTTPS_PROXY", lower: "https_proxy"},
-		{upper: "NO_PROXY", lower: "no_proxy"},
-	}
-	for _, pair := range pairs {
-		value := strings.TrimSpace(os.Getenv(pair.upper))
-		if value == "" {
-			value = strings.TrimSpace(os.Getenv(pair.lower))
-		}
-		if value == "" {
-			continue
-		}
-		cmd = append(cmd, "--build-arg", pair.upper+"="+value)
-		cmd = append(cmd, "--build-arg", pair.lower+"="+value)
-	}
-	return cmd
+	return proxybuildargs.AppendDockerBuildArgsFromOS(cmd)
 }
 
 func dockerImageExists(imageRef string) bool {

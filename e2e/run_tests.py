@@ -2,6 +2,7 @@
 # Where: e2e/run_tests.py
 # What: E2E test runner for artifact-based scenarios.
 # Why: Provide a single entry point for scenario setup, execution, and teardown.
+import json
 import os
 import shutil
 import subprocess
@@ -19,6 +20,11 @@ from e2e.runner.ui import PlainReporter
 from e2e.runner.utils import PROJECT_ROOT
 
 # Canonical E2E execution path: e2e.runner.runner (legacy executor removed).
+_ARTIFACTCTL_CAPABILITIES_SCHEMA_VERSION = 1
+_ARTIFACTCTL_REQUIRED_CONTRACTS: dict[str, int] = {
+    "maven_shim_ensure_schema_version": 1,
+    "fixture_image_ensure_schema_version": 1,
+}
 
 
 def print_tail_logs(failed_entries: list[str], *, lines: int = 40) -> None:
@@ -86,7 +92,9 @@ def ensure_artifactctl_available() -> str:
         required_subcommands = (
             ("deploy", "--help"),
             ("provision", "--help"),
+            ("internal", "fixture-image", "ensure", "--help"),
             ("internal", "maven-shim", "ensure", "--help"),
+            ("internal", "capabilities", "--help"),
         )
         for subcommand in required_subcommands:
             probe = subprocess.run(
@@ -103,7 +111,45 @@ def ensure_artifactctl_available() -> str:
                 print(
                     "        Ensure a current artifactctl is installed or set ARTIFACTCTL_BIN explicitly."
                 )
-                print("        In this repository, you can install it via: mise run setup")
+                print("        In this repository, run: mise run build-artifactctl")
+                sys.exit(1)
+
+        cap_probe = subprocess.run(
+            [binary_path, "internal", "capabilities", "--output", "json"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            check=False,
+        )
+        if cap_probe.returncode != 0:
+            print(f"[ERROR] artifactctl capability probe failed: {binary_path}")
+            print("        Ensure a current artifactctl is installed.")
+            print("        In this repository, run: mise run build-artifactctl")
+            sys.exit(1)
+
+        capabilities = _parse_artifactctl_capabilities(cap_probe.stdout or "")
+        schema_version = capabilities.get("schema_version")
+        if schema_version != _ARTIFACTCTL_CAPABILITIES_SCHEMA_VERSION:
+            print(
+                "[ERROR] artifactctl capability schema mismatch: "
+                f"{schema_version} (expected {_ARTIFACTCTL_CAPABILITIES_SCHEMA_VERSION})"
+            )
+            print("        In this repository, run: mise run build-artifactctl")
+            sys.exit(1)
+
+        contracts = capabilities.get("contracts")
+        if not isinstance(contracts, dict):
+            print("[ERROR] artifactctl capability response is missing contracts map.")
+            print("        In this repository, run: mise run build-artifactctl")
+            sys.exit(1)
+
+        for key, expected in _ARTIFACTCTL_REQUIRED_CONTRACTS.items():
+            if contracts.get(key) != expected:
+                print(
+                    "[ERROR] artifactctl missing required contract version: "
+                    f"{key}={contracts.get(key)!r} (expected {expected})"
+                )
+                print("        In this repository, run: mise run build-artifactctl")
                 sys.exit(1)
 
     override = os.environ.get("ARTIFACTCTL_BIN", "").strip()
@@ -135,6 +181,22 @@ def ensure_artifactctl_available() -> str:
     print("        Install artifactctl or set ARTIFACTCTL_BIN to an executable path.")
     print("        In this repository, you can install it via: mise run setup")
     print("        Example: ARTIFACTCTL_BIN=/path/to/artifactctl uv run e2e/run_tests.py ...")
+    sys.exit(1)
+
+
+def _parse_artifactctl_capabilities(raw_output: str) -> dict:
+    for line in reversed(raw_output.splitlines()):
+        raw = line.strip()
+        if raw == "":
+            continue
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            return payload
+    print("[ERROR] artifactctl capability response did not include JSON payload.")
+    print("        In this repository, run: mise run build-artifactctl")
     sys.exit(1)
 
 

@@ -65,7 +65,8 @@ func TestEnsureImageBuildsAndPushesWithHostRegistry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnsureImage() error = %v", err)
 	}
-	if result.ShimImage != "127.0.0.1:5010/esb-maven-shim:0f9e5ac6f33b3755" {
+	expectedShim := "127.0.0.1:5010/" + deriveShimImageTag("maven:3.9.11-eclipse-temurin-21")
+	if result.ShimImage != expectedShim {
 		t.Fatalf("unexpected shim image: %s", result.ShimImage)
 	}
 
@@ -101,7 +102,8 @@ func TestEnsureImageSkipsBuildWhenImageAlreadyExists(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnsureImage() error = %v", err)
 	}
-	if result.ShimImage != "esb-maven-shim:0f9e5ac6f33b3755" {
+	expectedShim := deriveShimImageTag("maven:3.9.11-eclipse-temurin-21")
+	if result.ShimImage != expectedShim {
 		t.Fatalf("unexpected shim image: %s", result.ShimImage)
 	}
 	if got := len(runner.snapshot()); got != 0 {
@@ -219,6 +221,42 @@ func TestAcquireShimLockAllowsNextContenderAfterRelease(t *testing.T) {
 		result.release()
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for second acquire")
+	}
+}
+
+func TestMavenWrapperUsesSiblingRealBinaryByDefault(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script execution is not portable to windows")
+	}
+	contextDir, cleanup, err := materializeBuildContext()
+	if err != nil {
+		t.Fatalf("materializeBuildContext() error = %v", err)
+	}
+	defer cleanup()
+
+	wrapperPath := filepath.Join(contextDir, "mvn-wrapper.sh")
+	realPath := wrapperPath + ".esb-real"
+	captureFile := filepath.Join(contextDir, "captured")
+
+	realScript := strings.Join([]string{
+		"#!/usr/bin/env bash",
+		"set -euo pipefail",
+		"touch \"$MAVEN_CAPTURE_FILE\"",
+		"exit 0",
+		"",
+	}, "\n")
+	if err := os.WriteFile(realPath, []byte(realScript), 0o755); err != nil {
+		t.Fatalf("write fake real mvn: %v", err)
+	}
+
+	command := exec.Command("bash", wrapperPath, "-v")
+	command.Env = append(os.Environ(), "MAVEN_CAPTURE_FILE="+captureFile)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("wrapper execution failed: %v, output=%s", err, string(output))
+	}
+	if _, err := os.Stat(captureFile); err != nil {
+		t.Fatalf("sibling real mvn was not invoked: %v, output=%s", err, string(output))
 	}
 }
 

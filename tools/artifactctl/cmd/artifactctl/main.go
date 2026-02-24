@@ -40,7 +40,9 @@ type ProvisionCmd struct {
 }
 
 type InternalCmd struct {
-	MavenShim InternalMavenShimCmd `cmd:"" name:"maven-shim" help:"Maven shim helper operations"`
+	MavenShim    InternalMavenShimCmd    `cmd:"" name:"maven-shim" help:"Maven shim helper operations"`
+	FixtureImage InternalFixtureImageCmd `cmd:"" name:"fixture-image" help:"Local fixture image helper operations"`
+	Capabilities InternalCapabilitiesCmd `cmd:"" name:"capabilities" help:"Print internal contract versions for orchestrators"`
 }
 
 type InternalMavenShimCmd struct {
@@ -54,15 +56,31 @@ type InternalMavenShimEnsureCmd struct {
 	Output       string `name:"output" default:"json" enum:"json" help:"Output format"`
 }
 
+type InternalFixtureImageCmd struct {
+	Ensure InternalFixtureImageEnsureCmd `cmd:"" name:"ensure" help:"Ensure local fixture images and print JSON payload"`
+}
+
+type InternalFixtureImageEnsureCmd struct {
+	Artifact string `name:"artifact" required:"" help:"Path to artifact manifest (artifact.yml)"`
+	NoCache  bool   `name:"no-cache" help:"Do not use cache when building fixture images"`
+	Output   string `name:"output" default:"json" enum:"json" help:"Output format"`
+}
+
+type InternalCapabilitiesCmd struct {
+	Output string `name:"output" default:"json" enum:"json" help:"Output format"`
+}
+
 type kongExitCode int
 
 type commandDeps struct {
-	executeDeploy    func(deployops.Input) (artifactcore.ApplyResult, error)
-	executeProvision func(ProvisionInput) error
-	ensureMavenShim  func(MavenShimEnsureInput) (MavenShimEnsureResult, error)
-	warningWriter    io.Writer
-	out              io.Writer
-	errOut           io.Writer
+	executeDeploy       func(deployops.Input) (artifactcore.ApplyResult, error)
+	executeProvision    func(ProvisionInput) error
+	ensureMavenShim     func(MavenShimEnsureInput) (MavenShimEnsureResult, error)
+	ensureFixtureImages func(FixtureImageEnsureInput) (FixtureImageEnsureResult, error)
+	capabilities        func() ArtifactctlCapabilities
+	warningWriter       io.Writer
+	out                 io.Writer
+	errOut              io.Writer
 }
 
 type ProvisionInput struct {
@@ -85,18 +103,30 @@ type MavenShimEnsureResult struct {
 	ShimImage     string `json:"shim_image"`
 }
 
+type ArtifactctlCapabilities struct {
+	SchemaVersion int                         `json:"schema_version"`
+	Contracts     ArtifactctlContractVersions `json:"contracts"`
+}
+
+type ArtifactctlContractVersions struct {
+	MavenShimEnsureSchemaVersion    int `json:"maven_shim_ensure_schema_version"`
+	FixtureImageEnsureSchemaVersion int `json:"fixture_image_ensure_schema_version"`
+}
+
 func main() {
 	os.Exit(run(os.Args[1:], defaultDeps()))
 }
 
 func defaultDeps() commandDeps {
 	return commandDeps{
-		executeDeploy:    deployops.Execute,
-		executeProvision: executeProvision,
-		ensureMavenShim:  executeMavenShimEnsure,
-		warningWriter:    os.Stderr,
-		out:              os.Stdout,
-		errOut:           os.Stderr,
+		executeDeploy:       deployops.Execute,
+		executeProvision:    executeProvision,
+		ensureMavenShim:     executeMavenShimEnsure,
+		ensureFixtureImages: executeFixtureImageEnsure,
+		capabilities:        currentCapabilities,
+		warningWriter:       os.Stderr,
+		out:                 os.Stdout,
+		errOut:              os.Stderr,
 	}
 }
 
@@ -161,6 +191,20 @@ func run(args []string, deps commandDeps) (exitCode int) {
 		if err := runInternalMavenShimEnsure(cli.Internal.MavenShim.Ensure, deps, out, errOut); err != nil {
 			_, _ = fmt.Fprintf(errOut, "Error: %v\n", err)
 			_, _ = fmt.Fprintln(errOut, "Hint: run `artifactctl internal maven-shim ensure --help`.")
+			return 1
+		}
+		return 0
+	case "internal fixture-image ensure":
+		if err := runInternalFixtureImageEnsure(cli.Internal.FixtureImage.Ensure, deps, out, errOut); err != nil {
+			_, _ = fmt.Fprintf(errOut, "Error: %v\n", err)
+			_, _ = fmt.Fprintln(errOut, "Hint: run `artifactctl internal fixture-image ensure --help`.")
+			return 1
+		}
+		return 0
+	case "internal capabilities":
+		if err := runInternalCapabilities(cli.Internal.Capabilities, deps, out); err != nil {
+			_, _ = fmt.Fprintf(errOut, "Error: %v\n", err)
+			_, _ = fmt.Fprintln(errOut, "Hint: run `artifactctl internal capabilities --help`.")
 			return 1
 		}
 		return 0
@@ -251,6 +295,60 @@ func runInternalMavenShimEnsure(
 	return nil
 }
 
+func runInternalFixtureImageEnsure(
+	cmd InternalFixtureImageEnsureCmd,
+	deps commandDeps,
+	out io.Writer,
+	errOut io.Writer,
+) error {
+	ensureFixtureImages := deps.ensureFixtureImages
+	var (
+		result FixtureImageEnsureResult
+		err    error
+	)
+	if ensureFixtureImages != nil {
+		result, err = ensureFixtureImages(FixtureImageEnsureInput{
+			ArtifactPath: cmd.Artifact,
+			NoCache:      cmd.NoCache,
+		})
+	} else {
+		result, err = executeFixtureImageEnsureWithLogWriter(FixtureImageEnsureInput{
+			ArtifactPath: cmd.Artifact,
+			NoCache:      cmd.NoCache,
+		}, errOut)
+	}
+	if err != nil {
+		return fmt.Errorf("fixture image ensure failed: %w", err)
+	}
+	if strings.TrimSpace(cmd.Output) != "json" {
+		return fmt.Errorf("unsupported output format: %s", cmd.Output)
+	}
+	encoder := json.NewEncoder(out)
+	if err := encoder.Encode(result); err != nil {
+		return fmt.Errorf("encode fixture image ensure output: %w", err)
+	}
+	return nil
+}
+
+func runInternalCapabilities(
+	cmd InternalCapabilitiesCmd,
+	deps commandDeps,
+	out io.Writer,
+) error {
+	if strings.TrimSpace(cmd.Output) != "json" {
+		return fmt.Errorf("unsupported output format: %s", cmd.Output)
+	}
+	capabilitiesProvider := deps.capabilities
+	if capabilitiesProvider == nil {
+		capabilitiesProvider = currentCapabilities
+	}
+	encoder := json.NewEncoder(out)
+	if err := encoder.Encode(capabilitiesProvider()); err != nil {
+		return fmt.Errorf("encode capabilities output: %w", err)
+	}
+	return nil
+}
+
 func executeMavenShimEnsure(input MavenShimEnsureInput) (MavenShimEnsureResult, error) {
 	return executeMavenShimEnsureWithLogWriter(input, os.Stderr)
 }
@@ -275,6 +373,16 @@ func executeMavenShimEnsureWithLogWriter(
 		SchemaVersion: 1,
 		ShimImage:     result.ShimImage,
 	}, nil
+}
+
+func currentCapabilities() ArtifactctlCapabilities {
+	return ArtifactctlCapabilities{
+		SchemaVersion: 1,
+		Contracts: ArtifactctlContractVersions{
+			MavenShimEnsureSchemaVersion:    1,
+			FixtureImageEnsureSchemaVersion: fixtureImageEnsureSchemaVersion,
+		},
+	}
 }
 
 type stderrCommandRunner struct {

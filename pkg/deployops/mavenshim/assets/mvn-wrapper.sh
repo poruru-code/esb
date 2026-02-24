@@ -4,7 +4,18 @@
 # Why: Ensure Maven resolves dependencies behind authenticated proxies without per-Dockerfile hacks.
 set -euo pipefail
 
-MAVEN_REAL_BIN="${MAVEN_REAL_BIN:-/usr/share/maven/bin/mvn}"
+script_path="$0"
+if command -v readlink >/dev/null 2>&1; then
+  script_path="$(readlink -f -- "$0" 2>/dev/null || printf '%s' "$0")"
+fi
+
+MAVEN_REAL_BIN="${MAVEN_REAL_BIN:-}"
+if [[ -z "$MAVEN_REAL_BIN" && -x "${script_path}.esb-real" ]]; then
+  MAVEN_REAL_BIN="${script_path}.esb-real"
+fi
+if [[ -z "$MAVEN_REAL_BIN" ]]; then
+  MAVEN_REAL_BIN="/usr/share/maven/bin/mvn"
+fi
 if [[ ! -x "$MAVEN_REAL_BIN" ]]; then
   MAVEN_REAL_BIN="/usr/bin/mvn"
 fi

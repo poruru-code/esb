@@ -119,7 +119,19 @@ func TestPrepareImagesBuildsMavenShimAndRewritesFunctionDockerfile(t *testing.T)
 		}
 		if slices.Contains(cmd, "--build-arg") && strings.Contains(strings.Join(cmd, " "), "BASE_MAVEN_IMAGE=maven:3.9.11-eclipse-temurin-21") {
 			shimBuildFound = true
-			assertCommandContains(t, cmd, "--tag", "127.0.0.1:5010/esb-maven-shim:0f9e5ac6f33b3755")
+			foundShimTag := false
+			for i := 0; i+1 < len(cmd); i++ {
+				if cmd[i] != "--tag" {
+					continue
+				}
+				if strings.HasPrefix(cmd[i+1], "127.0.0.1:5010/esb-maven-shim:") {
+					foundShimTag = true
+					break
+				}
+			}
+			if !foundShimTag {
+				t.Fatalf("expected shim tag with host registry, got command: %v", cmd)
+			}
 			assertCommandContains(t, cmd, "--build-arg", "HTTP_PROXY=http://proxy.example:8080")
 			assertCommandContains(t, cmd, "--build-arg", "http_proxy=http://proxy.example:8080")
 		}
