@@ -6,7 +6,6 @@ FROM maven:3.9.11-eclipse-temurin-21 AS builder
 WORKDIR /src
 COPY pom.xml ./
 COPY src ./src
-COPY build_maven.sh /tmp/build_maven.sh
 
 ARG HTTP_PROXY
 ARG http_proxy
@@ -14,8 +13,14 @@ ARG HTTPS_PROXY
 ARG https_proxy
 ARG NO_PROXY
 ARG no_proxy
+ARG ESB_MAVEN_SETTINGS_XML_B64=""
 
-RUN chmod +x /tmp/build_maven.sh && /tmp/build_maven.sh
+RUN if [ -n "${ESB_MAVEN_SETTINGS_XML_B64}" ]; then \
+      printf '%s' "${ESB_MAVEN_SETTINGS_XML_B64}" | base64 --decode >/tmp/maven-settings.xml; \
+      mvn -s /tmp/maven-settings.xml -q -DskipTests package; \
+    else \
+      mvn -q -DskipTests package; \
+    fi
 
 FROM public.ecr.aws/lambda/java:21
 

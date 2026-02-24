@@ -3,6 +3,7 @@
 # Why: Keep E2E deploy contract stable without requiring esb CLI execution.
 from __future__ import annotations
 
+import base64
 from pathlib import Path
 from typing import Any
 
@@ -214,6 +215,17 @@ def _assert_contains_pair(cmd: list[str], key: str, value: str) -> None:
     raise AssertionError(f"missing pair {key} {value!r} in command: {cmd}")
 
 
+def _get_build_arg_value(cmd: list[str], key: str) -> str:
+    prefix = f"{key}="
+    for idx in range(len(cmd) - 1):
+        if cmd[idx] != "--build-arg":
+            continue
+        value = cmd[idx + 1]
+        if value.startswith(prefix):
+            return value[len(prefix) :]
+    raise AssertionError(f"missing --build-arg for {key!r} in command: {cmd}")
+
+
 def test_deploy_artifacts_local_fixture_build_propagates_proxy_build_args(monkeypatch, tmp_path):
     deploy_module._prepared_local_fixture_images.clear()
     manifest = _write_artifact_fixture(
@@ -262,6 +274,28 @@ def test_deploy_artifacts_local_fixture_build_propagates_proxy_build_args(monkey
     _assert_contains_pair(build_cmd, "--build-arg", "https_proxy=http://secure-proxy.example:8443")
     _assert_contains_pair(build_cmd, "--build-arg", "NO_PROXY=localhost,127.0.0.1,registry")
     _assert_contains_pair(build_cmd, "--build-arg", "no_proxy=localhost,127.0.0.1,registry")
+
+    settings_b64 = _get_build_arg_value(build_cmd, "ESB_MAVEN_SETTINGS_XML_B64")
+    settings_xml = base64.b64decode(settings_b64).decode("utf-8")
+    assert "<settings>" in settings_xml
+    assert "<host>secure-proxy.example</host>" in settings_xml
+    assert "<nonProxyHosts>localhost|127.0.0.1|registry</nonProxyHosts>" in settings_xml
+
+
+def test_maven_settings_build_arg_accepts_trailing_slash_proxy_url() -> None:
+    settings_b64 = deploy_module._maven_settings_b64_for_fixture(
+        "esb-e2e-image-java",
+        {
+            "HTTP_PROXY": "http://web_user:Web_User@proxy389.example.co.jp:8080/",
+            "NO_PROXY": "localhost,127.0.0.1,.example.co.jp",
+        },
+    )
+    settings_xml = base64.b64decode(settings_b64).decode("utf-8")
+    assert "<host>proxy389.example.co.jp</host>" in settings_xml
+    assert "<port>8080</port>" in settings_xml
+    assert "<username>web_user</username>" in settings_xml
+    assert "<password>Web_User</password>" in settings_xml
+    assert "<nonProxyHosts>localhost|127.0.0.1|*.example.co.jp</nonProxyHosts>" in settings_xml
 
 
 def test_deploy_artifacts_prepares_fixture_then_runs_deploy_and_provision(monkeypatch, tmp_path):
