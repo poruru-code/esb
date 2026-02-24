@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -13,11 +14,13 @@ import (
 	"github.com/poruru-code/esb/pkg/artifactcore"
 	"github.com/poruru-code/esb/pkg/composeprovision"
 	"github.com/poruru-code/esb/pkg/deployops"
+	"github.com/poruru-code/esb/pkg/deployops/mavenshim"
 )
 
 type CLI struct {
 	Deploy    DeployCmd    `cmd:"" help:"Prepare images and apply artifact manifest"`
 	Provision ProvisionCmd `cmd:"" help:"Run deploy provisioner via docker compose"`
+	Internal  InternalCmd  `cmd:"" help:"Internal commands for orchestrators"`
 }
 
 type DeployCmd struct {
@@ -36,11 +39,27 @@ type ProvisionCmd struct {
 	Verbose        bool     `short:"v" help:"Verbose output"`
 }
 
+type InternalCmd struct {
+	MavenShim InternalMavenShimCmd `cmd:"" name:"maven-shim" help:"Maven shim helper operations"`
+}
+
+type InternalMavenShimCmd struct {
+	Ensure InternalMavenShimEnsureCmd `cmd:"" name:"ensure" help:"Ensure a Maven shim image and print JSON payload"`
+}
+
+type InternalMavenShimEnsureCmd struct {
+	BaseImage    string `name:"base-image" required:"" help:"Base Maven image reference used for shim derivation"`
+	HostRegistry string `name:"host-registry" help:"Host registry prefix (for pushable shim reference)"`
+	NoCache      bool   `name:"no-cache" help:"Do not use local cache when building shim image"`
+	Output       string `name:"output" default:"json" enum:"json" help:"Output format"`
+}
+
 type kongExitCode int
 
 type commandDeps struct {
 	executeDeploy    func(deployops.Input) (artifactcore.ApplyResult, error)
 	executeProvision func(ProvisionInput) error
+	ensureMavenShim  func(MavenShimEnsureInput) (MavenShimEnsureResult, error)
 	warningWriter    io.Writer
 	out              io.Writer
 	errOut           io.Writer
@@ -55,6 +74,17 @@ type ProvisionInput struct {
 	Verbose        bool
 }
 
+type MavenShimEnsureInput struct {
+	BaseImage    string
+	HostRegistry string
+	NoCache      bool
+}
+
+type MavenShimEnsureResult struct {
+	SchemaVersion int    `json:"schema_version"`
+	ShimImage     string `json:"shim_image"`
+}
+
 func main() {
 	os.Exit(run(os.Args[1:], defaultDeps()))
 }
@@ -63,6 +93,7 @@ func defaultDeps() commandDeps {
 	return commandDeps{
 		executeDeploy:    deployops.Execute,
 		executeProvision: executeProvision,
+		ensureMavenShim:  executeMavenShimEnsure,
 		warningWriter:    os.Stderr,
 		out:              os.Stdout,
 		errOut:           os.Stderr,
@@ -126,6 +157,13 @@ func run(args []string, deps commandDeps) (exitCode int) {
 			return 1
 		}
 		return 0
+	case "internal maven-shim ensure":
+		if err := runInternalMavenShimEnsure(cli.Internal.MavenShim.Ensure, deps, out, errOut); err != nil {
+			_, _ = fmt.Fprintf(errOut, "Error: %v\n", err)
+			_, _ = fmt.Fprintln(errOut, "Hint: run `artifactctl internal maven-shim ensure --help`.")
+			return 1
+		}
+		return 0
 	default:
 		_, _ = fmt.Fprintf(errOut, "Error: unsupported command: %s\n", ctx.Command())
 		_, _ = fmt.Fprintln(errOut, "Hint: run `artifactctl --help`.")
@@ -174,6 +212,87 @@ func runProvision(cmd ProvisionCmd, deps commandDeps) error {
 		NoDeps:         !cmd.WithDeps,
 		Verbose:        cmd.Verbose,
 	})
+}
+
+func runInternalMavenShimEnsure(
+	cmd InternalMavenShimEnsureCmd,
+	deps commandDeps,
+	out io.Writer,
+	errOut io.Writer,
+) error {
+	ensureMavenShim := deps.ensureMavenShim
+	var (
+		result MavenShimEnsureResult
+		err    error
+	)
+	if ensureMavenShim != nil {
+		result, err = ensureMavenShim(MavenShimEnsureInput{
+			BaseImage:    cmd.BaseImage,
+			HostRegistry: cmd.HostRegistry,
+			NoCache:      cmd.NoCache,
+		})
+	} else {
+		result, err = executeMavenShimEnsureWithLogWriter(MavenShimEnsureInput{
+			BaseImage:    cmd.BaseImage,
+			HostRegistry: cmd.HostRegistry,
+			NoCache:      cmd.NoCache,
+		}, errOut)
+	}
+	if err != nil {
+		return fmt.Errorf("maven shim ensure failed: %w", err)
+	}
+	if strings.TrimSpace(cmd.Output) != "json" {
+		return fmt.Errorf("unsupported output format: %s", cmd.Output)
+	}
+	encoder := json.NewEncoder(out)
+	if err := encoder.Encode(result); err != nil {
+		return fmt.Errorf("encode maven shim ensure output: %w", err)
+	}
+	return nil
+}
+
+func executeMavenShimEnsure(input MavenShimEnsureInput) (MavenShimEnsureResult, error) {
+	return executeMavenShimEnsureWithLogWriter(input, os.Stderr)
+}
+
+func executeMavenShimEnsureWithLogWriter(
+	input MavenShimEnsureInput,
+	logWriter io.Writer,
+) (MavenShimEnsureResult, error) {
+	if logWriter == nil {
+		logWriter = os.Stderr
+	}
+	result, err := mavenshim.EnsureImage(mavenshim.EnsureInput{
+		BaseImage:    input.BaseImage,
+		HostRegistry: input.HostRegistry,
+		NoCache:      input.NoCache,
+		Runner:       stderrCommandRunner{writer: logWriter},
+	})
+	if err != nil {
+		return MavenShimEnsureResult{}, err
+	}
+	return MavenShimEnsureResult{
+		SchemaVersion: 1,
+		ShimImage:     result.ShimImage,
+	}, nil
+}
+
+type stderrCommandRunner struct {
+	writer io.Writer
+}
+
+func (r stderrCommandRunner) Run(cmd []string) error {
+	if len(cmd) == 0 {
+		return fmt.Errorf("command is empty")
+	}
+	writer := r.writer
+	if writer == nil {
+		writer = os.Stderr
+	}
+	command := exec.Command(cmd[0], cmd[1:]...)
+	command.Stdout = writer
+	command.Stderr = writer
+	return command.Run()
 }
 
 func executeProvision(input ProvisionInput) error {

@@ -25,7 +25,7 @@ done < <(find "${compose_build_dirs[@]/#/$ROOT_DIR/}" -type f -name 'Dockerfile*
 
 if (( failures > 0 )); then
   echo "[maven-proxy-contract] FAILED (${failures} issue(s))" >&2
-  echo "[maven-proxy-contract] If Maven is intentionally introduced in compose builds, integrate tools/maven-shim and update this guard." >&2
+  echo "[maven-proxy-contract] If Maven is intentionally introduced in compose builds, integrate deploy-core maven shim ownership (pkg/deployops/mavenshim) and update this guard." >&2
   exit 1
 fi
 

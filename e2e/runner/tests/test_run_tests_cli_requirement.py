@@ -112,3 +112,19 @@ def test_ensure_artifactctl_available_fails_when_subcommand_contract_missing(mon
     )
     with pytest.raises(SystemExit):
         ensure_artifactctl_available()
+
+
+def test_ensure_artifactctl_available_fails_when_internal_maven_shim_missing(monkeypatch) -> None:
+    monkeypatch.delenv("ARTIFACTCTL_BIN", raising=False)
+    monkeypatch.setenv("HOME", "/tmp/esb-no-local-artifactctl")
+    monkeypatch.setattr("e2e.run_tests.shutil.which", lambda name: "/usr/local/bin/artifactctl")
+
+    def fake_probe(args, **kwargs):
+        del kwargs
+        if args[-3:] == ["maven-shim", "ensure", "--help"]:
+            return SimpleNamespace(returncode=1, stdout="unknown command: internal")
+        return SimpleNamespace(returncode=0, stdout="usage")
+
+    monkeypatch.setattr("e2e.run_tests.subprocess.run", fake_probe)
+    with pytest.raises(SystemExit):
+        ensure_artifactctl_available()

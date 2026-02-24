@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Where: tools/maven-shim/mvn-wrapper.sh
+# Where: pkg/deployops/mavenshim/assets/mvn-wrapper.sh
 # What: Maven wrapper that injects proxy-aware settings.xml for every invocation.
 # Why: Ensure Maven resolves dependencies behind authenticated proxies without per-Dockerfile hacks.
 set -euo pipefail

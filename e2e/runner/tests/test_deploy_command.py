@@ -244,8 +244,20 @@ def test_deploy_artifacts_local_fixture_build_propagates_proxy_build_args(monkey
         "e2e.runner.deploy._deploy_via_artifact_driver", lambda *args, **kwargs: None
     )
 
+    shim_tag = "127.0.0.1:5010/esb-maven-shim:0f9e5ac6f33b3755"
+
     def fake_run_and_stream(cmd, **kwargs):
         commands.append(list(cmd))
+        on_line = kwargs.get("on_line")
+        if (
+            len(cmd) >= 4
+            and cmd[0] == "artifactctl"
+            and cmd[1] == "internal"
+            and cmd[2] == "maven-shim"
+            and cmd[3] == "ensure"
+            and on_line is not None
+        ):
+            on_line(f'{{"schema_version":1,"shim_image":"{shim_tag}"}}')
         return 0
 
     monkeypatch.setattr("e2e.runner.deploy.run_and_stream", fake_run_and_stream)
@@ -262,25 +274,20 @@ def test_deploy_artifacts_local_fixture_build_propagates_proxy_build_args(monkey
     finally:
         log.close()
 
-    shim_build_cmd = commands[0]
-    shim_push_cmd = commands[1]
-    fixture_build_cmd = commands[2]
-    assert shim_build_cmd[0:3] == ["docker", "buildx", "build"]
-    _assert_contains_pair(
-        shim_build_cmd,
-        "--build-arg",
-        f"BASE_MAVEN_IMAGE={_JAVA_MAVEN_BASE_IMAGE}",
-    )
-    _assert_contains_pair(shim_build_cmd, "--build-arg", "HTTP_PROXY=http://proxy.example:8080")
-    _assert_contains_pair(shim_build_cmd, "--build-arg", "http_proxy=http://proxy.example:8080")
-    _assert_contains_pair(
-        shim_build_cmd, "--build-arg", "HTTPS_PROXY=http://secure-proxy.example:8443"
-    )
-    _assert_contains_pair(
-        shim_build_cmd, "--build-arg", "https_proxy=http://secure-proxy.example:8443"
-    )
-    _assert_contains_pair(shim_build_cmd, "--build-arg", "NO_PROXY=localhost,127.0.0.1,registry")
-    _assert_contains_pair(shim_build_cmd, "--build-arg", "no_proxy=localhost,127.0.0.1,registry")
+    shim_ensure_cmd = commands[0]
+    fixture_build_cmd = commands[1]
+    assert shim_ensure_cmd == [
+        "artifactctl",
+        "internal",
+        "maven-shim",
+        "ensure",
+        "--base-image",
+        _JAVA_MAVEN_BASE_IMAGE,
+        "--output",
+        "json",
+        "--host-registry",
+        "127.0.0.1:5010",
+    ]
 
     assert fixture_build_cmd[0:3] == ["docker", "buildx", "build"]
     _assert_contains_pair(fixture_build_cmd, "--build-arg", "HTTP_PROXY=http://proxy.example:8080")
@@ -293,26 +300,40 @@ def test_deploy_artifacts_local_fixture_build_propagates_proxy_build_args(monkey
     )
     _assert_contains_pair(fixture_build_cmd, "--build-arg", "NO_PROXY=localhost,127.0.0.1,registry")
     _assert_contains_pair(fixture_build_cmd, "--build-arg", "no_proxy=localhost,127.0.0.1,registry")
-    shim_tag = deploy_module._maven_shim_image_tag(
-        _JAVA_MAVEN_BASE_IMAGE,
-        registry="127.0.0.1:5010",
-    )
-    assert shim_push_cmd == ["docker", "push", shim_tag]
     _assert_contains_pair(fixture_build_cmd, "--build-arg", f"MAVEN_IMAGE={shim_tag}")
 
 
-def test_maven_shim_image_tag_is_stable() -> None:
-    tag1 = deploy_module._maven_shim_image_tag(_JAVA_MAVEN_BASE_IMAGE)
-    tag2 = deploy_module._maven_shim_image_tag(_JAVA_MAVEN_BASE_IMAGE)
-    assert tag1 == tag2
-    assert tag1.startswith("esb-maven-shim:")
-    assert (
-        deploy_module._maven_shim_image_tag(
-            _JAVA_MAVEN_BASE_IMAGE,
-            registry="127.0.0.1:5010",
-        )
-        == f"127.0.0.1:5010/{tag1}"
+def test_parse_maven_shim_ensure_output_validates_schema_and_image() -> None:
+    shim_image = deploy_module._parse_maven_shim_ensure_output(
+        [
+            "prelude log line",
+            '{"schema_version":1,"shim_image":"127.0.0.1:5010/esb-maven-shim:deadbeef"}',
+        ]
     )
+    assert shim_image == "127.0.0.1:5010/esb-maven-shim:deadbeef"
+
+
+def test_parse_maven_shim_ensure_output_ignores_unrelated_json_logs() -> None:
+    shim_image = deploy_module._parse_maven_shim_ensure_output(
+        [
+            '{"level":"info","msg":"building shim image"}',
+            '{"schema_version":1,"shim_image":"127.0.0.1:5010/esb-maven-shim:cafebabe"}',
+            '{"event":"docker-finished"}',
+        ]
+    )
+    assert shim_image == "127.0.0.1:5010/esb-maven-shim:cafebabe"
+
+
+def test_parse_maven_shim_ensure_output_rejects_malformed_payload() -> None:
+    with pytest.raises(RuntimeError, match="does not include shim_image"):
+        deploy_module._parse_maven_shim_ensure_output(['{"schema_version":1,"shim_image":"   "}'])
+
+
+def test_parse_maven_shim_ensure_output_rejects_missing_payload() -> None:
+    with pytest.raises(RuntimeError, match="no JSON payload with required fields"):
+        deploy_module._parse_maven_shim_ensure_output(
+            ["line-a", '{"level":"info","msg":"line-b"}', '{"schema_version":1}']
+        )
 
 
 def test_deploy_artifacts_prepares_fixture_then_runs_deploy_and_provision(monkeypatch, tmp_path):
