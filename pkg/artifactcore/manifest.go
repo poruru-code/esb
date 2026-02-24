@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -21,37 +20,27 @@ type ArtifactManifest struct {
 	Project       string            `yaml:"project"`
 	Env           string            `yaml:"env"`
 	Mode          string            `yaml:"mode"`
-	RuntimeStack  RuntimeStackMeta  `yaml:"runtime_stack,omitempty"`
 	Artifacts     []ArtifactEntry   `yaml:"artifacts"`
 	GeneratedAt   string            `yaml:"generated_at,omitempty"`
 	Generator     ArtifactGenerator `yaml:"generator,omitempty"`
 }
 
 type ArtifactEntry struct {
-	ArtifactRoot      string                  `yaml:"artifact_root"`
-	RuntimeConfigDir  string                  `yaml:"runtime_config_dir"`
-	BundleManifest    string                  `yaml:"bundle_manifest,omitempty"`
-	RequiredSecretEnv []string                `yaml:"required_secret_env,omitempty"`
-	SourceTemplate    *ArtifactSourceTemplate `yaml:"source_template,omitempty"`
+	ArtifactRoot     string                  `yaml:"artifact_root"`
+	RuntimeConfigDir string                  `yaml:"runtime_config_dir"`
+	SourceTemplate   *ArtifactSourceTemplate `yaml:"source_template,omitempty"`
 }
 
 type ArtifactSourceTemplate struct {
-	Path       string            `yaml:"path,omitempty"`
-	SHA256     string            `yaml:"sha256,omitempty"`
-	Parameters map[string]string `yaml:"parameters,omitempty"`
-	pathSet    bool
-	shaSet     bool
+	Path    string `yaml:"path,omitempty"`
+	SHA256  string `yaml:"sha256,omitempty"`
+	pathSet bool
+	shaSet  bool
 }
 
 type ArtifactGenerator struct {
 	Name    string `yaml:"name,omitempty"`
 	Version string `yaml:"version,omitempty"`
-}
-
-type RuntimeStackMeta struct {
-	APIVersion string `yaml:"api_version,omitempty"`
-	Mode       string `yaml:"mode,omitempty"`
-	ESBVersion string `yaml:"esb_version,omitempty"`
 }
 
 func (d ArtifactManifest) Validate() error {
@@ -71,9 +60,6 @@ func (d ArtifactManifest) Validate() error {
 	if strings.TrimSpace(d.Mode) == "" {
 		return fmt.Errorf("mode is required")
 	}
-	if err := d.RuntimeStack.Validate(); err != nil {
-		return err
-	}
 	if len(d.Artifacts) == 0 {
 		return fmt.Errorf("artifacts must contain at least one entry")
 	}
@@ -85,34 +71,10 @@ func (d ArtifactManifest) Validate() error {
 	return nil
 }
 
-func (r RuntimeStackMeta) Validate() error {
-	apiVersion := strings.TrimSpace(r.APIVersion)
-	mode := strings.TrimSpace(r.Mode)
-	esbVersion := strings.TrimSpace(r.ESBVersion)
-
-	if apiVersion == "" && mode == "" && esbVersion == "" {
-		return nil
-	}
-	if apiVersion == "" {
-		return fmt.Errorf("runtime_stack.api_version is required when runtime_stack is set")
-	}
-	if _, _, err := parseAPIVersion(apiVersion); err != nil {
-		return fmt.Errorf("runtime_stack.api_version is invalid (%q): %w", apiVersion, err)
-	}
-	if mode == "" {
-		return fmt.Errorf("runtime_stack.mode is required when runtime_stack is set")
-	}
-	if mode != "docker" && mode != "containerd" {
-		return fmt.Errorf("runtime_stack.mode must be docker or containerd")
-	}
-	return nil
-}
-
 func (t *ArtifactSourceTemplate) UnmarshalYAML(value *yaml.Node) error {
 	type rawSourceTemplate struct {
-		Path       *string           `yaml:"path"`
-		SHA256     *string           `yaml:"sha256"`
-		Parameters map[string]string `yaml:"parameters,omitempty"`
+		Path   *string `yaml:"path"`
+		SHA256 *string `yaml:"sha256"`
 	}
 
 	var raw rawSourceTemplate
@@ -122,7 +84,6 @@ func (t *ArtifactSourceTemplate) UnmarshalYAML(value *yaml.Node) error {
 
 	t.pathSet = raw.Path != nil
 	t.shaSet = raw.SHA256 != nil
-	t.Parameters = raw.Parameters
 	if raw.Path != nil {
 		t.Path = *raw.Path
 	} else {
@@ -149,12 +110,6 @@ func (t ArtifactSourceTemplate) Validate(prefix string) error {
 	if sha != "" && !sourceTemplateSHA256Pattern.MatchString(sha) {
 		return fmt.Errorf("%s.sha256 must be 64 lowercase hex characters", prefix)
 	}
-
-	for key := range t.Parameters {
-		if strings.TrimSpace(key) == "" {
-			return fmt.Errorf("%s.parameters contains empty key", prefix)
-		}
-	}
 	return nil
 }
 
@@ -165,16 +120,6 @@ func (e ArtifactEntry) Validate(index int) error {
 	}
 	if err := validateRelativePath(fmt.Sprintf("%s.runtime_config_dir", prefix), e.RuntimeConfigDir); err != nil {
 		return err
-	}
-	if strings.TrimSpace(e.BundleManifest) != "" {
-		if err := validateRelativePath(fmt.Sprintf("%s.bundle_manifest", prefix), e.BundleManifest); err != nil {
-			return err
-		}
-	}
-	for _, key := range e.RequiredSecretEnv {
-		if strings.TrimSpace(key) == "" {
-			return fmt.Errorf("%s.required_secret_env contains empty key", prefix)
-		}
 	}
 	if e.SourceTemplate != nil {
 		if err := e.SourceTemplate.Validate(fmt.Sprintf("%s.source_template", prefix)); err != nil {
@@ -200,21 +145,6 @@ func (d ArtifactManifest) ResolveRuntimeConfigDir(manifestPath string, index int
 		return "", err
 	}
 	return resolveEntryRelativePath(artifactRoot, d.Artifacts[index].RuntimeConfigDir, "runtime_config_dir")
-}
-
-func (d ArtifactManifest) ResolveBundleManifest(manifestPath string, index int) (string, error) {
-	if index < 0 || index >= len(d.Artifacts) {
-		return "", fmt.Errorf("artifact index out of range: %d", index)
-	}
-	entry := d.Artifacts[index]
-	if strings.TrimSpace(entry.BundleManifest) == "" {
-		return "", nil
-	}
-	artifactRoot, err := resolveArtifactRootPath(manifestPath, entry.ArtifactRoot)
-	if err != nil {
-		return "", err
-	}
-	return resolveEntryRelativePath(artifactRoot, entry.BundleManifest, "bundle_manifest")
 }
 
 func ReadArtifactManifest(path string) (ArtifactManifest, error) {
@@ -291,39 +221,13 @@ func normalizeArtifactManifest(d ArtifactManifest) ArtifactManifest {
 	normalized.Artifacts = append([]ArtifactEntry(nil), normalized.Artifacts...)
 	for i := range normalized.Artifacts {
 		entry := normalized.Artifacts[i]
-		entry.RequiredSecretEnv = sortedUniqueNonEmpty(entry.RequiredSecretEnv)
 		if entry.SourceTemplate != nil {
 			copied := *entry.SourceTemplate
-			if copied.Parameters != nil {
-				cloned := make(map[string]string, len(copied.Parameters))
-				for k, v := range copied.Parameters {
-					cloned[k] = v
-				}
-				copied.Parameters = cloned
-			}
 			entry.SourceTemplate = &copied
 		}
 		normalized.Artifacts[i] = entry
 	}
 	return normalized
-}
-
-func sortedUniqueNonEmpty(values []string) []string {
-	seen := make(map[string]struct{}, len(values))
-	result := make([]string, 0, len(values))
-	for _, value := range values {
-		trimmed := strings.TrimSpace(value)
-		if trimmed == "" {
-			continue
-		}
-		if _, ok := seen[trimmed]; ok {
-			continue
-		}
-		seen[trimmed] = struct{}{}
-		result = append(result, trimmed)
-	}
-	sort.Strings(result)
-	return result
 }
 
 func resolveArtifactRootPath(manifestPath, artifactRoot string) (string, error) {

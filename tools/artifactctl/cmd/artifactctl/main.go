@@ -24,10 +24,9 @@ type CLI struct {
 }
 
 type DeployCmd struct {
-	Artifact  string `name:"artifact" required:"" help:"Path to artifact manifest (artifact.yml)"`
-	Output    string `name:"out" required:"" help:"Output config directory (CONFIG_DIR)"`
-	SecretEnv string `name:"secret-env" help:"Path to secret env file"`
-	NoCache   bool   `name:"no-cache" help:"Do not use cache when building images"`
+	Artifact string `name:"artifact" required:"" help:"Path to artifact manifest (artifact.yml)"`
+	Output   string `name:"out" required:"" help:"Output config directory (CONFIG_DIR)"`
+	NoCache  bool   `name:"no-cache" help:"Do not use cache when building images"`
 }
 
 type ProvisionCmd struct {
@@ -229,10 +228,9 @@ func runDeploy(cmd DeployCmd, deps commandDeps, errOut io.Writer) error {
 		}
 	}
 	result, err := executeDeploy(deployops.Input{
-		ArtifactPath:  cmd.Artifact,
-		OutputDir:     cmd.Output,
-		SecretEnvPath: cmd.SecretEnv,
-		NoCache:       cmd.NoCache,
+		ArtifactPath: cmd.Artifact,
+		OutputDir:    cmd.Output,
+		NoCache:      cmd.NoCache,
 	})
 	if err != nil {
 		return fmt.Errorf("deploy failed: %w", err)
@@ -445,12 +443,9 @@ func (osComposeRunner) RunQuiet(ctx context.Context, cwd, name string, args ...s
 }
 
 func hintForDeployError(err error) string {
-	var missingSecretKeys artifactcore.MissingSecretKeysError
 	var missingReferencedPath artifactcore.MissingReferencedPathError
 
 	switch {
-	case errors.Is(err, artifactcore.ErrSecretEnvFileRequired), errors.As(err, &missingSecretKeys):
-		return "set `--secret-env <path>` with all required secret keys listed in artifact.yml."
 	case errors.As(err, &missingReferencedPath):
 		return "confirm `--artifact` and referenced files exist and are readable."
 	default:

@@ -5,8 +5,6 @@ import (
 	"os"
 	"regexp"
 	"strings"
-
-	"github.com/poruru-code/esb/pkg/artifactcore"
 )
 
 var mavenRunCommandPattern = regexp.MustCompile(`(^|&&|\|\||;)[[:space:]]*mvn([[:space:]]|$)`)
@@ -15,7 +13,7 @@ var mavenWrapperRunCommandPattern = regexp.MustCompile(`(^|&&|\|\||;)[[:space:]]
 
 func resolveFunctionBuildDockerfile(
 	dockerfile string,
-	runtime *artifactcore.RuntimeObservation,
+	runtime *RuntimeObservation,
 	noCache bool,
 	runner CommandRunner,
 	resolvedMavenShimImages map[string]string,

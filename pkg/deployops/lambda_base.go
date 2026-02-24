@@ -5,11 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/poruru-code/esb/pkg/artifactcore"
 )
 
-func resolveLambdaBaseTag(runtime *artifactcore.RuntimeObservation) string {
+func resolveLambdaBaseTag(runtime *RuntimeObservation) string {
 	if runtime != nil {
 		if tag := strings.TrimSpace(runtime.ESBVersion); tag != "" {
 			return tag
@@ -21,7 +19,7 @@ func resolveLambdaBaseTag(runtime *artifactcore.RuntimeObservation) string {
 	return ""
 }
 
-func resolveDefaultLambdaBaseRef(runtime *artifactcore.RuntimeObservation) (string, error) {
+func resolveDefaultLambdaBaseRef(runtime *RuntimeObservation) (string, error) {
 	registry := resolveEnsureBaseRegistry()
 	if registry == "" {
 		return "", fmt.Errorf(

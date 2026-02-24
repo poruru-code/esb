@@ -41,8 +41,6 @@ Why: Define a stable boundary between artifact producer (external/manual) and ru
     functions.yml
     routing.yml
     resources.yml              # 条件付き
-  bundle/
-    manifest.json              # 条件付き
 
 <artifact-root-b>/
   ...
@@ -71,7 +69,6 @@ Why: Define a stable boundary between artifact producer (external/manual) and ru
 
 ### Entry 条件付き必須
 - `<artifact_root>/<runtime_config_dir>/resources.yml`: resource 定義を使う場合
-- `<artifact_root>/<bundle_manifest>`: bundle/import ワークフローを使う場合
 
 ## 手動作成で成立する最小必須セット（固定）
 このセクションは「producer を使わず、手動で artifact を作る」場合の最小要件です。
@@ -92,21 +89,16 @@ Why: Define a stable boundary between artifact producer (external/manual) and ru
 
 最小セットでは以下は任意です（必要時のみ追加）:
 - `resources.yml`
-- `bundle_manifest`
-- `required_secret_env`
 - `source_template`
-- `runtime_stack`
-- `generated_at` / `generator` / `merge_policy`
+- `generated_at` / `generator`
 
 注意:
 - `source_template` は deploy 適用の正本ではなく、参照用メタデータです。
-- `source_template` を設定する場合のみ形式検証されます（`path` がある場合は空白禁止、`sha256` がある場合は 64 桁の小文字 hex、`parameters` は空キー禁止）。
-- 手動作成時の `runtime_stack` は任意です。生成ツールによっては既定で `runtime_stack` を出力します。
-- `runtime_stack.esb_version` は任意メタ情報です。現行の互換判定は `api_version` と `mode` を主軸とし、`esb_version` 不一致は判定しません。
+- `source_template` を設定する場合のみ形式検証されます（`path` がある場合は空白禁止、`sha256` がある場合は 64 桁の小文字 hex）。
 
 ## パス規約
 ### 実行パス（厳格）
-- `runtime_config_dir`, `bundle_manifest` は `artifact_root` 基準の相対パスのみ許可
+- `runtime_config_dir` は `artifact_root` 基準の相対パスのみ許可
 - `..` による `artifact_root` 外への脱出は禁止
 
 ### 参照パス（管理用）
@@ -131,21 +123,12 @@ generated_at: "2026-02-20T00:00:00Z"
 generator:
   name: producer
   version: v0.0.0
-runtime_stack:
-  api_version: "1.0"
-  mode: docker
-  # esb_version: latest  # optional metadata
 artifacts:
   - artifact_root: ../service-a/.esb/template-a/dev
     runtime_config_dir: runtime-config
-    bundle_manifest: bundle/manifest.json
-    required_secret_env:
-      - AUTH_PASS
     source_template:
       path: /path/to/template-a.yaml
       sha256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-      parameters:
-        Stage: dev
 ```
 
 ## 契約境界（確定）
@@ -154,43 +137,17 @@ artifacts:
 - Artifact Apply Contract（Payload 契約）
   - `artifact.yml` と `artifact_root` 配下のファイルから、設定マージ・provision 前段を実行できることを定義します。
   - ここで扱うのは「適用入力の完全性」です。
-- Runtime Stack Compatibility Contract（実行時互換性契約）
-  - 実行中の gateway / agent / provisioner / runtime-node と、artifact が要求する互換条件が一致することを定義します。
-  - ここで扱うのは「実行中スタックとの互換性」です。
-
-重要:
-- Dockerfile や runtime-base の保持有無は Runtime Stack 互換性の根拠にしてはいけません。
-- それだけで Runtime Stack 互換性は保証されません。
-- 互換性は、実行時のバージョン/能力検証でのみ成立します。
 
 ## 推奨フィールド（Payload 契約）
 - Manifest:
   - `generated_at`
   - `generator`（name/version）
   - `merge_policy`（例: `last_write_wins_v1`）
-  - `runtime_stack`（`api_version`, `mode`, optional `esb_version`）
 
 ## Payload 整合性ポリシー（現行実装）
-- schema/path/secret 充足を必須条件とします。
+- schema/path 充足を必須条件とします。
 - `source_template` は任意で、設定された場合のみ形式検証を行います。
 - artifact 内 runtime hook の digest 一致は互換性判定条件に含めません。
-
-## Runtime Stack 互換性ポリシー（契約定義）
-このセクションは契約を先に固定するもので、段階的に実装します。
-
-- 互換性判定の主軸は「実行中サービスの実バージョン/能力」です。
-- 判定対象は gateway / agent / provisioner / runtime-node（最小）です。
-- `major` 非互換は hard fail。
-- `minor` 非互換は warning。
-- 判定データ源は「実行中スタックへの問い合わせ結果」であり、artifact 内 Dockerfile の存在可否ではありません。
-- `artifactctl deploy` は apply 前にこの互換性検証を実行し、失敗時は即時終了する必要があります。
-
-現状:
-- `artifact.yml` の `runtime_stack` フィールドと core validator（`pkg/artifactcore`）は実装済みです。
-- `artifactctl deploy` では live stack observation probe（docker compose project ベース）を apply 前に実行します。
-- producer 側の apply adapter でも apply 前に runtime observation を実行し、`artifactcore` へ渡します。
-- observation は docker 取得結果を優先し、未取得時は request（mode/tag）を fallback とします。
-- `esb_version` は manifest 上に保持可能ですが、現行の runtime compatibility 判定では比較しません。
 
 ## 移行互換ポリシー
 - 本契約の正本は `artifact.yml` 単一です。
@@ -199,21 +156,16 @@ artifacts:
 
 ## Secret ポリシー
 - `compose.env` には非機密値のみを含めます。
-- 機密値は成果物外（例: `--secret-env`）で注入します。
-- `required_secret_env` の未充足は hard fail。
+- 機密値は成果物外（run-time 用 env ファイルなど）で注入します。
 - ログに機密値を出力してはいけません（キー名のみ許可）。
 
 ## 失敗分類
 - Hard fail:
   - 必須ファイル欠落
   - schema major 非互換
-  - required secret 未設定
   - `artifact_root` または entry 内パス解決失敗
-  - `source_template` が設定されている場合の形式不正（空白 path / 不正 sha256 / 空 parameter key）
+  - `source_template` が設定されている場合の形式不正（空白 path / 不正 sha256）
   - 複数テンプレート時に merge 規約どおりの `CONFIG_DIR` を生成できない
-  - Runtime Stack 互換性検証で `major` 非互換（実装後）
-- Warning:
-  - Runtime Stack 互換性検証の `minor` 非互換（warning）
 
 ## 実装責務
 - Producer（外部ツール / 手動生成）:
@@ -230,9 +182,8 @@ artifacts:
 ## ツール責務（確定）
 - `tools/artifactctl`（Go 実装）:
   - `deploy` の正本実装を提供する（検証 + apply を実行。必要時の image build/pull を含む）
-  - schema/path/secret/merge 規約の判定を一元化する
+  - schema/path/merge 規約の判定を一元化する
   - image build 時の lambda base 選択は実行時環境（registry/tag/stack）に従い、artifact 内 `runtime-base/**` を根拠にしない
-  - Runtime Stack 互換性検証の正本実装を保持し、apply 前に fail-fast 判定を行う
   - `tools/artifactctl/cmd/artifactctl` は command adapter、実ロジック正本は `pkg/deployops` + `pkg/artifactcore` とする
 - producer 側 apply adapter:
   - `artifactctl deploy` と同じ Go 実装を呼ぶ薄いアダプタとして振る舞う
@@ -257,7 +208,6 @@ artifactcore 配布/開発ルール:
 
 | フェーズ | Producer 経路 | Direct Apply 経路 |
 |---|---|---|
-| 0. Runtime Stack 互換性検証 | producer 側 apply 前で実行（段階実装） | `artifactctl deploy` の apply 前で実行（段階実装） |
 | 1. テンプレート解析 | producer が SAM を解析 | 実行しない（生成済み成果物を受領） |
 | 2. 生成（Dockerfile / config） | `artifact.yml` を出力（`artifacts[]` に全テンプレートを記録） | 実行しない |
 | 3. Artifact 適用（検証 + 設定反映） | producer 側 apply adapter が実行 | `artifactctl deploy --artifact ... --out ...` を実行 |
@@ -266,7 +216,6 @@ artifactcore 配布/開発ルール:
 
 補足:
 - `artifactctl deploy` は `artifact_root` を読み取り専用として扱い、`artifact_root` 配下へ一時ファイルを書き込みません。
-- Runtime Stack 互換性検証は実行中スタック観測に基づいて実行します。
 
 ## Producer コマンド責務（外部管理）
 - producer のコマンド体系は本リポジトリ管理外です。
@@ -297,8 +246,7 @@ RUN_ENV="/path/to/run.env"
 test -f "${ARTIFACT}"
 artifactctl deploy \
   --artifact "${ARTIFACT}" \
-  --out "${CONFIG_DIR}" \
-  --secret-env "${SECRETS_ENV}"
+  --out "${CONFIG_DIR}"
 
 cat "${SECRETS_ENV}" > "${RUN_ENV}"
 {

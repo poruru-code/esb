@@ -5,8 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/poruru-code/esb/pkg/artifactcore"
 )
 
 func TestPrepareImagesRewritesFunctionDockerfileRegistryForBuild(t *testing.T) {
@@ -134,7 +132,7 @@ func TestPrepareImagesRewritesFunctionDockerfileLambdaBaseTagFromRuntimeObservat
 	err := prepareImages(prepareImagesInput{
 		ArtifactPath: manifestPath,
 		Runner:       runner,
-		Runtime: &artifactcore.RuntimeObservation{
+		Runtime: &RuntimeObservation{
 			ESBVersion: "runtime-v2",
 		},
 	})
@@ -181,7 +179,7 @@ func TestPrepareImagesDoesNotRewritePinnedLambdaBaseTagFromRuntimeObservation(t 
 	err := prepareImages(prepareImagesInput{
 		ArtifactPath: manifestPath,
 		Runner:       runner,
-		Runtime: &artifactcore.RuntimeObservation{
+		Runtime: &RuntimeObservation{
 			ESBVersion: "runtime-v2",
 		},
 	})

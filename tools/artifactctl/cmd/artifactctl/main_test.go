@@ -128,7 +128,6 @@ func TestRunDeployDispatchesCanonicalDeployInput(t *testing.T) {
 		"deploy",
 		"--artifact", "artifact.yml",
 		"--out", "out",
-		"--secret-env", "secret.env",
 		"--no-cache",
 	}, deps)
 	if code != 0 {
@@ -137,7 +136,7 @@ func TestRunDeployDispatchesCanonicalDeployInput(t *testing.T) {
 	if got.ArtifactPath != "artifact.yml" || !got.NoCache {
 		t.Fatalf("unexpected deploy input: %#v", got)
 	}
-	if got.OutputDir != "out" || got.SecretEnvPath != "secret.env" {
+	if got.OutputDir != "out" {
 		t.Fatalf("unexpected apply input: %#v", got)
 	}
 	if !strings.Contains(warnings.String(), "Warning: minor mismatch") {
@@ -553,16 +552,6 @@ func TestHintForDeployError(t *testing.T) {
 		err  error
 		want string
 	}{
-		{
-			name: "secret env required",
-			err:  artifactcore.ErrSecretEnvFileRequired,
-			want: "set `--secret-env <path>` with all required secret keys listed in artifact.yml.",
-		},
-		{
-			name: "missing secrets",
-			err:  artifactcore.MissingSecretKeysError{Keys: []string{"B", "A"}},
-			want: "set `--secret-env <path>` with all required secret keys listed in artifact.yml.",
-		},
 		{
 			name: "not found",
 			err:  artifactcore.MissingReferencedPathError{Path: "/tmp/artifact.yml"},

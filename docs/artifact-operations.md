@@ -12,7 +12,6 @@ This document defines operational flows for artifact-first deployment.
 - Applier responsibility: apply generated artifacts to `CONFIG_DIR` and run provisioner
 - Runtime responsibility: consume prepared runtime-config only
 - Payload contract responsibility: verify artifact input integrity (schema/path/runtime payload)
-- Runtime stack compatibility responsibility: verify live stack mode/API compatibility at deploy time
 
 Contract freeze:
 - `runtime-base/**` is out of deploy artifact contract scope.
@@ -23,11 +22,10 @@ Contract freeze:
 The contract details live in `docs/deploy-artifact-contract.md`.
 
 ## Phase Model
-0. Runtime compatibility phase: validate mode/API compatibility against live gateway/agent/provisioner/runtime-node before apply (phased implementation)
-1. Generate phase: parse templates and render artifact outputs (`artifact.yml`, runtime-config, Dockerfiles)
-2. Image build phase: optional operation outside deploy artifact contract
-3. Apply phase: validate payload integrity and merge artifact outputs into `CONFIG_DIR`, then provision
-4. Runtime phase: run compose services and execute tests/invocations
+0. Generate phase: parse templates and render artifact outputs (`artifact.yml`, runtime-config, Dockerfiles)
+1. Image build phase: optional operation outside deploy artifact contract
+2. Apply phase: validate payload integrity and merge artifact outputs into `CONFIG_DIR`, then provision
+3. Runtime phase: run compose services and execute tests/invocations
 
 ## Producer Flow (Out of This Repository Scope)
 - 生成系ツールは `artifact.yml` と runtime-config を出力します。
@@ -40,19 +38,17 @@ Use `artifactctl` as the canonical apply implementation.
 ```bash
 artifactctl deploy \
   --artifact /path/to/artifact.yml \
-  --out /path/to/config-dir \
-  --secret-env /path/to/secrets.env
+  --out /path/to/config-dir
 
 docker compose up -d
 ```
 
 Notes:
-- `artifactctl deploy` runs payload/runtime compatibility validation and artifact apply.
+- `artifactctl deploy` runs payload validation and artifact apply.
 - `artifactctl deploy` does not treat `runtime-base/**` as contract input.
 - `artifactctl deploy` may run image build/pull, but lambda base must be resolved from current runtime environment.
 - `artifactctl deploy` ensures/pushes lambda base required by deploy-time function builds; when function build targets are absent, it ensures default `esb-lambda-base:<resolved-tag>`.
 - `artifactctl deploy` normalizes deploy-built function image refs from artifact-time local registry aliases (e.g. `127.0.0.1:5010`, `registry:5010`) to the current runtime registry (`CONTAINER_REGISTRY`) before build/push and output generation.
-- `runtime_stack` requirement validation exists in shared core; `artifactctl deploy` preflight performs runtime observation probe before apply.
 - `artifactctl deploy` must treat `<artifact_root>` as read-only. Temporary build files are created only in ephemeral workspace outside artifact directories.
 - `docker compose up` では one-shot `provisioner` が自動実行され、成功後に runtime サービスが起動します。
 - 明示的に再provisionしたい場合は `artifactctl provision ...` または `docker compose --profile deploy run --rm provisioner` を使えます。
@@ -69,8 +65,8 @@ Manual artifact minimum:
 
 Boundary ownership map:
 - producer adapter owns producer orchestration only: template iteration, output root resolution, source template path/sha extraction.
-- `pkg/deployops` owns shared apply orchestration: runtime observation probe, image prepare, and apply execution order.
-- `pkg/artifactcore` owns manifest/apply core semantics: required schema/path/secret/runtime payload validation on read/apply.
+- `pkg/deployops` owns shared apply orchestration: image prepare and apply execution order.
+- `pkg/artifactcore` owns manifest/apply core semantics: required schema/path/runtime payload validation on read/apply.
 - producer adapter and `tools/artifactctl` are adapters for `deployops.Execute`; payload correctness logic stays in `pkg/artifactcore`.
 
 ## E2E Contract (Current)
@@ -90,8 +86,7 @@ Fixture refresh is a separate developer operation (outside E2E runtime):
 - E2E runner scans generated artifact Dockerfiles and builds/pushes local fixture images from `e2e/fixtures/images/lambda/*` when `FROM` uses local fixture repos
 
 ## Failure Policy
-- Missing `artifact.yml`, required runtime config files, invalid manifest paths, missing required secrets: hard fail
+- Missing `artifact.yml`, required runtime config files, invalid manifest paths: hard fail
 - Presence of legacy matrix fields (`deploy_driver`, `artifact_generate`): hard fail
 - Apply phase must not silently fall back to template-based sync paths
-- Runtime stack compatibility major mismatch is hard fail (when compatibility preflight is enabled)
 - Removed runtime digests: `java_agent_digest`, `java_wrapper_digest`, `template_digest`
