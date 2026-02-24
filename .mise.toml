@@ -20,7 +20,7 @@ _.path = ["~/.local/bin"]
 [tasks.setup]
 description = "Install dependencies and enable git hooks"
 run = [
-  "uv sync --all-extras",
+  "uv sync --all-extras --native-tls",
   "lefthook install",
   "mise run build-artifactctl",
   "mise run setup:certs",
