@@ -1,6 +1,7 @@
 package deployops
 
 import (
+	"encoding/base64"
 	"errors"
 	"os"
 	"path/filepath"
@@ -454,6 +455,72 @@ func TestBuildxBuildCommandSkipsProxyBuildArgsWhenUnset(t *testing.T) {
 		if strings.Contains(joined, token) {
 			t.Fatalf("unexpected proxy build arg %q in command: %v", token, cmd)
 		}
+	}
+}
+
+func TestRewriteDockerfileForMavenProxyInjectsSettingsArg(t *testing.T) {
+	t.Setenv("HTTP_PROXY", "http://proxy.example:8080")
+	t.Setenv("HTTPS_PROXY", "")
+	t.Setenv("NO_PROXY", "localhost,127.0.0.1,.example.local")
+
+	settingsB64, err := mavenSettingsBuildArgFromEnv()
+	if err != nil {
+		t.Fatalf("mavenSettingsBuildArgFromEnv() error = %v", err)
+	}
+	if settingsB64 == "" {
+		t.Fatal("expected non-empty maven settings build arg")
+	}
+
+	content := strings.Join([]string{
+		"FROM maven:3.9.11-eclipse-temurin-21 AS builder",
+		"WORKDIR /src",
+		"COPY pom.xml ./",
+		"RUN mvn -q -DskipTests package",
+		"",
+	}, "\n")
+	rewritten, changed := rewriteDockerfileForMavenProxy(content, settingsB64)
+	if !changed {
+		t.Fatal("expected maven proxy rewrite")
+	}
+	if !strings.Contains(rewritten, `ARG ESB_MAVEN_SETTINGS_XML_B64="`) {
+		t.Fatalf("expected ARG injection, got:\n%s", rewritten)
+	}
+	if !strings.Contains(rewritten, "mvn -s /tmp/maven-settings.xml -q -DskipTests package") {
+		t.Fatalf("expected mvn settings injection, got:\n%s", rewritten)
+	}
+}
+
+func TestMavenSettingsBuildArgFromEnvSupportsTrailingSlashURL(t *testing.T) {
+	t.Setenv("HTTP_PROXY", "http://web_user:Web_User@proxy389.example.co.jp:8080/")
+	t.Setenv("HTTPS_PROXY", "")
+	t.Setenv("NO_PROXY", "localhost,127.0.0.1,.example.co.jp")
+
+	settingsB64, err := mavenSettingsBuildArgFromEnv()
+	if err != nil {
+		t.Fatalf("mavenSettingsBuildArgFromEnv() error = %v", err)
+	}
+	if settingsB64 == "" {
+		t.Fatal("expected non-empty maven settings build arg")
+	}
+	decoded, err := base64.StdEncoding.DecodeString(settingsB64)
+	if err != nil {
+		t.Fatalf("decode base64 settings: %v", err)
+	}
+	xml := string(decoded)
+	if !strings.Contains(xml, "<host>proxy389.example.co.jp</host>") {
+		t.Fatalf("missing proxy host in settings:\n%s", xml)
+	}
+	if !strings.Contains(xml, "<port>8080</port>") {
+		t.Fatalf("missing proxy port in settings:\n%s", xml)
+	}
+	if !strings.Contains(xml, "<username>web_user</username>") {
+		t.Fatalf("missing proxy username in settings:\n%s", xml)
+	}
+	if !strings.Contains(xml, "<password>Web_User</password>") {
+		t.Fatalf("missing proxy password in settings:\n%s", xml)
+	}
+	if !strings.Contains(xml, "<nonProxyHosts>localhost|127.0.0.1|*.example.co.jp</nonProxyHosts>") {
+		t.Fatalf("missing nonProxyHosts in settings:\n%s", xml)
 	}
 }
 

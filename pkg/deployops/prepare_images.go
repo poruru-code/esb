@@ -1,13 +1,17 @@
 package deployops
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/poruru-code/esb/pkg/artifactcore"
@@ -44,6 +48,8 @@ var defaultCommandRunnerFactory = func() CommandRunner {
 
 var dockerImageExistsFunc = dockerImageExists
 
+var mavenRunCommandPattern = regexp.MustCompile(`\bmvn\s+`)
+
 type imageBuildTarget struct {
 	functionName string
 	imageRef     string
@@ -53,6 +59,8 @@ type imageBuildTarget struct {
 type prepareImagesResult struct {
 	publishedFunctionImages map[string]struct{}
 }
+
+const mavenSettingsBuildArg = "ESB_MAVEN_SETTINGS_XML_B64"
 
 func prepareImages(req prepareImagesInput) error {
 	_, err := prepareImagesWithResult(req)
@@ -241,6 +249,14 @@ func resolveFunctionBuildDockerfile(dockerfile string, runtime *artifactcore.Run
 		resolveRegistryAliases(),
 		resolveLambdaBaseTag(runtime),
 	)
+	mavenSettingsB64, err := mavenSettingsBuildArgFromEnv()
+	if err != nil {
+		return "", nil, err
+	}
+	rewritten, mavenChanged := rewriteDockerfileForMavenProxy(rewritten, mavenSettingsB64)
+	if mavenChanged {
+		changed = true
+	}
 	if !changed {
 		return dockerfile, func() {}, nil
 	}
@@ -285,6 +301,216 @@ func rewriteDockerfileForBuild(content, hostRegistry string, registryAliases []s
 		return content, false
 	}
 	return strings.Join(lines, "\n"), true
+}
+
+func rewriteDockerfileForMavenProxy(content, mavenSettingsB64 string) (string, bool) {
+	if strings.TrimSpace(mavenSettingsB64) == "" {
+		return content, false
+	}
+	lines := strings.Split(content, "\n")
+	changed := false
+	rewritten := make([]string, 0, len(lines)+4)
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		lowerTrimmed := strings.ToLower(trimmed)
+		if !strings.HasPrefix(lowerTrimmed, "run ") {
+			rewritten = append(rewritten, line)
+			continue
+		}
+		command := strings.TrimSpace(trimmed[4:])
+		if !mavenRunCommandPattern.MatchString(command) {
+			rewritten = append(rewritten, line)
+			continue
+		}
+
+		commandWithSettings := mavenRunCommandPattern.ReplaceAllString(
+			command,
+			"mvn -s /tmp/maven-settings.xml ",
+		)
+		if commandWithSettings == command {
+			rewritten = append(rewritten, line)
+			continue
+		}
+
+		indentLen := len(line) - len(strings.TrimLeft(line, " \t"))
+		indent := line[:indentLen]
+		rewritten = append(
+			rewritten,
+			indent+`ARG `+mavenSettingsBuildArg+`="`+mavenSettingsB64+`"`,
+			indent+`RUN if [ -n "${`+mavenSettingsBuildArg+`}" ]; then \`,
+			indent+`      printf '%s' "${`+mavenSettingsBuildArg+`}" | base64 --decode >/tmp/maven-settings.xml; \`,
+			indent+`      `+strings.TrimSuffix(commandWithSettings, ";")+`; \`,
+			indent+`    else \`,
+			indent+`      `+strings.TrimSuffix(command, ";")+`; \`,
+			indent+`    fi`,
+		)
+		changed = true
+	}
+
+	if !changed {
+		return content, false
+	}
+	return strings.Join(rewritten, "\n"), true
+}
+
+func mavenSettingsBuildArgFromEnv() (string, error) {
+	httpsProxy := strings.TrimSpace(os.Getenv("HTTPS_PROXY"))
+	if httpsProxy == "" {
+		httpsProxy = strings.TrimSpace(os.Getenv("https_proxy"))
+	}
+	httpProxy := strings.TrimSpace(os.Getenv("HTTP_PROXY"))
+	if httpProxy == "" {
+		httpProxy = strings.TrimSpace(os.Getenv("http_proxy"))
+	}
+	proxyURL := httpsProxy
+	if proxyURL == "" {
+		proxyURL = httpProxy
+	}
+	if proxyURL == "" {
+		return "", nil
+	}
+	noProxy := strings.TrimSpace(os.Getenv("NO_PROXY"))
+	if noProxy == "" {
+		noProxy = strings.TrimSpace(os.Getenv("no_proxy"))
+	}
+
+	settingsXML, err := renderMavenProxySettings(proxyURL, noProxy)
+	if err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString([]byte(settingsXML)), nil
+}
+
+func normalizeMavenNonProxyToken(token string) string {
+	normalized := strings.TrimSpace(token)
+	if normalized == "" {
+		return ""
+	}
+
+	if strings.HasPrefix(normalized, "[") && strings.Contains(normalized, "]") {
+		closingIndex := strings.Index(normalized, "]")
+		ipv6Host := strings.TrimSpace(normalized[1:closingIndex])
+		if ipv6Host != "" {
+			normalized = ipv6Host
+		}
+	} else if strings.Count(normalized, ":") == 1 {
+		host, port, ok := strings.Cut(normalized, ":")
+		if ok {
+			if _, err := strconv.Atoi(strings.TrimSpace(port)); err == nil {
+				normalized = strings.TrimSpace(host)
+			}
+		}
+	}
+
+	if strings.HasPrefix(normalized, ".") && !strings.HasPrefix(normalized, "*.") {
+		normalized = "*" + normalized
+	}
+	return normalized
+}
+
+func mavenNonProxyHosts(noProxy string) string {
+	seen := make(map[string]struct{})
+	values := make([]string, 0)
+	for _, token := range strings.Split(strings.ReplaceAll(noProxy, ";", ","), ",") {
+		normalized := normalizeMavenNonProxyToken(token)
+		if normalized == "" {
+			continue
+		}
+		if _, exists := seen[normalized]; exists {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		values = append(values, normalized)
+	}
+	return strings.Join(values, "|")
+}
+
+func parseProxyEndpoint(proxyURL string) (host string, port int, username, password string, err error) {
+	parsed, err := url.Parse(strings.TrimSpace(proxyURL))
+	if err != nil {
+		return "", 0, "", "", fmt.Errorf("proxy URL is invalid: %w", err)
+	}
+	if parsed.Scheme == "" || parsed.Hostname() == "" {
+		return "", 0, "", "", fmt.Errorf("proxy URL must include scheme and host: %s", proxyURL)
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return "", 0, "", "", fmt.Errorf("proxy URL must use http or https: %s", proxyURL)
+	}
+	if (parsed.Path != "" && parsed.Path != "/") || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return "", 0, "", "", fmt.Errorf("proxy URL must not include path/query/fragment: %s", proxyURL)
+	}
+	if parsed.Port() != "" {
+		parsedPort, convErr := strconv.Atoi(parsed.Port())
+		if convErr != nil || parsedPort < 1 || parsedPort > 65535 {
+			return "", 0, "", "", fmt.Errorf("proxy URL has invalid port: %s", proxyURL)
+		}
+		port = parsedPort
+	} else if scheme == "https" {
+		port = 443
+	} else {
+		port = 80
+	}
+
+	username = parsed.User.Username()
+	password, _ = parsed.User.Password()
+	return parsed.Hostname(), port, username, password, nil
+}
+
+func escapeXMLText(value string) string {
+	return strings.NewReplacer(
+		"&", "&amp;",
+		"<", "&lt;",
+		">", "&gt;",
+		"\"", "&quot;",
+		"'", "&apos;",
+	).Replace(value)
+}
+
+func renderMavenProxySettings(proxyURL, noProxy string) (string, error) {
+	host, port, username, password, err := parseProxyEndpoint(proxyURL)
+	if err != nil {
+		return "", err
+	}
+	nonProxyHosts := mavenNonProxyHosts(noProxy)
+
+	lines := []string{
+		"<settings>",
+		"  <proxies>",
+	}
+	for _, proxy := range []struct {
+		id       string
+		protocol string
+	}{
+		{id: "http-proxy", protocol: "http"},
+		{id: "https-proxy", protocol: "https"},
+	} {
+		lines = append(
+			lines,
+			"    <proxy>",
+			fmt.Sprintf("      <id>%s</id>", escapeXMLText(proxy.id)),
+			"      <active>true</active>",
+			fmt.Sprintf("      <protocol>%s</protocol>", escapeXMLText(proxy.protocol)),
+			fmt.Sprintf("      <host>%s</host>", escapeXMLText(host)),
+			fmt.Sprintf("      <port>%d</port>", port),
+		)
+		if username != "" {
+			lines = append(lines, fmt.Sprintf("      <username>%s</username>", escapeXMLText(username)))
+		}
+		if password != "" {
+			lines = append(lines, fmt.Sprintf("      <password>%s</password>", escapeXMLText(password)))
+		}
+		if nonProxyHosts != "" {
+			lines = append(
+				lines,
+				fmt.Sprintf("      <nonProxyHosts>%s</nonProxyHosts>", escapeXMLText(nonProxyHosts)),
+			)
+		}
+		lines = append(lines, "    </proxy>")
+	}
+	lines = append(lines, "  </proxies>", "</settings>")
+	return strings.Join(lines, "\n") + "\n", nil
 }
 
 func rewriteDockerfileFromRef(ref, hostRegistry string, registryAliases []string, lambdaBaseTag string) (string, bool) {
