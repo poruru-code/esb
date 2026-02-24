@@ -16,11 +16,11 @@
     "services/gateway/"
   ],
   "go.toolsEnvVars": {
-    "GOWORK": "${workspaceFolder}/go.work"
+    "GOWORK": "auto"
   },
   "gopls": {
     "env": {
-      "GOWORK": "${workspaceFolder}/go.work"
+      "GOWORK": "auto"
     }
   }
 }
