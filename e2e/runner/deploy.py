@@ -39,6 +39,14 @@ _DOCKERFILE_FROM_PATTERN = re.compile(
     r"^FROM(?:\s+--platform=[^\s]+)?\s+(?P<source>[^\s]+)",
     re.IGNORECASE,
 )
+_JAVA_FIXTURE_MAVEN_ARG_PATTERN = re.compile(
+    r"^\s*ARG\s+MAVEN_IMAGE(?:\s*=.*)?$",
+    re.IGNORECASE | re.MULTILINE,
+)
+_JAVA_FIXTURE_BUILDER_FROM_PATTERN = re.compile(
+    r"^\s*FROM\s+\$\{?MAVEN_IMAGE\}?\s+AS\s+builder\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
 
 
 def _artifactctl_bin(ctx: RunContext) -> str:
@@ -179,6 +187,7 @@ def _prepare_local_fixture_images(
 
             maven_shim_tag = ""
             if fixture_name == _JAVA_FIXTURE_NAME:
+                _assert_java_fixture_uses_maven_shim_contract(fixture_dir)
                 shim_registry = _image_registry_host(source)
                 artifactctl_bin = _artifactctl_bin(ctx)
                 maven_shim_tag = _ensure_maven_shim_image(
@@ -245,6 +254,24 @@ def _append_proxy_build_args(cmd: list[str], env: dict[str, str]) -> list[str]:
         cmd.extend(["--build-arg", f"{upper}={value}"])
         cmd.extend(["--build-arg", f"{lower}={value}"])
     return cmd
+
+
+def _assert_java_fixture_uses_maven_shim_contract(fixture_dir: Path) -> None:
+    dockerfile = fixture_dir / "Dockerfile"
+    if not dockerfile.exists():
+        raise FileNotFoundError(f"java fixture Dockerfile not found: {dockerfile}")
+    content = dockerfile.read_text(encoding="utf-8")
+    if _JAVA_FIXTURE_MAVEN_ARG_PATTERN.search(content) is None:
+        raise RuntimeError(
+            "java fixture Dockerfile must define `ARG MAVEN_IMAGE` so E2E can inject maven-shim: "
+            f"{dockerfile}"
+        )
+    if _JAVA_FIXTURE_BUILDER_FROM_PATTERN.search(content) is None:
+        raise RuntimeError(
+            "java fixture Dockerfile must use `FROM ${MAVEN_IMAGE} AS builder` "
+            "for proxy-safe Maven resolution: "
+            f"{dockerfile}"
+        )
 
 
 def _image_registry_host(image_ref: str) -> str:

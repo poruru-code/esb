@@ -336,6 +336,60 @@ def test_parse_maven_shim_ensure_output_rejects_missing_payload() -> None:
         )
 
 
+def test_java_fixture_contract_accepts_maven_image_injection(tmp_path) -> None:
+    fixture_dir = tmp_path / "java"
+    fixture_dir.mkdir(parents=True, exist_ok=True)
+    (fixture_dir / "Dockerfile").write_text(
+        "\n".join(
+            [
+                "ARG MAVEN_IMAGE=public.ecr.aws/sam/build-java21:latest",
+                "FROM ${MAVEN_IMAGE} AS builder",
+                "RUN mvn -q -DskipTests package",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    deploy_module._assert_java_fixture_uses_maven_shim_contract(fixture_dir)
+
+
+@pytest.mark.parametrize(
+    ("dockerfile_text", "expected_message"),
+    [
+        (
+            "\n".join(
+                [
+                    "FROM maven:3.9.11-eclipse-temurin-21 AS builder",
+                    "RUN mvn -q -DskipTests package",
+                ]
+            )
+            + "\n",
+            r"must define `ARG MAVEN_IMAGE`",
+        ),
+        (
+            "\n".join(
+                [
+                    "ARG MAVEN_IMAGE=public.ecr.aws/sam/build-java21:latest",
+                    "FROM maven:3.9.11-eclipse-temurin-21 AS builder",
+                ]
+            )
+            + "\n",
+            r"must use `FROM \${MAVEN_IMAGE} AS builder`",
+        ),
+    ],
+)
+def test_java_fixture_contract_rejects_stale_dockerfile(
+    tmp_path, dockerfile_text: str, expected_message: str
+) -> None:
+    fixture_dir = tmp_path / "java"
+    fixture_dir.mkdir(parents=True, exist_ok=True)
+    (fixture_dir / "Dockerfile").write_text(dockerfile_text, encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match=expected_message):
+        deploy_module._assert_java_fixture_uses_maven_shim_contract(fixture_dir)
+
+
 def test_deploy_artifacts_prepares_fixture_then_runs_deploy_and_provision(monkeypatch, tmp_path):
     deploy_module._prepared_local_fixture_images.clear()
     deploy_module._prepared_maven_shim_images.clear()
