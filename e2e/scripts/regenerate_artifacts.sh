@@ -125,7 +125,7 @@ generate_fixture \
   "e2e-docker" \
   "docker" \
   "esb" \
-  "127.0.0.1:5010/esb-e2e-lambda-python:latest" \
+  "127.0.0.1:5010/esb-e2e-image-python:latest" \
   "python" \
   "e2e-docker-latest"
 
@@ -133,6 +133,6 @@ generate_fixture \
   "e2e-containerd" \
   "containerd" \
   "esb" \
-  "127.0.0.1:5010/esb-e2e-lambda-java:latest" \
+  "127.0.0.1:5010/esb-e2e-image-java:latest" \
   "java21" \
   "e2e-containerd-latest"

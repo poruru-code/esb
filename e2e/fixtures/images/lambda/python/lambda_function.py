@@ -148,7 +148,7 @@ def lambda_handler(event: Any, _context: Any) -> dict[str, Any]:
     response: dict[str, Any] = {
         "success": True,
         "action": action,
-        "handler": "esb-e2e-lambda-python",
+        "handler": "esb-e2e-image-python",
     }
     try:
         if action == "chain_invoke":
@@ -175,7 +175,7 @@ def lambda_handler(event: Any, _context: Any) -> dict[str, Any]:
         return {
             "success": False,
             "action": action,
-            "handler": "esb-e2e-lambda-python",
+            "handler": "esb-e2e-image-python",
             "error": str(exc),
         }
 
