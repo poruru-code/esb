@@ -13,6 +13,12 @@ For artifact fixture generation, `e2e/scripts/regenerate_artifacts.sh` sets
 
 The image builds `app.jar` from source during Docker build, and deploy
 automatically builds/pushes this image to the local registry.
+When proxy environment variables are present, E2E deploy swaps this fixture's
+`MAVEN_IMAGE` build arg to a deploy-core shim image resolved via
+`artifactctl internal maven-shim ensure`, then uses that shim image in the
+fixture build. This keeps `buildx` stages deterministic and ensures `mvn`
+always runs with proxy-aware `settings.xml` generated at runtime.
+Default Maven base is `public.ecr.aws/sam/build-java21@sha256:5f78d6d9124e54e5a7a9941ef179d74d88b7a5b117526ea8574137e5403b51b7`.
 
 ## Local build (optional)
 

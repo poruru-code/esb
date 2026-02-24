@@ -14,6 +14,11 @@ from e2e.runner.deploy import _collect_local_fixture_image_sources, deploy_artif
 from e2e.runner.logging import LogSink
 from e2e.runner.models import RunContext, Scenario
 
+_JAVA_MAVEN_BASE_IMAGE = (
+    "public.ecr.aws/sam/build-java21"
+    "@sha256:5f78d6d9124e54e5a7a9941ef179d74d88b7a5b117526ea8574137e5403b51b7"
+)
+
 
 def _make_context(
     tmp_path: Path,
@@ -169,6 +174,7 @@ def test_deploy_artifacts_rejects_invalid_manifest_artifacts_field(monkeypatch, 
 
 def test_deploy_artifacts_prepares_local_fixture_image(monkeypatch, tmp_path):
     deploy_module._prepared_local_fixture_images.clear()
+    deploy_module._prepared_maven_shim_images.clear()
     manifest = _write_artifact_fixture(
         tmp_path,
         image_ref="127.0.0.1:5010/esb-lambda-echo:e2e-test",
@@ -207,8 +213,132 @@ def test_deploy_artifacts_prepares_local_fixture_image(monkeypatch, tmp_path):
     assert commands[1] == ["docker", "push", "127.0.0.1:5010/esb-e2e-image-python:latest"]
 
 
+def _assert_contains_pair(cmd: list[str], key: str, value: str) -> None:
+    for idx in range(len(cmd) - 1):
+        if cmd[idx] == key and cmd[idx + 1] == value:
+            return
+    raise AssertionError(f"missing pair {key} {value!r} in command: {cmd}")
+
+
+def test_deploy_artifacts_local_fixture_build_propagates_proxy_build_args(monkeypatch, tmp_path):
+    deploy_module._prepared_local_fixture_images.clear()
+    deploy_module._prepared_maven_shim_images.clear()
+    manifest = _write_artifact_fixture(
+        tmp_path,
+        image_ref="127.0.0.1:5010/esb-lambda-echo:e2e-test",
+        base_ref="127.0.0.1:5010/esb-e2e-image-java:latest",
+    )
+    ctx = _make_context(
+        tmp_path,
+        artifact_manifest=str(manifest),
+        runtime_env={
+            "http_proxy": "http://proxy.example:8080",
+            "HTTPS_PROXY": "http://secure-proxy.example:8443",
+            "NO_PROXY": "localhost,127.0.0.1,registry",
+        },
+    )
+
+    commands: list[list[str]] = []
+
+    monkeypatch.setattr(
+        "e2e.runner.deploy._deploy_via_artifact_driver", lambda *args, **kwargs: None
+    )
+
+    shim_tag = "127.0.0.1:5010/esb-maven-shim:0f9e5ac6f33b3755"
+
+    def fake_run_and_stream(cmd, **kwargs):
+        commands.append(list(cmd))
+        on_line = kwargs.get("on_line")
+        if (
+            len(cmd) >= 4
+            and cmd[0] == "artifactctl"
+            and cmd[1] == "internal"
+            and cmd[2] == "maven-shim"
+            and cmd[3] == "ensure"
+            and on_line is not None
+        ):
+            on_line(f'{{"schema_version":1,"shim_image":"{shim_tag}"}}')
+        return 0
+
+    monkeypatch.setattr("e2e.runner.deploy.run_and_stream", fake_run_and_stream)
+
+    log = LogSink(tmp_path / "deploy.log")
+    log.open()
+    try:
+        deploy_artifacts(
+            ctx,
+            no_cache=False,
+            log=log,
+            printer=None,
+        )
+    finally:
+        log.close()
+
+    shim_ensure_cmd = commands[0]
+    fixture_build_cmd = commands[1]
+    assert shim_ensure_cmd == [
+        "artifactctl",
+        "internal",
+        "maven-shim",
+        "ensure",
+        "--base-image",
+        _JAVA_MAVEN_BASE_IMAGE,
+        "--output",
+        "json",
+        "--host-registry",
+        "127.0.0.1:5010",
+    ]
+
+    assert fixture_build_cmd[0:3] == ["docker", "buildx", "build"]
+    _assert_contains_pair(fixture_build_cmd, "--build-arg", "HTTP_PROXY=http://proxy.example:8080")
+    _assert_contains_pair(fixture_build_cmd, "--build-arg", "http_proxy=http://proxy.example:8080")
+    _assert_contains_pair(
+        fixture_build_cmd, "--build-arg", "HTTPS_PROXY=http://secure-proxy.example:8443"
+    )
+    _assert_contains_pair(
+        fixture_build_cmd, "--build-arg", "https_proxy=http://secure-proxy.example:8443"
+    )
+    _assert_contains_pair(fixture_build_cmd, "--build-arg", "NO_PROXY=localhost,127.0.0.1,registry")
+    _assert_contains_pair(fixture_build_cmd, "--build-arg", "no_proxy=localhost,127.0.0.1,registry")
+    _assert_contains_pair(fixture_build_cmd, "--build-arg", f"MAVEN_IMAGE={shim_tag}")
+
+
+def test_parse_maven_shim_ensure_output_validates_schema_and_image() -> None:
+    shim_image = deploy_module._parse_maven_shim_ensure_output(
+        [
+            "prelude log line",
+            '{"schema_version":1,"shim_image":"127.0.0.1:5010/esb-maven-shim:deadbeef"}',
+        ]
+    )
+    assert shim_image == "127.0.0.1:5010/esb-maven-shim:deadbeef"
+
+
+def test_parse_maven_shim_ensure_output_ignores_unrelated_json_logs() -> None:
+    shim_image = deploy_module._parse_maven_shim_ensure_output(
+        [
+            '{"level":"info","msg":"building shim image"}',
+            '{"schema_version":1,"shim_image":"127.0.0.1:5010/esb-maven-shim:cafebabe"}',
+            '{"event":"docker-finished"}',
+        ]
+    )
+    assert shim_image == "127.0.0.1:5010/esb-maven-shim:cafebabe"
+
+
+def test_parse_maven_shim_ensure_output_rejects_malformed_payload() -> None:
+    with pytest.raises(RuntimeError, match="does not include shim_image"):
+        deploy_module._parse_maven_shim_ensure_output(['{"schema_version":1,"shim_image":"   "}'])
+
+
+def test_parse_maven_shim_ensure_output_rejects_missing_payload() -> None:
+    with pytest.raises(RuntimeError, match="no JSON payload with required fields"):
+        deploy_module._parse_maven_shim_ensure_output(
+            ["line-a", '{"level":"info","msg":"line-b"}', '{"schema_version":1}']
+        )
+
+
 def test_deploy_artifacts_prepares_fixture_then_runs_deploy_and_provision(monkeypatch, tmp_path):
     deploy_module._prepared_local_fixture_images.clear()
+    deploy_module._prepared_maven_shim_images.clear()
     config_dir = tmp_path / "merged-config"
     image_ref = "127.0.0.1:5010/esb-lambda-echo:e2e-test"
     base_ref = "127.0.0.1:5010/esb-e2e-image-python:latest"

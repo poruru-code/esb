@@ -3,6 +3,7 @@
 # Why: Keep deploy logic separate from lifecycle and test orchestration.
 from __future__ import annotations
 
+import json
 import re
 import threading
 from pathlib import Path
@@ -19,8 +20,20 @@ LOCAL_IMAGE_FIXTURES: dict[str, Path] = {
     "esb-e2e-image-python": LOCAL_IMAGE_FIXTURE_ROOT / "python",
     "esb-e2e-image-java": LOCAL_IMAGE_FIXTURE_ROOT / "java",
 }
+_PROXY_ENV_ALIASES: tuple[tuple[str, str], ...] = (
+    ("HTTP_PROXY", "http_proxy"),
+    ("HTTPS_PROXY", "https_proxy"),
+    ("NO_PROXY", "no_proxy"),
+)
+_JAVA_FIXTURE_NAME = "esb-e2e-image-java"
+_JAVA_FIXTURE_MAVEN_BASE_IMAGE = (
+    "public.ecr.aws/sam/build-java21"
+    "@sha256:5f78d6d9124e54e5a7a9941ef179d74d88b7a5b117526ea8574137e5403b51b7"
+)
+_MAVEN_SHIM_OUTPUT_SCHEMA_VERSION = 1
 
 _prepared_local_fixture_images: set[str] = set()
+_prepared_maven_shim_images: dict[tuple[str, str], str] = {}
 _prepared_local_fixture_lock = threading.Lock()
 _DOCKERFILE_FROM_PATTERN = re.compile(
     r"^FROM(?:\s+--platform=[^\s]+)?\s+(?P<source>[^\s]+)",
@@ -164,6 +177,19 @@ def _prepare_local_fixture_images(
             if printer:
                 printer(message)
 
+            maven_shim_tag = ""
+            if fixture_name == _JAVA_FIXTURE_NAME:
+                shim_registry = _image_registry_host(source)
+                artifactctl_bin = _artifactctl_bin(ctx)
+                maven_shim_tag = _ensure_maven_shim_image(
+                    _JAVA_FIXTURE_MAVEN_BASE_IMAGE,
+                    registry=shim_registry,
+                    artifactctl_bin=artifactctl_bin,
+                    env=ctx.deploy_env,
+                    log=log,
+                    printer=printer,
+                )
+
             build_cmd = [
                 "docker",
                 "buildx",
@@ -171,10 +197,22 @@ def _prepare_local_fixture_images(
                 "--platform",
                 "linux/amd64",
                 "--load",
-                "--tag",
-                source,
-                str(fixture_dir),
             ]
+            build_cmd = _append_proxy_build_args(build_cmd, ctx.deploy_env)
+            if maven_shim_tag:
+                build_cmd.extend(
+                    [
+                        "--build-arg",
+                        f"MAVEN_IMAGE={maven_shim_tag}",
+                    ]
+                )
+            build_cmd.extend(
+                [
+                    "--tag",
+                    source,
+                    str(fixture_dir),
+                ]
+            )
             rc = run_and_stream(
                 build_cmd,
                 cwd=PROJECT_ROOT,
@@ -197,6 +235,101 @@ def _prepare_local_fixture_images(
                 raise RuntimeError(f"failed to push local fixture image {source} (exit code {rc})")
 
             _prepared_local_fixture_images.add(source)
+
+
+def _append_proxy_build_args(cmd: list[str], env: dict[str, str]) -> list[str]:
+    for upper, lower in _PROXY_ENV_ALIASES:
+        value = env.get(upper, "").strip() or env.get(lower, "").strip()
+        if value == "":
+            continue
+        cmd.extend(["--build-arg", f"{upper}={value}"])
+        cmd.extend(["--build-arg", f"{lower}={value}"])
+    return cmd
+
+
+def _image_registry_host(image_ref: str) -> str:
+    without_digest = image_ref.split("@", 1)[0].strip()
+    if "/" not in without_digest:
+        return ""
+    candidate = without_digest.split("/", 1)[0].strip()
+    if candidate == "":
+        return ""
+    if candidate == "localhost" or "." in candidate or ":" in candidate:
+        return candidate
+    return ""
+
+
+def _ensure_maven_shim_image(
+    base_image: str,
+    *,
+    registry: str,
+    artifactctl_bin: str,
+    env: dict[str, str],
+    log: LogSink,
+    printer: Callable[[str], None] | None = None,
+) -> str:
+    normalized_registry = registry.strip().rstrip("/")
+    cache_key = (base_image, normalized_registry)
+    cached = _prepared_maven_shim_images.get(cache_key)
+    if cached:
+        return cached
+
+    ensure_cmd = [
+        artifactctl_bin,
+        "internal",
+        "maven-shim",
+        "ensure",
+        "--base-image",
+        base_image,
+        "--output",
+        "json",
+    ]
+    if normalized_registry:
+        ensure_cmd.extend(["--host-registry", normalized_registry])
+    output_lines: list[str] = []
+    rc = run_and_stream(
+        ensure_cmd,
+        cwd=PROJECT_ROOT,
+        env=env,
+        log=log,
+        printer=printer,
+        on_line=lambda line: output_lines.append(line),
+    )
+    if rc != 0:
+        raise RuntimeError(
+            "failed to resolve maven shim image via "
+            f"`{artifactctl_bin} internal maven-shim ensure` (exit code {rc}); "
+            "ensure artifactctl supports this internal command"
+        )
+    shim_image = _parse_maven_shim_ensure_output(output_lines)
+    _prepared_maven_shim_images[cache_key] = shim_image
+    return shim_image
+
+
+def _parse_maven_shim_ensure_output(lines: list[str]) -> str:
+    for line in reversed(lines):
+        raw = line.strip()
+        if raw == "":
+            continue
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(payload, dict):
+            continue
+        if "schema_version" not in payload or "shim_image" not in payload:
+            continue
+        schema_version = payload.get("schema_version")
+        if schema_version != _MAVEN_SHIM_OUTPUT_SCHEMA_VERSION:
+            raise RuntimeError(
+                "invalid maven shim ensure response schema: "
+                f"{schema_version} (expected {_MAVEN_SHIM_OUTPUT_SCHEMA_VERSION})"
+            )
+        shim_image = str(payload.get("shim_image", "")).strip()
+        if shim_image == "":
+            raise RuntimeError("maven shim ensure response does not include shim_image")
+        return shim_image
+    raise RuntimeError("maven shim ensure returned no JSON payload with required fields")
 
 
 def _collect_local_fixture_image_sources(manifest_path: Path) -> list[str]:

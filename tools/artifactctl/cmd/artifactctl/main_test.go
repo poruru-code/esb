@@ -2,8 +2,12 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -282,6 +286,142 @@ func TestRunProvisionPreservesSharedRunErrorClass(t *testing.T) {
 	}
 	if !strings.Contains(errOut.String(), "run provisioner: compose failed") {
 		t.Fatalf("unexpected stderr: %q", errOut.String())
+	}
+}
+
+func TestRunInternalMavenShimEnsureOutputsJSON(t *testing.T) {
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+
+	var got MavenShimEnsureInput
+	deps := commandDeps{
+		executeDeploy: func(deployops.Input) (artifactcore.ApplyResult, error) {
+			return artifactcore.ApplyResult{}, nil
+		},
+		executeProvision: func(ProvisionInput) error { return nil },
+		ensureMavenShim: func(input MavenShimEnsureInput) (MavenShimEnsureResult, error) {
+			got = input
+			return MavenShimEnsureResult{
+				SchemaVersion: 1,
+				ShimImage:     "127.0.0.1:5010/esb-maven-shim:deadbeefdeadbeef",
+			}, nil
+		},
+		out:    &out,
+		errOut: &errOut,
+	}
+
+	code := run([]string{
+		"internal",
+		"maven-shim",
+		"ensure",
+		"--base-image", "public.ecr.aws/sam/build-java21@sha256:example",
+		"--host-registry", "127.0.0.1:5010",
+		"--output", "json",
+	}, deps)
+	if code != 0 {
+		t.Fatalf("run returned code=%d, stderr=%q", code, errOut.String())
+	}
+	if got.BaseImage != "public.ecr.aws/sam/build-java21@sha256:example" {
+		t.Fatalf("unexpected base image: %#v", got)
+	}
+	if got.HostRegistry != "127.0.0.1:5010" {
+		t.Fatalf("unexpected host registry: %#v", got)
+	}
+
+	var payload MavenShimEnsureResult
+	if err := json.Unmarshal(out.Bytes(), &payload); err != nil {
+		t.Fatalf("stdout is not JSON: %v, raw=%q", err, out.String())
+	}
+	if payload.SchemaVersion != 1 || payload.ShimImage == "" {
+		t.Fatalf("unexpected payload: %#v", payload)
+	}
+}
+
+func TestRunInternalMavenShimEnsureReportsFailure(t *testing.T) {
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+
+	deps := commandDeps{
+		executeDeploy: func(deployops.Input) (artifactcore.ApplyResult, error) {
+			return artifactcore.ApplyResult{}, nil
+		},
+		executeProvision: func(ProvisionInput) error { return nil },
+		ensureMavenShim: func(MavenShimEnsureInput) (MavenShimEnsureResult, error) {
+			return MavenShimEnsureResult{}, errors.New("boom-shim")
+		},
+		out:    &out,
+		errOut: &errOut,
+	}
+
+	code := run([]string{
+		"internal",
+		"maven-shim",
+		"ensure",
+		"--base-image", "maven:3.9.11-eclipse-temurin-21",
+	}, deps)
+	if code != 1 {
+		t.Fatalf("run returned code=%d", code)
+	}
+	if !strings.Contains(errOut.String(), "maven shim ensure failed: boom-shim") {
+		t.Fatalf("unexpected stderr: %q", errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "artifactctl internal maven-shim ensure --help") {
+		t.Fatalf("expected internal command hint, got: %q", errOut.String())
+	}
+}
+
+func TestRunInternalMavenShimEnsureKeepsStdoutMachineReadable(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script setup for fake docker is not portable to windows")
+	}
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	deps := newNoopDeps(&out, &errOut)
+
+	fakeBinDir := t.TempDir()
+	fakeDockerPath := filepath.Join(fakeBinDir, "docker")
+	script := strings.Join([]string{
+		"#!/usr/bin/env bash",
+		"set -euo pipefail",
+		"echo \"fake-docker-stdout:$*\"",
+		"echo \"fake-docker-stderr:$*\" >&2",
+		"exit 0",
+		"",
+	}, "\n")
+	if err := os.WriteFile(fakeDockerPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake docker: %v", err)
+	}
+
+	originalPath := os.Getenv("PATH")
+	t.Setenv("PATH", fakeBinDir+string(os.PathListSeparator)+originalPath)
+
+	code := run([]string{
+		"internal",
+		"maven-shim",
+		"ensure",
+		"--base-image", "maven:3.9.11-eclipse-temurin-21",
+		"--no-cache",
+		"--output", "json",
+	}, deps)
+	if code != 0 {
+		t.Fatalf("run returned code=%d, stderr=%q", code, errOut.String())
+	}
+
+	if strings.Contains(out.String(), "fake-docker-stdout:") || strings.Contains(out.String(), "fake-docker-stderr:") {
+		t.Fatalf("stdout contains docker noise: %q", out.String())
+	}
+	var payload MavenShimEnsureResult
+	if err := json.Unmarshal(out.Bytes(), &payload); err != nil {
+		t.Fatalf("stdout is not pure JSON payload: %v, raw=%q", err, out.String())
+	}
+	if payload.SchemaVersion != 1 || payload.ShimImage == "" {
+		t.Fatalf("unexpected payload: %#v", payload)
+	}
+	if !strings.Contains(errOut.String(), "fake-docker-stdout:") {
+		t.Fatalf("expected docker stdout to be redirected to stderr, got: %q", errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "fake-docker-stderr:") {
+		t.Fatalf("expected docker stderr to be redirected to stderr, got: %q", errOut.String())
 	}
 }
 

@@ -83,7 +83,11 @@ def requires_artifactctl(args, env_scenarios: dict[str, object]) -> bool:
 
 def ensure_artifactctl_available() -> str:
     def _assert_supported(binary_path: str) -> None:
-        required_subcommands = (("deploy", "--help"), ("provision", "--help"))
+        required_subcommands = (
+            ("deploy", "--help"),
+            ("provision", "--help"),
+            ("internal", "maven-shim", "ensure", "--help"),
+        )
         for subcommand in required_subcommands:
             probe = subprocess.run(
                 [binary_path, *subcommand],
