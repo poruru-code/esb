@@ -2,7 +2,9 @@ package mavenshim
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -217,5 +219,63 @@ func TestAcquireShimLockAllowsNextContenderAfterRelease(t *testing.T) {
 		result.release()
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for second acquire")
+	}
+}
+
+func TestMavenWrapperAcceptsCaseInsensitiveProxySchemes(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script execution is not portable to windows")
+	}
+	contextDir, cleanup, err := materializeBuildContext()
+	if err != nil {
+		t.Fatalf("materializeBuildContext() error = %v", err)
+	}
+	defer cleanup()
+
+	fakeBinDir := t.TempDir()
+	fakeMaven := filepath.Join(fakeBinDir, "fake-mvn")
+	captureFile := filepath.Join(fakeBinDir, "captured")
+	fakeMavenScript := strings.Join([]string{
+		"#!/usr/bin/env bash",
+		"set -euo pipefail",
+		"args=(\"$@\")",
+		"settings=\"\"",
+		"for ((i=0; i<${#args[@]}; i++)); do",
+		"  if [[ \"${args[$i]}\" == \"-s\" ]]; then",
+		"    next=$((i+1))",
+		"    settings=\"${args[$next]:-}\"",
+		"    break",
+		"  fi",
+		"done",
+		"if [[ -z \"$settings\" || ! -f \"$settings\" ]]; then",
+		"  echo \"missing settings file\" >&2",
+		"  exit 90",
+		"fi",
+		"grep -q \"<protocol>http</protocol>\" \"$settings\" || { echo \"missing http proxy\" >&2; exit 91; }",
+		"grep -q \"<protocol>https</protocol>\" \"$settings\" || { echo \"missing https proxy\" >&2; exit 92; }",
+		"touch \"$MAVEN_CAPTURE_FILE\"",
+		"exit 0",
+		"",
+	}, "\n")
+	if err := os.WriteFile(fakeMaven, []byte(fakeMavenScript), 0o755); err != nil {
+		t.Fatalf("write fake mvn: %v", err)
+	}
+
+	wrapperPath := filepath.Join(contextDir, "mvn-wrapper.sh")
+	command := exec.Command("bash", wrapperPath, "-q", "-DskipTests", "package")
+	command.Env = append(
+		os.Environ(),
+		"MAVEN_REAL_BIN="+fakeMaven,
+		"MAVEN_CAPTURE_FILE="+captureFile,
+		"HTTP_PROXY=HTTP://proxy.example:8080",
+		"HTTPS_PROXY=HTTPS://secure-proxy.example:8443",
+		"NO_PROXY=localhost,127.0.0.1",
+	)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("wrapper execution failed: %v, output=%s", err, string(output))
+	}
+	if _, err := os.Stat(captureFile); err != nil {
+		t.Fatalf("fake mvn was not invoked: %v, output=%s", err, string(output))
 	}
 }

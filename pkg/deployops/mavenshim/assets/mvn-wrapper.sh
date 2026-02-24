@@ -51,7 +51,7 @@ xml_escape() {
 parse_proxy_endpoint() {
   local raw="$1"
   local label="$2"
-  local regex='^(http|https)://([^/@[:space:]]+(:[^@[:space:]]*)?@)?(\[[^]]+\]|[^/:?#[:space:]]+)(:([0-9]+))?/?$'
+  local regex='^([Hh][Tt][Tt][Pp][Ss]?)://([^/@[:space:]]+(:[^@[:space:]]*)?@)?(\[[^]]+\]|[^/:?#[:space:]]+)(:([0-9]+))?/?$'
 
   if [[ ! "$raw" =~ $regex ]]; then
     echo "mvn shim: invalid proxy URL for ${label}: ${raw}" >&2
