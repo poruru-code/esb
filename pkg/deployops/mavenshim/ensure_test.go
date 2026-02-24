@@ -65,7 +65,8 @@ func TestEnsureImageBuildsAndPushesWithHostRegistry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnsureImage() error = %v", err)
 	}
-	if result.ShimImage != "127.0.0.1:5010/esb-maven-shim:0f9e5ac6f33b3755" {
+	expectedShim := "127.0.0.1:5010/" + deriveShimImageTag("maven:3.9.11-eclipse-temurin-21")
+	if result.ShimImage != expectedShim {
 		t.Fatalf("unexpected shim image: %s", result.ShimImage)
 	}
 
@@ -101,7 +102,8 @@ func TestEnsureImageSkipsBuildWhenImageAlreadyExists(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnsureImage() error = %v", err)
 	}
-	if result.ShimImage != "esb-maven-shim:0f9e5ac6f33b3755" {
+	expectedShim := deriveShimImageTag("maven:3.9.11-eclipse-temurin-21")
+	if result.ShimImage != expectedShim {
 		t.Fatalf("unexpected shim image: %s", result.ShimImage)
 	}
 	if got := len(runner.snapshot()); got != 0 {
