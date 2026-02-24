@@ -13,6 +13,9 @@ For artifact fixture generation, `e2e/scripts/regenerate_artifacts.sh` sets
 
 The image builds `app.jar` from source during Docker build, and deploy
 automatically builds/pushes this image to the local registry.
+When proxy environment variables are present, the build generates a temporary
+Maven `settings.xml` and runs `mvn -s ...` so dependency resolution is
+performed through proxy configuration deterministically.
 
 ## Local build (optional)
 

@@ -6,7 +6,16 @@ FROM maven:3.9.11-eclipse-temurin-21 AS builder
 WORKDIR /src
 COPY pom.xml ./
 COPY src ./src
-RUN mvn -q -DskipTests package
+COPY build_maven.sh /tmp/build_maven.sh
+
+ARG HTTP_PROXY
+ARG http_proxy
+ARG HTTPS_PROXY
+ARG https_proxy
+ARG NO_PROXY
+ARG no_proxy
+
+RUN chmod +x /tmp/build_maven.sh && /tmp/build_maven.sh
 
 FROM public.ecr.aws/lambda/java:21
 
