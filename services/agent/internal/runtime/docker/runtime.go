@@ -5,7 +5,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"log"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -41,6 +43,30 @@ type Runtime struct {
 	env           string
 	brandSlug     string
 	accessTracker sync.Map // map[containerID]time.Time - tracks last access time
+}
+
+func dockerMemoryLimitBytes(env map[string]string) (int64, bool) {
+	if env == nil {
+		return 0, false
+	}
+	raw := strings.TrimSpace(env["AWS_LAMBDA_FUNCTION_MEMORY_SIZE"])
+	if raw == "" {
+		return 0, false
+	}
+	mb, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || mb <= 0 {
+		log.Printf("WARNING: invalid AWS_LAMBDA_FUNCTION_MEMORY_SIZE=%q", raw)
+		return 0, false
+	}
+	const (
+		bytesPerMB int64 = 1024 * 1024
+		maxInt64         = int64(^uint64(0) >> 1)
+	)
+	if mb > maxInt64/bytesPerMB {
+		log.Printf("WARNING: AWS_LAMBDA_FUNCTION_MEMORY_SIZE too large: %d", mb)
+		return 0, false
+	}
+	return mb * bytesPerMB, true
 }
 
 // NewRuntime creates a new Docker runtime.
@@ -135,6 +161,9 @@ func (r *Runtime) Ensure(ctx context.Context, req runtime.EnsureRequest) (*runti
 
 	hostConfig := &container.HostConfig{
 		RestartPolicy: container.RestartPolicy{Name: "no"},
+	}
+	if memoryBytes, ok := dockerMemoryLimitBytes(req.Env); ok {
+		hostConfig.Memory = memoryBytes
 	}
 
 	networkingConfig := &network.NetworkingConfig{
