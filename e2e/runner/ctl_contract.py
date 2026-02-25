@@ -5,9 +5,8 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping
 
-from e2e.runner.branding import DEFAULT_BRAND_SLUG
+from e2e.runner.branding_constants_gen import DEFAULT_CTL_BIN
 
-DEFAULT_CTL_BIN = f"{DEFAULT_BRAND_SLUG}-ctl"
 ENV_CTL_BIN = "CTL_BIN"
 ENV_CTL_BIN_RESOLVED = "CTL_BIN_RESOLVED"
 
