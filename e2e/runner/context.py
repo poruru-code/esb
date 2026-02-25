@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 
 from e2e.runner import constants, infra
+from e2e.runner.branding import resolve_project_name
 from e2e.runner.env import (
     apply_gateway_env_from_container,
     apply_proxy_defaults,
@@ -16,7 +17,6 @@ from e2e.runner.env import (
 from e2e.runner.lifecycle import resolve_compose_file
 from e2e.runner.models import RunContext, Scenario
 from e2e.runner.utils import (
-    BRAND_SLUG,
     E2E_STATE_ROOT,
     PROJECT_ROOT,
     build_unique_tag,
@@ -38,7 +38,7 @@ def _prepare_context(
     port_overrides: dict[str, str] | None = None,
 ) -> RunContext:
     env_name = scenario.env_name
-    project_name = scenario.project_name or BRAND_SLUG
+    project_name = resolve_project_name(scenario.project_name)
     compose_project = f"{project_name}-{env_name}"
     env_file = _resolve_env_file(scenario.env_file)
 

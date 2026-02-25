@@ -8,7 +8,11 @@ import os
 import subprocess
 from typing import Callable
 
-from e2e.runner.utils import BRAND_SLUG
+from e2e.runner.branding import (
+    infra_registry_container_name,
+    resolve_brand_slug,
+    resolve_project_name,
+)
 
 
 def _emit(message: str, log: Callable[[str], None], printer: Callable[[str], None] | None) -> None:
@@ -18,17 +22,18 @@ def _emit(message: str, log: Callable[[str], None], printer: Callable[[str], Non
 
 
 def _shared_registry_container_name() -> str:
-    return os.environ.get("REGISTRY_CONTAINER_NAME", f"{BRAND_SLUG}-infra-registry")
+    return os.environ.get("REGISTRY_CONTAINER_NAME", infra_registry_container_name())
 
 
 def thorough_cleanup(
+    compose_project: str,
     env_name: str,
     *,
     log: Callable[[str], None],
     printer: Callable[[str], None] | None = None,
 ) -> None:
     """Exhaustively remove Docker resources associated with an environment."""
-    project_label = f"{BRAND_SLUG}-{env_name}"
+    project_label = compose_project.strip()
 
     container_filters = [
         f"name={env_name}",
@@ -88,8 +93,9 @@ def cleanup_managed_images(
     printer: Callable[[str], None] | None = None,
 ) -> None:
     """Remove ESB-managed images associated with an environment."""
-    label_prefix = f"com.{BRAND_SLUG}"
-    project_label = f"{project_name}-{env_name}"
+    brand_slug = resolve_brand_slug(project_name)
+    label_prefix = f"com.{brand_slug}"
+    project_label = f"{resolve_project_name(project_name)}-{env_name}"
     cmd = [
         "docker",
         "images",

@@ -10,6 +10,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable
 
 from e2e.runner import infra
+from e2e.runner.branding import resolve_brand_slug
 from e2e.runner.context import (
     _apply_ports_to_env_dict,
     _prepare_context,
@@ -42,7 +43,7 @@ from e2e.runner.models import RunContext, Scenario
 from e2e.runner.ports import _allocate_ports
 from e2e.runner.tester import run_pytest
 from e2e.runner.ui import Reporter
-from e2e.runner.utils import BRAND_SLUG, PROJECT_ROOT
+from e2e.runner.utils import PROJECT_ROOT
 from e2e.runner.warmup import _warmup
 
 
@@ -341,9 +342,10 @@ def _emit_env_end(
 
 
 def _needs_compose_build() -> bool:
+    brand_slug = resolve_brand_slug(None)
     images = [
-        f"{BRAND_SLUG}-os-base:latest",
-        f"{BRAND_SLUG}-python-base:latest",
+        f"{brand_slug}-os-base:latest",
+        f"{brand_slug}-python-base:latest",
     ]
     for image in images:
         result = subprocess.run(

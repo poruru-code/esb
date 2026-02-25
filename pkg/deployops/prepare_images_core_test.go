@@ -216,7 +216,6 @@ func TestPrepareImagesNoCacheAddsFlag(t *testing.T) {
 
 func TestPrepareImagesAddsLayerBuildContextsForZipLayers(t *testing.T) {
 	root := t.TempDir()
-	mustWriteFile(t, filepath.Join(root, ".branding.env"), "export BRANDING_SLUG=esb\n")
 	manifestPath := writePrepareImageFixture(
 		t,
 		root,

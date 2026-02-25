@@ -7,10 +7,11 @@ from pathlib import Path
 from typing import Callable
 
 from e2e.runner import constants
+from e2e.runner.branding import resolve_project_name
 from e2e.runner.buildx import ensure_buildx_builder
 from e2e.runner.env import apply_proxy_defaults, calculate_runtime_env
 from e2e.runner.models import Scenario
-from e2e.runner.utils import BRAND_SLUG, PROJECT_ROOT
+from e2e.runner.utils import PROJECT_ROOT
 
 _PROXY_ENV_KEYS = (
     "HTTP_PROXY",
@@ -44,7 +45,7 @@ def _resolve_env_file(env_file: str | None) -> str | None:
 
 def _scenario_runtime_env_for_buildx(scenario: Scenario) -> dict[str, str]:
     runtime_env = calculate_runtime_env(
-        scenario.project_name or BRAND_SLUG,
+        resolve_project_name(scenario.project_name),
         scenario.env_name,
         scenario.mode,
         _resolve_env_file(scenario.env_file),
