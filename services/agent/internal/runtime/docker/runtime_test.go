@@ -104,6 +104,51 @@ func TestRuntime_Ensure(t *testing.T) {
 	mockClient.AssertExpectations(t)
 }
 
+func TestRuntime_Ensure_AppliesMemoryLimit(t *testing.T) {
+	mockClient := new(MockDockerClient)
+	rt := NewRuntime(mockClient, "esb-net", "test-env", "esb")
+
+	ctx := context.Background()
+	req := runtime.EnsureRequest{
+		FunctionName: "test-func",
+		Image:        "test-image",
+		OwnerID:      "owner-1",
+		Env: map[string]string{
+			"AWS_LAMBDA_FUNCTION_MEMORY_SIZE": "256",
+		},
+	}
+
+	const expectedMemoryBytes = int64(256 * 1024 * 1024)
+
+	mockClient.On("ImagePull", ctx, mock.Anything, mock.Anything).
+		Return(io.NopCloser(strings.NewReader("")), nil).Once()
+	mockClient.On(
+		"ContainerCreate",
+		ctx,
+		mock.Anything,
+		mock.MatchedBy(func(hostConfig *container.HostConfig) bool {
+			return hostConfig != nil && hostConfig.Memory == expectedMemoryBytes
+		}),
+		mock.Anything,
+		mock.Anything,
+		mock.Anything,
+	).Return(container.CreateResponse{ID: "new-id"}, nil).Once()
+	mockClient.On("ContainerStart", ctx, "new-id", mock.Anything).Return(nil).Once()
+	mockClient.On("ContainerInspect", ctx, "new-id").Return(container.InspectResponse{
+		NetworkSettings: &container.NetworkSettings{
+			Networks: map[string]*network.EndpointSettings{
+				"esb-net": {IPAddress: "10.0.0.2"},
+			},
+		},
+	}, nil).Once()
+
+	info, err := rt.Ensure(ctx, req)
+	assert.NoError(t, err)
+	assert.Equal(t, "new-id", info.ID)
+	assert.Equal(t, "10.0.0.2", info.IPAddress)
+	mockClient.AssertExpectations(t)
+}
+
 func TestRuntime_Ensure_AlwaysCreatesNew(t *testing.T) {
 	t.Setenv("PROJECT_NAME", "esb-test-env")
 	t.Setenv("ENV", "test-env")
@@ -224,4 +269,71 @@ func TestRuntime_List(t *testing.T) {
 	assert.Equal(t, runtime.StatusStopped, states[1].Status)
 
 	mockClient.AssertExpectations(t)
+}
+
+func TestDockerMemoryLimitBytes(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		env  map[string]string
+		want int64
+		ok   bool
+	}{
+		{
+			name: "missing",
+			env:  map[string]string{},
+			want: 0,
+			ok:   false,
+		},
+		{
+			name: "valid",
+			env: map[string]string{
+				"AWS_LAMBDA_FUNCTION_MEMORY_SIZE": "128",
+			},
+			want: 128 * 1024 * 1024,
+			ok:   true,
+		},
+		{
+			name: "whitespace",
+			env: map[string]string{
+				"AWS_LAMBDA_FUNCTION_MEMORY_SIZE": "  256  ",
+			},
+			want: 256 * 1024 * 1024,
+			ok:   true,
+		},
+		{
+			name: "invalid",
+			env: map[string]string{
+				"AWS_LAMBDA_FUNCTION_MEMORY_SIZE": "not-a-number",
+			},
+			want: 0,
+			ok:   false,
+		},
+		{
+			name: "zero",
+			env: map[string]string{
+				"AWS_LAMBDA_FUNCTION_MEMORY_SIZE": "0",
+			},
+			want: 0,
+			ok:   false,
+		},
+		{
+			name: "too-large",
+			env: map[string]string{
+				"AWS_LAMBDA_FUNCTION_MEMORY_SIZE": "9223372036854775807",
+			},
+			want: 0,
+			ok:   false,
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := dockerMemoryLimitBytes(tc.env)
+			assert.Equal(t, tc.ok, ok)
+			assert.Equal(t, tc.want, got)
+		})
+	}
 }
