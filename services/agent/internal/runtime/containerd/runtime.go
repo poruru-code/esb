@@ -18,6 +18,7 @@ import (
 	"github.com/containerd/containerd/namespaces"
 	"github.com/containerd/go-cni"
 	"github.com/poruru-code/esb/services/agent/internal/config"
+	"github.com/poruru-code/esb/services/agent/internal/identity"
 )
 
 const (
@@ -40,9 +41,12 @@ type Runtime struct {
 func NewRuntime(client Client, cniPlugin cni.CNI, namespace, env, brandSlug string) *Runtime {
 	ns := strings.TrimSpace(namespace)
 	if ns == "" {
-		ns = "esb"
+		panic("containerd runtime namespace is required")
 	}
-	brand := normalizeBrandSlug(brandSlug)
+	brand := identity.SanitizeBrandSlug(brandSlug)
+	if brand == "" {
+		panic("containerd runtime brand slug is required")
+	}
 	return &Runtime{
 		client:     client,
 		cni:        cniPlugin,
@@ -118,31 +122,6 @@ func (r *Runtime) resolveCNINetworkName() string {
 		}
 	}
 	return r.cniNetwork
-}
-
-func normalizeBrandSlug(value string) string {
-	trimmed := strings.TrimSpace(strings.ToLower(value))
-	if trimmed == "" {
-		return "esb"
-	}
-	var b strings.Builder
-	lastDash := false
-	for _, r := range trimmed {
-		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
-			b.WriteRune(r)
-			lastDash = false
-			continue
-		}
-		if !lastDash {
-			b.WriteByte('-')
-			lastDash = true
-		}
-	}
-	slug := strings.Trim(b.String(), "-")
-	if slug == "" {
-		return "esb"
-	}
-	return slug
 }
 
 func (r *Runtime) Destroy(ctx context.Context, id string) error {

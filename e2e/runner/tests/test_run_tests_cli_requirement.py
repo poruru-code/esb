@@ -11,6 +11,7 @@ from types import SimpleNamespace
 import pytest
 
 from e2e.run_tests import ensure_artifactctl_available, requires_artifactctl
+from e2e.runner.ctl_contract import DEFAULT_CTL_BIN, ENV_CTL_BIN, ENV_CTL_BIN_RESOLVED
 
 
 def _args(*, test_only: bool = False) -> SimpleNamespace:
@@ -50,73 +51,81 @@ def test_requires_artifactctl_false_without_scenarios() -> None:
 
 
 def test_ensure_artifactctl_available_prefers_local_bin(monkeypatch, tmp_path) -> None:
-    monkeypatch.delenv("ARTIFACTCTL_BIN", raising=False)
+    monkeypatch.delenv(ENV_CTL_BIN, raising=False)
     monkeypatch.setenv("HOME", str(tmp_path))
-    local_bin = tmp_path / ".local" / "bin" / "artifactctl"
+    local_bin = tmp_path / ".local" / "bin" / DEFAULT_CTL_BIN
     local_bin.parent.mkdir(parents=True)
     local_bin.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     local_bin.chmod(0o755)
-    monkeypatch.setattr("e2e.run_tests.shutil.which", lambda name: "/usr/local/bin/artifactctl")
+    monkeypatch.setattr(
+        "e2e.run_tests.shutil.which", lambda name: f"/usr/local/bin/{DEFAULT_CTL_BIN}"
+    )
     monkeypatch.setattr("e2e.run_tests.subprocess.run", _probe_ok)
     resolved = ensure_artifactctl_available()
     expected = str(local_bin.resolve())
     assert resolved == expected
-    assert os.environ["ARTIFACTCTL_BIN_RESOLVED"] == expected
+    assert os.environ[ENV_CTL_BIN_RESOLVED] == expected
 
 
 def test_ensure_artifactctl_available_uses_path(monkeypatch, tmp_path) -> None:
-    monkeypatch.delenv("ARTIFACTCTL_BIN", raising=False)
+    monkeypatch.delenv(ENV_CTL_BIN, raising=False)
     monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setattr("e2e.run_tests.shutil.which", lambda name: "/usr/local/bin/artifactctl")
+    monkeypatch.setattr(
+        "e2e.run_tests.shutil.which", lambda name: f"/usr/local/bin/{DEFAULT_CTL_BIN}"
+    )
     monkeypatch.setattr("e2e.run_tests.subprocess.run", _probe_ok)
     resolved = ensure_artifactctl_available()
-    assert resolved == "/usr/local/bin/artifactctl"
-    assert os.environ["ARTIFACTCTL_BIN_RESOLVED"] == "/usr/local/bin/artifactctl"
+    expected = f"/usr/local/bin/{DEFAULT_CTL_BIN}"
+    assert resolved == expected
+    assert os.environ[ENV_CTL_BIN_RESOLVED] == expected
 
 
 def test_ensure_artifactctl_available_uses_override(monkeypatch) -> None:
-    monkeypatch.setenv("ARTIFACTCTL_BIN", "/opt/bin/artifactctl")
+    override = f"/opt/bin/{DEFAULT_CTL_BIN}"
+    monkeypatch.setenv(ENV_CTL_BIN, override)
     monkeypatch.setattr("e2e.run_tests.shutil.which", lambda name: name)
     monkeypatch.setattr("e2e.run_tests.subprocess.run", _probe_ok)
     original_path = os.environ.get("PATH", "")
     resolved = ensure_artifactctl_available()
-    assert resolved == "/opt/bin/artifactctl"
-    assert os.environ["ARTIFACTCTL_BIN_RESOLVED"] == "/opt/bin/artifactctl"
+    assert resolved == override
+    assert os.environ[ENV_CTL_BIN_RESOLVED] == override
     assert os.environ.get("PATH", "") == original_path
 
 
 def test_ensure_artifactctl_available_normalizes_relative_override(monkeypatch, tmp_path) -> None:
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("ARTIFACTCTL_BIN", "./bin/artifactctl")
-    monkeypatch.setattr("e2e.run_tests.shutil.which", lambda name: "./bin/artifactctl")
+    monkeypatch.setenv(ENV_CTL_BIN, f"./bin/{DEFAULT_CTL_BIN}")
+    monkeypatch.setattr("e2e.run_tests.shutil.which", lambda name: f"./bin/{DEFAULT_CTL_BIN}")
     monkeypatch.setattr("e2e.run_tests.subprocess.run", _probe_ok)
     original_path = os.environ.get("PATH", "")
     resolved = ensure_artifactctl_available()
-    expected = str((Path(tmp_path) / "bin" / "artifactctl").resolve())
+    expected = str((Path(tmp_path) / "bin" / DEFAULT_CTL_BIN).resolve())
     assert resolved == expected
-    assert os.environ["ARTIFACTCTL_BIN_RESOLVED"] == expected
+    assert os.environ[ENV_CTL_BIN_RESOLVED] == expected
     assert os.environ.get("PATH", "") == original_path
 
 
 def test_ensure_artifactctl_available_fails_when_missing(monkeypatch) -> None:
-    monkeypatch.delenv("ARTIFACTCTL_BIN", raising=False)
-    monkeypatch.setenv("HOME", "/tmp/esb-no-local-artifactctl")
+    monkeypatch.delenv(ENV_CTL_BIN, raising=False)
+    monkeypatch.setenv("HOME", "/tmp/esb-no-local-ctl")
     monkeypatch.setattr("e2e.run_tests.shutil.which", lambda name: None)
     with pytest.raises(SystemExit):
         ensure_artifactctl_available()
 
 
 def test_ensure_artifactctl_available_fails_when_override_missing(monkeypatch) -> None:
-    monkeypatch.setenv("ARTIFACTCTL_BIN", "/missing/artifactctl")
+    monkeypatch.setenv(ENV_CTL_BIN, f"/missing/{DEFAULT_CTL_BIN}")
     monkeypatch.setattr("e2e.run_tests.shutil.which", lambda name: None)
     with pytest.raises(SystemExit):
         ensure_artifactctl_available()
 
 
 def test_ensure_artifactctl_available_fails_when_subcommand_contract_missing(monkeypatch) -> None:
-    monkeypatch.delenv("ARTIFACTCTL_BIN", raising=False)
-    monkeypatch.setenv("HOME", "/tmp/esb-no-local-artifactctl")
-    monkeypatch.setattr("e2e.run_tests.shutil.which", lambda name: "/usr/local/bin/artifactctl")
+    monkeypatch.delenv(ENV_CTL_BIN, raising=False)
+    monkeypatch.setenv("HOME", "/tmp/esb-no-local-ctl")
+    monkeypatch.setattr(
+        "e2e.run_tests.shutil.which", lambda name: f"/usr/local/bin/{DEFAULT_CTL_BIN}"
+    )
     monkeypatch.setattr(
         "e2e.run_tests.subprocess.run",
         lambda *args, **kwargs: SimpleNamespace(returncode=1, stdout="unknown command: deploy"),
@@ -128,9 +137,11 @@ def test_ensure_artifactctl_available_fails_when_subcommand_contract_missing(mon
 def test_ensure_artifactctl_available_fails_when_fixture_ensure_subcommand_missing(
     monkeypatch,
 ) -> None:
-    monkeypatch.delenv("ARTIFACTCTL_BIN", raising=False)
-    monkeypatch.setenv("HOME", "/tmp/esb-no-local-artifactctl")
-    monkeypatch.setattr("e2e.run_tests.shutil.which", lambda name: "/usr/local/bin/artifactctl")
+    monkeypatch.delenv(ENV_CTL_BIN, raising=False)
+    monkeypatch.setenv("HOME", "/tmp/esb-no-local-ctl")
+    monkeypatch.setattr(
+        "e2e.run_tests.shutil.which", lambda name: f"/usr/local/bin/{DEFAULT_CTL_BIN}"
+    )
 
     def fake_probe(args, **kwargs):
         del kwargs
@@ -147,9 +158,11 @@ def test_ensure_artifactctl_available_fails_when_fixture_ensure_subcommand_missi
 def test_ensure_artifactctl_available_fails_when_capabilities_contract_mismatch(
     monkeypatch,
 ) -> None:
-    monkeypatch.delenv("ARTIFACTCTL_BIN", raising=False)
-    monkeypatch.setenv("HOME", "/tmp/esb-no-local-artifactctl")
-    monkeypatch.setattr("e2e.run_tests.shutil.which", lambda name: "/usr/local/bin/artifactctl")
+    monkeypatch.delenv(ENV_CTL_BIN, raising=False)
+    monkeypatch.setenv("HOME", "/tmp/esb-no-local-ctl")
+    monkeypatch.setattr(
+        "e2e.run_tests.shutil.which", lambda name: f"/usr/local/bin/{DEFAULT_CTL_BIN}"
+    )
 
     def fake_probe(args, **kwargs):
         del kwargs

@@ -111,7 +111,7 @@ func TestPrepareImagesEnsureBaseRunsWithoutFunctionTargets(t *testing.T) {
 
 	t.Setenv("CONTAINER_REGISTRY", "127.0.0.1:5010")
 	t.Setenv("HOST_REGISTRY_ADDR", "127.0.0.1:5010")
-	t.Setenv("ESB_TAG", "latest")
+	t.Setenv("ESB_TAG", "unexpected-env-tag")
 
 	originalImageExists := dockerImageExistsFunc
 	dockerImageExistsFunc = func(string) bool { return false }
@@ -150,7 +150,7 @@ func TestPrepareImagesEnsureBasePushesWhenBaseExistsLocally(t *testing.T) {
 
 	t.Setenv("CONTAINER_REGISTRY", "registry:5010")
 	t.Setenv("HOST_REGISTRY_ADDR", "127.0.0.1:5010")
-	t.Setenv("ESB_TAG", "latest")
+	t.Setenv("ESB_TAG", "unexpected-env-tag")
 
 	originalImageExists := dockerImageExistsFunc
 	dockerImageExistsFunc = func(ref string) bool {
@@ -188,7 +188,7 @@ func TestPrepareImagesEnsureBasePullsBeforeBuildingWhenLocalMissing(t *testing.T
 
 	t.Setenv("CONTAINER_REGISTRY", "127.0.0.1:5010")
 	t.Setenv("HOST_REGISTRY_ADDR", "127.0.0.1:5010")
-	t.Setenv("ESB_TAG", "latest")
+	t.Setenv("ESB_TAG", "unexpected-env-tag")
 
 	originalImageExists := dockerImageExistsFunc
 	dockerImageExistsFunc = func(string) bool { return false }
@@ -228,7 +228,6 @@ func TestPrepareImagesEnsureBaseWithoutTargetsRequiresRegistryEnv(t *testing.T) 
 	t.Setenv("CONTAINER_REGISTRY", "")
 	t.Setenv("HOST_REGISTRY_ADDR", "")
 	t.Setenv("REGISTRY", "")
-	t.Setenv("ESB_TAG", "latest")
 
 	runner := &recordCommandRunner{}
 	err := prepareImages(prepareImagesInput{

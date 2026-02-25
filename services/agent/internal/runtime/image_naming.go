@@ -84,10 +84,5 @@ func ResolveFunctionImageTag() (string, error) {
 	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
 		return value, nil
 	}
-	if key != "ESB_TAG" {
-		if value := strings.TrimSpace(os.Getenv("ESB_TAG")); value != "" {
-			return value, nil
-		}
-	}
 	return "latest", nil
 }

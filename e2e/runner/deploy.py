@@ -8,6 +8,7 @@ import threading
 from pathlib import Path
 from typing import Callable
 
+from e2e.runner.ctl_contract import DEFAULT_CTL_BIN, resolve_ctl_bin_from_env
 from e2e.runner.logging import LogSink, run_and_stream
 from e2e.runner.models import RunContext
 from e2e.runner.utils import PROJECT_ROOT
@@ -36,13 +37,7 @@ _prepared_local_fixture_lock = threading.Lock()
 
 def _artifactctl_bin(ctx: RunContext) -> str:
     # run_tests.py resolves ARTIFACTCTL_BIN(_RESOLVED) before runner starts.
-    resolved = str(ctx.deploy_env.get("ARTIFACTCTL_BIN_RESOLVED", "")).strip()
-    if resolved:
-        return resolved
-    configured = str(ctx.deploy_env.get("ARTIFACTCTL_BIN", "")).strip()
-    if configured:
-        return configured
-    return "artifactctl"
+    return resolve_ctl_bin_from_env(ctx.deploy_env)
 
 
 def deploy_artifacts(
@@ -182,7 +177,7 @@ def _prepare_local_fixture_images(
             raise RuntimeError(
                 "failed to prepare local fixture images via "
                 f"`{artifactctl_bin} internal fixture-image ensure` (exit code {rc}); "
-                "ensure artifactctl supports this internal command"
+                f"ensure {DEFAULT_CTL_BIN} supports this internal command"
             )
 
         prepared_images = _parse_fixture_image_ensure_output(output_lines)

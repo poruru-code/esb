@@ -51,7 +51,7 @@ brand slug は次の順序で 1 つに解決します。
 - 有限 IPv4 スロット上の決定論マッピングのため理論上の衝突可能性は残りますが、従来の `/20` 派生よりスロット空間を拡張し、かつローカル衝突は上記 probe で回避します。
 
 ## Tag Compatibility
-既定タグ解決は `<EnvPrefix>_TAG` を優先し、未設定時は `ESB_TAG`、さらに未設定時は `latest` を使います。
+既定タグ解決は `<EnvPrefix>_TAG` を優先し、未設定時は `latest` を使います。
 
 ## Compose Injection Contract
 stack から安定して brand を導出するため、Agent には最低限以下を渡します。

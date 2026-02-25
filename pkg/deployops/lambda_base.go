@@ -7,30 +7,14 @@ import (
 	"strings"
 )
 
-func resolveLambdaBaseTag(runtime *RuntimeObservation) string {
-	if runtime != nil {
-		if tag := strings.TrimSpace(runtime.ESBVersion); tag != "" {
-			return tag
-		}
-	}
-	if tag := strings.TrimSpace(os.Getenv("ESB_TAG")); tag != "" {
-		return tag
-	}
-	return ""
-}
-
-func resolveDefaultLambdaBaseRef(runtime *RuntimeObservation) (string, error) {
+func resolveDefaultLambdaBaseRef() (string, error) {
 	registry := resolveEnsureBaseRegistry()
 	if registry == "" {
 		return "", fmt.Errorf(
 			"lambda base registry is unresolved: set CONTAINER_REGISTRY or HOST_REGISTRY_ADDR (or REGISTRY)",
 		)
 	}
-	tag := resolveLambdaBaseTag(runtime)
-	if tag == "" {
-		tag = "latest"
-	}
-	return registry + "/esb-lambda-base:" + tag, nil
+	return registry + "/esb-lambda-base:latest", nil
 }
 
 func resolveEnsureBaseRegistry() string {

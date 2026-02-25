@@ -2,7 +2,6 @@
 # Where: e2e/run_tests.py
 # What: E2E test runner for artifact-based scenarios.
 # Why: Provide a single entry point for scenario setup, execution, and teardown.
-import json
 import os
 import shutil
 import subprocess
@@ -13,6 +12,16 @@ import urllib3
 
 from e2e.runner.cli import parse_args
 from e2e.runner.config import load_test_matrix
+from e2e.runner.ctl_contract import (
+    CTL_CAPABILITIES_SCHEMA_VERSION,
+    CTL_REQUIRED_CONTRACTS,
+    CTL_REQUIRED_SUBCOMMANDS,
+    DEFAULT_CTL_BIN,
+    ENV_CTL_BIN,
+    ENV_CTL_BIN_RESOLVED,
+    configured_ctl_bin_from_env,
+    parse_ctl_capabilities,
+)
 from e2e.runner.live_display import LiveDisplay
 from e2e.runner.planner import apply_test_target, build_plan
 from e2e.runner.runner import run_parallel
@@ -20,11 +29,6 @@ from e2e.runner.ui import PlainReporter
 from e2e.runner.utils import PROJECT_ROOT
 
 # Canonical E2E execution path: e2e.runner.runner (legacy executor removed).
-_ARTIFACTCTL_CAPABILITIES_SCHEMA_VERSION = 1
-_ARTIFACTCTL_REQUIRED_CONTRACTS: dict[str, int] = {
-    "maven_shim_ensure_schema_version": 1,
-    "fixture_image_ensure_schema_version": 1,
-}
 
 
 def print_tail_logs(failed_entries: list[str], *, lines: int = 40) -> None:
@@ -88,15 +92,13 @@ def requires_artifactctl(args, env_scenarios: dict[str, object]) -> bool:
 
 
 def ensure_artifactctl_available() -> str:
+    command_name = DEFAULT_CTL_BIN
+
+    def _print_build_hint() -> None:
+        print("        In this repository, run: mise run build-artifactctl")
+
     def _assert_supported(binary_path: str) -> None:
-        required_subcommands = (
-            ("deploy", "--help"),
-            ("provision", "--help"),
-            ("internal", "fixture-image", "ensure", "--help"),
-            ("internal", "maven-shim", "ensure", "--help"),
-            ("internal", "capabilities", "--help"),
-        )
-        for subcommand in required_subcommands:
+        for subcommand in CTL_REQUIRED_SUBCOMMANDS:
             probe = subprocess.run(
                 [binary_path, *subcommand],
                 stdout=subprocess.PIPE,
@@ -107,11 +109,11 @@ def ensure_artifactctl_available() -> str:
             out = (probe.stdout or "").lower()
             if probe.returncode != 0 or "unknown command" in out:
                 command = " ".join(subcommand)
-                print(f"[ERROR] artifactctl binary does not support `{command}`: {binary_path}")
+                print(f"[ERROR] {command_name} binary does not support `{command}`: {binary_path}")
                 print(
-                    "        Ensure a current artifactctl is installed or set ARTIFACTCTL_BIN explicitly."
+                    f"        Ensure a current {command_name} is installed or set {ENV_CTL_BIN} explicitly."
                 )
-                print("        In this repository, run: mise run build-artifactctl")
+                _print_build_hint()
                 sys.exit(1)
 
         cap_probe = subprocess.run(
@@ -122,81 +124,70 @@ def ensure_artifactctl_available() -> str:
             check=False,
         )
         if cap_probe.returncode != 0:
-            print(f"[ERROR] artifactctl capability probe failed: {binary_path}")
-            print("        Ensure a current artifactctl is installed.")
-            print("        In this repository, run: mise run build-artifactctl")
+            print(f"[ERROR] {command_name} capability probe failed: {binary_path}")
+            print(f"        Ensure a current {command_name} is installed.")
+            _print_build_hint()
             sys.exit(1)
 
-        capabilities = _parse_artifactctl_capabilities(cap_probe.stdout or "")
+        capabilities = parse_ctl_capabilities(cap_probe.stdout or "")
+        if capabilities is None:
+            print(f"[ERROR] {command_name} capability response did not include JSON payload.")
+            _print_build_hint()
+            sys.exit(1)
+
         schema_version = capabilities.get("schema_version")
-        if schema_version != _ARTIFACTCTL_CAPABILITIES_SCHEMA_VERSION:
+        if schema_version != CTL_CAPABILITIES_SCHEMA_VERSION:
             print(
-                "[ERROR] artifactctl capability schema mismatch: "
-                f"{schema_version} (expected {_ARTIFACTCTL_CAPABILITIES_SCHEMA_VERSION})"
+                f"[ERROR] {command_name} capability schema mismatch: "
+                f"{schema_version} (expected {CTL_CAPABILITIES_SCHEMA_VERSION})"
             )
-            print("        In this repository, run: mise run build-artifactctl")
+            _print_build_hint()
             sys.exit(1)
 
         contracts = capabilities.get("contracts")
         if not isinstance(contracts, dict):
-            print("[ERROR] artifactctl capability response is missing contracts map.")
-            print("        In this repository, run: mise run build-artifactctl")
+            print(f"[ERROR] {command_name} capability response is missing contracts map.")
+            _print_build_hint()
             sys.exit(1)
 
-        for key, expected in _ARTIFACTCTL_REQUIRED_CONTRACTS.items():
+        for key, expected in CTL_REQUIRED_CONTRACTS.items():
             if contracts.get(key) != expected:
                 print(
-                    "[ERROR] artifactctl missing required contract version: "
+                    f"[ERROR] {command_name} missing required contract version: "
                     f"{key}={contracts.get(key)!r} (expected {expected})"
                 )
-                print("        In this repository, run: mise run build-artifactctl")
+                _print_build_hint()
                 sys.exit(1)
 
-    override = os.environ.get("ARTIFACTCTL_BIN", "").strip()
+    override = configured_ctl_bin_from_env(os.environ)
     if override:
         resolved = shutil.which(override)
         if resolved is None:
-            print(f"[ERROR] ARTIFACTCTL_BIN is set but not executable: {override}")
+            print(f"[ERROR] {ENV_CTL_BIN} is set but not executable: {override}")
             sys.exit(1)
         resolved_abs = os.path.abspath(resolved)
         _assert_supported(resolved_abs)
-        os.environ["ARTIFACTCTL_BIN_RESOLVED"] = resolved_abs
+        os.environ[ENV_CTL_BIN_RESOLVED] = resolved_abs
         return resolved_abs
 
-    preferred_local = os.path.expanduser("~/.local/bin/artifactctl")
+    preferred_local = os.path.expanduser(f"~/.local/bin/{command_name}")
     if os.path.isfile(preferred_local) and os.access(preferred_local, os.X_OK):
         resolved_abs = os.path.abspath(preferred_local)
         _assert_supported(resolved_abs)
-        os.environ["ARTIFACTCTL_BIN_RESOLVED"] = resolved_abs
+        os.environ[ENV_CTL_BIN_RESOLVED] = resolved_abs
         return resolved_abs
 
-    resolved = shutil.which("artifactctl")
+    resolved = shutil.which(command_name)
     if resolved is not None:
         resolved_abs = os.path.abspath(resolved)
         _assert_supported(resolved_abs)
-        os.environ["ARTIFACTCTL_BIN_RESOLVED"] = resolved_abs
+        os.environ[ENV_CTL_BIN_RESOLVED] = resolved_abs
         return resolved_abs
 
-    print("[ERROR] artifactctl binary not found in PATH.")
-    print("        Install artifactctl or set ARTIFACTCTL_BIN to an executable path.")
+    print(f"[ERROR] {command_name} binary not found in PATH.")
+    print(f"        Install {command_name} or set {ENV_CTL_BIN} to an executable path.")
     print("        In this repository, you can install it via: mise run setup")
-    print("        Example: ARTIFACTCTL_BIN=/path/to/artifactctl uv run e2e/run_tests.py ...")
-    sys.exit(1)
-
-
-def _parse_artifactctl_capabilities(raw_output: str) -> dict:
-    for line in reversed(raw_output.splitlines()):
-        raw = line.strip()
-        if raw == "":
-            continue
-        try:
-            payload = json.loads(raw)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(payload, dict):
-            return payload
-    print("[ERROR] artifactctl capability response did not include JSON payload.")
-    print("        In this repository, run: mise run build-artifactctl")
+    print(f"        Example: {ENV_CTL_BIN}=/path/to/{command_name} uv run e2e/run_tests.py ...")
     sys.exit(1)
 
 

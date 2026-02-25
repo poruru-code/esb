@@ -10,6 +10,22 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 TEMPLATE_PATH="${REPO_ROOT}/e2e/fixtures/template.e2e.yaml"
 
+resolve_brand_slug() {
+  python3 - "${REPO_ROOT}" <<'PY'
+import sys
+from pathlib import Path
+
+repo_root = Path(sys.argv[1])
+sys.path.insert(0, str(repo_root))
+from e2e.runner.branding import resolve_brand_slug
+
+print(resolve_brand_slug(None))
+PY
+}
+
+DEFAULT_BRAND_SLUG="$(resolve_brand_slug)"
+BRAND_SLUG="${DEFAULT_BRAND_SLUG}"
+
 if [[ -n "${ARTIFACT_PRODUCER_CMD:-}" ]]; then
   # shellcheck disable=SC2206
   PRODUCER_CMD_ARR=(${ARTIFACT_PRODUCER_CMD})
@@ -145,15 +161,15 @@ cd "${REPO_ROOT}"
 generate_fixture \
   "e2e-docker" \
   "docker" \
-  "esb" \
-  "127.0.0.1:5010/esb-e2e-image-python:latest" \
+  "${BRAND_SLUG}" \
+  "127.0.0.1:5010/${BRAND_SLUG}-e2e-image-python:latest" \
   "python" \
   "e2e-docker-latest"
 
 generate_fixture \
   "e2e-containerd" \
   "containerd" \
-  "esb" \
-  "127.0.0.1:5010/esb-e2e-image-java:latest" \
+  "${BRAND_SLUG}" \
+  "127.0.0.1:5010/${BRAND_SLUG}-e2e-image-java:latest" \
   "java21" \
   "e2e-containerd-latest"

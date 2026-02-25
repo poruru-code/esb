@@ -10,6 +10,7 @@ import pytest
 import yaml
 
 from e2e.runner import deploy as deploy_module
+from e2e.runner.ctl_contract import DEFAULT_CTL_BIN, ENV_CTL_BIN_RESOLVED
 from e2e.runner.deploy import deploy_artifacts
 from e2e.runner.logging import LogSink
 from e2e.runner.models import RunContext, Scenario
@@ -171,7 +172,7 @@ def test_deploy_artifacts_prepares_local_fixture_image(monkeypatch, tmp_path):
         on_line = kwargs.get("on_line")
         if (
             len(cmd) >= 4
-            and cmd[0] == "artifactctl"
+            and cmd[0] == DEFAULT_CTL_BIN
             and cmd[1] == "internal"
             and cmd[2] == "fixture-image"
             and cmd[3] == "ensure"
@@ -197,7 +198,7 @@ def test_deploy_artifacts_prepares_local_fixture_image(monkeypatch, tmp_path):
         log.close()
 
     assert commands[0] == [
-        "artifactctl",
+        DEFAULT_CTL_BIN,
         "internal",
         "fixture-image",
         "ensure",
@@ -237,7 +238,7 @@ def test_deploy_artifacts_local_fixture_prepare_uses_internal_contract(monkeypat
         on_line = kwargs.get("on_line")
         if (
             len(cmd) >= 4
-            and cmd[0] == "artifactctl"
+            and cmd[0] == DEFAULT_CTL_BIN
             and cmd[1] == "internal"
             and cmd[2] == "fixture-image"
             and cmd[3] == "ensure"
@@ -264,7 +265,7 @@ def test_deploy_artifacts_local_fixture_prepare_uses_internal_contract(monkeypat
 
     fixture_ensure_cmd = commands[0]
     assert fixture_ensure_cmd == [
-        "artifactctl",
+        DEFAULT_CTL_BIN,
         "internal",
         "fixture-image",
         "ensure",
@@ -332,7 +333,7 @@ def test_deploy_artifacts_prepares_fixture_then_runs_deploy_and_provision(monkey
         on_line = kwargs.get("on_line")
         if (
             len(cmd) >= 4
-            and cmd[0] == "artifactctl"
+            and cmd[0] == DEFAULT_CTL_BIN
             and cmd[1] == "internal"
             and cmd[2] == "fixture-image"
             and cmd[3] == "ensure"
@@ -358,7 +359,7 @@ def test_deploy_artifacts_prepares_fixture_then_runs_deploy_and_provision(monkey
         log.close()
 
     assert commands[0] == [
-        "artifactctl",
+        DEFAULT_CTL_BIN,
         "internal",
         "fixture-image",
         "ensure",
@@ -368,13 +369,13 @@ def test_deploy_artifacts_prepares_fixture_then_runs_deploy_and_provision(monkey
         "json",
     ]
     assert commands[1] == [
-        "artifactctl",
+        DEFAULT_CTL_BIN,
         "deploy",
         "--artifact",
         str(manifest.resolve()),
     ]
     assert commands[2] == [
-        "artifactctl",
+        DEFAULT_CTL_BIN,
         "provision",
         "--project",
         ctx.compose_project,
@@ -405,7 +406,7 @@ def test_deploy_artifacts_runs_deploy_and_provision(monkeypatch, tmp_path):
         on_line = kwargs.get("on_line")
         if (
             len(cmd) >= 4
-            and cmd[0] == "artifactctl"
+            and cmd[0] == DEFAULT_CTL_BIN
             and cmd[1] == "internal"
             and cmd[2] == "fixture-image"
             and cmd[3] == "ensure"
@@ -429,7 +430,7 @@ def test_deploy_artifacts_runs_deploy_and_provision(monkeypatch, tmp_path):
         log.close()
 
     assert commands[0] == [
-        "artifactctl",
+        DEFAULT_CTL_BIN,
         "internal",
         "fixture-image",
         "ensure",
@@ -439,13 +440,13 @@ def test_deploy_artifacts_runs_deploy_and_provision(monkeypatch, tmp_path):
         "json",
     ]
     assert commands[1] == [
-        "artifactctl",
+        DEFAULT_CTL_BIN,
         "deploy",
         "--artifact",
         str(manifest.resolve()),
     ]
     assert commands[2] == [
-        "artifactctl",
+        DEFAULT_CTL_BIN,
         "provision",
         "--project",
         ctx.compose_project,
@@ -474,7 +475,7 @@ def test_deploy_artifacts_deploy_with_no_cache(monkeypatch, tmp_path):
         on_line = kwargs.get("on_line")
         if (
             len(cmd) >= 4
-            and cmd[0] == "artifactctl"
+            and cmd[0] == DEFAULT_CTL_BIN
             and cmd[1] == "internal"
             and cmd[2] == "fixture-image"
             and cmd[3] == "ensure"
@@ -499,7 +500,7 @@ def test_deploy_artifacts_deploy_with_no_cache(monkeypatch, tmp_path):
         log.close()
 
     assert commands[0] == [
-        "artifactctl",
+        DEFAULT_CTL_BIN,
         "internal",
         "fixture-image",
         "ensure",
@@ -510,7 +511,7 @@ def test_deploy_artifacts_deploy_with_no_cache(monkeypatch, tmp_path):
         "--no-cache",
     ]
     assert commands[1] == [
-        "artifactctl",
+        DEFAULT_CTL_BIN,
         "deploy",
         "--artifact",
         str(manifest.resolve()),
@@ -541,7 +542,7 @@ def test_deploy_artifacts_fixture_prepare_is_cached_by_conditions(monkeypatch, t
         on_line = kwargs.get("on_line")
         if (
             len(cmd) >= 4
-            and cmd[0] == "artifactctl"
+            and cmd[0] == DEFAULT_CTL_BIN
             and cmd[1] == "internal"
             and cmd[2] == "fixture-image"
             and cmd[3] == "ensure"
@@ -574,7 +575,7 @@ def test_deploy_artifacts_fixture_prepare_is_cached_by_conditions(monkeypatch, t
         1
         for cmd in commands
         if len(cmd) >= 4
-        and cmd[0] == "artifactctl"
+        and cmd[0] == DEFAULT_CTL_BIN
         and cmd[1] == "internal"
         and cmd[2] == "fixture-image"
         and cmd[3] == "ensure"
@@ -605,7 +606,7 @@ def test_deploy_artifacts_fixture_prepare_reexecutes_with_no_cache(monkeypatch, 
         on_line = kwargs.get("on_line")
         if (
             len(cmd) >= 4
-            and cmd[0] == "artifactctl"
+            and cmd[0] == DEFAULT_CTL_BIN
             and cmd[1] == "internal"
             and cmd[2] == "fixture-image"
             and cmd[3] == "ensure"
@@ -638,7 +639,7 @@ def test_deploy_artifacts_fixture_prepare_reexecutes_with_no_cache(monkeypatch, 
         cmd
         for cmd in commands
         if len(cmd) >= 4
-        and cmd[0] == "artifactctl"
+        and cmd[0] == DEFAULT_CTL_BIN
         and cmd[1] == "internal"
         and cmd[2] == "fixture-image"
         and cmd[3] == "ensure"
@@ -652,11 +653,12 @@ def test_deploy_artifacts_uses_resolved_artifactctl_bin(monkeypatch, tmp_path):
     image_ref = "127.0.0.1:5010/esb-lambda-echo:e2e-test"
     base_ref = "127.0.0.1:5010/esb-lambda-base:e2e-test"
     manifest = _write_artifact_fixture(tmp_path, image_ref=image_ref, base_ref=base_ref)
+    custom_ctl_bin = f"/opt/tools/custom-{DEFAULT_CTL_BIN}"
     ctx = _make_context(
         tmp_path,
         artifact_manifest=str(manifest),
         runtime_env={
-            "ARTIFACTCTL_BIN_RESOLVED": "/opt/tools/custom-artifactctl",
+            ENV_CTL_BIN_RESOLVED: custom_ctl_bin,
         },
     )
 
@@ -667,7 +669,7 @@ def test_deploy_artifacts_uses_resolved_artifactctl_bin(monkeypatch, tmp_path):
         on_line = kwargs.get("on_line")
         if (
             len(cmd) >= 4
-            and cmd[0] == "/opt/tools/custom-artifactctl"
+            and cmd[0] == custom_ctl_bin
             and cmd[1] == "internal"
             and cmd[2] == "fixture-image"
             and cmd[3] == "ensure"
@@ -690,9 +692,9 @@ def test_deploy_artifacts_uses_resolved_artifactctl_bin(monkeypatch, tmp_path):
     finally:
         log.close()
 
-    assert commands[0][0] == "/opt/tools/custom-artifactctl"
-    assert commands[1][0] == "/opt/tools/custom-artifactctl"
-    assert commands[2][0] == "/opt/tools/custom-artifactctl"
+    assert commands[0][0] == custom_ctl_bin
+    assert commands[1][0] == custom_ctl_bin
+    assert commands[2][0] == custom_ctl_bin
 
 
 def test_deploy_artifacts_requires_manifest(tmp_path):

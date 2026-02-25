@@ -62,7 +62,7 @@ func TestResolveFunctionImageTagUsesDerivedPrefix(t *testing.T) {
 	}
 }
 
-func TestResolveFunctionImageTagFallsBackToESBTag(t *testing.T) {
+func TestResolveFunctionImageTagDoesNotFallbackToESBTag(t *testing.T) {
 	t.Setenv("PROJECT_NAME", "acme-dev")
 	t.Setenv("ENV", "dev")
 	t.Setenv("ACME_TAG", "")
@@ -71,7 +71,7 @@ func TestResolveFunctionImageTagFallsBackToESBTag(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got != "legacy" {
+	if got != "latest" {
 		t.Fatalf("unexpected tag: %s", got)
 	}
 }

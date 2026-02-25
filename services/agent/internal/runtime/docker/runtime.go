@@ -21,6 +21,7 @@ import (
 	"github.com/docker/go-connections/nat"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/poruru-code/esb/services/agent/internal/config"
+	"github.com/poruru-code/esb/services/agent/internal/identity"
 	"github.com/poruru-code/esb/services/agent/internal/runtime"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -71,9 +72,9 @@ func dockerMemoryLimitBytes(env map[string]string) (int64, bool) {
 
 // NewRuntime creates a new Docker runtime.
 func NewRuntime(client Client, networkID, env, brandSlug string) *Runtime {
-	brand := strings.TrimSpace(brandSlug)
+	brand := identity.SanitizeBrandSlug(brandSlug)
 	if brand == "" {
-		brand = "esb"
+		panic("docker runtime brand slug is required")
 	}
 	return &Runtime{
 		client:    client,

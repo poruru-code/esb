@@ -17,6 +17,8 @@ import (
 	"github.com/poruru-code/esb/pkg/deployops/mavenshim"
 )
 
+const ctlCommandName = "artifactctl"
+
 type CLI struct {
 	Deploy    DeployCmd    `cmd:"" help:"Prepare images and apply artifact manifest"`
 	Provision ProvisionCmd `cmd:"" help:"Run deploy provisioner via docker compose"`
@@ -128,6 +130,28 @@ func defaultDeps() commandDeps {
 	}
 }
 
+func commandText(parts ...string) string {
+	tokens := append([]string{ctlCommandName}, parts...)
+	return strings.Join(tokens, " ")
+}
+
+func hintRun(parts ...string) string {
+	return fmt.Sprintf("Hint: run `%s`.", commandText(parts...))
+}
+
+func hintRunForRequiredArgs(parts ...string) string {
+	return fmt.Sprintf("Hint: run `%s` for required arguments.", commandText(parts...))
+}
+
+func parseErrorHint() string {
+	return fmt.Sprintf(
+		"Hint: run `%s`, `%s`, or `%s`.",
+		commandText("--help"),
+		commandText("deploy", "--help"),
+		commandText("provision", "--help"),
+	)
+}
+
 func run(args []string, deps commandDeps) (exitCode int) {
 	out := deps.out
 	if out == nil {
@@ -140,7 +164,7 @@ func run(args []string, deps commandDeps) (exitCode int) {
 	cli := CLI{}
 	parser, err := kong.New(
 		&cli,
-		kong.Name("artifactctl"),
+		kong.Name(ctlCommandName),
 		kong.Description("Prepare images and apply generated artifact manifests."),
 		kong.Writers(out, errOut),
 		kong.Exit(func(code int) {
@@ -165,7 +189,7 @@ func run(args []string, deps commandDeps) (exitCode int) {
 	ctx, err := parser.Parse(args)
 	if err != nil {
 		_, _ = fmt.Fprintf(errOut, "Error: %v\n", err)
-		_, _ = fmt.Fprintln(errOut, "Hint: run `artifactctl --help`, `artifactctl deploy --help`, or `artifactctl provision --help`.")
+		_, _ = fmt.Fprintln(errOut, parseErrorHint())
 		return 1
 	}
 	switch ctx.Command() {
@@ -181,34 +205,34 @@ func run(args []string, deps commandDeps) (exitCode int) {
 	case "provision":
 		if err := runProvision(cli.Provision, deps); err != nil {
 			_, _ = fmt.Fprintf(errOut, "Error: %v\n", err)
-			_, _ = fmt.Fprintln(errOut, "Hint: run `artifactctl provision --help` for required arguments.")
+			_, _ = fmt.Fprintln(errOut, hintRunForRequiredArgs("provision", "--help"))
 			return 1
 		}
 		return 0
 	case "internal maven-shim ensure":
 		if err := runInternalMavenShimEnsure(cli.Internal.MavenShim.Ensure, deps, out, errOut); err != nil {
 			_, _ = fmt.Fprintf(errOut, "Error: %v\n", err)
-			_, _ = fmt.Fprintln(errOut, "Hint: run `artifactctl internal maven-shim ensure --help`.")
+			_, _ = fmt.Fprintln(errOut, hintRun("internal", "maven-shim", "ensure", "--help"))
 			return 1
 		}
 		return 0
 	case "internal fixture-image ensure":
 		if err := runInternalFixtureImageEnsure(cli.Internal.FixtureImage.Ensure, deps, out, errOut); err != nil {
 			_, _ = fmt.Fprintf(errOut, "Error: %v\n", err)
-			_, _ = fmt.Fprintln(errOut, "Hint: run `artifactctl internal fixture-image ensure --help`.")
+			_, _ = fmt.Fprintln(errOut, hintRun("internal", "fixture-image", "ensure", "--help"))
 			return 1
 		}
 		return 0
 	case "internal capabilities":
 		if err := runInternalCapabilities(cli.Internal.Capabilities, deps, out); err != nil {
 			_, _ = fmt.Fprintf(errOut, "Error: %v\n", err)
-			_, _ = fmt.Fprintln(errOut, "Hint: run `artifactctl internal capabilities --help`.")
+			_, _ = fmt.Fprintln(errOut, hintRun("internal", "capabilities", "--help"))
 			return 1
 		}
 		return 0
 	default:
 		_, _ = fmt.Fprintf(errOut, "Error: unsupported command: %s\n", ctx.Command())
-		_, _ = fmt.Fprintln(errOut, "Hint: run `artifactctl --help`.")
+		_, _ = fmt.Fprintln(errOut, hintRun("--help"))
 		return 1
 	}
 }
@@ -447,6 +471,6 @@ func hintForDeployError(err error) string {
 	case errors.As(err, &missingReferencedPath):
 		return "confirm `--artifact` and referenced files exist and are readable."
 	default:
-		return "run `artifactctl deploy --help` for required arguments."
+		return fmt.Sprintf("run `%s` for required arguments.", commandText("deploy", "--help"))
 	}
 }
