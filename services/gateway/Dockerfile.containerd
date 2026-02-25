@@ -42,10 +42,18 @@ COPY pyproject.toml uv.lock /app/
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=secret,id=${PROXY_CA_MOUNT_ID},required=false \
     if [ -s "/run/secrets/${PROXY_CA_MOUNT_ID}" ]; then \
-      install -m 0644 /run/secrets/${PROXY_CA_MOUNT_ID} /usr/local/share/ca-certificates/proxy-ca.crt && \
+            rm -rf /usr/local/share/ca-certificates/proxy-ca && \
+            mkdir -p /usr/local/share/ca-certificates/proxy-ca && \
+            awk 'BEGIN { n=0 } /-----BEGIN CERTIFICATE-----/ { n++ } { if (n > 0) print > ("/usr/local/share/ca-certificates/proxy-ca/proxy-ca-" sprintf("%03d", n) ".crt") }' /run/secrets/${PROXY_CA_MOUNT_ID} && \
+            if [ ! -f /usr/local/share/ca-certificates/proxy-ca/proxy-ca-001.crt ]; then \
+                install -m 0644 /run/secrets/${PROXY_CA_MOUNT_ID} /usr/local/share/ca-certificates/proxy-ca/proxy-ca-001.crt; \
+            fi && \
       update-ca-certificates; \
     fi && \
-    uv sync --frozen --no-install-project
+        SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+        REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \
+        CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \
+        uv sync --native-tls --frozen --no-install-project
 
 # Final stage - Standardized via python base
 FROM ${PYTHON_BASE_IMAGE} AS prod
@@ -55,7 +63,6 @@ ARG SERVICE_UID
 ARG SERVICE_GID
 
 ENV IMAGE_RUNTIME="containerd"
-ENV UV_NATIVE_TLS=true
 
 
 WORKDIR /app
