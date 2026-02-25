@@ -12,7 +12,7 @@ The default image URI in `e2e/fixtures/template.e2e.yaml` is:
 During E2E deploy, runner prepares this fixture image first
 by scanning artifact Dockerfiles (`FROM ...`) and then running
 `docker buildx build` + `docker push`, followed by
-`artifactctl deploy` / `artifactctl provision`.
+`esb-ctl deploy` / `esb-ctl provision`.
 
 Use this directory when you need to rebuild and publish the source image.
 

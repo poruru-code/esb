@@ -17,12 +17,12 @@ Why: Define a stable boundary between artifact producer (external/manual) and ru
 
 ## 契約固定ルール（ブレ防止）
 - `runtime-base/**` は Deploy Artifact Contract の対象外です。
-- `artifactctl deploy` は artifact 生成を行いません。必要な image build は許可しますが、artifact 作成時の `runtime-base/**` を base ソースとして使用しません。
-- `artifactctl deploy` が参照する lambda base は deploy 時の実行ルールを正とします（artifact 作成時の資産は参照しません）。
+- `esb-ctl deploy` は artifact 生成を行いません。必要な image build は許可しますが、artifact 作成時の `runtime-base/**` を base ソースとして使用しません。
+- `esb-ctl deploy` が参照する lambda base は deploy 時の実行ルールを正とします（artifact 作成時の資産は参照しません）。
   - 関数 Dockerfile build 対象がある場合: 当該 Dockerfile の `FROM` 参照を使用（registry alias は deploy 側で正規化）
   - 関数 Dockerfile build 対象が 0 件の場合: 既定 `esb-lambda-base:latest` を target registry に ensure
-- `artifactctl deploy` は関数イメージの build 対象有無に関係なく、deploy 前提条件として lambda base を target registry へ確保する必要があります。
-- `artifactctl deploy` は deploy で build/push する function image の local registry alias（例: `127.0.0.1:5010`, `registry:5010`）を deploy 実行時の `CONTAINER_REGISTRY` に正規化して扱います。
+- `esb-ctl deploy` は関数イメージの build 対象有無に関係なく、deploy 前提条件として lambda base を target registry へ確保する必要があります。
+- `esb-ctl deploy` は deploy で build/push する function image の local registry alias（例: `127.0.0.1:5010`, `registry:5010`）を deploy 実行時の `CONTAINER_REGISTRY` に正規化して扱います。
 - lambda base ensure で使う target registry は `HOST_REGISTRY_ADDR` -> `CONTAINER_REGISTRY` -> `REGISTRY` の順で解決します。
 - lambda base pull 失敗時は、現行実装では `runtime-hooks/python/docker/Dockerfile` からのローカル build へフォールバックします。
 - 互換性判定は artifact 内ファイルではなく、実行時スタック観測結果に基づいて行います。
@@ -76,7 +76,7 @@ Why: Define a stable boundary between artifact producer (external/manual) and ru
 
 ## 手動作成で成立する最小必須セット（固定）
 このセクションは「producer を使わず、手動で artifact を作る」場合の最小要件です。
-`artifactctl deploy` で成立させるため、以下だけを必須とします。
+`esb-ctl deploy` で成立させるため、以下だけを必須とします。
 
 - Manifest 必須:
   - `schema_version`
@@ -178,7 +178,7 @@ artifacts:
 - Applier（adapter / 手動適用）:
   - `artifact.yml` を検証
   - `artifacts[]` 配列順で runtime-config をマージし `esb-runtime-config` volume へ反映
-  - `artifactctl deploy` と provision を実行
+  - `esb-ctl deploy` と provision を実行
 - Runtime Consumer（Gateway/Provisioner/Agent）:
   - 反映済み設定を読み込むのみ
   - 生成系ツールへの依存を持たない
@@ -190,18 +190,18 @@ artifacts:
   - image build 時の lambda base 解決は deploy 時ルールに従い、artifact 内 `runtime-base/**` を根拠にしない
   - `tools/artifactctl/cmd/artifactctl` は command adapter、実ロジック正本は `pkg/deployops` + `pkg/artifactcore` とする
 - producer 側 apply adapter:
-  - `artifactctl deploy` と同じ Go 実装を呼ぶ薄いアダプタとして振る舞う
+  - `esb-ctl deploy` と同じ Go 実装を呼ぶ薄いアダプタとして振る舞う
 
 ## 外部オーケストレータ連携（ESB-CLI）
-- ESB-CLI などの外部ツールは `pkg/*` 参照だけでは command surface 変更を吸収できません。`artifactctl` バイナリ呼び出しで連携します。
-- 連携前提として `artifactctl internal capabilities --output json` の schema/contracts を照合してください。
+- ESB-CLI などの外部ツールは `pkg/*` 参照だけでは command surface 変更を吸収できません。`esb-ctl` バイナリ呼び出しで連携します。
+- 連携前提として `esb-ctl internal capabilities --output json` の schema/contracts を照合してください。
 - 最低限 required な subcommand は以下です。
   - `deploy`
   - `provision`
   - `internal fixture-image ensure`
   - `internal maven-shim ensure`
   - `internal capabilities`
-- binary path override は `ARTIFACTCTL_BIN` を使用します。
+- binary path override は `CTL_BIN` を使用します。
 
 repo 分離後の依存方向:
 - core repo が `pkg/artifactcore` を保有する
@@ -225,12 +225,12 @@ artifactcore 配布/開発ルール:
 |---|---|---|
 | 1. テンプレート解析 | producer が SAM を解析 | 実行しない（生成済み成果物を受領） |
 | 2. 生成（Dockerfile / config） | `artifact.yml` を出力（`artifacts[]` に全テンプレートを記録） | 実行しない |
-| 3. Artifact 適用（検証 + 設定反映） | producer 側 apply adapter が実行 | `artifactctl deploy --artifact ...` を実行 |
+| 3. Artifact 適用（検証 + 設定反映） | producer 側 apply adapter が実行 | `esb-ctl deploy --artifact ...` を実行 |
 | 4. Provision | provisioner を実行 | `docker compose up` の起動シーケンス内で自動実行（必要時は `docker compose --profile deploy run --rm provisioner` を明示実行） |
 | 5. Runtime 起動 | `docker compose up` | `docker compose up` |
 
 補足:
-- `artifactctl deploy` は `artifact_root` を読み取り専用として扱い、`artifact_root` 配下へ一時ファイルを書き込みません。
+- `esb-ctl deploy` は `artifact_root` を読み取り専用として扱い、`artifact_root` 配下へ一時ファイルを書き込みません。
 
 ## Producer コマンド責務（外部管理）
 - producer のコマンド体系は本リポジトリ管理外です。
@@ -245,7 +245,7 @@ artifactcore 配布/開発ルール:
 - 複数テンプレート時の適用順と対象は `artifact.yml` の `artifacts[]` が正本です。
 
 ## 手動ランブック（Phase 3-5）
-前提: `docker`, `docker compose`, `artifactctl` が利用可能であること。
+前提: `docker`, `docker compose`, `esb-ctl` が利用可能であること。
 
 ### 0) 変数
 ```bash
@@ -258,17 +258,17 @@ RUN_ENV="/path/to/run.env"
 ### 1) Artifact 適用（検証 + 設定反映）
 ```bash
 test -f "${ARTIFACT}"
-artifactctl deploy \
+esb-ctl deploy \
   --artifact "${ARTIFACT}"
 
 cat "${SECRETS_ENV}" > "${RUN_ENV}"
 ```
 
 注記:
-- `artifactctl deploy` は検証と apply を実行します（必要時に image build/pull を実行し得ます）。
+- `esb-ctl deploy` は検証と apply を実行します（必要時に image build/pull を実行し得ます）。
 - image build では artifact 作成時の `runtime-base/**` ではなく、実行時環境の lambda base を使用します。
-- `artifactctl deploy` は deploy 時に必要な lambda base を確保し、関数 build が 0 件のときは既定の `esb-lambda-base:latest` を target registry へ確保します。
-- `artifactctl deploy` は最終 runtime-config（volume 内 `functions.yml`）でも、deploy で build/push した function image を実行時 registry へ正規化します。
+- `esb-ctl deploy` は deploy 時に必要な lambda base を確保し、関数 build が 0 件のときは既定の `esb-lambda-base:latest` を target registry へ確保します。
+- `esb-ctl deploy` は最終 runtime-config（volume 内 `functions.yml`）でも、deploy で build/push した function image を実行時 registry へ正規化します。
 
 ### 2) Provision 実行（任意: 明示再実行したい場合）
 ```bash

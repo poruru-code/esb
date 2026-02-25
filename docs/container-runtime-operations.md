@@ -79,7 +79,7 @@ docker image prune -f
 - 内部レジストリに対象イメージが投入されていない
 
 対応:
-1. `artifactctl deploy --artifact <artifact.yml>` を再実行
+1. `esb-ctl deploy --artifact <artifact.yml>` を再実行
 
 ### 4. `<untagged>` イメージが増える
 - `docker image prune -f` で中間レイヤーを整理
