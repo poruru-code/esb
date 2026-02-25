@@ -46,3 +46,30 @@ def test_isolate_external_network_keeps_shared_registry(monkeypatch):
     assert disconnect_calls == [
         ["docker", "network", "disconnect", "-f", "esb-e2e-containerd-external", "other-helper"]
     ]
+
+
+def test_cleanup_managed_images_uses_brand_derived_labels(monkeypatch):
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, capture_output=True, text=True, check=False):
+        calls.append(list(cmd))
+        if cmd[:3] == ["docker", "images", "-q"]:
+            return _RunResult(returncode=0, stdout="")
+        return _RunResult(returncode=0, stdout="")
+
+    monkeypatch.setattr(cleanup.subprocess, "run", fake_run)
+
+    cleanup.cleanup_managed_images(
+        env_name="e2e-x",
+        project_name="Acme Prod",
+        log=lambda _line: None,
+        printer=None,
+    )
+
+    assert calls
+    image_cmd = calls[0]
+    assert image_cmd[:3] == ["docker", "images", "-q"]
+    assert "--filter" in image_cmd
+    assert "label=com.acme-prod.managed=true" in image_cmd
+    assert "label=com.acme-prod.project=Acme Prod-e2e-x" in image_cmd
+    assert "label=com.acme-prod.env=e2e-x" in image_cmd

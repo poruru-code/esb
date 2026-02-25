@@ -337,9 +337,7 @@ def resolve_esb_home(env_name: str) -> Path:
     if prefixed_home:
         return Path(prefixed_home).expanduser()
     project_name = (
-        os.environ.get(env_key("PROJECT"))
-        or os.environ.get(constants.ENV_PROJECT_NAME)
-        or None
+        os.environ.get(env_key("PROJECT")) or os.environ.get(constants.ENV_PROJECT_NAME) or None
     )
     return Path.home() / brand_home_dir(project_name) / env_name
 

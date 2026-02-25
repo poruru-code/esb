@@ -197,6 +197,21 @@ func TestResolveRepoRootDetectsGitFileMarker(t *testing.T) {
 	}
 }
 
+func TestResolveRepoRootFallsBackToCommonAncestorWithoutGit(t *testing.T) {
+	root := t.TempDir()
+	repoRoot := filepath.Join(root, "workspace")
+	artifactRoot := filepath.Join(repoRoot, "artifacts", "fixture")
+	manifestPath := filepath.Join(repoRoot, "manifests", "artifact.yml")
+	mustMkdirAll(t, artifactRoot)
+	mustMkdirAll(t, filepath.Dir(manifestPath))
+	mustWriteFile(t, manifestPath, "apiVersion: v1\n")
+
+	resolved := resolveRepoRoot(manifestPath, artifactRoot)
+	if filepath.Clean(resolved) != filepath.Clean(repoRoot) {
+		t.Fatalf("expected repo root %s, got %s", repoRoot, resolved)
+	}
+}
+
 func TestExtractZipToDirWithLimitRejectsOversizedEntry(t *testing.T) {
 	root := t.TempDir()
 	zipPath := filepath.Join(root, "oversized.zip")
