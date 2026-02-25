@@ -6,14 +6,20 @@ import subprocess
 from pathlib import Path
 
 from e2e.runner import constants
-from e2e.runner.utils import (
-    BRAND_HOME_DIR,
-    BRAND_SLUG,
-    ENV_PREFIX,
-    PROJECT_ROOT,
-    env_key,
-    resolve_env_file_path,
+from e2e.runner.branding import (
+    DEFAULT_ENV_PREFIX,
+    brand_home_dir,
+    buildkitd_config_path,
+    buildx_builder_name,
+    lambda_network_name,
+    resolve_brand_slug,
+    resolve_project_name,
+    root_ca_mount_id,
 )
+from e2e.runner.branding import (
+    cert_dir as default_cert_dir,
+)
+from e2e.runner.utils import PROJECT_ROOT, env_key, resolve_env_file_path
 
 _DEFAULT_NO_PROXY_TARGETS = (
     "agent",
@@ -53,11 +59,12 @@ def env_runtime_subnet_index(env: str) -> int:
     return 100 + hash_mod(env, 100)
 
 
-def read_env_file(path: str) -> dict[str, str]:
+def read_env_file(path: str, *, brand_slug: str | None = None) -> dict[str, str]:
     env = {}
     env_path = Path(path)
     if not env_path.exists():
         return env
+    resolved_brand_slug = resolve_brand_slug(brand_slug)
     for line in env_path.read_text().splitlines():
         line = line.strip()
         if not line or line.startswith("#"):
@@ -67,7 +74,7 @@ def read_env_file(path: str) -> dict[str, str]:
         key, _, value = line.partition("=")
         value = value.strip()
         if "<brand>" in value:
-            value = value.replace("<brand>", BRAND_SLUG)
+            value = value.replace("<brand>", resolved_brand_slug)
         env[key.strip()] = value
     return env
 
@@ -128,11 +135,13 @@ def calculate_runtime_env(
 ) -> dict[str, str]:
     """Replicates Go CLI's applyRuntimeEnv logic for the E2E runner."""
     env = os.environ.copy()
+    project_name = resolve_project_name(project_name)
+    brand_slug = resolve_brand_slug(project_name)
 
     # Load from env_file first, then apply explicit scenario overrides.
     env_from_file: dict[str, str] = {}
     if env_file:
-        env_from_file = read_env_file(env_file)
+        env_from_file = read_env_file(env_file, brand_slug=brand_slug)
         env.update(env_from_file)
     if env_overrides:
         env.update(env_overrides)
@@ -143,8 +152,8 @@ def calculate_runtime_env(
 
     env[constants.ENV_ENV] = env_name
     env[constants.ENV_MODE] = mode
-    env[f"{ENV_PREFIX}_ENV"] = env_name
-    env[f"{ENV_PREFIX}_MODE"] = mode
+    env[f"{DEFAULT_ENV_PREFIX}_ENV"] = env_name
+    env[f"{DEFAULT_ENV_PREFIX}_MODE"] = mode
 
     env[constants.ENV_PROJECT_NAME] = project_name
 
@@ -214,7 +223,7 @@ def calculate_runtime_env(
         env.pop(constants.ENV_RUNTIME_NODE_IP, None)
 
     if not env.get(constants.ENV_LAMBDA_NETWORK):
-        env[constants.ENV_LAMBDA_NETWORK] = f"{BRAND_SLUG}_int_{env_name}"
+        env[constants.ENV_LAMBDA_NETWORK] = lambda_network_name(project_name, env_name)
 
     # 4. Registry Defaults
     if constants.ENV_CONTAINER_REGISTRY not in env_from_file:
@@ -225,7 +234,7 @@ def calculate_runtime_env(
 
     # 5. Credentials (Simplified generation for E2E)
     if not env.get(constants.ENV_AUTH_USER):
-        env[constants.ENV_AUTH_USER] = BRAND_SLUG
+        env[constants.ENV_AUTH_USER] = brand_slug
     if not env.get(constants.ENV_AUTH_PASS):
         env[constants.ENV_AUTH_PASS] = secrets.token_hex(16)
     if not env.get(constants.ENV_JWT_SECRET_KEY):
@@ -233,26 +242,26 @@ def calculate_runtime_env(
     if not env.get(constants.ENV_X_API_KEY):
         env[constants.ENV_X_API_KEY] = secrets.token_hex(32)
     if not env.get(constants.ENV_RUSTFS_ACCESS_KEY):
-        env[constants.ENV_RUSTFS_ACCESS_KEY] = BRAND_SLUG
+        env[constants.ENV_RUSTFS_ACCESS_KEY] = brand_slug
     if not env.get(constants.ENV_RUSTFS_SECRET_KEY):
         env[constants.ENV_RUSTFS_SECRET_KEY] = secrets.token_hex(16)
 
     # 6. Branding & Certificates (Replicating applyBrandingEnv in Go)
-    env["ENV_PREFIX"] = ENV_PREFIX
-    env[constants.ENV_ROOT_CA_MOUNT_ID] = f"{BRAND_SLUG}_root_ca"
+    env["ENV_PREFIX"] = DEFAULT_ENV_PREFIX
+    env[constants.ENV_ROOT_CA_MOUNT_ID] = root_ca_mount_id(project_name)
     env.setdefault(constants.ENV_ROOT_CA_CERT_FILENAME, constants.DEFAULT_ROOT_CA_FILENAME)
 
     # Resolve CERT_DIR (repo-root scoped)
     cert_dir = Path(
         os.environ.get(
             constants.ENV_CERT_DIR,
-            (PROJECT_ROOT / BRAND_HOME_DIR / "certs"),
+            str(default_cert_dir(PROJECT_ROOT, project_name)),
         )
     ).expanduser()
     env.setdefault(constants.ENV_CERT_DIR, str(cert_dir))
     env.setdefault(
         constants.ENV_BUILDKITD_CONFIG,
-        str((PROJECT_ROOT / BRAND_HOME_DIR / "buildkitd.toml").expanduser()),
+        str(buildkitd_config_path(PROJECT_ROOT, project_name)),
     )
 
     # Calculate ROOT_CA_FINGERPRINT for build cache invalidation
@@ -266,7 +275,7 @@ def calculate_runtime_env(
 
     # 8. Docker BuildKit
     env.setdefault(constants.ENV_DOCKER_BUILDKIT, "1")
-    env.setdefault("BUILDX_BUILDER", f"{BRAND_SLUG}-buildx")
+    env.setdefault("BUILDX_BUILDER", buildx_builder_name(project_name))
     env.setdefault("COMPOSE_DOCKER_CLI_BUILD", "1")
 
     # 9. E2E safety toggles
@@ -327,7 +336,12 @@ def resolve_esb_home(env_name: str) -> Path:
     prefixed_home = os.environ.get(env_key("HOME"))
     if prefixed_home:
         return Path(prefixed_home).expanduser()
-    return Path.home() / BRAND_HOME_DIR / env_name
+    project_name = (
+        os.environ.get(env_key("PROJECT"))
+        or os.environ.get(constants.ENV_PROJECT_NAME)
+        or None
+    )
+    return Path.home() / brand_home_dir(project_name) / env_name
 
 
 def _resolve_compose_files_from_project(project_name: str) -> list[Path]:
@@ -526,10 +540,15 @@ def apply_gateway_env_from_container(env: dict[str, str], project_name: str) -> 
     tls_enabled = gateway_env.get(constants.ENV_AGENT_GRPC_TLS_ENABLED)
     if tls_enabled:
         env[constants.ENV_AGENT_GRPC_TLS_ENABLED] = tls_enabled
+        default_project = (
+            env.get(env_key("PROJECT"))
+            or env.get(constants.ENV_PROJECT_NAME)
+            or os.environ.get(constants.ENV_PROJECT_NAME)
+        )
         cert_dir = Path(
             os.environ.get(
                 constants.ENV_CERT_DIR,
-                (PROJECT_ROOT / BRAND_HOME_DIR / "certs"),
+                str(default_cert_dir(PROJECT_ROOT, default_project)),
             )
         ).expanduser()
         env[constants.ENV_AGENT_GRPC_TLS_CA_CERT_PATH] = str(

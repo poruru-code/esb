@@ -5,14 +5,20 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from e2e.runner.branding import (
+    DEFAULT_BRAND_SLUG,
+    DEFAULT_ENV_PREFIX,
+    brand_home_dir,
+)
+
 # Project root
 # Assuming this file is in e2e/runner/utils.py, parent.parent is "e2e", parent.parent.parent is root.
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
-ENV_PREFIX = "ESB"
-BRAND_SLUG = "esb"
-BRAND_HOME_DIR = ".esb"
-BRAND_OUTPUT_DIR = ".esb"
+ENV_PREFIX = DEFAULT_ENV_PREFIX
+BRAND_SLUG = DEFAULT_BRAND_SLUG
+BRAND_HOME_DIR = brand_home_dir(BRAND_SLUG)
+BRAND_OUTPUT_DIR = BRAND_HOME_DIR
 E2E_STATE_ROOT = PROJECT_ROOT / BRAND_OUTPUT_DIR / "e2e" / "state"
 E2E_ARTIFACT_ROOT = PROJECT_ROOT / "e2e" / "artifacts"
 

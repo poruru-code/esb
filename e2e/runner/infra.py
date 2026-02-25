@@ -6,7 +6,7 @@ from http.client import HTTPConnection, HTTPException
 from typing import Callable, Tuple
 
 from e2e.runner import constants
-from e2e.runner.utils import BRAND_SLUG
+from e2e.runner.branding import infra_registry_container_name
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +14,7 @@ INFRA_COMPOSE_FILE = "docker-compose.infra.yml"
 
 
 def _registry_container_name() -> str:
-    return os.environ.get("REGISTRY_CONTAINER_NAME", f"{BRAND_SLUG}-infra-registry")
+    return os.environ.get("REGISTRY_CONTAINER_NAME", infra_registry_container_name())
 
 
 def ensure_infra_up(project_root: str, *, printer: Callable[[str], None] | None = None) -> None:

@@ -5,9 +5,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from e2e.runner.branding import resolve_project_name
 from e2e.runner.config import build_env_scenarios
 from e2e.runner.models import Scenario
-from e2e.runner.utils import BRAND_SLUG
 
 
 def build_plan(
@@ -63,6 +63,6 @@ def _to_scenario(data: dict[str, Any]) -> Scenario:
         env_dir=data.get("env_dir"),
         targets=data.get("targets", []) or [],
         exclude=data.get("exclude", []) or [],
-        project_name=data.get("esb_project", BRAND_SLUG),
+        project_name=resolve_project_name(data.get("esb_project")),
         extra={k: v for k, v in data.items() if k not in known_keys},
     )

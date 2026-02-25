@@ -14,7 +14,6 @@ import (
 
 const (
 	layerCacheSchemaVersion       = "v1"
-	defaultBrandSlug              = "esb"
 	maxLayerExtractBytes    int64 = 1 << 30 // 1 GiB
 )
 
@@ -251,63 +250,6 @@ func dockerfileLogicalLines(dockerfile string) []string {
 	return lines
 }
 
-func resolveBrandHomeDir(repoRoot string) string {
-	slug := sanitizeBrandSlug(readBrandingSlugFile(filepath.Join(repoRoot, ".branding.env")))
-	if slug == "" {
-		slug = sanitizeBrandSlug(strings.TrimSpace(os.Getenv("BRANDING_SLUG")))
-	}
-	if slug == "" {
-		slug = defaultBrandSlug
-	}
-	return "." + slug
-}
-
-func sanitizeBrandSlug(value string) string {
-	value = strings.TrimSpace(strings.ToLower(value))
-	if value == "" {
-		return ""
-	}
-	var b strings.Builder
-	for _, r := range value {
-		switch {
-		case r >= 'a' && r <= 'z':
-			b.WriteRune(r)
-		case r >= '0' && r <= '9':
-			b.WriteRune(r)
-		case r == '-' || r == '_':
-			b.WriteRune(r)
-		}
-	}
-	result := strings.TrimSpace(b.String())
-	if result == "" {
-		return ""
-	}
-	return result
-}
-
-func readBrandingSlugFile(path string) string {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return ""
-	}
-	for _, line := range strings.Split(string(data), "\n") {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
-			continue
-		}
-		trimmed = strings.TrimPrefix(trimmed, "export ")
-		if !strings.HasPrefix(trimmed, "BRANDING_SLUG=") {
-			continue
-		}
-		value := strings.TrimSpace(strings.TrimPrefix(trimmed, "BRANDING_SLUG="))
-		value = strings.Trim(value, "\"'")
-		if value != "" {
-			return value
-		}
-	}
-	return ""
-}
-
 func prepareLayerArchiveCache(cacheRoot, archivePath string, nestPython bool) (string, error) {
 	archiveDigest, err := hashFileSHA256(archivePath)
 	if err != nil {
@@ -479,51 +421,4 @@ func extractZipToDirWithLimit(src, dst, prefix string, maxExtractBytes int64) er
 		}
 	}
 	return nil
-}
-
-func resolveRepoRoot(manifestPath, artifactRoot string) string {
-	candidates := []string{artifactRoot, filepath.Dir(manifestPath)}
-	for _, candidate := range candidates {
-		if root, ok := findAncestorWithFile(candidate, ".branding.env"); ok {
-			return root
-		}
-	}
-	for _, candidate := range candidates {
-		if root, ok := findAncestorWithPath(candidate, ".git"); ok {
-			return root
-		}
-	}
-	if cwd, err := os.Getwd(); err == nil {
-		return cwd
-	}
-	return filepath.Dir(manifestPath)
-}
-
-func findAncestorWithFile(start, name string) (string, bool) {
-	current := filepath.Clean(start)
-	for {
-		info, err := os.Stat(filepath.Join(current, name))
-		if err == nil && !info.IsDir() {
-			return current, true
-		}
-		parent := filepath.Dir(current)
-		if parent == current {
-			return "", false
-		}
-		current = parent
-	}
-}
-
-func findAncestorWithPath(start, name string) (string, bool) {
-	current := filepath.Clean(start)
-	for {
-		if _, err := os.Stat(filepath.Join(current, name)); err == nil {
-			return current, true
-		}
-		parent := filepath.Dir(current)
-		if parent == current {
-			return "", false
-		}
-		current = parent
-	}
 }

@@ -3,7 +3,8 @@ from pathlib import Path
 
 import yaml
 
-from e2e.runner.utils import BRAND_SLUG, PROJECT_ROOT
+from e2e.runner.branding import resolve_project_name
+from e2e.runner.utils import PROJECT_ROOT
 
 MATRIX_ROOT = PROJECT_ROOT / "e2e" / "environments"
 
@@ -29,7 +30,7 @@ def _require_non_empty_field(entry: dict, field: str) -> str:
 def _resolve_esb_project(entry: dict) -> str:
     value = entry.get("esb_project")
     if value is None:
-        return BRAND_SLUG
+        return resolve_project_name(None)
     normalized = str(value).strip()
     if normalized == "":
         raise ValueError("matrix field 'esb_project' must be non-empty when provided")

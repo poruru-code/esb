@@ -10,7 +10,6 @@ import (
 
 func TestPrepareFunctionLayerBuildContextsPythonFlatZip(t *testing.T) {
 	repoRoot := t.TempDir()
-	mustWriteFile(t, filepath.Join(repoRoot, ".branding.env"), "export BRANDING_SLUG=acme\n")
 
 	contextRoot := filepath.Join(repoRoot, "tmp-context")
 	functionDir := filepath.Join(contextRoot, "functions", "lambda-echo")
@@ -36,7 +35,7 @@ func TestPrepareFunctionLayerBuildContextsPythonFlatZip(t *testing.T) {
 	if path == "" {
 		t.Fatalf("expected layer context path")
 	}
-	expectedRoot := filepath.Join(repoRoot, ".acme", "cache", "layers")
+	expectedRoot := filepath.Join(repoRoot, ".esb", "cache", "layers")
 	if !strings.HasPrefix(filepath.Clean(path), filepath.Clean(expectedRoot)) {
 		t.Fatalf("expected context under %s, got %s", expectedRoot, path)
 	}
@@ -144,21 +143,11 @@ func TestPrepareFunctionLayerBuildContextsAllowsLayerAliasFromStage(t *testing.T
 	}
 }
 
-func TestResolveBrandHomeDirSanitizesAndFallsBack(t *testing.T) {
+func TestResolveBrandHomeDirUsesDefault(t *testing.T) {
 	repoRoot := t.TempDir()
 
 	if got := resolveBrandHomeDir(repoRoot); got != ".esb" {
 		t.Fatalf("expected default home dir, got %s", got)
-	}
-
-	t.Setenv("BRANDING_SLUG", "../../BAD***")
-	if got := resolveBrandHomeDir(repoRoot); got != ".bad" {
-		t.Fatalf("expected sanitized env slug, got %s", got)
-	}
-
-	mustWriteFile(t, filepath.Join(repoRoot, ".branding.env"), "export BRANDING_SLUG=AcMe-Prod\n")
-	if got := resolveBrandHomeDir(repoRoot); got != ".acme-prod" {
-		t.Fatalf("expected file slug to win, got %s", got)
 	}
 }
 

@@ -9,7 +9,6 @@ from e2e.runner.env import (
     hash_mod,
 )
 from e2e.runner.utils import (
-    BRAND_SLUG,
     ENV_PREFIX,
     env_key,
 )
@@ -51,7 +50,7 @@ def test_calculate_runtime_env_defaults():
         assert constants.ENV_RUNTIME_NET_SUBNET in env
         assert constants.ENV_RUNTIME_NODE_IP in env
         assert env[constants.ENV_NETWORK_EXTERNAL] == "myproj-myenv-external"
-        assert env[constants.ENV_LAMBDA_NETWORK] == f"{BRAND_SLUG}_int_myenv"
+        assert env[constants.ENV_LAMBDA_NETWORK] == "myproj_int_myenv"
 
         # Check Ports (should be initialized to "0" for dynamic discovery)
         for p_suffix in (
@@ -71,7 +70,7 @@ def test_calculate_runtime_env_defaults():
                 assert env[key] == "0"
 
         # Check Credentials generation matches branding
-        assert env[constants.ENV_AUTH_USER] == BRAND_SLUG
+        assert env[constants.ENV_AUTH_USER] == "myproj"
         assert len(env[constants.ENV_AUTH_PASS]) == 32  # token_hex(16) -> 32 chars
         assert len(env[constants.ENV_JWT_SECRET_KEY]) == 64
         assert len(env[constants.ENV_X_API_KEY]) == 64
@@ -158,3 +157,16 @@ def test_calculate_runtime_env_prefers_explicit_overrides_over_env_file(tmp_path
 
     for key, value in overrides.items():
         assert env[key] == value
+
+
+def test_calculate_runtime_env_derives_brand_values_from_project_name():
+    with mock.patch.dict(os.environ, {}, clear=True):
+        env = calculate_runtime_env("Acme Prod", "myenv", "docker")
+
+    assert env[constants.ENV_LAMBDA_NETWORK] == "acme-prod_int_myenv"
+    assert env[constants.ENV_AUTH_USER] == "acme-prod"
+    assert env[constants.ENV_RUSTFS_ACCESS_KEY] == "acme-prod"
+    assert env[constants.ENV_ROOT_CA_MOUNT_ID] == "acme-prod_root_ca"
+    assert env["BUILDX_BUILDER"] == "acme-prod-buildx"
+    assert env[constants.ENV_CERT_DIR].endswith("/.acme-prod/certs")
+    assert env[constants.ENV_BUILDKITD_CONFIG].endswith("/.acme-prod/buildkitd.toml")

@@ -18,7 +18,6 @@ from e2e.runner.env import discover_ports
 from e2e.runner.logging import LogSink, run_and_stream
 from e2e.runner.models import RunContext, Scenario
 from e2e.runner.utils import (
-    BRAND_SLUG,
     E2E_STATE_ROOT,
     PROJECT_ROOT,
     env_key,
@@ -43,7 +42,7 @@ def reset_environment(
     printer: Callable[[str], None] | None = None,
 ) -> None:
     env_name = ctx.scenario.env_name
-    project_label = f"{BRAND_SLUG}-{env_name}"
+    project_label = ctx.compose_project
     log.write_line(f"Resetting environment: {env_name}")
     if printer:
         printer(f"Resetting environment: {env_name}")
@@ -63,7 +62,7 @@ def reset_environment(
             printer=printer,
         )
 
-    thorough_cleanup(env_name, log=log.write_line, printer=printer)
+    thorough_cleanup(project_label, env_name, log=log.write_line, printer=printer)
     cleanup_managed_images(
         env_name,
         ctx.project_name,
