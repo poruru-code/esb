@@ -192,6 +192,22 @@ func TestParseLayerContextAliasesHandlesLineContinuation(t *testing.T) {
 	}
 }
 
+func TestResolveRepoRootDetectsGitFileMarker(t *testing.T) {
+	root := t.TempDir()
+	repoRoot := filepath.Join(root, "repo")
+	artifactRoot := filepath.Join(repoRoot, "artifacts", "fixture")
+	manifestPath := filepath.Join(repoRoot, "manifests", "artifact.yml")
+	mustMkdirAll(t, artifactRoot)
+	mustMkdirAll(t, filepath.Dir(manifestPath))
+	mustWriteFile(t, filepath.Join(repoRoot, ".git"), "gitdir: /tmp/worktrees/repo/.git\n")
+	mustWriteFile(t, manifestPath, "apiVersion: v1\n")
+
+	resolved := resolveRepoRoot(manifestPath, artifactRoot)
+	if filepath.Clean(resolved) != filepath.Clean(repoRoot) {
+		t.Fatalf("expected repo root %s, got %s", repoRoot, resolved)
+	}
+}
+
 func TestExtractZipToDirWithLimitRejectsOversizedEntry(t *testing.T) {
 	root := t.TempDir()
 	zipPath := filepath.Join(root, "oversized.zip")

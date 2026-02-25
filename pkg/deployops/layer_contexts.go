@@ -489,7 +489,7 @@ func resolveRepoRoot(manifestPath, artifactRoot string) string {
 		}
 	}
 	for _, candidate := range candidates {
-		if root, ok := findAncestorWithDir(candidate, ".git"); ok {
+		if root, ok := findAncestorWithPath(candidate, ".git"); ok {
 			return root
 		}
 	}
@@ -514,11 +514,10 @@ func findAncestorWithFile(start, name string) (string, bool) {
 	}
 }
 
-func findAncestorWithDir(start, name string) (string, bool) {
+func findAncestorWithPath(start, name string) (string, bool) {
 	current := filepath.Clean(start)
 	for {
-		info, err := os.Stat(filepath.Join(current, name))
-		if err == nil && info.IsDir() {
+		if _, err := os.Stat(filepath.Join(current, name)); err == nil {
 			return current, true
 		}
 		parent := filepath.Dir(current)
