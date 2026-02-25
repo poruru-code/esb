@@ -110,7 +110,14 @@ func (r dockerRuntimeConfigResolver) resolveWithoutProject() (RuntimeConfigTarge
 				service,
 			)
 		}
-		return r.resolveFromContainers(containerIDs)
+		target, err := r.resolveFromContainers(containerIDs)
+		if err == nil {
+			return target, nil
+		}
+		if errors.Is(err, errRuntimeConfigMountNotFound) {
+			continue
+		}
+		return RuntimeConfigTarget{}, err
 	}
 	return RuntimeConfigTarget{}, fmt.Errorf("no running gateway/provisioner compose container found")
 }

@@ -83,6 +83,36 @@ func TestDockerRuntimeConfigResolverFallsBackToProvisionerBindPath(t *testing.T)
 	}
 }
 
+func TestDockerRuntimeConfigResolverWithoutProjectFallsBackToProvisionerBindPath(t *testing.T) {
+	runner := fakeDockerRunner{
+		responses: map[string]fakeDockerResponse{
+			"ps\x00-q\x00--filter\x00label=com.docker.compose.service=gateway": {
+				output: "gateway-id\n",
+			},
+			"inspect\x00gateway-id": {
+				output: `[{"Mounts":[{"Destination":"/app/other","Source":"/tmp/other"}]}]`,
+			},
+			"ps\x00-q\x00--filter\x00label=com.docker.compose.service=provisioner": {
+				output: "provisioner-id\n",
+			},
+			"inspect\x00provisioner-id": {
+				output: `[{"Mounts":[{"Destination":"/app/runtime-config","Type":"bind","Source":"/tmp/runtime-config"}]}]`,
+			},
+		},
+	}
+	resolver := dockerRuntimeConfigResolver{
+		runDocker: runner.run,
+	}
+
+	resolved, err := resolver.ResolveRuntimeConfigTarget()
+	if err != nil {
+		t.Fatalf("ResolveRuntimeConfigTarget() error = %v", err)
+	}
+	if resolved.BindPath != "/tmp/runtime-config" {
+		t.Fatalf("ResolveRuntimeConfigTarget() = %#v, want bind target", resolved)
+	}
+}
+
 func TestDockerRuntimeConfigResolverRequiresProjectWhenAmbiguous(t *testing.T) {
 	runner := fakeDockerRunner{
 		responses: map[string]fakeDockerResponse{
