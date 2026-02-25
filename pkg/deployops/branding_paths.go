@@ -6,8 +6,6 @@ import (
 	"strings"
 )
 
-const defaultBrandHomeDir = ".esb"
-
 func resolveBrandHomeDir(_ string) string {
 	return defaultBrandHomeDir
 }
