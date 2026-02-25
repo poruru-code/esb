@@ -18,9 +18,13 @@ Why: Define a stable boundary between artifact producer (external/manual) and ru
 ## 契約固定ルール（ブレ防止）
 - `runtime-base/**` は Deploy Artifact Contract の対象外です。
 - `artifactctl deploy` は artifact 生成を行いません。必要な image build は許可しますが、artifact 作成時の `runtime-base/**` を base ソースとして使用しません。
-- `artifactctl deploy` が参照する lambda base は、実行時環境（現在の registry/tag/stack）を正とします。
+- `artifactctl deploy` が参照する lambda base は deploy 時の実行ルールを正とします（artifact 作成時の資産は参照しません）。
+  - 関数 Dockerfile build 対象がある場合: 当該 Dockerfile の `FROM` 参照を使用（registry alias は deploy 側で正規化）
+  - 関数 Dockerfile build 対象が 0 件の場合: 既定 `esb-lambda-base:latest` を target registry に ensure
 - `artifactctl deploy` は関数イメージの build 対象有無に関係なく、deploy 前提条件として lambda base を target registry へ確保する必要があります。
 - `artifactctl deploy` は deploy で build/push する function image の local registry alias（例: `127.0.0.1:5010`, `registry:5010`）を deploy 実行時の `CONTAINER_REGISTRY` に正規化して扱います。
+- lambda base ensure で使う target registry は `HOST_REGISTRY_ADDR` -> `CONTAINER_REGISTRY` -> `REGISTRY` の順で解決します。
+- lambda base pull 失敗時は、現行実装では `runtime-hooks/python/docker/Dockerfile` からのローカル build へフォールバックします。
 - 互換性判定は artifact 内ファイルではなく、実行時スタック観測結果に基づいて行います。
 
 ## 用語
@@ -183,10 +187,21 @@ artifacts:
 - `tools/artifactctl`（Go 実装）:
   - `deploy` の正本実装を提供する（検証 + apply を実行。必要時の image build/pull を含む）
   - schema/path/merge 規約の判定を一元化する
-  - image build 時の lambda base 選択は実行時環境（registry/tag/stack）に従い、artifact 内 `runtime-base/**` を根拠にしない
+  - image build 時の lambda base 解決は deploy 時ルールに従い、artifact 内 `runtime-base/**` を根拠にしない
   - `tools/artifactctl/cmd/artifactctl` は command adapter、実ロジック正本は `pkg/deployops` + `pkg/artifactcore` とする
 - producer 側 apply adapter:
   - `artifactctl deploy` と同じ Go 実装を呼ぶ薄いアダプタとして振る舞う
+
+## 外部オーケストレータ連携（ESB-CLI）
+- ESB-CLI などの外部ツールは `pkg/*` 参照だけでは command surface 変更を吸収できません。`artifactctl` バイナリ呼び出しで連携します。
+- 連携前提として `artifactctl internal capabilities --output json` の schema/contracts を照合してください。
+- 最低限 required な subcommand は以下です。
+  - `deploy`
+  - `provision`
+  - `internal fixture-image ensure`
+  - `internal maven-shim ensure`
+  - `internal capabilities`
+- binary path override は `ARTIFACTCTL_BIN` を使用します。
 
 repo 分離後の依存方向:
 - core repo が `pkg/artifactcore` を保有する
@@ -252,7 +267,7 @@ cat "${SECRETS_ENV}" > "${RUN_ENV}"
 注記:
 - `artifactctl deploy` は検証と apply を実行します（必要時に image build/pull を実行し得ます）。
 - image build では artifact 作成時の `runtime-base/**` ではなく、実行時環境の lambda base を使用します。
-- `artifactctl deploy` は deploy 時に必要な lambda base を確保し、関数 build が 0 件のときは既定の `esb-lambda-base:<resolved-tag>` を target registry へ確保します。
+- `artifactctl deploy` は deploy 時に必要な lambda base を確保し、関数 build が 0 件のときは既定の `esb-lambda-base:latest` を target registry へ確保します。
 - `artifactctl deploy` は最終 runtime-config（volume 内 `functions.yml`）でも、deploy で build/push した function image を実行時 registry へ正規化します。
 
 ### 2) Provision 実行（任意: 明示再実行したい場合）
