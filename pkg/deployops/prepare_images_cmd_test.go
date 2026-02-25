@@ -47,3 +47,36 @@ func TestBuildxBuildCommandSkipsProxyBuildArgsWhenUnset(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildxBuildCommandWithBuildContextsSorted(t *testing.T) {
+	cmd := buildxBuildCommandWithBuildArgsAndContexts(
+		"example:latest",
+		"/tmp/Dockerfile",
+		"/tmp/context",
+		false,
+		nil,
+		map[string]string{
+			"layer_1_b": "/tmp/b",
+			"layer_0_a": "/tmp/a",
+			"":          "/tmp/skip",
+		},
+	)
+
+	first := indexOfSequence(cmd, "--build-context", "layer_0_a=/tmp/a")
+	second := indexOfSequence(cmd, "--build-context", "layer_1_b=/tmp/b")
+	if first < 0 || second < 0 {
+		t.Fatalf("expected sorted build-context flags, got %v", cmd)
+	}
+	if first >= second {
+		t.Fatalf("expected layer_0_a context before layer_1_b: %v", cmd)
+	}
+}
+
+func indexOfSequence(values []string, key, value string) int {
+	for i := 0; i+1 < len(values); i++ {
+		if values[i] == key && values[i+1] == value {
+			return i
+		}
+	}
+	return -1
+}
