@@ -246,6 +246,22 @@ openssl x509 -in "$CERT_DIR/client.crt" -noout -subject -issuer -enddate
 openssl x509 -in "$CERT_DIR/rootCA.crt" -noout -subject -issuer -enddate
 ```
 
+### 4.5 Proxy 環境での build-time CA 注入（`uv sync` 向け）
+
+`docker build` 中の `uv sync` は、ホストではなく **build コンテナの trust store** で TLS 検証します。  
+社内 Proxy が TLS 中継（MITM）する環境では、Proxy 発行 CA を build 時にだけ渡してください。
+
+```bash
+export PROXY_CA_CERT_FILE=/path/to/corporate-proxy-ca.crt
+docker compose -f docker-compose.docker.yml build provisioner gateway
+# containerd:
+# docker compose -f docker-compose.containerd.yml build provisioner gateway
+```
+
+補足:
+- `PROXY_CA_CERT_FILE` は optional です（未設定時は既定値を利用）。
+- CA は build ステージの `uv sync` にのみ使われ、runtime コンテナへマウントしません。
+
 ---
 
 ## 5. 適用範囲と制約（誤解しやすい点）

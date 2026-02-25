@@ -5,9 +5,10 @@
 
 ARG PYTHON_BASE_IMAGE
 
-FROM ${PYTHON_BASE_IMAGE}
+FROM ${PYTHON_BASE_IMAGE} AS deps
 
-ENV IMAGE_RUNTIME="shared"
+ARG PROXY_CA_MOUNT_ID=proxy_ca
+
 ENV UV_NATIVE_TLS=true
 
 # Install uv (standardized via official image)
@@ -23,7 +24,26 @@ ENV VIRTUAL_ENV=/app/.venv
 RUN uv venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=secret,id=${PROXY_CA_MOUNT_ID},required=false \
+    if [ -s "/run/secrets/${PROXY_CA_MOUNT_ID}" ]; then \
+      install -m 0644 /run/secrets/${PROXY_CA_MOUNT_ID} /usr/local/share/ca-certificates/proxy-ca.crt && \
+      update-ca-certificates; \
+    fi && \
     uv sync --frozen --no-install-project
+
+FROM ${PYTHON_BASE_IMAGE}
+
+ENV IMAGE_RUNTIME="shared"
+ENV UV_NATIVE_TLS=true
+
+WORKDIR /app
+
+# Keep uv available in runtime for operational consistency.
+COPY --from=deps /usr/local/bin/uv /usr/local/bin/uvx /usr/local/bin/
+COPY --from=deps /app/.venv /app/.venv
+
+ENV VIRTUAL_ENV=/app/.venv
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 # Copy Code & Assets
 # sitecustomize.py is crucial for log forwarding and endpoint injection
