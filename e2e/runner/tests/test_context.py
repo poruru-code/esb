@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from e2e.runner import constants
+from e2e.runner import branding, constants
 from e2e.runner.context import _prepare_context
 from e2e.runner.models import Scenario
 from e2e.runner.utils import env_key
@@ -70,7 +70,8 @@ def test_prepare_context_merges_runtime_env(monkeypatch, tmp_path):
     assert ctx.runtime_env[env_key("PROJECT")] == "esb"
     assert ctx.runtime_env[env_key("ENV")] == "e2e-docker"
     assert ctx.runtime_env[env_key("INTERACTIVE")] == "0"
-    assert ctx.runtime_env[env_key("HOME")].endswith("/.esb/e2e/state/e2e-docker")
+    expected_home_suffix = f"/{branding.brand_home_dir()}/e2e/state/e2e-docker"
+    assert ctx.runtime_env[env_key("HOME")].endswith(expected_home_suffix)
     assert Path(ctx.runtime_env[env_key("HOME")]).is_absolute()
     assert ctx.deploy_env["PROJECT_NAME"] == "esb-e2e-docker"
     assert ctx.deploy_env["ESB_META_REUSE"] == "1"

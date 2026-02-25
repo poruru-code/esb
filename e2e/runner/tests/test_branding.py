@@ -9,14 +9,14 @@ from e2e.runner import branding
 
 
 def test_resolve_project_name_defaults_and_preserves_explicit_value() -> None:
-    assert branding.resolve_project_name(None) == "esb"
-    assert branding.resolve_project_name("  ") == "esb"
+    assert branding.resolve_project_name(None) == branding.DEFAULT_BRAND_SLUG
+    assert branding.resolve_project_name("  ") == branding.DEFAULT_BRAND_SLUG
     assert branding.resolve_project_name("acme") == "acme"
 
 
 def test_resolve_brand_slug_sanitizes_project_name() -> None:
     assert branding.resolve_brand_slug("Acme Prod") == "acme-prod"
-    assert branding.resolve_brand_slug("___") == "esb"
+    assert branding.resolve_brand_slug("___") == branding.DEFAULT_BRAND_SLUG
 
 
 def test_path_and_name_helpers_follow_resolved_slug(tmp_path: Path) -> None:
