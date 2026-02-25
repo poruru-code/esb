@@ -109,7 +109,7 @@ sequenceDiagram
 
 ### 6) 画像解決の責務分離
 - 外部レジストリ起点の `PackageType: Image` 関数は、deploy/apply 時に
-  **`artifactctl deploy` による Dockerfile 再ビルド + push** で内部レジストリへ配置されます。
+  **`esb-ctl deploy` による Dockerfile 再ビルド + push** で内部レジストリへ配置されます。
 - Agent runtime は **内部レジストリ参照の pull のみ**を行います。
 - `image` が内部レジストリに存在しない場合は `EnsureContainer` が `Internal` で失敗します。
 
