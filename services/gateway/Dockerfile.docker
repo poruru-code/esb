@@ -12,6 +12,8 @@ ARG SERVICE_GID=1000
 
 FROM ${PYTHON_BASE_IMAGE} AS builder
 
+ARG PROXY_CA_MOUNT_ID=proxy_ca
+
 # Install uv (standardized via official image in standard path)
 COPY --from=ghcr.io/astral-sh/uv:0.8.13@sha256:4de5495181a281bc744845b9579acf7b221d6791f99bcc211b9ec13f417c2853 /uv /uvx /usr/local/bin/
 
@@ -38,7 +40,20 @@ COPY pyproject.toml uv.lock /app/
 
 # Install dependencies from lockfile (Cache layer)
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-install-project
+    --mount=type=secret,id=${PROXY_CA_MOUNT_ID},required=false \
+    if [ -s "/run/secrets/${PROXY_CA_MOUNT_ID}" ]; then \
+            rm -rf /usr/local/share/ca-certificates/proxy-ca && \
+            mkdir -p /usr/local/share/ca-certificates/proxy-ca && \
+            awk 'BEGIN { n=0 } /-----BEGIN CERTIFICATE-----/ { n++ } { if (n > 0) print > ("/usr/local/share/ca-certificates/proxy-ca/proxy-ca-" sprintf("%03d", n) ".crt") }' /run/secrets/${PROXY_CA_MOUNT_ID} && \
+            if [ ! -f /usr/local/share/ca-certificates/proxy-ca/proxy-ca-001.crt ]; then \
+                install -m 0644 /run/secrets/${PROXY_CA_MOUNT_ID} /usr/local/share/ca-certificates/proxy-ca/proxy-ca-001.crt; \
+            fi && \
+      update-ca-certificates; \
+    fi && \
+        SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+        REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \
+        CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \
+        uv sync --native-tls --frozen --no-install-project
 
 # Final stage - Standardized via python base
 FROM ${PYTHON_BASE_IMAGE} AS prod
@@ -48,7 +63,6 @@ ARG SERVICE_UID
 ARG SERVICE_GID
 
 ENV IMAGE_RUNTIME="docker"
-ENV UV_NATIVE_TLS=true
 
 
 WORKDIR /app
