@@ -214,6 +214,53 @@ func TestPrepareImagesNoCacheAddsFlag(t *testing.T) {
 	}
 }
 
+func TestPrepareImagesAddsLayerBuildContextsForZipLayers(t *testing.T) {
+	root := t.TempDir()
+	mustWriteFile(t, filepath.Join(root, ".branding.env"), "export BRANDING_SLUG=esb\n")
+	manifestPath := writePrepareImageFixture(
+		t,
+		root,
+		"127.0.0.1:5010/esb-lambda-echo:e2e-test",
+		"127.0.0.1:5010/esb-lambda-base:e2e-test",
+	)
+
+	functionDir := filepath.Join(root, "fixture", "functions", "lambda-echo")
+	mustWriteFile(
+		t,
+		filepath.Join(functionDir, "Dockerfile"),
+		"FROM 127.0.0.1:5010/esb-lambda-base:e2e-test\n"+
+			"ENV PYTHONPATH=/opt/python${PYTHONPATH:+:${PYTHONPATH}}\n"+
+			"COPY --from=layer_0_zip-layer / /opt/\n"+
+			"COPY functions/lambda-echo/src/ /var/task/\n",
+	)
+	writeZipArchive(
+		t,
+		filepath.Join(functionDir, "layers", "zip-layer.zip"),
+		map[string]string{"lib_zip.py": "print('zip')\n"},
+	)
+
+	runner := &recordCommandRunner{}
+	err := prepareImages(prepareImagesInput{
+		ArtifactPath: manifestPath,
+		Runner:       runner,
+	})
+	if err != nil {
+		t.Fatalf("prepareImages() error = %v", err)
+	}
+
+	buildCmd := findFunctionBuildCommand(t, runner.commands)
+	contextPath := findCommandValue(buildCmd, "--build-context", "layer_0_zip-layer=")
+	if contextPath == "" {
+		t.Fatalf("expected --build-context for zip layer, got %v", buildCmd)
+	}
+	if !strings.HasPrefix(filepath.Clean(contextPath), filepath.Clean(filepath.Join(root, ".esb", "cache", "layers"))) {
+		t.Fatalf("unexpected cache path: %s", contextPath)
+	}
+	if _, err := os.Stat(filepath.Join(contextPath, "python", "lib_zip.py")); err != nil {
+		t.Fatalf("expected extracted layer content in python dir: %v", err)
+	}
+}
+
 func TestPrepareImagesReturnsRunnerError(t *testing.T) {
 	root := t.TempDir()
 	manifestPath := writePrepareImageFixture(
@@ -300,4 +347,31 @@ func TestDefaultCommandRunnerRejectsEmptyCommand(t *testing.T) {
 	if !strings.Contains(err.Error(), "command is empty") {
 		t.Fatalf("unexpected error: %v", err)
 	}
+}
+
+func findFunctionBuildCommand(t *testing.T, commands [][]string) []string {
+	t.Helper()
+	for _, cmd := range commands {
+		if len(cmd) < 4 {
+			continue
+		}
+		if cmd[0] == "docker" && cmd[1] == "buildx" && cmd[2] == "build" {
+			return cmd
+		}
+	}
+	t.Fatalf("function build command not found: %v", commands)
+	return nil
+}
+
+func findCommandValue(cmd []string, key, valuePrefix string) string {
+	for i := 0; i+1 < len(cmd); i++ {
+		if cmd[i] != key {
+			continue
+		}
+		value := strings.TrimSpace(cmd[i+1])
+		if strings.HasPrefix(value, valuePrefix) {
+			return strings.TrimPrefix(value, valuePrefix)
+		}
+	}
+	return ""
 }

@@ -82,6 +82,7 @@ func prepareImagesWithResult(req prepareImagesInput) (prepareImagesResult, error
 		if err != nil {
 			return prepareImagesResult{}, err
 		}
+		repoRoot := resolveRepoRoot(manifestPath, artifactRoot)
 		runtimeConfigDir, err := manifest.ResolveRuntimeConfigDir(manifestPath, i)
 		if err != nil {
 			return prepareImagesResult{}, err
@@ -115,6 +116,7 @@ func prepareImagesWithResult(req prepareImagesInput) (prepareImagesResult, error
 				if err := buildAndPushFunctionImage(
 					target.imageRef,
 					target.functionName,
+					repoRoot,
 					contextRoot,
 					req.NoCache,
 					runtime,
@@ -190,7 +192,7 @@ func collectImageBuildTargets(
 }
 
 func buildAndPushFunctionImage(
-	imageRef, functionName, contextRoot string,
+	imageRef, functionName, repoRoot, contextRoot string,
 	noCache bool,
 	runtime *RuntimeObservation,
 	runner CommandRunner,
@@ -221,8 +223,19 @@ func buildAndPushFunctionImage(
 			return err
 		}
 	}
+	layerContexts, err := prepareFunctionLayerBuildContexts(repoRoot, contextRoot, functionName)
+	if err != nil {
+		return err
+	}
 
-	buildCmd := buildxBuildCommand(imageRef, resolvedDockerfile, contextRoot, noCache)
+	buildCmd := buildxBuildCommandWithBuildArgsAndContexts(
+		imageRef,
+		resolvedDockerfile,
+		contextRoot,
+		noCache,
+		nil,
+		layerContexts,
+	)
 	if err := runner.Run(buildCmd); err != nil {
 		return fmt.Errorf("build function image %s: %w", imageRef, err)
 	}

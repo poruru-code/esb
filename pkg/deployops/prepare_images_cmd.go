@@ -15,6 +15,22 @@ func buildxBuildCommandWithBuildArgs(
 	noCache bool,
 	buildArgs map[string]string,
 ) []string {
+	return buildxBuildCommandWithBuildArgsAndContexts(
+		tag,
+		dockerfile,
+		contextDir,
+		noCache,
+		buildArgs,
+		nil,
+	)
+}
+
+func buildxBuildCommandWithBuildArgsAndContexts(
+	tag, dockerfile, contextDir string,
+	noCache bool,
+	buildArgs map[string]string,
+	buildContexts map[string]string,
+) []string {
 	cmd := []string{
 		"docker",
 		"buildx",
@@ -40,6 +56,20 @@ func buildxBuildCommandWithBuildArgs(
 				continue
 			}
 			cmd = append(cmd, "--build-arg", key+"="+value)
+		}
+	}
+	if len(buildContexts) > 0 {
+		keys := make([]string, 0, len(buildContexts))
+		for key := range buildContexts {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			contextPath := strings.TrimSpace(buildContexts[key])
+			if strings.TrimSpace(key) == "" || contextPath == "" {
+				continue
+			}
+			cmd = append(cmd, "--build-context", key+"="+contextPath)
 		}
 	}
 	cmd = append(cmd, "--tag", tag, "--file", dockerfile, contextDir)
