@@ -38,7 +38,6 @@ def _make_context(
         extra=extra,
     )
     resolved_runtime_env = {
-        "CONFIG_DIR": str(tmp_path / "merged-config"),
         "HOST_REGISTRY_ADDR": "127.0.0.1:5010",
         "CONTAINER_REGISTRY": "127.0.0.1:5010",
     }
@@ -314,7 +313,6 @@ def test_parse_fixture_image_ensure_output_rejects_missing_payload() -> None:
 def test_deploy_artifacts_prepares_fixture_then_runs_deploy_and_provision(monkeypatch, tmp_path):
     deploy_module._prepared_local_fixture_images.clear()
     deploy_module._prepared_maven_shim_images.clear()
-    config_dir = tmp_path / "merged-config"
     image_ref = "127.0.0.1:5010/esb-lambda-echo:e2e-test"
     base_ref = "127.0.0.1:5010/esb-e2e-image-python:latest"
     manifest = _write_artifact_fixture(tmp_path, image_ref=image_ref, base_ref=base_ref)
@@ -322,7 +320,6 @@ def test_deploy_artifacts_prepares_fixture_then_runs_deploy_and_provision(monkey
         tmp_path,
         artifact_manifest=str(manifest),
         runtime_env={
-            "CONFIG_DIR": str(config_dir),
             "HOST_REGISTRY_ADDR": "127.0.0.1:5010",
             "CONTAINER_REGISTRY": "127.0.0.1:5010",
         },
@@ -375,8 +372,6 @@ def test_deploy_artifacts_prepares_fixture_then_runs_deploy_and_provision(monkey
         "deploy",
         "--artifact",
         str(manifest.resolve()),
-        "--out",
-        str(config_dir),
     ]
     assert commands[2] == [
         "artifactctl",
@@ -391,7 +386,6 @@ def test_deploy_artifacts_prepares_fixture_then_runs_deploy_and_provision(monkey
 
 
 def test_deploy_artifacts_runs_deploy_and_provision(monkeypatch, tmp_path):
-    config_dir = tmp_path / "merged-config"
     image_ref = "127.0.0.1:5010/esb-lambda-echo:e2e-test"
     base_ref = "127.0.0.1:5010/esb-lambda-base:e2e-test"
     manifest = _write_artifact_fixture(tmp_path, image_ref=image_ref, base_ref=base_ref)
@@ -399,7 +393,6 @@ def test_deploy_artifacts_runs_deploy_and_provision(monkeypatch, tmp_path):
         tmp_path,
         artifact_manifest=str(manifest),
         runtime_env={
-            "CONFIG_DIR": str(config_dir),
             "HOST_REGISTRY_ADDR": "127.0.0.1:5010",
             "CONTAINER_REGISTRY": "127.0.0.1:5010",
         },
@@ -450,8 +443,6 @@ def test_deploy_artifacts_runs_deploy_and_provision(monkeypatch, tmp_path):
         "deploy",
         "--artifact",
         str(manifest.resolve()),
-        "--out",
-        str(config_dir),
     ]
     assert commands[2] == [
         "artifactctl",
@@ -466,7 +457,6 @@ def test_deploy_artifacts_runs_deploy_and_provision(monkeypatch, tmp_path):
 
 
 def test_deploy_artifacts_deploy_with_no_cache(monkeypatch, tmp_path):
-    config_dir = tmp_path / "merged-config"
     image_ref = "127.0.0.1:5010/esb-lambda-echo:e2e-test"
     base_ref = "127.0.0.1:5010/esb-lambda-base:e2e-test"
     manifest = _write_artifact_fixture(tmp_path, image_ref=image_ref, base_ref=base_ref)
@@ -474,7 +464,6 @@ def test_deploy_artifacts_deploy_with_no_cache(monkeypatch, tmp_path):
         tmp_path,
         artifact_manifest=str(manifest),
         runtime_env={
-            "CONFIG_DIR": str(config_dir),
             "HOST_REGISTRY_ADDR": "127.0.0.1:5010",
             "CONTAINER_REGISTRY": "127.0.0.1:5010",
         },
@@ -525,8 +514,6 @@ def test_deploy_artifacts_deploy_with_no_cache(monkeypatch, tmp_path):
         "deploy",
         "--artifact",
         str(manifest.resolve()),
-        "--out",
-        str(config_dir),
         "--no-cache",
     ]
 
@@ -534,7 +521,6 @@ def test_deploy_artifacts_deploy_with_no_cache(monkeypatch, tmp_path):
 def test_deploy_artifacts_fixture_prepare_is_cached_by_conditions(monkeypatch, tmp_path):
     deploy_module._prepared_local_fixture_images.clear()
     deploy_module._prepared_maven_shim_images.clear()
-    config_dir = tmp_path / "merged-config"
     image_ref = "127.0.0.1:5010/esb-lambda-echo:e2e-test"
     base_ref = "127.0.0.1:5010/esb-lambda-base:e2e-test"
     manifest = _write_artifact_fixture(tmp_path, image_ref=image_ref, base_ref=base_ref)
@@ -542,7 +528,6 @@ def test_deploy_artifacts_fixture_prepare_is_cached_by_conditions(monkeypatch, t
         tmp_path,
         artifact_manifest=str(manifest),
         runtime_env={
-            "CONFIG_DIR": str(config_dir),
             "HOST_REGISTRY_ADDR": "127.0.0.1:5010",
             "CONTAINER_REGISTRY": "127.0.0.1:5010",
             "http_proxy": "http://proxy.example:8080",
@@ -600,7 +585,6 @@ def test_deploy_artifacts_fixture_prepare_is_cached_by_conditions(monkeypatch, t
 def test_deploy_artifacts_fixture_prepare_reexecutes_with_no_cache(monkeypatch, tmp_path):
     deploy_module._prepared_local_fixture_images.clear()
     deploy_module._prepared_maven_shim_images.clear()
-    config_dir = tmp_path / "merged-config"
     image_ref = "127.0.0.1:5010/esb-lambda-echo:e2e-test"
     base_ref = "127.0.0.1:5010/esb-lambda-base:e2e-test"
     manifest = _write_artifact_fixture(tmp_path, image_ref=image_ref, base_ref=base_ref)
@@ -608,7 +592,6 @@ def test_deploy_artifacts_fixture_prepare_reexecutes_with_no_cache(monkeypatch, 
         tmp_path,
         artifact_manifest=str(manifest),
         runtime_env={
-            "CONFIG_DIR": str(config_dir),
             "HOST_REGISTRY_ADDR": "127.0.0.1:5010",
             "CONTAINER_REGISTRY": "127.0.0.1:5010",
             "http_proxy": "http://proxy.example:8080",
@@ -666,7 +649,6 @@ def test_deploy_artifacts_fixture_prepare_reexecutes_with_no_cache(monkeypatch, 
 
 
 def test_deploy_artifacts_uses_resolved_artifactctl_bin(monkeypatch, tmp_path):
-    config_dir = tmp_path / "merged-config"
     image_ref = "127.0.0.1:5010/esb-lambda-echo:e2e-test"
     base_ref = "127.0.0.1:5010/esb-lambda-base:e2e-test"
     manifest = _write_artifact_fixture(tmp_path, image_ref=image_ref, base_ref=base_ref)
@@ -674,7 +656,6 @@ def test_deploy_artifacts_uses_resolved_artifactctl_bin(monkeypatch, tmp_path):
         tmp_path,
         artifact_manifest=str(manifest),
         runtime_env={
-            "CONFIG_DIR": str(config_dir),
             "ARTIFACTCTL_BIN_RESOLVED": "/opt/tools/custom-artifactctl",
         },
     )

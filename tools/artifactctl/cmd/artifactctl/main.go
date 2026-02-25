@@ -25,7 +25,6 @@ type CLI struct {
 
 type DeployCmd struct {
 	Artifact string `name:"artifact" required:"" help:"Path to artifact manifest (artifact.yml)"`
-	Output   string `name:"out" required:"" help:"Output config directory (CONFIG_DIR)"`
 	NoCache  bool   `name:"no-cache" help:"Do not use cache when building images"`
 }
 
@@ -229,7 +228,6 @@ func runDeploy(cmd DeployCmd, deps commandDeps, errOut io.Writer) error {
 	}
 	result, err := executeDeploy(deployops.Input{
 		ArtifactPath: cmd.Artifact,
-		OutputDir:    cmd.Output,
 		NoCache:      cmd.NoCache,
 	})
 	if err != nil {

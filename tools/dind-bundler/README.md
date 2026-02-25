@@ -61,9 +61,8 @@
 
 補足:
 - `--env-file` で指定したファイルを `.env` として同梱します。
-- コンテナ内では `CERT_DIR` と `CONFIG_DIR` は固定されます。
+- コンテナ内では `CERT_DIR` は固定されます。
   - `CERT_DIR=/root/.<artifact-project>/certs`
-  - `CONFIG_DIR=/app/runtime-config`
 - `PORT_*` が未設定または `0` の場合、DinD 同梱時に次の固定値を設定します。
   - `PORT_GATEWAY_HTTPS=8443`
   - `PORT_VICTORIALOGS=9428`

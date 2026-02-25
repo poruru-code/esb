@@ -9,7 +9,7 @@ Why: Make generate/apply responsibilities and commands explicit for operators.
 This document defines operational flows for artifact-first deployment.
 
 - Producer responsibility: generate artifacts (`artifact.yml` + runtime-config outputs)
-- Applier responsibility: apply generated artifacts to `CONFIG_DIR` and run provisioner
+- Applier responsibility: apply generated artifacts to runtime-config volume and run provisioner
 - Runtime responsibility: consume prepared runtime-config only
 - Payload contract responsibility: verify artifact input integrity (schema/path/runtime payload)
 
@@ -24,7 +24,7 @@ The contract details live in `docs/deploy-artifact-contract.md`.
 ## Phase Model
 0. Generate phase: parse templates and render artifact outputs (`artifact.yml`, runtime-config, Dockerfiles)
 1. Image build phase: optional operation outside deploy artifact contract
-2. Apply phase: validate payload integrity and merge artifact outputs into `CONFIG_DIR`, then provision
+2. Apply phase: validate payload integrity and merge artifact outputs into runtime-config, then provision
 3. Runtime phase: run compose services and execute tests/invocations
 
 ## Producer Flow (Out of This Repository Scope)
@@ -37,8 +37,7 @@ Use `artifactctl` as the canonical apply implementation.
 
 ```bash
 artifactctl deploy \
-  --artifact /path/to/artifact.yml \
-  --out /path/to/config-dir
+  --artifact /path/to/artifact.yml
 
 docker compose up -d
 ```
@@ -72,7 +71,6 @@ Boundary ownership map:
 ## E2E Contract (Current)
 `e2e/environments/test_matrix.yaml` is artifact-only:
 - legacy driver switches (`deploy_driver`, `artifact_generate`) are no longer allowed
-- `config_dir` is mandatory per environment; runner does not calculate staging paths implicitly
 - test execution consumes committed fixtures under `e2e/artifacts/*`
 - firecracker profile is currently disabled in matrix (docker/containerd are active gates)
 - deploy phases require `artifactctl` on PATH (or `ARTIFACTCTL_BIN` override)

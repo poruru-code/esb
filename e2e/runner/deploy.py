@@ -72,10 +72,6 @@ def _deploy_via_artifact_driver(
     if not manifest_path.exists():
         raise FileNotFoundError(f"artifact manifest not found: {manifest_path}")
 
-    config_dir = str(ctx.runtime_env.get("CONFIG_DIR", "")).strip()
-    if config_dir == "":
-        raise RuntimeError("CONFIG_DIR is required for artifact apply")
-
     message = f"Deploying artifact manifest for {ctx.scenario.env_name}..."
     log.write_line(message)
     if printer:
@@ -86,8 +82,6 @@ def _deploy_via_artifact_driver(
         "deploy",
         "--artifact",
         str(manifest_path),
-        "--out",
-        config_dir,
     ]
     if no_cache:
         deploy_cmd.append("--no-cache")

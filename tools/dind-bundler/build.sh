@@ -496,7 +496,6 @@ port_defaults = {
 
 forced_values = {
     "CERT_DIR": f"/root/{brand_home}/certs",
-    "CONFIG_DIR": "/app/runtime-config",
 }
 
 raw_lines = path.read_text(encoding="utf-8").splitlines()

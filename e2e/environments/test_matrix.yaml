@@ -31,7 +31,6 @@ matrix:
 # docker runtime
 - env: e2e-docker
   artifact_manifest: e2e/artifacts/e2e-docker/artifact.yml
-  config_dir: .esb/staging/esb-e2e-docker/e2e-docker/config
   suites:
   - smoke
   - standard
@@ -41,7 +40,6 @@ matrix:
 # containerd runtime
 - env: e2e-containerd
   artifact_manifest: e2e/artifacts/e2e-containerd/artifact.yml
-  config_dir: .esb/staging/esb-e2e-containerd/e2e-containerd/config
   suites:
   - smoke
   - standard

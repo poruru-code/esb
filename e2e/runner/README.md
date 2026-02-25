@@ -54,7 +54,6 @@ e2e/run_tests.py
 `e2e/runner/config.py` は各 matrix エントリを scenario に解決します。
 - mode 推論: `docker` / `containerd`
 - `env_dir` からの env ファイル解決
-- `config_dir` を必須入力として取り込み（runner での staging パス推測は行わない）
 - suite の target をプロジェクト相対パスへ展開
 - `env_dir` / `env_file` に `firecracker` を含む場合の推論
 - 環境変数は `e2e/environments/*/.env` を単一の設定点として扱う
