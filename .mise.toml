@@ -22,7 +22,7 @@ description = "Install dependencies and enable git hooks"
 run = [
   "uv sync --all-extras --native-tls",
   "lefthook install",
-  "mise run build-artifactctl",
+  "mise run build-ctl",
   "mise run setup:certs",
   "mise run setup:buildx",
 ]
@@ -88,10 +88,10 @@ run = [
   "uv run python scripts/fix_python_grpc_imports.py",
 ]
 
-[tasks.build-artifactctl]
-description = "Build artifactctl to ~/.local/bin"
+[tasks.build-ctl]
+description = "Build esb-ctl to ~/.local/bin"
 dir = "tools/artifactctl"
 run = [
   "mkdir -p ~/.local/bin",
-  "go build -o ~/.local/bin/artifactctl ./cmd/artifactctl",
+  "go build -o ~/.local/bin/esb-ctl ./cmd/artifactctl",
 ]

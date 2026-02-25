@@ -69,9 +69,9 @@ e2e/run_tests.py
 - `run_parallel` は環境名をキーにした `dict[str, bool]` を返します。
 - `--build-only` と `--test-only` は同時指定できません。
 - `--test-target` は `--profile` が必須で、指定 target のみ実行します。
-- deploy を伴う実行では `artifactctl` バイナリが PATH 上に必要です（または `ARTIFACTCTL_BIN` で明示）。
-- deploy を伴う実行では `artifactctl internal capabilities --output json` による schema/contracts 検証を行い、必要 subcommand 不足時は即 fail します。
-- 開発環境では `mise run setup` で `artifactctl` が `~/.local/bin` にビルドされます。
+- deploy を伴う実行では `esb-ctl` バイナリが PATH 上に必要です（または `CTL_BIN` で明示）。
+- deploy を伴う実行では `esb-ctl internal capabilities --output json` による schema/contracts 検証を行い、必要 subcommand 不足時は即 fail します。
+- 開発環境では `mise run setup` で `esb-ctl` が `~/.local/bin` にビルドされます。
 
 ## ログと診断
 - 環境ごとのログ: `e2e/.parallel-<env>.log`

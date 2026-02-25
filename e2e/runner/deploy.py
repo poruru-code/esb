@@ -35,8 +35,8 @@ _prepared_maven_shim_images: dict[tuple[str, str], str] = {}
 _prepared_local_fixture_lock = threading.Lock()
 
 
-def _artifactctl_bin(ctx: RunContext) -> str:
-    # run_tests.py resolves ARTIFACTCTL_BIN(_RESOLVED) before runner starts.
+def _ctl_bin(ctx: RunContext) -> str:
+    # run_tests.py resolves CTL_BIN(_RESOLVED) before runner starts.
     return resolve_ctl_bin_from_env(ctx.deploy_env)
 
 
@@ -71,9 +71,9 @@ def _deploy_via_artifact_driver(
     log.write_line(message)
     if printer:
         printer(message)
-    artifactctl_bin = _artifactctl_bin(ctx)
+    ctl_bin = _ctl_bin(ctx)
     deploy_cmd = [
-        artifactctl_bin,
+        ctl_bin,
         "deploy",
         "--artifact",
         str(manifest_path),
@@ -91,7 +91,7 @@ def _deploy_via_artifact_driver(
         raise RuntimeError(f"artifact deploy failed with exit code {rc}")
 
     provision_cmd = [
-        artifactctl_bin,
+        ctl_bin,
         "provision",
         "--project",
         ctx.compose_project,
@@ -139,8 +139,8 @@ def _prepare_local_fixture_images(
     if not manifest_path.exists():
         return
 
-    artifactctl_bin = _artifactctl_bin(ctx)
-    cache_key = _fixture_prepare_cache_key(ctx, manifest_path, artifactctl_bin)
+    ctl_bin = _ctl_bin(ctx)
+    cache_key = _fixture_prepare_cache_key(ctx, manifest_path, ctl_bin)
 
     with _prepared_local_fixture_lock:
         if not no_cache and cache_key in _prepared_local_fixture_images:
@@ -152,7 +152,7 @@ def _prepare_local_fixture_images(
             printer(message)
 
         ensure_cmd = [
-            artifactctl_bin,
+            ctl_bin,
             "internal",
             "fixture-image",
             "ensure",
@@ -176,7 +176,7 @@ def _prepare_local_fixture_images(
         if rc != 0:
             raise RuntimeError(
                 "failed to prepare local fixture images via "
-                f"`{artifactctl_bin} internal fixture-image ensure` (exit code {rc}); "
+                f"`{ctl_bin} internal fixture-image ensure` (exit code {rc}); "
                 f"ensure {DEFAULT_CTL_BIN} supports this internal command"
             )
 
@@ -191,10 +191,10 @@ def _prepare_local_fixture_images(
             _prepared_local_fixture_images.add(cache_key)
 
 
-def _fixture_prepare_cache_key(ctx: RunContext, manifest_path: Path, artifactctl_bin: str) -> str:
+def _fixture_prepare_cache_key(ctx: RunContext, manifest_path: Path, ctl_bin: str) -> str:
     payload = {
         "manifest_path": str(manifest_path),
-        "artifactctl_bin": artifactctl_bin,
+        "ctl_bin": ctl_bin,
         "env_name": ctx.scenario.env_name,
         "cache_sensitive_env": {
             key: str(ctx.deploy_env.get(key, "")).strip() for key in _FIXTURE_PREPARE_CACHE_ENV_KEYS
