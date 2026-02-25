@@ -62,8 +62,6 @@ sequenceDiagram
   - `com.<brand>.owner=<owner_id>`
 - ポートは `8080/tcp` を exposed（戻り値の `WorkerInfo.Port` も `8080`）
 - restart policy は `no`
-- `AWS_LAMBDA_FUNCTION_MEMORY_SIZE` が有効な正数なら、MB を bytes に変換して `HostConfig.Memory` に適用
-  （未指定/不正値/オーバーフロー時は適用しない）
 
 ## Image pull ポリシー
 - `CONTAINER_REGISTRY` 未指定時は `registry:5010`（`config.DefaultContainerRegistry`）
