@@ -18,7 +18,7 @@ Why: Provide a concise entry point and delegate details to docs.
 ## できること（概要）
 - `Gateway` + `Agent` + `runtime-node` の分離構成で Lambda 互換の実行基盤を提供
 - S3/Dynamo/ログ基盤を同梱し、Compose だけで Control + Compute が起動
-- 生成済み artifact（`artifact.yml` + runtime-config）を `artifactctl` で適用できる
+- 生成済み artifact（`artifact.yml` + runtime-config）を `esb-ctl` で適用できる
 
 ## クイックスタート（最小）
 ```bash
@@ -36,7 +36,7 @@ mise trust
 mise install
 mise run setup
 ```
-`mise run setup` は開発用ツールの検証と `artifactctl` のビルドを行います。
+`mise run setup` は開発用ツールの検証と `esb-ctl` のビルドを行います。
 証明書の作成・ローテーション手順は `docs/certificate-operations.md` を参照してください。
 証明書ローテーション用の補助タスク: `mise run rotate:certs:leaf:docker` / `mise run rotate:certs:leaf:containerd` / `mise run rotate:certs:all:docker` / `mise run rotate:certs:all:containerd`
 
