@@ -25,10 +25,8 @@ var (
 	ValueFunctionKind = "function"
 )
 
-const bootstrapBrandSlug = "esb"
-
 func init() {
-	ApplyIdentity(identity.StackIdentity{BrandSlug: bootstrapBrandSlug, Source: "bootstrap"})
+	ApplyIdentity(identity.StackIdentity{BrandSlug: identity.DefaultBrandSlug(), Source: "bootstrap"})
 }
 
 func ApplyIdentity(id identity.StackIdentity) {

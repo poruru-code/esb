@@ -93,3 +93,23 @@ func TestResolveCNIDNSServer_DefaultFallback(t *testing.T) {
 		t.Fatalf("resolveCNIDNSServer() = %q, want %q", got, config.DefaultCNIDNSServer)
 	}
 }
+
+func TestNewRuntime_PanicsWhenNamespaceMissing(t *testing.T) {
+	t.Helper()
+	defer func() {
+		if recover() == nil {
+			t.Fatalf("expected panic")
+		}
+	}()
+	_ = NewRuntime(nil, nil, "", "dev", "brand-a")
+}
+
+func TestNewRuntime_PanicsWhenBrandInvalid(t *testing.T) {
+	t.Helper()
+	defer func() {
+		if recover() == nil {
+			t.Fatalf("expected panic")
+		}
+	}()
+	_ = NewRuntime(nil, nil, "acme", "dev", "___")
+}

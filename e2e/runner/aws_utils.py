@@ -10,6 +10,13 @@ class AWSUtils:
     """Helper class for creating AWS clients with consistent configuration."""
 
     @staticmethod
+    def _required_env(key: str) -> str:
+        value = os.environ.get(key, "").strip()
+        if value == "":
+            raise RuntimeError(f"{key} is required")
+        return value
+
+    @staticmethod
     def create_s3_client(s3_port=None):
         """Create a configured S3 client for RustFS."""
         if s3_port is None:
@@ -18,8 +25,8 @@ class AWSUtils:
         return boto3.client(
             "s3",
             endpoint_url=f"http://localhost:{s3_port}",
-            aws_access_key_id=os.environ.get("RUSTFS_ACCESS_KEY", "esb"),
-            aws_secret_access_key=os.environ.get("RUSTFS_SECRET_KEY", "esb"),
+            aws_access_key_id=AWSUtils._required_env("RUSTFS_ACCESS_KEY"),
+            aws_secret_access_key=AWSUtils._required_env("RUSTFS_SECRET_KEY"),
             config=Config(signature_version="s3v4"),
             verify=False,
         )

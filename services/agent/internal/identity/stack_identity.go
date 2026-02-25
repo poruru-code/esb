@@ -16,8 +16,8 @@ const (
 	EnvName              = "ENV"
 	EnvContainersNetwork = "CONTAINERS_NETWORK"
 
-	defaultBrand        = "esb"
-	bridgePrefix        = "esb-"
+	defaultBrandSlug    = "esb"
+	bridgePrefix        = defaultBrandSlug + "-"
 	bridgeBrandRunes    = 4
 	bridgeHashRunes     = 6
 	subnetPrefixLength  = 23
@@ -32,8 +32,24 @@ type StackIdentity struct {
 	Source    string
 }
 
+func DefaultBrandSlug() string {
+	return defaultBrandSlug
+}
+
+func SanitizeBrandSlug(value string) string {
+	return normalizeSlug(value)
+}
+
+func NormalizeBrandSlug(value string) string {
+	slug := SanitizeBrandSlug(value)
+	if slug == "" {
+		return defaultBrandSlug
+	}
+	return slug
+}
+
 func ResolveStackIdentityFrom(brandSlug, projectName, envName, containersNetwork string) (StackIdentity, error) {
-	if slug := normalizeSlug(brandSlug); slug != "" {
+	if slug := SanitizeBrandSlug(brandSlug); slug != "" {
 		return StackIdentity{BrandSlug: slug, Source: EnvBrandSlug}, nil
 	}
 	if slug := deriveBrandFromProject(projectName, envName); slug != "" {
@@ -64,7 +80,7 @@ func (id StackIdentity) RuntimeCNIBridge() string {
 	brand := id.normalizedBrand()
 	compactBrand := strings.ReplaceAll(brand, "-", "")
 	if compactBrand == "" {
-		compactBrand = defaultBrand
+		compactBrand = defaultBrandSlug
 	}
 	if len(compactBrand) > bridgeBrandRunes {
 		compactBrand = compactBrand[:bridgeBrandRunes]
@@ -127,11 +143,7 @@ func (id StackIdentity) RuntimeLabelCreatedByValue() string {
 }
 
 func (id StackIdentity) normalizedBrand() string {
-	brand := normalizeSlug(id.BrandSlug)
-	if brand == "" {
-		return defaultBrand
-	}
-	return brand
+	return NormalizeBrandSlug(id.BrandSlug)
 }
 
 func deriveBrandFromProject(projectName, envName string) string {
@@ -151,11 +163,11 @@ func deriveBrandFromProject(projectName, envName string) string {
 			project = project[:len(project)-len(underscoreSuffix)]
 		}
 	}
-	slug := normalizeSlug(project)
+	slug := SanitizeBrandSlug(project)
 	if slug != "" {
 		return slug
 	}
-	return normalizeSlug(projectName)
+	return SanitizeBrandSlug(projectName)
 }
 
 func deriveBrandFromNetwork(containersNetwork, envName string) string {
@@ -177,11 +189,11 @@ func deriveBrandFromNetwork(containersNetwork, envName string) string {
 		network = trimKnownSuffix(network, "_"+lowerEnv)
 	}
 
-	slug := normalizeSlug(network)
+	slug := SanitizeBrandSlug(network)
 	if slug != "" {
 		return slug
 	}
-	return normalizeSlug(containersNetwork)
+	return SanitizeBrandSlug(containersNetwork)
 }
 
 func trimKnownSuffix(value, suffix string) string {

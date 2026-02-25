@@ -72,7 +72,7 @@ func TestPrepareImagesRewritesFunctionDockerfileRegistryForBuild(t *testing.T) {
 	}
 }
 
-func TestRewriteDockerfileForBuildRewritesNonBaseAliasStages(t *testing.T) {
+func TestRewriteDockerfileForBuildRewritesAliasStages(t *testing.T) {
 	content := strings.Join([]string{
 		"FROM registry:5010/esb-lambda-base:latest AS base",
 		"FROM registry:5010/esb-tooling:latest AS tooling",
@@ -84,20 +84,19 @@ func TestRewriteDockerfileForBuildRewritesNonBaseAliasStages(t *testing.T) {
 		content,
 		"127.0.0.1:5512",
 		[]string{"registry:5010", "127.0.0.1:5512"},
-		"runtime-v2",
 	)
 	if !changed {
 		t.Fatal("expected dockerfile rewrite")
 	}
-	if !strings.Contains(rewritten, "FROM 127.0.0.1:5512/esb-lambda-base:runtime-v2 AS base") {
-		t.Fatalf("expected lambda base alias+tag rewrite, got:\n%s", rewritten)
+	if !strings.Contains(rewritten, "FROM 127.0.0.1:5512/esb-lambda-base:latest AS base") {
+		t.Fatalf("expected lambda base alias rewrite, got:\n%s", rewritten)
 	}
 	if !strings.Contains(rewritten, "FROM 127.0.0.1:5512/esb-tooling:latest AS tooling") {
 		t.Fatalf("expected non-base alias rewrite, got:\n%s", rewritten)
 	}
 }
 
-func TestPrepareImagesRewritesFunctionDockerfileLambdaBaseTagFromRuntimeObservation(t *testing.T) {
+func TestPrepareImagesDoesNotRewriteLambdaBaseTagFromESBTagEnv(t *testing.T) {
 	root := t.TempDir()
 	manifestPath := writePrepareImageFixture(
 		t,
@@ -107,6 +106,7 @@ func TestPrepareImagesRewritesFunctionDockerfileLambdaBaseTagFromRuntimeObservat
 	)
 	t.Setenv("CONTAINER_REGISTRY", "registry:5010")
 	t.Setenv("HOST_REGISTRY_ADDR", "127.0.0.1:5010")
+	t.Setenv("ESB_TAG", "env-tag-should-not-apply")
 
 	var functionBuildText string
 	runner := &recordCommandRunner{
@@ -132,61 +132,14 @@ func TestPrepareImagesRewritesFunctionDockerfileLambdaBaseTagFromRuntimeObservat
 	err := prepareImages(prepareImagesInput{
 		ArtifactPath: manifestPath,
 		Runner:       runner,
-		Runtime: &RuntimeObservation{
-			ESBVersion: "runtime-v2",
-		},
 	})
 	if err != nil {
 		t.Fatalf("prepareImages() error = %v", err)
 	}
-	if !strings.Contains(functionBuildText, "FROM 127.0.0.1:5010/esb-lambda-base:runtime-v2") {
-		t.Fatalf("expected runtime tag rewrite in build dockerfile, got:\n%s", functionBuildText)
+	if !strings.Contains(functionBuildText, "FROM 127.0.0.1:5010/esb-lambda-base:latest") {
+		t.Fatalf("expected latest tag to remain when runtime observation is absent, got:\n%s", functionBuildText)
 	}
-}
-
-func TestPrepareImagesDoesNotRewritePinnedLambdaBaseTagFromRuntimeObservation(t *testing.T) {
-	root := t.TempDir()
-	manifestPath := writePrepareImageFixture(
-		t,
-		root,
-		"registry:5010/esb-lambda-echo:e2e-test",
-		"registry:5010/esb-lambda-base:e2e-test",
-	)
-	t.Setenv("CONTAINER_REGISTRY", "registry:5010")
-	t.Setenv("HOST_REGISTRY_ADDR", "127.0.0.1:5010")
-
-	var functionBuildText string
-	runner := &recordCommandRunner{
-		hook: func(cmd []string) error {
-			if len(cmd) < 4 || cmd[0] != "docker" || cmd[1] != "buildx" || cmd[2] != "build" {
-				return nil
-			}
-			for i := 0; i+1 < len(cmd); i++ {
-				if cmd[i] != "--file" {
-					continue
-				}
-				data, err := os.ReadFile(cmd[i+1])
-				if err != nil {
-					return err
-				}
-				functionBuildText = string(data)
-				return nil
-			}
-			return nil
-		},
-	}
-
-	err := prepareImages(prepareImagesInput{
-		ArtifactPath: manifestPath,
-		Runner:       runner,
-		Runtime: &RuntimeObservation{
-			ESBVersion: "runtime-v2",
-		},
-	})
-	if err != nil {
-		t.Fatalf("prepareImages() error = %v", err)
-	}
-	if !strings.Contains(functionBuildText, "FROM 127.0.0.1:5010/esb-lambda-base:e2e-test") {
-		t.Fatalf("expected pinned tag to be preserved in build dockerfile, got:\n%s", functionBuildText)
+	if strings.Contains(functionBuildText, "env-tag-should-not-apply") {
+		t.Fatalf("unexpected ESB_TAG env rewrite, got:\n%s", functionBuildText)
 	}
 }

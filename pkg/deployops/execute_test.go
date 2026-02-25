@@ -119,7 +119,6 @@ func TestExecuteDoesNotNormalizeOutputImageWithoutPublishedFunctionImage(t *test
 
 	t.Setenv("CONTAINER_REGISTRY", "127.0.0.1:5512")
 	t.Setenv("HOST_REGISTRY_ADDR", "127.0.0.1:5512")
-	t.Setenv("ESB_TAG", "latest")
 
 	originalImageExists := dockerImageExistsFunc
 	dockerImageExistsFunc = func(string) bool { return true }
@@ -160,7 +159,7 @@ func TestExecuteEnsuresBaseWhenNoFunctionTargets(t *testing.T) {
 
 	t.Setenv("CONTAINER_REGISTRY", "127.0.0.1:5010")
 	t.Setenv("HOST_REGISTRY_ADDR", "127.0.0.1:5010")
-	t.Setenv("ESB_TAG", "latest")
+	t.Setenv("ESB_TAG", "unexpected-env-tag")
 
 	originalImageExists := dockerImageExistsFunc
 	dockerImageExistsFunc = func(string) bool { return false }

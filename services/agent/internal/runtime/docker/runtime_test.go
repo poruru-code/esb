@@ -337,3 +337,10 @@ func TestDockerMemoryLimitBytes(t *testing.T) {
 		})
 	}
 }
+
+func TestNewRuntime_PanicsWhenBrandInvalid(t *testing.T) {
+	mockClient := new(MockDockerClient)
+	assert.Panics(t, func() {
+		_ = NewRuntime(mockClient, "esb-net", "test-env", "___")
+	})
+}

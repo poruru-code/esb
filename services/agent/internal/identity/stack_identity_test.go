@@ -70,6 +70,50 @@ func TestResolveStackIdentityFrom(t *testing.T) {
 	}
 }
 
+func TestDefaultBrandSlug(t *testing.T) {
+	if got := DefaultBrandSlug(); got != "esb" {
+		t.Fatalf("DefaultBrandSlug() = %q", got)
+	}
+}
+
+func TestSanitizeBrandSlug(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{name: "normalized", input: " Acme_Main ", want: "acme-main"},
+		{name: "empty", input: "   ", want: ""},
+		{name: "invalid", input: "___", want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := SanitizeBrandSlug(tt.input); got != tt.want {
+				t.Fatalf("SanitizeBrandSlug(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNormalizeBrandSlug(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{name: "normalized", input: " Acme_Main ", want: "acme-main"},
+		{name: "fallback empty", input: "   ", want: "esb"},
+		{name: "fallback invalid", input: "___", want: "esb"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := NormalizeBrandSlug(tt.input); got != tt.want {
+				t.Fatalf("NormalizeBrandSlug(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestStackIdentityDerivedValues(t *testing.T) {
 	id := StackIdentity{BrandSlug: "acme-core"}
 	if got := id.RuntimeNamespace(); got != "acme-core" {

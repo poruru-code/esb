@@ -20,7 +20,6 @@ else:
 
 ROOT_CA_CERT_FILENAME = "rootCA.crt"
 ROOT_CA_KEY_FILENAME = "rootCA.key"
-BRAND_SLUG = "esb"
 
 
 def get_local_ip():
@@ -256,6 +255,17 @@ def resolve_repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
+def resolve_brand_home_dir() -> str:
+    repo_root = resolve_repo_root()
+    repo_root_str = str(repo_root)
+    if repo_root_str not in sys.path:
+        sys.path.insert(0, repo_root_str)
+
+    from e2e.runner.branding import brand_home_dir
+
+    return brand_home_dir()
+
+
 def ensure_output_dir(output_dir: str) -> None:
     expanded = os.path.expanduser(output_dir)
     owner_hint = str(Path(expanded).parent)
@@ -372,7 +382,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     repo_root = resolve_repo_root()
-    brand_dir = repo_root / f".{BRAND_SLUG}"
+    brand_dir = repo_root / resolve_brand_home_dir()
 
     config_path = Path(args.config)
     if not config_path.is_absolute():

@@ -60,7 +60,7 @@ Agent は起動時に brand slug を次の順で 1 回だけ解決し、runtime 
 | `CONTAINER_REGISTRY` | `registry:5010` | 既定の内部レジストリ |
 | `CONTAINER_REGISTRY_INSECURE` | `0` | `1` の場合、内部レジストリ通信を insecure として扱う |
 | `IMAGE_PULL_POLICY` | `if-not-present` | `always` / `if-not-present`（不正値は `if-not-present` 扱い） |
-| `<BRAND_ENV_PREFIX>_TAG` | `latest` | 既定タグ（例: `ESB_TAG`, `ACME_TAG`）。brand 専用キー未設定時は `ESB_TAG` を fallback |
+| `<BRAND_ENV_PREFIX>_TAG` | `latest` | 既定タグ（例: `ESB_TAG`, `ACME_TAG`）。未設定時は `latest` |
 
 ## 運用上の前提
 - `EnsureContainer` は `image` の指定を必須とします（`services/contracts/proto/agent.proto`）。

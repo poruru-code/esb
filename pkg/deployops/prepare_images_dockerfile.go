@@ -13,7 +13,6 @@ var mavenWrapperRunCommandPattern = regexp.MustCompile(`(^|&&|\|\||;)[[:space:]]
 
 func resolveFunctionBuildDockerfile(
 	dockerfile string,
-	runtime *RuntimeObservation,
 	noCache bool,
 	runner CommandRunner,
 	resolvedMavenShimImages map[string]string,
@@ -26,7 +25,6 @@ func resolveFunctionBuildDockerfile(
 		string(data),
 		resolveHostFunctionRegistry(),
 		resolveRegistryAliases(),
-		resolveLambdaBaseTag(runtime),
 	)
 	rewritten, mavenChanged, err := rewriteDockerfileForMavenShim(
 		rewritten,
@@ -54,7 +52,7 @@ func resolveFunctionBuildDockerfile(
 	return tmpPath, cleanup, nil
 }
 
-func rewriteDockerfileForBuild(content, hostRegistry string, registryAliases []string, lambdaBaseTag string) (string, bool) {
+func rewriteDockerfileForBuild(content, hostRegistry string, registryAliases []string) (string, bool) {
 	lines := strings.Split(content, "\n")
 	changed := false
 	for i, line := range lines {
@@ -70,7 +68,7 @@ func rewriteDockerfileForBuild(content, hostRegistry string, registryAliases []s
 		if refIndex < 0 {
 			continue
 		}
-		rewrittenRef, rewritten := rewriteDockerfileFromRef(parts[refIndex], hostRegistry, registryAliases, lambdaBaseTag)
+		rewrittenRef, rewritten := rewriteDockerfileFromRef(parts[refIndex], hostRegistry, registryAliases)
 		if !rewritten {
 			continue
 		}
@@ -161,7 +159,7 @@ func isMavenBaseRef(imageRef string) bool {
 	return lastSegment == "maven"
 }
 
-func rewriteDockerfileFromRef(ref, hostRegistry string, registryAliases []string, lambdaBaseTag string) (string, bool) {
+func rewriteDockerfileFromRef(ref, hostRegistry string, registryAliases []string) (string, bool) {
 	current := strings.TrimSpace(ref)
 	if current == "" {
 		return ref, false
@@ -179,50 +177,7 @@ func rewriteDockerfileFromRef(ref, hostRegistry string, registryAliases []string
 		}
 	}
 
-	if lambdaBaseTag == "" {
-		return rewritten, changed
-	}
-	next, tagChanged := rewriteLambdaBaseTag(rewritten, lambdaBaseTag)
-	if tagChanged {
-		rewritten = next
-		changed = true
-	}
 	return rewritten, changed
-}
-
-func rewriteLambdaBaseTag(imageRef, tag string) (string, bool) {
-	trimmedTag := strings.TrimSpace(tag)
-	if trimmedTag == "" {
-		return imageRef, false
-	}
-	withoutDigest := strings.SplitN(strings.TrimSpace(imageRef), "@", 2)[0]
-	if withoutDigest == "" {
-		return imageRef, false
-	}
-
-	slash := strings.LastIndex(withoutDigest, "/")
-	colon := strings.LastIndex(withoutDigest, ":")
-	repo := withoutDigest
-	if colon > slash {
-		repo = withoutDigest[:colon]
-	}
-	lastSegment := repo
-	if slash >= 0 && slash+1 < len(repo) {
-		lastSegment = repo[slash+1:]
-	}
-	if lastSegment != "esb-lambda-base" {
-		return imageRef, false
-	}
-
-	// Keep explicit (non-latest) tags authored in artifact Dockerfiles.
-	// Runtime tag override is only applied to floating latest references.
-	if colon > slash {
-		currentTag := withoutDigest[colon+1:]
-		if currentTag != "" && currentTag != "latest" {
-			return imageRef, false
-		}
-	}
-	return repo + ":" + trimmedTag, true
 }
 
 func fromImageTokenIndex(parts []string) int {

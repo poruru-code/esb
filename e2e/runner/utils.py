@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Optional
 
 from e2e.runner.branding import (
-    DEFAULT_BRAND_SLUG,
     DEFAULT_ENV_PREFIX,
     brand_home_dir,
 )
@@ -16,10 +15,8 @@ from e2e.runner.branding import (
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 ENV_PREFIX = DEFAULT_ENV_PREFIX
-BRAND_SLUG = DEFAULT_BRAND_SLUG
-BRAND_HOME_DIR = brand_home_dir(BRAND_SLUG)
-BRAND_OUTPUT_DIR = BRAND_HOME_DIR
-E2E_STATE_ROOT = PROJECT_ROOT / BRAND_OUTPUT_DIR / "e2e" / "state"
+DEFAULT_BRAND_HOME_DIR = brand_home_dir()
+E2E_STATE_ROOT = PROJECT_ROOT / DEFAULT_BRAND_HOME_DIR / "e2e" / "state"
 E2E_ARTIFACT_ROOT = PROJECT_ROOT / "e2e" / "artifacts"
 
 

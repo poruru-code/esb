@@ -10,9 +10,11 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 DEFAULT_PRIMARY_LOG="${ROOT_DIR}/e2e/.parallel-e2e-containerd.log"
 DEFAULT_SECONDARY_LOG="${ROOT_DIR}/e2e/.parallel-e2e-docker.log"
 DEFAULT_OUT="${ROOT_DIR}/artifacts/proxy-failure-summary-$(date +%Y%m%d-%H%M%S).log"
+DEFAULT_CTL_BIN="artifactctl"
 
 PRIMARY_LOG="${1:-$DEFAULT_PRIMARY_LOG}"
 OUT_FILE="${2:-$DEFAULT_OUT}"
+CTL_BIN="${CTL_BIN:-$DEFAULT_CTL_BIN}"
 
 mkdir -p "$(dirname "$OUT_FILE")"
 
@@ -77,6 +79,12 @@ append_context_matches() {
   done
 }
 
+escape_regex() {
+  printf '%s' "$1" | sed -E 's/[][(){}.^$*+?|\\]/\\&/g'
+}
+
+CTL_BIN_REGEX="$(escape_regex "$CTL_BIN")"
+
 {
   echo "# Proxy Failure Summary"
   echo "generated_at=$(date -Iseconds)"
@@ -92,18 +100,18 @@ append_context_matches() {
 
 append_command "Git" git -C "$ROOT_DIR" rev-parse --abbrev-ref HEAD
 append_command "Git Commit" git -C "$ROOT_DIR" rev-parse HEAD
-append_command "Artifactctl maven-shim help" artifactctl internal maven-shim ensure --help
+append_command "Ctl maven-shim help (${CTL_BIN})" "$CTL_BIN" internal maven-shim ensure --help
 append_command "Docker Buildx ls" docker buildx ls
 
 append_context_matches "$PRIMARY_LOG" "Preparing local image fixture: .*esb-e2e-image-java" 2 6 "fixture prep"
-append_context_matches "$PRIMARY_LOG" "artifactctl internal maven-shim ensure|shim_image" 3 8 "maven shim ensure"
+append_context_matches "$PRIMARY_LOG" "${CTL_BIN_REGEX} internal maven-shim ensure|shim_image" 3 8 "maven shim ensure"
 append_context_matches "$PRIMARY_LOG" "docker buildx build .*esb-e2e-image-java|MAVEN_IMAGE=" 3 8 "java fixture build command"
 append_context_matches "$PRIMARY_LOG" "RUN mvn -q -DskipTests package|Non-resolvable import POM|Network is unreachable|UnknownIssuer|PKIX|invalid peer certificate|Could not transfer artifact" 6 10 "maven execution / failure"
 append_context_matches "$PRIMARY_LOG" "ERROR: process \"/bin/sh -c mvn -q -DskipTests package\"|UnresolvableModelException|ProjectBuildingException" 6 12 "maven terminal errors"
 append_context_matches "$PRIMARY_LOG" "\\[e2e-containerd\\] ❌ deploy|\\[e2e-containerd\\] 🏁 done" 4 6 "containerd result"
 
 if [[ -f "$DEFAULT_SECONDARY_LOG" ]]; then
-  append_context_matches "$DEFAULT_SECONDARY_LOG" "Preparing local image fixture: .*esb-e2e-image-java|artifactctl internal maven-shim ensure|esb-e2e-image-java|\\[e2e-docker\\] ❌|\\[e2e-docker\\] done" 6 6 "docker-side key lines"
+  append_context_matches "$DEFAULT_SECONDARY_LOG" "Preparing local image fixture: .*esb-e2e-image-java|${CTL_BIN_REGEX} internal maven-shim ensure|esb-e2e-image-java|\\[e2e-docker\\] ❌|\\[e2e-docker\\] done" 6 6 "docker-side key lines"
 fi
 
 append_section_header "Primary Log Tail"
