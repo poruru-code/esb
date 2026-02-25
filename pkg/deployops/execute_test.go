@@ -15,12 +15,12 @@ import (
 func TestExecuteValidatesBeforePrepare(t *testing.T) {
 	runner := &recordCommandRunner{}
 	_, err := Execute(Input{
-		ArtifactPath: "artifact.yml",
-		OutputDir:    "",
-		Runner:       runner,
+		ArtifactPath:     "",
+		RuntimeConfigDir: filepath.Join(t.TempDir(), "runtime-config"),
+		Runner:           runner,
 	})
-	if !errors.Is(err, artifactcore.ErrOutputDirRequired) {
-		t.Fatalf("expected ErrOutputDirRequired, got %v", err)
+	if !errors.Is(err, artifactcore.ErrArtifactPathRequired) {
+		t.Fatalf("expected ErrArtifactPathRequired, got %v", err)
 	}
 	if len(runner.commands) != 0 {
 		t.Fatalf("runner must not be called when validation fails: %#v", runner.commands)
@@ -39,9 +39,9 @@ func TestExecuteRunsPrepareAndApply(t *testing.T) {
 	runner := &recordCommandRunner{}
 
 	result, err := Execute(Input{
-		ArtifactPath: manifestPath,
-		OutputDir:    outputDir,
-		Runner:       runner,
+		ArtifactPath:     manifestPath,
+		RuntimeConfigDir: outputDir,
+		Runner:           runner,
 	})
 	if err != nil {
 		t.Fatalf("Execute() error = %v", err)
@@ -75,9 +75,9 @@ func TestExecuteNormalizesOutputFunctionImagesToRuntimeRegistry(t *testing.T) {
 	outputDir := filepath.Join(root, "out")
 	runner := &recordCommandRunner{}
 	result, err := Execute(Input{
-		ArtifactPath: manifestPath,
-		OutputDir:    outputDir,
-		Runner:       runner,
+		ArtifactPath:     manifestPath,
+		RuntimeConfigDir: outputDir,
+		Runner:           runner,
 	})
 	if err != nil {
 		t.Fatalf("Execute() error = %v", err)
@@ -128,9 +128,9 @@ func TestExecuteDoesNotNormalizeOutputImageWithoutPublishedFunctionImage(t *test
 	outputDir := filepath.Join(root, "out")
 	runner := &recordCommandRunner{}
 	result, err := Execute(Input{
-		ArtifactPath: manifestPath,
-		OutputDir:    outputDir,
-		Runner:       runner,
+		ArtifactPath:     manifestPath,
+		RuntimeConfigDir: outputDir,
+		Runner:           runner,
 	})
 	if err != nil {
 		t.Fatalf("Execute() error = %v", err)
@@ -169,9 +169,9 @@ func TestExecuteEnsuresBaseWhenNoFunctionTargets(t *testing.T) {
 	outputDir := filepath.Join(root, "out")
 	runner := &recordCommandRunner{}
 	result, err := Execute(Input{
-		ArtifactPath: manifestPath,
-		OutputDir:    outputDir,
-		Runner:       runner,
+		ArtifactPath:     manifestPath,
+		RuntimeConfigDir: outputDir,
+		Runner:           runner,
 	})
 	if err != nil {
 		t.Fatalf("Execute() error = %v", err)
@@ -195,13 +195,13 @@ func TestExecuteEnsuresBaseWhenNoFunctionTargets(t *testing.T) {
 
 func TestNormalizeInputTrimsValues(t *testing.T) {
 	normalized, err := normalizeInput(Input{
-		ArtifactPath: "  artifact.yml  ",
-		OutputDir:    "  out  ",
+		ArtifactPath:     "  artifact.yml  ",
+		RuntimeConfigDir: "  out  ",
 	})
 	if err != nil {
 		t.Fatalf("normalizeInput error = %v", err)
 	}
-	if normalized.ArtifactPath != "artifact.yml" || normalized.OutputDir != "out" {
+	if normalized.ArtifactPath != "artifact.yml" || normalized.RuntimeConfigDir != "out" {
 		t.Fatalf("unexpected normalized input: %#v", normalized)
 	}
 }

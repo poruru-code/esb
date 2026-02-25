@@ -79,16 +79,6 @@ def reset_environment(
             printer(f"  - Cleaning artifact directory: {env_state_dir}")
         shutil.rmtree(env_state_dir)
 
-    config_dir = ctx.runtime_env.get(constants.ENV_CONFIG_DIR)
-    if config_dir:
-        staging_dir = Path(config_dir)
-        if staging_dir.exists():
-            log.write_line(f"  - Cleaning staging config directory: {staging_dir}")
-            if printer:
-                printer(f"  - Cleaning staging config directory: {staging_dir}")
-            shutil.rmtree(staging_dir)
-            staging_dir.mkdir(parents=True, exist_ok=True)
-
 
 def compose_up(
     ctx: RunContext,

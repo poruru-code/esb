@@ -18,7 +18,7 @@ Why: Explain how env config flows without duplicating subsystem details.
 
 ## deploy 時の設定反映
 artifact apply 実行時に、生成済み runtime-config が実行中 stack の runtime target へ同期されます。
-このため通常運用では `CONFIG_DIR` の手動指定は不要です。
+このため通常運用では runtime-config のパス指定は不要です。
 
 ## 詳細（subsystem docs）
 - Gateway: [services/gateway/docs/configuration.md](../services/gateway/docs/configuration.md)

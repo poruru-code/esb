@@ -87,11 +87,9 @@ generate_fixture() {
   local tag="$6"
 
   local artifact_dir="${REPO_ROOT}/e2e/artifacts/${env_name}"
-  local output_dir="${artifact_dir}/template.e2e"
   local manifest_path="${artifact_dir}/artifact.yml"
-  local template_root="${output_dir}/${env_name}"
 
-  rm -rf "${output_dir}"
+  rm -rf "${artifact_dir}"
   mkdir -p "${artifact_dir}"
 
   ENV_PREFIX=ESB ESB_TAG="${tag}" "${PRODUCER_CMD_ARR[@]}" artifact generate \
@@ -99,8 +97,8 @@ generate_fixture() {
     --env "${env_name}" \
     --mode "${mode}" \
     --project "${project}" \
-    --output "${output_dir}" \
-    --manifest "${manifest_path}" \
+    --output "${artifact_dir}" \
+    --artifact "${manifest_path}" \
     --image-uri "lambda-image=${image_uri}" \
     --image-runtime "lambda-image=${image_runtime}" \
     --force \
@@ -116,7 +114,30 @@ generate_fixture() {
   validate_manifest_contract "${manifest_path}" "${env_name}"
 
   # runtime-base is out of deploy artifact contract scope.
-  rm -rf "${template_root}/runtime-base"
+  python3 - "${manifest_path}" <<'PY'
+import os
+import shutil
+import sys
+import yaml
+
+manifest_path = sys.argv[1]
+manifest_dir = os.path.dirname(os.path.abspath(manifest_path))
+
+with open(manifest_path, encoding="utf-8") as f:
+    manifest = yaml.safe_load(f) or {}
+
+for artifact in manifest.get("artifacts", []) or []:
+    if not isinstance(artifact, dict):
+        continue
+    artifact_root = artifact.get("artifact_root")
+    if not isinstance(artifact_root, str) or not artifact_root.strip():
+        continue
+    if os.path.isabs(artifact_root):
+        runtime_base = os.path.join(os.path.normpath(artifact_root), "runtime-base")
+    else:
+        runtime_base = os.path.join(manifest_dir, os.path.normpath(artifact_root), "runtime-base")
+    shutil.rmtree(runtime_base, ignore_errors=True)
+PY
 }
 
 cd "${REPO_ROOT}"

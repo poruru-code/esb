@@ -50,7 +50,7 @@ func TestRunDeployHelpShowsFlags(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("run returned code=%d", code)
 	}
-	if !strings.Contains(out.String(), "--artifact") || !strings.Contains(out.String(), "--out") {
+	if !strings.Contains(out.String(), "--artifact") {
 		t.Fatalf("expected deploy help output, got: %q", out.String())
 	}
 }
@@ -98,12 +98,12 @@ func TestRunDeployRequiresMandatoryFlags(t *testing.T) {
 	var out bytes.Buffer
 	var errOut bytes.Buffer
 
-	code := run([]string{"deploy", "--artifact", "artifact.yml"}, newNoopDeps(&out, &errOut))
+	code := run([]string{"deploy"}, newNoopDeps(&out, &errOut))
 	if code != 1 {
 		t.Fatalf("run returned code=%d", code)
 	}
-	if !strings.Contains(errOut.String(), "--out") {
-		t.Fatalf("expected missing --out parse error, got: %q", errOut.String())
+	if !strings.Contains(errOut.String(), "--artifact") {
+		t.Fatalf("expected missing --artifact parse error, got: %q", errOut.String())
 	}
 }
 
@@ -127,7 +127,6 @@ func TestRunDeployDispatchesCanonicalDeployInput(t *testing.T) {
 	code := run([]string{
 		"deploy",
 		"--artifact", "artifact.yml",
-		"--out", "out",
 		"--no-cache",
 	}, deps)
 	if code != 0 {
@@ -136,8 +135,8 @@ func TestRunDeployDispatchesCanonicalDeployInput(t *testing.T) {
 	if got.ArtifactPath != "artifact.yml" || !got.NoCache {
 		t.Fatalf("unexpected deploy input: %#v", got)
 	}
-	if got.OutputDir != "out" {
-		t.Fatalf("unexpected apply input: %#v", got)
+	if got.RuntimeConfigDir != "" {
+		t.Fatalf("runtime config dir must be resolved inside deployops: %#v", got)
 	}
 	if !strings.Contains(warnings.String(), "Warning: minor mismatch") {
 		t.Fatalf("expected warning output, got %q", warnings.String())
@@ -155,7 +154,7 @@ func TestRunDeployUsesErrOutWhenWarningWriterUnset(t *testing.T) {
 		errOut: &errOut,
 	}
 
-	code := run([]string{"deploy", "--artifact", "artifact.yml", "--out", "out"}, deps)
+	code := run([]string{"deploy", "--artifact", "artifact.yml"}, deps)
 	if code != 0 {
 		t.Fatalf("run returned code=%d, stderr=%q", code, errOut.String())
 	}
@@ -176,7 +175,7 @@ func TestRunDeployReportsExecuteFailure(t *testing.T) {
 		errOut: &errOut,
 	}
 
-	code := run([]string{"deploy", "--artifact", "artifact.yml", "--out", "out"}, deps)
+	code := run([]string{"deploy", "--artifact", "artifact.yml"}, deps)
 	if code != 1 {
 		t.Fatalf("run returned code=%d", code)
 	}

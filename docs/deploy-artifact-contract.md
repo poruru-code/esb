@@ -165,7 +165,7 @@ artifacts:
   - schema major 非互換
   - `artifact_root` または entry 内パス解決失敗
   - `source_template` が設定されている場合の形式不正（空白 path / 不正 sha256）
-  - 複数テンプレート時に merge 規約どおりの `CONFIG_DIR` を生成できない
+  - 複数テンプレート時に merge 規約どおりの runtime-config を生成できない
 
 ## 実装責務
 - Producer（外部ツール / 手動生成）:
@@ -173,7 +173,7 @@ artifacts:
   - `artifact.yml` を atomic write
 - Applier（adapter / 手動適用）:
   - `artifact.yml` を検証
-  - `artifacts[]` 配列順で runtime-config をマージし `CONFIG_DIR` へ反映
+  - `artifacts[]` 配列順で runtime-config をマージし `esb-runtime-config` volume へ反映
   - `artifactctl deploy` と provision を実行
 - Runtime Consumer（Gateway/Provisioner/Agent）:
   - 反映済み設定を読み込むのみ
@@ -210,7 +210,7 @@ artifactcore 配布/開発ルール:
 |---|---|---|
 | 1. テンプレート解析 | producer が SAM を解析 | 実行しない（生成済み成果物を受領） |
 | 2. 生成（Dockerfile / config） | `artifact.yml` を出力（`artifacts[]` に全テンプレートを記録） | 実行しない |
-| 3. Artifact 適用（検証 + 設定反映） | producer 側 apply adapter が実行 | `artifactctl deploy --artifact ... --out ...` を実行 |
+| 3. Artifact 適用（検証 + 設定反映） | producer 側 apply adapter が実行 | `artifactctl deploy --artifact ...` を実行 |
 | 4. Provision | provisioner を実行 | `docker compose up` の起動シーケンス内で自動実行（必要時は `docker compose --profile deploy run --rm provisioner` を明示実行） |
 | 5. Runtime 起動 | `docker compose up` | `docker compose up` |
 
@@ -237,7 +237,6 @@ artifactcore 配布/開発ルール:
 ARTIFACT="/path/to/artifact.yml"
 COMPOSE_FILE="/path/to/esb/docker-compose.docker.yml"
 SECRETS_ENV="/path/to/secrets.env"   # 成果物外で管理
-CONFIG_DIR="/path/to/merged-runtime-config"
 RUN_ENV="/path/to/run.env"
 ```
 
@@ -245,20 +244,16 @@ RUN_ENV="/path/to/run.env"
 ```bash
 test -f "${ARTIFACT}"
 artifactctl deploy \
-  --artifact "${ARTIFACT}" \
-  --out "${CONFIG_DIR}"
+  --artifact "${ARTIFACT}"
 
 cat "${SECRETS_ENV}" > "${RUN_ENV}"
-{
-  echo "CONFIG_DIR=${CONFIG_DIR}"
-} >> "${RUN_ENV}"
 ```
 
 注記:
 - `artifactctl deploy` は検証と apply を実行します（必要時に image build/pull を実行し得ます）。
 - image build では artifact 作成時の `runtime-base/**` ではなく、実行時環境の lambda base を使用します。
 - `artifactctl deploy` は deploy 時に必要な lambda base を確保し、関数 build が 0 件のときは既定の `esb-lambda-base:<resolved-tag>` を target registry へ確保します。
-- `artifactctl deploy` は最終 `CONFIG_DIR/functions.yml` でも、deploy で build/push した function image を実行時 registry へ正規化します。
+- `artifactctl deploy` は最終 runtime-config（volume 内 `functions.yml`）でも、deploy で build/push した function image を実行時 registry へ正規化します。
 
 ### 2) Provision 実行（任意: 明示再実行したい場合）
 ```bash
