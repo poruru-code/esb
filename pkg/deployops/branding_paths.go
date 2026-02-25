@@ -10,6 +10,10 @@ func resolveBrandHomeDir(_ string) string {
 	return defaultBrandHomeDir
 }
 
+func DefaultCtlCommandName() string {
+	return defaultBrandSlug + "-ctl"
+}
+
 func resolveRepoRoot(manifestPath, artifactRoot string) string {
 	candidates := []string{artifactRoot, filepath.Dir(manifestPath)}
 	for _, candidate := range candidates {

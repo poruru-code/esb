@@ -85,17 +85,17 @@ def resolve_live_enabled(no_live: bool) -> bool:
     return True
 
 
-def requires_artifactctl(args, env_scenarios: dict[str, object]) -> bool:
+def requires_ctl(args, env_scenarios: dict[str, object]) -> bool:
     if args.test_only:
         return False
     return bool(env_scenarios)
 
 
-def ensure_artifactctl_available() -> str:
+def ensure_ctl_available() -> str:
     command_name = DEFAULT_CTL_BIN
 
     def _print_build_hint() -> None:
-        print("        In this repository, run: mise run build-artifactctl")
+        print("        In this repository, run: mise run build-ctl")
 
     def _assert_supported(binary_path: str) -> None:
         for subcommand in CTL_REQUIRED_SUBCOMMANDS:
@@ -243,8 +243,8 @@ def main():
             emoji=args.emoji,
             show_progress=True,
         )
-        if requires_artifactctl(args, env_scenarios):
-            ensure_artifactctl_available()
+        if requires_ctl(args, env_scenarios):
+            ensure_ctl_available()
         results = run_parallel(
             env_scenarios,
             reporter=reporter,
@@ -277,8 +277,8 @@ def main():
             emoji=args.emoji,
             show_progress=True,
         )
-        if requires_artifactctl(args, env_scenarios):
-            ensure_artifactctl_available()
+        if requires_ctl(args, env_scenarios):
+            ensure_ctl_available()
         results = run_parallel(
             env_scenarios,
             reporter=reporter,
@@ -309,8 +309,8 @@ def main():
         live_display=live_display,
         show_progress=not (live_display and not args.verbose),
     )
-    if requires_artifactctl(args, env_scenarios):
-        ensure_artifactctl_available()
+    if requires_ctl(args, env_scenarios):
+        ensure_ctl_available()
     results = run_parallel(
         env_scenarios,
         reporter=reporter,

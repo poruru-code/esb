@@ -10,7 +10,7 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 DEFAULT_PRIMARY_LOG="${ROOT_DIR}/e2e/.parallel-e2e-containerd.log"
 DEFAULT_SECONDARY_LOG="${ROOT_DIR}/e2e/.parallel-e2e-docker.log"
 DEFAULT_OUT="${ROOT_DIR}/artifacts/proxy-failure-summary-$(date +%Y%m%d-%H%M%S).log"
-DEFAULT_CTL_BIN="artifactctl"
+DEFAULT_CTL_BIN="esb-ctl"
 
 PRIMARY_LOG="${1:-$DEFAULT_PRIMARY_LOG}"
 OUT_FILE="${2:-$DEFAULT_OUT}"

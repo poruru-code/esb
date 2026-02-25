@@ -5,9 +5,11 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping
 
-DEFAULT_CTL_BIN = "artifactctl"
-ENV_CTL_BIN = "ARTIFACTCTL_BIN"
-ENV_CTL_BIN_RESOLVED = "ARTIFACTCTL_BIN_RESOLVED"
+from e2e.runner.branding import DEFAULT_BRAND_SLUG
+
+DEFAULT_CTL_BIN = f"{DEFAULT_BRAND_SLUG}-ctl"
+ENV_CTL_BIN = "CTL_BIN"
+ENV_CTL_BIN_RESOLVED = "CTL_BIN_RESOLVED"
 
 CTL_CAPABILITIES_SCHEMA_VERSION = 1
 CTL_REQUIRED_CONTRACTS: dict[str, int] = {

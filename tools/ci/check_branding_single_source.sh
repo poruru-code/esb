@@ -55,8 +55,8 @@ check_with_allowlist \
 
 check_with_allowlist \
   "ctl command default assignments are scoped to contract files" \
-  '^(e2e/runner/ctl_contract.py|tools/artifactctl/cmd/artifactctl/main.go|tools/e2e_proxy/collect_failure_logs.sh):' \
-  rg -n --glob '*.py' --glob '*.go' --glob '*.sh' --glob '!tools/ci/check_branding_single_source.sh' 'DEFAULT_CTL_BIN\s*=\s*"artifactctl"|DEFAULT_CTL_BIN="artifactctl"|ctlCommandName\s*=\s*"artifactctl"' e2e tools
+  '^(e2e/runner/ctl_contract.py|pkg/deployops/branding_paths.go|tools/e2e_proxy/collect_failure_logs.sh):' \
+  rg -n --glob '*.py' --glob '*.go' --glob '*.sh' --glob '!tools/ci/check_branding_single_source.sh' 'DEFAULT_CTL_BIN\s*=\s*f"\{DEFAULT_BRAND_SLUG\}-ctl"|DEFAULT_CTL_BIN\s*=\s*"esb-ctl"|DEFAULT_CTL_BIN="esb-ctl"|return\s+defaultBrandSlug\s*\+\s*"-ctl"' e2e pkg tools
 
 if [[ ${status} -ne 0 ]]; then
   exit ${status}

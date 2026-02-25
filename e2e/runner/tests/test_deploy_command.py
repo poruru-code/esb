@@ -649,7 +649,7 @@ def test_deploy_artifacts_fixture_prepare_reexecutes_with_no_cache(monkeypatch, 
         assert "--no-cache" in cmd
 
 
-def test_deploy_artifacts_uses_resolved_artifactctl_bin(monkeypatch, tmp_path):
+def test_deploy_artifacts_uses_resolved_ctl_bin(monkeypatch, tmp_path):
     image_ref = "127.0.0.1:5010/esb-lambda-echo:e2e-test"
     base_ref = "127.0.0.1:5010/esb-lambda-base:e2e-test"
     manifest = _write_artifact_fixture(tmp_path, image_ref=image_ref, base_ref=base_ref)

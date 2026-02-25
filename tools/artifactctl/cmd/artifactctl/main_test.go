@@ -76,7 +76,7 @@ func TestRunRequiresSubcommand(t *testing.T) {
 	if code != 1 {
 		t.Fatalf("run returned code=%d", code)
 	}
-	if !strings.Contains(errOut.String(), "artifactctl provision --help") {
+	if !strings.Contains(errOut.String(), commandText("provision", "--help")) {
 		t.Fatalf("unexpected stderr: %q", errOut.String())
 	}
 }
@@ -254,7 +254,7 @@ func TestRunProvisionReportsExecuteFailure(t *testing.T) {
 	if !strings.Contains(errOut.String(), "boom-provision") {
 		t.Fatalf("unexpected stderr: %q", errOut.String())
 	}
-	if !strings.Contains(errOut.String(), "artifactctl provision --help") {
+	if !strings.Contains(errOut.String(), commandText("provision", "--help")) {
 		t.Fatalf("expected provision hint, got: %q", errOut.String())
 	}
 }
@@ -363,7 +363,7 @@ func TestRunInternalMavenShimEnsureReportsFailure(t *testing.T) {
 	if !strings.Contains(errOut.String(), "maven shim ensure failed: boom-shim") {
 		t.Fatalf("unexpected stderr: %q", errOut.String())
 	}
-	if !strings.Contains(errOut.String(), "artifactctl internal maven-shim ensure --help") {
+	if !strings.Contains(errOut.String(), commandText("internal", "maven-shim", "ensure", "--help")) {
 		t.Fatalf("expected internal command hint, got: %q", errOut.String())
 	}
 }
@@ -444,7 +444,7 @@ func TestRunInternalFixtureImageEnsureReportsFailure(t *testing.T) {
 	if !strings.Contains(errOut.String(), "fixture image ensure failed: boom-fixture") {
 		t.Fatalf("unexpected stderr: %q", errOut.String())
 	}
-	if !strings.Contains(errOut.String(), "artifactctl internal fixture-image ensure --help") {
+	if !strings.Contains(errOut.String(), commandText("internal", "fixture-image", "ensure", "--help")) {
 		t.Fatalf("expected internal command hint, got: %q", errOut.String())
 	}
 }
@@ -564,7 +564,7 @@ func TestHintForDeployError(t *testing.T) {
 		{
 			name: "fallback",
 			err:  errors.New("other"),
-			want: "run `artifactctl deploy --help` for required arguments.",
+			want: fmt.Sprintf("run `%s` for required arguments.", commandText("deploy", "--help")),
 		},
 	}
 

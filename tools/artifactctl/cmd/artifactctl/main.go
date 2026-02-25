@@ -17,8 +17,6 @@ import (
 	"github.com/poruru-code/esb/pkg/deployops/mavenshim"
 )
 
-const ctlCommandName = "artifactctl"
-
 type CLI struct {
 	Deploy    DeployCmd    `cmd:"" help:"Prepare images and apply artifact manifest"`
 	Provision ProvisionCmd `cmd:"" help:"Run deploy provisioner via docker compose"`
@@ -130,8 +128,12 @@ func defaultDeps() commandDeps {
 	}
 }
 
+func ctlCommandName() string {
+	return deployops.DefaultCtlCommandName()
+}
+
 func commandText(parts ...string) string {
-	tokens := append([]string{ctlCommandName}, parts...)
+	tokens := append([]string{ctlCommandName()}, parts...)
 	return strings.Join(tokens, " ")
 }
 
@@ -164,7 +166,7 @@ func run(args []string, deps commandDeps) (exitCode int) {
 	cli := CLI{}
 	parser, err := kong.New(
 		&cli,
-		kong.Name(ctlCommandName),
+		kong.Name(ctlCommandName()),
 		kong.Description("Prepare images and apply generated artifact manifests."),
 		kong.Writers(out, errOut),
 		kong.Exit(func(code int) {
