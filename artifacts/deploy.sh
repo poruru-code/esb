@@ -20,6 +20,45 @@ read_artifact_field() {
   ' "$file"
 }
 
+wait_for_registry_ready() {
+  local host_port="$1"
+  local timeout="$2"
+  local started
+  local code
+
+  if ! command -v curl >/dev/null 2>&1; then
+    echo "curl is required to wait for registry readiness" >&2
+    return 1
+  fi
+
+  started="$(date +%s)"
+  while true; do
+    code="$(
+      curl -sS -o /dev/null \
+        --noproxy '*' \
+        --connect-timeout 1 \
+        --max-time 2 \
+        -w '%{http_code}' \
+        "http://${host_port}/v2/" 2>/dev/null || true
+    )"
+    if [ "$code" = "200" ] || [ "$code" = "401" ]; then
+      return 0
+    fi
+
+    if [ $(( $(date +%s) - started )) -ge "$timeout" ]; then
+      echo "Registry not responding at http://${host_port}/v2/ after ${timeout}s (last_status='${code:-n/a}')" >&2
+      docker compose -p "$PROJECT_NAME" \
+        "${COMPOSE_ENV_FILE_ARGS[@]}" \
+        -f "$COMPOSE_FILE" ps registry >&2 || true
+      docker compose -p "$PROJECT_NAME" \
+        "${COMPOSE_ENV_FILE_ARGS[@]}" \
+        -f "$COMPOSE_FILE" logs --tail=50 registry >&2 || true
+      return 1
+    fi
+    sleep 1
+  done
+}
+
 ARTIFACT_ARG="${1:-}"
 if [ -n "$ARTIFACT_ARG" ]; then
   ARTIFACT="$ARTIFACT_ARG"
@@ -114,8 +153,35 @@ docker compose -p "$PROJECT_NAME" \
   -f "$COMPOSE_FILE" up -d
 
 PORT_REGISTRY="${PORT_REGISTRY:-5010}"
+if ! [[ "$PORT_REGISTRY" =~ ^[0-9]+$ ]]; then
+  echo "PORT_REGISTRY must be numeric, got: '$PORT_REGISTRY'" >&2
+  exit 1
+fi
+
+if [ "$PORT_REGISTRY" -eq 0 ]; then
+  echo "PORT_REGISTRY=0 detected; resolving published host port for registry:5010"
+  RESOLVED_PORT="$(
+    docker compose -p "$PROJECT_NAME" \
+      "${COMPOSE_ENV_FILE_ARGS[@]}" \
+      -f "$COMPOSE_FILE" port registry 5010 2>/dev/null \
+      | tail -n1
+  )"
+  PORT_REGISTRY="${RESOLVED_PORT##*:}"
+  if ! [[ "$PORT_REGISTRY" =~ ^[0-9]+$ ]] || [ "$PORT_REGISTRY" -eq 0 ]; then
+    echo "Failed to resolve published registry port (raw='${RESOLVED_PORT:-}')" >&2
+    exit 1
+  fi
+  echo "Resolved registry host port: $PORT_REGISTRY"
+fi
+
+REGISTRY_WAIT_TIMEOUT="${REGISTRY_WAIT_TIMEOUT:-60}"
+if ! [[ "$REGISTRY_WAIT_TIMEOUT" =~ ^[0-9]+$ ]] || [ "$REGISTRY_WAIT_TIMEOUT" -le 0 ]; then
+  echo "REGISTRY_WAIT_TIMEOUT must be a positive integer, got: '$REGISTRY_WAIT_TIMEOUT'" >&2
+  exit 1
+fi
+
 echo "Waiting for registry on http://127.0.0.1:$PORT_REGISTRY/v2/"
-until curl -fsS "http://127.0.0.1:${PORT_REGISTRY}/v2/" >/dev/null 2>&1; do sleep 1; done
+wait_for_registry_ready "127.0.0.1:${PORT_REGISTRY}" "$REGISTRY_WAIT_TIMEOUT"
 
 echo "Deploying artifact via esb-ctl"
 esb-ctl deploy --artifact "$ARTIFACT"
