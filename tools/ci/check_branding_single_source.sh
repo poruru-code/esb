@@ -55,7 +55,7 @@ check_with_allowlist \
 
 check_with_allowlist \
   "ctl command default assignments are scoped to contract files" \
-  '^(e2e/runner/branding_constants_gen.py|pkg/deployops/branding_paths.go|tools/e2e_proxy/collect_failure_logs.sh):' \
+  '^(e2e/runner/branding_constants_gen.py|pkg/deployops/branding_paths.go):' \
   rg -n --glob '*.py' --glob '*.go' --glob '*.sh' --glob '!tools/ci/check_branding_single_source.sh' 'DEFAULT_CTL_BIN\s*=\s*f"\{DEFAULT_BRAND_SLUG\}-ctl"|DEFAULT_CTL_BIN\s*=\s*"esb-ctl"|DEFAULT_CTL_BIN="esb-ctl"|return\s+defaultBrandSlug\s*\+\s*"-ctl"' e2e pkg tools
 
 if [[ ${status} -ne 0 ]]; then

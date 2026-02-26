@@ -277,20 +277,21 @@ func TestMavenWrapperAcceptsCaseInsensitiveProxySchemes(t *testing.T) {
 		"#!/usr/bin/env bash",
 		"set -euo pipefail",
 		"args=(\"$@\")",
-		"settings=\"\"",
-		"for ((i=0; i<${#args[@]}; i++)); do",
-		"  if [[ \"${args[$i]}\" == \"-s\" ]]; then",
-		"    next=$((i+1))",
-		"    settings=\"${args[$next]:-}\"",
-		"    break",
-		"  fi",
-		"done",
-		"if [[ -z \"$settings\" || ! -f \"$settings\" ]]; then",
-		"  echo \"missing settings file\" >&2",
-		"  exit 90",
-		"fi",
-		"grep -q \"<protocol>http</protocol>\" \"$settings\" || { echo \"missing http proxy\" >&2; exit 91; }",
-		"grep -q \"<protocol>https</protocol>\" \"$settings\" || { echo \"missing https proxy\" >&2; exit 92; }",
+		"contains_arg() {",
+		"  local expected=\"$1\"",
+		"  for arg in \"${args[@]}\"; do",
+		"    if [[ \"$arg\" == \"$expected\" ]]; then",
+		"      return 0",
+		"    fi",
+		"  done",
+		"  return 1",
+		"}",
+		"contains_arg \"-s\" && { echo \"unexpected -s settings arg\" >&2; exit 90; }",
+		"contains_arg \"-Dhttp.proxyHost=proxy.example\" || { echo \"missing http proxy host\" >&2; exit 91; }",
+		"contains_arg \"-Dhttp.proxyPort=8080\" || { echo \"missing http proxy port\" >&2; exit 92; }",
+		"contains_arg \"-Dhttps.proxyHost=secure-proxy.example\" || { echo \"missing https proxy host\" >&2; exit 93; }",
+		"contains_arg \"-Dhttps.proxyPort=8443\" || { echo \"missing https proxy port\" >&2; exit 94; }",
+		"contains_arg \"-Dhttp.nonProxyHosts=localhost|127.0.0.1\" || { echo \"missing nonProxyHosts\" >&2; exit 95; }",
 		"touch \"$MAVEN_CAPTURE_FILE\"",
 		"exit 0",
 		"",
@@ -315,5 +316,69 @@ func TestMavenWrapperAcceptsCaseInsensitiveProxySchemes(t *testing.T) {
 	}
 	if _, err := os.Stat(captureFile); err != nil {
 		t.Fatalf("fake mvn was not invoked: %v, output=%s", err, string(output))
+	}
+}
+
+func TestMavenWrapperUsesJvmProxyPropertiesWithAuthAndNormalizedNoProxy(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script execution is not portable to windows")
+	}
+	contextDir, cleanup, err := materializeBuildContext()
+	if err != nil {
+		t.Fatalf("materializeBuildContext() error = %v", err)
+	}
+	defer cleanup()
+
+	fakeBinDir := t.TempDir()
+	fakeMaven := filepath.Join(fakeBinDir, "fake-mvn")
+	captureFile := filepath.Join(fakeBinDir, "captured")
+	fakeMavenScript := strings.Join([]string{
+		"#!/usr/bin/env bash",
+		"set -euo pipefail",
+		"args=(\"$@\")",
+		"contains_arg() {",
+		"  local expected=\"$1\"",
+		"  for arg in \"${args[@]}\"; do",
+		"    if [[ \"$arg\" == \"$expected\" ]]; then",
+		"      return 0",
+		"    fi",
+		"  done",
+		"  return 1",
+		"}",
+		"contains_arg \"-s\" && { echo \"unexpected -s settings arg\" >&2; exit 95; }",
+		"contains_arg \"-Dhttp.proxyHost=proxy.example\" || { echo \"missing http proxy host\" >&2; exit 96; }",
+		"contains_arg \"-Dhttp.proxyPort=8080\" || { echo \"missing http proxy port\" >&2; exit 97; }",
+		"contains_arg \"-Dhttp.proxyUser=user\" || { echo \"missing http proxy user\" >&2; exit 98; }",
+		"contains_arg \"-Dhttp.proxyPassword=pass\" || { echo \"missing http proxy password\" >&2; exit 99; }",
+		"contains_arg \"-Dhttps.proxyHost=secure-proxy.example\" || { echo \"missing https proxy host\" >&2; exit 100; }",
+		"contains_arg \"-Dhttps.proxyPort=9443\" || { echo \"missing https proxy port\" >&2; exit 101; }",
+		"contains_arg \"-Dhttps.proxyUser=secure-user\" || { echo \"missing https proxy user\" >&2; exit 102; }",
+		"contains_arg \"-Dhttps.proxyPassword=secure-pass\" || { echo \"missing https proxy password\" >&2; exit 103; }",
+		"contains_arg \"-Dhttp.nonProxyHosts=localhost|*.svc.cluster.local|127.0.0.1|::1|example.com\" || { echo \"missing normalized http nonProxyHosts\" >&2; exit 104; }",
+		"contains_arg \"-Dhttps.nonProxyHosts=localhost|*.svc.cluster.local|127.0.0.1|::1|example.com\" || { echo \"missing normalized https nonProxyHosts\" >&2; exit 105; }",
+		"touch \"$MAVEN_CAPTURE_FILE\"",
+		"exit 0",
+		"",
+	}, "\n")
+	if err := os.WriteFile(fakeMaven, []byte(fakeMavenScript), 0o755); err != nil {
+		t.Fatalf("write fake mvn: %v", err)
+	}
+
+	wrapperPath := filepath.Join(contextDir, "mvn-wrapper.sh")
+	command := exec.Command("bash", wrapperPath, "-q", "-DskipTests", "package")
+	command.Env = append(
+		os.Environ(),
+		"MAVEN_REAL_BIN="+fakeMaven,
+		"MAVEN_CAPTURE_FILE="+captureFile,
+		"HTTP_PROXY=http://user:pass@proxy.example:8080",
+		"HTTPS_PROXY=http://secure-user:secure-pass@secure-proxy.example:9443",
+		"NO_PROXY=localhost,.svc.cluster.local,127.0.0.1:8081,[::1],example.com;example.com",
+	)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("wrapper execution failed: %v, output=%s", err, string(output))
+	}
+	if _, err := os.Stat(captureFile); err != nil {
+		t.Fatalf("wrapper invocation did not succeed: %v, output=%s", err, string(output))
 	}
 }

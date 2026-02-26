@@ -24,6 +24,7 @@ from e2e.runner.ctl_contract import (
 )
 from e2e.runner.live_display import LiveDisplay
 from e2e.runner.planner import apply_test_target, build_plan
+from e2e.runner.proxy_harness import ProxyHarnessError, options_from_args, proxy_harness
 from e2e.runner.runner import run_parallel
 from e2e.runner.ui import PlainReporter
 from e2e.runner.utils import PROJECT_ROOT
@@ -197,135 +198,141 @@ def main():
     warnings.filterwarnings("ignore", category=DeprecationWarning)
 
     args = parse_args()
+    proxy_options = options_from_args(args)
 
-    # --- Load Test Matrix ---
-    config_matrix = load_test_matrix()
-    suites = config_matrix.get("suites", {})
-    matrix = config_matrix.get("matrix", [])
+    try:
+        with proxy_harness(proxy_options):
+            # --- Load Test Matrix ---
+            config_matrix = load_test_matrix()
+            suites = config_matrix.get("suites", {})
+            matrix = config_matrix.get("matrix", [])
 
-    if args.build_only and args.test_only:
-        print("[ERROR] --build-only and --test-only cannot be used together.")
+            if args.build_only and args.test_only:
+                print("[ERROR] --build-only and --test-only cannot be used together.")
+                sys.exit(1)
+
+            if args.test_target and (args.build_only or args.test_only):
+                print("[ERROR] --build-only/--test-only cannot be used with --test-target.")
+                sys.exit(1)
+
+            # --- Single Target Mode (Legacy/Debug) ---
+            if args.test_target:
+                if not args.profile:
+                    print("[ERROR] --profile is required when using --test-target.")
+                    env_names = [entry.get("env") for entry in matrix if entry.get("env")]
+                    print(f"Available environments: {', '.join(env_names)}")
+                    sys.exit(1)
+
+                entry_by_env = {entry.get("env"): entry for entry in matrix if entry.get("env")}
+                if args.profile not in entry_by_env:
+                    print(f"[ERROR] Environment '{args.profile}' not found in matrix.")
+                    sys.exit(1)
+
+                # Single-target execution uses the planner path with one environment.
+                env_scenarios = build_plan(matrix, suites, profile_filter=args.profile)
+                env_scenarios = apply_test_target(
+                    env_scenarios,
+                    env_name=args.profile,
+                    target=args.test_target,
+                )
+                if not env_scenarios:
+                    print(f"[ERROR] Environment '{args.profile}' not found in matrix.")
+                    sys.exit(1)
+
+                env_label_width = resolve_env_label_width(env_scenarios)
+                reporter = PlainReporter(
+                    verbose=args.verbose,
+                    env_label_width=env_label_width,
+                    color=args.color,
+                    emoji=args.emoji,
+                    show_progress=True,
+                )
+                if requires_ctl(args, env_scenarios):
+                    ensure_ctl_available()
+                results = run_parallel(
+                    env_scenarios,
+                    reporter=reporter,
+                    parallel=False,
+                    args=args,
+                    env_label_width=env_label_width,
+                    live_display=None,
+                )
+                failed = [env for env, ok in results.items() if not ok]
+                if failed:
+                    print_tail_logs(failed)
+                    sys.exit(1)
+                sys.exit(0)
+
+            env_scenarios = build_plan(matrix, suites, profile_filter=args.profile)
+
+            if args.build_only or args.test_only:
+                if not args.profile:
+                    print("[ERROR] --profile is required when using --build-only/--test-only.")
+                    sys.exit(1)
+                if args.profile not in env_scenarios:
+                    print(f"[ERROR] Environment '{args.profile}' not found in matrix.")
+                    sys.exit(1)
+
+                env_label_width = resolve_env_label_width(env_scenarios)
+                reporter = PlainReporter(
+                    verbose=args.verbose,
+                    env_label_width=env_label_width,
+                    color=args.color,
+                    emoji=args.emoji,
+                    show_progress=True,
+                )
+                if requires_ctl(args, env_scenarios):
+                    ensure_ctl_available()
+                results = run_parallel(
+                    env_scenarios,
+                    reporter=reporter,
+                    parallel=False,
+                    args=args,
+                    env_label_width=env_label_width,
+                    live_display=None,
+                )
+                failed = [env for env, ok in results.items() if not ok]
+                if failed:
+                    print_tail_logs(failed)
+                    sys.exit(1)
+                sys.exit(0)
+
+            parallel_mode = args.parallel and len(env_scenarios) > 1
+            live_enabled = resolve_live_enabled(args.no_live) and parallel_mode and not args.verbose
+            env_label_width = resolve_env_label_width(env_scenarios)
+            live_display = (
+                LiveDisplay(list(env_scenarios.keys()), label_width=env_label_width)
+                if live_enabled
+                else None
+            )
+            reporter = PlainReporter(
+                verbose=args.verbose,
+                env_label_width=env_label_width,
+                color=args.color,
+                emoji=args.emoji,
+                live_display=live_display,
+                show_progress=not (live_display and not args.verbose),
+            )
+            if requires_ctl(args, env_scenarios):
+                ensure_ctl_available()
+            results = run_parallel(
+                env_scenarios,
+                reporter=reporter,
+                parallel=parallel_mode,
+                args=args,
+                env_label_width=env_label_width,
+                live_display=live_display,
+            )
+            failed_entries = [env for env, ok in results.items() if not ok]
+
+            if failed_entries:
+                print_tail_logs(failed_entries)
+                sys.exit(1)
+
+            sys.exit(0)
+    except ProxyHarnessError as exc:
+        print(f"[proxy-e2e] ERROR: {exc}", file=sys.stderr)
         sys.exit(1)
-
-    if args.test_target and (args.build_only or args.test_only):
-        print("[ERROR] --build-only/--test-only cannot be used with --test-target.")
-        sys.exit(1)
-
-    # --- Single Target Mode (Legacy/Debug) ---
-    if args.test_target:
-        if not args.profile:
-            print("[ERROR] --profile is required when using --test-target.")
-            env_names = [entry.get("env") for entry in matrix if entry.get("env")]
-            print(f"Available environments: {', '.join(env_names)}")
-            sys.exit(1)
-
-        entry_by_env = {entry.get("env"): entry for entry in matrix if entry.get("env")}
-        if args.profile not in entry_by_env:
-            print(f"[ERROR] Environment '{args.profile}' not found in matrix.")
-            sys.exit(1)
-
-        # Single-target execution uses the planner path with one environment.
-        env_scenarios = build_plan(matrix, suites, profile_filter=args.profile)
-        env_scenarios = apply_test_target(
-            env_scenarios,
-            env_name=args.profile,
-            target=args.test_target,
-        )
-        if not env_scenarios:
-            print(f"[ERROR] Environment '{args.profile}' not found in matrix.")
-            sys.exit(1)
-
-        env_label_width = resolve_env_label_width(env_scenarios)
-        reporter = PlainReporter(
-            verbose=args.verbose,
-            env_label_width=env_label_width,
-            color=args.color,
-            emoji=args.emoji,
-            show_progress=True,
-        )
-        if requires_ctl(args, env_scenarios):
-            ensure_ctl_available()
-        results = run_parallel(
-            env_scenarios,
-            reporter=reporter,
-            parallel=False,
-            args=args,
-            env_label_width=env_label_width,
-            live_display=None,
-        )
-        failed = [env for env, ok in results.items() if not ok]
-        if failed:
-            print_tail_logs(failed)
-            sys.exit(1)
-        sys.exit(0)
-
-    env_scenarios = build_plan(matrix, suites, profile_filter=args.profile)
-
-    if args.build_only or args.test_only:
-        if not args.profile:
-            print("[ERROR] --profile is required when using --build-only/--test-only.")
-            sys.exit(1)
-        if args.profile not in env_scenarios:
-            print(f"[ERROR] Environment '{args.profile}' not found in matrix.")
-            sys.exit(1)
-
-        env_label_width = resolve_env_label_width(env_scenarios)
-        reporter = PlainReporter(
-            verbose=args.verbose,
-            env_label_width=env_label_width,
-            color=args.color,
-            emoji=args.emoji,
-            show_progress=True,
-        )
-        if requires_ctl(args, env_scenarios):
-            ensure_ctl_available()
-        results = run_parallel(
-            env_scenarios,
-            reporter=reporter,
-            parallel=False,
-            args=args,
-            env_label_width=env_label_width,
-            live_display=None,
-        )
-        failed = [env for env, ok in results.items() if not ok]
-        if failed:
-            print_tail_logs(failed)
-            sys.exit(1)
-        sys.exit(0)
-
-    parallel_mode = args.parallel and len(env_scenarios) > 1
-    live_enabled = resolve_live_enabled(args.no_live) and parallel_mode and not args.verbose
-    env_label_width = resolve_env_label_width(env_scenarios)
-    live_display = (
-        LiveDisplay(list(env_scenarios.keys()), label_width=env_label_width)
-        if live_enabled
-        else None
-    )
-    reporter = PlainReporter(
-        verbose=args.verbose,
-        env_label_width=env_label_width,
-        color=args.color,
-        emoji=args.emoji,
-        live_display=live_display,
-        show_progress=not (live_display and not args.verbose),
-    )
-    if requires_ctl(args, env_scenarios):
-        ensure_ctl_available()
-    results = run_parallel(
-        env_scenarios,
-        reporter=reporter,
-        parallel=parallel_mode,
-        args=args,
-        env_label_width=env_label_width,
-        live_display=live_display,
-    )
-    failed_entries = [env for env, ok in results.items() if not ok]
-
-    if failed_entries:
-        print_tail_logs(failed_entries)
-        sys.exit(1)
-
-    sys.exit(0)
 
 
 if __name__ == "__main__":

@@ -72,9 +72,12 @@ e2e/run_tests.py
 - deploy を伴う実行では `esb-ctl` バイナリが PATH 上に必要です（または `CTL_BIN` で明示）。
 - deploy を伴う実行では `esb-ctl internal capabilities --output json` による schema/contracts 検証を行い、必要 subcommand 不足時は即 fail します。
 - 開発環境では `mise run setup` で `esb-ctl` が `~/.local/bin` にビルドされます。
+- `--with-proxy` 指定時は runner が `proxy.py` を BasicAuth 固定で起動し、`HTTP(S)_PROXY` / `NO_PROXY`/`no_proxy` を注入して実行します。
+- `--with-proxy` では解決済み `NO_PROXY`/`no_proxy` 宛先を proxy 側で拒否するフィルタを有効化します。
 
 ## ログと診断
 - 環境ごとのログ: `e2e/.parallel-<env>.log`
+- `--with-proxy` 時の proxy ログ: `e2e/.parallel-proxy-e2e.log` / `e2e/.parallel-proxy-e2e-java-proof.log`（実行ごとに上書き）
 - Live UI は TTY + parallel + 非 verbose の場合のみ使用します。
 - Plain reporter はフォールバックおよびサマリーイベントで常に使用します。
 
@@ -96,6 +99,9 @@ uv run e2e/run_tests.py --profile e2e-containerd
 
 # プロファイルを build のみ実行
 uv run e2e/run_tests.py --profile e2e-containerd --build-only --verbose
+
+# ローカル proxy.py 経由で実行
+uv run e2e/run_tests.py --with-proxy --profile e2e-docker --verbose
 ```
 
 ## 実装参照
