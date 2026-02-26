@@ -547,7 +547,11 @@ def _start_java_proxy_proof_proxy(
         log_label="proxy-e2e-java-proof",
     )
     local_probe_url = build_proxy_url("127.0.0.1", host_port)
-    _probe_proxy(local_probe_url)
+    try:
+        _probe_proxy(local_probe_url)
+    except Exception:
+        _stop_proxy_process(proxy, keep_logs=True)
+        raise
     proxy_host = resolve_bridge_gateway()
     return proxy, build_proxy_url(proxy_host, host_port)
 

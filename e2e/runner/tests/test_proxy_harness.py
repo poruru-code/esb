@@ -12,10 +12,12 @@ from e2e.runner.proxy_harness import (
     DEFAULT_PROXY_AUTH_PASSWORD,
     DEFAULT_PROXY_AUTH_USER,
     FILTER_UPSTREAM_PLUGIN,
+    ProxyHarnessError,
     ProxyHarnessOptions,
     ProxyProcess,
     _effective_no_proxy,
     _filtered_upstream_hosts_from_no_proxy,
+    _start_java_proxy_proof_proxy,
     _start_proxy_process,
     _stop_proxy_process,
     build_proxy_env,
@@ -271,3 +273,35 @@ def test_proxy_harness_uses_lowercase_no_proxy_for_filtering(monkeypatch) -> Non
         pass
 
     assert "lower.internal" in captured["filtered_upstream_hosts"]
+
+
+def test_start_java_proxy_proof_proxy_stops_process_on_probe_failure(monkeypatch) -> None:
+    dummy_proxy = ProxyProcess(
+        process=_DummyProcess(),  # type: ignore[arg-type]
+        log_path=Path("/tmp/proxy-e2e-java-proof-test.log"),
+        log_stream=io.StringIO(),
+        port=19999,
+    )
+    calls = {"stop": 0}
+
+    monkeypatch.setattr("e2e.runner.proxy_harness._find_free_port", lambda: 19999)
+    monkeypatch.setattr(
+        "e2e.runner.proxy_harness._start_proxy_process", lambda **_kwargs: dummy_proxy
+    )
+    monkeypatch.setattr(
+        "e2e.runner.proxy_harness._probe_proxy",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ProxyHarnessError("probe failed")),
+    )
+    monkeypatch.setattr(
+        "e2e.runner.proxy_harness._stop_proxy_process",
+        lambda *_args, **_kwargs: calls.__setitem__("stop", calls["stop"] + 1),
+    )
+
+    try:
+        _start_java_proxy_proof_proxy(bind_host="0.0.0.0", no_proxy="localhost")
+    except ProxyHarnessError as exc:
+        assert "probe failed" in str(exc)
+    else:
+        raise AssertionError("expected ProxyHarnessError")
+
+    assert calls["stop"] == 1

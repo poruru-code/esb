@@ -191,36 +191,36 @@ if [[ -n "$https_endpoint" ]]; then
 fi
 
 non_proxy_hosts="$(build_non_proxy_hosts "$no_proxy")"
-java_proxy_args=()
+java_proxy_properties=()
 
 if [[ -n "$http_host" ]]; then
-  java_proxy_args+=("-Dhttp.proxyHost=${http_host}")
-  java_proxy_args+=("-Dhttp.proxyPort=${http_port}")
+  java_proxy_properties+=("-Dhttp.proxyHost=${http_host}")
+  java_proxy_properties+=("-Dhttp.proxyPort=${http_port}")
   if [[ -n "$http_username" ]]; then
-    java_proxy_args+=("-Dhttp.proxyUser=${http_username}")
+    java_proxy_properties+=("-Dhttp.proxyUser=${http_username}")
   fi
   if [[ -n "$http_password" ]]; then
-    java_proxy_args+=("-Dhttp.proxyPassword=${http_password}")
+    java_proxy_properties+=("-Dhttp.proxyPassword=${http_password}")
   fi
 fi
 
 if [[ -n "$https_host" ]]; then
-  java_proxy_args+=("-Dhttps.proxyHost=${https_host}")
-  java_proxy_args+=("-Dhttps.proxyPort=${https_port}")
+  java_proxy_properties+=("-Dhttps.proxyHost=${https_host}")
+  java_proxy_properties+=("-Dhttps.proxyPort=${https_port}")
   if [[ -n "$https_username" ]]; then
-    java_proxy_args+=("-Dhttps.proxyUser=${https_username}")
+    java_proxy_properties+=("-Dhttps.proxyUser=${https_username}")
   fi
   if [[ -n "$https_password" ]]; then
-    java_proxy_args+=("-Dhttps.proxyPassword=${https_password}")
+    java_proxy_properties+=("-Dhttps.proxyPassword=${https_password}")
   fi
 fi
 
 if [[ -n "$non_proxy_hosts" ]]; then
   if [[ -n "$http_host" ]]; then
-    java_proxy_args+=("-Dhttp.nonProxyHosts=${non_proxy_hosts}")
+    java_proxy_properties+=("-Dhttp.nonProxyHosts=${non_proxy_hosts}")
   fi
   if [[ -n "$https_host" ]]; then
-    java_proxy_args+=("-Dhttps.nonProxyHosts=${non_proxy_hosts}")
+    java_proxy_properties+=("-Dhttps.nonProxyHosts=${non_proxy_hosts}")
   fi
 fi
 
@@ -284,7 +284,7 @@ if [[ $primary_rc -eq 0 ]]; then
   exit 0
 fi
 
-if [[ ${#java_proxy_args[@]} -eq 0 ]]; then
+if [[ ${#java_proxy_properties[@]} -eq 0 ]]; then
   exit "$primary_rc"
 fi
 
@@ -295,4 +295,16 @@ if ! grep -Eiq \
 fi
 
 echo "mvn shim: settings.xml proxy flow failed; retrying with JVM proxy properties" >&2
-exec "$MAVEN_REAL_BIN" "${java_proxy_args[@]}" "$@"
+java_tool_options=""
+if [[ -n "${JAVA_TOOL_OPTIONS:-}" ]]; then
+  java_tool_options="${JAVA_TOOL_OPTIONS}"
+fi
+for option in "${java_proxy_properties[@]}"; do
+  if [[ -z "$java_tool_options" ]]; then
+    java_tool_options="$option"
+  else
+    java_tool_options+=" $option"
+  fi
+done
+
+exec env "JAVA_TOOL_OPTIONS=${java_tool_options}" "$MAVEN_REAL_BIN" "$@"
