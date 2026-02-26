@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 import argparse
 import getpass
+import hashlib
 import os
 import shutil
 import socket
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
 
@@ -20,6 +22,47 @@ else:
 
 ROOT_CA_CERT_FILENAME = "rootCA.crt"
 ROOT_CA_KEY_FILENAME = "rootCA.key"
+CONFIG_REL_PATH = "tools/cert-gen/config.toml"
+SYSTEM_TRUST_STORE_DIRS = (
+    Path("/usr/local/share/ca-certificates"),
+    Path("/etc/pki/ca-trust/source/anchors"),
+    Path("/etc/ca-certificates/trust-source/anchors"),
+)
+
+
+@dataclass(frozen=True)
+class RuntimeConfig:
+    repo_root: Path
+    brand_dir: Path
+    config: dict
+    cert_cfg: dict
+    trust_cfg: dict
+    host_cfg: dict
+    output_dir: str
+
+
+@dataclass(frozen=True)
+class RootCAPaths:
+    cert: str
+    key: str
+
+
+@dataclass(frozen=True)
+class LeafPaths:
+    server_cert: str
+    server_key: str
+    client_cert: str
+    client_key: str
+
+
+@dataclass(frozen=True)
+class LeafMaterial:
+    label: str
+    cert_file: str
+    key_file: str
+    subject: str
+    sans: tuple[str, ...]
+    validity: str
 
 
 def get_local_ip():
@@ -46,6 +89,10 @@ def resolve_sudo_path() -> str:
     return sudo_path
 
 
+def iter_system_trust_store_dirs() -> list[Path]:
+    return [path for path in SYSTEM_TRUST_STORE_DIRS if path.is_dir()]
+
+
 def check_step(step_path: str):
     if not step_path:
         print("Error: step CLI not found.")
@@ -53,9 +100,9 @@ def check_step(step_path: str):
         exit(1)
 
 
-def install_root_ca(step_path: str, root_ca_cert: str, output_dir: str):
-    print("Installing local Root CA...")
-    cmd = [step_path, "certificate", "install", root_ca_cert]
+def install_root_ca(step_path: str, root_ca_cert: str, output_dir: str, trust_prefix: str):
+    print(f"Installing local Root CA (prefix={trust_prefix})...")
+    cmd = [step_path, "certificate", "install", "--prefix", trust_prefix, root_ca_cert]
     try:
         subprocess.check_call(cmd)
     except subprocess.CalledProcessError as exc:
@@ -70,6 +117,125 @@ def install_root_ca(step_path: str, root_ca_cert: str, output_dir: str):
         env = os.environ.copy()
         subprocess.check_call([sudo_path, "-E", *cmd], env=env)
         ensure_user_ownership(output_dir)
+
+
+def uninstall_root_ca(
+    step_path: str, root_ca_cert: str, output_dir: str, trust_prefix: str
+) -> bool:
+    candidates: list[str] = []
+    if os.path.isfile(root_ca_cert):
+        candidates.append(root_ca_cert)
+
+    for system_store in iter_system_trust_store_dirs():
+        for path in sorted(system_store.glob(f"{trust_prefix}*.crt")):
+            candidates.append(str(path))
+
+    # Preserve order while deduplicating.
+    ordered_candidates = list(dict.fromkeys(candidates))
+    if not ordered_candidates:
+        return False
+
+    removed_any = False
+    for candidate in ordered_candidates:
+        print(f"Removing previously installed Root CA ({candidate})...")
+        commands = [
+            [step_path, "certificate", "uninstall", "--prefix", trust_prefix, candidate],
+        ]
+        commands.append([step_path, "certificate", "uninstall", candidate])
+        for cmd in commands:
+            try:
+                subprocess.check_call(cmd)
+                removed_any = True
+                break
+            except subprocess.CalledProcessError:
+                sudo_path = resolve_sudo_path()
+                if not sudo_path:
+                    continue
+                env = os.environ.copy()
+                try:
+                    subprocess.check_call([sudo_path, "-E", *cmd], env=env)
+                    ensure_user_ownership(output_dir)
+                    removed_any = True
+                    break
+                except subprocess.CalledProcessError:
+                    continue
+
+    if not removed_any:
+        print(
+            "Warning: failed to uninstall Root CA from trust store. "
+            "Try manually: "
+            f"{step_path} certificate uninstall --prefix "
+            f"{trust_prefix} {root_ca_cert}",
+            file=sys.stderr,
+        )
+    return removed_any
+
+
+def is_root_ca_installed(root_ca_cert: str, trust_prefix: str) -> bool:
+    if not os.path.isfile(root_ca_cert):
+        return False
+
+    trust_store_dirs = iter_system_trust_store_dirs()
+    if not trust_store_dirs:
+        return False
+
+    try:
+        root_digest = hashlib.sha256(Path(root_ca_cert).read_bytes()).hexdigest()
+    except OSError:
+        return False
+
+    for system_store in trust_store_dirs:
+        for path in sorted(system_store.glob(f"{trust_prefix}*.crt")):
+            if not path.is_file():
+                continue
+            try:
+                if hashlib.sha256(path.read_bytes()).hexdigest() == root_digest:
+                    return True
+            except OSError:
+                continue
+    return False
+
+
+def normalize_trust_prefix(value: object | None, default: str = "ca") -> str:
+    if value is None:
+        return default
+    text = str(value).strip().lower()
+    if text == "":
+        return default
+    normalized = "".join(ch if (ch.isalnum() or ch in "-_") else "-" for ch in text)
+    normalized = normalized.strip("-_")
+    if normalized == "":
+        return default
+    return normalized
+
+
+def parse_hash_length(value: object | None, default: int = 8) -> int:
+    if value is None:
+        return default
+    text = str(value).strip()
+    if text == "":
+        return default
+    try:
+        parsed = int(text)
+    except ValueError as exc:
+        raise RuntimeError("trust.root_ca_hash_length must be an integer") from exc
+    if parsed < 4 or parsed > 32:
+        raise RuntimeError("trust.root_ca_hash_length must be between 4 and 32")
+    return parsed
+
+
+def resolve_root_ca_hash(output_dir: str, length: int) -> str:
+    normalized = str(Path(output_dir).expanduser().resolve())
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:length]
+
+
+def resolve_root_ca_subject(output_dir: str, prefix: str, hash_length: int) -> str:
+    # Keep CN stable per cert directory while avoiding path disclosure in subject.
+    return f"{prefix}-{resolve_root_ca_hash(output_dir, hash_length)}"
+
+
+def resolve_trust_prefix(output_dir: str, prefix: str, hash_length: int) -> str:
+    return f"{prefix}-{resolve_root_ca_hash(output_dir, hash_length)}_"
 
 
 def collect_hosts(host_cfg: dict, local_ip: str | None = None) -> tuple[list[str], list[str]]:
@@ -246,6 +412,23 @@ def generate_leaf_cert(
     print(f"{label.capitalize()} certificate generation complete.")
 
 
+def verify_leaf_cert_with_root(
+    step_path: str, cert_file: str, root_ca_cert: str
+) -> tuple[bool, str]:
+    if not os.path.isfile(cert_file):
+        return False, f"certificate file missing: {cert_file}"
+    if not os.path.isfile(root_ca_cert):
+        return False, f"root CA file missing: {root_ca_cert}"
+
+    cmd = [step_path, "certificate", "verify", "--roots", root_ca_cert, cert_file]
+    completed = subprocess.run(cmd, capture_output=True, text=True)
+    if completed.returncode == 0:
+        return True, ""
+
+    detail = completed.stderr.strip() or completed.stdout.strip() or "verification failed"
+    return False, detail
+
+
 def resolve_host_cfg(config: dict, key: str, fallback: dict) -> dict:
     host_cfg = config.get(key)
     return fallback if not host_cfg else host_cfg
@@ -357,80 +540,103 @@ def ensure_user_ownership(output_dir: str) -> None:
         )
 
 
-if __name__ == "__main__":
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Generate development certificates using step-cli")
-    parser.add_argument(
-        "--config", default="tools/cert-gen/config.toml", help="Path to config file"
-    )
-    parser.add_argument(
-        "--output-dir",
-        help=(
-            "Override certificate output directory. "
-            "Takes precedence over config.toml [certificate].output_dir and CERT_DIR env."
-        ),
-    )
     parser.add_argument(
         "--force",
         action="store_true",
         help="Force regeneration of certificates and CA installation",
     )
     parser.add_argument(
-        "--skip-root-ca-install",
+        "--no-trust-install",
+        dest="no_trust_install",
         action="store_true",
         help="Skip local trust-store installation of the generated Root CA",
     )
-    args = parser.parse_args()
+    parser.add_argument(
+        "--show-output-dir",
+        dest="show_output_dir",
+        action="store_true",
+        help="Print resolved certificate output directory and exit",
+    )
+    return parser
 
+
+def parse_args() -> argparse.Namespace:
+    return build_parser().parse_args()
+
+
+def load_generation_config(config_path: Path) -> dict:
+    if config_path.exists():
+        return toml.load(config_path)
+    return {}
+
+
+def resolve_output_dir(cert_cfg: dict, brand_dir: Path) -> str:
+    # Derivation logic for output_dir:
+    # 1. config.toml [certificate] output_dir
+    # 2. CERT_DIR env
+    # 3. Repo root: <repo_root>/.<brand>/certs
+    output_dir = cert_cfg.get("output_dir") or os.environ.get("CERT_DIR")
+    if not output_dir:
+        output_dir = str(brand_dir / "certs")
+    return os.path.expanduser(output_dir)
+
+
+def resolve_runtime_config() -> RuntimeConfig:
     repo_root = resolve_repo_root()
     brand_dir = repo_root / resolve_brand_home_dir()
 
-    config_path = Path(args.config)
-    if not config_path.is_absolute():
-        config_path = repo_root / config_path
-
-    config = {}
-    if config_path.exists():
-        config = toml.load(config_path)
+    config_path = repo_root / CONFIG_REL_PATH
+    config = load_generation_config(config_path)
 
     cert_cfg = config.get("certificate", {})
+    trust_cfg = config.get("trust", {})
     host_cfg = config.get("hosts", {})
 
-    # Derivation logic for output_dir:
-    # 1. --output-dir
-    # 2. config.toml [certificate] output_dir
-    # 3. CERT_DIR env
-    # 4. Repo root: <repo_root>/.<brand>/certs
-    output_dir = args.output_dir or cert_cfg.get("output_dir") or os.environ.get("CERT_DIR")
-    if not output_dir:
-        output_dir = str(brand_dir / "certs")
+    output_dir = resolve_output_dir(cert_cfg, brand_dir)
+    return RuntimeConfig(
+        repo_root=repo_root,
+        brand_dir=brand_dir,
+        config=config,
+        cert_cfg=cert_cfg,
+        trust_cfg=trust_cfg,
+        host_cfg=host_cfg,
+        output_dir=output_dir,
+    )
 
-    output_dir = os.path.expanduser(output_dir)
 
+def prepare_runtime_environment(output_dir: str) -> None:
     # Force CAROOT to follow branding output_dir to avoid stale env vars.
     if os.environ.get("CAROOT") and os.environ["CAROOT"] != output_dir:
         print(f"Overriding CAROOT to {output_dir} (was {os.environ['CAROOT']}).")
     os.environ["CAROOT"] = output_dir
     ensure_output_dir(output_dir)
 
-    step_path = resolve_step_path()
-    check_step(step_path)
 
-    # Check and install Root CA
-    root_ca_cert = os.path.join(os.environ["CAROOT"], ROOT_CA_CERT_FILENAME)
-    root_ca_key = os.path.join(os.environ["CAROOT"], ROOT_CA_KEY_FILENAME)
+def resolve_root_ca_paths(caroot: str) -> RootCAPaths:
+    return RootCAPaths(
+        cert=os.path.join(caroot, ROOT_CA_CERT_FILENAME),
+        key=os.path.join(caroot, ROOT_CA_KEY_FILENAME),
+    )
 
-    # Safety check: Docker sometimes creates a directory if the mount target is missing
-    if os.path.isdir(root_ca_cert):
-        print(f"ERROR: {root_ca_cert} is a directory, but it should be a file.")
-        print("This often happens when Docker mistakenly creates a directory for a file mount.")
-        print(f"Please run: sudo rm -rf {root_ca_cert}")
-        sys.exit(1)
-    if os.path.isdir(root_ca_key):
-        print(f"ERROR: {root_ca_key} is a directory, but it should be a file.")
-        print("This often happens when Docker mistakenly creates a directory for a file mount.")
-        print(f"Please run: sudo rm -rf {root_ca_key}")
-        sys.exit(1)
 
+def fail_directory_mount(path: str) -> None:
+    print(f"ERROR: {path} is a directory, but it should be a file.")
+    print("This often happens when Docker mistakenly creates a directory for a file mount.")
+    print(f"Please run: sudo rm -rf {path}")
+    sys.exit(1)
+
+
+def validate_root_ca_paths(paths: RootCAPaths) -> None:
+    # Safety check: Docker sometimes creates a directory if the mount target is missing.
+    if os.path.isdir(paths.cert):
+        fail_directory_mount(paths.cert)
+    if os.path.isdir(paths.key):
+        fail_directory_mount(paths.key)
+
+
+def resolve_validities(cert_cfg: dict) -> tuple[str, str, str]:
     ca_validity = require_validity(normalize_validity(cert_cfg.get("ca_validity")), "ca_validity")
     server_validity = require_validity(
         normalize_validity(cert_cfg.get("server_validity")), "server_validity"
@@ -438,75 +644,208 @@ if __name__ == "__main__":
     client_validity = require_validity(
         normalize_validity(cert_cfg.get("client_validity")), "client_validity"
     )
-    root_ca_subject = "ESB Local CA"
+    return ca_validity, server_validity, client_validity
 
-    if args.force or not (os.path.exists(root_ca_cert) and os.path.exists(root_ca_key)):
+
+def resolve_trust_details(trust_cfg: dict, output_dir: str) -> tuple[str, str]:
+    trust_prefix_base = normalize_trust_prefix(trust_cfg.get("root_ca_prefix"), default="ca")
+    trust_hash_length = parse_hash_length(trust_cfg.get("root_ca_hash_length"), default=8)
+    root_ca_subject = resolve_root_ca_subject(output_dir, trust_prefix_base, trust_hash_length)
+    trust_prefix = resolve_trust_prefix(output_dir, trust_prefix_base, trust_hash_length)
+    return root_ca_subject, trust_prefix
+
+
+def ensure_root_ca_state(
+    step_path: str,
+    paths: RootCAPaths,
+    output_dir: str,
+    root_ca_subject: str,
+    ca_validity: str,
+    trust_prefix: str,
+    force: bool,
+    skip_root_ca_install: bool,
+) -> bool:
+    root_ca_regenerated = False
+    root_cert_exists = os.path.exists(paths.cert)
+    root_key_exists = os.path.exists(paths.key)
+    if force or not (root_cert_exists and root_key_exists):
+        overwrite_root = force or root_cert_exists or root_key_exists
         generate_root_ca(
-            root_ca_cert,
-            root_ca_key,
+            paths.cert,
+            paths.key,
             step_path,
             root_ca_subject,
             ca_validity,
-            overwrite=args.force,
+            overwrite=overwrite_root,
         )
-        if args.skip_root_ca_install:
-            print("Skipping local Root CA install (--skip-root-ca-install).")
+        root_ca_regenerated = True
+        if skip_root_ca_install:
+            print("Skipping local Root CA install (--no-trust-install).")
         else:
-            install_root_ca(step_path, root_ca_cert, output_dir)
+            # Uninstall first using stable prefix after regeneration
+            # so git-cleaned trees still clean up.
+            uninstall_root_ca(step_path, paths.cert, output_dir, trust_prefix)
+            install_root_ca(step_path, paths.cert, output_dir, trust_prefix)
     else:
-        print(f"Root CA exists at {root_ca_cert}. Skipping generation. Use --force to regenerate.")
+        print(f"Root CA exists at {paths.cert}. Skipping generation. Use --force to regenerate.")
+        if not skip_root_ca_install:
+            if is_root_ca_installed(paths.cert, trust_prefix):
+                print(f"Root CA trust already installed (prefix={trust_prefix}).")
+            else:
+                print("Root CA trust entry is missing or stale. Installing...")
+                uninstall_root_ca(step_path, paths.cert, output_dir, trust_prefix)
+                install_root_ca(step_path, paths.cert, output_dir, trust_prefix)
 
-    # Check and generate Server/Client Certs
-    cert_file = os.path.join(output_dir, cert_cfg.get("filename_cert", "server.crt"))
-    key_file = os.path.join(output_dir, cert_cfg.get("filename_key", "server.key"))
-    client_cert_file = os.path.join(output_dir, cert_cfg.get("filename_client_cert", "client.crt"))
-    client_key_file = os.path.join(output_dir, cert_cfg.get("filename_client_key", "client.key"))
+    return root_ca_regenerated
 
+
+def resolve_leaf_paths(output_dir: str, cert_cfg: dict) -> LeafPaths:
+    return LeafPaths(
+        server_cert=os.path.join(output_dir, cert_cfg.get("filename_cert", "server.crt")),
+        server_key=os.path.join(output_dir, cert_cfg.get("filename_key", "server.key")),
+        client_cert=os.path.join(output_dir, cert_cfg.get("filename_client_cert", "client.crt")),
+        client_key=os.path.join(output_dir, cert_cfg.get("filename_client_key", "client.key")),
+    )
+
+
+def resolve_leaf_materials(
+    config: dict,
+    host_cfg: dict,
+    paths: LeafPaths,
+    server_validity: str,
+    client_validity: str,
+) -> tuple[LeafMaterial, LeafMaterial]:
     server_domains, server_ips = collect_hosts(host_cfg)
     client_host_cfg = resolve_host_cfg(config, "client_hosts", host_cfg)
     client_domains, client_ips = collect_hosts(client_host_cfg)
+
     server_subject = resolve_subject(server_domains, server_ips, "localhost")
     client_subject = resolve_subject(client_domains, client_ips, "client")
-    server_sans = dedupe_sans(server_domains, server_ips, server_subject)
-    client_sans = dedupe_sans(client_domains, client_ips, client_subject)
+    server_sans = tuple(dedupe_sans(server_domains, server_ips, server_subject))
+    client_sans = tuple(dedupe_sans(client_domains, client_ips, client_subject))
 
-    if args.force or not (os.path.exists(cert_file) and os.path.exists(key_file)):
+    server_leaf = LeafMaterial(
+        label="server",
+        cert_file=paths.server_cert,
+        key_file=paths.server_key,
+        subject=server_subject,
+        sans=server_sans,
+        validity=server_validity,
+    )
+    client_leaf = LeafMaterial(
+        label="client",
+        cert_file=paths.client_cert,
+        key_file=paths.client_key,
+        subject=client_subject,
+        sans=client_sans,
+        validity=client_validity,
+    )
+    return server_leaf, client_leaf
+
+
+def ensure_leaf_state(
+    leaf: LeafMaterial,
+    output_dir: str,
+    step_path: str,
+    root_ca_cert: str,
+    root_ca_key: str,
+    force: bool,
+    root_ca_regenerated: bool,
+) -> None:
+    leaf_cert_exists = os.path.exists(leaf.cert_file)
+    leaf_key_exists = os.path.exists(leaf.key_file)
+    needs_regen = force or root_ca_regenerated or not (leaf_cert_exists and leaf_key_exists)
+    if not needs_regen:
+        verified, detail = verify_leaf_cert_with_root(step_path, leaf.cert_file, root_ca_cert)
+        if not verified:
+            print(
+                f"{leaf.label.capitalize()} certificate does not match current Root CA. "
+                f"Regenerating ({detail})."
+            )
+            needs_regen = True
+
+    if needs_regen:
+        overwrite_leaf = force or leaf_cert_exists or leaf_key_exists
         generate_leaf_cert(
-            cert_file,
-            key_file,
-            server_sans,
+            leaf.cert_file,
+            leaf.key_file,
+            list(leaf.sans),
             step_path,
             root_ca_cert,
             root_ca_key,
-            "server",
-            server_subject,
-            server_validity,
-            overwrite=args.force,
+            leaf.label,
+            leaf.subject,
+            leaf.validity,
+            overwrite=overwrite_leaf,
         )
-    else:
-        print(
-            f"Server certificates exist at {output_dir}. "
-            "Skipping generation. Use --force to regenerate."
-        )
+        return
 
-    if args.force or not (os.path.exists(client_cert_file) and os.path.exists(client_key_file)):
-        generate_leaf_cert(
-            client_cert_file,
-            client_key_file,
-            client_sans,
-            step_path,
-            root_ca_cert,
-            root_ca_key,
-            "client",
-            client_subject,
-            client_validity,
-            overwrite=args.force,
-        )
-    else:
-        print(
-            f"Client certificates exist at {output_dir}. "
-            "Skipping generation. Use --force to regenerate."
-        )
+    print(
+        f"{leaf.label.capitalize()} certificates exist at {output_dir}. "
+        "Skipping generation. Use --force to regenerate."
+    )
+
+
+def main() -> int:
+    args = parse_args()
+    runtime = resolve_runtime_config()
+    if args.show_output_dir:
+        print(runtime.output_dir)
+        return 0
+
+    prepare_runtime_environment(runtime.output_dir)
+    step_path = resolve_step_path()
+    check_step(step_path)
+
+    root_paths = resolve_root_ca_paths(os.environ["CAROOT"])
+    validate_root_ca_paths(root_paths)
+
+    ca_validity, server_validity, client_validity = resolve_validities(runtime.cert_cfg)
+    root_ca_subject, trust_prefix = resolve_trust_details(runtime.trust_cfg, runtime.output_dir)
+
+    root_ca_regenerated = ensure_root_ca_state(
+        step_path=step_path,
+        paths=root_paths,
+        output_dir=runtime.output_dir,
+        root_ca_subject=root_ca_subject,
+        ca_validity=ca_validity,
+        trust_prefix=trust_prefix,
+        force=args.force,
+        skip_root_ca_install=args.no_trust_install,
+    )
+
+    leaf_paths = resolve_leaf_paths(runtime.output_dir, runtime.cert_cfg)
+    server_leaf, client_leaf = resolve_leaf_materials(
+        config=runtime.config,
+        host_cfg=runtime.host_cfg,
+        paths=leaf_paths,
+        server_validity=server_validity,
+        client_validity=client_validity,
+    )
+
+    ensure_leaf_state(
+        leaf=server_leaf,
+        output_dir=runtime.output_dir,
+        step_path=step_path,
+        root_ca_cert=root_paths.cert,
+        root_ca_key=root_paths.key,
+        force=args.force,
+        root_ca_regenerated=root_ca_regenerated,
+    )
+    ensure_leaf_state(
+        leaf=client_leaf,
+        output_dir=runtime.output_dir,
+        step_path=step_path,
+        root_ca_cert=root_paths.cert,
+        root_ca_key=root_paths.key,
+        force=args.force,
+        root_ca_regenerated=root_ca_regenerated,
+    )
 
     # Ensure repo-scoped brand dir is writable after sudo operations.
-    ensure_user_ownership(str(brand_dir))
+    ensure_user_ownership(str(runtime.brand_dir))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

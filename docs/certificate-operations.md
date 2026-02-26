@@ -84,6 +84,10 @@ mise run setup
 
 `mise run setup` は内部で `mise run setup:certs`（`uv run python tools/cert-gen/generate.py`）を実行します。
 初回は `step certificate install` によりローカル trust store 更新が走るため、環境によっては `sudo` を要求します。
+Root CA を再生成する場合は、既存の `CERT_DIR/rootCA.crt` を使って旧 trust を先に uninstall してから install します。
+trust store への登録名は `--prefix ca-<CERT_DIR由来hash>_` を使用し、ファイル名が長くなりすぎないようにしています。
+この prefix/hash 桁数は `tools/cert-gen/config.toml` の `[trust]`（`root_ca_prefix`, `root_ca_hash_length`）で変更できます。
+再生成時は既知の Linux trust store（例: `/usr/local/share/ca-certificates`, `/etc/pki/ca-trust/source/anchors`）配下の `prefix*.crt` も列挙して uninstall するため、同prefixの過去ファイルが残りにくい実装です。
 
 生成先（既定）:
 - `./.esb/certs/rootCA.crt`
@@ -209,7 +213,7 @@ mise run rotate:certs:all:files
 ```
 
 `--force` は Root CA / server / client をすべて再生成し、Root CA のローカル trust install も再実行します。  
-`rotate:certs:all:files` は非対話実行を優先し、`--skip-root-ca-install` を付与してローカル trust install をスキップします。  
+`rotate:certs:all:files` は非対話実行を優先し、`--no-trust-install` を付与してローカル trust install をスキップします。  
 ローカル trust store へのインストールも必要な場合は、対話端末で `mise run setup:certs -- --force` を実行してください。  
 この場合も、OS trust store 反映には前項 `3.` の再ビルド手順が**必須**です。
 
@@ -293,7 +297,7 @@ docker compose -f docker-compose.docker.yml build provisioner gateway
 
 3. `mise run setup:certs` への引数受け渡し
    - `mise run setup:certs -- --help`（exit 0）
-   - 確認内容: `--force`, `--skip-root-ca-install` を指定可能
+   - 確認内容: `--force`, `--no-trust-install` を指定可能
 
 4. `mise` ローテーションタスクの存在確認
    - `mise tasks ls | rg '^rotate:certs:'`（exit 0）
@@ -315,7 +319,7 @@ docker compose -f docker-compose.docker.yml build provisioner gateway
 - Gateway の config reloader は routing/functions 対象であり、証明書監視はしない
 - containerd image pull 用 TLS resolver は `config.DefaultCACertPath` を参照
 - `tools/cert-gen/generate.py` は既存ファイルをスキップし、`--force` ですべて再生成
-- `rotate:certs:all:files` は `--skip-root-ca-install` 付きで非対話実行可能
+- `rotate:certs:all:files` は `--no-trust-install` 付きで非対話実行可能
 
 ### 6.3 検証の限界
 
