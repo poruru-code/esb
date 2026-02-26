@@ -23,6 +23,11 @@ else:
 ROOT_CA_CERT_FILENAME = "rootCA.crt"
 ROOT_CA_KEY_FILENAME = "rootCA.key"
 CONFIG_REL_PATH = "tools/cert-gen/config.toml"
+SYSTEM_TRUST_STORE_DIRS = (
+    Path("/usr/local/share/ca-certificates"),
+    Path("/etc/pki/ca-trust/source/anchors"),
+    Path("/etc/ca-certificates/trust-source/anchors"),
+)
 
 
 @dataclass(frozen=True)
@@ -84,6 +89,10 @@ def resolve_sudo_path() -> str:
     return sudo_path
 
 
+def iter_system_trust_store_dirs() -> list[Path]:
+    return [path for path in SYSTEM_TRUST_STORE_DIRS if path.is_dir()]
+
+
 def check_step(step_path: str):
     if not step_path:
         print("Error: step CLI not found.")
@@ -117,9 +126,7 @@ def uninstall_root_ca(
     if os.path.isfile(root_ca_cert):
         candidates.append(root_ca_cert)
 
-    # Debian/Ubuntu system trust store where step writes installed cert files.
-    system_store = Path("/usr/local/share/ca-certificates")
-    if system_store.is_dir():
+    for system_store in iter_system_trust_store_dirs():
         for path in sorted(system_store.glob(f"{trust_prefix}*.crt")):
             candidates.append(str(path))
 
@@ -168,8 +175,8 @@ def is_root_ca_installed(root_ca_cert: str, trust_prefix: str) -> bool:
     if not os.path.isfile(root_ca_cert):
         return False
 
-    system_store = Path("/usr/local/share/ca-certificates")
-    if not system_store.is_dir():
+    trust_store_dirs = iter_system_trust_store_dirs()
+    if not trust_store_dirs:
         return False
 
     try:
@@ -177,14 +184,15 @@ def is_root_ca_installed(root_ca_cert: str, trust_prefix: str) -> bool:
     except OSError:
         return False
 
-    for path in sorted(system_store.glob(f"{trust_prefix}*.crt")):
-        if not path.is_file():
-            continue
-        try:
-            if hashlib.sha256(path.read_bytes()).hexdigest() == root_digest:
-                return True
-        except OSError:
-            continue
+    for system_store in trust_store_dirs:
+        for path in sorted(system_store.glob(f"{trust_prefix}*.crt")):
+            if not path.is_file():
+                continue
+            try:
+                if hashlib.sha256(path.read_bytes()).hexdigest() == root_digest:
+                    return True
+            except OSError:
+                continue
     return False
 
 

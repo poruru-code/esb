@@ -87,7 +87,7 @@ mise run setup
 Root CA を再生成する場合は、既存の `CERT_DIR/rootCA.crt` を使って旧 trust を先に uninstall してから install します。
 trust store への登録名は `--prefix ca-<CERT_DIR由来hash>_` を使用し、ファイル名が長くなりすぎないようにしています。
 この prefix/hash 桁数は `tools/cert-gen/config.toml` の `[trust]`（`root_ca_prefix`, `root_ca_hash_length`）で変更できます。
-再生成時は `/usr/local/share/ca-certificates` 配下の `prefix*.crt` も列挙して uninstall するため、同prefixの過去ファイルが残りにくい実装です。
+再生成時は既知の Linux trust store（例: `/usr/local/share/ca-certificates`, `/etc/pki/ca-trust/source/anchors`）配下の `prefix*.crt` も列挙して uninstall するため、同prefixの過去ファイルが残りにくい実装です。
 
 生成先（既定）:
 - `./.esb/certs/rootCA.crt`
