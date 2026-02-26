@@ -245,7 +245,7 @@ artifactcore 配布/開発ルール:
 - 複数テンプレート時の適用順と対象は `artifact.yml` の `artifacts[]` が正本です。
 
 ## 手動ランブック（Phase 3-5）
-前提: `docker`, `docker compose`, `esb-ctl` が利用可能であること。
+前提: `docker`, `docker compose`, `esb-ctl`, `uv` が利用可能であること。
 
 ### 0) 変数
 ```bash
@@ -258,13 +258,14 @@ RUN_ENV="/path/to/run.env"
 ### 1) Artifact 適用（検証 + 設定反映）
 ```bash
 test -f "${ARTIFACT}"
-esb-ctl deploy \
+uv run python tools/deployops/cli.py apply \
   --artifact "${ARTIFACT}"
 
 cat "${SECRETS_ENV}" > "${RUN_ENV}"
 ```
 
 注記:
+- `tools/deployops/cli.py apply` は `esb-ctl deploy` / `provision` と compose 起動・registry readiness をホスト側で統合実行します。
 - `esb-ctl deploy` は検証と apply を実行します（必要時に image build/pull を実行し得ます）。
 - image build では artifact 作成時の `runtime-base/**` ではなく、実行時環境の lambda base を使用します。
 - `esb-ctl deploy` は deploy 時に必要な lambda base を確保し、関数 build が 0 件のときは既定の `esb-lambda-base:latest` を target registry へ確保します。

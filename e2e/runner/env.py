@@ -12,6 +12,7 @@ from e2e.runner.branding import (
     buildkitd_config_path,
     buildx_builder_name,
     lambda_network_name,
+    proxy_buildx_builder_name,
     resolve_brand_slug,
     resolve_project_name,
     root_ca_mount_id,
@@ -37,6 +38,8 @@ _DEFAULT_NO_PROXY_TARGETS = (
     "127.0.0.1",
     "172.20.0.0/16",
 )
+
+_ENV_E2E_WITH_PROXY = "E2E_WITH_PROXY"
 
 
 def hash_mod(value: str, mod: int) -> int:
@@ -276,6 +279,8 @@ def calculate_runtime_env(
     # 8. Docker BuildKit
     env.setdefault(constants.ENV_DOCKER_BUILDKIT, "1")
     env.setdefault("BUILDX_BUILDER", buildx_builder_name(project_name))
+    if env.get(_ENV_E2E_WITH_PROXY, "").strip() == "1":
+        env["BUILDX_BUILDER"] = proxy_buildx_builder_name(env.get("BUILDX_BUILDER", ""))
     env.setdefault("COMPOSE_DOCKER_CLI_BUILD", "1")
 
     # 9. E2E safety toggles

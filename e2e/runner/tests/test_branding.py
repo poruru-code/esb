@@ -24,6 +24,8 @@ def test_path_and_name_helpers_follow_resolved_slug(tmp_path: Path) -> None:
     assert branding.lambda_network_name("Acme Prod", "e2e-x") == "acme-prod_int_e2e-x"
     assert branding.root_ca_mount_id("Acme Prod") == "acme-prod_root_ca"
     assert branding.buildx_builder_name("Acme Prod") == "acme-prod-buildx"
+    assert branding.proxy_buildx_builder_name("acme-prod-buildx") == "acme-prod-buildx-proxy"
+    assert branding.proxy_buildx_builder_name("acme-prod-buildx-proxy") == "acme-prod-buildx-proxy"
     assert branding.infra_registry_container_name("Acme Prod") == "acme-prod-infra-registry"
 
     assert branding.cert_dir(tmp_path, "Acme Prod") == tmp_path / ".acme-prod" / "certs"

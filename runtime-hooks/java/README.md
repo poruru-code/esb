@@ -43,5 +43,5 @@ Notes:
 Static contract check:
 
 ```bash
-bash tools/ci/check_java_reproducible_jars.sh
+bash .github/checks/check_java_reproducible_jars.sh
 ```

@@ -1,0 +1,29 @@
+# Where: .github/cst/runtime-node.yaml
+# What: Container Structure Tests for the runtime-node (containerd) image.
+# Why: Ensure containerd tooling and entrypoints are present.
+
+schemaVersion: "2.0.0"
+
+metadataTest:
+  entrypoint: ["/entrypoint.sh"]
+
+fileExistenceTests:
+  - name: "entrypoint"
+    path: "/entrypoint.sh"
+    shouldExist: true
+  - name: "entrypoint-containerd"
+    path: "/entrypoint.containerd.sh"
+    shouldExist: true
+  - name: "entrypoint-common"
+    path: "/entrypoint.common.sh"
+    shouldExist: true
+
+commandTests:
+  - name: "containerd-version"
+    command: "containerd"
+    args: ["--version"]
+    expectedOutput: ["containerd"]
+  - name: "runc-version"
+    command: "runc"
+    args: ["--version"]
+    expectedOutput: ["runc"]

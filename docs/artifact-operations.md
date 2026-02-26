@@ -35,13 +35,12 @@ The contract details live in `docs/deploy-artifact-contract.md`.
 - 本リポジトリでは apply/runtime 側の契約と実装のみを正本とします。
 
 ## Apply Flow
-Use `esb-ctl` as the canonical apply implementation.
+`esb-ctl` is the canonical apply implementation.
+Host orchestration is standardized by `tools/deployops`.
 
 ```bash
-esb-ctl deploy \
+uv run python tools/deployops/cli.py apply \
   --artifact /path/to/artifact.yml
-
-docker compose up -d
 ```
 
 Notes:
@@ -55,12 +54,21 @@ Notes:
 - `esb-ctl deploy` must treat `<artifact_root>` as read-only. Temporary build files are created only in ephemeral workspace outside artifact directories.
 - `docker compose up` では one-shot `provisioner` が自動実行され、成功後に runtime サービスが起動します。
 - 明示的に再provisionしたい場合は `esb-ctl provision ...` または `docker compose --profile deploy run --rm provisioner` を使えます。
-- merge/apply は `esb-ctl` 直実行のみを運用経路とする（shell wrapper は廃止）。
+- 旧 shell wrapper は廃止済み。ホスト側の統一入口は `tools/deployops/cli.py apply`。
 
 Manual artifact minimum:
 - `artifact.yml` with `schema_version/project/env/mode/artifacts[]`
 - each entry with `artifact_root/runtime_config_dir` (`source_template` is optional metadata)
 - files: `<artifact_root>/<runtime_config_dir>/functions.yml` and `routing.yml`
+
+## DinD Bundle Flow
+```bash
+uv run python tools/deployops/cli.py bundle-dind \
+  -a /path/to/artifact-dir \
+  -e /path/to/.env \
+  --prepare-images \
+  my-bundle:latest
+```
 
 ## Module Contract (artifactcore)
 - adapter modules と `tools/artifactctl/go.mod` には `pkg/artifactcore` の `replace` を置かない。
