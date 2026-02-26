@@ -24,20 +24,12 @@ ARTIFACT_ARG="${1:-}"
 if [ -n "$ARTIFACT_ARG" ]; then
   ARTIFACT="$ARTIFACT_ARG"
 else
-  ARTIFACT="$(find "$REPO_ROOT/artifacts" -maxdepth 3 -type f -name artifact.yml 2>/dev/null | head -n1 || true)"
-  if [ -z "$ARTIFACT" ]; then
+  mapfile -t ART_FILES < <(find "$REPO_ROOT/artifacts" -type f -name artifact.yml 2>/dev/null | sort)
+  if [ ${#ART_FILES[@]} -eq 0 ]; then
     echo "No artifact.yml found under $REPO_ROOT/artifacts. Provide as argument." >&2
     exit 1
   fi
-fi
-
-if [ ! -f "$ARTIFACT" ]; then
-  echo "artifact.yml not found: $ARTIFACT" >&2
-  exit 1
-fi
-
-if [ -z "${ARTIFACT_ARG:-}" ]; then
-  mapfile -t ART_FILES < <(find "$REPO_ROOT/artifacts" -type f -name artifact.yml 2>/dev/null | sort)
+  ARTIFACT="${ART_FILES[0]}"
   if [ ${#ART_FILES[@]} -gt 1 ]; then
     echo "Multiple artifact.yml files found; choose one:"
     for i in "${!ART_FILES[@]}"; do
@@ -56,6 +48,11 @@ if [ -z "${ARTIFACT_ARG:-}" ]; then
   fi
 fi
 
+if [ ! -f "$ARTIFACT" ]; then
+  echo "artifact.yml not found: $ARTIFACT" >&2
+  exit 1
+fi
+
 echo "Using artifact: $ARTIFACT"
 
 # Parse artifact after final selection.
@@ -70,6 +67,11 @@ if [ -f "$REPO_ROOT/.env" ]; then
   # shellcheck disable=SC1090
   . "$REPO_ROOT/.env"
   set +a
+  COMPOSE_ENV_FILE_ARGS=(--env-file "$REPO_ROOT/.env")
+  PROVISION_ENV_FILE_ARGS=(--env-file "$REPO_ROOT/.env")
+else
+  COMPOSE_ENV_FILE_ARGS=()
+  PROVISION_ENV_FILE_ARGS=()
 fi
 
 # Artifact values override .env.
@@ -108,7 +110,7 @@ fi
 echo "Bringing up stack for project '$PROJECT_NAME' (ENV='${ENV:-}')"
 
 docker compose -p "$PROJECT_NAME" \
-  --env-file "$REPO_ROOT/.env" \
+  "${COMPOSE_ENV_FILE_ARGS[@]}" \
   -f "$COMPOSE_FILE" up -d
 
 PORT_REGISTRY="${PORT_REGISTRY:-5010}"
@@ -122,12 +124,12 @@ echo "Running explicit provision (recommended for restores)"
 esb-ctl provision \
   --project "$PROJECT_NAME" \
   --compose-file "$COMPOSE_FILE" \
-  --env-file "$REPO_ROOT/.env" \
+  "${PROVISION_ENV_FILE_ARGS[@]}" \
   --project-dir "$REPO_ROOT"
 
 echo "Showing compose ps"
 docker compose -p "$PROJECT_NAME" \
-  --env-file "$REPO_ROOT/.env" \
+  "${COMPOSE_ENV_FILE_ARGS[@]}" \
   -f "$COMPOSE_FILE" ps
 
 echo "Listing runtime config volume contents"
