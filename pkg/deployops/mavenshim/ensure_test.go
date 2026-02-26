@@ -278,11 +278,14 @@ func TestMavenWrapperAcceptsCaseInsensitiveProxySchemes(t *testing.T) {
 		"set -euo pipefail",
 		"args=(\"$@\")",
 		"settings=\"\"",
-		"for ((i=0; i<${#args[@]}; i++)); do",
-		"  if [[ \"${args[$i]}\" == \"-s\" ]]; then",
-		"    next=$((i+1))",
-		"    settings=\"${args[$next]:-}\"",
-		"    break",
+		"for arg in \"${args[@]}\"; do",
+		"  if [[ \"$arg\" == \"-s\" ]]; then",
+		"    settings_next=1",
+		"    continue",
+		"  fi",
+		"  if [[ \"${settings_next:-0}\" == \"1\" ]]; then",
+		"    settings=\"$arg\"",
+		"    settings_next=0",
 		"  fi",
 		"done",
 		"if [[ -z \"$settings\" || ! -f \"$settings\" ]]; then",
@@ -315,5 +318,182 @@ func TestMavenWrapperAcceptsCaseInsensitiveProxySchemes(t *testing.T) {
 	}
 	if _, err := os.Stat(captureFile); err != nil {
 		t.Fatalf("fake mvn was not invoked: %v, output=%s", err, string(output))
+	}
+}
+
+func TestMavenWrapperFallsBackToJvmProxyPropertiesOn407(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script execution is not portable to windows")
+	}
+	contextDir, cleanup, err := materializeBuildContext()
+	if err != nil {
+		t.Fatalf("materializeBuildContext() error = %v", err)
+	}
+	defer cleanup()
+
+	fakeBinDir := t.TempDir()
+	fakeMaven := filepath.Join(fakeBinDir, "fake-mvn")
+	captureFile := filepath.Join(fakeBinDir, "captured")
+	callsFile := filepath.Join(fakeBinDir, "calls")
+	fakeMavenScript := strings.Join([]string{
+		"#!/usr/bin/env bash",
+		"set -euo pipefail",
+		"args=(\"$@\")",
+		"contains_arg() {",
+		"  local expected=\"$1\"",
+		"  for arg in \"${args[@]}\"; do",
+		"    if [[ \"$arg\" == \"$expected\" ]]; then",
+		"      return 0",
+		"    fi",
+		"  done",
+		"  return 1",
+		"}",
+		"calls=0",
+		"if [[ -f \"$MAVEN_CALLS_FILE\" ]]; then",
+		"  calls=\"$(cat \"$MAVEN_CALLS_FILE\")\"",
+		"fi",
+		"calls=$((calls+1))",
+		"printf '%s' \"$calls\" > \"$MAVEN_CALLS_FILE\"",
+		"if [[ \"$calls\" == \"1\" ]]; then",
+		"  contains_arg \"-s\" || { echo \"missing initial -s\" >&2; exit 95; }",
+		"  echo \"[ERROR] status code: 407, reason phrase: Proxy Authentication Required (407)\" >&2",
+		"  exit 1",
+		"fi",
+		"contains_arg \"-s\" && { echo \"unexpected -s on fallback\" >&2; exit 96; }",
+		"for arg in \"${args[@]}\"; do",
+		"  if [[ \"$arg\" == -Dhttp.proxy* || \"$arg\" == -Dhttps.proxy* || \"$arg\" == -Dhttp.nonProxyHosts=* || \"$arg\" == -Dhttps.nonProxyHosts=* ]]; then",
+		"    echo \"fallback proxy JVM property leaked to command line: $arg\" >&2",
+		"    exit 97",
+		"  fi",
+		"done",
+		"[[ \"${JAVA_TOOL_OPTIONS:-}\" == *\"-Dhttp.proxyHost=proxy.example\"* ]] || { echo \"missing fallback http proxy host\" >&2; exit 98; }",
+		"[[ \"${JAVA_TOOL_OPTIONS:-}\" == *\"-Dhttp.proxyPort=8080\"* ]] || { echo \"missing fallback http proxy port\" >&2; exit 99; }",
+		"[[ \"${JAVA_TOOL_OPTIONS:-}\" == *\"-Dhttp.proxyUser=user\"* ]] || { echo \"missing fallback http proxy user\" >&2; exit 100; }",
+		"[[ \"${JAVA_TOOL_OPTIONS:-}\" == *\"-Dhttp.proxyPassword=pass\"* ]] || { echo \"missing fallback http proxy password\" >&2; exit 101; }",
+		"[[ \"${JAVA_TOOL_OPTIONS:-}\" == *\"-Dhttps.proxyHost=secure-proxy.example\"* ]] || { echo \"missing fallback https proxy host\" >&2; exit 102; }",
+		"[[ \"${JAVA_TOOL_OPTIONS:-}\" == *\"-Dhttps.proxyPort=9443\"* ]] || { echo \"missing fallback https proxy port\" >&2; exit 103; }",
+		"[[ \"${JAVA_TOOL_OPTIONS:-}\" == *\"-Dhttps.proxyUser=secure-user\"* ]] || { echo \"missing fallback https proxy user\" >&2; exit 104; }",
+		"[[ \"${JAVA_TOOL_OPTIONS:-}\" == *\"-Dhttps.proxyPassword=secure-pass\"* ]] || { echo \"missing fallback https proxy password\" >&2; exit 105; }",
+		"[[ \"${JAVA_TOOL_OPTIONS:-}\" == *\"-Dhttp.nonProxyHosts=localhost|*.svc.cluster.local|127.0.0.1|::1|example.com\"* ]] || { echo \"missing fallback normalized http nonProxyHosts\" >&2; exit 106; }",
+		"[[ \"${JAVA_TOOL_OPTIONS:-}\" == *\"-Dhttps.nonProxyHosts=localhost|*.svc.cluster.local|127.0.0.1|::1|example.com\"* ]] || { echo \"missing fallback normalized https nonProxyHosts\" >&2; exit 107; }",
+		"touch \"$MAVEN_CAPTURE_FILE\"",
+		"exit 0",
+		"",
+	}, "\n")
+	if err := os.WriteFile(fakeMaven, []byte(fakeMavenScript), 0o755); err != nil {
+		t.Fatalf("write fake mvn: %v", err)
+	}
+
+	wrapperPath := filepath.Join(contextDir, "mvn-wrapper.sh")
+	command := exec.Command("bash", wrapperPath, "-q", "-DskipTests", "package")
+	command.Env = append(
+		os.Environ(),
+		"MAVEN_REAL_BIN="+fakeMaven,
+		"MAVEN_CAPTURE_FILE="+captureFile,
+		"MAVEN_CALLS_FILE="+callsFile,
+		"HTTP_PROXY=http://user:pass@proxy.example:8080",
+		"HTTPS_PROXY=http://secure-user:secure-pass@secure-proxy.example:9443",
+		"NO_PROXY=localhost,.svc.cluster.local,127.0.0.1:8081,[::1],example.com;example.com",
+	)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("wrapper execution failed: %v, output=%s", err, string(output))
+	}
+	if _, err := os.Stat(captureFile); err != nil {
+		t.Fatalf("fallback invocation did not succeed: %v, output=%s", err, string(output))
+	}
+	callsRaw, err := os.ReadFile(callsFile)
+	if err != nil {
+		t.Fatalf("read calls file: %v", err)
+	}
+	if strings.TrimSpace(string(callsRaw)) != "2" {
+		t.Fatalf("expected two invocations, got %q (output=%s)", string(callsRaw), string(output))
+	}
+}
+
+func TestMavenWrapperFallsBackToJvmProxyPropertiesOnNetworkUnreachable(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script execution is not portable to windows")
+	}
+	contextDir, cleanup, err := materializeBuildContext()
+	if err != nil {
+		t.Fatalf("materializeBuildContext() error = %v", err)
+	}
+	defer cleanup()
+
+	fakeBinDir := t.TempDir()
+	fakeMaven := filepath.Join(fakeBinDir, "fake-mvn")
+	captureFile := filepath.Join(fakeBinDir, "captured")
+	callsFile := filepath.Join(fakeBinDir, "calls")
+	fakeMavenScript := strings.Join([]string{
+		"#!/usr/bin/env bash",
+		"set -euo pipefail",
+		"args=(\"$@\")",
+		"contains_arg() {",
+		"  local expected=\"$1\"",
+		"  for arg in \"${args[@]}\"; do",
+		"    if [[ \"$arg\" == \"$expected\" ]]; then",
+		"      return 0",
+		"    fi",
+		"  done",
+		"  return 1",
+		"}",
+		"calls=0",
+		"if [[ -f \"$MAVEN_CALLS_FILE\" ]]; then",
+		"  calls=\"$(cat \"$MAVEN_CALLS_FILE\")\"",
+		"fi",
+		"calls=$((calls+1))",
+		"printf '%s' \"$calls\" > \"$MAVEN_CALLS_FILE\"",
+		"if [[ \"$calls\" == \"1\" ]]; then",
+		"  contains_arg \"-s\" || { echo \"missing initial -s\" >&2; exit 95; }",
+		"  echo \"[ERROR] Could not transfer artifact software.amazon.awssdk:bom:pom:2.25.40 from/to central (https://repo.maven.apache.org/maven2): Network is unreachable\" >&2",
+		"  exit 1",
+		"fi",
+		"contains_arg \"-s\" && { echo \"unexpected -s on fallback\" >&2; exit 96; }",
+		"for arg in \"${args[@]}\"; do",
+		"  if [[ \"$arg\" == -Dhttp.proxy* || \"$arg\" == -Dhttps.proxy* || \"$arg\" == -Dhttp.nonProxyHosts=* || \"$arg\" == -Dhttps.nonProxyHosts=* ]]; then",
+		"    echo \"fallback proxy JVM property leaked to command line: $arg\" >&2",
+		"    exit 97",
+		"  fi",
+		"done",
+		"[[ \"${JAVA_TOOL_OPTIONS:-}\" == *\"-Dhttp.proxyHost=proxy.example\"* ]] || { echo \"missing fallback http proxy host\" >&2; exit 98; }",
+		"[[ \"${JAVA_TOOL_OPTIONS:-}\" == *\"-Dhttp.proxyPort=8080\"* ]] || { echo \"missing fallback http proxy port\" >&2; exit 99; }",
+		"[[ \"${JAVA_TOOL_OPTIONS:-}\" == *\"-Dhttp.proxyUser=user\"* ]] || { echo \"missing fallback http proxy user\" >&2; exit 100; }",
+		"[[ \"${JAVA_TOOL_OPTIONS:-}\" == *\"-Dhttp.proxyPassword=pass\"* ]] || { echo \"missing fallback http proxy password\" >&2; exit 101; }",
+		"[[ \"${JAVA_TOOL_OPTIONS:-}\" == *\"-Dhttps.proxyHost=secure-proxy.example\"* ]] || { echo \"missing fallback https proxy host\" >&2; exit 102; }",
+		"[[ \"${JAVA_TOOL_OPTIONS:-}\" == *\"-Dhttps.proxyPort=9443\"* ]] || { echo \"missing fallback https proxy port\" >&2; exit 103; }",
+		"[[ \"${JAVA_TOOL_OPTIONS:-}\" == *\"-Dhttps.proxyUser=secure-user\"* ]] || { echo \"missing fallback https proxy user\" >&2; exit 104; }",
+		"[[ \"${JAVA_TOOL_OPTIONS:-}\" == *\"-Dhttps.proxyPassword=secure-pass\"* ]] || { echo \"missing fallback https proxy password\" >&2; exit 105; }",
+		"touch \"$MAVEN_CAPTURE_FILE\"",
+		"exit 0",
+		"",
+	}, "\n")
+	if err := os.WriteFile(fakeMaven, []byte(fakeMavenScript), 0o755); err != nil {
+		t.Fatalf("write fake mvn: %v", err)
+	}
+
+	wrapperPath := filepath.Join(contextDir, "mvn-wrapper.sh")
+	command := exec.Command("bash", wrapperPath, "-q", "-DskipTests", "package")
+	command.Env = append(
+		os.Environ(),
+		"MAVEN_REAL_BIN="+fakeMaven,
+		"MAVEN_CAPTURE_FILE="+captureFile,
+		"MAVEN_CALLS_FILE="+callsFile,
+		"HTTP_PROXY=http://user:pass@proxy.example:8080",
+		"HTTPS_PROXY=http://secure-user:secure-pass@secure-proxy.example:9443",
+	)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("wrapper execution failed: %v, output=%s", err, string(output))
+	}
+	if _, err := os.Stat(captureFile); err != nil {
+		t.Fatalf("fallback invocation did not succeed: %v, output=%s", err, string(output))
+	}
+	callsRaw, err := os.ReadFile(callsFile)
+	if err != nil {
+		t.Fatalf("read calls file: %v", err)
+	}
+	if strings.TrimSpace(string(callsRaw)) != "2" {
+		t.Fatalf("expected two invocations, got %q (output=%s)", string(callsRaw), string(output))
 	}
 }

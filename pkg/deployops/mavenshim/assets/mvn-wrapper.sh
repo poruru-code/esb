@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Where: pkg/deployops/mavenshim/assets/mvn-wrapper.sh
-# What: Maven wrapper that injects proxy-aware settings.xml for every invocation.
-# Why: Ensure Maven resolves dependencies behind authenticated proxies without per-Dockerfile hacks.
+# What: Maven wrapper that applies proxy settings via settings.xml with JVM fallback.
+# Why: Keep Maven proxy behavior compatible across real proxies and proxy.py-based E2E.
 set -euo pipefail
 
 script_path="$0"
@@ -162,6 +162,14 @@ no_proxy="$(resolve_env_alias NO_PROXY no_proxy)"
 
 http_endpoint=""
 https_endpoint=""
+http_host=""
+http_port=""
+http_username=""
+http_password=""
+https_host=""
+https_port=""
+https_username=""
+https_password=""
 if [[ -n "$http_proxy" ]]; then
   http_endpoint="$(parse_proxy_endpoint "$http_proxy" "HTTP_PROXY/http_proxy")"
 fi
@@ -175,29 +183,68 @@ if [[ -z "$http_endpoint" && -z "$https_endpoint" ]]; then
   exec "$MAVEN_REAL_BIN" "$@"
 fi
 
-settings_path="$(mktemp /tmp/esb-maven-settings-XXXXXX.xml)"
-trap 'rm -f "$settings_path"' EXIT
-chmod 0600 "$settings_path"
+if [[ -n "$http_endpoint" ]]; then
+  IFS=$'\t' read -r http_host http_port http_username http_password <<< "$http_endpoint"
+fi
+if [[ -n "$https_endpoint" ]]; then
+  IFS=$'\t' read -r https_host https_port https_username https_password <<< "$https_endpoint"
+fi
 
 non_proxy_hosts="$(build_non_proxy_hosts "$no_proxy")"
+java_proxy_properties=()
+
+if [[ -n "$http_host" ]]; then
+  java_proxy_properties+=("-Dhttp.proxyHost=${http_host}")
+  java_proxy_properties+=("-Dhttp.proxyPort=${http_port}")
+  if [[ -n "$http_username" ]]; then
+    java_proxy_properties+=("-Dhttp.proxyUser=${http_username}")
+  fi
+  if [[ -n "$http_password" ]]; then
+    java_proxy_properties+=("-Dhttp.proxyPassword=${http_password}")
+  fi
+fi
+
+if [[ -n "$https_host" ]]; then
+  java_proxy_properties+=("-Dhttps.proxyHost=${https_host}")
+  java_proxy_properties+=("-Dhttps.proxyPort=${https_port}")
+  if [[ -n "$https_username" ]]; then
+    java_proxy_properties+=("-Dhttps.proxyUser=${https_username}")
+  fi
+  if [[ -n "$https_password" ]]; then
+    java_proxy_properties+=("-Dhttps.proxyPassword=${https_password}")
+  fi
+fi
+
+if [[ -n "$non_proxy_hosts" ]]; then
+  if [[ -n "$http_host" ]]; then
+    java_proxy_properties+=("-Dhttp.nonProxyHosts=${non_proxy_hosts}")
+  fi
+  if [[ -n "$https_host" ]]; then
+    java_proxy_properties+=("-Dhttps.nonProxyHosts=${non_proxy_hosts}")
+  fi
+fi
+
+settings_path="$(mktemp /tmp/esb-maven-settings-XXXXXX.xml)"
+run_log_path="$(mktemp /tmp/esb-maven-wrapper-XXXXXX.log)"
+trap 'rm -f "$settings_path" "$run_log_path"' EXIT
+chmod 0600 "$settings_path"
 
 {
   echo '<settings>'
   echo '  <proxies>'
 
-  if [[ -n "$http_endpoint" ]]; then
-    IFS=$'\t' read -r host port username password <<< "$http_endpoint"
+  if [[ -n "$http_host" ]]; then
     echo '    <proxy>'
     echo '      <id>http-proxy</id>'
     echo '      <active>true</active>'
     echo '      <protocol>http</protocol>'
-    echo "      <host>$(xml_escape "$host")</host>"
-    echo "      <port>${port}</port>"
-    if [[ -n "$username" ]]; then
-      echo "      <username>$(xml_escape "$username")</username>"
+    echo "      <host>$(xml_escape "$http_host")</host>"
+    echo "      <port>${http_port}</port>"
+    if [[ -n "$http_username" ]]; then
+      echo "      <username>$(xml_escape "$http_username")</username>"
     fi
-    if [[ -n "$password" ]]; then
-      echo "      <password>$(xml_escape "$password")</password>"
+    if [[ -n "$http_password" ]]; then
+      echo "      <password>$(xml_escape "$http_password")</password>"
     fi
     if [[ -n "$non_proxy_hosts" ]]; then
       echo "      <nonProxyHosts>$(xml_escape "$non_proxy_hosts")</nonProxyHosts>"
@@ -205,19 +252,18 @@ non_proxy_hosts="$(build_non_proxy_hosts "$no_proxy")"
     echo '    </proxy>'
   fi
 
-  if [[ -n "$https_endpoint" ]]; then
-    IFS=$'\t' read -r host port username password <<< "$https_endpoint"
+  if [[ -n "$https_host" ]]; then
     echo '    <proxy>'
     echo '      <id>https-proxy</id>'
     echo '      <active>true</active>'
     echo '      <protocol>https</protocol>'
-    echo "      <host>$(xml_escape "$host")</host>"
-    echo "      <port>${port}</port>"
-    if [[ -n "$username" ]]; then
-      echo "      <username>$(xml_escape "$username")</username>"
+    echo "      <host>$(xml_escape "$https_host")</host>"
+    echo "      <port>${https_port}</port>"
+    if [[ -n "$https_username" ]]; then
+      echo "      <username>$(xml_escape "$https_username")</username>"
     fi
-    if [[ -n "$password" ]]; then
-      echo "      <password>$(xml_escape "$password")</password>"
+    if [[ -n "$https_password" ]]; then
+      echo "      <password>$(xml_escape "$https_password")</password>"
     fi
     if [[ -n "$non_proxy_hosts" ]]; then
       echo "      <nonProxyHosts>$(xml_escape "$non_proxy_hosts")</nonProxyHosts>"
@@ -229,4 +275,36 @@ non_proxy_hosts="$(build_non_proxy_hosts "$no_proxy")"
   echo '</settings>'
 } >"$settings_path"
 
-exec "$MAVEN_REAL_BIN" -s "$settings_path" "$@"
+set +e
+"$MAVEN_REAL_BIN" -s "$settings_path" "$@" 2>&1 | tee "$run_log_path"
+primary_rc=${PIPESTATUS[0]}
+set -e
+
+if [[ $primary_rc -eq 0 ]]; then
+  exit 0
+fi
+
+if [[ ${#java_proxy_properties[@]} -eq 0 ]]; then
+  exit "$primary_rc"
+fi
+
+if ! grep -Eiq \
+  'status code:[[:space:]]*407|proxy authentication required|proxyauthenticationfailed|network is unreachable|failed to connect to|connection timed out|connection refused|no route to host' \
+  "$run_log_path"; then
+  exit "$primary_rc"
+fi
+
+echo "mvn shim: settings.xml proxy flow failed; retrying with JVM proxy properties" >&2
+java_tool_options=""
+if [[ -n "${JAVA_TOOL_OPTIONS:-}" ]]; then
+  java_tool_options="${JAVA_TOOL_OPTIONS}"
+fi
+for option in "${java_proxy_properties[@]}"; do
+  if [[ -z "$java_tool_options" ]]; then
+    java_tool_options="$option"
+  else
+    java_tool_options+=" $option"
+  fi
+done
+
+exec env "JAVA_TOOL_OPTIONS=${java_tool_options}" "$MAVEN_REAL_BIN" "$@"
