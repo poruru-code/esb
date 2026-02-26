@@ -78,5 +78,10 @@ def parse_args():
         action="store_true",
         help="Disable build cache (pass --no-cache to deploy)",
     )
+    parser.add_argument(
+        "--with-proxy",
+        action="store_true",
+        help="Run E2E via a local proxy.py process.",
+    )
     parser.set_defaults(color=None, emoji=None)
     return parser.parse_args()
