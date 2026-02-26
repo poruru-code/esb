@@ -5,6 +5,7 @@ set -euo pipefail
 # Usage: ./artifacts/deploy.sh [path/to/artifact.yml]
 
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+DEFAULT_CTL_BIN="esb-ctl"
 
 read_artifact_field() {
   local key="$1"
@@ -122,6 +123,14 @@ if [ -z "$BASE_PROJECT" ]; then
   exit 1
 fi
 
+CTL_BIN="${CTL_BIN:-$DEFAULT_CTL_BIN}"
+if ! command -v "$CTL_BIN" >/dev/null 2>&1; then
+  echo "ctl command not found: $CTL_BIN" >&2
+  echo "Install via 'mise run setup' (or 'mise run build-ctl')," >&2
+  echo "or set CTL_BIN to override (example: CTL_BIN=esb-ctl)." >&2
+  exit 1
+fi
+
 if [ -n "$RESOLVED_ENV" ]; then
   PROJECT_NAME="${BASE_PROJECT}-${RESOLVED_ENV}"
 else
@@ -183,11 +192,11 @@ fi
 echo "Waiting for registry on http://127.0.0.1:$PORT_REGISTRY/v2/"
 wait_for_registry_ready "127.0.0.1:${PORT_REGISTRY}" "$REGISTRY_WAIT_TIMEOUT"
 
-echo "Deploying artifact via esb-ctl"
-esb-ctl deploy --artifact "$ARTIFACT"
+echo "Deploying artifact via ${CTL_BIN}"
+"$CTL_BIN" deploy --artifact "$ARTIFACT"
 
 echo "Running explicit provision (recommended for restores)"
-esb-ctl provision \
+"$CTL_BIN" provision \
   --project "$PROJECT_NAME" \
   --compose-file "$COMPOSE_FILE" \
   "${PROVISION_ENV_FILE_ARGS[@]}" \
