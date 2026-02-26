@@ -288,9 +288,11 @@ if [[ ${#java_proxy_args[@]} -eq 0 ]]; then
   exit "$primary_rc"
 fi
 
-if ! grep -Eiq 'status code:[[:space:]]*407|proxy authentication required|proxyauthenticationfailed' "$run_log_path"; then
+if ! grep -Eiq \
+  'status code:[[:space:]]*407|proxy authentication required|proxyauthenticationfailed|network is unreachable|failed to connect to|connection timed out|connection refused|no route to host' \
+  "$run_log_path"; then
   exit "$primary_rc"
 fi
 
-echo "mvn shim: settings.xml proxy auth failed; retrying with JVM proxy properties" >&2
+echo "mvn shim: settings.xml proxy flow failed; retrying with JVM proxy properties" >&2
 exec "$MAVEN_REAL_BIN" "${java_proxy_args[@]}" "$@"
