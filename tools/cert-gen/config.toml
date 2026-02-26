@@ -10,6 +10,10 @@ ca_validity = "87600h"
 server_validity = "87600h"
 client_validity = "87600h"
 
+[trust]
+root_ca_prefix = "ca"
+root_ca_hash_length = 8
+
 [hosts]
 domains = [
     "localhost",
