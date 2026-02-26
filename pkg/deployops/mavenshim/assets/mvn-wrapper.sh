@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Where: pkg/deployops/mavenshim/assets/mvn-wrapper.sh
-# What: Maven wrapper that injects proxy-aware JVM properties for every invocation.
-# Why: Ensure Maven resolves dependencies behind authenticated proxies without per-Dockerfile hacks.
+# What: Maven wrapper that applies proxy settings via settings.xml with JVM fallback.
+# Why: Keep Maven proxy behavior compatible across real proxies and proxy.py-based E2E.
 set -euo pipefail
 
 script_path="$0"
@@ -47,6 +47,16 @@ url_decode() {
     return
   fi
   printf '%b' "${value//%/\\x}" 2>/dev/null || printf '%s' "$value"
+}
+
+xml_escape() {
+  local value="$1"
+  value="${value//&/&amp;}"
+  value="${value//</&lt;}"
+  value="${value//>/&gt;}"
+  value="${value//\"/&quot;}"
+  value="${value//\'/&apos;}"
+  printf '%s' "$value"
 }
 
 parse_proxy_endpoint() {
@@ -214,4 +224,73 @@ if [[ -n "$non_proxy_hosts" ]]; then
   fi
 fi
 
+settings_path="$(mktemp /tmp/esb-maven-settings-XXXXXX.xml)"
+run_log_path="$(mktemp /tmp/esb-maven-wrapper-XXXXXX.log)"
+trap 'rm -f "$settings_path" "$run_log_path"' EXIT
+chmod 0600 "$settings_path"
+
+{
+  echo '<settings>'
+  echo '  <proxies>'
+
+  if [[ -n "$http_host" ]]; then
+    echo '    <proxy>'
+    echo '      <id>http-proxy</id>'
+    echo '      <active>true</active>'
+    echo '      <protocol>http</protocol>'
+    echo "      <host>$(xml_escape "$http_host")</host>"
+    echo "      <port>${http_port}</port>"
+    if [[ -n "$http_username" ]]; then
+      echo "      <username>$(xml_escape "$http_username")</username>"
+    fi
+    if [[ -n "$http_password" ]]; then
+      echo "      <password>$(xml_escape "$http_password")</password>"
+    fi
+    if [[ -n "$non_proxy_hosts" ]]; then
+      echo "      <nonProxyHosts>$(xml_escape "$non_proxy_hosts")</nonProxyHosts>"
+    fi
+    echo '    </proxy>'
+  fi
+
+  if [[ -n "$https_host" ]]; then
+    echo '    <proxy>'
+    echo '      <id>https-proxy</id>'
+    echo '      <active>true</active>'
+    echo '      <protocol>https</protocol>'
+    echo "      <host>$(xml_escape "$https_host")</host>"
+    echo "      <port>${https_port}</port>"
+    if [[ -n "$https_username" ]]; then
+      echo "      <username>$(xml_escape "$https_username")</username>"
+    fi
+    if [[ -n "$https_password" ]]; then
+      echo "      <password>$(xml_escape "$https_password")</password>"
+    fi
+    if [[ -n "$non_proxy_hosts" ]]; then
+      echo "      <nonProxyHosts>$(xml_escape "$non_proxy_hosts")</nonProxyHosts>"
+    fi
+    echo '    </proxy>'
+  fi
+
+  echo '  </proxies>'
+  echo '</settings>'
+} >"$settings_path"
+
+set +e
+"$MAVEN_REAL_BIN" -s "$settings_path" "$@" 2>&1 | tee "$run_log_path"
+primary_rc=${PIPESTATUS[0]}
+set -e
+
+if [[ $primary_rc -eq 0 ]]; then
+  exit 0
+fi
+
+if [[ ${#java_proxy_args[@]} -eq 0 ]]; then
+  exit "$primary_rc"
+fi
+
+if ! grep -Eiq 'status code:[[:space:]]*407|proxy authentication required|proxyauthenticationfailed' "$run_log_path"; then
+  exit "$primary_rc"
+fi
+
+echo "mvn shim: settings.xml proxy auth failed; retrying with JVM proxy properties" >&2
 exec "$MAVEN_REAL_BIN" "${java_proxy_args[@]}" "$@"
