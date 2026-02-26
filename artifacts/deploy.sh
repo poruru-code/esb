@@ -62,8 +62,8 @@ echo "Using artifact: $ARTIFACT"
 ARTIFACT_PROJECT="$(read_artifact_field project "$ARTIFACT")"
 ARTIFACT_ENV="$(read_artifact_field env "$ARTIFACT")"
 
-# Always use docker-mode compose overlay.
-COMPOSE_FILE="$REPO_ROOT/docker-compose.docker.yml"
+# Use root compose only; it includes mode-specific overlays via `include`.
+COMPOSE_FILE="$REPO_ROOT/docker-compose.yml"
 
 if [ -f "$REPO_ROOT/.env" ]; then
   set -a
@@ -109,7 +109,6 @@ echo "Bringing up stack for project '$PROJECT_NAME' (ENV='${ENV:-}')"
 
 docker compose -p "$PROJECT_NAME" \
   --env-file "$REPO_ROOT/.env" \
-  -f "$REPO_ROOT/docker-compose.yml" \
   -f "$COMPOSE_FILE" up -d
 
 PORT_REGISTRY="${PORT_REGISTRY:-5010}"
@@ -122,14 +121,13 @@ esb-ctl deploy --artifact "$ARTIFACT"
 echo "Running explicit provision (recommended for restores)"
 esb-ctl provision \
   --project "$PROJECT_NAME" \
-  --compose-file "$REPO_ROOT/docker-compose.yml,$COMPOSE_FILE" \
+  --compose-file "$COMPOSE_FILE" \
   --env-file "$REPO_ROOT/.env" \
   --project-dir "$REPO_ROOT"
 
 echo "Showing compose ps"
 docker compose -p "$PROJECT_NAME" \
   --env-file "$REPO_ROOT/.env" \
-  -f "$REPO_ROOT/docker-compose.yml" \
   -f "$COMPOSE_FILE" ps
 
 echo "Listing runtime config volume contents"
