@@ -220,7 +220,10 @@ if [[ -n "${expect_ssh_password_auth}" ]]; then
 
   command -v sshd >/dev/null 2>&1 || fail "sshd command not found"
   sshd -t >/dev/null 2>&1 || fail "sshd config test failed"
-  effective_password_auth="$(sshd -T 2>/dev/null | awk '/^passwordauthentication /{print tolower($2); exit}')"
+  if ! sshd_t_output="$(sshd -T -C user=root -C host=localhost -C addr=127.0.0.1 2>&1)"; then
+    fail "sshd -T failed: ${sshd_t_output}"
+  fi
+  effective_password_auth="$(printf '%s\n' "${sshd_t_output}" | awk '/^passwordauthentication /{print tolower($2); exit}')"
   if [[ -z "${effective_password_auth}" ]]; then
     fail "failed to evaluate effective sshd PasswordAuthentication setting"
   fi

@@ -239,7 +239,11 @@ if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
 fi
 
 sshd -t
-effective_password_auth="$(sshd -T 2>/dev/null | awk '/^passwordauthentication /{print tolower($2); exit}')"
+if ! sshd_t_output="$(sshd -T -C user=root -C host=localhost -C addr=127.0.0.1 2>&1)"; then
+  echo "sshd -T failed: ${sshd_t_output}" >&2
+  exit 1
+fi
+effective_password_auth="$(printf '%s\n' "${sshd_t_output}" | awk '/^passwordauthentication /{print tolower($2); exit}')"
 expected_password_auth="$(printf '%s\n' "__PASSWORD_AUTH_RAW__" | tr '[:upper:]' '[:lower:]')"
 if [[ -z "${effective_password_auth}" ]]; then
   echo "failed to evaluate effective sshd PasswordAuthentication setting" >&2
@@ -564,6 +568,14 @@ function Launch-MultipassInstance {
     }
     if ($launchExit -ne 0) {
         $launchDetails = ($launchOutputLines -join "`n").Trim()
+        $isInitTimeout = ($launchDetails -match "(?i)timed out waiting for initialization to complete")
+        if ($isInitTimeout) {
+            $infoResult = Invoke-BootstrapNative -Command @("multipass", "info", $InstanceName) -Context "multipass info after launch timeout" -CaptureOutput -IgnoreExitCode
+            if ($infoResult.ExitCode -eq 0) {
+                Write-Host "[hyper-v create] WARN: multipass launch timed out, but instance exists. Continuing with explicit cloud-init wait."
+                return
+            }
+        }
         if ([string]::IsNullOrWhiteSpace($launchDetails)) {
             throw "multipass launch failed for '$InstanceName'"
         }
@@ -574,33 +586,62 @@ function Launch-MultipassInstance {
 function Wait-MultipassCloudInitDone {
     param(
         [Parameter(Mandatory = $true)]
-        [string]$InstanceName
+        [string]$InstanceName,
+        [int]$TimeoutSeconds = 1800,
+        [int]$PollIntervalSeconds = 10
     )
 
+    if ($TimeoutSeconds -lt 30) {
+        throw "TimeoutSeconds must be >= 30: $TimeoutSeconds"
+    }
+    if ($PollIntervalSeconds -lt 1) {
+        throw "PollIntervalSeconds must be >= 1: $PollIntervalSeconds"
+    }
+
     Write-Host "[hyper-v create] Waiting for cloud-init completion"
-    $cloudInitLines = @(& multipass exec $InstanceName -- cloud-init status --long 2>&1 | ForEach-Object { [string]$_ })
-    $cloudInitLong = $cloudInitLines -join "`n"
-    $cloudInitExit = $LASTEXITCODE
-    Write-Host $cloudInitLong
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    $lastStatus = ""
+    $lastOutput = ""
 
-    $cloudInitStatus = $null
-    foreach ($line in $cloudInitLines) {
-        $normalized = ($line -replace "`e\[[\d;]*[A-Za-z]", "").Trim()
-        if ($normalized -match "^(?i)status\s*:\s*(.+)$") {
-            $cloudInitStatus = $Matches[1].Trim()
-            break
+    while ((Get-Date) -lt $deadline) {
+        $cloudInitLines = @(& multipass exec $InstanceName -- cloud-init status --long 2>&1 | ForEach-Object { [string]$_ })
+        $cloudInitLong = ($cloudInitLines -join "`n").Trim()
+        $cloudInitExit = $LASTEXITCODE
+        $lastOutput = $cloudInitLong
+
+        $cloudInitStatus = $null
+        foreach ($line in $cloudInitLines) {
+            $normalized = ($line -replace "`e\[[\d;]*[A-Za-z]", "").Trim()
+            if ($normalized -match "^(?i)status\s*:\s*(.+)$") {
+                $cloudInitStatus = $Matches[1].Trim()
+                break
+            }
         }
+
+        if (-not [string]::IsNullOrWhiteSpace($cloudInitStatus)) {
+            if ($cloudInitStatus -ne $lastStatus) {
+                Write-Host "[hyper-v create] cloud-init status: $cloudInitStatus"
+                $lastStatus = $cloudInitStatus
+            }
+
+            if ($cloudInitStatus -match "^(?i)done$") {
+                if (-not [string]::IsNullOrWhiteSpace($cloudInitLong)) {
+                    Write-Host $cloudInitLong
+                }
+                if ($cloudInitExit -ne 0) {
+                    Write-Host "[hyper-v create] WARN: cloud-init returned non-zero (degraded), but status is done"
+                }
+                return
+            }
+        }
+
+        Start-Sleep -Seconds $PollIntervalSeconds
     }
 
-    if ([string]::IsNullOrWhiteSpace($cloudInitStatus)) {
-        throw "cloud-init status line could not be parsed in '$InstanceName'"
+    if ([string]::IsNullOrWhiteSpace($lastStatus)) {
+        throw "cloud-init status line could not be parsed in '$InstanceName' within timeout (${TimeoutSeconds}s). Last output:`n$lastOutput"
     }
-    if ($cloudInitStatus -notmatch "^(?i)done$") {
-        throw "cloud-init did not complete successfully in '$InstanceName'"
-    }
-    if ($cloudInitExit -ne 0) {
-        Write-Host "[hyper-v create] WARN: cloud-init returned non-zero (degraded), but status is done"
-    }
+    throw "cloud-init did not reach done in '$InstanceName' within timeout (${TimeoutSeconds}s). Last status: $lastStatus`n$lastOutput"
 }
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
