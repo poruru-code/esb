@@ -26,7 +26,6 @@ __CA_CERTS_BLOCK__
 write_files:
   - path: /etc/bootstrap.env
     owner: root:root
-    permissions: '0600'
     content: |
       PROXY_HTTP="__PROXY_HTTP__"
       PROXY_HTTPS="__PROXY_HTTPS__"
@@ -39,7 +38,6 @@ write_files:
 
   - path: /usr/local/sbin/cloud-init-bootstrap.sh
     owner: root:root
-    permissions: '0755'
     content: |
       #!/usr/bin/env bash
       set -euo pipefail
