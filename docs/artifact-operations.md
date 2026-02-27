@@ -82,15 +82,13 @@ Boundary ownership map:
 - `RUNTIME_NET_SUBNET` / `RUNTIME_NODE_IP` は docker モードのみ既定注入し、containerd/firecracker モードでは注入しない（設定しても runtime env では無効化）
 - matrix での追加 env 注入は行わず、環境変数は `e2e/environments/*/.env` を唯一の設定点として扱う
 
-## External Orchestrator Contract (ESB-CLI)
-- ESB-CLI などの外部オーケストレータは `esb-ctl` 実装を package import で吸収できません。実行ファイル呼び出しで連携します。
+## External Orchestrator Contract
+- 外部オーケストレータは `esb-ctl` 実装を package import で吸収できません。実行ファイル呼び出しで連携します。
 - deploy/provision 実行前に `esb-ctl internal capabilities --output json` を実行し、schema/contracts を照合してください。
 - 最低限 required な subcommand は `deploy`, `provision`, `internal fixture-image ensure`, `internal maven-shim ensure`, `internal capabilities` です。
 - binary path override は `CTL_BIN` を使います（解決後の実体パスは runner 内で `CTL_BIN_RESOLVED` に固定されます）。
 
-Fixture refresh is a separate developer operation (outside E2E runtime):
-- regenerate fixtures with `e2e/scripts/regenerate_artifacts.sh`
-- this script uses an external artifact producer command and commits raw output
+Fixture refresh is a separate developer operation (outside E2E runtime) and is managed outside this repository.
 - E2E runner scans generated artifact Dockerfiles and builds/pushes local fixture images from `e2e/fixtures/images/lambda/*` when `FROM` uses local fixture repos
 
 ## Failure Policy

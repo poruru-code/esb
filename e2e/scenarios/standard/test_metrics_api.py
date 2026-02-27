@@ -26,7 +26,7 @@ class TestMetricsAPI:
         assert response.status_code == 200
 
         headers = {"Authorization": f"Bearer {auth_token}"}
-        expected_memory_max = 128 * 1024 * 1024
+        expected_memory_max = 512 * 1024 * 1024
         expected_pool_names = {"echo", "lambda-echo"}
 
         pool_resp = requests.get(
