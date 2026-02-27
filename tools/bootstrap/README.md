@@ -1,143 +1,198 @@
 <!--
 Where: tools/bootstrap/README.md
-What: Bootstrap guide for WSL/Hyper-V environments.
-Why: Document initial host setup steps for the system.
+What: Single integrated bootstrap guide for host provisioning.
+Why: Make one canonical runbook for WSL2 and Hyper-V (Multipass) new-instance setup.
 -->
-# Bootstrap Guide
+# Bootstrap (Integrated Guide)
 
-このガイドでは、WSL (Windows Subsystem for Linux) または Hyper-V 上の Ubuntu 環境に対して、Docker およびプロキシ設定を自動構成するための手順を説明します。
+`tools/bootstrap/` は開発環境を毎回「新規作成」するための統合入口です。  
+既存インスタンスの上書き更新や冪等運用は前提にせず、作り直しを基本とします。
 
-## 前提条件
+## Scope
 
-*   **OS**: Ubuntu 22.04 LTS / 24.04 LTS (推奨)
-*   **権限**: `sudo` 権限を持つユーザーであること
-*   **ツール**: Python 3 がインストールされていること（Ansible の実行に必要）
+- OS: Ubuntu 24.04 LTS
+- Configuration: single fixed configuration
+- Platform A: WSL2（新規ディストリ作成まで自動化）
+- Platform B: Hyper-V + Multipass（新規インスタンス作成）
+- Validation: スモークテストのみ
 
-## 1. Ansible のインストール
+## Common Policy
 
-まだ Ansible がインストールされていない場合は、以下のコマンドでインストールしてください。
+- Docker は公式 Ubuntu 手順準拠で導入
+- cloud-init datasource は WSL では `NoCloud, None` を明示、Multipass では `NoCloud` seed を使用
+- 初回 bootstrap 時に Ubuntu パッケージアップグレードを実施（`package_upgrade: true`）
+- `DOCKER_VERSION` は既定 `latest`
+- `DOCKER_VERSION` に具体値を設定した場合は minimum version として検証
+- `containerd` / `buildx` / `compose` は個別固定しない（Docker Engine 導入結果に従う）
+- Proxy 設定は任意
+  - 設定時は APT に加えて `/etc/environment` と `/etc/profile.d/bootstrap-proxy.sh` に反映
+- SSL inspection 用 CA 追加は任意
+  - Hyper-V (Multipass): cloud-init `ca_certs` で投入
+  - WSL2: cloud-init 導入前の pre-bootstrap で投入
+- `mise` は bootstrap で自動導入
+- `gh` (GitHub CLI) は apt で自動導入
+- 作成ごとに root / ログインユーザー初期パスワードをランダム生成し、完了時に再設定コマンドと合わせて表示
+- vars ファイルは未知キーを許可せず、typo を fail-fast で停止
 
-```bash
-sudo apt update
-sudo apt install -y software-properties-common
-sudo add-apt-repository --yes --update ppa:ansible/ansible
-sudo apt install -y ansible
+## Variables
+
+各プラットフォームの `vars.example` をコピーして使います。
+
+```powershell
+Copy-Item .\tools\bootstrap\wsl\vars.example "$env:USERPROFILE\bootstrap-wsl.vars"
+Copy-Item .\tools\bootstrap\hyper-v\vars.example "$env:USERPROFILE\bootstrap-hyperv.vars"
+notepad "$env:USERPROFILE\bootstrap-wsl.vars"
+notepad "$env:USERPROFILE\bootstrap-hyperv.vars"
 ```
 
-### 1-a. プロキシ未設定 / 閉域環境でのインストール（代替案）
+主要変数:
 
-対象 PC から外部リポジトリに到達できない場合、以下のいずれかの方法で「ローカルインストール」してください。
+- `PROXY_HTTP` / `PROXY_HTTPS`: 任意
+- `NO_PROXY`: 既定 `localhost,127.0.0.1,::1`
+- `BOOTSTRAP_USER`: 既定 `ubuntu`（未存在時は cloud-init が作成）
+- `DOCKER_VERSION`: 既定 `latest`（または minimum version 指定）
+- `PROXY_CA_CERT_PATH`: 任意
 
-**案 A: オフライン APT パッケージ（推奨・簡易）**
+### CA Certificate (Optional)
 
-プロキシ設定済みの Ubuntu（WSL でも可）で必要な `.deb` を集め、対象 PC に持ち込みます。
+`PROXY_CA_CERT_PATH` は Windows パスを指定可能です。  
+例:
 
-```bash
-# 取得側（プロキシ設定済み Ubuntu）
-sudo apt update
-sudo apt install -y apt-rdepends
-mkdir -p /tmp/ansible_debs
-cd /tmp/ansible_debs
-apt download ansible
-apt-rdepends ansible | awk '/^ /{print $1}' | xargs -r apt download
+```text
+PROXY_CA_CERT_PATH=C:\certs\corp-root-ca.cer
 ```
 
-取得した `/tmp/ansible_debs` を USB 等で対象 PC にコピーし、以下で導入します。
+- `.cer` (DER / Base64), `.crt`, `.pem` を受け付け
+- renderer 側で PEM 化して投入
+  - Hyper-V (Multipass): cloud-init `ca_certs` に埋め込み
+  - WSL2: pre-bootstrap で `/usr/local/share/ca-certificates` へ配置
+- 相対パス指定時は vars ファイルの配置ディレクトリ基準で解決
 
-```bash
-# 対象 PC（オフライン）
-cd /path/to/ansible_debs
-sudo dpkg -i ./*.deb || sudo apt -f install -y
+## Platform Flow: WSL2
+
+`create-instance.ps1` 実行時に `preflight.ps1` を内部実行します。  
+（必要時のみ `-SkipPreflight` でスキップ可能）
+WSL は `wsl --install --name` を使って常に新規ディストリを作成します（既存 `Ubuntu` の export/import は使用しません）。
+同名ディストリ/同名インストールディレクトリがある場合は削除確認を行い、`-Force` 指定時は無確認で再作成します。
+WSL の初回起動前に `BOOTSTRAP_USER` を自動作成し default user を設定するため、初回の対話ユーザー作成プロンプトは発生しません。
+
+### Create New Distro + Apply Cloud-init
+
+```powershell
+.\tools\bootstrap\wsl\create-instance.ps1 `
+  -InstanceName bootstrap-wsl `
+  -VarsFile "$env:USERPROFILE\bootstrap-wsl.vars" `
+  -RunSmokeTest
 ```
 
-**案 B: ローカル APT リポジトリを用意**
+既存同名ディストリを再作成する場合:
 
-同一ネットワーク内に apt-mirror / aptly などでローカルリポジトリを構築し、
-対象 PC の `sources.list` をローカルに向けます。複数台導入や継続運用向きです。
-
-**案 C: Python wheel でインストール（上級者向け）**
-
-プロキシ設定済みの環境で `pip download ansible` し、wheel を持ち込んで
-`pip install --no-index --find-links` で導入します。依存関係の管理が必要です。
-
-> 注: 「Windows で apt を取得してローカルインストール」は Ubuntu での
-> インストールには使えません。apt は Ubuntu/Debian 向けのパッケージマネージャです。
-> Windows 側で準備する場合は WSL/Ubuntu VM で `.deb` を取得してください。
-
-## 2. 設定ファイルの編集
-
-`bootstrap` ディレクトリ内の `vars.yml` を編集し、環境に合わせた設定を行います。
-
-```bash
-cd bootstrap
-nano vars.yml
+```powershell
+.\tools\bootstrap\wsl\create-instance.ps1 `
+  -InstanceName bootstrap-wsl `
+  -VarsFile "$env:USERPROFILE\bootstrap-wsl.vars" `
+  -Force `
+  -RunSmokeTest
 ```
 
-**設定項目:**
+## Platform Flow: Hyper-V (Multipass)
 
-*   **`proxy_http` / `proxy_https`**:
-    *   プロキシ環境下の場合は、`http://proxy.example.com:8080` のように設定してください。
-    *   プロキシを使用しない場合は、`""` (空文字) のままにしてください。
-*   **`docker_users`**:
-    *   Docker グループに追加するユーザーを指定します。デフォルトでは実行ユーザーが対象です。
+`create-instance.ps1` 実行時に `preflight.ps1` を内部実行します。  
+（必要時のみ `-SkipPreflight` でスキップ可能）
+同名インスタンスがある場合は削除確認を行い、`-Force` 指定時は無確認で削除して新規作成します。
+`BOOTSTRAP_USER` が既存でない場合も cloud-init で自動作成し、`docker` グループへ付与します。
 
-## 3. Playbook の実行
+### Create New Instance + Apply Cloud-init
 
-### 基本的な実行方法
-
-以下のコマンドを実行して、セットアップを開始します。`BECOME password` プロンプトが表示されたら、sudo パスワードを入力してください。
-
-```bash
-ansible-playbook -i inventory playbook.yml --ask-become-pass
+```powershell
+.\tools\bootstrap\hyper-v\create-instance.ps1 `
+  -InstanceName bootstrap-hv `
+  -VarsFile "$env:USERPROFILE\bootstrap-hyperv.vars" `
+  -RunSmokeTest
 ```
 
-## 4. 環境ごとの注意点
+Hyper-V のリソース/ネットワークを vars ファイルで指定する場合（任意）:
 
-### WSL (Windows Subsystem for Linux) の場合
+- vars ファイルキー:
+  - `VM_CPUS`
+  - `VM_MEMORY`
+  - `VM_DISK`
+  - `VM_NETWORK_HUB` (空/`default`/`auto` は Multipass 既定ネットワーク)
+  - `ENABLE_SSH_PASSWORD_AUTH`
+  - `ALLOW_INBOUND_TCP_PORTS`
 
-WSL 2 では、**Systemd** が有効になっていることが推奨されます（Docker デーモンの管理のため）。
+優先順位: `create-instance.ps1` 引数 > vars > 既定値
 
-1.  `/etc/wsl.conf` を確認（または作成）します：
-    ```bash
-    sudo nano /etc/wsl.conf
-    ```
-2.  以下の設定が含まれていることを確認します：
-    ```ini
-    [boot]
-    systemd=true
-    ```
-3.  設定を変更した場合は、PowerShell で `wsl --shutdown` を実行し、WSL を再起動してください。
+## Smoke Test Only
 
-### Hyper-V (Ubuntu 仮想マシン) の場合
+- WSL2:
 
-通常の Ubuntu Server/Desktop と同様の手順で実行可能です。
-SSH 経由でセットアップを行う場合は、`inventory` ファイルを編集してリモートホストを指定することも可能です。
-
-**例: リモートホストへの適用 (inventory ファイル)**
-```ini
-[targets]
-192.168.1.100 ansible_user=ubuntu
+```powershell
+.\tools\bootstrap\wsl\validate-instance.ps1 -InstanceName bootstrap-wsl -BootstrapUser ubuntu
 ```
 
-実行コマンド:
-```bash
-ansible-playbook -i inventory playbook.yml --ask-become-pass
+- Hyper-V / Multipass:
+
+```powershell
+.\tools\bootstrap\hyper-v\validate-instance.ps1 -InstanceName bootstrap-hv -BootstrapUser ubuntu
 ```
 
-## 5. 動作確認
+必要に応じて SSH/UFW の期待値検証も可能です:
 
-セットアップ完了後、一度ログアウトして再ログインする（または `newgrp docker` を実行する）ことで、`docker` コマンドが sudo なしで実行可能になります。
-
-以下のコマンドで正常に動作することを確認してください：
-
-```bash
-docker run --rm hello-world
+```powershell
+.\tools\bootstrap\hyper-v\validate-instance.ps1 -InstanceName bootstrap-hv -BootstrapUser ubuntu -ExpectedSshPasswordAuth enabled -ExpectedOpenTcpPorts 443,19000,9001,8001,9428
 ```
 
-プロキシ環境下の場合、Docker イメージの Pull が成功すればプロキシ設定も正常に適用されています。
+## Optional: Run Preflight Only
 
----
+- WSL2:
 
-## Implementation references
-- `tools/bootstrap/playbook.yml`
-- `tools/bootstrap/vars.yml`
+```powershell
+.\tools\bootstrap\wsl\preflight.ps1
+```
+
+- Hyper-V / Multipass:
+
+```powershell
+.\tools\bootstrap\hyper-v\preflight.ps1
+```
+
+## Troubleshooting
+
+### Hyper-V SSH: `Permission denied (publickey)`
+
+`create-instance.ps1` 完了後に表示された `Connect command` で接続しても、
+`Permission denied (publickey)` が出る場合はクライアント側 SSH 設定の影響を疑ってください。
+
+まずは一時的に鍵認証を無効化して接続:
+
+```powershell
+ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no ubuntu@<表示されたIP>
+```
+
+現在のクライアント有効設定を確認:
+
+```powershell
+ssh -G ubuntu@<表示されたIP> | Select-String -Pattern "preferredauthentications|pubkeyauthentication|passwordauthentication|identityfile"
+```
+
+補足:
+
+- Hyper-V (Default Switch) は再作成ごとに IP が変わります。毎回、完了ログに表示された最新 IP を使ってください。
+- PowerShell では `ubuntu@<IP>` 単体はコマンドではありません。必ず `ssh ubuntu@<IP>` で実行してください。
+
+## Implementation Map
+
+- WSL2:
+  - `tools/bootstrap/wsl/preflight.ps1`
+  - `tools/bootstrap/wsl/create-instance.ps1`
+  - `tools/bootstrap/wsl/validate-instance.ps1`
+- Hyper-V / Multipass:
+  - `tools/bootstrap/hyper-v/preflight.ps1`
+  - `tools/bootstrap/hyper-v/create-instance.ps1`
+  - `tools/bootstrap/hyper-v/validate-instance.ps1`
+- Shared cloud-init:
+  - `tools/bootstrap/cloud-init/user-data.template.yaml`
+  - `tools/bootstrap/core/bootstrap-common.psm1`
+  - `tools/bootstrap/core/render-user-data.psm1`
+  - `tools/bootstrap/cloud-init/verify-instance.sh`

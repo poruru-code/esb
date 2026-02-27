@@ -1,0 +1,380 @@
+#cloud-config
+# Where: tools/bootstrap/cloud-init/user-data.template.yaml
+# What: cloud-init template for bootstrap on Ubuntu 24.04.
+# Why: Use cloud-init plugins for package/CA handling and keep custom scripting minimal.
+package_update: true
+package_upgrade: true
+
+apt:
+  preserve_sources_list: true
+  conf: |
+    Acquire::Retries "3";
+
+packages:
+  - ca-certificates
+  - curl
+  - gnupg
+  - lsb-release
+  - git
+
+groups:
+  - docker
+
+ssh_pwauth: __SSH_PWAUTH__
+
+# Rendered as cloud-init ca_certs module when custom CA is configured.
+__CA_CERTS_BLOCK__
+
+write_files:
+  - path: /etc/bootstrap.env
+    owner: root:root
+    content: |
+      PROXY_HTTP="__PROXY_HTTP__"
+      PROXY_HTTPS="__PROXY_HTTPS__"
+      NO_PROXY="__NO_PROXY__"
+      BOOTSTRAP_USER="__BOOTSTRAP_USER__"
+      DOCKER_VERSION="__DOCKER_VERSION__"
+      SSL_INSPECTION_CA_CONFIGURED="__SSL_INSPECTION_CA_CONFIGURED__"
+      ROOT_PASSWORD="__ROOT_PASSWORD__"
+      BOOTSTRAP_USER_PASSWORD="__BOOTSTRAP_USER_PASSWORD__"
+
+  - path: /usr/local/sbin/cloud-init-bootstrap.sh
+    owner: root:root
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+
+      ENV_FILE="/etc/bootstrap.env"
+
+      log() {
+        printf '[cloud-init-bootstrap] %s\n' "$*"
+      }
+
+      fail() {
+        printf '[cloud-init-bootstrap] ERROR: %s\n' "$*" >&2
+        exit 1
+      }
+
+      ensure_single_line() {
+        local key="$1"
+        local value="$2"
+        if [[ "${value}" == *$'\n'* || "${value}" == *$'\r'* ]]; then
+          fail "${key} must be a single-line value"
+        fi
+      }
+
+      upsert_environment_entry() {
+        local key="$1"
+        local value="$2"
+        local env_file="/etc/environment"
+        local tmp_file
+        tmp_file="$(mktemp)"
+        if [[ -f "${env_file}" ]]; then
+          awk -v key="${key}" -v value="${value}" '
+            BEGIN { updated = 0 }
+            $0 ~ "^" key "=" {
+              printf "%s=\"%s\"\n", key, value
+              updated = 1
+              next
+            }
+            { print }
+            END {
+              if (updated == 0) {
+                printf "%s=\"%s\"\n", key, value
+              }
+            }
+          ' "${env_file}" > "${tmp_file}"
+        else
+          printf '%s="%s"\n' "${key}" "${value}" > "${tmp_file}"
+        fi
+        mv "${tmp_file}" "${env_file}"
+        chmod 0644 "${env_file}"
+      }
+
+      remove_environment_entry() {
+        local key="$1"
+        local env_file="/etc/environment"
+        local tmp_file
+        if [[ ! -f "${env_file}" ]]; then
+          return
+        fi
+        tmp_file="$(mktemp)"
+        awk -v key="${key}" '$0 !~ "^" key "=" { print }' "${env_file}" > "${tmp_file}"
+        mv "${tmp_file}" "${env_file}"
+        chmod 0644 "${env_file}"
+      }
+
+      read_bootstrap_env() {
+        local file_path="$1"
+        local line=""
+        local key=""
+        local value=""
+
+        PROXY_HTTP=""
+        PROXY_HTTPS=""
+        NO_PROXY=""
+        BOOTSTRAP_USER=""
+        DOCKER_VERSION=""
+        SSL_INSPECTION_CA_CONFIGURED=""
+        ROOT_PASSWORD=""
+        BOOTSTRAP_USER_PASSWORD=""
+
+        while IFS= read -r line || [[ -n "${line}" ]]; do
+          line="${line%$'\r'}"
+          [[ -z "${line}" || "${line}" == \#* ]] && continue
+
+          key="${line%%=*}"
+          value="${line#*=}"
+
+          key="${key#"${key%%[![:space:]]*}"}"
+          key="${key%"${key##*[![:space:]]}"}"
+          value="${value#"${value%%[![:space:]]*}"}"
+          value="${value%"${value##*[![:space:]]}"}"
+
+          if [[ "${value}" == \"*\" && "${value}" == *\" ]]; then
+            value="${value:1:${#value}-2}"
+          elif [[ "${value}" == \'*\' && "${value}" == *\' ]]; then
+            value="${value:1:${#value}-2}"
+          fi
+
+          case "${key}" in
+            PROXY_HTTP) PROXY_HTTP="${value}" ;;
+            PROXY_HTTPS) PROXY_HTTPS="${value}" ;;
+            NO_PROXY) NO_PROXY="${value}" ;;
+            BOOTSTRAP_USER) BOOTSTRAP_USER="${value}" ;;
+            DOCKER_VERSION) DOCKER_VERSION="${value}" ;;
+            SSL_INSPECTION_CA_CONFIGURED) SSL_INSPECTION_CA_CONFIGURED="${value}" ;;
+            ROOT_PASSWORD) ROOT_PASSWORD="${value}" ;;
+            BOOTSTRAP_USER_PASSWORD) BOOTSTRAP_USER_PASSWORD="${value}" ;;
+            *) ;;
+          esac
+        done < "${file_path}"
+      }
+
+      if [[ ! -f "${ENV_FILE}" ]]; then
+        fail "missing env file: ${ENV_FILE}"
+      fi
+
+      read_bootstrap_env "${ENV_FILE}"
+
+      ensure_single_line "PROXY_HTTP" "${PROXY_HTTP:-}"
+      ensure_single_line "PROXY_HTTPS" "${PROXY_HTTPS:-}"
+      ensure_single_line "NO_PROXY" "${NO_PROXY:-}"
+      ensure_single_line "BOOTSTRAP_USER" "${BOOTSTRAP_USER:-}"
+      ensure_single_line "DOCKER_VERSION" "${DOCKER_VERSION:-}"
+      ensure_single_line "ROOT_PASSWORD" "${ROOT_PASSWORD:-}"
+      ensure_single_line "BOOTSTRAP_USER_PASSWORD" "${BOOTSTRAP_USER_PASSWORD:-}"
+
+      if [[ -n "${ROOT_PASSWORD:-}" ]]; then
+        printf 'root:%s\n' "${ROOT_PASSWORD}" | chpasswd
+        sed -i 's/^ROOT_PASSWORD=.*/ROOT_PASSWORD=""/' "${ENV_FILE}"
+        log "root password configured"
+      else
+        log "ROOT_PASSWORD is empty; skipped root password configuration"
+      fi
+
+      docker_minimum="${DOCKER_VERSION:-latest}"
+      if [[ -z "${docker_minimum}" ]]; then
+        docker_minimum="latest"
+      fi
+
+      enforce_docker_minimum="true"
+      docker_minimum_lower="$(printf '%s' "${docker_minimum}" | tr '[:upper:]' '[:lower:]')"
+      if [[ "${docker_minimum_lower}" == "latest" ]]; then
+        enforce_docker_minimum="false"
+      fi
+
+      use_proxy="false"
+      if [[ -n "${PROXY_HTTP:-}" || -n "${PROXY_HTTPS:-}" ]]; then
+        use_proxy="true"
+      fi
+      if [[ -z "${NO_PROXY:-}" ]]; then
+        NO_PROXY="localhost,127.0.0.1,::1"
+      fi
+
+      export DEBIAN_FRONTEND=noninteractive
+      if [[ "${use_proxy}" == "true" ]]; then
+        [[ -n "${PROXY_HTTP:-}" ]] && export http_proxy="${PROXY_HTTP}" HTTP_PROXY="${PROXY_HTTP}"
+        [[ -n "${PROXY_HTTPS:-}" ]] && export https_proxy="${PROXY_HTTPS}" HTTPS_PROXY="${PROXY_HTTPS}"
+        export no_proxy="${NO_PROXY}" NO_PROXY="${NO_PROXY}"
+      fi
+
+      if [[ "${use_proxy}" == "true" ]]; then
+        {
+          [[ -n "${PROXY_HTTP:-}" ]] && printf 'Acquire::http::Proxy "%s";\n' "${PROXY_HTTP}"
+          [[ -n "${PROXY_HTTPS:-}" ]] && printf 'Acquire::https::Proxy "%s";\n' "${PROXY_HTTPS}"
+        } > /etc/apt/apt.conf.d/01proxy
+
+        if [[ -n "${PROXY_HTTP:-}" ]]; then
+          upsert_environment_entry "http_proxy" "${PROXY_HTTP}"
+          upsert_environment_entry "HTTP_PROXY" "${PROXY_HTTP}"
+        else
+          remove_environment_entry "http_proxy"
+          remove_environment_entry "HTTP_PROXY"
+        fi
+
+        if [[ -n "${PROXY_HTTPS:-}" ]]; then
+          upsert_environment_entry "https_proxy" "${PROXY_HTTPS}"
+          upsert_environment_entry "HTTPS_PROXY" "${PROXY_HTTPS}"
+        else
+          remove_environment_entry "https_proxy"
+          remove_environment_entry "HTTPS_PROXY"
+        fi
+
+        upsert_environment_entry "no_proxy" "${NO_PROXY}"
+        upsert_environment_entry "NO_PROXY" "${NO_PROXY}"
+
+        {
+          echo "#!/usr/bin/env bash"
+          echo "# Generated by cloud-init bootstrap."
+          [[ -n "${PROXY_HTTP:-}" ]] && printf 'export http_proxy=%q\nexport HTTP_PROXY=%q\n' "${PROXY_HTTP}" "${PROXY_HTTP}"
+          [[ -n "${PROXY_HTTPS:-}" ]] && printf 'export https_proxy=%q\nexport HTTPS_PROXY=%q\n' "${PROXY_HTTPS}" "${PROXY_HTTPS}"
+          printf 'export no_proxy=%q\nexport NO_PROXY=%q\n' "${NO_PROXY}" "${NO_PROXY}"
+        } > /etc/profile.d/bootstrap-proxy.sh
+        chmod 0644 /etc/profile.d/bootstrap-proxy.sh
+      else
+        rm -f /etc/apt/apt.conf.d/01proxy
+        rm -f /etc/profile.d/bootstrap-proxy.sh
+        remove_environment_entry "http_proxy"
+        remove_environment_entry "HTTP_PROXY"
+        remove_environment_entry "https_proxy"
+        remove_environment_entry "HTTPS_PROXY"
+        remove_environment_entry "no_proxy"
+        remove_environment_entry "NO_PROXY"
+      fi
+
+      install -d -m 0755 /etc/apt/keyrings
+      curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /tmp/docker.gpg
+      gpg --dearmor --batch --yes --output /etc/apt/keyrings/docker.gpg /tmp/docker.gpg
+      chmod a+r /etc/apt/keyrings/docker.gpg
+      rm -f /tmp/docker.gpg
+
+      architecture="$(dpkg --print-architecture)"
+      codename="$(. /etc/os-release && echo "${VERSION_CODENAME}")"
+      cat > /etc/apt/sources.list.d/docker.list <<EOF_DOCKER_LIST
+      deb [arch=${architecture} signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu ${codename} stable
+      EOF_DOCKER_LIST
+
+      apt-get update
+      apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+      apt-get install -y gh
+
+      docker_ce_version="$(dpkg-query -W -f='${Version}\n' docker-ce 2>/dev/null || true)"
+      docker_cli_version="$(dpkg-query -W -f='${Version}\n' docker-ce-cli 2>/dev/null || true)"
+      gh_version="$(dpkg-query -W -f='${Version}\n' gh 2>/dev/null || true)"
+      if [[ -z "${docker_ce_version}" || -z "${docker_cli_version}" ]]; then
+        fail "docker-ce / docker-ce-cli installation verification failed"
+      fi
+      if [[ -z "${gh_version}" ]]; then
+        fail "gh installation verification failed"
+      fi
+
+      if [[ "${enforce_docker_minimum}" == "true" ]]; then
+        if ! dpkg --compare-versions "${docker_ce_version}" ge "${docker_minimum}"; then
+          fail "docker-ce version ${docker_ce_version} is below minimum ${docker_minimum}"
+        fi
+        if ! dpkg --compare-versions "${docker_cli_version}" ge "${docker_minimum}"; then
+          fail "docker-ce-cli version ${docker_cli_version} is below minimum ${docker_minimum}"
+        fi
+      else
+        log "DOCKER_VERSION=latest; minimum version check skipped"
+      fi
+
+      if ! command -v mise >/dev/null 2>&1; then
+        install_mise_ok="false"
+        for attempt in 1 2 3 4 5; do
+          installer_path="$(mktemp)"
+          if curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors https://mise.run -o "${installer_path}"; then
+            chmod 0755 "${installer_path}"
+            if MISE_INSTALL_PATH="/usr/local/bin/mise" sh "${installer_path}"; then
+              install_mise_ok="true"
+              rm -f "${installer_path}"
+              break
+            fi
+          fi
+          rm -f "${installer_path}"
+          log "mise install attempt ${attempt}/5 failed"
+          sleep 2
+        done
+        if [[ "${install_mise_ok}" != "true" ]]; then
+          fail "mise installation failed after retries"
+        fi
+      fi
+
+      cat > /etc/profile.d/mise.sh <<'EOF_MISE_PROFILE'
+      case "$-" in
+        *i*)
+          if command -v mise >/dev/null 2>&1; then
+            if [ -n "${BASH_VERSION:-}" ]; then
+              eval "$(mise activate bash)"
+            elif [ -n "${ZSH_VERSION:-}" ]; then
+              eval "$(mise activate zsh)"
+            fi
+          fi
+          ;;
+      esac
+      EOF_MISE_PROFILE
+      chmod 0644 /etc/profile.d/mise.sh
+
+      install -d -m 0755 /etc/systemd/system/docker.service.d
+      if [[ "${use_proxy}" == "true" ]]; then
+        cat > /etc/systemd/system/docker.service.d/http-proxy.conf <<EOF_DOCKER_PROXY
+      [Service]
+      Environment="http_proxy=${PROXY_HTTP}"
+      Environment="HTTP_PROXY=${PROXY_HTTP}"
+      Environment="https_proxy=${PROXY_HTTPS}"
+      Environment="HTTPS_PROXY=${PROXY_HTTPS}"
+      Environment="no_proxy=${NO_PROXY}"
+      Environment="NO_PROXY=${NO_PROXY}"
+      EOF_DOCKER_PROXY
+      else
+        rm -f /etc/systemd/system/docker.service.d/http-proxy.conf
+      fi
+
+      if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
+        systemctl daemon-reload
+        systemctl enable docker >/dev/null || true
+        systemctl restart docker || systemctl start docker
+      else
+        log "systemd unavailable; skipped docker service management"
+      fi
+
+      target_user="${BOOTSTRAP_USER:-ubuntu}"
+      if [[ -z "${target_user}" ]]; then
+        target_user="ubuntu"
+      fi
+
+      if [[ "${target_user}" != "root" ]] && ! id "${target_user}" >/dev/null 2>&1; then
+        useradd_opts=(-m -s /bin/bash)
+        if ! getent passwd 1000 >/dev/null 2>&1; then
+          useradd_opts=(-u 1000 "${useradd_opts[@]}")
+        fi
+        useradd "${useradd_opts[@]}" "${target_user}"
+        usermod -aG adm,cdrom,sudo,dip,plugdev "${target_user}" || true
+        log "created BOOTSTRAP_USER ${target_user}"
+      fi
+
+      if id "${target_user}" >/dev/null 2>&1; then
+        usermod -aG docker "${target_user}" || true
+      else
+        log "BOOTSTRAP_USER ${target_user} does not exist; skipped docker group assignment"
+      fi
+
+      if [[ "${target_user}" != "root" ]] && [[ -n "${BOOTSTRAP_USER_PASSWORD:-}" ]] && id "${target_user}" >/dev/null 2>&1; then
+        printf '%s:%s\n' "${target_user}" "${BOOTSTRAP_USER_PASSWORD}" | chpasswd
+        sed -i 's/^BOOTSTRAP_USER_PASSWORD=.*/BOOTSTRAP_USER_PASSWORD=""/' "${ENV_FILE}"
+        log "BOOTSTRAP_USER password configured"
+      else
+        log "BOOTSTRAP_USER password configuration skipped"
+      fi
+
+      if [[ "${enforce_docker_minimum}" == "true" ]]; then
+        log "completed: docker-ce=${docker_ce_version} docker-ce-cli=${docker_cli_version} minimum=${docker_minimum}"
+      else
+        log "completed: docker-ce=${docker_ce_version} docker-ce-cli=${docker_cli_version} minimum=latest"
+      fi
+
+runcmd:
+  - [bash, -lc, "chmod 0600 /etc/bootstrap.env && chmod 0755 /usr/local/sbin/cloud-init-bootstrap.sh && /usr/local/sbin/cloud-init-bootstrap.sh > /var/log/cloud-init-bootstrap.log 2>&1"]
+
+final_message: "cloud-init bootstrap completed. See /var/log/cloud-init-bootstrap.log"
