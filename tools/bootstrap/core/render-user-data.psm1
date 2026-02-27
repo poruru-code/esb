@@ -130,6 +130,8 @@ function Invoke-RenderUserData {
         [AllowEmptyString()]
         [string]$BootstrapUserPassword = "",
 
+        [bool]$EnableSshPasswordAuth = $true,
+
         [bool]$EnableCloudInitCaCerts = $true
     )
 
@@ -151,6 +153,7 @@ function Invoke-RenderUserData {
     $proxyCaCertPath = Get-OptionalVar -Vars $vars -Key "PROXY_CA_CERT_PATH" -DefaultValue ""
     $effectiveRootPassword = $RootPassword
     $effectiveBootstrapUserPassword = $BootstrapUserPassword
+    $effectiveSshPwauth = if ($EnableSshPasswordAuth) { "true" } else { "false" }
 
     Validate-Scalar -Key "PROXY_HTTP" -Value $proxyHttp
     Validate-Scalar -Key "PROXY_HTTPS" -Value $proxyHttps
@@ -174,6 +177,7 @@ function Invoke-RenderUserData {
         "__NO_PROXY__" = $noProxy
         "__BOOTSTRAP_USER__" = $bootstrapUser
         "__DOCKER_VERSION__" = $dockerVersion
+        "__SSH_PWAUTH__" = $effectiveSshPwauth
         "__SSL_INSPECTION_CA_CONFIGURED__" = $sslInspectionCaConfigured
         "__CA_CERTS_BLOCK__" = $caCertsBlock
         "__ROOT_PASSWORD__" = $effectiveRootPassword

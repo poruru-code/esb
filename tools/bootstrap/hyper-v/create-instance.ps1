@@ -195,7 +195,6 @@ function Configure-HyperVAccess {
     )
 
     $sshPasswordStatus = if ($EnableSshPasswordAuth) { "enabled" } else { "disabled" }
-    $passwordAuthenticationValue = if ($EnableSshPasswordAuth) { "yes" } else { "no" }
 
     Write-Host "[hyper-v create] Configuring SSH for login user '$LoginUser' (password auth: $sshPasswordStatus)"
     Invoke-MultipassSudoBash -InstanceName $InstanceName -Context "SSH package installation" -Script @'
@@ -209,54 +208,13 @@ apt-get install -y openssh-server
     $sshScript = @'
 set -euo pipefail
 login_user=__LOGIN_USER__
-install -d -m 0755 /etc/ssh/sshd_config.d
-cat > /etc/ssh/sshd_config.d/00-bootstrap-password-auth.conf <<'EOF_SSHD'
-PasswordAuthentication __PASSWORD_AUTH_RAW__
-KbdInteractiveAuthentication no
-PermitRootLogin no
-UsePAM yes
-EOF_SSHD
-
-# OpenSSH uses the first value encountered; 00-* must come before 50-cloud-init.conf.
-rm -f /etc/ssh/sshd_config.d/99-bootstrap-password-auth.conf
-
-# Keep cloud-init managed sshd override aligned to avoid order-dependent conflicts.
-if [[ -f /etc/ssh/sshd_config.d/50-cloud-init.conf ]]; then
-  if grep -Eq '^[[:space:]]*PasswordAuthentication[[:space:]]+' /etc/ssh/sshd_config.d/50-cloud-init.conf; then
-    sed -Ei 's/^[[:space:]]*PasswordAuthentication[[:space:]]+.*/PasswordAuthentication __PASSWORD_AUTH_RAW__/g' /etc/ssh/sshd_config.d/50-cloud-init.conf
-  else
-    printf '\nPasswordAuthentication __PASSWORD_AUTH_RAW__\n' >> /etc/ssh/sshd_config.d/50-cloud-init.conf
-  fi
-fi
-
 if ! id "${login_user}" >/dev/null 2>&1; then
   echo "login user does not exist: ${login_user}" >&2
   exit 1
 fi
-if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
-  systemctl enable ssh >/dev/null || true
-  systemctl restart ssh || systemctl start ssh
-fi
-
 sshd -t
-if ! sshd_t_output="$(sshd -T -C user=root -C host=localhost -C addr=127.0.0.1 2>&1)"; then
-  echo "sshd -T failed: ${sshd_t_output}" >&2
-  exit 1
-fi
-effective_password_auth="$(printf '%s\n' "${sshd_t_output}" | awk '/^passwordauthentication /{print tolower($2); exit}')"
-expected_password_auth="$(printf '%s\n' "__PASSWORD_AUTH_RAW__" | tr '[:upper:]' '[:lower:]')"
-if [[ -z "${effective_password_auth}" ]]; then
-  echo "failed to evaluate effective sshd PasswordAuthentication setting" >&2
-  exit 1
-fi
-if [[ "${effective_password_auth}" != "${expected_password_auth}" ]]; then
-  echo "effective sshd PasswordAuthentication mismatch: expected=${expected_password_auth}, actual=${effective_password_auth}" >&2
-  exit 1
-fi
 '@
-    $sshScript = $sshScript.
-        Replace("__LOGIN_USER__", $loginUserLiteral).
-        Replace("__PASSWORD_AUTH_RAW__", $passwordAuthenticationValue)
+    $sshScript = $sshScript.Replace("__LOGIN_USER__", $loginUserLiteral)
     Invoke-MultipassSudoBash -InstanceName $InstanceName -Context "SSH password authentication setup" -Script $sshScript
 
     if ($OpenTcpPorts.Count -gt 0) {
@@ -724,6 +682,7 @@ Invoke-RenderUserData `
     -Output $UserDataPath `
     -RootPassword $rootPassword `
     -BootstrapUserPassword $bootstrapUserPassword `
+    -EnableSshPasswordAuth:$enableSshPasswordAuth `
     -EnableCloudInitCaCerts:$true
 
 Remove-ExistingMultipassInstance -InstanceName $InstanceName -Force:$Force

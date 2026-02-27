@@ -20,6 +20,8 @@ packages:
 groups:
   - docker
 
+ssh_pwauth: __SSH_PWAUTH__
+
 # Rendered as cloud-init ca_certs module when custom CA is configured.
 __CA_CERTS_BLOCK__
 

@@ -280,6 +280,7 @@ Invoke-RenderUserData `
     -Output $userDataPathFull `
     -RootPassword $rootPassword `
     -BootstrapUserPassword $bootstrapUserPassword `
+    -EnableSshPasswordAuth:$false `
     -EnableCloudInitCaCerts:$false
 
 $caPemTempPath = $null
