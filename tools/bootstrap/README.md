@@ -27,6 +27,8 @@ Why: Make one canonical runbook for WSL2 and Hyper-V (Multipass) new-instance se
 - Proxy 設定は任意
   - 設定時は APT に加えて `/etc/environment` と `/etc/profile.d/bootstrap-proxy.sh` に反映
 - SSL inspection 用 CA 追加は任意
+  - Hyper-V (Multipass): cloud-init `ca_certs` で投入
+  - WSL2: cloud-init 導入前の pre-bootstrap で投入
 - `mise` は bootstrap で自動導入
 - `gh` (GitHub CLI) は apt で自動導入
 - 作成ごとに root / ログインユーザー初期パスワードをランダム生成し、完了時に再設定コマンドと合わせて表示
@@ -61,7 +63,9 @@ PROXY_CA_CERT_PATH=C:\certs\corp-root-ca.cer
 ```
 
 - `.cer` (DER / Base64), `.crt`, `.pem` を受け付け
-- renderer 側で PEM 化して cloud-init に渡す
+- renderer 側で PEM 化して投入
+  - Hyper-V (Multipass): cloud-init `ca_certs` に埋め込み
+  - WSL2: pre-bootstrap で `/usr/local/share/ca-certificates` へ配置
 - 相対パス指定時は vars ファイルの配置ディレクトリ基準で解決
 
 ## Platform Flow: WSL2

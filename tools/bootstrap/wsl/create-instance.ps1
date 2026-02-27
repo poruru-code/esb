@@ -275,7 +275,12 @@ if ([string]::IsNullOrWhiteSpace($UserDataPath)) {
 }
 $userDataPathFull = [System.IO.Path]::GetFullPath($UserDataPath)
 
-Invoke-RenderUserData -VarsFile $varsFilePath -Output $userDataPathFull -RootPassword $rootPassword -BootstrapUserPassword $bootstrapUserPassword
+Invoke-RenderUserData `
+    -VarsFile $varsFilePath `
+    -Output $userDataPathFull `
+    -RootPassword $rootPassword `
+    -BootstrapUserPassword $bootstrapUserPassword `
+    -EnableCloudInitCaCerts:$false
 
 $caPemTempPath = $null
 if (-not [string]::IsNullOrWhiteSpace($caCertPathInput)) {

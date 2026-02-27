@@ -38,11 +38,17 @@ function Build-CaCertsBlock {
         [string]$CaCertPath,
 
         [Parameter(Mandatory = $true)]
+        [bool]$EnableCloudInitCaCerts,
+
+        [Parameter(Mandatory = $true)]
         [string]$VarsFilePath
     )
 
     if ([string]::IsNullOrWhiteSpace($CaCertPath)) {
         return "# no custom CA certificate provided"
+    }
+    if (-not $EnableCloudInitCaCerts) {
+        return "# custom CA injection is handled outside cloud-init for this platform"
     }
 
     $resolvedPath = if ([System.IO.Path]::IsPathRooted($CaCertPath)) {
@@ -122,7 +128,9 @@ function Invoke-RenderUserData {
         [string]$RootPassword = "",
 
         [AllowEmptyString()]
-        [string]$BootstrapUserPassword = ""
+        [string]$BootstrapUserPassword = "",
+
+        [bool]$EnableCloudInitCaCerts = $true
     )
 
     $templatePath = Join-Path $moduleDir "..\cloud-init\user-data.template.yaml"
@@ -154,7 +162,7 @@ function Invoke-RenderUserData {
     Validate-Scalar -Key "BOOTSTRAP_USER_PASSWORD" -Value $effectiveBootstrapUserPassword
 
     $isCustomCaConfigured = -not [string]::IsNullOrWhiteSpace($proxyCaCertPath)
-    $caCertsBlock = Build-CaCertsBlock -CaCertPath $proxyCaCertPath -VarsFilePath $VarsFile
+    $caCertsBlock = Build-CaCertsBlock -CaCertPath $proxyCaCertPath -EnableCloudInitCaCerts:$EnableCloudInitCaCerts -VarsFilePath $VarsFile
     $sslInspectionCaConfigured = if ($isCustomCaConfigured) { "true" } else { "false" }
 
     $template = Get-Content -LiteralPath $templatePath -Raw
@@ -201,7 +209,12 @@ function Invoke-RenderUserData {
         Write-Host "  custom CA: disabled"
     }
     else {
-        Write-Host "  custom CA: enabled"
+        if ($EnableCloudInitCaCerts) {
+            Write-Host "  custom CA: enabled (cloud-init ca_certs)"
+        }
+        else {
+            Write-Host "  custom CA: enabled (platform pre-bootstrap)"
+        }
     }
 }
 

@@ -190,7 +190,7 @@ command -v gh >/dev/null 2>&1 || fail "gh command not found"
 gh --version >/dev/null
 
 if [[ "${SSL_INSPECTION_CA_CONFIGURED}" == "true" ]]; then
-  log "custom CA configured via cloud-init ca_certs"
+  log "custom CA configured"
 else
   log "custom CA not configured"
 fi

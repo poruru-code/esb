@@ -682,7 +682,8 @@ Invoke-RenderUserData `
     -VarsFile $varsFilePath `
     -Output $UserDataPath `
     -RootPassword $rootPassword `
-    -BootstrapUserPassword $bootstrapUserPassword
+    -BootstrapUserPassword $bootstrapUserPassword `
+    -EnableCloudInitCaCerts:$true
 
 Remove-ExistingMultipassInstance -InstanceName $InstanceName -Force:$Force
 Launch-MultipassInstance -InstanceName $InstanceName -Cpus $Cpus -Memory $Memory -Disk $Disk -UserDataPath $UserDataPath -NetworkHub $NetworkHub
