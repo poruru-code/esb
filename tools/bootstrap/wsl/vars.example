@@ -1,0 +1,23 @@
+# Where: tools/bootstrap/wsl/vars.example
+# What: Example inputs for WSL bootstrap rendering.
+# Why: Keep WSL-specific entrypoint variables close to the WSL flow.
+
+# Optional: set only when proxy is required
+PROXY_HTTP=
+PROXY_HTTPS=
+
+NO_PROXY=localhost,127.0.0.1,::1
+# docker group target user (created by bootstrap if missing)
+BOOTSTRAP_USER=ubuntu
+
+# Optional: Docker version policy
+# - latest: install the latest stable from Docker official repo (default)
+# - concrete version: enforce minimum for docker-ce / docker-ce-cli
+#   e.g. 5:29.2.1-1~ubuntu.24.04~noble
+DOCKER_VERSION=latest
+
+# Optional: custom CA certificate path for SSL inspection
+# - accepts .cer (DER/Base64), .crt, .pem
+# - absolute Windows path is supported (e.g. C:\certs\corp-root-ca.cer)
+# - relative path is resolved from this vars file directory
+SSL_INSPECTION_CA_CERT_PATH=
