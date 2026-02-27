@@ -1,4 +1,4 @@
-# Where: tools/container-structure-test/agent-containerd.yaml
+# Where: .github/cst/agent-containerd.yaml
 # What: Container Structure Tests for the agent containerd image.
 # Why: Ensure CNI plugins are bundled for containerd runtime.
 

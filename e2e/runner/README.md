@@ -74,6 +74,7 @@ e2e/run_tests.py
 - 開発環境では `mise run setup` で `esb-ctl` が `~/.local/bin` にビルドされます。
 - `--with-proxy` 指定時は runner が `proxy.py` を BasicAuth 固定で起動し、`HTTP(S)_PROXY` / `NO_PROXY`/`no_proxy` を注入して実行します。
 - `--with-proxy` では解決済み `NO_PROXY`/`no_proxy` 宛先を proxy 側で拒否するフィルタを有効化します。
+- `--with-proxy` 実行時の build は `BUILDX_BUILDER` を `*-proxy` に分離し、通常実行用 builder と混在しません。
 
 ## ログと診断
 - 環境ごとのログ: `e2e/.parallel-<env>.log`

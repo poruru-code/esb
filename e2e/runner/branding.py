@@ -68,5 +68,14 @@ def buildx_builder_name(project_name: str | None) -> str:
     return f"{resolve_brand_slug(project_name)}-buildx"
 
 
+def proxy_buildx_builder_name(builder_name: str, project_name: str | None = None) -> str:
+    normalized = builder_name.strip()
+    if not normalized:
+        normalized = buildx_builder_name(project_name)
+    if normalized.endswith("-proxy"):
+        return normalized
+    return f"{normalized}-proxy"
+
+
 def infra_registry_container_name(project_name: str | None = None) -> str:
     return f"{resolve_brand_slug(project_name)}-infra-registry"

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Where: tools/ci/check_repo_layout.sh
+# Where: .github/checks/check_repo_layout.sh
 # What: Static guard for artifact-first repository layout boundaries.
 # Why: Prevent legacy path reintroduction that breaks future repo separation.
 set -euo pipefail
@@ -15,6 +15,7 @@ SEARCH_TARGET_CANDIDATES=(
   services
   e2e
   tools
+  .github
   docs
   cli
   docker-bake.hcl
@@ -66,7 +67,7 @@ forbid_reference() {
   if has_rg; then
     if rg -n --fixed-strings \
       --glob '!docs/repo-layout-contract.md' \
-      --glob '!tools/ci/check_repo_layout.sh' \
+      --glob '!.github/checks/check_repo_layout.sh' \
       --glob '!.agent/**' \
       -- "$pattern" \
       "${SEARCH_TARGETS[@]}" >/dev/null; then
@@ -75,7 +76,7 @@ forbid_reference() {
     fi
   elif find "${SEARCH_TARGETS[@]}" -type f \
       ! -path 'docs/repo-layout-contract.md' \
-      ! -path 'tools/ci/check_repo_layout.sh' \
+      ! -path '.github/checks/check_repo_layout.sh' \
       ! -path '.agent/*' \
       -print0 | xargs -0 -r grep -nF -- "$pattern" >/dev/null; then
     echo "[layout-check] FORBIDDEN REFERENCE: '$pattern'" >&2
@@ -90,7 +91,7 @@ forbid_regex_reference() {
   if has_rg; then
     if rg -n \
       --glob '!docs/repo-layout-contract.md' \
-      --glob '!tools/ci/check_repo_layout.sh' \
+      --glob '!.github/checks/check_repo_layout.sh' \
       --glob '!.agent/**' \
       -- "$pattern" \
       "${SEARCH_TARGETS[@]}" >/dev/null; then
@@ -99,7 +100,7 @@ forbid_regex_reference() {
     fi
   elif find "${SEARCH_TARGETS[@]}" -type f \
       ! -path 'docs/repo-layout-contract.md' \
-      ! -path 'tools/ci/check_repo_layout.sh' \
+      ! -path '.github/checks/check_repo_layout.sh' \
       ! -path '.agent/*' \
       -print0 | xargs -0 -r grep -nE -- "$pattern" >/dev/null; then
     echo "[layout-check] FORBIDDEN REFERENCE (regex): '$pattern'" >&2
@@ -115,7 +116,7 @@ require_path "tools/bootstrap/playbook.yml"
 require_path "services/gateway/config/gateway_log.yaml"
 require_path "services/gateway/config/haproxy.gateway.cfg"
 require_path "services/runtime-node/config/Corefile"
-require_path "tools/container-structure-test/os-base.yaml"
+require_path ".github/cst/os-base.yaml"
 require_path "tools/bootstrap/wireguard/examples/gateway/wg0.conf.example"
 require_path "tools/bootstrap/wireguard/examples/compute/wg0.conf.example"
 

@@ -1,4 +1,4 @@
-# Where: tools/container-structure-test/gateway.yaml
+# Where: .github/cst/gateway.yaml
 # What: Container Structure Tests for the gateway-api image.
 # Why: Verify entrypoint, ports, and expected application files.
 

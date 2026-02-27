@@ -29,6 +29,7 @@ When `--with-proxy` is enabled, these defaults are fixed:
 - proxy deny rule: destinations in resolved `NO_PROXY`/`no_proxy` are blocked at proxy side
 - outbound probe: enabled (`https://repo.maven.apache.org/maven2/`)
 - Java proxy-proof A/B checks: enabled
+- Buildx builder: `BUILDX_BUILDER` is scoped to `*-proxy` during run
 - process cleanup: proxy is stopped automatically after run
 - proxy logs: `e2e/.parallel-proxy-e2e.log` and `e2e/.parallel-proxy-e2e-java-proof.log` (overwritten per run)
 

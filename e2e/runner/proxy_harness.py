@@ -45,6 +45,7 @@ JAVA_PROXY_PROOF_COMMAND = (
     "-Dmaven.artifact.threads=1 -DskipTests dependency:go-offline"
 )
 
+_ENV_E2E_WITH_PROXY = "E2E_WITH_PROXY"
 _PROXY_ENV_KEYS = (
     "HTTP_PROXY",
     "http_proxy",
@@ -53,6 +54,7 @@ _PROXY_ENV_KEYS = (
     "NO_PROXY",
     "no_proxy",
     env_key("NO_PROXY_EXTRA"),
+    _ENV_E2E_WITH_PROXY,
 )
 
 
@@ -130,6 +132,8 @@ def build_proxy_env(
     env = dict(base_env)
     for key in ("HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy"):
         env[key] = proxy_url
+
+    env[_ENV_E2E_WITH_PROXY] = "1"
 
     extra_key = env_key("NO_PROXY_EXTRA")
     extra_values = split_no_proxy(env.get(extra_key, ""))

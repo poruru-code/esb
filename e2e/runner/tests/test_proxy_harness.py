@@ -82,6 +82,7 @@ def test_build_proxy_env_sets_proxy_aliases_and_no_proxy_defaults() -> None:
     assert "registry" in no_proxy
     assert "localhost" in no_proxy
     assert "proxy.example" in no_proxy
+    assert env["E2E_WITH_PROXY"] == "1"
 
 
 def test_build_proxy_url_includes_fixed_basicauth_and_redaction() -> None:
@@ -184,14 +185,17 @@ def test_proxy_harness_applies_and_restores_env(monkeypatch) -> None:
 
     monkeypatch.setenv("HTTP_PROXY", "http://old.example:8080")
     monkeypatch.setenv("NO_PROXY", "old.local")
+    monkeypatch.setenv("E2E_WITH_PROXY", "0")
 
     with proxy_harness(options):
         assert os.environ["HTTP_PROXY"] == "http://proxy-user:proxy-pass@proxy.example:18888"
         assert os.environ["http_proxy"] == "http://proxy-user:proxy-pass@proxy.example:18888"
         assert "registry" in os.environ["NO_PROXY"]
+        assert os.environ["E2E_WITH_PROXY"] == "1"
 
     assert os.environ["HTTP_PROXY"] == "http://old.example:8080"
     assert os.environ["NO_PROXY"] == "old.local"
+    assert os.environ["E2E_WITH_PROXY"] == "0"
     assert calls["java"] == 1
     assert calls["stop"] == 1
 

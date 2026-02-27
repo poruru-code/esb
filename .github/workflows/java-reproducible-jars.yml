@@ -8,14 +8,14 @@ on:
   pull_request:
     paths:
       - "runtime-hooks/java/**"
-      - "tools/ci/check_java_reproducible_jars.sh"
+      - ".github/checks/check_java_reproducible_jars.sh"
       - ".github/workflows/java-reproducible-jars.yml"
   push:
     branches:
       - main
     paths:
       - "runtime-hooks/java/**"
-      - "tools/ci/check_java_reproducible_jars.sh"
+      - ".github/checks/check_java_reproducible_jars.sh"
       - ".github/workflows/java-reproducible-jars.yml"
   workflow_dispatch:
 
@@ -27,4 +27,4 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Verify reproducible build settings
-        run: bash tools/ci/check_java_reproducible_jars.sh
+        run: bash .github/checks/check_java_reproducible_jars.sh
