@@ -7,6 +7,14 @@ param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$commonPath = Join-Path $scriptDir "..\core\bootstrap-common.psm1"
+$commonPath = [System.IO.Path]::GetFullPath($commonPath)
+if (-not (Test-Path -LiteralPath $commonPath -PathType Leaf)) {
+    throw "Common helper script not found: $commonPath"
+}
+Import-Module -Name $commonPath -Force
+
 $failures = New-Object System.Collections.Generic.List[string]
 $warnings = New-Object System.Collections.Generic.List[string]
 
@@ -44,12 +52,12 @@ else {
 
 if ($null -ne $wslCmd) {
     try {
-        & wsl --status | Out-Null
-        if ($LASTEXITCODE -eq 0) {
+        $statusResult = Invoke-BootstrapNative -Command @("wsl", "--status") -Context "wsl status preflight check" -CaptureOutput -IgnoreExitCode
+        if ($statusResult.ExitCode -eq 0) {
             Write-Pass "wsl --status command succeeded"
         }
         else {
-            Add-Failure "wsl --status returned exit code $LASTEXITCODE. Complete WSL setup and reboot if required."
+            Add-Failure "wsl --status returned exit code $($statusResult.ExitCode). Complete WSL setup and reboot if required."
         }
     }
     catch {

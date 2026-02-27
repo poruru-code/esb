@@ -41,88 +41,6 @@ function Convert-WindowsPathToWsl {
     return "/mnt/$drive/$rest"
 }
 
-function Invoke-Native {
-    param([Parameter(Mandatory = $true)][string[]]$Command)
-
-    $exe = $Command[0]
-    $args = @()
-    if ($Command.Count -gt 1) {
-        $args = $Command[1..($Command.Count - 1)]
-    }
-
-    & $exe @args
-    if ($LASTEXITCODE -ne 0) {
-        throw "Command failed ($LASTEXITCODE): $($Command -join ' ')"
-    }
-}
-
-function Convert-ToBashSingleQuotedLiteral {
-    param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Value)
-    $replacement = @'
-'"'"'
-'@
-    $escaped = $Value.Replace("'", $replacement)
-    return "'" + $escaped + "'"
-}
-
-function Read-VarsFile {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$Path
-    )
-
-    $vars = @{}
-    $lineNumber = 0
-    foreach ($rawLine in Get-Content -LiteralPath $Path) {
-        $lineNumber += 1
-        $line = $rawLine.Trim()
-
-        if ([string]::IsNullOrWhiteSpace($line) -or $line.StartsWith("#")) {
-            continue
-        }
-
-        $separatorIndex = $line.IndexOf("=")
-        if ($separatorIndex -lt 1) {
-            throw "Invalid vars line $lineNumber in ${Path}: '$rawLine' (expected KEY=VALUE)"
-        }
-
-        $key = $line.Substring(0, $separatorIndex).Trim()
-        $value = $line.Substring($separatorIndex + 1).Trim()
-
-        if ((($value.StartsWith('"') -and $value.EndsWith('"')) -or ($value.StartsWith("'") -and $value.EndsWith("'"))) -and $value.Length -ge 2) {
-            $value = $value.Substring(1, $value.Length - 2)
-        }
-
-        $vars[$key] = $value
-    }
-
-    return $vars
-}
-
-function Get-OptionalVar {
-    param(
-        [Parameter(Mandatory = $true)]
-        [hashtable]$Vars,
-
-        [Parameter(Mandatory = $true)]
-        [string]$Key,
-
-        [AllowEmptyString()]
-        [string]$DefaultValue = ""
-    )
-
-    if (-not $Vars.ContainsKey($Key)) {
-        return $DefaultValue
-    }
-
-    $value = [string]$Vars[$Key]
-    if ([string]::IsNullOrWhiteSpace($value)) {
-        return $DefaultValue
-    }
-
-    return $value
-}
-
 function Validate-Scalar {
     param(
         [Parameter(Mandatory = $true)]
@@ -136,126 +54,6 @@ function Validate-Scalar {
     if ($Value.Contains("`r") -or $Value.Contains("`n")) {
         throw "$Key must be a single-line value"
     }
-}
-
-function New-RandomPassword {
-    param(
-        [int]$Length = 8
-    )
-
-    if ($Length -lt 1) {
-        throw "Password length must be greater than zero."
-    }
-
-    $charset = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789".ToCharArray()
-    $bytes = New-Object byte[] ($Length * 2)
-    $passwordChars = New-Object 'System.Collections.Generic.List[char]'
-    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
-    try {
-        while ($passwordChars.Count -lt $Length) {
-            $rng.GetBytes($bytes)
-            foreach ($b in $bytes) {
-                if ($passwordChars.Count -ge $Length) {
-                    break
-                }
-                $passwordChars.Add($charset[$b % $charset.Length]) | Out-Null
-            }
-        }
-    }
-    finally {
-        $rng.Dispose()
-    }
-
-    return -join $passwordChars
-}
-
-function Write-NoticeBox {
-    param(
-        [string]$Title,
-        [string[]]$Lines
-    )
-
-    $content = @()
-    if (-not [string]::IsNullOrWhiteSpace($Title)) {
-        $content += "[ $Title ]"
-    }
-    if ($null -ne $Lines) {
-        $content += $Lines
-    }
-    if ($content.Count -eq 0) {
-        return
-    }
-
-    $maxLength = 0
-    foreach ($line in $content) {
-        if ($line.Length -gt $maxLength) {
-            $maxLength = $line.Length
-        }
-    }
-
-    $border = "+" + ("-" * ($maxLength + 2)) + "+"
-    Write-Host $border -ForegroundColor Yellow
-    foreach ($line in $content) {
-        $padding = " " * ($maxLength - $line.Length)
-        Write-Host ("| " + $line + $padding + " |") -ForegroundColor Yellow
-    }
-    Write-Host $border -ForegroundColor Yellow
-}
-
-function Confirm-RecreateIfNeeded {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$Message
-    )
-
-    try {
-        $answer = Read-Host "$Message [y/N]"
-    }
-    catch {
-        throw "Could not prompt for confirmation. Re-run with -Force to recreate without confirmation."
-    }
-
-    if ($answer -notmatch '^(?i:y|yes)$') {
-        throw "Recreate cancelled by user."
-    }
-}
-
-function Resolve-ExistingFilePath {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$InputPath,
-
-        [Parameter(Mandatory = $true)]
-        [string]$ScriptDir
-    )
-
-    if ([System.IO.Path]::IsPathRooted($InputPath)) {
-        return [System.IO.Path]::GetFullPath($InputPath)
-    }
-
-    $bootstrapRoot = [System.IO.Path]::GetFullPath((Join-Path $ScriptDir ".."))
-    $projectRoot = [System.IO.Path]::GetFullPath((Join-Path $bootstrapRoot "..\.."))
-
-    $candidates = @(
-        [System.IO.Path]::GetFullPath((Join-Path $ScriptDir $InputPath)),
-        [System.IO.Path]::GetFullPath($InputPath),
-        [System.IO.Path]::GetFullPath((Join-Path $projectRoot $InputPath)),
-        [System.IO.Path]::GetFullPath((Join-Path $bootstrapRoot $InputPath)),
-        [System.IO.Path]::GetFullPath((Join-Path (Join-Path $bootstrapRoot "cloud-init") $InputPath))
-    )
-
-    $seen = @{}
-    foreach ($candidate in $candidates) {
-        if ($seen.ContainsKey($candidate)) {
-            continue
-        }
-        $seen[$candidate] = $true
-        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
-            return $candidate
-        }
-    }
-
-    return $candidates[0]
 }
 
 function Resolve-CertPath {
@@ -273,6 +71,87 @@ function Resolve-CertPath {
 
     $varsDir = Split-Path -Parent $VarsFilePath
     return [System.IO.Path]::GetFullPath((Join-Path $varsDir $InputPath))
+}
+
+function Get-WslDistroNames {
+    $distroResult = Invoke-BootstrapNative -Command @("wsl", "--list", "--quiet") -Context "wsl list distros" -CaptureOutput
+    return @($distroResult.OutputLines | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+}
+
+function Ensure-WslTargetRecreated {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$InstanceName,
+        [Parameter(Mandatory = $true)]
+        [string]$InstallRoot,
+        [Parameter(Mandatory = $true)]
+        [bool]$Force
+    )
+
+    $distros = Get-WslDistroNames
+    $targetExists = $distros -contains $InstanceName
+    $installDir = Join-Path $InstallRoot $InstanceName
+
+    if (-not (Test-Path -LiteralPath $InstallRoot -PathType Container)) {
+        New-Item -ItemType Directory -Path $InstallRoot -Force | Out-Null
+    }
+    $installDirExists = Test-Path -LiteralPath $installDir
+
+    if (($targetExists -or $installDirExists) -and (-not $Force)) {
+        $targets = @()
+        if ($targetExists) {
+            $targets += "WSL distro '$InstanceName'"
+        }
+        if ($installDirExists) {
+            $targets += "install directory '$installDir'"
+        }
+        Confirm-RecreateIfNeeded -Message ("Existing target found: {0}. Delete and recreate?" -f ($targets -join ", "))
+    }
+
+    if ($targetExists) {
+        Write-Host "[wsl create] Recreating existing distro '$InstanceName'"
+        & wsl --terminate $InstanceName | Out-Null
+        & wsl --unregister $InstanceName | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to unregister existing distro: $InstanceName"
+        }
+    }
+
+    if ($installDirExists -and (Test-Path -LiteralPath $installDir)) {
+        Remove-Item -LiteralPath $installDir -Recurse -Force
+    }
+
+    return $installDir
+}
+
+function Install-WslBaseDistro {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$InstanceName,
+        [Parameter(Mandatory = $true)]
+        [string]$BaseDistro,
+        [Parameter(Mandatory = $true)]
+        [string]$InstallDir
+    )
+
+    Write-Host "[wsl create] Installing fresh distro '$InstanceName' from '$BaseDistro'"
+    Invoke-BootstrapNative -Command @("wsl", "--shutdown") -Context "wsl shutdown" | Out-Null
+    Invoke-BootstrapNative -Command @("wsl", "--install", "--distribution", $BaseDistro, "--name", $InstanceName, "--location", $InstallDir, "--no-launch") -Context "wsl install" | Out-Null
+
+    $distros = Get-WslDistroNames
+    if (-not ($distros -contains $InstanceName)) {
+        throw "WSL install completed but '$InstanceName' is not visible yet. Reboot Windows and re-run this command."
+    }
+
+    $enableSystemd = @"
+set -euo pipefail
+cat >/etc/wsl.conf <<'EOF_WSLCONF'
+[boot]
+systemd=true
+EOF_WSLCONF
+"@
+    Invoke-BootstrapNative -Command @("wsl", "-d", $InstanceName, "--user", "root", "--", "bash", "-lc", $enableSystemd) -Context "wsl systemd pre-enable" | Out-Null
+    Invoke-BootstrapNative -Command @("wsl", "--terminate", $InstanceName) -Context "wsl terminate after systemd pre-enable" | Out-Null
 }
 
 function Convert-CertificateFileToPem {
@@ -309,7 +188,7 @@ function Convert-CertificateFileToPem {
     }
 
     if (-not $parsed -or $null -eq $cert) {
-        throw "SSL_INSPECTION_CA_CERT_PATH must point to a valid certificate file (.cer/.crt/.pem): $Path"
+        throw "PROXY_CA_CERT_PATH must point to a valid certificate file (.cer/.crt/.pem): $Path"
     }
 
     $der = $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert)
@@ -330,13 +209,23 @@ if ($null -eq $wslCmd) {
 }
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$commonPath = Join-Path $scriptDir "..\core\bootstrap-common.psm1"
+$commonPath = [System.IO.Path]::GetFullPath($commonPath)
+if (-not (Test-Path -LiteralPath $commonPath -PathType Leaf)) {
+    throw "Common helper script not found: $commonPath"
+}
+Import-Module -Name $commonPath -Force
+
 $preflightPath = Join-Path $scriptDir "preflight.ps1"
-$rendererPath = Join-Path $scriptDir "..\core\render-user-data.ps1"
+$renderModulePath = Join-Path $scriptDir "..\core\render-user-data.psm1"
 $validatePath = Join-Path $scriptDir "validate-instance.ps1"
 
-if (-not (Test-Path -LiteralPath $rendererPath -PathType Leaf)) {
-    throw "Renderer not found: $rendererPath"
+if (-not (Test-Path -LiteralPath $renderModulePath -PathType Leaf)) {
+    throw "Render module not found: $renderModulePath"
 }
+Import-Module -Name $renderModulePath -Force
+# Ensure shared helper functions remain available in this script scope.
+Import-Module -Name $commonPath -Force
 
 if (-not $SkipPreflight) {
     if (-not (Test-Path -LiteralPath $preflightPath -PathType Leaf)) {
@@ -351,17 +240,26 @@ if (-not (Test-Path -LiteralPath $varsFilePath -PathType Leaf)) {
 }
 
 $vars = Read-VarsFile -Path $varsFilePath
+Assert-AllowedVarKeys -Vars $vars -AllowedKeys @(
+    "BOOTSTRAP_USER",
+    "DOCKER_VERSION",
+    "PROXY_HTTP",
+    "PROXY_HTTPS",
+    "NO_PROXY",
+    "PROXY_CA_CERT_PATH"
+) -VarsFilePath $varsFilePath
+
 $proxyHttp = Get-OptionalVar -Vars $vars -Key "PROXY_HTTP" -DefaultValue ""
 $proxyHttps = Get-OptionalVar -Vars $vars -Key "PROXY_HTTPS" -DefaultValue ""
 $noProxy = Get-OptionalVar -Vars $vars -Key "NO_PROXY" -DefaultValue "localhost,127.0.0.1,::1"
 $bootstrapUserFromVars = Get-OptionalVar -Vars $vars -Key "BOOTSTRAP_USER" -DefaultValue $BootstrapUser
-$caCertPathInput = Get-OptionalVar -Vars $vars -Key "SSL_INSPECTION_CA_CERT_PATH" -DefaultValue ""
+$caCertPathInput = Get-OptionalVar -Vars $vars -Key "PROXY_CA_CERT_PATH" -DefaultValue ""
 
 Validate-Scalar -Key "PROXY_HTTP" -Value $proxyHttp
 Validate-Scalar -Key "PROXY_HTTPS" -Value $proxyHttps
 Validate-Scalar -Key "NO_PROXY" -Value $noProxy
 Validate-Scalar -Key "BOOTSTRAP_USER" -Value $bootstrapUserFromVars
-Validate-Scalar -Key "SSL_INSPECTION_CA_CERT_PATH" -Value $caCertPathInput
+Validate-Scalar -Key "PROXY_CA_CERT_PATH" -Value $caCertPathInput
 
 if ([string]::IsNullOrWhiteSpace($noProxy)) {
     $noProxy = "localhost,127.0.0.1,::1"
@@ -370,19 +268,20 @@ if ([string]::IsNullOrWhiteSpace($bootstrapUserFromVars)) {
     $bootstrapUserFromVars = "ubuntu"
 }
 $rootPassword = New-RandomPassword -Length 8
+$bootstrapUserPassword = New-RandomPassword -Length 8
 
 if ([string]::IsNullOrWhiteSpace($UserDataPath)) {
     $UserDataPath = Join-Path $env:TEMP "$InstanceName-user-data.yaml"
 }
 $userDataPathFull = [System.IO.Path]::GetFullPath($UserDataPath)
 
-& $rendererPath -VarsFile $varsFilePath -Output $userDataPathFull -RootPassword $rootPassword
+Invoke-RenderUserData -VarsFile $varsFilePath -Output $userDataPathFull -RootPassword $rootPassword -BootstrapUserPassword $bootstrapUserPassword
 
 $caPemTempPath = $null
 if (-not [string]::IsNullOrWhiteSpace($caCertPathInput)) {
     $resolvedCaPath = Resolve-CertPath -VarsFilePath $varsFilePath -InputPath $caCertPathInput
     if (-not (Test-Path -LiteralPath $resolvedCaPath -PathType Leaf)) {
-        throw "SSL_INSPECTION_CA_CERT_PATH not found: $resolvedCaPath"
+        throw "PROXY_CA_CERT_PATH not found: $resolvedCaPath"
     }
 
     $caPem = Convert-CertificateFileToPem -Path $resolvedCaPath
@@ -391,62 +290,12 @@ if (-not [string]::IsNullOrWhiteSpace($caCertPathInput)) {
     [System.IO.File]::WriteAllText($caPemTempPath, ($caPem + "`n"), $utf8NoBom)
 }
 
-$distros = @(& wsl --list --quiet)
-$distros = @($distros | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
-
-$targetExists = $distros -contains $InstanceName
-$installDir = Join-Path $InstallRoot $InstanceName
-if (-not (Test-Path -LiteralPath $InstallRoot -PathType Container)) {
-    New-Item -ItemType Directory -Path $InstallRoot -Force | Out-Null
-}
-$installDirExists = Test-Path -LiteralPath $installDir
-
-if (($targetExists -or $installDirExists) -and (-not $Force)) {
-    $targets = @()
-    if ($targetExists) {
-        $targets += "WSL distro '$InstanceName'"
-    }
-    if ($installDirExists) {
-        $targets += "install directory '$installDir'"
-    }
-    Confirm-RecreateIfNeeded -Message ("Existing target found: {0}. Delete and recreate?" -f ($targets -join ", "))
-}
-
-if ($targetExists) {
-    Write-Host "[wsl create] Recreating existing distro '$InstanceName'"
-    & wsl --terminate $InstanceName | Out-Null
-    & wsl --unregister $InstanceName
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to unregister existing distro: $InstanceName"
-    }
-}
-
-if ($installDirExists -and (Test-Path -LiteralPath $installDir)) {
-    Remove-Item -LiteralPath $installDir -Recurse -Force
-}
+$installDir = Ensure-WslTargetRecreated -InstanceName $InstanceName -InstallRoot $InstallRoot -Force:$Force
 
 $tempBootstrapScript = Join-Path $env:TEMP ("wsl-bootstrap-{0}.sh" -f [guid]::NewGuid().ToString("N"))
 
 try {
-    Write-Host "[wsl create] Installing fresh distro '$InstanceName' from '$BaseDistro'"
-    Invoke-Native -Command @("wsl", "--shutdown")
-    Invoke-Native -Command @("wsl", "--install", "--distribution", $BaseDistro, "--name", $InstanceName, "--location", $installDir, "--no-launch")
-
-    $distros = @(& wsl --list --quiet)
-    $distros = @($distros | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
-    if (-not ($distros -contains $InstanceName)) {
-        throw "WSL install completed but '$InstanceName' is not visible yet. Reboot Windows and re-run this command."
-    }
-
-    $enableSystemd = @"
-set -euo pipefail
-cat >/etc/wsl.conf <<'EOF_WSLCONF'
-[boot]
-systemd=true
-EOF_WSLCONF
-"@
-    Invoke-Native -Command @("wsl", "-d", $InstanceName, "--user", "root", "--", "bash", "-lc", $enableSystemd)
-    Invoke-Native -Command @("wsl", "--terminate", $InstanceName)
+    Install-WslBaseDistro -InstanceName $InstanceName -BaseDistro $BaseDistro -InstallDir $installDir
 
     $proxyHttpLiteral = Convert-ToBashSingleQuotedLiteral -Value $proxyHttp
     $proxyHttpsLiteral = Convert-ToBashSingleQuotedLiteral -Value $proxyHttps
@@ -543,7 +392,7 @@ cloud-init modules --mode=final
     $bootstrapScriptWslPath = Convert-WindowsPathToWsl -Path $tempBootstrapScript
 
     Write-Host "[wsl create] Applying cloud-init in '$InstanceName'"
-    Invoke-Native -Command @("wsl", "-d", $InstanceName, "--user", "root", "--", "bash", $bootstrapScriptWslPath)
+    Invoke-BootstrapNative -Command @("wsl", "-d", $InstanceName, "--user", "root", "--", "bash", $bootstrapScriptWslPath) -Context "wsl apply cloud-init bootstrap" | Out-Null
 
     Write-Host "[wsl create] Completed: $InstanceName"
     if ($RunSmokeTest) {
@@ -556,12 +405,20 @@ cloud-init modules --mode=final
         Write-Host "[wsl create] Smoke test example:"
         Write-Host ".\tools\bootstrap\wsl\validate-instance.ps1 -InstanceName $InstanceName -BootstrapUser $bootstrapUserFromVars"
     }
-    Write-NoticeBox -Title "ROOT ACCESS" -Lines @(
+    Write-NoticeBox -Title "INITIAL CREDENTIALS" -Lines @(
         "Instance: $InstanceName"
-        "Initial root password: $rootPassword"
+        "[root]"
+        "Initial password: $rootPassword"
         "Reset command:"
         "  wsl -d $InstanceName --user root -- passwd root"
+        ""
+        "[login user: $bootstrapUserFromVars]"
+        "Initial password: $bootstrapUserPassword"
+        "Reset command:"
+        "  wsl -d $InstanceName --user root -- passwd $bootstrapUserFromVars"
     )
+    Write-Host "[wsl create] Launch command:"
+    Write-Host "wsl.exe -d $InstanceName"
 }
 finally {
     if (Test-Path -LiteralPath $tempBootstrapScript) {

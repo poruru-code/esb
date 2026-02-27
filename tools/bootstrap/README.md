@@ -25,9 +25,12 @@ Why: Make one canonical runbook for WSL2 and Hyper-V (Multipass) new-instance se
 - `DOCKER_VERSION` に具体値を設定した場合は minimum version として検証
 - `containerd` / `buildx` / `compose` は個別固定しない（Docker Engine 導入結果に従う）
 - Proxy 設定は任意
+  - 設定時は APT に加えて `/etc/environment` と `/etc/profile.d/bootstrap-proxy.sh` に反映
 - SSL inspection 用 CA 追加は任意
 - `mise` は bootstrap で自動導入
-- 作成ごとに root 初期パスワードをランダム生成し、完了時に再設定コマンドと合わせて表示
+- `gh` (GitHub CLI) は apt で自動導入
+- 作成ごとに root / ログインユーザー初期パスワードをランダム生成し、完了時に再設定コマンドと合わせて表示
+- vars ファイルは未知キーを許可せず、typo を fail-fast で停止
 
 ## Variables
 
@@ -46,15 +49,15 @@ notepad "$env:USERPROFILE\bootstrap-hyperv.vars"
 - `NO_PROXY`: 既定 `localhost,127.0.0.1,::1`
 - `BOOTSTRAP_USER`: 既定 `ubuntu`（未存在時は cloud-init が作成）
 - `DOCKER_VERSION`: 既定 `latest`（または minimum version 指定）
-- `SSL_INSPECTION_CA_CERT_PATH`: 任意
+- `PROXY_CA_CERT_PATH`: 任意
 
 ### CA Certificate (Optional)
 
-`SSL_INSPECTION_CA_CERT_PATH` は Windows パスを指定可能です。  
+`PROXY_CA_CERT_PATH` は Windows パスを指定可能です。  
 例:
 
 ```text
-SSL_INSPECTION_CA_CERT_PATH=C:\certs\corp-root-ca.cer
+PROXY_CA_CERT_PATH=C:\certs\corp-root-ca.cer
 ```
 
 - `.cer` (DER / Base64), `.crt`, `.pem` を受け付け
@@ -107,10 +110,12 @@ WSL の初回起動前に `BOOTSTRAP_USER` を自動作成し default user を�
 Hyper-V のリソース/ネットワークを vars ファイルで指定する場合（任意）:
 
 - vars ファイルキー:
-  - `HYPERV_CPUS`
-  - `HYPERV_MEMORY`
-  - `HYPERV_DISK`
-  - `HYPERV_NETWORK_HUB`
+  - `VM_CPUS`
+  - `VM_MEMORY`
+  - `VM_DISK`
+  - `VM_NETWORK_HUB`
+  - `ENABLE_SSH_PASSWORD_AUTH`
+  - `ALLOW_INBOUND_TCP_PORTS`
 
 優先順位: `create-instance.ps1` 引数 > vars > 既定値
 
@@ -126,6 +131,12 @@ Hyper-V のリソース/ネットワークを vars ファイルで指定する�
 
 ```powershell
 .\tools\bootstrap\hyper-v\validate-instance.ps1 -InstanceName bootstrap-hv -BootstrapUser ubuntu
+```
+
+必要に応じて SSH/UFW の期待値検証も可能です:
+
+```powershell
+.\tools\bootstrap\hyper-v\validate-instance.ps1 -InstanceName bootstrap-hv -BootstrapUser ubuntu -ExpectedSshPasswordAuth enabled -ExpectedOpenTcpPorts 443,19000,9001,8001,9428
 ```
 
 ## Optional: Run Preflight Only
@@ -154,5 +165,6 @@ Hyper-V のリソース/ネットワークを vars ファイルで指定する�
   - `tools/bootstrap/hyper-v/validate-instance.ps1`
 - Shared cloud-init:
   - `tools/bootstrap/cloud-init/user-data.template.yaml`
-  - `tools/bootstrap/core/render-user-data.ps1`
+  - `tools/bootstrap/core/bootstrap-common.psm1`
+  - `tools/bootstrap/core/render-user-data.psm1`
   - `tools/bootstrap/cloud-init/verify-instance.sh`

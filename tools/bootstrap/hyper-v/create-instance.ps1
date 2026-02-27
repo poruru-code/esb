@@ -32,64 +32,6 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-function Read-VarsFile {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$Path
-    )
-
-    $vars = @{}
-    $lineNumber = 0
-    foreach ($rawLine in Get-Content -LiteralPath $Path) {
-        $lineNumber += 1
-        $line = $rawLine.Trim()
-
-        if ([string]::IsNullOrWhiteSpace($line) -or $line.StartsWith("#")) {
-            continue
-        }
-
-        $separatorIndex = $line.IndexOf("=")
-        if ($separatorIndex -lt 1) {
-            throw "Invalid vars line $lineNumber in ${Path}: '$rawLine' (expected KEY=VALUE)"
-        }
-
-        $key = $line.Substring(0, $separatorIndex).Trim()
-        $value = $line.Substring($separatorIndex + 1).Trim()
-
-        if ((($value.StartsWith('"') -and $value.EndsWith('"')) -or ($value.StartsWith("'") -and $value.EndsWith("'"))) -and $value.Length -ge 2) {
-            $value = $value.Substring(1, $value.Length - 2)
-        }
-
-        $vars[$key] = $value
-    }
-
-    return $vars
-}
-
-function Get-OptionalVar {
-    param(
-        [Parameter(Mandatory = $true)]
-        [hashtable]$Vars,
-
-        [Parameter(Mandatory = $true)]
-        [string]$Key,
-
-        [AllowEmptyString()]
-        [string]$DefaultValue = ""
-    )
-
-    if (-not $Vars.ContainsKey($Key)) {
-        return $DefaultValue
-    }
-
-    $value = [string]$Vars[$Key]
-    if ([string]::IsNullOrWhiteSpace($value)) {
-        return $DefaultValue
-    }
-
-    return $value
-}
-
 function Ensure-SingleLineValue {
     param(
         [Parameter(Mandatory = $true)]
@@ -136,138 +78,514 @@ function Parse-PositiveInt {
     return $parsed
 }
 
-function New-RandomPassword {
+function Parse-BoolSetting {
     param(
-        [int]$Length = 8
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+        [AllowEmptyString()]
+        [string]$Value,
+        [bool]$DefaultValue
     )
 
-    if ($Length -lt 1) {
-        throw "Password length must be greater than zero."
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return $DefaultValue
     }
 
-    $charset = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789".ToCharArray()
-    $bytes = New-Object byte[] ($Length * 2)
-    $passwordChars = New-Object 'System.Collections.Generic.List[char]'
-    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
-    try {
-        while ($passwordChars.Count -lt $Length) {
-            $rng.GetBytes($bytes)
-            foreach ($b in $bytes) {
-                if ($passwordChars.Count -ge $Length) {
-                    break
-                }
-                $passwordChars.Add($charset[$b % $charset.Length]) | Out-Null
-            }
-        }
+    switch ($Value.Trim().ToLowerInvariant()) {
+        "1" { return $true }
+        "true" { return $true }
+        "yes" { return $true }
+        "on" { return $true }
+        "0" { return $false }
+        "false" { return $false }
+        "no" { return $false }
+        "off" { return $false }
+        default { throw "$Name must be a boolean value (true/false): $Value" }
     }
-    finally {
-        $rng.Dispose()
-    }
-
-    return -join $passwordChars
 }
 
-function Write-NoticeBox {
+function Parse-TcpPortList {
     param(
-        [string]$Title,
-        [string[]]$Lines
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+        [AllowEmptyString()]
+        [string]$Value
     )
 
-    $content = @()
-    if (-not [string]::IsNullOrWhiteSpace($Title)) {
-        $content += "[ $Title ]"
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return @()
     }
-    if ($null -ne $Lines) {
-        $content += $Lines
+
+    $tokens = $Value -split '[,\s;/]+' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    $result = New-Object System.Collections.Generic.List[int]
+    $seen = @{}
+    foreach ($token in $tokens) {
+        $port = 0
+        if (-not [int]::TryParse($token, [ref]$port)) {
+            throw "$Name contains a non-numeric TCP port: $token"
+        }
+        if ($port -lt 1 -or $port -gt 65535) {
+            throw "$Name contains an out-of-range TCP port (1-65535): $port"
+        }
+        if (-not $seen.ContainsKey($port)) {
+            $seen[$port] = $true
+            $result.Add($port) | Out-Null
+        }
     }
-    if ($content.Count -eq 0) {
+
+    return @($result.ToArray())
+}
+
+function Invoke-MultipassSudoBash {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$InstanceName,
+        [Parameter(Mandatory = $true)]
+        [string]$Script,
+        [Parameter(Mandatory = $true)]
+        [string]$Context
+    )
+
+    $outputLines = @(& multipass exec $InstanceName -- sudo bash -lc $Script 2>&1 | ForEach-Object { [string]$_ })
+    $exitCode = $LASTEXITCODE
+
+    foreach ($line in $outputLines) {
+        if (-not [string]::IsNullOrWhiteSpace($line)) {
+            Write-Host $line
+        }
+    }
+
+    if ($exitCode -ne 0) {
+        $details = ($outputLines -join "`n").Trim()
+        if ([string]::IsNullOrWhiteSpace($details)) {
+            throw "$Context failed in '$InstanceName'"
+        }
+        throw "$Context failed in '$InstanceName':`n$details"
+    }
+}
+
+function Configure-HyperVAccess {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$InstanceName,
+        [Parameter(Mandatory = $true)]
+        [string]$LoginUser,
+        [Parameter(Mandatory = $true)]
+        [bool]$EnableSshPasswordAuth,
+        [Parameter(Mandatory = $true)]
+        [int[]]$OpenTcpPorts
+    )
+
+    $sshPasswordStatus = if ($EnableSshPasswordAuth) { "enabled" } else { "disabled" }
+    $passwordAuthenticationValue = if ($EnableSshPasswordAuth) { "yes" } else { "no" }
+
+    Write-Host "[hyper-v create] Configuring SSH for login user '$LoginUser' (password auth: $sshPasswordStatus)"
+    Invoke-MultipassSudoBash -InstanceName $InstanceName -Context "SSH package installation" -Script @'
+set -euo pipefail
+export DEBIAN_FRONTEND=noninteractive
+apt-get update
+apt-get install -y openssh-server
+'@
+
+    $loginUserLiteral = Convert-ToBashSingleQuotedLiteral -Value $LoginUser
+    $sshScript = @'
+set -euo pipefail
+login_user=__LOGIN_USER__
+install -d -m 0755 /etc/ssh/sshd_config.d
+cat > /etc/ssh/sshd_config.d/00-bootstrap-password-auth.conf <<'EOF_SSHD'
+PasswordAuthentication __PASSWORD_AUTH_RAW__
+KbdInteractiveAuthentication no
+PermitRootLogin no
+UsePAM yes
+EOF_SSHD
+
+# OpenSSH uses the first value encountered; 00-* must come before 50-cloud-init.conf.
+rm -f /etc/ssh/sshd_config.d/99-bootstrap-password-auth.conf
+
+if ! id "${login_user}" >/dev/null 2>&1; then
+  echo "login user does not exist: ${login_user}" >&2
+  exit 1
+fi
+if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
+  systemctl enable ssh >/dev/null || true
+  systemctl restart ssh || systemctl start ssh
+fi
+'@
+    $sshScript = $sshScript.
+        Replace("__LOGIN_USER__", $loginUserLiteral).
+        Replace("__PASSWORD_AUTH_RAW__", $passwordAuthenticationValue)
+    Invoke-MultipassSudoBash -InstanceName $InstanceName -Context "SSH password authentication setup" -Script $sshScript
+
+    if ($OpenTcpPorts.Count -gt 0) {
+        Write-Host "[hyper-v create] Configuring UFW open TCP ports: $($OpenTcpPorts -join ', ')"
+        $portListLiteral = Convert-ToBashSingleQuotedLiteral -Value ($OpenTcpPorts -join " ")
+        $firewallScript = @'
+set -euo pipefail
+export DEBIAN_FRONTEND=noninteractive
+open_ports=__OPEN_PORTS__
+apt-get update
+apt-get install -y ufw
+ufw --force disable || true
+ufw --force reset
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow 22/tcp comment 'bootstrap-ssh'
+for port in ${open_ports}; do
+  ufw allow "${port}/tcp" comment 'bootstrap-open-port'
+done
+ufw --force enable
+ufw status verbose
+'@
+        $firewallScript = $firewallScript.Replace("__OPEN_PORTS__", $portListLiteral)
+        Invoke-MultipassSudoBash -InstanceName $InstanceName -Context "UFW TCP port setup" -Script $firewallScript
+    }
+    else {
+        Write-Host "[hyper-v create] ALLOW_INBOUND_TCP_PORTS is empty; UFW port setup skipped."
+    }
+}
+
+function Get-MultipassNetworkNames {
+    param(
+        [switch]$SwitchOnly
+    )
+
+    $lines = @(& multipass networks --format json 2>&1 | ForEach-Object { [string]$_ })
+    if ($LASTEXITCODE -ne 0) {
+        return @()
+    }
+
+    $jsonText = ($lines -join "`n").Trim()
+    if ([string]::IsNullOrWhiteSpace($jsonText)) {
+        return @()
+    }
+
+    $parsed = $null
+    try {
+        $parsed = $jsonText | ConvertFrom-Json -Depth 5
+    }
+    catch {
+        return @()
+    }
+
+    $entries = @()
+    if ($null -ne $parsed -and $parsed.PSObject.Properties.Name -contains "list") {
+        $entries = @($parsed.list)
+    }
+    elseif ($null -ne $parsed) {
+        $entries = @($parsed)
+    }
+
+    if ($SwitchOnly) {
+        $entries = @($entries | Where-Object { [string]$_.type -eq "switch" })
+    }
+
+    return @(
+        $entries |
+            Where-Object { $null -ne $_ -and -not [string]::IsNullOrWhiteSpace([string]$_.name) } |
+            ForEach-Object { [string]$_.name } |
+            Sort-Object -Unique
+    )
+}
+
+function Assert-ValidNetworkHub {
+    param(
+        [AllowEmptyString()]
+        [string]$NetworkHub
+    )
+
+    if ([string]::IsNullOrWhiteSpace($NetworkHub)) {
         return
     }
 
-    $maxLength = 0
-    foreach ($line in $content) {
-        if ($line.Length -gt $maxLength) {
-            $maxLength = $line.Length
-        }
+    $availableNetworks = Get-MultipassNetworkNames -SwitchOnly
+    if ($availableNetworks.Count -eq 0) {
+        $availableNetworks = Get-MultipassNetworkNames
+    }
+    if ($availableNetworks.Count -eq 0) {
+        Write-Host "[hyper-v create] WARN: Could not enumerate Multipass networks; skipped upfront NetworkHub validation."
+        return
     }
 
-    $border = "+" + ("-" * ($maxLength + 2)) + "+"
-    Write-Host $border -ForegroundColor Yellow
-    foreach ($line in $content) {
-        $padding = " " * ($maxLength - $line.Length)
-        Write-Host ("| " + $line + $padding + " |") -ForegroundColor Yellow
+    if ($availableNetworks -contains $NetworkHub) {
+        return
     }
-    Write-Host $border -ForegroundColor Yellow
+
+    $networkList = (($availableNetworks | ForEach-Object { "  - $_" }) -join "`n")
+    throw "NetworkHub '$NetworkHub' was not found.`nAvailable Multipass networks:`n$networkList`nCheck with: multipass networks"
 }
 
-function Resolve-ExistingFilePath {
+function Get-MultipassPrimaryIpv4 {
     param(
         [Parameter(Mandatory = $true)]
-        [string]$InputPath,
-
-        [Parameter(Mandatory = $true)]
-        [string]$ScriptDir
+        [string]$InstanceName
     )
 
-    if ([System.IO.Path]::IsPathRooted($InputPath)) {
-        return [System.IO.Path]::GetFullPath($InputPath)
+    $jsonLines = @(& multipass info $InstanceName --format json 2>&1 | ForEach-Object { [string]$_ })
+    if ($LASTEXITCODE -eq 0) {
+        $jsonText = ($jsonLines -join "`n").Trim()
+        if (-not [string]::IsNullOrWhiteSpace($jsonText)) {
+            try {
+                $parsed = $jsonText | ConvertFrom-Json -Depth 10
+                $entry = $null
+                if ($null -ne $parsed -and $parsed.PSObject.Properties.Name -contains "info") {
+                    $info = $parsed.info
+                    if ($null -ne $info -and $info.PSObject.Properties.Name -contains $InstanceName) {
+                        $entry = $info.$InstanceName
+                    }
+                }
+                if ($null -ne $entry -and $entry.PSObject.Properties.Name -contains "ipv4") {
+                    foreach ($candidate in @($entry.ipv4)) {
+                        $ip = [string]$candidate
+                        if ($ip -match '^\d{1,3}(\.\d{1,3}){3}$') {
+                            return $ip
+                        }
+                    }
+                }
+            }
+            catch {
+                # Fall through to plain-text parsing.
+            }
+        }
     }
 
-    $bootstrapRoot = [System.IO.Path]::GetFullPath((Join-Path $ScriptDir ".."))
-    $projectRoot = [System.IO.Path]::GetFullPath((Join-Path $bootstrapRoot "..\.."))
+    $plainLines = @(& multipass info $InstanceName 2>&1 | ForEach-Object { [string]$_ })
+    if ($LASTEXITCODE -ne 0) {
+        return ""
+    }
 
-    $candidates = @(
-        [System.IO.Path]::GetFullPath((Join-Path $ScriptDir $InputPath)),
-        [System.IO.Path]::GetFullPath($InputPath),
-        [System.IO.Path]::GetFullPath((Join-Path $projectRoot $InputPath)),
-        [System.IO.Path]::GetFullPath((Join-Path $bootstrapRoot $InputPath)),
-        [System.IO.Path]::GetFullPath((Join-Path (Join-Path $bootstrapRoot "cloud-init") $InputPath))
-    )
-
-    $seen = @{}
-    foreach ($candidate in $candidates) {
-        if ($seen.ContainsKey($candidate)) {
-            continue
-        }
-        $seen[$candidate] = $true
-        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
-            return $candidate
+    foreach ($line in $plainLines) {
+        if ($line -match '^\s*IPv4\s*:\s*(.+)$') {
+            $raw = $Matches[1].Trim()
+            $tokens = $raw -split '[,\s]+' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+            foreach ($token in $tokens) {
+                if ($token -match '^\d{1,3}(\.\d{1,3}){3}$') {
+                    return $token
+                }
+            }
         }
     }
 
-    return $candidates[0]
+    return ""
 }
 
-function Confirm-RecreateIfNeeded {
+function Resolve-EffectiveBootstrapUser {
     param(
         [Parameter(Mandatory = $true)]
-        [string]$Message
+        [hashtable]$Vars,
+        [Parameter(Mandatory = $true)]
+        [string]$BootstrapUser,
+        [Parameter(Mandatory = $true)]
+        [bool]$BootstrapUserWasBound
     )
 
-    try {
-        $answer = Read-Host "$Message [y/N]"
+    $bootstrapUserFromVars = Get-OptionalVar -Vars $Vars -Key "BOOTSTRAP_USER" -DefaultValue "ubuntu"
+    if ($BootstrapUserWasBound) {
+        return $BootstrapUser
     }
-    catch {
-        throw "Could not prompt for confirmation. Re-run with -Force to recreate without confirmation."
+    if (-not [string]::IsNullOrWhiteSpace($bootstrapUserFromVars)) {
+        return $bootstrapUserFromVars
+    }
+    return "ubuntu"
+}
+
+function Resolve-HyperVRuntimeSettings {
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Vars,
+        [Parameter(Mandatory = $true)]
+        [int]$Cpus,
+        [Parameter(Mandatory = $true)]
+        [string]$Memory,
+        [Parameter(Mandatory = $true)]
+        [string]$Disk,
+        [AllowEmptyString()]
+        [string]$NetworkHub,
+        [Parameter(Mandatory = $true)]
+        [bool]$CpusWasBound,
+        [Parameter(Mandatory = $true)]
+        [bool]$MemoryWasBound,
+        [Parameter(Mandatory = $true)]
+        [bool]$DiskWasBound,
+        [Parameter(Mandatory = $true)]
+        [bool]$NetworkHubWasBound
+    )
+
+    $resolvedCpus = $Cpus
+    $resolvedMemory = $Memory
+    $resolvedDisk = $Disk
+    $resolvedNetworkHub = $NetworkHub
+
+    $cpusFromConfig = Resolve-SettingValue -Vars $Vars -VarsKey "VM_CPUS"
+    $memoryFromConfig = Resolve-SettingValue -Vars $Vars -VarsKey "VM_MEMORY"
+    $diskFromConfig = Resolve-SettingValue -Vars $Vars -VarsKey "VM_DISK"
+    $networkHubFromConfig = Resolve-SettingValue -Vars $Vars -VarsKey "VM_NETWORK_HUB"
+    $sshPasswordAuthFromConfig = Resolve-SettingValue -Vars $Vars -VarsKey "ENABLE_SSH_PASSWORD_AUTH"
+    $openTcpPortsFromConfig = Resolve-SettingValue -Vars $Vars -VarsKey "ALLOW_INBOUND_TCP_PORTS"
+
+    if (-not $CpusWasBound -and -not [string]::IsNullOrWhiteSpace($cpusFromConfig)) {
+        $resolvedCpus = Parse-PositiveInt -Name "VM_CPUS" -Value $cpusFromConfig
+    }
+    if (-not $MemoryWasBound -and -not [string]::IsNullOrWhiteSpace($memoryFromConfig)) {
+        Ensure-SingleLineValue -Name "VM_MEMORY" -Value $memoryFromConfig
+        $resolvedMemory = $memoryFromConfig
+    }
+    if (-not $DiskWasBound -and -not [string]::IsNullOrWhiteSpace($diskFromConfig)) {
+        Ensure-SingleLineValue -Name "VM_DISK" -Value $diskFromConfig
+        $resolvedDisk = $diskFromConfig
+    }
+    if (-not $NetworkHubWasBound -and -not [string]::IsNullOrWhiteSpace($networkHubFromConfig)) {
+        Ensure-SingleLineValue -Name "VM_NETWORK_HUB" -Value $networkHubFromConfig
+        $resolvedNetworkHub = $networkHubFromConfig
     }
 
-    if ($answer -notmatch '^(?i:y|yes)$') {
-        throw "Recreate cancelled by user."
+    if ($resolvedCpus -lt 1) {
+        throw "Cpus must be a positive integer: $resolvedCpus"
+    }
+    Ensure-SingleLineValue -Name "Memory" -Value $resolvedMemory
+    Ensure-SingleLineValue -Name "Disk" -Value $resolvedDisk
+    if (-not [string]::IsNullOrWhiteSpace($resolvedNetworkHub)) {
+        Ensure-SingleLineValue -Name "NetworkHub" -Value $resolvedNetworkHub
+    }
+
+    $enableSshPasswordAuth = Parse-BoolSetting -Name "ENABLE_SSH_PASSWORD_AUTH" -Value $sshPasswordAuthFromConfig -DefaultValue $true
+    $openTcpPorts = Parse-TcpPortList -Name "ALLOW_INBOUND_TCP_PORTS" -Value $openTcpPortsFromConfig
+    Assert-ValidNetworkHub -NetworkHub $resolvedNetworkHub
+
+    return [pscustomobject]@{
+        Cpus                  = $resolvedCpus
+        Memory                = $resolvedMemory
+        Disk                  = $resolvedDisk
+        NetworkHub            = $resolvedNetworkHub
+        EnableSshPasswordAuth = $enableSshPasswordAuth
+        OpenTcpPorts          = @($openTcpPorts)
+    }
+}
+
+function Remove-ExistingMultipassInstance {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$InstanceName,
+        [Parameter(Mandatory = $true)]
+        [bool]$Force
+    )
+
+    $infoResult = Invoke-BootstrapNative -Command @("multipass", "info", $InstanceName) -Context "multipass info" -CaptureOutput -IgnoreExitCode
+    $instanceExists = ($infoResult.ExitCode -eq 0)
+    if (-not $instanceExists) {
+        return
+    }
+
+    if (-not $Force) {
+        Confirm-RecreateIfNeeded -Message "Instance '$InstanceName' already exists. Delete and recreate?"
+    }
+
+    Write-Host "[hyper-v create] Existing instance '$InstanceName' found. Deleting to enforce fresh creation."
+    Invoke-BootstrapNative -Command @("multipass", "delete", $InstanceName) -Context "multipass delete existing instance" | Out-Null
+    Invoke-BootstrapNative -Command @("multipass", "purge") -Context "multipass purge deleted instances" | Out-Null
+}
+
+function Launch-MultipassInstance {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$InstanceName,
+        [Parameter(Mandatory = $true)]
+        [int]$Cpus,
+        [Parameter(Mandatory = $true)]
+        [string]$Memory,
+        [Parameter(Mandatory = $true)]
+        [string]$Disk,
+        [Parameter(Mandatory = $true)]
+        [string]$UserDataPath,
+        [AllowEmptyString()]
+        [string]$NetworkHub
+    )
+
+    Write-Host "[hyper-v create] Launching '$InstanceName'"
+    $launchArgs = @(
+        "launch",
+        "24.04",
+        "--name", $InstanceName,
+        "--cpus", "$Cpus",
+        "--memory", $Memory,
+        "--disk", $Disk,
+        "--cloud-init", $UserDataPath
+    )
+    if (-not [string]::IsNullOrWhiteSpace($NetworkHub)) {
+        $launchArgs += @("--network", "name=$NetworkHub")
+    }
+    $networkDisplay = if ([string]::IsNullOrWhiteSpace($NetworkHub)) { "default" } else { $NetworkHub }
+    Write-Host "[hyper-v create] launch config: cpus=$Cpus memory=$Memory disk=$Disk network=$networkDisplay"
+
+    $launchOutputLines = @(& multipass @launchArgs 2>&1 | ForEach-Object { [string]$_ })
+    $launchExit = $LASTEXITCODE
+    foreach ($line in $launchOutputLines) {
+        if (-not [string]::IsNullOrWhiteSpace($line)) {
+            Write-Host $line
+        }
+    }
+    if ($launchExit -ne 0) {
+        $launchDetails = ($launchOutputLines -join "`n").Trim()
+        if ([string]::IsNullOrWhiteSpace($launchDetails)) {
+            throw "multipass launch failed for '$InstanceName'"
+        }
+        throw "multipass launch failed for '$InstanceName':`n$launchDetails"
+    }
+}
+
+function Wait-MultipassCloudInitDone {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$InstanceName
+    )
+
+    Write-Host "[hyper-v create] Waiting for cloud-init completion"
+    $cloudInitLines = @(& multipass exec $InstanceName -- cloud-init status --long 2>&1 | ForEach-Object { [string]$_ })
+    $cloudInitLong = $cloudInitLines -join "`n"
+    $cloudInitExit = $LASTEXITCODE
+    Write-Host $cloudInitLong
+
+    $cloudInitStatus = $null
+    foreach ($line in $cloudInitLines) {
+        $normalized = ($line -replace "`e\[[\d;]*[A-Za-z]", "").Trim()
+        if ($normalized -match "^(?i)status\s*:\s*(.+)$") {
+            $cloudInitStatus = $Matches[1].Trim()
+            break
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($cloudInitStatus)) {
+        throw "cloud-init status line could not be parsed in '$InstanceName'"
+    }
+    if ($cloudInitStatus -notmatch "^(?i)done$") {
+        throw "cloud-init did not complete successfully in '$InstanceName'"
+    }
+    if ($cloudInitExit -ne 0) {
+        Write-Host "[hyper-v create] WARN: cloud-init returned non-zero (degraded), but status is done"
     }
 }
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$commonPath = Join-Path $scriptDir "..\core\bootstrap-common.psm1"
+$commonPath = [System.IO.Path]::GetFullPath($commonPath)
+if (-not (Test-Path -LiteralPath $commonPath -PathType Leaf)) {
+    throw "Common helper script not found: $commonPath"
+}
+Import-Module -Name $commonPath -Force
+
 $preflightPath = Join-Path $scriptDir "preflight.ps1"
-$renderPath = Join-Path $scriptDir "..\core\render-user-data.ps1"
+$renderModulePath = Join-Path $scriptDir "..\core\render-user-data.psm1"
 $validatePath = Join-Path $scriptDir "validate-instance.ps1"
 
 if (-not (Get-Command multipass -ErrorAction SilentlyContinue)) {
     throw "multipass command not found"
 }
 
-if (-not (Test-Path -LiteralPath $renderPath -PathType Leaf)) {
-    throw "Shared renderer not found: $renderPath"
+if (-not (Test-Path -LiteralPath $renderModulePath -PathType Leaf)) {
+    throw "Shared render module not found: $renderModulePath"
 }
+Import-Module -Name $renderModulePath -Force
+# Ensure shared helper functions remain available in this script scope.
+Import-Module -Name $commonPath -Force
 
 if (-not $SkipPreflight) {
     & $preflightPath
@@ -283,132 +601,98 @@ if (-not (Test-Path -LiteralPath $varsFilePath -PathType Leaf)) {
 }
 
 $vars = Read-VarsFile -Path $varsFilePath
-$bootstrapUserFromVars = Get-OptionalVar -Vars $vars -Key "BOOTSTRAP_USER" -DefaultValue "ubuntu"
-$effectiveBootstrapUser = if ($PSBoundParameters.ContainsKey("BootstrapUser")) {
-    $BootstrapUser
-}
-elseif (-not [string]::IsNullOrWhiteSpace($bootstrapUserFromVars)) {
-    $bootstrapUserFromVars
-}
-else {
-    "ubuntu"
-}
+Assert-AllowedVarKeys -Vars $vars -AllowedKeys @(
+    "BOOTSTRAP_USER",
+    "DOCKER_VERSION",
+    "PROXY_HTTP",
+    "PROXY_HTTPS",
+    "NO_PROXY",
+    "PROXY_CA_CERT_PATH",
+    "VM_CPUS",
+    "VM_MEMORY",
+    "VM_DISK",
+    "VM_NETWORK_HUB",
+    "ENABLE_SSH_PASSWORD_AUTH",
+    "ALLOW_INBOUND_TCP_PORTS"
+) -VarsFilePath $varsFilePath
 
-$cpusFromConfig = Resolve-SettingValue -Vars $vars -VarsKey "HYPERV_CPUS"
-$memoryFromConfig = Resolve-SettingValue -Vars $vars -VarsKey "HYPERV_MEMORY"
-$diskFromConfig = Resolve-SettingValue -Vars $vars -VarsKey "HYPERV_DISK"
-$networkHubFromConfig = Resolve-SettingValue -Vars $vars -VarsKey "HYPERV_NETWORK_HUB"
+$effectiveBootstrapUser = Resolve-EffectiveBootstrapUser -Vars $vars -BootstrapUser $BootstrapUser -BootstrapUserWasBound:$($PSBoundParameters.ContainsKey("BootstrapUser"))
 
-if (-not $PSBoundParameters.ContainsKey("Cpus") -and -not [string]::IsNullOrWhiteSpace($cpusFromConfig)) {
-    $Cpus = Parse-PositiveInt -Name "HYPERV_CPUS" -Value $cpusFromConfig
-}
-if (-not $PSBoundParameters.ContainsKey("Memory") -and -not [string]::IsNullOrWhiteSpace($memoryFromConfig)) {
-    Ensure-SingleLineValue -Name "HYPERV_MEMORY" -Value $memoryFromConfig
-    $Memory = $memoryFromConfig
-}
-if (-not $PSBoundParameters.ContainsKey("Disk") -and -not [string]::IsNullOrWhiteSpace($diskFromConfig)) {
-    Ensure-SingleLineValue -Name "HYPERV_DISK" -Value $diskFromConfig
-    $Disk = $diskFromConfig
-}
-if (-not $PSBoundParameters.ContainsKey("NetworkHub") -and -not [string]::IsNullOrWhiteSpace($networkHubFromConfig)) {
-    Ensure-SingleLineValue -Name "HYPERV_NETWORK_HUB" -Value $networkHubFromConfig
-    $NetworkHub = $networkHubFromConfig
-}
+$runtimeSettings = Resolve-HyperVRuntimeSettings `
+    -Vars $vars `
+    -Cpus $Cpus `
+    -Memory $Memory `
+    -Disk $Disk `
+    -NetworkHub $NetworkHub `
+    -CpusWasBound:$($PSBoundParameters.ContainsKey("Cpus")) `
+    -MemoryWasBound:$($PSBoundParameters.ContainsKey("Memory")) `
+    -DiskWasBound:$($PSBoundParameters.ContainsKey("Disk")) `
+    -NetworkHubWasBound:$($PSBoundParameters.ContainsKey("NetworkHub"))
 
-if ($Cpus -lt 1) {
-    throw "Cpus must be a positive integer: $Cpus"
-}
-Ensure-SingleLineValue -Name "Memory" -Value $Memory
-Ensure-SingleLineValue -Name "Disk" -Value $Disk
-if (-not [string]::IsNullOrWhiteSpace($NetworkHub)) {
-    Ensure-SingleLineValue -Name "NetworkHub" -Value $NetworkHub
-}
+$Cpus = [int]$runtimeSettings.Cpus
+$Memory = [string]$runtimeSettings.Memory
+$Disk = [string]$runtimeSettings.Disk
+$NetworkHub = [string]$runtimeSettings.NetworkHub
+$enableSshPasswordAuth = [bool]$runtimeSettings.EnableSshPasswordAuth
+$openTcpPorts = @($runtimeSettings.OpenTcpPorts)
 
 $rootPassword = New-RandomPassword -Length 8
+$bootstrapUserPassword = New-RandomPassword -Length 8
 
-& $renderPath -VarsFile $varsFilePath -Output $UserDataPath -RootPassword $rootPassword
+Invoke-RenderUserData `
+    -VarsFile $varsFilePath `
+    -Output $UserDataPath `
+    -RootPassword $rootPassword `
+    -BootstrapUserPassword $bootstrapUserPassword
 
-& multipass info $InstanceName 1>$null 2>$null
-$instanceExists = ($LASTEXITCODE -eq 0)
+Remove-ExistingMultipassInstance -InstanceName $InstanceName -Force:$Force
+Launch-MultipassInstance -InstanceName $InstanceName -Cpus $Cpus -Memory $Memory -Disk $Disk -UserDataPath $UserDataPath -NetworkHub $NetworkHub
+Wait-MultipassCloudInitDone -InstanceName $InstanceName
 
-if ($instanceExists) {
-    if (-not $Force) {
-        Confirm-RecreateIfNeeded -Message "Instance '$InstanceName' already exists. Delete and recreate?"
-    }
+Configure-HyperVAccess -InstanceName $InstanceName -LoginUser $effectiveBootstrapUser -EnableSshPasswordAuth:$enableSshPasswordAuth -OpenTcpPorts $openTcpPorts
 
-    Write-Host "[hyper-v create] Existing instance '$InstanceName' found. Deleting to enforce fresh creation."
-    & multipass delete $InstanceName | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to delete instance '$InstanceName'"
-    }
-    & multipass purge | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to purge deleted instances"
-    }
-}
-
-Write-Host "[hyper-v create] Launching '$InstanceName'"
-$launchArgs = @(
-    "launch",
-    "24.04",
-    "--name", $InstanceName,
-    "--cpus", "$Cpus",
-    "--memory", $Memory,
-    "--disk", $Disk,
-    "--cloud-init", $UserDataPath
-)
-if (-not [string]::IsNullOrWhiteSpace($NetworkHub)) {
-    $launchArgs += @("--network", "name=$NetworkHub")
-}
-$networkDisplay = if ([string]::IsNullOrWhiteSpace($NetworkHub)) { "default" } else { $NetworkHub }
-Write-Host "[hyper-v create] launch config: cpus=$Cpus memory=$Memory disk=$Disk network=$networkDisplay"
-& multipass @launchArgs
-if ($LASTEXITCODE -ne 0) {
-    throw "multipass launch failed for '$InstanceName'"
-}
-
-Write-Host "[hyper-v create] Waiting for cloud-init completion"
-$cloudInitLines = @(& multipass exec $InstanceName -- cloud-init status --long 2>&1 | ForEach-Object { [string]$_ })
-$cloudInitLong = $cloudInitLines -join "`n"
-$cloudInitExit = $LASTEXITCODE
-Write-Host $cloudInitLong
-
-$cloudInitStatus = $null
-foreach ($line in $cloudInitLines) {
-    $normalized = ($line -replace "`e\[[\d;]*[A-Za-z]", "").Trim()
-    if ($normalized -match "^(?i)status\s*:\s*(.+)$") {
-        $cloudInitStatus = $Matches[1].Trim()
-        break
-    }
-}
-
-if ([string]::IsNullOrWhiteSpace($cloudInitStatus)) {
-    throw "cloud-init status line could not be parsed in '$InstanceName'"
-}
-
-if ($cloudInitStatus -notmatch "^(?i)done$") {
-    throw "cloud-init did not complete successfully in '$InstanceName'"
-}
-
-if ($cloudInitExit -ne 0) {
-    Write-Host "[hyper-v create] WARN: cloud-init returned non-zero (degraded), but status is done"
-}
-
+$sshPasswordAuthDisplay = if ($enableSshPasswordAuth) { "enabled" } else { "disabled" }
 if ($RunSmokeTest) {
     if (-not (Test-Path -LiteralPath $validatePath -PathType Leaf)) {
         throw "validate-instance.ps1 not found: $validatePath"
     }
-    & $validatePath -InstanceName $InstanceName -BootstrapUser $effectiveBootstrapUser
+    $expectedSshPasswordAuth = if ($enableSshPasswordAuth) { "enabled" } else { "disabled" }
+    & $validatePath `
+        -InstanceName $InstanceName `
+        -BootstrapUser $effectiveBootstrapUser `
+        -ExpectedSshPasswordAuth $expectedSshPasswordAuth `
+        -ExpectedOpenTcpPorts $openTcpPorts
 }
 else {
     Write-Host "[hyper-v create] Smoke test example:"
-    Write-Host ".\tools\bootstrap\hyper-v\validate-instance.ps1 -InstanceName $InstanceName -BootstrapUser $effectiveBootstrapUser"
+    $validateExample = ".\tools\bootstrap\hyper-v\validate-instance.ps1 -InstanceName $InstanceName -BootstrapUser $effectiveBootstrapUser -ExpectedSshPasswordAuth $sshPasswordAuthDisplay"
+    if ($openTcpPorts.Count -gt 0) {
+        $validateExample += " -ExpectedOpenTcpPorts " + ($openTcpPorts -join ",")
+    }
+    Write-Host $validateExample
 }
 
+$instanceIpv4 = Get-MultipassPrimaryIpv4 -InstanceName $InstanceName
+$instanceIpv4Display = if ([string]::IsNullOrWhiteSpace($instanceIpv4)) { "not available" } else { $instanceIpv4 }
+$sshCommandDisplay = if ([string]::IsNullOrWhiteSpace($instanceIpv4)) { "ssh $effectiveBootstrapUser@<instance-ip>" } else { "ssh $effectiveBootstrapUser@$instanceIpv4" }
+if ([string]::IsNullOrWhiteSpace($instanceIpv4)) {
+    Write-Host "[hyper-v create] WARN: Could not determine instance IPv4. Check with: multipass info $InstanceName"
+}
 Write-Host "[hyper-v create] Completed: $InstanceName"
-Write-NoticeBox -Title "ROOT ACCESS" -Lines @(
+Write-NoticeBox -Title "INITIAL CREDENTIALS" -Lines @(
     "Instance: $InstanceName"
-    "Initial root password: $rootPassword"
+    "[root]"
+    "Initial password: $rootPassword"
     "Reset command:"
     "  multipass exec $InstanceName -- sudo passwd root"
+    ""
+    "[login user: $effectiveBootstrapUser]"
+    "Initial password: $bootstrapUserPassword"
+    "Reset command:"
+    "  multipass exec $InstanceName -- sudo passwd $effectiveBootstrapUser"
+    ""
+    "[ssh]"
+    "Password authentication: $sshPasswordAuthDisplay"
+    "IPv4: $instanceIpv4Display"
+    "Connect command: $sshCommandDisplay"
 )

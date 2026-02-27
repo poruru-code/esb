@@ -7,6 +7,14 @@ param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$commonPath = Join-Path $scriptDir "..\core\bootstrap-common.psm1"
+$commonPath = [System.IO.Path]::GetFullPath($commonPath)
+if (-not (Test-Path -LiteralPath $commonPath -PathType Leaf)) {
+    throw "Common helper script not found: $commonPath"
+}
+Import-Module -Name $commonPath -Force
+
 $failures = New-Object System.Collections.Generic.List[string]
 $warnings = New-Object System.Collections.Generic.List[string]
 
@@ -97,8 +105,21 @@ else {
 
 if ($null -ne $multipassCmd) {
     try {
-        & multipass version | Out-Null
-        Write-Pass "multipass command execution succeeded"
+        $versionResult = Invoke-BootstrapNative -Command @("multipass", "version") -Context "multipass version preflight check" -CaptureOutput -IgnoreExitCode
+        $versionLines = @($versionResult.OutputLines)
+        $versionExitCode = $versionResult.ExitCode
+        if ($versionExitCode -eq 0) {
+            Write-Pass "multipass command execution succeeded"
+        }
+        else {
+            $detail = ($versionLines -join "`n").Trim()
+            if ([string]::IsNullOrWhiteSpace($detail)) {
+                Add-Failure "multipass command exists but returned exit code $versionExitCode."
+            }
+            else {
+                Add-Failure "multipass command exists but returned exit code $versionExitCode. Detail: $detail"
+            }
+        }
     }
     catch {
         Add-Failure "multipass command exists but could not execute successfully. Detail: $($_.Exception.Message)"

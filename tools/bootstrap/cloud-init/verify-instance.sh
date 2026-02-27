@@ -13,19 +13,25 @@
 # - hello-world container run succeeds unless --skip-hello-world is passed
 # - BOOTSTRAP_USER belongs to docker group when that user exists
 # - mise command is available
+# - gh command is available
 # - SSL_INSPECTION_CA_CONFIGURED flag is present and reported
+# - (optional) Hyper-V access settings are validated when expected values are passed:
+#   - SSH PasswordAuthentication setting
+#   - UFW active state and allowed inbound TCP ports
 set -euo pipefail
 
 usage() {
   cat <<'USAGE'
 Usage:
-  sudo /tmp/verify-instance.sh [--bootstrap-user <user>] [--skip-hello-world] [--allow-cloud-init-disabled]
+  sudo /tmp/verify-instance.sh [--bootstrap-user <user>] [--skip-hello-world] [--allow-cloud-init-disabled] [--expect-ssh-password-auth <enabled|disabled>] [--expect-open-tcp-ports <ports>]
 USAGE
 }
 
 bootstrap_user="ubuntu"
 skip_hello_world="false"
 allow_cloud_init_disabled="false"
+expect_ssh_password_auth=""
+expect_open_tcp_ports=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -41,6 +47,14 @@ while [[ $# -gt 0 ]]; do
       allow_cloud_init_disabled="true"
       shift
       ;;
+    --expect-ssh-password-auth)
+      expect_ssh_password_auth="${2:-}"
+      shift 2
+      ;;
+    --expect-open-tcp-ports)
+      expect_open_tcp_ports="${2:-}"
+      shift 2
+      ;;
     -h|--help)
       usage
       exit 0
@@ -52,6 +66,15 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ -n "${expect_ssh_password_auth}" ]]; then
+  expect_ssh_password_auth="$(printf '%s' "${expect_ssh_password_auth}" | tr '[:upper:]' '[:lower:]')"
+  if [[ "${expect_ssh_password_auth}" != "enabled" && "${expect_ssh_password_auth}" != "disabled" ]]; then
+    echo "Invalid --expect-ssh-password-auth value: ${expect_ssh_password_auth}" >&2
+    usage >&2
+    exit 1
+  fi
+fi
 
 log() {
   printf '[verify-instance] %s\n' "$*"
@@ -163,11 +186,66 @@ fi
 log "check tooling"
 command -v mise >/dev/null 2>&1 || fail "mise command not found"
 mise --version >/dev/null
+command -v gh >/dev/null 2>&1 || fail "gh command not found"
+gh --version >/dev/null
 
 if [[ "${SSL_INSPECTION_CA_CONFIGURED}" == "true" ]]; then
   log "custom CA configured via cloud-init ca_certs"
 else
   log "custom CA not configured"
+fi
+
+if [[ -n "${expect_ssh_password_auth}" ]]; then
+  log "check ssh password authentication setting"
+  ssh_override_conf="/etc/ssh/sshd_config.d/00-bootstrap-password-auth.conf"
+  assert_file "${ssh_override_conf}"
+
+  configured_password_auth="$(awk '
+    /^[[:space:]]*PasswordAuthentication[[:space:]]+/ {
+      print tolower($2)
+      exit
+    }' "${ssh_override_conf}")"
+  if [[ -z "${configured_password_auth}" ]]; then
+    fail "PasswordAuthentication entry not found in ${ssh_override_conf}"
+  fi
+
+  expected_password_auth="yes"
+  if [[ "${expect_ssh_password_auth}" == "disabled" ]]; then
+    expected_password_auth="no"
+  fi
+
+  if [[ "${configured_password_auth}" != "${expected_password_auth}" ]]; then
+    fail "PasswordAuthentication mismatch: expected=${expected_password_auth}, actual=${configured_password_auth}"
+  fi
+
+  if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
+    systemctl is-active --quiet ssh || fail "ssh service is not active"
+  fi
+fi
+
+if [[ -n "${expect_open_tcp_ports}" ]]; then
+  log "check ufw allowed inbound tcp ports"
+  command -v ufw >/dev/null 2>&1 || fail "ufw command not found"
+  ufw_status="$(ufw status 2>/dev/null || true)"
+  if ! printf '%s\n' "${ufw_status}" | grep -Eq '^Status:[[:space:]]+active$'; then
+    fail "ufw is not active"
+  fi
+
+  normalized_ports="$(printf '%s' "${expect_open_tcp_ports}" | tr ',;/' ' ')"
+  for token in ${normalized_ports}; do
+    if [[ -z "${token}" ]]; then
+      continue
+    fi
+    if ! [[ "${token}" =~ ^[0-9]+$ ]]; then
+      fail "non-numeric TCP port in expected list: ${token}"
+    fi
+    if (( token < 1 || token > 65535 )); then
+      fail "out-of-range TCP port in expected list: ${token}"
+    fi
+    if ! printf '%s\n' "${ufw_status}" | grep -Eq "(^|[[:space:]])${token}/tcp([[:space:]]|$)"; then
+      fail "ufw is missing expected TCP port: ${token}"
+    fi
+  done
 fi
 
 log "OK"
