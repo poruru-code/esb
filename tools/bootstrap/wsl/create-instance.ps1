@@ -393,7 +393,9 @@ cloud-init modules --mode=final
         Replace("__USER_DATA_WSL__", $userDataWslLiteral).
         Replace("__INSTANCE_NAME__", $InstanceName)
 
-    Set-Content -LiteralPath $tempBootstrapScript -Value $bootstrapScript -NoNewline
+    $bootstrapScriptLf = $bootstrapScript -replace "`r`n", "`n"
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($tempBootstrapScript, $bootstrapScriptLf, $utf8NoBom)
     $bootstrapScriptWslPath = Convert-WindowsPathToWsl -Path $tempBootstrapScript
 
     Write-Host "[wsl create] Applying cloud-init in '$InstanceName'"
