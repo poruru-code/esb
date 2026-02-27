@@ -218,6 +218,16 @@ if [[ -n "${expect_ssh_password_auth}" ]]; then
     fail "PasswordAuthentication mismatch: expected=${expected_password_auth}, actual=${configured_password_auth}"
   fi
 
+  command -v sshd >/dev/null 2>&1 || fail "sshd command not found"
+  sshd -t >/dev/null 2>&1 || fail "sshd config test failed"
+  effective_password_auth="$(sshd -T 2>/dev/null | awk '/^passwordauthentication /{print tolower($2); exit}')"
+  if [[ -z "${effective_password_auth}" ]]; then
+    fail "failed to evaluate effective sshd PasswordAuthentication setting"
+  fi
+  if [[ "${effective_password_auth}" != "${expected_password_auth}" ]]; then
+    fail "effective sshd PasswordAuthentication mismatch: expected=${expected_password_auth}, actual=${effective_password_auth}"
+  fi
+
   if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
     systemctl is-active --quiet ssh || fail "ssh service is not active"
   fi

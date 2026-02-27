@@ -136,6 +136,24 @@ function Parse-TcpPortList {
     return @($result.ToArray())
 }
 
+function Normalize-NetworkHubValue {
+    param(
+        [AllowEmptyString()]
+        [string]$Value
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return ""
+    }
+
+    $normalized = $Value.Trim()
+    switch ($normalized.ToLowerInvariant()) {
+        "default" { return "" }
+        "auto" { return "" }
+        default { return $normalized }
+    }
+}
+
 function Invoke-MultipassSudoBash {
     param(
         [Parameter(Mandatory = $true)]
@@ -202,6 +220,15 @@ EOF_SSHD
 # OpenSSH uses the first value encountered; 00-* must come before 50-cloud-init.conf.
 rm -f /etc/ssh/sshd_config.d/99-bootstrap-password-auth.conf
 
+# Keep cloud-init managed sshd override aligned to avoid order-dependent conflicts.
+if [[ -f /etc/ssh/sshd_config.d/50-cloud-init.conf ]]; then
+  if grep -Eq '^[[:space:]]*PasswordAuthentication[[:space:]]+' /etc/ssh/sshd_config.d/50-cloud-init.conf; then
+    sed -Ei 's/^[[:space:]]*PasswordAuthentication[[:space:]]+.*/PasswordAuthentication __PASSWORD_AUTH_RAW__/g' /etc/ssh/sshd_config.d/50-cloud-init.conf
+  else
+    printf '\nPasswordAuthentication __PASSWORD_AUTH_RAW__\n' >> /etc/ssh/sshd_config.d/50-cloud-init.conf
+  fi
+fi
+
 if ! id "${login_user}" >/dev/null 2>&1; then
   echo "login user does not exist: ${login_user}" >&2
   exit 1
@@ -209,6 +236,18 @@ fi
 if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
   systemctl enable ssh >/dev/null || true
   systemctl restart ssh || systemctl start ssh
+fi
+
+sshd -t
+effective_password_auth="$(sshd -T 2>/dev/null | awk '/^passwordauthentication /{print tolower($2); exit}')"
+expected_password_auth="$(printf '%s\n' "__PASSWORD_AUTH_RAW__" | tr '[:upper:]' '[:lower:]')"
+if [[ -z "${effective_password_auth}" ]]; then
+  echo "failed to evaluate effective sshd PasswordAuthentication setting" >&2
+  exit 1
+fi
+if [[ "${effective_password_auth}" != "${expected_password_auth}" ]]; then
+  echo "effective sshd PasswordAuthentication mismatch: expected=${expected_password_auth}, actual=${effective_password_auth}" >&2
+  exit 1
 fi
 '@
     $sshScript = $sshScript.
@@ -413,7 +452,7 @@ function Resolve-HyperVRuntimeSettings {
     $resolvedCpus = $Cpus
     $resolvedMemory = $Memory
     $resolvedDisk = $Disk
-    $resolvedNetworkHub = $NetworkHub
+    $resolvedNetworkHub = Normalize-NetworkHubValue -Value $NetworkHub
 
     $cpusFromConfig = Resolve-SettingValue -Vars $Vars -VarsKey "VM_CPUS"
     $memoryFromConfig = Resolve-SettingValue -Vars $Vars -VarsKey "VM_MEMORY"
@@ -435,7 +474,7 @@ function Resolve-HyperVRuntimeSettings {
     }
     if (-not $NetworkHubWasBound -and -not [string]::IsNullOrWhiteSpace($networkHubFromConfig)) {
         Ensure-SingleLineValue -Name "VM_NETWORK_HUB" -Value $networkHubFromConfig
-        $resolvedNetworkHub = $networkHubFromConfig
+        $resolvedNetworkHub = Normalize-NetworkHubValue -Value $networkHubFromConfig
     }
 
     if ($resolvedCpus -lt 1) {
@@ -513,7 +552,7 @@ function Launch-MultipassInstance {
     if (-not [string]::IsNullOrWhiteSpace($NetworkHub)) {
         $launchArgs += @("--network", "name=$NetworkHub")
     }
-    $networkDisplay = if ([string]::IsNullOrWhiteSpace($NetworkHub)) { "default" } else { $NetworkHub }
+    $networkDisplay = if ([string]::IsNullOrWhiteSpace($NetworkHub)) { "auto" } else { $NetworkHub }
     Write-Host "[hyper-v create] launch config: cpus=$Cpus memory=$Memory disk=$Disk network=$networkDisplay"
 
     $launchOutputLines = @(& multipass @launchArgs 2>&1 | ForEach-Object { [string]$_ })

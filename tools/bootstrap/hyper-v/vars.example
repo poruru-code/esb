@@ -17,6 +17,7 @@ DOCKER_VERSION=latest
 VM_CPUS=4
 VM_MEMORY=8G
 VM_DISK=100G
+# blank/default/auto => use Multipass default network selection
 VM_NETWORK_HUB=
 
 # Login user SSH password authentication (true/false).

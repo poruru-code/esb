@@ -113,7 +113,7 @@ Hyper-V のリソース/ネットワークを vars ファイルで指定する�
   - `VM_CPUS`
   - `VM_MEMORY`
   - `VM_DISK`
-  - `VM_NETWORK_HUB`
+  - `VM_NETWORK_HUB` (空/`default`/`auto` は Multipass 既定ネットワーク)
   - `ENABLE_SSH_PASSWORD_AUTH`
   - `ALLOW_INBOUND_TCP_PORTS`
 
