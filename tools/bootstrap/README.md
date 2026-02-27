@@ -157,6 +157,30 @@ Hyper-V のリソース/ネットワークを vars ファイルで指定する�
 .\tools\bootstrap\hyper-v\preflight.ps1
 ```
 
+## Troubleshooting
+
+### Hyper-V SSH: `Permission denied (publickey)`
+
+`create-instance.ps1` 完了後に表示された `Connect command` で接続しても、
+`Permission denied (publickey)` が出る場合はクライアント側 SSH 設定の影響を疑ってください。
+
+まずは一時的に鍵認証を無効化して接続:
+
+```powershell
+ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no ubuntu@<表示されたIP>
+```
+
+現在のクライアント有効設定を確認:
+
+```powershell
+ssh -G ubuntu@<表示されたIP> | Select-String -Pattern "preferredauthentications|pubkeyauthentication|passwordauthentication|identityfile"
+```
+
+補足:
+
+- Hyper-V (Default Switch) は再作成ごとに IP が変わります。毎回、完了ログに表示された最新 IP を使ってください。
+- PowerShell では `ubuntu@<IP>` 単体はコマンドではありません。必ず `ssh ubuntu@<IP>` で実行してください。
+
 ## Implementation Map
 
 - WSL2:
