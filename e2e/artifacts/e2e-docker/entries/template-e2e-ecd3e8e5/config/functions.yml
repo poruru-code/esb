@@ -24,7 +24,7 @@ functions:
   lambda-connectivity-java:
     image: "127.0.0.1:5010/esb-lambda-connectivity-java:e2e-docker-latest"
     timeout: 30
-    memory_size: 128
+    memory_size: 512
     environment:
       DYNAMODB_ENDPOINT: "http://database:8000"
       E2E_TABLE_NAME: "e2e-test-table"
@@ -49,7 +49,7 @@ functions:
   lambda-image:
     image: "127.0.0.1:5010/esb-lambda-image:e2e-docker-latest"
     timeout: 30
-    memory_size: 128
+    memory_size: 512
   lambda-integration:
     image: "127.0.0.1:5010/esb-lambda-integration:e2e-docker-latest"
     timeout: 30
