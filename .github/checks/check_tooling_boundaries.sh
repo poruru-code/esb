@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Where: .github/checks/check_tooling_boundaries.sh
+# What: Guard import/module/public-API boundaries for shared packages.
+# Why: Keep architecture contracts enforceable in CI.
 set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -172,7 +175,7 @@ if (( ${#mod_files[@]} > 0 )); then
   fi
 
   echo "[check] validating adapter pkg/* v0.0.0 freeze"
-  adapter_v0_allowlist_file="tools/ci/adapter_pkg_v0_allowlist.txt"
+  adapter_v0_allowlist_file=".github/checks/adapter_pkg_v0_allowlist.txt"
   if [[ ! -f "${adapter_v0_allowlist_file}" ]]; then
     echo "[error] missing allowlist file: ${adapter_v0_allowlist_file}" >&2
     exit 1
@@ -231,7 +234,7 @@ if search_go_tree_non_test 'CONTAINER_REGISTRY|HOST_REGISTRY_ADDR' \
 fi
 
 echo "[check] validating artifactcore public API surface"
-allowlist_file="tools/ci/artifactcore_exports_allowlist.txt"
+allowlist_file=".github/checks/artifactcore_exports_allowlist.txt"
 if [[ ! -f "${allowlist_file}" ]]; then
   echo "[error] missing allowlist file: ${allowlist_file}" >&2
   exit 1

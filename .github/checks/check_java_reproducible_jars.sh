@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Where: tools/ci/check_java_reproducible_jars.sh
+# Where: .github/checks/check_java_reproducible_jars.sh
 # What: Static guard for reproducible Java JAR build settings.
 # Why: Prevent drift that breaks byte-for-byte reproducibility.
 set -euo pipefail

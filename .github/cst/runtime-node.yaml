@@ -1,4 +1,4 @@
-# Where: tools/container-structure-test/runtime-node.yaml
+# Where: .github/cst/runtime-node.yaml
 # What: Container Structure Tests for the runtime-node (containerd) image.
 # Why: Ensure containerd tooling and entrypoints are present.
 

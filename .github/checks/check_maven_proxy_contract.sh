@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Where: tools/ci/check_maven_proxy_contract.sh
+# Where: .github/checks/check_maven_proxy_contract.sh
 # What: Static guard that blocks uncontracted Maven usage in compose-managed service Dockerfiles.
 # Why: Keep docker compose control-plane builds outside Maven proxy drift unless explicitly integrated.
 set -euo pipefail

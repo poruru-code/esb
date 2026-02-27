@@ -49,3 +49,29 @@ def test_calculate_runtime_env_skips_proxy_defaults_without_proxy_inputs(monkeyp
 
     assert env.get("NO_PROXY", "") == ""
     assert env.get("no_proxy", "") == ""
+
+
+def test_calculate_runtime_env_scopes_buildx_builder_for_with_proxy(monkeypatch):
+    monkeypatch.setenv("E2E_WITH_PROXY", "1")
+    monkeypatch.delenv("BUILDX_BUILDER", raising=False)
+
+    env = runner_env.calculate_runtime_env(
+        "Acme Prod",
+        "e2e-proxy",
+        "docker",
+    )
+
+    assert env["BUILDX_BUILDER"] == "acme-prod-buildx-proxy"
+
+
+def test_calculate_runtime_env_appends_proxy_suffix_to_custom_builder(monkeypatch):
+    monkeypatch.setenv("E2E_WITH_PROXY", "1")
+    monkeypatch.setenv("BUILDX_BUILDER", "custom-buildx")
+
+    env = runner_env.calculate_runtime_env(
+        "esb",
+        "e2e-proxy",
+        "docker",
+    )
+
+    assert env["BUILDX_BUILDER"] == "custom-buildx-proxy"

@@ -103,13 +103,13 @@ jobs:
             services/agent/go.sum
 
       - name: Boundary checks
-        run: ./tools/ci/check_tooling_boundaries.sh
+        run: ./.github/checks/check_tooling_boundaries.sh
 
       - name: Layout checks
-        run: ./tools/ci/check_repo_layout.sh
+        run: ./.github/checks/check_repo_layout.sh
 
       - name: Maven proxy contract checks
-        run: ./tools/ci/check_maven_proxy_contract.sh
+        run: ./.github/checks/check_maven_proxy_contract.sh
 
       - name: Verify artifactctl compile contract
         run: |
@@ -142,13 +142,13 @@ jobs:
             pkg/deployops/go.sum
 
       - name: Boundary checks
-        run: ./tools/ci/check_tooling_boundaries.sh
+        run: ./.github/checks/check_tooling_boundaries.sh
 
       - name: Layout checks
-        run: ./tools/ci/check_repo_layout.sh
+        run: ./.github/checks/check_repo_layout.sh
 
       - name: Maven proxy contract checks
-        run: ./tools/ci/check_maven_proxy_contract.sh
+        run: ./.github/checks/check_maven_proxy_contract.sh
 
       - name: Verify non-cli compile contract
         run: |
