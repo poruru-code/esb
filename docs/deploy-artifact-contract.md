@@ -192,8 +192,8 @@ artifacts:
 - producer 側 apply adapter:
   - `esb-ctl deploy` と同じ Go 実装を呼ぶ薄いアダプタとして振る舞う
 
-## 外部オーケストレータ連携（ESB-CLI）
-- ESB-CLI などの外部ツールは `pkg/*` 参照だけでは command surface 変更を吸収できません。`esb-ctl` バイナリ呼び出しで連携します。
+## 外部オーケストレータ連携
+- 外部ツールは `pkg/*` 参照だけでは command surface 変更を吸収できません。`esb-ctl` バイナリ呼び出しで連携します。
 - 連携前提として `esb-ctl internal capabilities --output json` の schema/contracts を照合してください。
 - 最低限 required な subcommand は以下です。
   - `deploy`
@@ -288,4 +288,3 @@ curl -k https://127.0.0.1/health
 ## E2E 契約（現行）
 - E2E matrix から `deploy_driver` / `artifact_generate` は撤去済みで、artifact 実行経路のみを許可します。
 - テストはコミット済み `e2e/artifacts/*` を consume し、ランタイムで generate は行いません。
-- fixture 更新時のみ `e2e/scripts/regenerate_artifacts.sh` により外部の artifact 生成コマンドを使用します。

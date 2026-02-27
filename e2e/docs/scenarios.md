@@ -570,7 +570,7 @@ Why: Make docker/containerd support status explicit per test case.
   事前呼び出し後に `/metrics/pools` を検証し、対象 pool の必須フィールド存在を確認する。`/metrics/containers` は `200` の場合に `state`・`memory_max`・`memory_current`・`cpu_usage_ns` を検証し、`501` の場合はエラー本文に `metrics are not implemented` または `docker` を含むことを確認する。
 
   合格条件:
-  `/metrics/pools` が `200` で対象poolが存在し、必須フィールド（function_name, total_workers, idle, busy, provisioning, max_capacity, min_capacity, acquire_timeout）を持つこと。`/metrics/containers` は `200` の場合 `lambda-echo` エントリで `state in {RUNNING,PAUSED}`、`memory_max==134217728`、`memory_current>=0`、`cpu_usage_ns>=0`。`501` の場合はエラー本文に `metrics are not implemented` または `docker` を含むこと。
+  `/metrics/pools` が `200` で対象poolが存在し、必須フィールド（function_name, total_workers, idle, busy, provisioning, max_capacity, min_capacity, acquire_timeout）を持つこと。`/metrics/containers` は `200` の場合 `lambda-echo` エントリで `state in {RUNNING,PAUSED}`、`memory_max==536870912`、`memory_current>=0`、`cpu_usage_ns>=0`。`501` の場合はエラー本文に `metrics are not implemented` または `docker` を含むこと。
 
   失敗時の示唆:
   Gateway metrics実装、runtime別分岐（200/501）、メモリ上限設定値を確認する。
