@@ -75,3 +75,16 @@ def test_calculate_runtime_env_appends_proxy_suffix_to_custom_builder(monkeypatc
     )
 
     assert env["BUILDX_BUILDER"] == "custom-buildx-proxy"
+
+
+def test_calculate_runtime_env_proxy_builder_fallback_uses_project_slug(monkeypatch):
+    monkeypatch.setenv("E2E_WITH_PROXY", "1")
+    monkeypatch.setenv("BUILDX_BUILDER", "")
+
+    env = runner_env.calculate_runtime_env(
+        "Acme Prod",
+        "e2e-proxy",
+        "docker",
+    )
+
+    assert env["BUILDX_BUILDER"] == "acme-prod-buildx-proxy"

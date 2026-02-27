@@ -280,7 +280,10 @@ def calculate_runtime_env(
     env.setdefault(constants.ENV_DOCKER_BUILDKIT, "1")
     env.setdefault("BUILDX_BUILDER", buildx_builder_name(project_name))
     if env.get(_ENV_E2E_WITH_PROXY, "").strip() == "1":
-        env["BUILDX_BUILDER"] = proxy_buildx_builder_name(env.get("BUILDX_BUILDER", ""))
+        env["BUILDX_BUILDER"] = proxy_buildx_builder_name(
+            env.get("BUILDX_BUILDER", ""),
+            project_name=project_name,
+        )
     env.setdefault("COMPOSE_DOCKER_CLI_BUILD", "1")
 
     # 9. E2E safety toggles
