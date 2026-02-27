@@ -3,12 +3,12 @@ project: esb
 env: e2e-docker
 mode: docker
 artifacts:
-  - artifact_root: entries/template-e2e-ecd3e8e5
+  - artifact_root: entries/template-e2e-19477f40
     runtime_config_dir: config
     source_template:
       path: e2e/fixtures/template.e2e.yaml
-      sha256: 3de9531ab399ca525a60999bc5c629abcfc3c23c538b70ff43ef38a7ab088668
-generated_at: "2026-02-25T00:50:59Z"
+      sha256: f9d521e447e653e1574522524b14ab2ace861bcbc21fe74304cc12135b4deb0b
+generated_at: "2026-02-27T18:28:02Z"
 generator:
   name: esb
-  version: 94fd393 (dirty)
+  version: 997b036 (dirty)

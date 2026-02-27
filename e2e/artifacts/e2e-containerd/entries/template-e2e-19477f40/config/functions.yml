@@ -16,11 +16,11 @@ functions:
   lambda-chaos:
     image: "registry:5010/esb-lambda-chaos:e2e-containerd-latest"
     timeout: 30
-    memory_size: 128
+    memory_size: 512
   lambda-connectivity:
     image: "registry:5010/esb-lambda-connectivity:e2e-containerd-latest"
     timeout: 30
-    memory_size: 128
+    memory_size: 512
   lambda-connectivity-java:
     image: "registry:5010/esb-lambda-connectivity-java:e2e-containerd-latest"
     timeout: 30
@@ -32,20 +32,20 @@ functions:
   lambda-dynamo:
     image: "registry:5010/esb-lambda-dynamo:e2e-containerd-latest"
     timeout: 30
-    memory_size: 128
+    memory_size: 512
     environment:
       DYNAMODB_ENDPOINT: "http://database:8000"
   lambda-echo:
     image: "registry:5010/esb-lambda-echo:e2e-containerd-latest"
     timeout: 30
-    memory_size: 128
+    memory_size: 512
     scaling:
       max_capacity: 1
       min_capacity: 1
   lambda-echo-java:
     image: "registry:5010/esb-lambda-echo-java:e2e-containerd-latest"
     timeout: 30
-    memory_size: 128
+    memory_size: 512
   lambda-image:
     image: "registry:5010/esb-lambda-image:e2e-containerd-latest"
     timeout: 30
@@ -53,11 +53,11 @@ functions:
   lambda-integration:
     image: "registry:5010/esb-lambda-integration:e2e-containerd-latest"
     timeout: 30
-    memory_size: 128
+    memory_size: 512
   lambda-s3:
     image: "registry:5010/esb-lambda-s3:e2e-containerd-latest"
     timeout: 30
-    memory_size: 128
+    memory_size: 512
     environment:
       RUSTFS_ROOT_PASSWORD: "rustfsadmin"
       RUSTFS_ROOT_USER: "rustfsadmin"
@@ -65,13 +65,13 @@ functions:
   lambda-scaling:
     image: "registry:5010/esb-lambda-scaling:e2e-containerd-latest"
     timeout: 30
-    memory_size: 128
+    memory_size: 512
     scaling:
       max_capacity: 3
   lambda-scheduled:
     image: "registry:5010/esb-lambda-scheduled:e2e-containerd-latest"
     timeout: 30
-    memory_size: 128
+    memory_size: 512
     environment:
       DYNAMODB_ENDPOINT: "http://database:8000"
     events:

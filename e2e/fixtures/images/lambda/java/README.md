@@ -8,9 +8,6 @@ This fixture is referenced from generated artifact Dockerfiles using:
 
 - `FROM 127.0.0.1:5010/esb-e2e-image-java:latest`
 
-For artifact fixture generation, `e2e/scripts/regenerate_artifacts.sh` sets
-`--image-runtime "lambda-image=java21"` for the containerd artifact.
-
 The image builds `app.jar` from source during Docker build, and deploy
 automatically builds/pushes this image to the local registry.
 When proxy environment variables are present, E2E deploy swaps this fixture's

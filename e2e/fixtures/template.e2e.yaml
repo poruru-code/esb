@@ -10,7 +10,7 @@ Globals:
     Runtime: python3.12
     Handler: lambda_function.lambda_handler
     Timeout: 30
-    MemorySize: 128
+    MemorySize: 512
     Layers:
       - !Ref CommonLayer
 
