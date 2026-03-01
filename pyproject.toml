@@ -86,7 +86,13 @@ extra-paths = ["./e2e/fixtures/layers/common/python"]
 
 
 [tool.pytest.ini_options]
-testpaths = ["e2e", "services/common/tests", "services/gateway/tests", "runtime-hooks/python/tests"]
+testpaths = [
+    "tools/cli/tests",
+    "e2e",
+    "services/common/tests",
+    "services/gateway/tests",
+    "runtime-hooks/python/tests",
+]
 asyncio_mode = "auto"
 filterwarnings = [
     "ignore::urllib3.exceptions.InsecureRequestWarning",

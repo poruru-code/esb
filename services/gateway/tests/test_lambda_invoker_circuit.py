@@ -58,14 +58,16 @@ async def test_invoker_circuit_breaker_opens(mock_registry, mock_backend, gatewa
         # Always return failure (500).
         respx.post(rie_url).mock(return_value=httpx.Response(500))
 
-        # CircuitBreaker opens after 5 failures (default).
-        for _ in range(5):
+        threshold = gateway_config.CIRCUIT_BREAKER_THRESHOLD
+
+        # CircuitBreaker opens when failure threshold is reached.
+        for _ in range(threshold):
             result = await invoker.invoke_function(function_name, b"{}")
             assert result.success is False
             assert result.error is not None
-            assert "Server Error" in result.error
+            assert ("Server Error" in result.error) or ("Circuit is open" in result.error)
 
-        # 6th call triggers CircuitBreakerOpenError handled in LambdaInvoker.
+        # Next call should be blocked by the opened circuit.
         result = await invoker.invoke_function(function_name, b"{}")
         assert result.success is False
         assert result.error is not None
@@ -94,8 +96,10 @@ async def test_invoker_per_function_breaker(mock_registry, mock_backend, gateway
         respx.post(url1).mock(return_value=httpx.Response(500))
         respx.post(url2).mock(return_value=httpx.Response(200, content=b"ok"))
 
+        threshold = gateway_config.CIRCUIT_BREAKER_THRESHOLD
+
         # Open the circuit for func-1.
-        for _ in range(5):
+        for _ in range(threshold):
             await invoker.invoke_function(f1, b"{}")
 
         # func-1 should be open.

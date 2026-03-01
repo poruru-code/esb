@@ -95,9 +95,7 @@ run = [
 ]
 
 [tasks.build-ctl]
-description = "Build esb-ctl to ~/.local/bin"
-dir = "tools/artifactctl"
+description = "Install Python esb-ctl wrapper to ~/.local/bin"
 run = [
-  "mkdir -p ~/.local/bin",
-  "go build -o ~/.local/bin/esb-ctl ./cmd/artifactctl",
+  "uv run python tools/cli/install.py",
 ]

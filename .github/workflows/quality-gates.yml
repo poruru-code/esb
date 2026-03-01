@@ -99,7 +99,6 @@ jobs:
           go-version: "1.25.1"
           cache: true
           cache-dependency-path: |
-            tools/artifactctl/go.sum
             services/agent/go.sum
 
       - name: Boundary checks
@@ -110,12 +109,6 @@ jobs:
 
       - name: Maven proxy contract checks
         run: ./.github/checks/check_maven_proxy_contract.sh
-
-      - name: Verify artifactctl compile contract
-        run: |
-          if [ -f tools/artifactctl/go.mod ]; then
-            go -C tools/artifactctl test ./... -run '^$'
-          fi
 
   no-cli-steady-state:
     runs-on: ubuntu-latest
@@ -131,16 +124,6 @@ jobs:
             exit 1
           fi
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.25.1"
-          cache: true
-          cache-dependency-path: |
-            tools/artifactctl/go.sum
-            pkg/artifactcore/go.sum
-            pkg/deployops/go.sum
-
       - name: Boundary checks
         run: ./.github/checks/check_tooling_boundaries.sh
 
@@ -149,12 +132,3 @@ jobs:
 
       - name: Maven proxy contract checks
         run: ./.github/checks/check_maven_proxy_contract.sh
-
-      - name: Verify non-cli compile contract
-        run: |
-          go -C tools/artifactctl test ./... -run '^$'
-          GOWORK=off go -C pkg/artifactcore test ./... -run '^$'
-          GOWORK=off go -C pkg/composeprovision test ./... -run '^$'
-          GOWORK=off go -C pkg/deployops test ./... -run '^$'
-          GOWORK=off go -C pkg/runtimeimage test ./... -run '^$'
-          GOWORK=off go -C pkg/yamlshape test ./... -run '^$'
