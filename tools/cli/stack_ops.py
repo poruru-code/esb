@@ -373,8 +373,9 @@ def wait_for_registry_ready(
 def probe_registry(host_port: str) -> int | None:
     url = f"http://{host_port}/v2/"
     request = urlrequest.Request(url=url, method="GET")
+    opener = urlrequest.build_opener(urlrequest.ProxyHandler({}))
     try:
-        with urlrequest.urlopen(request, timeout=2) as response:  # noqa: S310
+        with opener.open(request, timeout=2) as response:  # noqa: S310
             return int(response.status)
     except urlerror.HTTPError as exc:
         return int(exc.code)

@@ -49,6 +49,31 @@ def test_validate_relative_path_rejects_escape_path() -> None:
         raise AssertionError("expected RuntimeError")
 
 
+def test_validate_relative_path_rejects_nested_escape_path() -> None:
+    try:
+        artifact.validate_relative_path("runtime_config_dir", "a/../../outside")
+    except RuntimeError as exc:
+        assert "must not escape artifact root" in str(exc)
+    else:
+        raise AssertionError("expected RuntimeError")
+
+
+def test_resolve_entry_relative_path_rejects_escape_after_resolution(tmp_path: Path) -> None:
+    artifact_root = tmp_path / "artifact-root"
+    artifact_root.mkdir(parents=True, exist_ok=True)
+
+    try:
+        artifact.resolve_entry_relative_path(
+            str(artifact_root),
+            "nested/../../outside",
+            "runtime_config_dir",
+        )
+    except RuntimeError as exc:
+        assert "must not escape artifact root" in str(exc)
+    else:
+        raise AssertionError("expected RuntimeError")
+
+
 def test_merge_functions_yml_merges_functions_and_preserves_existing_defaults(
     tmp_path: Path,
 ) -> None:

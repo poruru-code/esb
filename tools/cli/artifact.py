@@ -122,8 +122,16 @@ def validate_relative_path(field: str, value: str) -> None:
     normalized = clean.as_posix()
     if normalized == ".":
         raise RuntimeError(f"{field} must not be '.'")
-    if normalized == ".." or normalized.startswith("../"):
-        raise RuntimeError(f"{field} must not escape artifact root")
+    depth = 0
+    for segment in normalized.split("/"):
+        if segment in ("", "."):
+            continue
+        if segment == "..":
+            depth -= 1
+            if depth < 0:
+                raise RuntimeError(f"{field} must not escape artifact root")
+            continue
+        depth += 1
 
 
 def resolve_artifact_root_path(manifest_path: str, artifact_root: str) -> str:
@@ -137,7 +145,13 @@ def resolve_artifact_root_path(manifest_path: str, artifact_root: str) -> str:
 
 def resolve_entry_relative_path(artifact_root: str, rel_path: str, field: str) -> str:
     validate_relative_path(field, rel_path)
-    return str((Path(artifact_root) / Path(rel_path.strip())).resolve())
+    root = Path(artifact_root).resolve()
+    resolved = (root / Path(rel_path.strip())).resolve()
+    try:
+        resolved.relative_to(root)
+    except ValueError as exc:
+        raise RuntimeError(f"{field} must not escape artifact root") from exc
+    return str(resolved)
 
 
 def _load_yaml_map(path: str) -> tuple[dict[str, Any] | None, bool]:

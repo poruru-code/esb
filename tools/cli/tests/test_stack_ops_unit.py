@@ -111,6 +111,43 @@ def test_wait_for_registry_ready_timeout_collects_diagnostics(
     ]
 
 
+def test_probe_registry_bypasses_proxy_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+    proxy_handler_sentinel = object()
+
+    class FakeResponse:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    class FakeOpener:
+        def open(self, request, timeout=0):
+            captured["url"] = request.full_url
+            captured["timeout"] = timeout
+            return FakeResponse()
+
+    def fake_proxy_handler(proxies=None):
+        captured["proxies"] = proxies
+        return proxy_handler_sentinel
+
+    def fake_build_opener(handler):
+        captured["handler"] = handler
+        return FakeOpener()
+
+    monkeypatch.setattr(stack_ops.urlrequest, "ProxyHandler", fake_proxy_handler)
+    monkeypatch.setattr(stack_ops.urlrequest, "build_opener", fake_build_opener)
+
+    assert stack_ops.probe_registry("127.0.0.1:5010") == 200
+    assert captured["proxies"] == {}
+    assert captured["handler"] is proxy_handler_sentinel
+    assert captured["url"] == "http://127.0.0.1:5010/v2/"
+    assert captured["timeout"] == 2
+
+
 def test_execute_stack_deploy_runs_expected_commands(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
