@@ -155,7 +155,7 @@ def ensure_image(input_data: EnsureInput) -> EnsureResult:
     lock_path = _shim_lock_path(shim_ref)
     release = _acquire_lock(lock_path)
     try:
-        if input_data.no_cache or not docker_image_exists(shim_ref):
+        if input_data.no_cache or not docker_image_exists(shim_ref, env=input_data.env):
             context_dir, cleanup = _materialize_build_context()
             try:
                 build_cmd = _buildx_command(

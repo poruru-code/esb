@@ -45,7 +45,7 @@ def test_ensure_image_skips_build_when_cached_and_pushes_when_registry_set(monke
     commands: list[list[str]] = []
     released = {"done": False}
 
-    monkeypatch.setattr(maven_shim, "docker_image_exists", lambda _: True)
+    monkeypatch.setattr(maven_shim, "docker_image_exists", lambda _, env=None: True)
     monkeypatch.setattr(
         maven_shim, "run_command", lambda cmd, check=True, env=None: commands.append(cmd)
     )
@@ -66,7 +66,7 @@ def test_ensure_image_skips_build_when_cached_and_pushes_when_registry_set(monke
 def test_ensure_image_builds_when_cache_miss(monkeypatch, tmp_path: Path) -> None:
     commands: list[list[str]] = []
 
-    monkeypatch.setattr(maven_shim, "docker_image_exists", lambda _: False)
+    monkeypatch.setattr(maven_shim, "docker_image_exists", lambda _, env=None: False)
     monkeypatch.setattr(
         maven_shim, "run_command", lambda cmd, check=True, env=None: commands.append(cmd)
     )
@@ -81,3 +81,34 @@ def test_ensure_image_builds_when_cache_miss(monkeypatch, tmp_path: Path) -> Non
     assert result.shim_image.startswith("esb-maven-shim:")
     assert commands, "docker buildx command should be emitted on cache miss"
     assert commands[0][:3] == ["docker", "buildx", "build"]
+
+
+def test_ensure_image_uses_same_env_for_cache_probe_and_build(monkeypatch, tmp_path: Path) -> None:
+    commands: list[list[str]] = []
+    probe_args: dict[str, object] = {}
+
+    def fake_exists(image_ref: str, env=None) -> bool:
+        probe_args["image_ref"] = image_ref
+        probe_args["env"] = env
+        return False
+
+    monkeypatch.setattr(maven_shim, "docker_image_exists", fake_exists)
+    monkeypatch.setattr(
+        maven_shim, "run_command", lambda cmd, check=True, env=None: commands.append(list(cmd))
+    )
+    monkeypatch.setattr(maven_shim, "_acquire_lock", lambda _: (lambda: None))
+    monkeypatch.setattr(maven_shim, "_materialize_build_context", lambda: (tmp_path, lambda: None))
+
+    env = {"DOCKER_HOST": "unix:///tmp/test-docker.sock"}
+    result = maven_shim.ensure_image(
+        maven_shim.EnsureInput(
+            base_image="maven:3.9.9",
+            host_registry="127.0.0.1:5010",
+            env=env,
+        )
+    )
+
+    assert result.shim_image.startswith("127.0.0.1:5010/esb-maven-shim:")
+    assert probe_args["env"] == env
+    assert commands[0][:3] == ["docker", "buildx", "build"]
+    assert commands[1] == ["docker", "push", result.shim_image]

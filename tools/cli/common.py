@@ -46,11 +46,12 @@ def run_command(
     return completed
 
 
-def docker_image_exists(image_ref: str) -> bool:
+def docker_image_exists(image_ref: str, env: Mapping[str, str] | None = None) -> bool:
     if image_ref.strip() == "":
         return False
     result = subprocess.run(
         ["docker", "image", "inspect", image_ref],
+        env=dict(os.environ) if env is None else dict(env),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         text=True,
