@@ -195,13 +195,10 @@ artifacts:
 
 ## 外部オーケストレータ連携
 - 外部ツールは package import で command surface 変更を吸収できません。`esb-ctl` バイナリ呼び出しで連携します。
-- 連携前提として `esb-ctl internal capabilities --output json` の schema/contracts を照合してください。
+- 連携前提として `deploy --help` / `provision --help` の実行可否を確認してください。
 - 最低限 required な subcommand は以下です。
   - `deploy`
   - `provision`
-  - `internal fixture-image ensure`
-  - `internal maven-shim ensure`
-  - `internal capabilities`
 - binary path override は `CTL_BIN` を使用します。
 
 repo 分離後の依存方向:

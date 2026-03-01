@@ -85,8 +85,8 @@ docker compose up -d
 
 ## 外部オーケストレータ契約
 - 外部オーケストレータは `esb-ctl` 実装を package import で吸収できません。実行ファイル呼び出しで連携します。
-- deploy/provision 実行前に `esb-ctl internal capabilities --output json` を実行し、schema/contracts を照合してください。
-- 最低限必要な subcommand は `deploy`, `provision`, `internal fixture-image ensure`, `internal maven-shim ensure`, `internal capabilities` です。
+- deploy/provision 実行前に `deploy --help` / `provision --help` の実行可否を確認してください。
+- 最低限必要な subcommand は `deploy`, `provision` です。
 - バイナリ上書きは `CTL_BIN` を使います（解決後実体パスは runner 内で `CTL_BIN_RESOLVED` に固定）。
 
 fixture 更新は E2E runtime 外の開発作業として扱います（本リポジトリ管理外）。

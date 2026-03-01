@@ -48,7 +48,7 @@ check_with_allowlist \
 
 check_with_allowlist \
   "Python default brand slug literals are scoped to the branding contract" \
-  '^e2e/runner/branding_constants_gen.py:' \
+  '^tools/cli/branding_constants_gen.py:' \
   rg -n --glob '*.py' 'DEFAULT_BRAND_SLUG\s*=\s*"esb"|BRAND_SLUG\s*=\s*"esb"|SLUG\s*=\s*"esb"' e2e tools
 
 check_with_allowlist \
@@ -58,7 +58,7 @@ check_with_allowlist \
 
 check_with_allowlist \
   "ctl command default assignments are scoped to contract files" \
-  '^e2e/runner/branding_constants_gen.py:' \
+  '^tools/cli/branding_constants_gen.py:' \
   rg -n --glob '*.py' --glob '*.go' --glob '*.sh' --glob '!.github/checks/check_branding_single_source.sh' 'DEFAULT_CTL_BIN\s*=\s*f"\{DEFAULT_BRAND_SLUG\}-ctl"|DEFAULT_CTL_BIN\s*=\s*"esb-ctl"|DEFAULT_CTL_BIN="esb-ctl"|return\s+defaultBrandSlug\s*\+\s*"-ctl"' e2e tools
 
 if [[ ${status} -ne 0 ]]; then

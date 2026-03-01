@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from e2e.runner.branding_constants_gen import (
+from tools.cli.branding_constants_gen import (
     DEFAULT_BRAND_HOME_DIR,
     DEFAULT_BRAND_SLUG,
 )

@@ -6,7 +6,7 @@ import sys
 from dataclasses import dataclass
 from typing import NoReturn
 
-from e2e.runner.branding_constants_gen import DEFAULT_CTL_BIN
+from tools.cli.branding_constants_gen import DEFAULT_CTL_BIN
 from tools.cli.deploy_ops import (
     DeployInput,
     ProvisionInput,

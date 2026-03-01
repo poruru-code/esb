@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from e2e.runner.branding_constants_gen import DEFAULT_CTL_BIN
+from tools.cli.branding_constants_gen import DEFAULT_CTL_BIN
 
 
 def main() -> int:
