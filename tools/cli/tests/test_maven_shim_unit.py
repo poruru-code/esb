@@ -31,6 +31,7 @@ def test_buildx_command_contains_flags_and_build_args(tmp_path: Path) -> None:
         tmp_path,
         no_cache=True,
         build_args={"BASE_MAVEN_IMAGE": "maven:3.9", "EMPTY": "  "},
+        env=None,
     )
     assert cmd[:5] == ["docker", "buildx", "build", "--platform", "linux/amd64"]
     assert "--no-cache" in cmd
@@ -45,7 +46,9 @@ def test_ensure_image_skips_build_when_cached_and_pushes_when_registry_set(monke
     released = {"done": False}
 
     monkeypatch.setattr(maven_shim, "docker_image_exists", lambda _: True)
-    monkeypatch.setattr(maven_shim, "run_command", lambda cmd, check=True: commands.append(cmd))
+    monkeypatch.setattr(
+        maven_shim, "run_command", lambda cmd, check=True, env=None: commands.append(cmd)
+    )
     monkeypatch.setattr(
         maven_shim,
         "_acquire_lock",
@@ -64,7 +67,9 @@ def test_ensure_image_builds_when_cache_miss(monkeypatch, tmp_path: Path) -> Non
     commands: list[list[str]] = []
 
     monkeypatch.setattr(maven_shim, "docker_image_exists", lambda _: False)
-    monkeypatch.setattr(maven_shim, "run_command", lambda cmd, check=True: commands.append(cmd))
+    monkeypatch.setattr(
+        maven_shim, "run_command", lambda cmd, check=True, env=None: commands.append(cmd)
+    )
     monkeypatch.setattr(maven_shim, "_acquire_lock", lambda _: (lambda: None))
     monkeypatch.setattr(
         maven_shim,

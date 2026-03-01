@@ -3,7 +3,6 @@
 # Why: E2E deploy phase requires ctl, while test-only runs do not.
 from __future__ import annotations
 
-import json
 import os
 from pathlib import Path
 from types import SimpleNamespace
@@ -20,16 +19,6 @@ def _args(*, test_only: bool = False) -> SimpleNamespace:
 
 def _probe_ok(args, **kwargs):
     del kwargs
-    cmd = list(args)
-    if cmd[-3:] == ["capabilities", "--output", "json"]:
-        payload = {
-            "schema_version": 1,
-            "contracts": {
-                "maven_shim_ensure_schema_version": 1,
-                "fixture_image_ensure_schema_version": 1,
-            },
-        }
-        return SimpleNamespace(returncode=0, stdout=json.dumps(payload))
     return SimpleNamespace(returncode=0, stdout="usage")
 
 
@@ -134,9 +123,7 @@ def test_ensure_ctl_available_fails_when_subcommand_contract_missing(monkeypatch
         ensure_ctl_available()
 
 
-def test_ensure_ctl_available_fails_when_fixture_ensure_subcommand_missing(
-    monkeypatch,
-) -> None:
+def test_ensure_ctl_available_fails_when_provision_subcommand_missing(monkeypatch) -> None:
     monkeypatch.delenv(ENV_CTL_BIN, raising=False)
     monkeypatch.setenv("HOME", "/tmp/esb-no-local-ctl")
     monkeypatch.setattr(
@@ -145,32 +132,8 @@ def test_ensure_ctl_available_fails_when_fixture_ensure_subcommand_missing(
 
     def fake_probe(args, **kwargs):
         del kwargs
-        cmd = list(args)
-        if cmd[-4:] == ["internal", "fixture-image", "ensure", "--help"]:
+        if list(args)[-2:] == ["provision", "--help"]:
             return SimpleNamespace(returncode=1, stdout="unknown command")
-        return SimpleNamespace(returncode=0, stdout="usage")
-
-    monkeypatch.setattr("e2e.run_tests.subprocess.run", fake_probe)
-    with pytest.raises(SystemExit):
-        ensure_ctl_available()
-
-
-def test_ensure_ctl_available_fails_when_capabilities_contract_mismatch(
-    monkeypatch,
-) -> None:
-    monkeypatch.delenv(ENV_CTL_BIN, raising=False)
-    monkeypatch.setenv("HOME", "/tmp/esb-no-local-ctl")
-    monkeypatch.setattr(
-        "e2e.run_tests.shutil.which", lambda name: f"/usr/local/bin/{DEFAULT_CTL_BIN}"
-    )
-
-    def fake_probe(args, **kwargs):
-        del kwargs
-        if list(args)[-3:] == ["capabilities", "--output", "json"]:
-            return SimpleNamespace(
-                returncode=0,
-                stdout='{"schema_version":1,"contracts":{"maven_shim_ensure_schema_version":1}}',
-            )
         return SimpleNamespace(returncode=0, stdout="usage")
 
     monkeypatch.setattr("e2e.run_tests.subprocess.run", fake_probe)

@@ -12,7 +12,7 @@ from urllib import request as urlrequest
 
 import yaml
 
-from e2e.runner.branding_constants_gen import DEFAULT_CTL_BIN
+from tools.cli.branding_constants_gen import DEFAULT_CTL_BIN
 from tools.cli.common import run_command
 
 

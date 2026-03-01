@@ -5,7 +5,7 @@ import json
 import os
 import tempfile
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -24,6 +24,7 @@ class EnsureInput:
     base_image: str
     host_registry: str = ""
     no_cache: bool = False
+    env: Mapping[str, str] | None = None
 
 
 @dataclass(frozen=True)
@@ -127,11 +128,12 @@ def _buildx_command(
     *,
     no_cache: bool,
     build_args: dict[str, str],
+    env: Mapping[str, str] | None,
 ) -> list[str]:
     cmd = ["docker", "buildx", "build", "--platform", "linux/amd64", "--load", "--pull"]
     if no_cache:
         cmd.append("--no-cache")
-    cmd = append_proxy_build_args(cmd)
+    cmd = append_proxy_build_args(cmd, env=env)
     for key in sorted(build_args.keys()):
         value = build_args[key].strip()
         if value == "":
@@ -162,13 +164,14 @@ def ensure_image(input_data: EnsureInput) -> EnsureResult:
                     context_dir,
                     no_cache=input_data.no_cache,
                     build_args={"BASE_MAVEN_IMAGE": base_ref},
+                    env=input_data.env,
                 )
-                run_command(build_cmd, check=True)
+                run_command(build_cmd, check=True, env=input_data.env)
             finally:
                 cleanup()
 
         if host_registry != "":
-            run_command(["docker", "push", shim_ref], check=True)
+            run_command(["docker", "push", shim_ref], check=True, env=input_data.env)
         return EnsureResult(shim_image=shim_ref)
     finally:
         release()

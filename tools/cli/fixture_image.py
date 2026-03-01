@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -32,6 +33,7 @@ class FixtureImageEnsureInput:
     artifact_path: str
     no_cache: bool = False
     fixture_root: str = DEFAULT_FIXTURE_IMAGE_ROOT
+    env: Mapping[str, str] | None = None
 
 
 @dataclass(frozen=True)
@@ -79,6 +81,7 @@ def execute_fixture_image_ensure(input_data: FixtureImageEnsureInput) -> Fixture
                         base_image=JAVA_FIXTURE_MAVEN_BASE_IMAGE,
                         host_registry=registry_host,
                         no_cache=input_data.no_cache,
+                        env=input_data.env,
                     )
                 )
                 shim_image = shim_result.shim_image.strip()
@@ -93,10 +96,12 @@ def execute_fixture_image_ensure(input_data: FixtureImageEnsureInput) -> Fixture
                 context_dir=fixture_dir,
                 no_cache=input_data.no_cache,
                 build_args=build_args,
+                env=input_data.env,
             ),
+            env=input_data.env,
             check=True,
         )
-        run_command(["docker", "push", source], check=True)
+        run_command(["docker", "push", source], env=input_data.env, check=True)
         prepared_images.append(source)
 
     return FixtureImageEnsureResult(
@@ -111,11 +116,12 @@ def buildx_build_command_for_fixture(
     context_dir: Path,
     no_cache: bool,
     build_args: dict[str, str],
+    env: Mapping[str, str] | None,
 ) -> list[str]:
     cmd = ["docker", "buildx", "build", "--platform", "linux/amd64", "--load"]
     if no_cache:
         cmd.append("--no-cache")
-    cmd = append_proxy_build_args(cmd)
+    cmd = append_proxy_build_args(cmd, env=env)
     for key in sorted(build_args.keys()):
         value = build_args[key].strip()
         if value == "":

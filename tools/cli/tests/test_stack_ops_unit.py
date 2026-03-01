@@ -283,7 +283,7 @@ def test_execute_stack_deploy_fails_when_registry_owned_by_other_project(
             payload = [
                 {
                     "Config": {
-                        "Labels": {"com.docker.compose.project": "padma-dev"},
+                        "Labels": {"com.docker.compose.project": "legacy-dev"},
                     }
                 }
             ]

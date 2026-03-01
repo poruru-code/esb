@@ -14,8 +14,8 @@ from typing import Any
 
 import yaml
 
-from e2e.runner.branding_constants_gen import DEFAULT_BRAND_HOME_DIR, DEFAULT_CTL_BIN
 from tools.cli import artifact
+from tools.cli.branding_constants_gen import DEFAULT_BRAND_HOME_DIR, DEFAULT_CTL_BIN
 from tools.cli.common import (
     append_proxy_build_args,
     docker_image_exists,

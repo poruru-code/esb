@@ -8,12 +8,17 @@ import threading
 from pathlib import Path
 from typing import Callable
 
-from e2e.runner.ctl_contract import DEFAULT_CTL_BIN, resolve_ctl_bin_from_env
+from e2e.runner.ctl_contract import resolve_ctl_bin_from_env
 from e2e.runner.logging import LogSink, run_and_stream
 from e2e.runner.models import RunContext
 from e2e.runner.utils import PROJECT_ROOT
+from tools.cli.fixture_image import (
+    DEFAULT_FIXTURE_IMAGE_ROOT,
+    FIXTURE_IMAGE_ENSURE_SCHEMA_VERSION,
+    FixtureImageEnsureInput,
+    execute_fixture_image_ensure,
+)
 
-_FIXTURE_IMAGE_ENSURE_OUTPUT_SCHEMA_VERSION = 1
 _FIXTURE_PREPARE_CACHE_ENV_KEYS: tuple[str, ...] = (
     "HTTP_PROXY",
     "http_proxy",
@@ -139,8 +144,7 @@ def _prepare_local_fixture_images(
     if not manifest_path.exists():
         return
 
-    ctl_bin = _ctl_bin(ctx)
-    cache_key = _fixture_prepare_cache_key(ctx, manifest_path, ctl_bin)
+    cache_key = _fixture_prepare_cache_key(ctx, manifest_path)
 
     with _prepared_local_fixture_lock:
         if not no_cache and cache_key in _prepared_local_fixture_images:
@@ -151,36 +155,26 @@ def _prepare_local_fixture_images(
         if printer:
             printer(message)
 
-        ensure_cmd = [
-            ctl_bin,
-            "internal",
-            "fixture-image",
-            "ensure",
-            "--artifact",
-            str(manifest_path),
-            "--output",
-            "json",
-        ]
-        if no_cache:
-            ensure_cmd.append("--no-cache")
+        fixture_root = str((PROJECT_ROOT / DEFAULT_FIXTURE_IMAGE_ROOT).resolve())
+        try:
+            result = execute_fixture_image_ensure(
+                FixtureImageEnsureInput(
+                    artifact_path=str(manifest_path),
+                    no_cache=no_cache,
+                    fixture_root=fixture_root,
+                    env=ctx.deploy_env,
+                )
+            )
+        except Exception as exc:  # noqa: BLE001
+            raise RuntimeError(f"failed to prepare local fixture images: {exc}") from exc
 
-        output_lines: list[str] = []
-        rc = run_and_stream(
-            ensure_cmd,
-            cwd=PROJECT_ROOT,
-            env=ctx.deploy_env,
-            log=log,
-            printer=printer,
-            on_line=lambda line: output_lines.append(line),
-        )
-        if rc != 0:
+        if result.schema_version != FIXTURE_IMAGE_ENSURE_SCHEMA_VERSION:
             raise RuntimeError(
-                "failed to prepare local fixture images via "
-                f"`{ctl_bin} internal fixture-image ensure` (exit code {rc}); "
-                f"ensure {DEFAULT_CTL_BIN} supports this internal command"
+                "invalid fixture image ensure response schema: "
+                f"{result.schema_version} (expected {FIXTURE_IMAGE_ENSURE_SCHEMA_VERSION})"
             )
 
-        prepared_images = _parse_fixture_image_ensure_output(output_lines)
+        prepared_images = _normalize_prepared_images(result.prepared_images)
         for image_ref in prepared_images:
             image_message = f"Prepared local image fixture: {image_ref}"
             log.write_line(image_message)
@@ -191,10 +185,9 @@ def _prepare_local_fixture_images(
             _prepared_local_fixture_images.add(cache_key)
 
 
-def _fixture_prepare_cache_key(ctx: RunContext, manifest_path: Path, ctl_bin: str) -> str:
+def _fixture_prepare_cache_key(ctx: RunContext, manifest_path: Path) -> str:
     payload = {
         "manifest_path": str(manifest_path),
-        "ctl_bin": ctl_bin,
         "env_name": ctx.scenario.env_name,
         "cache_sensitive_env": {
             key: str(ctx.deploy_env.get(key, "")).strip() for key in _FIXTURE_PREPARE_CACHE_ENV_KEYS
@@ -203,38 +196,11 @@ def _fixture_prepare_cache_key(ctx: RunContext, manifest_path: Path, ctl_bin: st
     return json.dumps(payload, sort_keys=True, separators=(",", ":"))
 
 
-def _parse_fixture_image_ensure_output(lines: list[str]) -> list[str]:
-    for line in reversed(lines):
-        raw = line.strip()
-        if raw == "":
-            continue
-        try:
-            payload = json.loads(raw)
-        except json.JSONDecodeError:
-            continue
-        if not isinstance(payload, dict):
-            continue
-        if "schema_version" not in payload or "prepared_images" not in payload:
-            continue
-
-        schema_version = payload.get("schema_version")
-        if schema_version != _FIXTURE_IMAGE_ENSURE_OUTPUT_SCHEMA_VERSION:
-            raise RuntimeError(
-                "invalid fixture image ensure response schema: "
-                f"{schema_version} (expected {_FIXTURE_IMAGE_ENSURE_OUTPUT_SCHEMA_VERSION})"
-            )
-        prepared_images = payload.get("prepared_images")
-        if not isinstance(prepared_images, list):
-            raise RuntimeError(
-                "fixture image ensure response does not include prepared_images list"
-            )
-
-        normalized: list[str] = []
-        for image_ref in prepared_images:
-            value = str(image_ref).strip()
-            if value == "":
-                raise RuntimeError("fixture image ensure response contains empty image reference")
-            normalized.append(value)
-        return normalized
-
-    raise RuntimeError("fixture image ensure returned no JSON payload with required fields")
+def _normalize_prepared_images(prepared_images: list[str]) -> list[str]:
+    normalized: list[str] = []
+    for image_ref in prepared_images:
+        value = str(image_ref).strip()
+        if value == "":
+            raise RuntimeError("fixture image ensure response contains empty image reference")
+        normalized.append(value)
+    return normalized

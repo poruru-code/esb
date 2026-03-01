@@ -13,14 +13,11 @@ import urllib3
 from e2e.runner.cli import parse_args
 from e2e.runner.config import load_test_matrix
 from e2e.runner.ctl_contract import (
-    CTL_CAPABILITIES_SCHEMA_VERSION,
-    CTL_REQUIRED_CONTRACTS,
     CTL_REQUIRED_SUBCOMMANDS,
     DEFAULT_CTL_BIN,
     ENV_CTL_BIN,
     ENV_CTL_BIN_RESOLVED,
     configured_ctl_bin_from_env,
-    parse_ctl_capabilities,
 )
 from e2e.runner.live_display import LiveDisplay
 from e2e.runner.planner import apply_test_target, build_plan
@@ -113,49 +110,6 @@ def ensure_ctl_available() -> str:
                 print(f"[ERROR] {command_name} binary does not support `{command}`: {binary_path}")
                 print(
                     f"        Ensure a current {command_name} is installed or set {ENV_CTL_BIN} explicitly."
-                )
-                _print_build_hint()
-                sys.exit(1)
-
-        cap_probe = subprocess.run(
-            [binary_path, "internal", "capabilities", "--output", "json"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            check=False,
-        )
-        if cap_probe.returncode != 0:
-            print(f"[ERROR] {command_name} capability probe failed: {binary_path}")
-            print(f"        Ensure a current {command_name} is installed.")
-            _print_build_hint()
-            sys.exit(1)
-
-        capabilities = parse_ctl_capabilities(cap_probe.stdout or "")
-        if capabilities is None:
-            print(f"[ERROR] {command_name} capability response did not include JSON payload.")
-            _print_build_hint()
-            sys.exit(1)
-
-        schema_version = capabilities.get("schema_version")
-        if schema_version != CTL_CAPABILITIES_SCHEMA_VERSION:
-            print(
-                f"[ERROR] {command_name} capability schema mismatch: "
-                f"{schema_version} (expected {CTL_CAPABILITIES_SCHEMA_VERSION})"
-            )
-            _print_build_hint()
-            sys.exit(1)
-
-        contracts = capabilities.get("contracts")
-        if not isinstance(contracts, dict):
-            print(f"[ERROR] {command_name} capability response is missing contracts map.")
-            _print_build_hint()
-            sys.exit(1)
-
-        for key, expected in CTL_REQUIRED_CONTRACTS.items():
-            if contracts.get(key) != expected:
-                print(
-                    f"[ERROR] {command_name} missing required contract version: "
-                    f"{key}={contracts.get(key)!r} (expected {expected})"
                 )
                 _print_build_hint()
                 sys.exit(1)

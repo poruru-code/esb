@@ -1,6 +1,6 @@
 # Where: e2e/runner/tests/test_deploy_command.py
-# What: Unit tests for artifact-only deploy command assembly used by E2E runner.
-# Why: Keep E2E deploy contract stable without requiring esb CLI execution.
+# What: Unit tests for artifact deploy orchestration used by E2E runner.
+# Why: Keep fixture-prepare + deploy/provision sequencing stable without internal subprocess fallback.
 from __future__ import annotations
 
 from pathlib import Path
@@ -14,6 +14,8 @@ from e2e.runner.ctl_contract import DEFAULT_CTL_BIN, ENV_CTL_BIN_RESOLVED
 from e2e.runner.deploy import deploy_artifacts
 from e2e.runner.logging import LogSink
 from e2e.runner.models import RunContext, Scenario
+from e2e.runner.utils import PROJECT_ROOT
+from tools.cli.fixture_image import DEFAULT_FIXTURE_IMAGE_ROOT
 
 
 def _make_context(
@@ -123,16 +125,31 @@ def _write_artifact_fixture(
     return manifest_path
 
 
-def test_deploy_artifacts_reports_fixture_prepare_failure(monkeypatch, tmp_path):
-    manifest = tmp_path / "artifact.yml"
-    manifest.write_text("artifacts: invalid\n", encoding="utf-8")
-    ctx = _make_context(tmp_path)
-    ctx.scenario.extra["artifact_manifest"] = str(manifest)
+def _fixture_result(images: list[str], *, schema_version: int = 1):
+    class _Result:
+        def __init__(self) -> None:
+            self.schema_version = schema_version
+            self.prepared_images = images
 
-    monkeypatch.setattr(
-        "e2e.runner.deploy._deploy_via_artifact_driver", lambda *args, **kwargs: None
+    return _Result()
+
+
+def test_deploy_artifacts_reports_fixture_prepare_failure(monkeypatch, tmp_path):
+    deploy_module._prepared_local_fixture_images.clear()
+    deploy_module._prepared_maven_shim_images.clear()
+    manifest = _write_artifact_fixture(
+        tmp_path,
+        image_ref="127.0.0.1:5010/esb-lambda-echo:e2e-test",
+        base_ref="127.0.0.1:5010/esb-e2e-image-python:latest",
     )
-    monkeypatch.setattr("e2e.runner.deploy.run_and_stream", lambda *args, **kwargs: 1)
+    ctx = _make_context(tmp_path, artifact_manifest=str(manifest))
+
+    monkeypatch.setattr("e2e.runner.deploy.run_and_stream", lambda *args, **kwargs: 0)
+
+    def fake_fixture_prepare(_input):
+        raise RuntimeError("prepare failed")
+
+    monkeypatch.setattr("e2e.runner.deploy.execute_fixture_image_ensure", fake_fixture_prepare)
 
     log = LogSink(tmp_path / "deploy.log")
     log.open()
@@ -148,7 +165,7 @@ def test_deploy_artifacts_reports_fixture_prepare_failure(monkeypatch, tmp_path)
         log.close()
 
 
-def test_deploy_artifacts_prepares_local_fixture_image(monkeypatch, tmp_path):
+def test_deploy_artifacts_prepares_local_fixture_image_via_module_call(monkeypatch, tmp_path):
     deploy_module._prepared_local_fixture_images.clear()
     deploy_module._prepared_maven_shim_images.clear()
     manifest = _write_artifact_fixture(
@@ -159,31 +176,23 @@ def test_deploy_artifacts_prepares_local_fixture_image(monkeypatch, tmp_path):
     ctx = _make_context(
         tmp_path,
         artifact_manifest=str(manifest),
+        runtime_env={
+            "http_proxy": "http://proxy.example:8080",
+            "HTTPS_PROXY": "http://secure-proxy.example:8443",
+        },
     )
 
-    commands: list[list[str]] = []
+    fixture_calls: list[Any] = []
 
+    def fake_fixture_prepare(input_data):
+        fixture_calls.append(input_data)
+        return _fixture_result(["127.0.0.1:5010/esb-e2e-image-python:latest"])
+
+    monkeypatch.setattr("e2e.runner.deploy.execute_fixture_image_ensure", fake_fixture_prepare)
     monkeypatch.setattr(
         "e2e.runner.deploy._deploy_via_artifact_driver", lambda *args, **kwargs: None
     )
-
-    def fake_run_and_stream(cmd, **kwargs):
-        commands.append(list(cmd))
-        on_line = kwargs.get("on_line")
-        if (
-            len(cmd) >= 4
-            and cmd[0] == DEFAULT_CTL_BIN
-            and cmd[1] == "internal"
-            and cmd[2] == "fixture-image"
-            and cmd[3] == "ensure"
-            and on_line is not None
-        ):
-            on_line(
-                '{"schema_version":1,"prepared_images":["127.0.0.1:5010/esb-e2e-image-python:latest"]}'
-            )
-        return 0
-
-    monkeypatch.setattr("e2e.runner.deploy.run_and_stream", fake_run_and_stream)
+    monkeypatch.chdir(tmp_path)
 
     log = LogSink(tmp_path / "deploy.log")
     log.open()
@@ -197,154 +206,94 @@ def test_deploy_artifacts_prepares_local_fixture_image(monkeypatch, tmp_path):
     finally:
         log.close()
 
-    assert commands[0] == [
-        DEFAULT_CTL_BIN,
-        "internal",
-        "fixture-image",
-        "ensure",
-        "--artifact",
-        str(manifest.resolve()),
-        "--output",
-        "json",
-    ]
+    assert len(fixture_calls) == 1
+    fixture_input = fixture_calls[0]
+    assert fixture_input.artifact_path == str(manifest.resolve())
+    assert fixture_input.no_cache is False
+    assert fixture_input.fixture_root == str((PROJECT_ROOT / DEFAULT_FIXTURE_IMAGE_ROOT).resolve())
+    assert fixture_input.env["http_proxy"] == "http://proxy.example:8080"
 
 
-def test_deploy_artifacts_local_fixture_prepare_uses_internal_contract(monkeypatch, tmp_path):
+def test_deploy_artifacts_rejects_fixture_prepare_schema_mismatch(monkeypatch, tmp_path):
     deploy_module._prepared_local_fixture_images.clear()
     deploy_module._prepared_maven_shim_images.clear()
     manifest = _write_artifact_fixture(
         tmp_path,
         image_ref="127.0.0.1:5010/esb-lambda-echo:e2e-test",
-        base_ref="127.0.0.1:5010/esb-e2e-image-java:latest",
+        base_ref="127.0.0.1:5010/esb-e2e-image-python:latest",
     )
-    ctx = _make_context(
+    ctx = _make_context(tmp_path, artifact_manifest=str(manifest))
+
+    monkeypatch.setattr(
+        "e2e.runner.deploy.execute_fixture_image_ensure",
+        lambda _input: _fixture_result([], schema_version=999),
+    )
+    monkeypatch.setattr("e2e.runner.deploy.run_and_stream", lambda *args, **kwargs: 0)
+
+    log = LogSink(tmp_path / "deploy.log")
+    log.open()
+    try:
+        with pytest.raises(RuntimeError, match="invalid fixture image ensure response schema"):
+            deploy_artifacts(
+                ctx,
+                no_cache=False,
+                log=log,
+                printer=None,
+            )
+    finally:
+        log.close()
+
+
+def test_deploy_artifacts_rejects_empty_fixture_image_ref(monkeypatch, tmp_path):
+    deploy_module._prepared_local_fixture_images.clear()
+    deploy_module._prepared_maven_shim_images.clear()
+    manifest = _write_artifact_fixture(
         tmp_path,
-        artifact_manifest=str(manifest),
-        runtime_env={
-            "http_proxy": "http://proxy.example:8080",
-            "HTTPS_PROXY": "http://secure-proxy.example:8443",
-            "NO_PROXY": "localhost,127.0.0.1,registry",
-        },
+        image_ref="127.0.0.1:5010/esb-lambda-echo:e2e-test",
+        base_ref="127.0.0.1:5010/esb-e2e-image-python:latest",
     )
+    ctx = _make_context(tmp_path, artifact_manifest=str(manifest))
+
+    monkeypatch.setattr(
+        "e2e.runner.deploy.execute_fixture_image_ensure",
+        lambda _input: _fixture_result([""]),
+    )
+    monkeypatch.setattr("e2e.runner.deploy.run_and_stream", lambda *args, **kwargs: 0)
+
+    log = LogSink(tmp_path / "deploy.log")
+    log.open()
+    try:
+        with pytest.raises(RuntimeError, match="empty image reference"):
+            deploy_artifacts(
+                ctx,
+                no_cache=False,
+                log=log,
+                printer=None,
+            )
+    finally:
+        log.close()
+
+
+def test_deploy_artifacts_runs_deploy_and_provision(monkeypatch, tmp_path):
+    deploy_module._prepared_local_fixture_images.clear()
+    deploy_module._prepared_maven_shim_images.clear()
+    manifest = _write_artifact_fixture(
+        tmp_path,
+        image_ref="127.0.0.1:5010/esb-lambda-echo:e2e-test",
+        base_ref="127.0.0.1:5010/esb-lambda-base:e2e-test",
+    )
+    ctx = _make_context(tmp_path, artifact_manifest=str(manifest))
 
     commands: list[list[str]] = []
 
     monkeypatch.setattr(
-        "e2e.runner.deploy._deploy_via_artifact_driver", lambda *args, **kwargs: None
+        "e2e.runner.deploy.execute_fixture_image_ensure",
+        lambda _input: _fixture_result([]),
     )
-
-    def fake_run_and_stream(cmd, **kwargs):
-        commands.append(list(cmd))
-        on_line = kwargs.get("on_line")
-        if (
-            len(cmd) >= 4
-            and cmd[0] == DEFAULT_CTL_BIN
-            and cmd[1] == "internal"
-            and cmd[2] == "fixture-image"
-            and cmd[3] == "ensure"
-            and on_line is not None
-        ):
-            on_line(
-                '{"schema_version":1,"prepared_images":["127.0.0.1:5010/esb-e2e-image-java:latest"]}'
-            )
-        return 0
-
-    monkeypatch.setattr("e2e.runner.deploy.run_and_stream", fake_run_and_stream)
-
-    log = LogSink(tmp_path / "deploy.log")
-    log.open()
-    try:
-        deploy_artifacts(
-            ctx,
-            no_cache=False,
-            log=log,
-            printer=None,
-        )
-    finally:
-        log.close()
-
-    fixture_ensure_cmd = commands[0]
-    assert fixture_ensure_cmd == [
-        DEFAULT_CTL_BIN,
-        "internal",
-        "fixture-image",
-        "ensure",
-        "--artifact",
-        str(manifest.resolve()),
-        "--output",
-        "json",
-    ]
-
-
-def test_parse_fixture_image_ensure_output_validates_schema() -> None:
-    prepared = deploy_module._parse_fixture_image_ensure_output(
-        [
-            "prelude log line",
-            '{"schema_version":1,"prepared_images":["127.0.0.1:5010/esb-e2e-image-java:latest"]}',
-        ]
+    monkeypatch.setattr(
+        "e2e.runner.deploy.run_and_stream",
+        lambda cmd, **kwargs: commands.append(list(cmd)) or 0,
     )
-    assert prepared == ["127.0.0.1:5010/esb-e2e-image-java:latest"]
-
-
-def test_parse_fixture_image_ensure_output_ignores_unrelated_json_logs() -> None:
-    prepared = deploy_module._parse_fixture_image_ensure_output(
-        [
-            '{"level":"info","msg":"building shim image"}',
-            '{"schema_version":1,"prepared_images":["127.0.0.1:5010/esb-e2e-image-python:latest"]}',
-            '{"event":"docker-finished"}',
-        ]
-    )
-    assert prepared == ["127.0.0.1:5010/esb-e2e-image-python:latest"]
-
-
-def test_parse_fixture_image_ensure_output_rejects_non_list_payload() -> None:
-    with pytest.raises(RuntimeError, match="does not include prepared_images"):
-        deploy_module._parse_fixture_image_ensure_output(
-            ['{"schema_version":1,"prepared_images":"not-a-list"}']
-        )
-
-
-def test_parse_fixture_image_ensure_output_rejects_missing_payload() -> None:
-    with pytest.raises(RuntimeError, match="no JSON payload with required fields"):
-        deploy_module._parse_fixture_image_ensure_output(
-            ["line-a", '{"level":"info","msg":"line-b"}', '{"schema_version":1}']
-        )
-
-
-def test_deploy_artifacts_prepares_fixture_then_runs_deploy_and_provision(monkeypatch, tmp_path):
-    deploy_module._prepared_local_fixture_images.clear()
-    deploy_module._prepared_maven_shim_images.clear()
-    image_ref = "127.0.0.1:5010/esb-lambda-echo:e2e-test"
-    base_ref = "127.0.0.1:5010/esb-e2e-image-python:latest"
-    manifest = _write_artifact_fixture(tmp_path, image_ref=image_ref, base_ref=base_ref)
-    ctx = _make_context(
-        tmp_path,
-        artifact_manifest=str(manifest),
-        runtime_env={
-            "HOST_REGISTRY_ADDR": "127.0.0.1:5010",
-            "CONTAINER_REGISTRY": "127.0.0.1:5010",
-        },
-    )
-
-    commands: list[list[str]] = []
-
-    def fake_run_and_stream(cmd: list[str], **kwargs: Any) -> int:
-        commands.append(list(cmd))
-        on_line = kwargs.get("on_line")
-        if (
-            len(cmd) >= 4
-            and cmd[0] == DEFAULT_CTL_BIN
-            and cmd[1] == "internal"
-            and cmd[2] == "fixture-image"
-            and cmd[3] == "ensure"
-            and on_line is not None
-        ):
-            on_line(
-                '{"schema_version":1,"prepared_images":["127.0.0.1:5010/esb-e2e-image-python:latest"]}'
-            )
-        return 0
-
-    monkeypatch.setattr("e2e.runner.deploy.run_and_stream", fake_run_and_stream)
 
     log = LogSink(tmp_path / "deploy.log")
     log.open()
@@ -360,92 +309,11 @@ def test_deploy_artifacts_prepares_fixture_then_runs_deploy_and_provision(monkey
 
     assert commands[0] == [
         DEFAULT_CTL_BIN,
-        "internal",
-        "fixture-image",
-        "ensure",
-        "--artifact",
-        str(manifest.resolve()),
-        "--output",
-        "json",
-    ]
-    assert commands[1] == [
-        DEFAULT_CTL_BIN,
         "deploy",
         "--artifact",
         str(manifest.resolve()),
     ]
-    assert commands[2] == [
-        DEFAULT_CTL_BIN,
-        "provision",
-        "--project",
-        ctx.compose_project,
-        "--compose-file",
-        str(ctx.compose_file),
-        "--env-file",
-        ctx.env_file,
-    ]
-
-
-def test_deploy_artifacts_runs_deploy_and_provision(monkeypatch, tmp_path):
-    image_ref = "127.0.0.1:5010/esb-lambda-echo:e2e-test"
-    base_ref = "127.0.0.1:5010/esb-lambda-base:e2e-test"
-    manifest = _write_artifact_fixture(tmp_path, image_ref=image_ref, base_ref=base_ref)
-    ctx = _make_context(
-        tmp_path,
-        artifact_manifest=str(manifest),
-        runtime_env={
-            "HOST_REGISTRY_ADDR": "127.0.0.1:5010",
-            "CONTAINER_REGISTRY": "127.0.0.1:5010",
-        },
-    )
-
-    commands: list[list[str]] = []
-
-    def fake_run_and_stream(cmd: list[str], **kwargs: Any) -> int:
-        commands.append(list(cmd))
-        on_line = kwargs.get("on_line")
-        if (
-            len(cmd) >= 4
-            and cmd[0] == DEFAULT_CTL_BIN
-            and cmd[1] == "internal"
-            and cmd[2] == "fixture-image"
-            and cmd[3] == "ensure"
-            and on_line is not None
-        ):
-            on_line('{"schema_version":1,"prepared_images":[]}')
-        return 0
-
-    monkeypatch.setattr("e2e.runner.deploy.run_and_stream", fake_run_and_stream)
-
-    log = LogSink(tmp_path / "deploy.log")
-    log.open()
-    try:
-        deploy_artifacts(
-            ctx,
-            no_cache=False,
-            log=log,
-            printer=None,
-        )
-    finally:
-        log.close()
-
-    assert commands[0] == [
-        DEFAULT_CTL_BIN,
-        "internal",
-        "fixture-image",
-        "ensure",
-        "--artifact",
-        str(manifest.resolve()),
-        "--output",
-        "json",
-    ]
     assert commands[1] == [
-        DEFAULT_CTL_BIN,
-        "deploy",
-        "--artifact",
-        str(manifest.resolve()),
-    ]
-    assert commands[2] == [
         DEFAULT_CTL_BIN,
         "provision",
         "--project",
@@ -458,34 +326,27 @@ def test_deploy_artifacts_runs_deploy_and_provision(monkeypatch, tmp_path):
 
 
 def test_deploy_artifacts_deploy_with_no_cache(monkeypatch, tmp_path):
-    image_ref = "127.0.0.1:5010/esb-lambda-echo:e2e-test"
-    base_ref = "127.0.0.1:5010/esb-lambda-base:e2e-test"
-    manifest = _write_artifact_fixture(tmp_path, image_ref=image_ref, base_ref=base_ref)
-    ctx = _make_context(
+    deploy_module._prepared_local_fixture_images.clear()
+    deploy_module._prepared_maven_shim_images.clear()
+    manifest = _write_artifact_fixture(
         tmp_path,
-        artifact_manifest=str(manifest),
-        runtime_env={
-            "HOST_REGISTRY_ADDR": "127.0.0.1:5010",
-            "CONTAINER_REGISTRY": "127.0.0.1:5010",
-        },
+        image_ref="127.0.0.1:5010/esb-lambda-echo:e2e-test",
+        base_ref="127.0.0.1:5010/esb-lambda-base:e2e-test",
     )
-
-    def fake_run_and_stream(cmd: list[str], **kwargs: Any) -> int:
-        commands.append(list(cmd))
-        on_line = kwargs.get("on_line")
-        if (
-            len(cmd) >= 4
-            and cmd[0] == DEFAULT_CTL_BIN
-            and cmd[1] == "internal"
-            and cmd[2] == "fixture-image"
-            and cmd[3] == "ensure"
-            and on_line is not None
-        ):
-            on_line('{"schema_version":1,"prepared_images":[]}')
-        return 0
+    ctx = _make_context(tmp_path, artifact_manifest=str(manifest))
 
     commands: list[list[str]] = []
-    monkeypatch.setattr("e2e.runner.deploy.run_and_stream", fake_run_and_stream)
+    fixture_calls: list[Any] = []
+
+    def fake_fixture_prepare(input_data):
+        fixture_calls.append(input_data)
+        return _fixture_result([])
+
+    monkeypatch.setattr("e2e.runner.deploy.execute_fixture_image_ensure", fake_fixture_prepare)
+    monkeypatch.setattr(
+        "e2e.runner.deploy.run_and_stream",
+        lambda cmd, **kwargs: commands.append(list(cmd)) or 0,
+    )
 
     log = LogSink(tmp_path / "deploy.log")
     log.open()
@@ -499,18 +360,8 @@ def test_deploy_artifacts_deploy_with_no_cache(monkeypatch, tmp_path):
     finally:
         log.close()
 
+    assert fixture_calls[0].no_cache is True
     assert commands[0] == [
-        DEFAULT_CTL_BIN,
-        "internal",
-        "fixture-image",
-        "ensure",
-        "--artifact",
-        str(manifest.resolve()),
-        "--output",
-        "json",
-        "--no-cache",
-    ]
-    assert commands[1] == [
         DEFAULT_CTL_BIN,
         "deploy",
         "--artifact",
@@ -522,36 +373,25 @@ def test_deploy_artifacts_deploy_with_no_cache(monkeypatch, tmp_path):
 def test_deploy_artifacts_fixture_prepare_is_cached_by_conditions(monkeypatch, tmp_path):
     deploy_module._prepared_local_fixture_images.clear()
     deploy_module._prepared_maven_shim_images.clear()
-    image_ref = "127.0.0.1:5010/esb-lambda-echo:e2e-test"
-    base_ref = "127.0.0.1:5010/esb-lambda-base:e2e-test"
-    manifest = _write_artifact_fixture(tmp_path, image_ref=image_ref, base_ref=base_ref)
+    manifest = _write_artifact_fixture(
+        tmp_path,
+        image_ref="127.0.0.1:5010/esb-lambda-echo:e2e-test",
+        base_ref="127.0.0.1:5010/esb-lambda-base:e2e-test",
+    )
     ctx = _make_context(
         tmp_path,
         artifact_manifest=str(manifest),
-        runtime_env={
-            "HOST_REGISTRY_ADDR": "127.0.0.1:5010",
-            "CONTAINER_REGISTRY": "127.0.0.1:5010",
-            "http_proxy": "http://proxy.example:8080",
-        },
+        runtime_env={"http_proxy": "http://proxy.example:8080"},
     )
 
-    commands: list[list[str]] = []
+    fixture_calls: list[Any] = []
 
-    def fake_run_and_stream(cmd: list[str], **kwargs: Any) -> int:
-        commands.append(list(cmd))
-        on_line = kwargs.get("on_line")
-        if (
-            len(cmd) >= 4
-            and cmd[0] == DEFAULT_CTL_BIN
-            and cmd[1] == "internal"
-            and cmd[2] == "fixture-image"
-            and cmd[3] == "ensure"
-            and on_line is not None
-        ):
-            on_line('{"schema_version":1,"prepared_images":[]}')
-        return 0
+    def fake_fixture_prepare(input_data):
+        fixture_calls.append(input_data)
+        return _fixture_result([])
 
-    monkeypatch.setattr("e2e.runner.deploy.run_and_stream", fake_run_and_stream)
+    monkeypatch.setattr("e2e.runner.deploy.execute_fixture_image_ensure", fake_fixture_prepare)
+    monkeypatch.setattr("e2e.runner.deploy.run_and_stream", lambda *args, **kwargs: 0)
 
     log = LogSink(tmp_path / "deploy.log")
     log.open()
@@ -571,51 +411,31 @@ def test_deploy_artifacts_fixture_prepare_is_cached_by_conditions(monkeypatch, t
     finally:
         log.close()
 
-    fixture_ensure_count = sum(
-        1
-        for cmd in commands
-        if len(cmd) >= 4
-        and cmd[0] == DEFAULT_CTL_BIN
-        and cmd[1] == "internal"
-        and cmd[2] == "fixture-image"
-        and cmd[3] == "ensure"
-    )
-    assert fixture_ensure_count == 1
+    assert len(fixture_calls) == 1
 
 
 def test_deploy_artifacts_fixture_prepare_reexecutes_with_no_cache(monkeypatch, tmp_path):
     deploy_module._prepared_local_fixture_images.clear()
     deploy_module._prepared_maven_shim_images.clear()
-    image_ref = "127.0.0.1:5010/esb-lambda-echo:e2e-test"
-    base_ref = "127.0.0.1:5010/esb-lambda-base:e2e-test"
-    manifest = _write_artifact_fixture(tmp_path, image_ref=image_ref, base_ref=base_ref)
+    manifest = _write_artifact_fixture(
+        tmp_path,
+        image_ref="127.0.0.1:5010/esb-lambda-echo:e2e-test",
+        base_ref="127.0.0.1:5010/esb-lambda-base:e2e-test",
+    )
     ctx = _make_context(
         tmp_path,
         artifact_manifest=str(manifest),
-        runtime_env={
-            "HOST_REGISTRY_ADDR": "127.0.0.1:5010",
-            "CONTAINER_REGISTRY": "127.0.0.1:5010",
-            "http_proxy": "http://proxy.example:8080",
-        },
+        runtime_env={"http_proxy": "http://proxy.example:8080"},
     )
 
-    commands: list[list[str]] = []
+    fixture_calls: list[Any] = []
 
-    def fake_run_and_stream(cmd: list[str], **kwargs: Any) -> int:
-        commands.append(list(cmd))
-        on_line = kwargs.get("on_line")
-        if (
-            len(cmd) >= 4
-            and cmd[0] == DEFAULT_CTL_BIN
-            and cmd[1] == "internal"
-            and cmd[2] == "fixture-image"
-            and cmd[3] == "ensure"
-            and on_line is not None
-        ):
-            on_line('{"schema_version":1,"prepared_images":[]}')
-        return 0
+    def fake_fixture_prepare(input_data):
+        fixture_calls.append(input_data)
+        return _fixture_result([])
 
-    monkeypatch.setattr("e2e.runner.deploy.run_and_stream", fake_run_and_stream)
+    monkeypatch.setattr("e2e.runner.deploy.execute_fixture_image_ensure", fake_fixture_prepare)
+    monkeypatch.setattr("e2e.runner.deploy.run_and_stream", lambda *args, **kwargs: 0)
 
     log = LogSink(tmp_path / "deploy.log")
     log.open()
@@ -635,50 +455,36 @@ def test_deploy_artifacts_fixture_prepare_reexecutes_with_no_cache(monkeypatch, 
     finally:
         log.close()
 
-    fixture_ensure_cmds = [
-        cmd
-        for cmd in commands
-        if len(cmd) >= 4
-        and cmd[0] == DEFAULT_CTL_BIN
-        and cmd[1] == "internal"
-        and cmd[2] == "fixture-image"
-        and cmd[3] == "ensure"
-    ]
-    assert len(fixture_ensure_cmds) == 2
-    for cmd in fixture_ensure_cmds:
-        assert "--no-cache" in cmd
+    assert len(fixture_calls) == 2
+    assert fixture_calls[0].no_cache is True
+    assert fixture_calls[1].no_cache is True
 
 
 def test_deploy_artifacts_uses_resolved_ctl_bin(monkeypatch, tmp_path):
-    image_ref = "127.0.0.1:5010/esb-lambda-echo:e2e-test"
-    base_ref = "127.0.0.1:5010/esb-lambda-base:e2e-test"
-    manifest = _write_artifact_fixture(tmp_path, image_ref=image_ref, base_ref=base_ref)
+    deploy_module._prepared_local_fixture_images.clear()
+    deploy_module._prepared_maven_shim_images.clear()
+    manifest = _write_artifact_fixture(
+        tmp_path,
+        image_ref="127.0.0.1:5010/esb-lambda-echo:e2e-test",
+        base_ref="127.0.0.1:5010/esb-lambda-base:e2e-test",
+    )
     custom_ctl_bin = f"/opt/tools/custom-{DEFAULT_CTL_BIN}"
     ctx = _make_context(
         tmp_path,
         artifact_manifest=str(manifest),
-        runtime_env={
-            ENV_CTL_BIN_RESOLVED: custom_ctl_bin,
-        },
+        runtime_env={ENV_CTL_BIN_RESOLVED: custom_ctl_bin},
     )
 
     commands: list[list[str]] = []
 
-    def fake_run_and_stream(cmd: list[str], **kwargs: Any) -> int:
-        commands.append(list(cmd))
-        on_line = kwargs.get("on_line")
-        if (
-            len(cmd) >= 4
-            and cmd[0] == custom_ctl_bin
-            and cmd[1] == "internal"
-            and cmd[2] == "fixture-image"
-            and cmd[3] == "ensure"
-            and on_line is not None
-        ):
-            on_line('{"schema_version":1,"prepared_images":[]}')
-        return 0
-
-    monkeypatch.setattr("e2e.runner.deploy.run_and_stream", fake_run_and_stream)
+    monkeypatch.setattr(
+        "e2e.runner.deploy.execute_fixture_image_ensure",
+        lambda _input: _fixture_result([]),
+    )
+    monkeypatch.setattr(
+        "e2e.runner.deploy.run_and_stream",
+        lambda cmd, **kwargs: commands.append(list(cmd)) or 0,
+    )
 
     log = LogSink(tmp_path / "deploy.log")
     log.open()
@@ -694,7 +500,6 @@ def test_deploy_artifacts_uses_resolved_ctl_bin(monkeypatch, tmp_path):
 
     assert commands[0][0] == custom_ctl_bin
     assert commands[1][0] == custom_ctl_bin
-    assert commands[2][0] == custom_ctl_bin
 
 
 def test_deploy_artifacts_requires_manifest(tmp_path):
@@ -717,7 +522,7 @@ def test_deploy_artifacts_requires_manifest(tmp_path):
         log.close()
 
 
-def test_resolve_artifact_manifest_path_rejects_none(monkeypatch, tmp_path):
+def test_resolve_artifact_manifest_path_rejects_none(tmp_path):
     ctx = _make_context(tmp_path)
     ctx.scenario.extra["artifact_manifest"] = None
 
@@ -725,7 +530,7 @@ def test_resolve_artifact_manifest_path_rejects_none(monkeypatch, tmp_path):
         deploy_module._resolve_artifact_manifest_path(ctx)
 
 
-def test_resolve_artifact_manifest_path_rejects_blank(monkeypatch, tmp_path):
+def test_resolve_artifact_manifest_path_rejects_blank(tmp_path):
     ctx = _make_context(tmp_path)
     ctx.scenario.extra["artifact_manifest"] = "   "
 
