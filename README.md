@@ -27,7 +27,8 @@ docker compose -f docker-compose.containerd.yml up -d
 詳細な手順・構成は docs に移譲しています。
 
 ## Artifact デプロイ（esb-ctl）
-生成済み `artifact.yml` を使って stack 起動 + deploy/provision を行う場合は次を使います。
+`esb-ctl` の利用手順（コマンド一覧、標準フロー、環境変数、トラブルシュート）の正本は `tools/cli/README.md` です。
+ここでは最小の入口のみ記載します。
 
 ```bash
 esb-ctl stack deploy
@@ -42,6 +43,7 @@ esb-ctl stack deploy --artifact artifacts/<name>/artifact.yml
 補足:
 - `stack deploy` は `artifacts/**/artifact.yml` を自動検出し、複数ある場合は選択できます。
 - 固定名 registry コンテナ（既定: `esb-infra-registry`）が別 compose project 所有で残っている場合は、解消コマンドを表示して fail-fast します。
+- 詳細は `tools/cli/README.md` を参照してください。
 
 ## 開発 / コントリビュート
 ### 推奨ツール
@@ -53,7 +55,7 @@ mise trust
 mise install
 mise run setup
 ```
-`mise run setup` は開発用ツールの検証と Python 実装の `esb-ctl` インストールを行います。
+`mise run setup` は開発用ツールの検証と `esb-ctl` インストールを行います。
 証明書の作成・ローテーション手順は `docs/certificate-operations.md` を参照してください。
 証明書ローテーション用の補助タスク: `mise run rotate:certs:leaf:docker` / `mise run rotate:certs:leaf:containerd` / `mise run rotate:certs:all:docker` / `mise run rotate:certs:all:containerd`
 

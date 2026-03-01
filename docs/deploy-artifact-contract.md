@@ -184,6 +184,7 @@ artifacts:
   - 生成系ツールへの依存を持たない
 
 ## ツール責務（確定）
+- `esb-ctl` の具体的な利用手順（コマンド一覧/引数/標準フロー）は `tools/cli/README.md` を正本とします。
 - `tools/cli`（Python 実装）:
   - `deploy` の正本実装を提供する（検証 + apply を実行。必要時の image build/pull を含む）
   - schema/path/merge 規約の判定を一元化する
