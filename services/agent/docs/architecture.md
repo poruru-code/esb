@@ -115,8 +115,8 @@ sequenceDiagram
 
 ### 7) 依存方向ガード（重要）
 - `services/*` は runtime 実行責務のみを持ち、tooling 実装へ依存しません。
-- `services/* -> tools/*` および `services/* -> pkg/artifactcore` の import は禁止です。
-- artifact の検証/merge/apply は `tools/artifactctl` 側に閉じ、runtime は反映済み `runtime-config` のみを読む契約を維持します。
+- `services/* -> tools/*` の import は禁止です。
+- artifact の検証/merge/apply は `esb-ctl`（`tools/cli`）側に閉じ、runtime は反映済み `runtime-config` のみを読む契約を維持します。
 
 ## containerd runtime の責務分割
 containerd runtime 実装は 1 ファイル集中ではなく、以下に分割されています。

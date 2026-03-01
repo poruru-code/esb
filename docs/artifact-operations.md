@@ -62,15 +62,15 @@ Manual artifact minimum:
 - each entry with `artifact_root/runtime_config_dir` (`source_template` is optional metadata)
 - files: `<artifact_root>/<runtime_config_dir>/functions.yml` and `routing.yml`
 
-## Module Contract (artifactcore)
-- adapter modules と `tools/artifactctl/go.mod` には `pkg/artifactcore` の `replace` を置かない。
-- `services/*` は `tools/*` / `pkg/artifactcore` を直接 import しない。
+## Module Contract (`esb-ctl` / `tools/cli`)
+- `services/*` は `tools/*` を直接 import しない。
+- 外部オーケストレータは package import ではなく `esb-ctl` 実行ファイル呼び出しで連携する。
 
 Boundary ownership map:
 - producer adapter owns producer orchestration only: template iteration, output root resolution, source template path/sha extraction.
-- `pkg/deployops` owns shared apply orchestration: image prepare and apply execution order.
-- `pkg/artifactcore` owns manifest/apply core semantics: required schema/path/runtime payload validation on read/apply.
-- producer adapter and `tools/artifactctl` are adapters for `deployops.Execute`; payload correctness logic stays in `pkg/artifactcore`.
+- `tools/cli/deploy_ops.py` owns shared apply orchestration: image prepare and apply execution order.
+- `tools/cli/artifact.py` owns manifest/apply core semantics: required schema/path/runtime payload validation on read/apply.
+- producer adapter は `esb-ctl` CLI adapter として振る舞い、payload correctness logic は `tools/cli` に保持する。
 
 ## E2E Contract (Current)
 `e2e/environments/test_matrix.yaml` is artifact-only:

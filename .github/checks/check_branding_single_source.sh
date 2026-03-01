@@ -43,8 +43,8 @@ check_with_allowlist() {
 
 check_with_allowlist \
   "Go default brand slug literals are scoped to single sources" \
-  '^(services/agent/internal/identity/stack_identity.go|pkg/deployops/branding_constants_gen.go):' \
-  rg -n --glob '**/*.go' --glob '!**/*_test.go' '"esb"' services pkg tools
+  '^services/agent/internal/identity/stack_identity.go:' \
+  rg -n --glob '**/*.go' --glob '!**/*_test.go' '"esb"' services tools
 
 check_with_allowlist \
   "Python default brand slug literals are scoped to the branding contract" \
@@ -54,12 +54,12 @@ check_with_allowlist \
 check_with_allowlist \
   "Go slug normalizers are scoped to identity package" \
   '^services/agent/internal/identity/stack_identity.go:' \
-  rg -n --glob '**/*.go' --glob '!**/*_test.go' '^func\s+(NormalizeBrandSlug|normalizeBrandSlug)\s*\(' services pkg tools
+  rg -n --glob '**/*.go' --glob '!**/*_test.go' '^func\s+(NormalizeBrandSlug|normalizeBrandSlug)\s*\(' services tools
 
 check_with_allowlist \
   "ctl command default assignments are scoped to contract files" \
-  '^(e2e/runner/branding_constants_gen.py|pkg/deployops/branding_paths.go):' \
-  rg -n --glob '*.py' --glob '*.go' --glob '*.sh' --glob '!.github/checks/check_branding_single_source.sh' 'DEFAULT_CTL_BIN\s*=\s*f"\{DEFAULT_BRAND_SLUG\}-ctl"|DEFAULT_CTL_BIN\s*=\s*"esb-ctl"|DEFAULT_CTL_BIN="esb-ctl"|return\s+defaultBrandSlug\s*\+\s*"-ctl"' e2e pkg tools
+  '^e2e/runner/branding_constants_gen.py:' \
+  rg -n --glob '*.py' --glob '*.go' --glob '*.sh' --glob '!.github/checks/check_branding_single_source.sh' 'DEFAULT_CTL_BIN\s*=\s*f"\{DEFAULT_BRAND_SLUG\}-ctl"|DEFAULT_CTL_BIN\s*=\s*"esb-ctl"|DEFAULT_CTL_BIN="esb-ctl"|return\s+defaultBrandSlug\s*\+\s*"-ctl"' e2e tools
 
 if [[ ${status} -ne 0 ]]; then
   exit ${status}

@@ -1,12 +1,5 @@
 go 1.25.1
 
 use (
-	./pkg/artifactcore
-	./pkg/composeprovision
-	./pkg/deployops
-	./pkg/proxy
-	./pkg/runtimeimage
-	./pkg/yamlshape
 	./services/agent
-	./tools/artifactctl
 )

@@ -184,16 +184,16 @@ artifacts:
   - 生成系ツールへの依存を持たない
 
 ## ツール責務（確定）
-- `tools/artifactctl`（Go 実装）:
+- `tools/cli`（Python 実装）:
   - `deploy` の正本実装を提供する（検証 + apply を実行。必要時の image build/pull を含む）
   - schema/path/merge 規約の判定を一元化する
   - image build 時の lambda base 解決は deploy 時ルールに従い、artifact 内 `runtime-base/**` を根拠にしない
-  - `tools/artifactctl/cmd/artifactctl` は command adapter、実ロジック正本は `pkg/deployops` + `pkg/artifactcore` とする
+  - `tools/cli/cli.py` は command entrypoint、実ロジック正本は `tools/cli/deploy_ops.py` + `tools/cli/artifact.py`
 - producer 側 apply adapter:
-  - `esb-ctl deploy` と同じ Go 実装を呼ぶ薄いアダプタとして振る舞う
+  - `esb-ctl deploy` を呼び出す薄いアダプタとして振る舞う
 
 ## 外部オーケストレータ連携
-- 外部ツールは `pkg/*` 参照だけでは command surface 変更を吸収できません。`esb-ctl` バイナリ呼び出しで連携します。
+- 外部ツールは package import で command surface 変更を吸収できません。`esb-ctl` バイナリ呼び出しで連携します。
 - 連携前提として `esb-ctl internal capabilities --output json` の schema/contracts を照合してください。
 - 最低限 required な subcommand は以下です。
   - `deploy`
@@ -204,13 +204,13 @@ artifacts:
 - binary path override は `CTL_BIN` を使用します。
 
 repo 分離後の依存方向:
-- core repo が `pkg/artifactcore` を保有する
-- producer repo は core 側モジュールを参照して同一 core ロジックをリンクする（または同一バイナリを呼び出す）
-- core <- producer の逆依存は作らない
+- runtime core は本 repo の `tools/cli` が保有する
+- producer repo は `esb-ctl` バイナリ呼び出しで連携する
+- runtime core <- producer の逆依存は作らない
 
-artifactcore 配布/開発ルール:
-- producer adapter module と `tools/artifactctl/go.mod` に `pkg/artifactcore` の `replace` を置かない。
-- CI は `go.mod` 側の `replace` 混入と `services/* -> tools/*|pkg/artifactcore` 逆依存を拒否する。
+開発ルール:
+- `services/*` から `tools/*` への import は禁止する。
+- CI は `services/* -> tools/*` 逆依存を拒否する。
 
 ## フェーズ別ユースケース整理（Producer 経路 / Direct Apply 経路）
 この契約では「生成」と「適用」を分離します。
@@ -219,7 +219,7 @@ artifactcore 配布/開発ルール:
 注記:
 - ここでいう「手動」は「オペレータがコマンドを直接実行する運用」を意味します。
 - 「手動」は「shell にロジックを実装すること」を意味しません。
-- 判定・適用ロジックの正本は常に Go 実装（`pkg/deployops` + `pkg/artifactcore`、`tools/artifactctl` は adapter）です。
+- 判定・適用ロジックの正本は常に Python 実装（`tools/cli/deploy_ops.py` + `tools/cli/artifact.py`）です。
 
 | フェーズ | Producer 経路 | Direct Apply 経路 |
 |---|---|---|
@@ -236,7 +236,7 @@ artifactcore 配布/開発ルール:
 - producer のコマンド体系は本リポジトリ管理外です。
 - ただし責務境界は固定します:
   - Generate フェーズは `artifact.yml` と runtime-config の出力に限定する
-  - Apply フェーズは shared core（`pkg/deployops` + `pkg/artifactcore`）を利用する
+  - Apply フェーズは `esb-ctl` 実行（`tools/cli` 実装）を利用する
   - `.esb/staging/**` への merge は apply フェーズ責務とする
 
 ## 補足（外部テンプレート）

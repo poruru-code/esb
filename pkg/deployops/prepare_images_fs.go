@@ -18,7 +18,7 @@ func withFunctionBuildWorkspace(
 	fn func(contextRoot string) error,
 ) error {
 	normalized := sortedUniqueNonEmpty(functionNames)
-	contextRoot, err := os.MkdirTemp("", "artifactctl-build-context-*")
+	contextRoot, err := os.MkdirTemp("", "esbctl-build-context-*")
 	if err != nil {
 		return fmt.Errorf("create temporary build context: %w", err)
 	}

@@ -160,96 +160,11 @@ EOF
   printf "%s\n" "${out}"
 }
 
-echo "[check] validating adapter dependency contract"
-mod_files=()
-for mod in tools/artifactctl/go.mod; do
-  if [[ -f "${mod}" ]]; then
-    mod_files+=("${mod}")
-  fi
-done
-if (( ${#mod_files[@]} > 0 )); then
-  if search_files '^\s*(replace\s+)?github\.com/(poruru|poruru-code)/(edge-serverless-box|esb)/pkg/[[:alnum:]_.-]+(\s+v[^[:space:]]+)?\s+=>\s*' \
-    "${mod_files[@]}"; then
-    echo "[error] do not add pkg/* replace directives to adapter go.mod files" >&2
-    exit 1
-  fi
-
-  echo "[check] validating adapter pkg/* v0.0.0 freeze"
-  adapter_v0_allowlist_file=".github/checks/adapter_pkg_v0_allowlist.txt"
-  if [[ ! -f "${adapter_v0_allowlist_file}" ]]; then
-    echo "[error] missing allowlist file: ${adapter_v0_allowlist_file}" >&2
-    exit 1
-  fi
-
-  actual_adapter_v0="$(
-    awk '
-      function emit(line) {
-        gsub(/^[[:space:]]*require[[:space:]]+/, "", line)
-        sub(/^[[:space:]]+/, "", line)
-        split(line, parts, /[[:space:]]+/)
-        if (parts[1] != "" && parts[2] == "v0.0.0") {
-          print FILENAME " " parts[1]
-        }
-      }
-
-      /^[[:space:]]*require[[:space:]]+github.com\/(poruru|poruru-code)\/(edge-serverless-box|esb)\/pkg\/[A-Za-z0-9_.-]+[[:space:]]+v0\.0\.0([[:space:]]|$)/ {
-        emit($0)
-        next
-      }
-
-      /^[[:space:]]*github.com\/(poruru|poruru-code)\/(edge-serverless-box|esb)\/pkg\/[A-Za-z0-9_.-]+[[:space:]]+v0\.0\.0([[:space:]]|$)/ {
-        emit($0)
-        next
-      }
-    ' "${mod_files[@]}" | sed '/^[[:space:]]*$/d' | sort -u
-  )"
-  expected_adapter_v0="$(sed '/^[[:space:]]*$/d' "${adapter_v0_allowlist_file}" | sort -u)"
-  if ! diff -u \
-    <(printf "%s\n" "${expected_adapter_v0}" | sed '/^[[:space:]]*$/d') \
-    <(printf "%s\n" "${actual_adapter_v0}" | sed '/^[[:space:]]*$/d'); then
-    echo "[error] adapter pkg/* v0.0.0 set changed; update allowlist with separation rationale" >&2
-    exit 1
-  fi
-fi
-
 echo "[check] validating runtime/tooling dependency direction"
 if search_go_tree \
-  '"github\.com/(poruru|poruru-code)/(edge-serverless-box|esb)/(tools/|pkg/artifactcore|pkg/composeprovision)' \
+  '"github\.com/(poruru|poruru-code)/(edge-serverless-box|esb)/tools/' \
   services; then
-  echo "[error] services must not import tools/* or pkg/artifactcore|pkg/composeprovision" >&2
-  exit 1
-fi
-
-echo "[check] validating pure-core package restrictions"
-if search_go_tree_non_test '"os/exec"|exec\.Command\(' \
-  pkg/artifactcore pkg/yamlshape; then
-  echo "[error] pkg/artifactcore and pkg/yamlshape must not execute external commands" >&2
-  exit 1
-fi
-
-if search_go_tree_non_test 'CONTAINER_REGISTRY|HOST_REGISTRY_ADDR' \
-  pkg/artifactcore pkg/yamlshape; then
-  echo "[error] pkg/artifactcore and pkg/yamlshape must not depend on runtime registry env vars" >&2
-  exit 1
-fi
-
-echo "[check] validating artifactcore public API surface"
-allowlist_file=".github/checks/artifactcore_exports_allowlist.txt"
-if [[ ! -f "${allowlist_file}" ]]; then
-  echo "[error] missing allowlist file: ${allowlist_file}" >&2
-  exit 1
-fi
-actual_exports="$(artifactcore_exports pkg/artifactcore)"
-expected_exports="$(sort -u "${allowlist_file}")"
-if ! diff -u <(printf "%s\n" "${expected_exports}") <(printf "%s\n" "${actual_exports}"); then
-  echo "[error] artifactcore public API changed; update allowlist with design rationale" >&2
-  exit 1
-fi
-
-echo "[check] validating artifactcore exported helper naming guard"
-if printf "%s\n" "${actual_exports}" | grep -Eq '(^|\.)(Infer|Parse|Preferred|Has)[A-Z]'; then
-  echo "[error] artifactcore must not export helper-style APIs (Infer/Parse/Preferred/Has...)." >&2
-  echo "        Move helper logic to caller/internal packages and keep artifactcore API contract-oriented." >&2
+  echo "[error] services must not import tools/* modules" >&2
   exit 1
 fi
 
