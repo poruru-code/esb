@@ -252,7 +252,6 @@ repo 分離後の依存方向:
 ```bash
 ARTIFACT="/path/to/artifact.yml"
 COMPOSE_FILE="/path/to/esb/docker-compose.docker.yml"
-SECRETS_ENV="/path/to/secrets.env"   # 成果物外で管理
 RUN_ENV="/path/to/run.env"
 ```
 
@@ -261,8 +260,6 @@ RUN_ENV="/path/to/run.env"
 test -f "${ARTIFACT}"
 esb-ctl deploy \
   --artifact "${ARTIFACT}"
-
-cat "${SECRETS_ENV}" > "${RUN_ENV}"
 ```
 
 注記:
