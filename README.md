@@ -26,6 +26,23 @@ docker compose -f docker-compose.containerd.yml up -d
 ```
 詳細な手順・構成は docs に移譲しています。
 
+## Artifact デプロイ（esb-ctl）
+生成済み `artifact.yml` を使って stack 起動 + deploy/provision を行う場合は次を使います。
+
+```bash
+esb-ctl stack deploy
+```
+
+特定 artifact を指定する場合:
+
+```bash
+esb-ctl stack deploy --artifact artifacts/<name>/artifact.yml
+```
+
+補足:
+- `stack deploy` は `artifacts/**/artifact.yml` を自動検出し、複数ある場合は選択できます。
+- 固定名 registry コンテナ（既定: `esb-infra-registry`）が別 compose project 所有で残っている場合は、解消コマンドを表示して fail-fast します。
+
 ## 開発 / コントリビュート
 ### 推奨ツール
 - Go 1.25.1 / Python 3.12+ / `uv` / `mise` / `lefthook` / Docker & Compose

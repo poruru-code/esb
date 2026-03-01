@@ -292,7 +292,7 @@ docker compose -f docker-compose.docker.yml build provisioner gateway
    - 確認内容: `CERT_DIR -> /app/config/ssl:ro`、gRPC/mTLS 証明書パス、`root_ca` build secret
 
 2. Agent の証明書読み込み挙動（単体テスト）
-   - `go test ./services/agent/cmd/agent -run 'TestGrpcServerOptions_EnabledByDefault|TestGrpcServerOptions_Disabled'`（exit 0）
+   - `cd services/agent && go test ./cmd/agent -run 'TestGrpcServerOptions_EnabledByDefault|TestGrpcServerOptions_Disabled'`（exit 0）
    - 確認内容: TLS 有効時の証明書読込と TLS 無効化分岐
 
 3. `mise run setup:certs` への引数受け渡し

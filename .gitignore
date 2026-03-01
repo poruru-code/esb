@@ -27,8 +27,6 @@ venv/
 .venv/
 ENV/
 env/
-!cli/internal/infra/env/
-!cli/internal/infra/env/**
 
 # Docker
 *.tar
@@ -73,9 +71,6 @@ certs/
 # Build artifacts
 build/lambda-images/*.tar
 !build/lambda-images/.gitkeep
-cli/internal/infra/build/assets/java/target/
-cli/internal/infra/build/assets/java/lambda-java-wrapper.jar
-cli/internal/infra/build/assets/java/*.jar
 runtime-hooks/java/**/target/
 runtime-hooks/java/**/*.class
 runtime-hooks/java/**/dependency-reduced-pom.xml
@@ -99,10 +94,6 @@ services/agent/agent*
 # Legacy ESB staging (remove once cleaned)
 services/gateway/.esb-staging/
 .tmp/
-cli/bin/
-cli/esb
-cli/cli/bin/
-tools/artifactctl/bin/
 
 # DinD bundler build artifacts
 /tools/dind-bundler/build-context/

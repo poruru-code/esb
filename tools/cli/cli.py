@@ -19,6 +19,7 @@ from tools.cli.fixture_image import (
 )
 from tools.cli.maven_shim import EnsureInput as MavenShimEnsureInput
 from tools.cli.maven_shim import ensure_image as ensure_maven_shim_image
+from tools.cli.stack_ops import StackDeployInput, execute_stack_deploy
 
 _CTL_CAPABILITIES_SCHEMA_VERSION = 1
 _MAVEN_SHIM_ENSURE_SCHEMA_VERSION = 1
@@ -73,7 +74,7 @@ def hint_run(*parts: str) -> str:
 def parse_error_hint() -> str:
     return (
         f"Hint: run `{command_text('--help')}`, `{command_text('deploy', '--help')}`, "
-        f"or `{command_text('provision', '--help')}`."
+        f"`{command_text('provision', '--help')}`, or `{command_text('stack', '--help')}`."
     )
 
 
@@ -133,6 +134,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Start dependent services when running provisioner",
     )
     provision.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
+
+    stack = subparsers.add_parser("stack", help="Stack lifecycle helpers")
+    stack_subparsers = stack.add_subparsers(dest="stack_command")
+    stack_deploy = stack_subparsers.add_parser(
+        "deploy",
+        help="Bring up compose stack and deploy artifact",
+    )
+    stack_deploy.add_argument(
+        "--artifact",
+        default="",
+        help="Path to artifact manifest (artifact.yml); auto-detect when omitted",
+    )
 
     internal = subparsers.add_parser("internal", help="Internal commands for orchestrators")
     internal_subparsers = internal.add_subparsers(dest="internal_command")
@@ -255,6 +268,19 @@ def run(argv: list[str]) -> int:
             )
             return 0
 
+        if command == "stack":
+            stack_command = (args.stack_command or "").strip()
+            if stack_command == "deploy":
+                execute_stack_deploy(
+                    StackDeployInput(
+                        artifact_path=args.artifact,
+                    )
+                )
+                return 0
+            print("Error: unsupported stack command", file=sys.stderr)
+            print(hint_run("stack", "deploy", "--help"), file=sys.stderr)
+            return 1
+
         if command == "internal":
             internal_command = (args.internal_command or "").strip()
             is_maven_ensure = (
@@ -325,6 +351,14 @@ def run(argv: list[str]) -> int:
                 f"Hint: run `{command_text('provision', '--help')}` for required arguments.",
                 file=sys.stderr,
             )
+            return 1
+        if command == "stack":
+            if (args.stack_command or "").strip() == "deploy":
+                print(f"Error: stack deploy failed: {exc}", file=sys.stderr)
+                print(hint_run("stack", "deploy", "--help"), file=sys.stderr)
+                return 1
+            print(f"Error: {exc}", file=sys.stderr)
+            print(hint_run("stack", "--help"), file=sys.stderr)
             return 1
         if command == "internal":
             if (args.internal_command or "").strip() == "maven-shim":

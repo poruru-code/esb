@@ -25,6 +25,9 @@ The visible behavior to prove is:
 - [x] (2026-03-01 02:02Z) Recorded completion outcomes and residual risks.
 - [x] (2026-03-01 09:46Z) Removed last Python runtime dependency on `pkg/*` by moving maven-shim assets into `tools/cli/assets/mavenshim`.
 - [x] (2026-03-01 09:46Z) Updated `go.work` and CI boundary guards so `pkg` directory removal no longer hard-breaks ctl runtime path and checks.
+- [x] (2026-03-01 13:15 JST) Performed ESB-side cleanup by deleting root `pkg/` modules (`artifactcore`, `composeprovision`, `deployops`, `proxy`, `runtimeimage`, `yamlshape`) after confirming no runtime references remained outside that tree.
+- [x] (2026-03-01 22:05 JST) Migrated `artifacts/deploy.sh` UX into Python ctl as `esb-ctl stack deploy` (artifact auto-detect/selection, compose up, registry wait, deploy+provision), and removed shell script.
+- [x] (2026-03-01 22:22 JST) Added preflight registry ownership guard to `stack deploy`: detect existing fixed-name registry container before compose-up, print explicit cleanup commands, and fail fast on project mismatch.
 
 ## Surprises & Discoveries
 
@@ -57,6 +60,14 @@ The visible behavior to prove is:
 
 - Decision: Duplicate maven-shim Docker assets under `tools/cli/assets/mavenshim` and make Python ctl read those assets.
   Rationale: Runtime ownership must stay fully in Python path; asset co-location removes the final hard dependency on `pkg`.
+  Date/Author: 2026-03-01 / Codex
+
+- Decision: Remove `/pkg` directory from ESB repository once `esb-cli` standalone migration validated in `/home/akira/esb-cli`.
+  Rationale: Keeping duplicated package source in ESB now adds maintenance and drift risk without runtime benefit.
+  Date/Author: 2026-03-01 / Codex
+
+- Decision: Introduce a dedicated `stack deploy` subcommand instead of changing existing `deploy` semantics.
+  Rationale: E2E/contract compatibility for current `deploy` command is preserved while inheriting shell UX through an explicit stack-oriented path.
   Date/Author: 2026-03-01 / Codex
 
 ## Outcomes & Retrospective
@@ -95,6 +106,8 @@ Pkg-retire readiness update:
 - `tools/cli/maven_shim.py` now resolves assets from `tools/cli/assets/mavenshim`.
 - `go.work` no longer references `./pkg/*` modules.
 - `.github/checks/check_tooling_boundaries.sh` and `.github/checks/check_branding_single_source.sh` tolerate `pkg` absence and keep only relevant checks active.
+- Root `pkg/` directory has been removed from `/home/akira/esb`.
+- Legacy shell entrypoint `artifacts/deploy.sh` has been retired in favor of `esb-ctl stack deploy`.
 
 ## Context and Orientation
 
@@ -194,3 +207,5 @@ Revision note:
 - 2026-03-01: Initial plan authored from current repository state and aligned to `.agent/PLANS.md`.
 - 2026-03-01: Updated with completed migration work, validation evidence, and residual risk summary.
 - 2026-03-01: Updated for pkg-retirement readiness (maven assets relocation, workspace cleanup, and CI guard adjustments).
+- 2026-03-01: Updated with ESB-side physical cleanup (`/pkg` removal) after standalone `esb-cli` migration confirmation.
+- 2026-03-01: Updated with `artifacts/deploy.sh` integration into `tools/cli` (`stack deploy`) and shell script removal.

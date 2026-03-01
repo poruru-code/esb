@@ -67,6 +67,20 @@ def test_provision_dispatch_and_compose_file_split(monkeypatch) -> None:
     assert provision_input.verbose is True
 
 
+def test_stack_deploy_dispatch(monkeypatch) -> None:
+    calls: dict[str, object] = {}
+
+    def fake_execute_stack_deploy(input_data):
+        calls["input"] = input_data
+
+    monkeypatch.setattr(cli, "execute_stack_deploy", fake_execute_stack_deploy)
+
+    rc = cli.run(["stack", "deploy", "--artifact", "/tmp/artifact.yml"])
+    assert rc == 0
+    stack_input = calls["input"]
+    assert stack_input.artifact_path == "/tmp/artifact.yml"
+
+
 def test_internal_capabilities_output_json(capsys) -> None:
     rc = cli.run(["internal", "capabilities", "--output", "json"])
     assert rc == 0
