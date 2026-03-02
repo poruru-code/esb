@@ -15,7 +15,11 @@ from typing import Any
 import yaml
 
 from tools.cli import artifact
-from tools.cli.branding_constants_gen import DEFAULT_BRAND_HOME_DIR, DEFAULT_CTL_BIN
+from tools.cli.branding_constants_gen import (
+    DEFAULT_BRAND_HOME_DIR,
+    DEFAULT_CTL_BIN,
+    DEFAULT_LAMBDA_BASE_REPO,
+)
 from tools.cli.common import (
     append_proxy_build_args,
     docker_image_exists,
@@ -583,11 +587,20 @@ def rewrite_registry_alias(
 
 def is_lambda_function_ref(image_ref: str) -> bool:
     last_segment = image_repo_last_segment(image_ref)
-    return last_segment.startswith("esb-lambda-") and last_segment != "esb-lambda-base"
+    return (
+        last_segment.startswith(lambda_function_repo_prefix())
+        and last_segment != DEFAULT_LAMBDA_BASE_REPO
+    )
 
 
 def is_lambda_base_ref(image_ref: str) -> bool:
-    return image_repo_last_segment(image_ref) == "esb-lambda-base"
+    return image_repo_last_segment(image_ref) == DEFAULT_LAMBDA_BASE_REPO
+
+
+def lambda_function_repo_prefix() -> str:
+    if DEFAULT_LAMBDA_BASE_REPO.endswith("-base"):
+        return f"{DEFAULT_LAMBDA_BASE_REPO.removesuffix('-base')}-"
+    return f"{DEFAULT_LAMBDA_BASE_REPO}-"
 
 
 def image_repo_last_segment(image_ref: str) -> str:
@@ -795,7 +808,7 @@ def resolve_default_lambda_base_ref() -> str:
             "lambda base registry is unresolved: "
             "set CONTAINER_REGISTRY or HOST_REGISTRY_ADDR (or REGISTRY)"
         )
-    return f"{registry}/esb-lambda-base:latest"
+    return f"{registry}/{DEFAULT_LAMBDA_BASE_REPO}:latest"
 
 
 def resolve_ensure_base_registry() -> str:
@@ -861,7 +874,7 @@ def resolve_runtime_hooks_build_paths() -> tuple[str, str]:
             break
         current = current.parent
     raise RuntimeError(
-        'lambda base image "esb-lambda-base" not found locally and '
+        f'lambda base image "{DEFAULT_LAMBDA_BASE_REPO}" not found locally and '
         "runtime hooks dockerfile is unavailable "
         "(expected: runtime-hooks/python/docker/Dockerfile from working tree root)"
     )
