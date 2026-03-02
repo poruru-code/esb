@@ -8,7 +8,7 @@ from tools.cli import fixture_image
 
 def test_buildx_build_command_for_fixture_includes_proxy_build_args() -> None:
     cmd = fixture_image.buildx_build_command_for_fixture(
-        tag="127.0.0.1:5010/esb-e2e-image-python:latest",
+        tag="127.0.0.1:5010/demo-e2e-image-python:latest",
         context_dir=Path("/tmp/ctx"),
         no_cache=False,
         build_args={},
@@ -35,7 +35,7 @@ def test_execute_fixture_image_ensure_passes_env_to_run_command(
     monkeypatch.setattr(
         fixture_image,
         "collect_local_fixture_image_sources",
-        lambda manifest, manifest_path: ["127.0.0.1:5010/esb-e2e-image-python:latest"],
+        lambda manifest, manifest_path, **kwargs: ["127.0.0.1:5010/demo-e2e-image-python:latest"],
     )
 
     def fake_run_command(cmd, **kwargs):
@@ -49,10 +49,11 @@ def test_execute_fixture_image_ensure_passes_env_to_run_command(
             artifact_path=str(manifest_path),
             no_cache=False,
             fixture_root=str(fixture_root),
+            brand_slug="demo",
             env={"HTTP_PROXY": "http://proxy.example:8080"},
         )
     )
 
-    assert result.prepared_images == ["127.0.0.1:5010/esb-e2e-image-python:latest"]
+    assert result.prepared_images == ["127.0.0.1:5010/demo-e2e-image-python:latest"]
     assert run_calls[0][1] == {"HTTP_PROXY": "http://proxy.example:8080"}
     assert run_calls[1][1] == {"HTTP_PROXY": "http://proxy.example:8080"}

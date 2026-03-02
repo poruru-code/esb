@@ -8,6 +8,7 @@ import threading
 from pathlib import Path
 from typing import Callable
 
+from e2e.runner.branding import resolve_brand_slug
 from e2e.runner.ctl_contract import resolve_ctl_bin_from_env
 from e2e.runner.logging import LogSink, run_and_stream
 from e2e.runner.models import RunContext
@@ -162,6 +163,7 @@ def _prepare_local_fixture_images(
                     artifact_path=str(manifest_path),
                     no_cache=no_cache,
                     fixture_root=fixture_root,
+                    brand_slug=_resolve_fixture_brand_slug(ctx),
                     env=ctx.deploy_env,
                 )
             )
@@ -189,6 +191,7 @@ def _fixture_prepare_cache_key(ctx: RunContext, manifest_path: Path) -> str:
     payload = {
         "manifest_path": str(manifest_path),
         "env_name": ctx.scenario.env_name,
+        "brand_slug": _resolve_fixture_brand_slug(ctx),
         "cache_sensitive_env": {
             key: str(ctx.deploy_env.get(key, "")).strip() for key in _FIXTURE_PREPARE_CACHE_ENV_KEYS
         },
@@ -204,3 +207,10 @@ def _normalize_prepared_images(prepared_images: list[str]) -> list[str]:
             raise RuntimeError("fixture image ensure response contains empty image reference")
         normalized.append(value)
     return normalized
+
+
+def _resolve_fixture_brand_slug(ctx: RunContext) -> str:
+    value = str(ctx.deploy_env.get("BRAND_SLUG", "")).strip()
+    if value != "":
+        return resolve_brand_slug(value)
+    return resolve_brand_slug(ctx.project_name)

@@ -174,6 +174,7 @@ def test_execute_stack_deploy_runs_expected_commands(
 
     run_calls: list[list[str]] = []
     wait_calls: list[tuple[str, int]] = []
+    ctl_bin = stack_ops.DEFAULT_CTL_BIN
 
     def fake_run_command(cmd: list[str], **_kwargs):
         run_calls.append(cmd)
@@ -201,7 +202,7 @@ def test_execute_stack_deploy_runs_expected_commands(
     assert run_calls[0] == [
         "docker",
         "inspect",
-        "esb-infra-registry",
+        f"{stack_ops.DEFAULT_BRAND_SLUG}-infra-registry",
     ]
     assert run_calls[1] == [
         "docker",
@@ -215,9 +216,9 @@ def test_execute_stack_deploy_runs_expected_commands(
         "up",
         "-d",
     ]
-    assert run_calls[2] == ["esb-ctl", "deploy", "--artifact", str(artifact_path.resolve())]
+    assert run_calls[2] == [ctl_bin, "deploy", "--artifact", str(artifact_path.resolve())]
     assert run_calls[3] == [
-        "esb-ctl",
+        ctl_bin,
         "provision",
         "--project",
         "demo-dev",
@@ -244,7 +245,7 @@ def test_execute_stack_deploy_runs_expected_commands(
         "run",
         "--rm",
         "-v",
-        "demo-dev_esb-runtime-config:/runtime-config",
+        f"demo-dev_{stack_ops.DEFAULT_BRAND_SLUG}-runtime-config:/runtime-config",
         "alpine",
         "ls",
         "-1",
@@ -297,4 +298,4 @@ def test_execute_stack_deploy_fails_when_registry_owned_by_other_project(
     with pytest.raises(RuntimeError, match="shared registry container"):
         stack_ops.execute_stack_deploy(stack_ops.StackDeployInput(artifact_path=str(artifact_path)))
 
-    assert run_calls == [["docker", "inspect", "esb-infra-registry"]]
+    assert run_calls == [["docker", "inspect", f"{stack_ops.DEFAULT_BRAND_SLUG}-infra-registry"]]
