@@ -7,23 +7,21 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from tools.cli import artifact
-from tools.cli.branding_constants_gen import DEFAULT_E2E_FIXTURE_IMAGE_PREFIX
 from tools.cli.common import append_proxy_build_args, run_command
 from tools.cli.maven_shim import EnsureInput as MavenShimEnsureInput
 from tools.cli.maven_shim import ensure_image as ensure_maven_shim_image
 
 FIXTURE_IMAGE_ENSURE_SCHEMA_VERSION = 1
 DEFAULT_FIXTURE_IMAGE_ROOT = "e2e/fixtures/images/lambda"
-PYTHON_FIXTURE_NAME = f"{DEFAULT_E2E_FIXTURE_IMAGE_PREFIX}-python"
-JAVA_FIXTURE_NAME = f"{DEFAULT_E2E_FIXTURE_IMAGE_PREFIX}-java"
+JAVA_FIXTURE_NAME = "esb-e2e-image-java"
 JAVA_FIXTURE_MAVEN_BASE_IMAGE = (
     "public.ecr.aws/sam/build-java21@sha256:"
     "5f78d6d9124e54e5a7a9941ef179d74d88b7a5b117526ea8574137e5403b51b7"
 )
 
 _LOCAL_FIXTURE_SUBDIRS: dict[str, str] = {
-    PYTHON_FIXTURE_NAME: "python",
-    JAVA_FIXTURE_NAME: "java",
+    "esb-e2e-image-python": "python",
+    "esb-e2e-image-java": "java",
 }
 _DOCKERFILE_FROM_PATTERN = re.compile(r"(?i)^FROM(?:\s+--platform=[^\s]+)?\s+([^\s]+)")
 _JAVA_FIXTURE_MAVEN_ARG_PATTERN = re.compile(r"(?im)^\s*ARG\s+MAVEN_IMAGE(?:\s*=.*)?\s*$")
