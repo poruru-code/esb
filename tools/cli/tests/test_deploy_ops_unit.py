@@ -4,7 +4,7 @@ import pytest
 
 from tools.cli import deploy_ops
 
-LAMBDA_PREFIX = f"{deploy_ops.DEFAULT_BRAND_SLUG}-lambda"
+LAMBDA_PREFIX = deploy_ops.DEFAULT_LAMBDA_BASE_REPO.removesuffix("-base")
 
 
 def test_rewrite_registry_alias_rewrites_known_alias() -> None:
@@ -28,11 +28,70 @@ def test_normalize_function_image_ref_for_runtime(monkeypatch) -> None:
     assert changed is True
     assert rewritten == f"registry.example:5000/{LAMBDA_PREFIX}-dynamo:e2e"
 
-    untouched, changed_untouched = deploy_ops.normalize_function_image_ref_for_runtime(
+    rewritten_custom, changed_custom = deploy_ops.normalize_function_image_ref_for_runtime(
         "127.0.0.1:5010/custom-image:e2e"
     )
+    assert changed_custom is True
+    assert rewritten_custom == "registry.example:5000/custom-image:e2e"
+
+    untouched, changed_untouched = deploy_ops.normalize_function_image_ref_for_runtime(
+        "public.ecr.aws/lambda/python:3.12"
+    )
     assert changed_untouched is False
-    assert untouched == "127.0.0.1:5010/custom-image:e2e"
+    assert untouched == "public.ecr.aws/lambda/python:3.12"
+
+
+def test_normalize_function_image_ref_for_runtime_handles_non_default_brand(monkeypatch) -> None:
+    monkeypatch.setenv("CONTAINER_REGISTRY", "registry.example:5000")
+    monkeypatch.delenv("HOST_REGISTRY_ADDR", raising=False)
+    monkeypatch.delenv("REGISTRY", raising=False)
+
+    rewritten, changed = deploy_ops.normalize_function_image_ref_for_runtime(
+        "127.0.0.1:5010/padma-lambda-echo:e2e"
+    )
+    assert changed is True
+    assert rewritten == "registry.example:5000/padma-lambda-echo:e2e"
+
+
+def test_is_managed_lambda_base_ref_matches_only_default_repo() -> None:
+    assert (
+        deploy_ops.is_managed_lambda_base_ref(
+            f"127.0.0.1:5010/{deploy_ops.DEFAULT_LAMBDA_BASE_REPO}:latest"
+        )
+        is True
+    )
+    assert deploy_ops.is_managed_lambda_base_ref("127.0.0.1:5010/padma-lambda-base:latest") is False
+    assert deploy_ops.is_managed_lambda_base_ref("127.0.0.1:5010/custom-image:latest") is False
+
+
+def test_read_lambda_base_ref_ignores_non_default_repo(tmp_path) -> None:
+    dockerfile = tmp_path / "Dockerfile"
+    dockerfile.write_text("FROM 127.0.0.1:5010/padma-lambda-base:latest\n", encoding="utf-8")
+    base_ref, ok = deploy_ops.read_lambda_base_ref(str(dockerfile))
+    assert ok is False
+    assert base_ref == ""
+
+
+def test_ensure_lambda_base_image_rejects_runtime_hooks_fallback_for_non_default_repo(
+    monkeypatch,
+) -> None:
+    class _Result:
+        returncode = 1
+
+    monkeypatch.setattr(deploy_ops, "docker_image_exists", lambda _image_ref: False)
+
+    def fake_run_command(cmd, **kwargs):  # noqa: ANN003
+        assert cmd[0:2] == ["docker", "pull"]
+        return _Result()
+
+    monkeypatch.setattr(deploy_ops, "run_command", fake_run_command)
+
+    with pytest.raises(RuntimeError, match="runtime-hooks fallback is supported only for"):
+        deploy_ops.ensure_lambda_base_image(
+            "127.0.0.1:5010/padma-lambda-base:latest",
+            no_cache=False,
+            built_base_images=set(),
+        )
 
 
 def test_rewrite_dockerfile_for_maven_shim_success() -> None:

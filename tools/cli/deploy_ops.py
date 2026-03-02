@@ -17,7 +17,6 @@ import yaml
 from tools.cli import artifact
 from tools.cli.branding_constants_gen import (
     DEFAULT_BRAND_HOME_DIR,
-    DEFAULT_BRAND_SLUG,
     DEFAULT_CTL_BIN,
     DEFAULT_LAMBDA_BASE_REPO,
 )
@@ -544,8 +543,6 @@ def resolve_registry_aliases() -> list[str]:
 
 def normalize_function_image_ref_for_runtime(image_ref: str) -> tuple[str, bool]:
     trimmed = image_ref.strip()
-    if not is_lambda_function_ref(trimmed):
-        return trimmed, False
     return rewrite_registry_alias(
         trimmed,
         resolve_runtime_function_registry(),
@@ -555,7 +552,7 @@ def normalize_function_image_ref_for_runtime(image_ref: str) -> tuple[str, bool]
 
 def rewrite_lambda_base_ref_for_build(image_ref: str) -> tuple[str, bool]:
     trimmed = image_ref.strip()
-    if not is_lambda_base_ref(trimmed):
+    if not is_managed_lambda_base_ref(trimmed):
         return trimmed, False
     return rewrite_registry_alias(
         trimmed,
@@ -586,25 +583,8 @@ def rewrite_registry_alias(
     return trimmed, False
 
 
-def is_lambda_function_ref(image_ref: str) -> bool:
-    last_segment = image_repo_last_segment(image_ref)
-    return (
-        last_segment.startswith(lambda_function_repo_prefix())
-        and last_segment != DEFAULT_LAMBDA_BASE_REPO
-    )
-
-
-def is_lambda_base_ref(image_ref: str) -> bool:
+def is_managed_lambda_base_ref(image_ref: str) -> bool:
     return image_repo_last_segment(image_ref) == DEFAULT_LAMBDA_BASE_REPO
-
-
-def lambda_function_repo_prefix() -> str:
-    slug = DEFAULT_BRAND_SLUG.strip()
-    if slug != "":
-        return f"{slug}-lambda-"
-    if DEFAULT_LAMBDA_BASE_REPO.endswith("-base"):
-        return f"{DEFAULT_LAMBDA_BASE_REPO.removesuffix('-base')}-"
-    return f"{DEFAULT_LAMBDA_BASE_REPO}-"
 
 
 def image_repo_last_segment(image_ref: str) -> str:
@@ -850,7 +830,15 @@ def ensure_lambda_base_image(
     if not docker_image_exists(base_ref):
         pull = run_command(["docker", "pull", base_ref], check=False)
         if pull.returncode != 0:
-            base_dockerfile, build_context = resolve_runtime_hooks_build_paths()
+            if not is_managed_lambda_base_ref(base_ref):
+                raise RuntimeError(
+                    "lambda base pull failed and runtime-hooks fallback is supported only for "
+                    f'"{DEFAULT_LAMBDA_BASE_REPO}" '
+                    f"(requested: {image_repo_last_segment(base_ref)})"
+                )
+            base_dockerfile, build_context = resolve_runtime_hooks_build_paths(
+                lambda_base_repo=image_repo_last_segment(base_ref),
+            )
             build_cmd = buildx_build_command_with_build_args_and_contexts(
                 tag=base_ref,
                 dockerfile=base_dockerfile,
@@ -868,7 +856,7 @@ def ensure_lambda_base_image(
     built_base_images.add(push_ref)
 
 
-def resolve_runtime_hooks_build_paths() -> tuple[str, str]:
+def resolve_runtime_hooks_build_paths(*, lambda_base_repo: str) -> tuple[str, str]:
     current = Path.cwd().resolve()
     while True:
         candidate = current / "runtime-hooks" / "python" / "docker" / "Dockerfile"
@@ -878,7 +866,7 @@ def resolve_runtime_hooks_build_paths() -> tuple[str, str]:
             break
         current = current.parent
     raise RuntimeError(
-        f'lambda base image "{DEFAULT_LAMBDA_BASE_REPO}" not found locally and '
+        f'lambda base image "{lambda_base_repo.strip()}" not found locally and '
         "runtime hooks dockerfile is unavailable "
         "(expected: runtime-hooks/python/docker/Dockerfile from working tree root)"
     )
@@ -894,7 +882,7 @@ def read_lambda_base_ref(dockerfile_path: str) -> tuple[str, bool]:
         if ref_index < 0 or ref_index >= len(parts):
             continue
         ref = parts[ref_index].strip()
-        if is_lambda_base_ref(ref):
+        if is_managed_lambda_base_ref(ref):
             return ref, True
     return "", False
 

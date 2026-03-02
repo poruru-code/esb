@@ -51,7 +51,8 @@ docker compose up -d
 - `esb-ctl deploy` は image build/pull を実行し得ますが、lambda base の選択は deploy 時ルールに従います。
 - 関数 build target がない場合でも、`esb-ctl deploy` は既定 `esb-lambda-base:latest` を ensure/push します。
 - ensure-base の registry 解決順は `HOST_REGISTRY_ADDR` -> `CONTAINER_REGISTRY` -> `REGISTRY` です。
-- ensure 中に lambda-base の pull が失敗した場合、現在実装は `runtime-hooks/python/docker/Dockerfile` からのローカルビルドへフォールバックします。
+- ensure 中に lambda-base の pull が失敗した場合、`runtime-hooks/python/docker/Dockerfile` からのローカルビルドへフォールバックするのは既定 base repo（`esb-lambda-base`）のみです。
+- 外部 artifact が参照するその他の `*-lambda-base` はフォールバック対象外で、pull 失敗時はエラーになります。
 - `esb-ctl deploy` は、artifact 時点の local registry alias（例: `127.0.0.1:5010`, `registry:5010`）を、実行時 `CONTAINER_REGISTRY` に正規化して build/push と出力生成を行います。
 - `esb-ctl deploy` は `<artifact_root>` を読み取り専用として扱います。一時ファイルは artifact ディレクトリ外の一時ワークスペースにのみ作成されます。
 - `docker compose up` では one-shot `provisioner` が自動実行され、成功後に runtime サービスが起動します。

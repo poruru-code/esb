@@ -24,7 +24,8 @@ Why: Define a stable boundary between artifact producer (external/manual) and ru
 - `esb-ctl deploy` は関数イメージの build 対象有無に関係なく、deploy 前提条件として lambda base を target registry へ確保する必要があります。
 - `esb-ctl deploy` は deploy で build/push する function image の local registry alias（例: `127.0.0.1:5010`, `registry:5010`）を deploy 実行時の `CONTAINER_REGISTRY` に正規化して扱います。
 - lambda base ensure で使う target registry は `HOST_REGISTRY_ADDR` -> `CONTAINER_REGISTRY` -> `REGISTRY` の順で解決します。
-- lambda base pull 失敗時は、現行実装では `runtime-hooks/python/docker/Dockerfile` からのローカル build へフォールバックします。
+- lambda base pull 失敗時の `runtime-hooks/python/docker/Dockerfile` からのローカル build フォールバックは、既定 base repo（`esb-lambda-base`）にのみ適用します。
+  - 外部 artifact が参照するその他の `*-lambda-base` はフォールバック対象外です（pull 失敗時はエラー）。
 - 互換性判定は artifact 内ファイルではなく、実行時スタック観測結果に基づいて行います。
 
 ## 用語
