@@ -17,6 +17,7 @@ import yaml
 from tools.cli import artifact
 from tools.cli.branding_constants_gen import (
     DEFAULT_BRAND_HOME_DIR,
+    DEFAULT_BRAND_SLUG,
     DEFAULT_CTL_BIN,
     DEFAULT_LAMBDA_BASE_REPO,
 )
@@ -598,6 +599,9 @@ def is_lambda_base_ref(image_ref: str) -> bool:
 
 
 def lambda_function_repo_prefix() -> str:
+    slug = DEFAULT_BRAND_SLUG.strip()
+    if slug != "":
+        return f"{slug}-lambda-"
     if DEFAULT_LAMBDA_BASE_REPO.endswith("-base"):
         return f"{DEFAULT_LAMBDA_BASE_REPO.removesuffix('-base')}-"
     return f"{DEFAULT_LAMBDA_BASE_REPO}-"

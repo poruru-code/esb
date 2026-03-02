@@ -13,6 +13,7 @@ from urllib import request as urlrequest
 import yaml
 
 from tools.cli.branding_constants_gen import (
+    DEFAULT_BRAND_SLUG,
     DEFAULT_CTL_BIN,
     DEFAULT_REGISTRY_CONTAINER_NAME,
     DEFAULT_RUNTIME_CONFIG_VOLUME_NAME,
@@ -276,7 +277,12 @@ def resolve_registry_container_name(env: dict[str, str]) -> str:
     name = env.get("REGISTRY_CONTAINER_NAME", "").strip()
     if name != "":
         return name
-    return DEFAULT_REGISTRY_CONTAINER_NAME
+    if DEFAULT_REGISTRY_CONTAINER_NAME.strip() != "":
+        return DEFAULT_REGISTRY_CONTAINER_NAME
+    slug = DEFAULT_BRAND_SLUG.strip()
+    if slug != "":
+        return f"{slug}-infra-registry"
+    return "infra-registry"
 
 
 def ensure_registry_container_compatible(

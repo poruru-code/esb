@@ -7,24 +7,19 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from tools.cli import artifact
-from tools.cli.branding_constants_gen import DEFAULT_E2E_FIXTURE_IMAGE_PREFIX
+from tools.cli.branding_constants_gen import DEFAULT_BRAND_SLUG
 from tools.cli.common import append_proxy_build_args, run_command
 from tools.cli.maven_shim import EnsureInput as MavenShimEnsureInput
 from tools.cli.maven_shim import ensure_image as ensure_maven_shim_image
 
 FIXTURE_IMAGE_ENSURE_SCHEMA_VERSION = 1
 DEFAULT_FIXTURE_IMAGE_ROOT = "e2e/fixtures/images/lambda"
-PYTHON_FIXTURE_NAME = f"{DEFAULT_E2E_FIXTURE_IMAGE_PREFIX}-python"
-JAVA_FIXTURE_NAME = f"{DEFAULT_E2E_FIXTURE_IMAGE_PREFIX}-java"
+JAVA_FIXTURE_SUBDIR = "java"
 JAVA_FIXTURE_MAVEN_BASE_IMAGE = (
     "public.ecr.aws/sam/build-java21@sha256:"
     "5f78d6d9124e54e5a7a9941ef179d74d88b7a5b117526ea8574137e5403b51b7"
 )
 
-_LOCAL_FIXTURE_SUBDIRS: dict[str, str] = {
-    PYTHON_FIXTURE_NAME: "python",
-    JAVA_FIXTURE_NAME: "java",
-}
 _DOCKERFILE_FROM_PATTERN = re.compile(r"(?i)^FROM(?:\s+--platform=[^\s]+)?\s+([^\s]+)")
 _JAVA_FIXTURE_MAVEN_ARG_PATTERN = re.compile(r"(?im)^\s*ARG\s+MAVEN_IMAGE(?:\s*=.*)?\s*$")
 _JAVA_FIXTURE_FROM_PATTERN = re.compile(r"(?im)^\s*FROM\s+\$\{?MAVEN_IMAGE\}?\s+AS\s+builder\s*$")
@@ -35,6 +30,7 @@ class FixtureImageEnsureInput:
     artifact_path: str
     no_cache: bool = False
     fixture_root: str = DEFAULT_FIXTURE_IMAGE_ROOT
+    brand_slug: str = DEFAULT_BRAND_SLUG
     env: Mapping[str, str] | None = None
 
 
@@ -49,7 +45,8 @@ def execute_fixture_image_ensure(input_data: FixtureImageEnsureInput) -> Fixture
     if manifest_path == "":
         raise RuntimeError("artifact manifest path is empty")
     manifest = artifact.read_artifact_manifest(manifest_path, validate=True)
-    sources = collect_local_fixture_image_sources(manifest, manifest_path)
+    brand_slug = resolve_brand_slug(input_data.brand_slug)
+    sources = collect_local_fixture_image_sources(manifest, manifest_path, brand_slug=brand_slug)
     if not sources:
         return FixtureImageEnsureResult(
             schema_version=FIXTURE_IMAGE_ENSURE_SCHEMA_VERSION,
@@ -62,17 +59,17 @@ def execute_fixture_image_ensure(input_data: FixtureImageEnsureInput) -> Fixture
     resolved_shim_by_registry: dict[str, str] = {}
 
     for source in sources:
-        fixture_name = fixture_repo_name(source)
-        if fixture_name not in _LOCAL_FIXTURE_SUBDIRS:
+        fixture_subdir = fixture_subdir_for_source(source, brand_slug=brand_slug)
+        if fixture_subdir is None:
             raise RuntimeError(f"unknown local fixture image source: {source}")
-        fixture_dir = fixture_root_abs / _LOCAL_FIXTURE_SUBDIRS[fixture_name]
+        fixture_dir = fixture_root_abs / fixture_subdir
         if not fixture_dir.exists():
             raise RuntimeError(f"local fixture image source not found: {fixture_dir}")
         if not fixture_dir.is_dir():
             raise RuntimeError(f"local fixture image source is not a directory: {fixture_dir}")
 
         build_args: dict[str, str] = {}
-        if fixture_name == JAVA_FIXTURE_NAME:
+        if fixture_subdir == JAVA_FIXTURE_SUBDIR:
             assert_java_fixture_uses_maven_shim_contract(fixture_dir / "Dockerfile")
             registry_host = image_registry_host(source)
             cache_key = f"{JAVA_FIXTURE_MAVEN_BASE_IMAGE}|{registry_host}"
@@ -136,6 +133,8 @@ def buildx_build_command_for_fixture(
 def collect_local_fixture_image_sources(
     manifest: artifact.ArtifactManifest,
     manifest_path: str,
+    *,
+    brand_slug: str = DEFAULT_BRAND_SLUG,
 ) -> list[str]:
     sources: set[str] = set()
     for index in range(len(manifest.artifacts)):
@@ -148,15 +147,39 @@ def collect_local_fixture_image_sources(
                 if not match:
                     continue
                 source = match.group(1).strip()
-                if is_local_fixture_image_source(source):
+                if is_local_fixture_image_source(source, brand_slug=brand_slug):
                     sources.add(source)
     return sorted(sources)
 
 
-def is_local_fixture_image_source(source: str) -> bool:
+def resolve_brand_slug(value: str) -> str:
+    normalized = value.strip()
+    if normalized != "":
+        return normalized
+    return DEFAULT_BRAND_SLUG
+
+
+def fixture_suffix_to_subdir(brand_slug: str) -> dict[str, str]:
+    normalized_slug = resolve_brand_slug(brand_slug)
+    return {
+        f"{normalized_slug}-e2e-image-python": "python",
+        f"{normalized_slug}-e2e-image-java": JAVA_FIXTURE_SUBDIR,
+    }
+
+
+def fixture_subdir_for_source(source: str, *, brand_slug: str = DEFAULT_BRAND_SLUG) -> str | None:
+    repo_name = fixture_repo_name(source)
+    suffix_to_subdir = fixture_suffix_to_subdir(brand_slug)
+    for suffix, subdir in suffix_to_subdir.items():
+        if repo_name.endswith(suffix):
+            return subdir
+    return None
+
+
+def is_local_fixture_image_source(source: str, *, brand_slug: str = DEFAULT_BRAND_SLUG) -> bool:
     if source.strip() == "":
         return False
-    return fixture_repo_name(source) in _LOCAL_FIXTURE_SUBDIRS
+    return fixture_subdir_for_source(source, brand_slug=brand_slug) is not None
 
 
 def fixture_repo_name(source: str) -> str:

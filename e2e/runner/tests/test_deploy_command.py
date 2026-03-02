@@ -15,6 +15,7 @@ from e2e.runner.deploy import deploy_artifacts
 from e2e.runner.logging import LogSink
 from e2e.runner.models import RunContext, Scenario
 from e2e.runner.utils import PROJECT_ROOT
+from tools.cli.branding_constants_gen import DEFAULT_BRAND_SLUG
 from tools.cli.fixture_image import DEFAULT_FIXTURE_IMAGE_ROOT
 
 
@@ -211,6 +212,7 @@ def test_deploy_artifacts_prepares_local_fixture_image_via_module_call(monkeypat
     assert fixture_input.artifact_path == str(manifest.resolve())
     assert fixture_input.no_cache is False
     assert fixture_input.fixture_root == str((PROJECT_ROOT / DEFAULT_FIXTURE_IMAGE_ROOT).resolve())
+    assert fixture_input.brand_slug == DEFAULT_BRAND_SLUG
     assert fixture_input.env["http_proxy"] == "http://proxy.example:8080"
 
 

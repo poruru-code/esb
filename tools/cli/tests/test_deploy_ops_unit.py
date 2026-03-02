@@ -4,15 +4,17 @@ import pytest
 
 from tools.cli import deploy_ops
 
+LAMBDA_PREFIX = f"{deploy_ops.DEFAULT_BRAND_SLUG}-lambda"
+
 
 def test_rewrite_registry_alias_rewrites_known_alias() -> None:
     rewritten, changed = deploy_ops.rewrite_registry_alias(
-        "127.0.0.1:5010/esb-lambda-echo:latest",
+        f"127.0.0.1:5010/{LAMBDA_PREFIX}-echo:latest",
         "registry.example:5000",
         ["127.0.0.1:5010", "registry:5010"],
     )
     assert changed is True
-    assert rewritten == "registry.example:5000/esb-lambda-echo:latest"
+    assert rewritten == f"registry.example:5000/{LAMBDA_PREFIX}-echo:latest"
 
 
 def test_normalize_function_image_ref_for_runtime(monkeypatch) -> None:
@@ -21,10 +23,10 @@ def test_normalize_function_image_ref_for_runtime(monkeypatch) -> None:
     monkeypatch.delenv("REGISTRY", raising=False)
 
     rewritten, changed = deploy_ops.normalize_function_image_ref_for_runtime(
-        "127.0.0.1:5010/esb-lambda-dynamo:e2e"
+        f"127.0.0.1:5010/{LAMBDA_PREFIX}-dynamo:e2e"
     )
     assert changed is True
-    assert rewritten == "registry.example:5000/esb-lambda-dynamo:e2e"
+    assert rewritten == f"registry.example:5000/{LAMBDA_PREFIX}-dynamo:e2e"
 
     untouched, changed_untouched = deploy_ops.normalize_function_image_ref_for_runtime(
         "127.0.0.1:5010/custom-image:e2e"
