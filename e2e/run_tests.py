@@ -3,6 +3,7 @@
 # What: E2E test runner for artifact-based scenarios.
 # Why: Provide a single entry point for scenario setup, execution, and teardown.
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -89,6 +90,26 @@ def requires_ctl(args, env_scenarios: dict[str, object]) -> bool:
     return bool(env_scenarios)
 
 
+def ensure_project_scoped_ctl_wrapper(command_name: str) -> str:
+    wrapper_dir = PROJECT_ROOT / ".e2e" / "bin"
+    wrapper_dir.mkdir(parents=True, exist_ok=True)
+    wrapper_path = wrapper_dir / command_name
+
+    wrapper_content = "\n".join(
+        (
+            "#!/usr/bin/env bash",
+            "set -euo pipefail",
+            f"cd {shlex.quote(str(PROJECT_ROOT))}",
+            f'exec {shlex.quote(sys.executable)} -m tools.cli.cli "$@"',
+            "",
+        )
+    )
+    if not wrapper_path.exists() or wrapper_path.read_text(encoding="utf-8") != wrapper_content:
+        wrapper_path.write_text(wrapper_content, encoding="utf-8")
+    wrapper_path.chmod(0o755)
+    return str(wrapper_path.resolve())
+
+
 def ensure_ctl_available() -> str:
     command_name = DEFAULT_CTL_BIN
 
@@ -125,25 +146,33 @@ def ensure_ctl_available() -> str:
         os.environ[ENV_CTL_BIN_RESOLVED] = resolved_abs
         return resolved_abs
 
-    preferred_local = os.path.expanduser(f"~/.local/bin/{command_name}")
-    if os.path.isfile(preferred_local) and os.access(preferred_local, os.X_OK):
-        resolved_abs = os.path.abspath(preferred_local)
-        _assert_supported(resolved_abs)
-        os.environ[ENV_CTL_BIN_RESOLVED] = resolved_abs
-        return resolved_abs
+    def _resolve_from_path() -> str | None:
+        resolved = shutil.which(command_name)
+        if resolved is None:
+            return None
+        return os.path.abspath(resolved)
 
-    resolved = shutil.which(command_name)
-    if resolved is not None:
-        resolved_abs = os.path.abspath(resolved)
-        _assert_supported(resolved_abs)
-        os.environ[ENV_CTL_BIN_RESOLVED] = resolved_abs
-        return resolved_abs
+    try:
+        resolved_abs = ensure_project_scoped_ctl_wrapper(command_name)
+    except OSError as exc:
+        print(
+            f"[WARN] Failed to create repository-scoped {command_name} wrapper: {exc}. "
+            "Falling back to PATH lookup."
+        )
+        fallback = _resolve_from_path()
+        if fallback is None:
+            print(f"[ERROR] {command_name} binary not found in PATH.")
+            print(f"        Install {command_name} or set {ENV_CTL_BIN} to an executable path.")
+            _print_build_hint()
+            print(
+                f"        Example: {ENV_CTL_BIN}=/path/to/{command_name} uv run e2e/run_tests.py ..."
+            )
+            sys.exit(1)
+        resolved_abs = fallback
 
-    print(f"[ERROR] {command_name} binary not found in PATH.")
-    print(f"        Install {command_name} or set {ENV_CTL_BIN} to an executable path.")
-    print("        In this repository, you can install it via: mise run setup")
-    print(f"        Example: {ENV_CTL_BIN}=/path/to/{command_name} uv run e2e/run_tests.py ...")
-    sys.exit(1)
+    _assert_supported(resolved_abs)
+    os.environ[ENV_CTL_BIN_RESOLVED] = resolved_abs
+    return resolved_abs
 
 
 def main():

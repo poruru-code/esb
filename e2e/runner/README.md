@@ -69,9 +69,9 @@ e2e/run_tests.py
 - `run_parallel` は環境名をキーにした `dict[str, bool]` を返します。
 - `--build-only` と `--test-only` は同時指定できません。
 - `--test-target` は `--profile` が必須で、指定 target のみ実行します。
-- deploy を伴う実行では `esb-ctl` バイナリが PATH 上に必要です（または `CTL_BIN` で明示）。
+- deploy を伴う実行では `.e2e/bin/<ctl>` にリポジトリ専用ラッパーを自動生成して利用します（`CTL_BIN` 指定時はそちらを優先）。ラッパー生成に失敗した場合のみ PATH 上の `<ctl>` へフォールバックします。
 - deploy を伴う実行では `deploy --help` / `provision --help` を実行して最小 command surface を検証し、不足時は即 fail します。
-- 開発環境では `mise run setup` で `esb-ctl` が `~/.local/bin` にインストールされます。
+- 開発環境では `mise run setup` により `~/.local/bin` へも `esb-ctl` がインストールされます（手動運用向け）。
 - `esb-ctl` の詳細な使い方は `tools/cli/README.md` を参照してください。
 - `--with-proxy` 指定時は runner が `proxy.py` を BasicAuth 固定で起動し、`HTTP(S)_PROXY` / `NO_PROXY`/`no_proxy` を注入して実行します。
 - `--with-proxy` では解決済み `NO_PROXY`/`no_proxy` 宛先を proxy 側で拒否するフィルタを有効化します。
