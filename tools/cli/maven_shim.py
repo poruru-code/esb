@@ -9,9 +9,10 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from tools.cli.branding_constants_gen import DEFAULT_MAVEN_SHIM_IMAGE_PREFIX
 from tools.cli.common import append_proxy_build_args, docker_image_exists, run_command
 
-_MAVEN_SHIM_IMAGE_PREFIX = "esb-maven-shim"
+_MAVEN_SHIM_IMAGE_PREFIX = DEFAULT_MAVEN_SHIM_IMAGE_PREFIX
 _MAVEN_SHIM_TAG_SCHEMA = "v2"
 _LOCK_ACQUIRE_TIMEOUT_SECONDS = 120.0
 _LOCK_RETRY_INTERVAL_SECONDS = 0.2
@@ -57,7 +58,7 @@ def derive_shim_image_tag(base_ref: str) -> str:
 
 def _shim_lock_path(shim_ref: str) -> Path:
     digest = hashlib.sha256(shim_ref.encode("utf-8")).hexdigest()[:16]
-    return Path(tempfile.gettempdir()) / f"esb-maven-shim-{digest}.lock"
+    return Path(tempfile.gettempdir()) / f"{_MAVEN_SHIM_IMAGE_PREFIX}-{digest}.lock"
 
 
 def _acquire_lock(lock_path: Path) -> Callable[[], None]:
@@ -102,7 +103,7 @@ def _evict_stale_lock(lock_path: Path) -> None:
 
 
 def _materialize_build_context() -> tuple[Path, Callable[[], None]]:
-    context_dir = Path(tempfile.mkdtemp(prefix="esb-maven-shim-"))
+    context_dir = Path(tempfile.mkdtemp(prefix=f"{_MAVEN_SHIM_IMAGE_PREFIX}-"))
     assets_dir = _assets_dir()
     for name in _ASSET_FILE_NAMES:
         src = assets_dir / name
