@@ -60,6 +60,23 @@ def test_ensure_ctl_available_uses_repo_scoped_wrapper(monkeypatch, tmp_path) ->
     assert os.environ[ENV_CTL_BIN_RESOLVED] == expected
 
 
+def test_ensure_ctl_available_falls_back_to_path_when_wrapper_creation_fails(monkeypatch) -> None:
+    monkeypatch.delenv(ENV_CTL_BIN, raising=False)
+    monkeypatch.setattr(
+        "e2e.run_tests.ensure_project_scoped_ctl_wrapper",
+        lambda _: (_ for _ in ()).throw(OSError("read-only filesystem")),
+    )
+    monkeypatch.setattr(
+        "e2e.run_tests.shutil.which",
+        lambda name: f"/usr/local/bin/{DEFAULT_CTL_BIN}" if name == DEFAULT_CTL_BIN else None,
+    )
+    monkeypatch.setattr("e2e.run_tests.subprocess.run", _probe_ok)
+    resolved = ensure_ctl_available()
+    expected = f"/usr/local/bin/{DEFAULT_CTL_BIN}"
+    assert resolved == expected
+    assert os.environ[ENV_CTL_BIN_RESOLVED] == expected
+
+
 def test_ensure_ctl_available_uses_override(monkeypatch) -> None:
     override = f"/opt/bin/{DEFAULT_CTL_BIN}"
     monkeypatch.setenv(ENV_CTL_BIN, override)

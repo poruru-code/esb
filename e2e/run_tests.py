@@ -146,12 +146,29 @@ def ensure_ctl_available() -> str:
         os.environ[ENV_CTL_BIN_RESOLVED] = resolved_abs
         return resolved_abs
 
+    def _resolve_from_path() -> str | None:
+        resolved = shutil.which(command_name)
+        if resolved is None:
+            return None
+        return os.path.abspath(resolved)
+
     try:
         resolved_abs = ensure_project_scoped_ctl_wrapper(command_name)
     except OSError as exc:
-        print(f"[ERROR] Failed to create repository-scoped {command_name} wrapper: {exc}")
-        _print_build_hint()
-        sys.exit(1)
+        print(
+            f"[WARN] Failed to create repository-scoped {command_name} wrapper: {exc}. "
+            "Falling back to PATH lookup."
+        )
+        fallback = _resolve_from_path()
+        if fallback is None:
+            print(f"[ERROR] {command_name} binary not found in PATH.")
+            print(f"        Install {command_name} or set {ENV_CTL_BIN} to an executable path.")
+            _print_build_hint()
+            print(
+                f"        Example: {ENV_CTL_BIN}=/path/to/{command_name} uv run e2e/run_tests.py ..."
+            )
+            sys.exit(1)
+        resolved_abs = fallback
 
     _assert_supported(resolved_abs)
     os.environ[ENV_CTL_BIN_RESOLVED] = resolved_abs

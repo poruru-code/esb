@@ -69,7 +69,7 @@ e2e/run_tests.py
 - `run_parallel` は環境名をキーにした `dict[str, bool]` を返します。
 - `--build-only` と `--test-only` は同時指定できません。
 - `--test-target` は `--profile` が必須で、指定 target のみ実行します。
-- deploy を伴う実行では `.e2e/bin/<ctl>` にリポジトリ専用ラッパーを自動生成して利用します（`CTL_BIN` 指定時はそちらを優先）。
+- deploy を伴う実行では `.e2e/bin/<ctl>` にリポジトリ専用ラッパーを自動生成して利用します（`CTL_BIN` 指定時はそちらを優先）。ラッパー生成に失敗した場合のみ PATH 上の `<ctl>` へフォールバックします。
 - deploy を伴う実行では `deploy --help` / `provision --help` を実行して最小 command surface を検証し、不足時は即 fail します。
 - 開発環境では `mise run setup` により `~/.local/bin` へも `esb-ctl` がインストールされます（手動運用向け）。
 - `esb-ctl` の詳細な使い方は `tools/cli/README.md` を参照してください。
