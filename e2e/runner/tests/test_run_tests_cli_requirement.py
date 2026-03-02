@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from e2e.run_tests import ensure_ctl_available, requires_ctl
+from e2e.run_tests import ensure_ctl_available, ensure_project_scoped_ctl_wrapper, requires_ctl
 from e2e.runner.ctl_contract import DEFAULT_CTL_BIN, ENV_CTL_BIN, ENV_CTL_BIN_RESOLVED
 
 
@@ -39,32 +39,23 @@ def test_requires_ctl_false_without_scenarios() -> None:
     assert requires_ctl(_args(), {}) is False
 
 
-def test_ensure_ctl_available_prefers_local_bin(monkeypatch, tmp_path) -> None:
-    monkeypatch.delenv(ENV_CTL_BIN, raising=False)
-    monkeypatch.setenv("HOME", str(tmp_path))
-    local_bin = tmp_path / ".local" / "bin" / DEFAULT_CTL_BIN
-    local_bin.parent.mkdir(parents=True)
-    local_bin.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
-    local_bin.chmod(0o755)
-    monkeypatch.setattr(
-        "e2e.run_tests.shutil.which", lambda name: f"/usr/local/bin/{DEFAULT_CTL_BIN}"
-    )
-    monkeypatch.setattr("e2e.run_tests.subprocess.run", _probe_ok)
-    resolved = ensure_ctl_available()
-    expected = str(local_bin.resolve())
-    assert resolved == expected
-    assert os.environ[ENV_CTL_BIN_RESOLVED] == expected
+def test_ensure_project_scoped_ctl_wrapper_creates_wrapper(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr("e2e.run_tests.PROJECT_ROOT", tmp_path)
+    wrapper = ensure_project_scoped_ctl_wrapper(DEFAULT_CTL_BIN)
+    expected = (tmp_path / ".e2e" / "bin" / DEFAULT_CTL_BIN).resolve()
+    assert wrapper == str(expected)
+    assert expected.exists()
+    assert os.access(expected, os.X_OK)
+    content = expected.read_text(encoding="utf-8")
+    assert "tools.cli.cli" in content
 
 
-def test_ensure_ctl_available_uses_path(monkeypatch, tmp_path) -> None:
+def test_ensure_ctl_available_uses_repo_scoped_wrapper(monkeypatch, tmp_path) -> None:
     monkeypatch.delenv(ENV_CTL_BIN, raising=False)
-    monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setattr(
-        "e2e.run_tests.shutil.which", lambda name: f"/usr/local/bin/{DEFAULT_CTL_BIN}"
-    )
+    monkeypatch.setattr("e2e.run_tests.PROJECT_ROOT", tmp_path)
     monkeypatch.setattr("e2e.run_tests.subprocess.run", _probe_ok)
     resolved = ensure_ctl_available()
-    expected = f"/usr/local/bin/{DEFAULT_CTL_BIN}"
+    expected = str((tmp_path / ".e2e" / "bin" / DEFAULT_CTL_BIN).resolve())
     assert resolved == expected
     assert os.environ[ENV_CTL_BIN_RESOLVED] == expected
 
@@ -95,26 +86,15 @@ def test_ensure_ctl_available_normalizes_relative_override(monkeypatch, tmp_path
 
 
 def test_ensure_ctl_available_fails_when_missing(monkeypatch) -> None:
-    monkeypatch.delenv(ENV_CTL_BIN, raising=False)
-    monkeypatch.setenv("HOME", "/tmp/esb-no-local-ctl")
-    monkeypatch.setattr("e2e.run_tests.shutil.which", lambda name: None)
-    with pytest.raises(SystemExit):
-        ensure_ctl_available()
-
-
-def test_ensure_ctl_available_fails_when_override_missing(monkeypatch) -> None:
     monkeypatch.setenv(ENV_CTL_BIN, f"/missing/{DEFAULT_CTL_BIN}")
     monkeypatch.setattr("e2e.run_tests.shutil.which", lambda name: None)
     with pytest.raises(SystemExit):
         ensure_ctl_available()
 
 
-def test_ensure_ctl_available_fails_when_subcommand_contract_missing(monkeypatch) -> None:
+def test_ensure_ctl_available_fails_when_subcommand_contract_missing(monkeypatch, tmp_path) -> None:
     monkeypatch.delenv(ENV_CTL_BIN, raising=False)
-    monkeypatch.setenv("HOME", "/tmp/esb-no-local-ctl")
-    monkeypatch.setattr(
-        "e2e.run_tests.shutil.which", lambda name: f"/usr/local/bin/{DEFAULT_CTL_BIN}"
-    )
+    monkeypatch.setattr("e2e.run_tests.PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(
         "e2e.run_tests.subprocess.run",
         lambda *args, **kwargs: SimpleNamespace(returncode=1, stdout="unknown command: deploy"),
@@ -123,12 +103,11 @@ def test_ensure_ctl_available_fails_when_subcommand_contract_missing(monkeypatch
         ensure_ctl_available()
 
 
-def test_ensure_ctl_available_fails_when_provision_subcommand_missing(monkeypatch) -> None:
+def test_ensure_ctl_available_fails_when_provision_subcommand_missing(
+    monkeypatch, tmp_path
+) -> None:
     monkeypatch.delenv(ENV_CTL_BIN, raising=False)
-    monkeypatch.setenv("HOME", "/tmp/esb-no-local-ctl")
-    monkeypatch.setattr(
-        "e2e.run_tests.shutil.which", lambda name: f"/usr/local/bin/{DEFAULT_CTL_BIN}"
-    )
+    monkeypatch.setattr("e2e.run_tests.PROJECT_ROOT", tmp_path)
 
     def fake_probe(args, **kwargs):
         del kwargs

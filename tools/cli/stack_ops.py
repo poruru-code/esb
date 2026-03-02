@@ -12,7 +12,11 @@ from urllib import request as urlrequest
 
 import yaml
 
-from tools.cli.branding_constants_gen import DEFAULT_CTL_BIN
+from tools.cli.branding_constants_gen import (
+    DEFAULT_CTL_BIN,
+    DEFAULT_REGISTRY_CONTAINER_NAME,
+    DEFAULT_RUNTIME_CONFIG_VOLUME_NAME,
+)
 from tools.cli.common import run_command
 
 
@@ -152,7 +156,7 @@ def execute_stack_deploy(input_data: StackDeployInput) -> None:
             "run",
             "--rm",
             "-v",
-            f"{project_name}_esb-runtime-config:/runtime-config",
+            f"{project_name}_{DEFAULT_RUNTIME_CONFIG_VOLUME_NAME}:/runtime-config",
             "alpine",
             "ls",
             "-1",
@@ -272,7 +276,7 @@ def resolve_registry_container_name(env: dict[str, str]) -> str:
     name = env.get("REGISTRY_CONTAINER_NAME", "").strip()
     if name != "":
         return name
-    return "esb-infra-registry"
+    return DEFAULT_REGISTRY_CONTAINER_NAME
 
 
 def ensure_registry_container_compatible(
