@@ -77,6 +77,7 @@ runtime-hooks/java/**/dependency-reduced-pom.xml
 
 # ESB artifacts
 .esb/
+.e2e/
 generator.yml
 /.*/meta/version.json
 # Staging and fixtures
