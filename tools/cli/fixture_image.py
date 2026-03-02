@@ -159,7 +159,7 @@ def resolve_brand_slug(value: str) -> str:
     return DEFAULT_BRAND_SLUG
 
 
-def fixture_suffix_to_subdir(brand_slug: str) -> dict[str, str]:
+def fixture_repo_to_subdir(brand_slug: str) -> dict[str, str]:
     normalized_slug = resolve_brand_slug(brand_slug)
     return {
         f"{normalized_slug}-e2e-image-python": "python",
@@ -169,11 +169,7 @@ def fixture_suffix_to_subdir(brand_slug: str) -> dict[str, str]:
 
 def fixture_subdir_for_source(source: str, *, brand_slug: str = DEFAULT_BRAND_SLUG) -> str | None:
     repo_name = fixture_repo_name(source)
-    suffix_to_subdir = fixture_suffix_to_subdir(brand_slug)
-    for suffix, subdir in suffix_to_subdir.items():
-        if repo_name.endswith(suffix):
-            return subdir
-    return None
+    return fixture_repo_to_subdir(brand_slug).get(repo_name)
 
 
 def is_local_fixture_image_source(source: str, *, brand_slug: str = DEFAULT_BRAND_SLUG) -> bool:

@@ -57,3 +57,20 @@ def test_execute_fixture_image_ensure_passes_env_to_run_command(
     assert result.prepared_images == ["127.0.0.1:5010/demo-e2e-image-python:latest"]
     assert run_calls[0][1] == {"HTTP_PROXY": "http://proxy.example:8080"}
     assert run_calls[1][1] == {"HTTP_PROXY": "http://proxy.example:8080"}
+
+
+def test_fixture_subdir_for_source_requires_exact_brand_repo_name() -> None:
+    assert (
+        fixture_image.fixture_subdir_for_source(
+            "127.0.0.1:5010/team-esb-e2e-image-python:latest",
+            brand_slug="esb",
+        )
+        is None
+    )
+    assert (
+        fixture_image.fixture_subdir_for_source(
+            "127.0.0.1:5010/esb-e2e-image-python:latest",
+            brand_slug="esb",
+        )
+        == "python"
+    )
